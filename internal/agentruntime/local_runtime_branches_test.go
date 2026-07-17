@@ -63,10 +63,10 @@ func (r *recReporter) lifecycles() []string {
 // fullRuntime wires the deps onExit needs (reporter, clock, OnFatal). fatal reports
 // whether OnFatal fired — the controller-model crash signal (→ process exit → launcher
 // rebuild) that replaced the retired in-process self-heal.
-func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recReporter, fatal *bool) {
+func fullRuntime(t *testing.T) (rt *LocalRuntime, rep *recReporter, fatal *bool) {
 	t.Helper()
 	rep = &recReporter{}
-	st = &SessionState{}
+	st := &SessionState{}
 	f := false
 	fatal = &f
 	cfg := LocalRuntimeConfig{
@@ -76,22 +76,24 @@ func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recRepo
 		Now:      func() time.Time { return time.Unix(1_000_000, 0) },
 		OnFatal:  func(string) { f = true },
 	}
-	return NewLocalRuntime(cfg, st), st, rep, fatal
+	return NewLocalRuntime(cfg, st), rep, fatal
 }
 
 // --- NotifyWork branches ---
 
 func TestNotifyWork_InjectErrorPropagates(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	fs := &fakeSession{}
 	fs.closed = true // Inject → error
-	st.Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "wi-1", Brief: "x"}); err == nil {
 		t.Fatal("inject error must propagate")
 	}
-	if st.HadWork || st.CurrentTaskID != "" {
-		t.Fatalf("failed inject must NOT set work state: hadWork=%v task=%q", st.HadWork, st.CurrentTaskID)
-	}
+	rt.withState(func(s *SessionState) {
+		if s.HadWork || s.CurrentTaskID != "" {
+			t.Errorf("failed inject must NOT set work state: hadWork=%v task=%q", s.HadWork, s.CurrentTaskID)
+		}
+	})
 }
 
 func TestNotifyWork_CreatesTaskDir(t *testing.T) {
@@ -102,7 +104,7 @@ func TestNotifyWork_CreatesTaskDir(t *testing.T) {
 		TaskDirManager: taskexec.NewDirManager(),
 	}, &SessionState{})
 	fs := &fakeSession{}
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "task-7", Brief: "go"}); err != nil {
 		t.Fatalf("NotifyWork: %v", err)
 	}
@@ -118,33 +120,33 @@ func TestNotifyWork_CreatesTaskDir(t *testing.T) {
 // --- NotifyWake / NotifyConverse error branches ---
 
 func TestNotifyWake_NoSessionAndInjectError(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	if err := rt.NotifyWake(context.Background(), WakeRequest{AgentID: "agent-x", MessageID: "m"}); err == nil {
 		t.Fatal("no session must error")
 	}
 	fs := &fakeSession{}
 	fs.closed = true
-	st.Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 	if err := rt.NotifyWake(context.Background(), WakeRequest{AgentID: "agent-x", MessageID: "m", MessageText: "hi"}); err == nil {
 		t.Fatal("inject error must propagate")
 	}
 }
 
 func TestNotifyConverse_NoSessionAndInjectErrorAndDedup(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	if err := rt.NotifyConverse(context.Background(), ConverseRequest{AgentID: "agent-x", MessageID: "m"}); err == nil {
 		t.Fatal("no session must error")
 	}
 	// Inject-error path.
 	fsBad := &fakeSession{}
 	fsBad.closed = true
-	st.Session = fsBad
+	rt.withState(func(s *SessionState) { s.Session = fsBad })
 	if err := rt.NotifyConverse(context.Background(), ConverseRequest{AgentID: "agent-x", ConversationID: "c", MessageID: "m1", MessageText: "hi"}); err == nil {
 		t.Fatal("inject error must propagate")
 	}
 	// Dedup replay: a healthy session, inject once, then replay the SAME id → no-op.
 	fs := &fakeSession{}
-	st.Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 	req := ConverseRequest{AgentID: "agent-x", ConversationID: "c", MessageID: "m2", MessageText: "yo"}
 	if err := rt.NotifyConverse(context.Background(), req); err != nil {
 		t.Fatalf("converse: %v", err)
@@ -160,31 +162,36 @@ func TestNotifyConverse_NoSessionAndInjectErrorAndDedup(t *testing.T) {
 // --- recordWake FIFO eviction ---
 
 func TestRecordWake_FIFOEviction(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	rt.recordWake("first")
 	for i := 0; i < WakeDedupCap; i++ {
 		rt.recordWake("m" + string(rune('a'+i%26)) + strings.Repeat("x", i))
 	}
 	// The set is capped and the oldest ("first") was evicted.
-	if len(st.WakeOrder) != WakeDedupCap {
-		t.Fatalf("WakeOrder len = %d, want cap %d", len(st.WakeOrder), WakeDedupCap)
-	}
-	if _, ok := st.WakeSeen["first"]; ok {
-		t.Fatal("oldest entry must be evicted past the cap")
-	}
+	var before int
+	rt.withState(func(s *SessionState) {
+		if len(s.WakeOrder) != WakeDedupCap {
+			t.Errorf("WakeOrder len = %d, want cap %d", len(s.WakeOrder), WakeDedupCap)
+		}
+		if _, ok := s.WakeSeen["first"]; ok {
+			t.Error("oldest entry must be evicted past the cap")
+		}
+		before = len(s.WakeOrder)
+	})
 	// Empty id is ignored.
-	before := len(st.WakeOrder)
 	rt.recordWake("")
-	if len(st.WakeOrder) != before {
-		t.Fatal("empty message id must be ignored")
-	}
+	rt.withState(func(s *SessionState) {
+		if len(s.WakeOrder) != before {
+			t.Error("empty message id must be ignored")
+		}
+	})
 }
 
 // --- onExit three-state coordination ---
 
 func TestOnExit_DetachingReportsNothing(t *testing.T) {
-	rt, st, rep, fatal := fullRuntime(t)
-	st.Detaching = true
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.Detaching = true })
 	rt.onExit(nil)
 	if len(rep.lifecycles()) != 0 {
 		t.Fatalf("detaching exit must report NOTHING (agent stays desired-running), got %v", rep.lifecycles())
@@ -195,8 +202,8 @@ func TestOnExit_DetachingReportsNothing(t *testing.T) {
 }
 
 func TestOnExit_ExpectedStopReportsNothing(t *testing.T) {
-	rt, st, rep, fatal := fullRuntime(t)
-	st.ExpectedStop = true
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.ExpectedStop = true })
 	rt.onExit(nil)
 	if len(rep.lifecycles()) != 0 {
 		t.Fatalf("expected-stop exit must report NOTHING (stop flow owns it), got %v", rep.lifecycles())
@@ -207,8 +214,8 @@ func TestOnExit_ExpectedStopReportsNothing(t *testing.T) {
 }
 
 func TestOnExit_CodexCrashReportsErrorOnce(t *testing.T) {
-	rt, st, rep, fatal := fullRuntime(t)
-	st.CLI = CLICodex
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
 	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
@@ -224,10 +231,12 @@ func TestOnExit_CodexCrashReportsErrorOnce(t *testing.T) {
 // unexpected crash reports "crashed" once and fires OnFatal (→ the agent-runtime process
 // exits → the worker launcher rebuilds it with bounded backoff). No in-process self-heal.
 func TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal(t *testing.T) {
-	rt, st, rep, fatal := fullRuntime(t)
-	st.HadWork = true
-	st.CurrentTaskID = "wi-9"
-	st.Model = "m-1"
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.HadWork = true
+		s.CurrentTaskID = "wi-9"
+		s.Model = "m-1"
+	})
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
 	if len(got) != 1 || !strings.HasPrefix(got[0], "crashed|") {
@@ -242,24 +251,26 @@ func TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal(t *testing.T) {
 
 func TestSurfaceTurnFailure_Branches(t *testing.T) {
 	// (a) in-flight WorkItem → cleared.
-	rt, st, _, _ := fullRuntime(t)
-	st.CurrentTaskID = "wi-1"
+	rt, _, _ := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.CurrentTaskID = "wi-1" })
 	rt.surfaceTurnFailure("agent-x", claudestream.StreamEvent{Type: "result", IsError: true, Subtype: "boom"})
-	if st.CurrentTaskID != "" {
-		t.Fatalf("failed turn must clear currentTaskID, got %q", st.CurrentTaskID)
+	if got := rt.CurrentTaskID(); got != "" {
+		t.Errorf("failed turn must clear currentTaskID, got %q", got)
 	}
 	// (b) converse context → surfaceConverseFailure posts a system message + clears.
-	rt2, st2, rep2, _ := fullRuntime(t)
-	st2.CurrentConversationID = "c-1"
+	rt2, rep2, _ := fullRuntime(t)
+	rt2.withState(func(s *SessionState) { s.CurrentConversationID = "c-1" })
 	rt2.surfaceTurnFailure("agent-x", claudestream.StreamEvent{Type: "result", IsError: true, Subtype: "bad", Result: "model 404"})
-	if st2.CurrentConversationID != "" {
-		t.Fatal("failed converse turn must clear currentConversationID")
-	}
+	rt2.withState(func(s *SessionState) {
+		if s.CurrentConversationID != "" {
+			t.Error("failed converse turn must clear currentConversationID")
+		}
+	})
 	if len(rep2.converse) != 1 || !strings.Contains(rep2.converse[0], "c-1|bad") {
 		t.Fatalf("must post a converse-error system message, got %v", rep2.converse)
 	}
 	// (c) idle (no work, no conv) → just logged, no report.
-	rt3, _, rep3, _ := fullRuntime(t)
+	rt3, rep3, _ := fullRuntime(t)
 	rt3.surfaceTurnFailure("agent-x", claudestream.StreamEvent{Type: "result", IsError: true})
 	if len(rep3.converse) != 0 {
 		t.Fatal("idle is_error must not post a converse message")
@@ -269,7 +280,7 @@ func TestSurfaceTurnFailure_Branches(t *testing.T) {
 // --- reportRecovered / reportLifecycleOnce ---
 
 func TestReportRecoveredAndLifecycleOnce(t *testing.T) {
-	rt, _, rep, _ := fullRuntime(t)
+	rt, rep, _ := fullRuntime(t)
 	rt.reportRecovered()
 	if got := rep.lifecycles(); len(got) != 1 || got[0] != "running|" {
 		t.Fatalf("reportRecovered must report running, got %v", got)
@@ -286,24 +297,24 @@ func TestReportRecoveredAndLifecycleOnce(t *testing.T) {
 // --- maybeReportUsage branches ---
 
 func TestMaybeReportUsage_Branches(t *testing.T) {
-	rt, st, rep, _ := fullRuntime(t)
+	rt, rep, _ := fullRuntime(t)
 
 	// Empty turn (no tokens) → skipped: NOT reported.
-	st.Model = "m-1"
+	rt.withState(func(s *SessionState) { s.Model = "m-1" })
 	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result"}, "t-1")
 	if got := len(rep.usages()); got != 0 {
 		t.Fatalf("empty turn must not report usage, got %d", got)
 	}
 
 	// Tokens present but no model → skipped: NOT reported.
-	st.Model = ""
+	rt.withState(func(s *SessionState) { s.Model = "" })
 	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 5}, "t-1")
 	if got := len(rep.usages()); got != 0 {
 		t.Fatalf("no-model turn must not report usage, got %d", got)
 	}
 
 	// Model + tokens → reported exactly once with the turn's tokens attributed to the task.
-	st.Model = "m-2"
+	rt.withState(func(s *SessionState) { s.Model = "m-2" })
 	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 10, TokensOut: 3, CacheReadTokens: 2}, "t-2")
 	us := rep.usages()
 	if len(us) != 1 {

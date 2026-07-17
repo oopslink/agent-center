@@ -10,7 +10,7 @@ import (
 // attached (the default single-active agent): every executor method is a safe,
 // non-wedging no-op rather than a wired action, so a non-concurrent agent never forks.
 func TestExecutorSurface_NoEngineNoop(t *testing.T) {
-	rt, _, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	ctx := context.Background()
 
 	// No engine + no ToolCaller → SpawnExecutor logs + returns (nil, nil), never wedges.
@@ -35,11 +35,14 @@ func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 // TestAccessorsAndResumeNudge pins the trivial accessors + the resume-nudge default/
 // override the daemon boot-relaunch path reads.
 func TestAccessorsAndResumeNudge(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 
-	if rt.State() != st {
-		t.Fatal("State() must return the SAME shared SessionState pointer")
-	}
+	// withState is the only door onto the SessionState, and it runs under r.mu.
+	rt.withState(func(s *SessionState) {
+		if s == nil {
+			t.Error("withState must hand fn the runtime's SessionState, got nil")
+		}
+	})
 	if rt.AgentID() != "agent-x" {
 		t.Fatalf("AgentID = %q, want agent-x", rt.AgentID())
 	}
@@ -58,7 +61,7 @@ func TestAccessorsAndResumeNudge(t *testing.T) {
 // session) + Detach (survival: sets Detaching + detaches the session), all under the
 // shared lock.
 func TestIsRunning_AttachDetach(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 
 	if rt.IsRunning() {
 		t.Fatal("IsRunning must be false before a session is installed")
@@ -69,18 +72,22 @@ func TestIsRunning_AttachDetach(t *testing.T) {
 	if !rt.IsRunning() {
 		t.Fatal("IsRunning must be true after Attach")
 	}
-	if st.Session == nil {
-		t.Fatal("Attach must install the session into the shared state")
-	}
+	rt.withState(func(s *SessionState) {
+		if s.Session == nil {
+			t.Error("Attach must install the session into the shared state")
+		}
+	})
 	// The reattach path wires the runtime's own reader-goroutine callbacks.
 	if rt.OnEventCallback() == nil || rt.OnExitCallback() == nil {
 		t.Fatal("Attach callbacks must be non-nil")
 	}
 
 	rt.Detach()
-	if !st.Detaching {
-		t.Fatal("Detach must set Detaching so onExit treats the nil exit as survival, not crash")
-	}
+	rt.withState(func(s *SessionState) {
+		if !s.Detaching {
+			t.Error("Detach must set Detaching so onExit treats the nil exit as survival, not crash")
+		}
+	})
 	if !fs.closed {
 		t.Fatal("Detach must detach the underlying session")
 	}
@@ -89,7 +96,7 @@ func TestIsRunning_AttachDetach(t *testing.T) {
 // TestStopReporting_NoSession pins the no-live-session stop path: it settles the
 // "stopped" lifecycle once and returns nil (no panic on a nil session).
 func TestStopReporting_NoSession(t *testing.T) {
-	rt, _, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	if err := rt.StopReporting(context.Background()); err != nil {
 		t.Fatalf("StopReporting (no session) = %v, want nil", err)
 	}
@@ -98,7 +105,7 @@ func TestStopReporting_NoSession(t *testing.T) {
 // TestTick_NoResumeIsNoop pins Tick's drain path when nothing is scheduled: a no-op
 // that returns nil (the daemon fans this out over every live runtime each OnTick).
 func TestTick_NoResumeIsNoop(t *testing.T) {
-	rt, _, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	if err := rt.Tick(context.Background(), time.Unix(1_000_000, 0)); err != nil {
 		t.Fatalf("Tick (no resume) = %v, want nil", err)
 	}

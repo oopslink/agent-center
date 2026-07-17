@@ -433,25 +433,31 @@ func TestDecideBootSession(t *testing.T) {
 // version but keeps the live session. This is what converges the two trigger paths onto
 // ONE session (no split-brain).
 func TestStart_IdempotentWhenSessionRunning(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
-	st.Session = &fakeSession{} // a session is already live (boot self-start)
-	st.Version = 5
+	rt, _ := newTestRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.Session = &fakeSession{} // a session is already live (boot self-start)
+		s.Version = 5
+	})
 
 	// Stale/duplicate reconcile (version ≤ current) → no-op, no second start, version kept.
 	if err := rt.Start(context.Background(), StartSpec{AgentID: "agent-x", Version: 3}); err != nil {
 		t.Fatalf("Start (running, stale) = %v, want nil", err)
 	}
-	if st.Version != 5 {
-		t.Errorf("a stale reconcile must not lower the running version: got %d, want 5", st.Version)
-	}
+	rt.withState(func(s *SessionState) {
+		if s.Version != 5 {
+			t.Errorf("a stale reconcile must not lower the running version: got %d, want 5", s.Version)
+		}
+	})
 	// Strictly-newer reconcile → still no restart, but version recorded.
 	if err := rt.Start(context.Background(), StartSpec{AgentID: "agent-x", Version: 8}); err != nil {
 		t.Fatalf("Start (running, newer) = %v, want nil", err)
 	}
-	if st.Version != 8 {
-		t.Errorf("a newer reconcile must record the version: got %d, want 8", st.Version)
-	}
-	if st.Session == nil {
-		t.Error("the live session must be preserved (no second start / no teardown)")
-	}
+	rt.withState(func(s *SessionState) {
+		if s.Version != 8 {
+			t.Errorf("a newer reconcile must record the version: got %d, want 8", s.Version)
+		}
+		if s.Session == nil {
+			t.Error("the live session must be preserved (no second start / no teardown)")
+		}
+	})
 }

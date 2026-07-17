@@ -68,7 +68,9 @@ func (r *nopReporter) ReportRuntimeFsResponse(context.Context, runtimefs.Respons
 
 var _ Reporter = (*nopReporter)(nil)
 
-func newTestRuntime(t *testing.T) (*LocalRuntime, *SessionState, *nopReporter) {
+// newTestRuntime returns the runtime WITHOUT its *SessionState: reach the state via
+// rt.withState so the shared-mutex contract holds by construction (docs/rules/testing.md § 6.3).
+func newTestRuntime(t *testing.T) (*LocalRuntime, *nopReporter) {
 	t.Helper()
 	rep := &nopReporter{}
 	st := &SessionState{}
@@ -77,15 +79,15 @@ func newTestRuntime(t *testing.T) (*LocalRuntime, *SessionState, *nopReporter) {
 		Reporter: rep,
 		Log:      func(string, ...any) {},
 	}
-	return NewLocalRuntime(cfg, st), st, rep
+	return NewLocalRuntime(cfg, st), rep
 }
 
 // TestNotifyWork_InjectsAndSetsState pins the wired NotifyWork inject path: with a
 // live session it injects the brief and records the in-flight work.
 func TestNotifyWork_InjectsAndSetsState(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	fs := &fakeSession{}
-	st.Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "wi-1", Brief: "do it"}); err != nil {
 		t.Fatalf("NotifyWork: %v", err)
@@ -93,14 +95,16 @@ func TestNotifyWork_InjectsAndSetsState(t *testing.T) {
 	if msgs := fs.msgs(); len(msgs) != 1 || msgs[0] != "do it" {
 		t.Fatalf("brief not injected: %v", msgs)
 	}
-	if !st.HadWork || st.CurrentTaskID != "wi-1" {
-		t.Fatalf("work state not set: hadWork=%v task=%q", st.HadWork, st.CurrentTaskID)
-	}
+	rt.withState(func(s *SessionState) {
+		if !s.HadWork || s.CurrentTaskID != "wi-1" {
+			t.Errorf("work state not set: hadWork=%v task=%q", s.HadWork, s.CurrentTaskID)
+		}
+	})
 }
 
 // TestNotifyWork_NoSessionRetries pins the delivery-race policy: no live session → error.
 func TestNotifyWork_NoSessionRetries(t *testing.T) {
-	rt, _, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "wi-1"}); err == nil {
 		t.Fatal("expected an error when no running session")
 	}
@@ -108,9 +112,9 @@ func TestNotifyWork_NoSessionRetries(t *testing.T) {
 
 // TestNotifyWake_DedupAndMarkSeen pins wake inject + dedup + mark-seen.
 func TestNotifyWake_DedupAndMarkSeen(t *testing.T) {
-	rt, st, rep := newTestRuntime(t)
+	rt, rep := newTestRuntime(t)
 	fs := &fakeSession{}
-	st.Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 	req := WakeRequest{AgentID: "agent-x", TaskID: "wi-1", ConversationID: "c1", MessageID: "m1", MessageText: "hi"}
 	if err := rt.NotifyWake(context.Background(), req); err != nil {
 		t.Fatalf("NotifyWake: %v", err)
@@ -136,10 +140,12 @@ func TestNotifyWake_DedupAndMarkSeen(t *testing.T) {
 // TestNotifyConverse_InjectsBrief pins converse builds + injects the brief and sets
 // the conversation context (clearing any work context).
 func TestNotifyConverse_InjectsBrief(t *testing.T) {
-	rt, st, _ := newTestRuntime(t)
+	rt, _ := newTestRuntime(t)
 	fs := &fakeSession{}
-	st.Session = fs
-	st.CurrentTaskID = "wi-stale"
+	rt.withState(func(s *SessionState) {
+		s.Session = fs
+		s.CurrentTaskID = "wi-stale"
+	})
 	err := rt.NotifyConverse(context.Background(), ConverseRequest{
 		AgentID: "agent-x", ConversationID: "c1", MessageID: "m1", SenderDisplay: "Ada", MessageText: "hello",
 	})
@@ -149,7 +155,9 @@ func TestNotifyConverse_InjectsBrief(t *testing.T) {
 	if msgs := fs.msgs(); len(msgs) != 1 || msgs[0] == "" {
 		t.Fatalf("converse brief not injected: %v", msgs)
 	}
-	if st.CurrentConversationID != "c1" || st.CurrentTaskID != "" {
-		t.Fatalf("converse context not set / work not cleared: conv=%q task=%q", st.CurrentConversationID, st.CurrentTaskID)
-	}
+	rt.withState(func(s *SessionState) {
+		if s.CurrentConversationID != "c1" || s.CurrentTaskID != "" {
+			t.Errorf("converse context not set / work not cleared: conv=%q task=%q", s.CurrentConversationID, s.CurrentTaskID)
+		}
+	})
 }

@@ -17,6 +17,7 @@
 ## 质量红线
 
 - **所有提交必须通过测试。** 任何 commit 之前必须先运行 `cd web && pnpm test`（前端）或 `go test ./...`（后端），确认 0 failures 后才能 commit。不允许以 "已有失败" 为由跳过。
+- **并发改动必须过 `-race`。** 改到 goroutine / 共享状态时，`go test ./...` 绿**不算数** —— 不带 `-race` 时 data race 永远绿。必须跑 `make test-race`（`-race -count=10`），**直看退出码、不走管道**（管道吞 PIPESTATUS = 假绿）。`-count=1` 绿不算：检出与否取决于时序。见 [测试规约 § 6](docs/rules/testing.md)。
 - **PR 合并前必须全绿。** main 分支上不允许存在失败的测试。如果发现 main 上有失败，优先修复后再开始新功能。
 - **不允许 `--no-verify` 跳过 hooks。** pre-commit / pre-push hooks 存在即必须通过。
 

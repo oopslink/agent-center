@@ -93,8 +93,10 @@ func TestTick_RenewsAllInflightTasks(t *testing.T) {
 	rt.cfg.Reporter = rep
 
 	// Supervisor's current task.
-	rt.State().Session = &fakeSession{}
-	rt.State().CurrentTaskID = "task-super"
+	rt.withState(func(s *SessionState) {
+		s.Session = &fakeSession{}
+		s.CurrentTaskID = "task-super"
+	})
 
 	// Two live executors: one on task-exec, one that ALSO runs task-super (dedup case).
 	if err := rt.AttachExecutorEngine(ExecutorConfig{AgentID: agentID, MaxConcurrentTasks: 3, DefaultExecutorModel: "m"}); err != nil {
@@ -159,8 +161,10 @@ func TestDrainLeaseRenewals_RevokedExecutorFused(t *testing.T) {
 	}
 
 	// Supervisor's current task (revoked, but supervisor-only → must NOT be fused).
-	rt.State().Session = &fakeSession{}
-	rt.State().CurrentTaskID = "task-super"
+	rt.withState(func(s *SessionState) {
+		s.Session = &fakeSession{}
+		s.CurrentTaskID = "task-super"
+	})
 
 	// One live executor on task-exec (revoked → MUST be fused).
 	if err := rt.AttachExecutorEngine(ExecutorConfig{AgentID: agentID, MaxConcurrentTasks: 3, DefaultExecutorModel: "m"}); err != nil {
@@ -186,9 +190,11 @@ func TestDrainLeaseRenewals_SkipsWhenStopping(t *testing.T) {
 	rt := newExecRuntime(t, base, "agent-x", lookTrue(t))
 	rep := &recordingReporter{}
 	rt.cfg.Reporter = rep
-	rt.State().Session = &fakeSession{}
-	rt.State().CurrentTaskID = "task-super"
-	rt.State().ExpectedStop = true // intentional stop → its lease should lapse, not renew
+	rt.withState(func(s *SessionState) {
+		s.Session = &fakeSession{}
+		s.CurrentTaskID = "task-super"
+		s.ExpectedStop = true // intentional stop → its lease should lapse, not renew
+	})
 
 	rt.drainLeaseRenewals(context.Background(), time.Unix(1700000000, 0))
 	if got := rep.count("task-super"); got != 0 {

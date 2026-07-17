@@ -275,12 +275,6 @@ func (r *LocalRuntime) markRecoveredOnce() (first bool) {
 	return true
 }
 
-// StateMu is the per-agent SessionState lock the daemon uses during the transitional
-// decoupling (T839 §4.1 去共享状态). The daemon snapshots the *managedAgent out from
-// under c.mu, then locks this to read/write that agent's ma.state.* fields — the same
-// fields the runtime's own critical sections guard.
-func (r *LocalRuntime) StateMu() *sync.Mutex { return &r.mu }
-
 // WaitBG blocks until this agent's best-effort clean-turn goroutines have drained
 // (Shutdown calls it per-runtime, replacing the old shared c.bg.Wait()).
 func (r *LocalRuntime) WaitBG() { r.bg.Wait() }
@@ -299,9 +293,27 @@ func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime 
 	return r
 }
 
-// State returns the shared SessionState (the daemon's managedAgent points at the
-// SAME instance).
-func (r *LocalRuntime) State() *SessionState { return r.state }
+// withState runs fn with the SessionState held under r.mu. Every SessionState field
+// is guarded by this lock (see session.go), and the runtime hands out goroutines
+// (launchExecutorLocked → drainExecutor → resetRecoveredTask) that write those fields
+// concurrently — so this is the ONLY way to reach them. Deliberately unexported and
+// deliberately closure-shaped: there is no `*SessionState` escape hatch to forget the
+// lock on, because a bare-pointer accessor made the unlocked read the shortest thing
+// to type and it went unnoticed twice (issue-573e81c4, then I105).
+//
+// fn must not call back into a LocalRuntime method that takes r.mu.
+func (r *LocalRuntime) withState(fn func(s *SessionState)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fn(r.state)
+}
+
+// CurrentTaskID returns the last-injected WorkItem's task id under r.mu.
+func (r *LocalRuntime) CurrentTaskID() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.state.CurrentTaskID
+}
 
 // injectSession delivers text to this agent's supervisor session as a turn (option b,
 // issue-68ccb310). Guards r.state under r.mu; a nil session (no supervisor / mid-

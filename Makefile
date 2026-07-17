@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-gofmt lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint smoke vet fmt gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-race test-install cover cover-html lint lint-gofmt lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint smoke vet fmt gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -9,6 +9,7 @@ help:
 	@echo "  build-fakeagent"
 	@echo ""
 	@echo "  test                 — go test ./..."
+	@echo "  test-race            — go test -race -count=10 (data-race gate, docs/rules/testing.md § 6)"
 	@echo "  test-install         — offline shell tests for the source installer (task #92)"
 	@echo "  cover / cover-html   — go test with coverage report"
 	@echo "  vet                  — go vet ./..."
@@ -84,6 +85,17 @@ build-fakeagent:
 
 test:
 	go test ./...
+
+# test-race — the DATA-RACE gate (docs/rules/testing.md § 6). `go test` without
+# -race is blind to unsynchronised access, and whether the detector fires depends
+# on timing — so -count=1 green proves nothing. RACE_COUNT must stay >= 5.
+# RACE_PKGS lists the packages that hand out goroutines; ADD new concurrent
+# packages here, otherwise their races go unwatched exactly as agentruntime's did.
+RACE_COUNT ?= 10
+RACE_PKGS ?= ./internal/agentruntime/...
+
+test-race:
+	go test -race -count=$(RACE_COUNT) $(RACE_PKGS)
 
 # test-install — offline shell-level tests for the source guided installer
 # (task #92, S6): --help, --dry-run no-mutation, token redaction, early

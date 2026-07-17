@@ -58,7 +58,7 @@ func (r *recReporter) hasActivity(eventType string) bool {
 // incompleteTurnRuntime builds a LocalRuntime wired for the onEvent→resume→Tick path
 // with an advanceable clock and a recording reporter (mirrors the daemon harness that
 // T799's controller-level tests used, driven directly against LocalRuntime).
-func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recReporter, *advClock, *fakeSession) {
+func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *recReporter, *advClock, *fakeSession) {
 	t.Helper()
 	rep := &recReporter{}
 	clk := &advClock{t: time.Unix(1_000_000, 0)}
@@ -71,7 +71,7 @@ func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recRepo
 		Log:      func(string, ...any) {},
 		Now:      clk.now,
 	}
-	return NewLocalRuntime(cfg, st), st, rep, clk, fs
+	return NewLocalRuntime(cfg, st), rep, clk, fs
 }
 
 // TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult is the core T799 fix: a
@@ -80,17 +80,21 @@ func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recRepo
 // STILL schedule a bounded resume of the in-flight work — instead of being treated as
 // a clean turn and left silently incomplete.
 func TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult(t *testing.T) {
-	rt, st, rep, clk, fs := incompleteTurnRuntime(t)
-	st.CurrentTaskID = "wi-1" // an in-flight WorkItem
+	rt, rep, clk, fs := incompleteTurnRuntime(t)
+	rt.withState(func(s *SessionState) { s.CurrentTaskID = "wi-1" }) // an in-flight WorkItem
 
 	// The turn prints the connection-drop as ordinary assistant TEXT, then ends the
 	// turn "successfully" (is_error=false) — the shape that escaped IsTransientAPIError.
 	rt.onEvent(claudestream.StreamEvent{Type: "assistant_text", Text: "API Error: Connection closed mid-response. The response above may be incomplete."})
 	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
 
-	rt.StateMu().Lock()
-	gotTask, gotResumeAt, gotRetries, gotFlag := st.CurrentTaskID, st.RateLimitResumeAt, st.APIErrorRetries, st.SawIncompleteTurn
-	rt.StateMu().Unlock()
+	var gotTask string
+	var gotResumeAt time.Time
+	var gotRetries int
+	var gotFlag bool
+	rt.withState(func(s *SessionState) {
+		gotTask, gotResumeAt, gotRetries, gotFlag = s.CurrentTaskID, s.RateLimitResumeAt, s.APIErrorRetries, s.SawIncompleteTurn
+	})
 	if gotTask != "wi-1" {
 		t.Fatalf("incomplete turn must PRESERVE CurrentTaskID for resume, got %q", gotTask)
 	}
@@ -123,16 +127,19 @@ func TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult(t *testing.T) {
 // conversation — a truncated converse turn must resume (re-drive the same turn) instead
 // of only posting a system notice.
 func TestAPIError_IncompleteMarkerResumesConverseTurn(t *testing.T) {
-	rt, st, _, clk, fs := incompleteTurnRuntime(t)
+	rt, _, clk, fs := incompleteTurnRuntime(t)
 	// A converse turn: sets CurrentConversationID, leaves CurrentTaskID empty.
-	st.CurrentConversationID = "conv-1"
+	rt.withState(func(s *SessionState) { s.CurrentConversationID = "conv-1" })
 
 	rt.onEvent(claudestream.StreamEvent{Type: "assistant_text", Text: "…the response above may be incomplete."})
 	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
 
-	rt.StateMu().Lock()
-	gotConv, gotTask, gotResumeAt, gotRetries := st.CurrentConversationID, st.CurrentTaskID, st.RateLimitResumeAt, st.APIErrorRetries
-	rt.StateMu().Unlock()
+	var gotConv, gotTask string
+	var gotResumeAt time.Time
+	var gotRetries int
+	rt.withState(func(s *SessionState) {
+		gotConv, gotTask, gotResumeAt, gotRetries = s.CurrentConversationID, s.CurrentTaskID, s.RateLimitResumeAt, s.APIErrorRetries
+	})
 	if gotTask != "" {
 		t.Fatalf("converse turn must have no WorkItem, got CurrentTaskID=%q", gotTask)
 	}

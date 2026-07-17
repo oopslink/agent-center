@@ -128,7 +128,7 @@ func TestWorkViaExecutor_ForksAndRegistersRouting(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) == 0 || probs[0].TaskRefs[0] != "task-1" {
 		t.Errorf("expected one problem bound to task-1, got %+v", probs)
 	}
-	if got := currentTaskID(rt); got != "t-1" {
+	if got := rt.CurrentTaskID(); got != "t-1" {
 		t.Errorf("currentTaskID = %q, want t-1", got)
 	}
 }
@@ -262,7 +262,7 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) == 0 || probs[0].TaskRefs[0] != "task-9" {
 		t.Fatalf("expected one problem bound to task-9, got %+v", probs)
 	}
-	if got := currentTaskID(rt); got != "task-9" {
+	if got := rt.CurrentTaskID(); got != "task-9" {
 		t.Errorf("currentTaskID = %q, want task-9", got)
 	}
 }
@@ -280,7 +280,7 @@ func TestSpawnExecutor_StartTaskDeclinedSkipsFork(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Errorf("declined admission must NOT fork, got problems %+v", probs)
 	}
-	if got := currentTaskID(rt); got != "" {
+	if got := rt.CurrentTaskID(); got != "" {
 		t.Errorf("currentTaskID = %q, want empty (no fork)", got)
 	}
 }
@@ -320,7 +320,7 @@ func TestSpawnExecutor_SkipsForeignAssignee_Guard(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("foreign task must NOT be forked (② guard): problems=%+v", probs)
 	}
-	if got := currentTaskID(rt); got != "" {
+	if got := rt.CurrentTaskID(); got != "" {
 		t.Errorf("currentTaskID = %q, want empty (foreign task skipped)", got)
 	}
 }
@@ -344,7 +344,7 @@ func TestSpawnExecutor_OwnAssignee_ForksNormally(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("own-assignee task must fork (② guard must NOT false-positive): problems=%+v", probs)
 	}
-	if got := currentTaskID(rt); got != "task-own" {
+	if got := rt.CurrentTaskID(); got != "task-own" {
 		t.Errorf("currentTaskID = %q, want task-own (own task forked)", got)
 	}
 }
@@ -551,7 +551,7 @@ func TestNotifyWork_ExecutorBranchForks(t *testing.T) {
 	}
 	attach(rt, ee)
 	fs := &fakeSession{}
-	rt.State().Session = fs // NotifyWork requires a live session before branching
+	rt.withState(func(s *SessionState) { s.Session = fs }) // NotifyWork requires a live session before branching
 
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-nw", TaskID: "t-1", TaskRef: "task-1", Brief: "do it"}); err != nil {
 		t.Fatalf("NotifyWork: %v", err)
@@ -563,7 +563,7 @@ func TestNotifyWork_ExecutorBranchForks(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) == 0 || probs[0].TaskRefs[0] != "task-1" {
 		t.Fatalf("expected routing bound to task-1, got %+v", probs)
 	}
-	if got := currentTaskID(rt); got != "t-1" {
+	if got := rt.CurrentTaskID(); got != "t-1" {
 		t.Errorf("currentTaskID = %q, want t-1", got)
 	}
 }
