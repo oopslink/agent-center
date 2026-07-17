@@ -190,12 +190,21 @@ func TestBaseRef_NamesAFrozenRef_AheadOfBaseBillsForeignCommits(t *testing.T) {
 	wt := prepare(t, m, rig, "exec-2")
 	ws := wt.WorkspacePath
 
-	// The durable record names a moving ref (true on buggy AND fixed code — the fix moves
-	// where the name POINTS, not the fact that it is a name).
-	if wt.BaseRef != "main" {
-		t.Fatalf("precondition: BaseRef = %q, want the DefaultBranch name %q", wt.BaseRef, "main")
+	// The durable record must name SOME base to measure against. It may be a moving ref
+	// (`main`) or the concrete SHA the worktree was cut from — BOTH are valid shapes and
+	// both are measurable, so assert only that a base EXISTS. Never assert its shape.
+	//
+	// An earlier revision asserted BaseRef == "main" here, on the reasoning that a fix
+	// "moves where the name POINTS, not the fact that it is a name". That was an assumption
+	// about the SHAPE of the fix, and it was wrong: recording the base SHA outright is also
+	// a correct fix (a better one), and against it this precondition Fatal'd before the
+	// verdict below ever ran — i.e. a false red on correct code. That is the same disease
+	// as encoding the bug into the precondition, one level up: a precondition must assert
+	// the SCENARIO (a base exists to measure against), never how the fix chose to spell it.
+	if strings.TrimSpace(wt.BaseRef) == "" {
+		t.Fatalf("precondition: BaseRef is empty — nothing to measure ahead_of_base against")
 	}
-	// NOTE: deliberately NOT asserting that `main` is frozen at A here. That would encode
+	// NOTE: deliberately NOT asserting that the base is frozen at A here. That would encode
 	// the bug into the precondition, making this test pass only on buggy code and fail on
 	// a correct fix — a test that cannot go green judges nothing. The frozen ref is LOGGED
 	// as the diagnosis and the count below is the sole verdict.
