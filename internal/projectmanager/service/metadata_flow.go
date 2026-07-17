@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -13,6 +14,12 @@ import (
 // NO cross-BC effect (it does not change subscribers, assignment, or lifecycle),
 // so these are pure PM-state writes — no outbox event (OQ1: outbox is only for
 // cross-BC effects), mirroring UpdateProject. nil pointer = field unchanged.
+//
+// ONE exception (I109 ①, rejectFrozenDescriptionEdit): a DESCRIPTION edit on a
+// RUNNING task is refused. "No cross-BC effect" is exactly the problem there — the
+// running executor's prompt was rendered from the description at spawn and nothing
+// re-feeds it, so a silent accept changes the text while the run keeps following the
+// old scope. Every other metadata edit, on every other status, stays freely editable.
 //
 // NOTE (deliberate minimal scope): the Task/Issue Conversation name was set from
 // the title at creation by the ParticipantProjector; a later rename here does
@@ -46,6 +53,10 @@ func (s *Service) UpdateTask(ctx context.Context, cmd UpdateTaskCommand) error {
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
+		// I109 ①: a running task's executor prompt is frozen — refuse to pretend otherwise.
+		if err := rejectFrozenDescriptionEdit(txCtx, cmd.TaskID, t.Status(), cmd.Description, cmd.Actor); err != nil {
+			return err
+		}
 		if cmd.Title != nil {
 			if err := t.Rename(*cmd.Title, now); err != nil {
 				return err
@@ -63,6 +74,29 @@ func (s *Service) UpdateTask(ctx context.Context, cmd UpdateTaskCommand) error {
 		}
 		return s.tasks.Update(txCtx, t)
 	})
+}
+
+// rejectFrozenDescriptionEdit is the I109 ① guard: editing a RUNNING task's description
+// is rejected, because the in-flight executor's prompt was rendered from that text at
+// spawn and nothing re-feeds it (see pm.ErrTaskDescriptionFrozen for the full why).
+//
+// It is the SINGLE gate for every description-edit entrypoint (UpdateTask +
+// BatchUpdateTask) so a second edit path cannot re-open the hole behind it. Callers pass
+// the status snapshotted at tx entry — "is an executor in flight NOW", before any patch
+// in the same tx moves the status.
+//
+// desc == nil (no description in the patch) is not an edit and never bites; a
+// title/assignee/tags edit on a running task stays legal (it does not claim to re-scope
+// the run). The rejection is fail-loud on BOTH surfaces — a distinguishable WARN line
+// here and a typed error to the caller — because a guard that only returns is exactly
+// the zero-log skip this bug family is made of.
+func rejectFrozenDescriptionEdit(ctx context.Context, taskID pm.TaskID, status pm.TaskStatus, desc *string, actor pm.IdentityRef) error {
+	if desc == nil || status != pm.TaskRunning {
+		return nil
+	}
+	slog.WarnContext(ctx, "pm: REJECTED description edit on a running task — its executor's prompt froze at spawn and this edit cannot reach it (I109 ①); re-scope via the judge gate or discard and re-dispatch",
+		"task_id", string(taskID), "status", string(status), "actor", string(actor))
+	return pm.ErrTaskDescriptionFrozen
 }
 
 // applyDerivedFromIssue sets (or clears) a task's derived_from_issue under the T192

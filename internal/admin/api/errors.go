@@ -89,6 +89,16 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskParked):
 		writeError(w, http.StatusConflict, "task_parked", err.Error())
 
+	// ---- task_description_frozen (409) — I109 ①: a description edit on a RUNNING task.
+	// The in-flight executor's prompt was rendered from the description at spawn and is
+	// never re-fed, so accepting the write would change what the task SAYS while the
+	// executor keeps working from the old text — the caller would believe it re-scoped a
+	// run it did not. Refused with the reason in the body (NOT a 500: this is a
+	// well-formed request against a state that cannot honor it, and it must not be
+	// retried blindly). Re-scope via the judge gate, or discard + re-dispatch. ----
+	case errors.Is(err, pm.ErrTaskDescriptionFrozen):
+		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
+
 	// ---- lease_still_live (409) — T862 reset_task mis-fire guard: reset_task on a task
 	// whose execution lease has NOT yet lapsed. A live lease means the agent may be alive
 	// and must be NUDGED (续租 + @-owner), never reset. The caller must wait for the lease

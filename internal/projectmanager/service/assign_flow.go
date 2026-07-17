@@ -969,7 +969,8 @@ func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm
 // nil pointer means "leave unchanged"; a non-nil pointer applies the field
 // (v2.8.1 edit-task #278). For Assignee, "" means Unassign. Title/Description
 // are also accepted so the bare task PATCH stays a superset of the prior
-// metadata-only PATCH (single atomic tx for the whole edit).
+// metadata-only PATCH (single atomic tx for the whole edit) — including the
+// I109 ① frozen-description guard, so the two edit paths refuse identically.
 type BatchTaskPatch struct {
 	Status      *string
 	Assignee    *string
@@ -1005,6 +1006,13 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		}
 		prevStatus := t.Status()     // snapshot BEFORE patch.Status applies (if any).
 		prevAssignee := t.Assignee() // snapshot BEFORE patch.Assignee applies (if any).
+		// I109 ①: same frozen-prompt guard as UpdateTask (shared gate). Judged on
+		// prevStatus — "was an executor in flight when this edit arrived" — so a patch
+		// cannot launder a description edit past the guard by moving status in the
+		// same tx.
+		if err := rejectFrozenDescriptionEdit(txCtx, taskID, prevStatus, patch.Description, actor); err != nil {
+			return err
+		}
 		if patch.Title != nil {
 			if err := t.Rename(*patch.Title, now); err != nil {
 				return err

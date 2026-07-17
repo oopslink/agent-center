@@ -131,6 +131,24 @@ var (
 	// or deliberately paused. Recover a parked task through its own door instead — Unblock
 	// (blocked), or Complete/Rework (delivered, the acceptance verdict's two exits).
 	ErrTaskParked = errors.New("projectmanager: task is parked (delivered or blocked) — recover it via unblock / acceptance, not start")
+	// ErrTaskDescriptionFrozen guards the task metadata-edit entrypoints (UpdateTask /
+	// BatchUpdateTask) against editing a RUNNING task's description (I109 ①). A running
+	// task has an executor in flight, and that executor's prompt was rendered from the
+	// description ONCE, at spawn (agentruntime builds the brief then; `claude -p` is a
+	// single-shot, MCP-less process). Nothing re-feeds a later edit to it, so the write
+	// would silently change what the task SAYS while the running executor keeps working
+	// from the frozen text — the editor believes the scope changed; it did not (proved on
+	// T1102: an appended requirement reached the executor 0%).
+	//
+	// So the edit is REJECTED rather than accepted-and-ignored. This is the whole point:
+	// the defect I109 ① names is the COGNITIVE MISMATCH (people think it landed), not a
+	// missing delivery pipe — a silent no-op is the bug, an error is the fix.
+	//
+	// Deliberately narrow — it bites ONLY status==running (an executor is actually in
+	// flight). open / reopened / blocked / delivered edit freely: a not-yet-dispatched or
+	// parked task renders its brief at the NEXT spawn, so the edit genuinely lands.
+	// Re-scope a running task via the judge gate (a narrow delta) or discard + re-dispatch.
+	ErrTaskDescriptionFrozen = errors.New("projectmanager: task is running — its executor's prompt was frozen at spawn, so a description edit cannot reach it (re-scope via the judge gate, or discard and re-dispatch)")
 	// ErrDeliverySummaryRequired guards Task.Deliver: a delivery that says nothing cannot
 	// be judged by the external acceptance it is waiting on, and an unexplained
 	// `delivered` is exactly the un-actionable state I107 ① exists to abolish.

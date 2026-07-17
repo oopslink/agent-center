@@ -55,6 +55,13 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// v2.9 #297: archived project is read-only (irreversible) — every child
 		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
 		writeError(w, http.StatusConflict, "project_archived", err.Error())
+	case errors.Is(err, pm.ErrTaskDescriptionFrozen):
+		// I109 ①: a description edit on a RUNNING task. Its executor's prompt froze at
+		// spawn and is never re-fed, so the write cannot re-scope the run — refused with
+		// the reason in the body rather than accepted-and-ignored (the whole defect is
+		// the editor believing it landed). 409, not the opaque default 500: the request
+		// is well-formed, the task's state just cannot honor it.
+		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
