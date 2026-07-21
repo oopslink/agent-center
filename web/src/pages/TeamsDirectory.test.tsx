@@ -90,6 +90,36 @@ describe('TeamsDirectoryAgents (merged directory + members)', () => {
     expect(within(dirOnly).queryByTestId('agent-select-checkbox')).toBeNull();
   });
 
+  it('does not show a stopped live agent as idle in the runtime column', async () => {
+    server.use(http.get('/api/agents', () => HttpResponse.json({ agents: [liveAgent] })));
+    renderPage(<TeamsDirectoryAgents />);
+    const row = await screen.findByTestId('agent-row-agent-center-pd');
+    expect(within(row).queryByTestId('agent-runtime')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('agents-filter-idle'));
+    await waitFor(() => expect(screen.queryByTestId('agent-row-agent-center-pd')).not.toBeInTheDocument());
+  });
+
+  it('mobile agent cards link to detail and surface runtime load and model', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [{ ...liveAgent, lifecycle: 'running', availability: 'busy', running_tasks: 1, pending_tasks: 3, task_load: 0.25 }],
+        }),
+      ),
+    );
+    renderPage(<TeamsDirectoryAgents />);
+    await screen.findByTestId('agents-table');
+    const card = screen.getAllByTestId('agent-member-card').find((node) => node.textContent?.includes('agent-center-pd'));
+    expect(card).toBeDefined();
+    if (!card) throw new Error('agent-center-pd mobile card not found');
+    expect(within(card).getByTestId('agent-card-link').getAttribute('href')).toContain('/agents/A-pd');
+    expect(within(card).queryByTestId('agent-card-dm')).toBeNull();
+    expect(within(card).getByTestId('agent-card-runtime')).toHaveTextContent('Working');
+    expect(within(card).getByTestId('agent-load-badge')).toHaveTextContent('load: 0.3');
+    expect(within(card).getByTestId('agent-card-model')).toHaveTextContent('opus-4.8');
+  });
+
   it('select-all + a batch action fires the lifecycle mutation over the selected live agents', async () => {
     const started: string[] = [];
     server.use(

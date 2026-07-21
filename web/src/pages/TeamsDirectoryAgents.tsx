@@ -45,12 +45,12 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { MembersSegmentControl } from '@/components/MembersSegmentControl';
-import { useOpenDm } from '@/components/useOpenDm';
 import { Note } from '@/components/teams/kit';
 import { Glyph } from '@/components/teams/teamsUi';
 import { formatLocalTime } from '@/utils/time';
 
 type StatusFilter = 'all' | 'working' | 'idle';
+type RuntimeStatus = 'working' | 'idle' | null;
 
 interface AgentRow {
   key: string; // join key (normalizeIdentityRef, or a synthetic id for standalone agents)
@@ -142,7 +142,8 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
   // Runtime working/idle for the chip + count. Prefer the directory's runtime
   // flag; a live-agent-only row derives it from running+busy so it is not
   // wrongly hidden by a Working/Idle filter.
-  const runtimeStatus = useCallback((r: AgentRow): 'working' | 'idle' => {
+  const runtimeStatus = useCallback((r: AgentRow): RuntimeStatus => {
+    if (r.agent && r.agent.lifecycle !== 'running') return null;
     if (r.dir) return r.dir.status;
     if (r.agent) return r.agent.lifecycle === 'running' && r.agent.availability === 'busy' ? 'working' : 'idle';
     return 'idle';
@@ -162,6 +163,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
   }, [allRows, query, status, team, runtimeStatus]);
 
   const workingCount = allRows.filter((r) => runtimeStatus(r) === 'working').length;
+  const idleCount = allRows.filter((r) => runtimeStatus(r) === 'idle').length;
   const isLoading = dirAgents.isLoading || agents.isLoading || members.isLoading;
   const isError = dirAgents.isError || agents.isError || members.isError;
 
@@ -255,7 +257,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
                 ? t('agents.filter.all', { count: allRows.length })
                 : s === 'working'
                   ? t('agents.filter.working', { count: workingCount })
-                  : t('agents.filter.idle', { count: allRows.length - workingCount })}
+                  : t('agents.filter.idle', { count: idleCount })}
             </FilterChip>
           ))}
           <select
@@ -288,7 +290,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
       {!isLoading && !isError && rows.length > 0 && (
         <ul className="space-y-2 md:hidden" data-testid="agents-cards">
           {rows.map((r) => (
-            <AgentCard key={r.key} row={r} />
+            <AgentCard key={r.key} row={r} runtime={runtimeStatus(r)} />
           ))}
         </ul>
       )}
@@ -296,7 +298,22 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
       {/* Desktop (≥md): the full dual-dimension table. */}
       {!isLoading && !isError && rows.length > 0 && (
         <div className="hidden overflow-x-auto rounded-lg border border-border-base md:block">
-          <table className="w-full min-w-[72rem] text-sm" data-testid="agents-table">
+          <table className="w-full min-w-[88rem] table-fixed text-sm" data-testid="agents-table">
+            <colgroup>
+              <col className="w-12" />
+              <col className="w-72" />
+              <col className="w-28" />
+              <col className="w-32" />
+              <col className="w-20" />
+              <col className="w-24" />
+              <col className="w-28" />
+              <col className="w-28" />
+              <col className="w-28" />
+              <col className="w-24" />
+              <col className="w-36" />
+              <col className="w-28" />
+              <col className="w-16" />
+            </colgroup>
             <thead>
               <tr className="border-b border-border-base text-left text-[0.6875rem] uppercase tracking-wide text-text-muted">
                 {/* T232: select-all — selects every VISIBLE row backed by a live agent. */}
@@ -314,17 +331,17 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.agent')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.runtimeStatus')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.lifecycle')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.orgRole')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.membership')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.teams')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.model')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.load')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.backlog')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.worker')}</th>
-                <th className="px-4 py-3 font-semibold">{t('agents.col.lastActive')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.agent')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.runtimeStatus')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.lifecycle')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.orgRole')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.membership')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.teams')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.model')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.load')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.backlog')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.worker')}</th>
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('agents.col.lastActive')}</th>
                 <th className="px-4 py-3 font-semibold" />
               </tr>
             </thead>
@@ -405,7 +422,7 @@ function AgentTableRow({
   onDelete,
 }: {
   row: AgentRow;
-  runtime: 'working' | 'idle';
+  runtime: RuntimeStatus;
   workerName: (id: string) => string | undefined;
   selected: boolean;
   selectDisabled: boolean;
@@ -423,7 +440,7 @@ function AgentTableRow({
       className={['border-b border-border-base last:border-0 hover:bg-bg-subtle', selected ? 'bg-brand/5' : ''].join(' ')}
     >
       {/* T232: per-row select — only a row backed by a live agent is selectable. */}
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         {onToggleSelect ? (
           <input
             type="checkbox"
@@ -437,7 +454,7 @@ function AgentTableRow({
           />
         ) : null}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         <div className="flex items-center gap-2.5">
           <Glyph text={row.name.replace('agent-center-', '').slice(0, 2).toUpperCase()} size="sm" kind="agent" />
           <div className="min-w-0">
@@ -458,8 +475,8 @@ function AgentTableRow({
         </div>
       </td>
       {/* Runtime working/idle (directory dimension). */}
-      <td className="px-4 py-3">
-        {dir ? (
+      <td className="px-3 py-3">
+        {runtime ? (
           <span className={['inline-flex items-center gap-1.5 font-semibold', runtime === 'working' ? 'text-status-blue-fg' : 'text-success'].join(' ')} data-testid="agent-runtime">
             <span className={['h-1.5 w-1.5 rounded-full', runtime === 'working' ? 'bg-status-blue-solid' : 'bg-success'].join(' ')} aria-hidden="true" />
             {runtime === 'working' ? t('agents.runtime.working') : t('agents.runtime.idle')}
@@ -469,9 +486,9 @@ function AgentTableRow({
         )}
       </td>
       {/* Lifecycle + availability (live-agent dimension). */}
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         {agent ? (
-          <span className="flex flex-wrap items-center gap-1">
+          <span className="inline-flex flex-wrap items-center gap-1 whitespace-nowrap">
             <LifecycleBadge lifecycle={agent.lifecycle} />
             <AvailabilityBadge availability={agent.availability} />
           </span>
@@ -480,16 +497,16 @@ function AgentTableRow({
         )}
       </td>
       {/* Org permission role (member dimension). */}
-      <td className="px-4 py-3 text-xs text-text-secondary" data-testid="agent-role">
+      <td className="px-3 py-3 text-xs text-text-secondary whitespace-nowrap" data-testid="agent-role">
         {member ? tm(`humans.role.${member.role}`, { defaultValue: member.role }) : EM_DASH}
       </td>
       {/* Membership status (member dimension): joined / disabled. */}
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         <MembershipStatus status={member?.status} />
       </td>
-      <td className="px-4 py-3">{dir ? <TeamsCell teams={dir.teams} /> : EM_DASH}</td>
-      <td className="px-4 py-3 font-mono text-xs text-text-muted">{dir?.model || agent?.model || '—'}</td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">{dir ? <TeamsCell teams={dir.teams} /> : EM_DASH}</td>
+      <td className="px-3 py-3 font-mono text-xs text-text-muted whitespace-nowrap">{dir?.model || agent?.model || '—'}</td>
+      <td className="px-3 py-3">
         {dir ? (
           <>
             <span className="relative inline-block h-1.5 w-14 overflow-hidden rounded border border-border-base bg-bg-subtle align-middle">
@@ -503,21 +520,21 @@ function AgentTableRow({
           EM_DASH
         )}
       </td>
-      <td className="px-4 py-3 font-mono text-xs text-text-muted">
+      <td className="px-3 py-3 font-mono text-xs text-text-muted whitespace-nowrap">
         {dir ? dir.backlog : agent ? <AgentBacklogBadge agent={agent} /> : EM_DASH}
       </td>
       {/* Worker "Running on" binding (live-agent dimension). */}
-      <td className="px-4 py-3 text-xs text-text-muted">
+      <td className="px-3 py-3 text-xs text-text-muted">
         {agent?.worker_id ? (
           <EntityRef id={agent.worker_id} name={workerName(agent.worker_id)} fallback={agent.worker_id} testId="agent-worker-ref" />
         ) : (
           '—'
         )}
       </td>
-      <td className="px-4 py-3 font-mono text-xs text-text-muted">
+      <td className="px-3 py-3 font-mono text-xs text-text-muted whitespace-nowrap">
         {dir?.last || (agent?.last_activity_at ? formatLocalTime(agent.last_activity_at) : '—')}
       </td>
-      <td className="px-4 py-3 text-right">
+      <td className="px-3 py-3 text-right">
         {agent && (
           <button
             type="button"
@@ -526,7 +543,7 @@ function AgentTableRow({
             aria-label={tm('agents.list.deleteAgentAria', { name: row.name })}
             title={tm('agents.list.deleteAgentTitle')}
             onClick={() => onDelete(agent.id, row.name)}
-            className="rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+            className="rounded px-2 py-1 text-xs text-text-muted whitespace-nowrap hover:bg-danger/10 hover:text-danger"
           >
             {tm('agents.list.delete')}
           </button>
@@ -536,64 +553,85 @@ function AgentTableRow({
   );
 }
 
-function AgentCard({ row }: { row: AgentRow }): React.ReactElement {
-  const { t } = useTranslation('teams');
-  const { t: tm } = useTranslation('members');
-  const openDm = useOpenDm();
+function AgentCard({ row, runtime }: { row: AgentRow; runtime: RuntimeStatus }): React.ReactElement {
   const teamRole = row.dir?.role || row.member?.role;
+  const cardBody = (
+    <>
+      <Avatar name={row.name} kind="agent" size="md" />
+      <AgentCardBody row={row} subtitle={teamRole} runtime={runtime} />
+    </>
+  );
   return (
-    <li
-      className="flex items-center gap-3 rounded-lg border border-border-base bg-bg-elevated p-2"
-      data-testid="agent-member-card"
-      data-identity={row.identityRef}
-    >
-      <button
-        type="button"
-        onClick={() => openDm.open(row.identityRef)}
-        disabled={openDm.pending}
-        aria-label={tm('agents.members.messageAria', { name: row.name })}
-        data-testid="agent-card-dm"
-        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg disabled:opacity-50"
-      >
-        <Avatar name={row.name} kind="agent" size="md" />
-      </button>
+    <li data-testid="agent-member-card" data-identity={row.identityRef}>
       {row.agentId ? (
         <OrgLink
           to={`/agents/${encodeURIComponent(row.agentId)}`}
-          className="flex min-h-[44px] min-w-0 flex-1 items-center"
+          className="flex items-start gap-3 rounded-lg border border-border-base bg-bg-elevated p-3 hover:border-border-strong hover:bg-bg-subtle"
           data-testid="agent-card-link"
         >
-          <AgentCardBody name={row.name} subtitle={teamRole} lifecycle={row.agent?.lifecycle} />
+          {cardBody}
         </OrgLink>
       ) : (
-        <div className="flex min-h-[44px] min-w-0 flex-1 items-center">
-          <AgentCardBody name={row.name} subtitle={teamRole} lifecycle={row.agent?.lifecycle} />
-        </div>
-      )}
-      {row.dir && (
-        <span className="shrink-0 text-[0.6875rem] font-semibold text-text-muted">
-          {row.dir.status === 'working' ? t('agents.runtime.working') : t('agents.runtime.idle')}
-        </span>
+        <div className="flex items-start gap-3 rounded-lg border border-border-base bg-bg-elevated p-3">{cardBody}</div>
       )}
     </li>
   );
 }
 
 function AgentCardBody({
-  name,
+  row,
   subtitle,
-  lifecycle,
+  runtime,
 }: {
-  name: string;
+  row: AgentRow;
   subtitle?: string;
-  lifecycle?: string;
+  runtime: RuntimeStatus;
 }): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const model = row.dir?.model || row.agent?.model;
+  const load = row.dir ? row.dir.load.toFixed(1) : undefined;
   return (
-    <span className="min-w-0 flex-1">
-      <span className="block truncate text-sm font-medium text-text-primary">{name}</span>
-      {(subtitle || lifecycle) && (
+    <span className="min-w-0 flex-1 space-y-2">
+      <span>
+        <span className="block truncate text-sm font-medium text-text-primary">{row.name}</span>
+        {(subtitle || row.agent?.lifecycle) && (
+          <span className="block truncate text-xs text-text-muted">
+            {[subtitle, row.agent?.lifecycle].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </span>
+      <span className="flex flex-wrap items-center gap-1.5">
+        {runtime && (
+          <span
+            className={[
+              'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[0.6875rem] font-semibold',
+              runtime === 'working' ? 'bg-status-blue-bg text-status-blue-fg' : 'bg-success/10 text-success',
+            ].join(' ')}
+            data-testid="agent-card-runtime"
+          >
+            <span className={['h-1.5 w-1.5 rounded-full', runtime === 'working' ? 'bg-status-blue-solid' : 'bg-success'].join(' ')} aria-hidden="true" />
+            {runtime === 'working' ? t('agents.runtime.working') : t('agents.runtime.idle')}
+          </span>
+        )}
+        {row.agent ? (
+          <AgentLoadBadge agent={row.agent} />
+        ) : load ? (
+          <span
+            className="rounded bg-bg-subtle px-2 py-0.5 font-mono text-[0.6875rem] text-text-secondary"
+            data-testid="agent-card-load"
+          >
+            {t('agents.col.load')} {load}
+          </span>
+        ) : null}
+        {model && (
+          <span className="rounded bg-bg-subtle px-2 py-0.5 font-mono text-[0.6875rem] text-text-secondary" data-testid="agent-card-model">
+            {model}
+          </span>
+        )}
+      </span>
+      {!runtime && !row.agent && !model && (
         <span className="block truncate text-xs text-text-muted">
-          {[subtitle, lifecycle].filter(Boolean).join(' · ')}
+          {t('agents.col.runtimeStatus')} —
         </span>
       )}
     </span>
