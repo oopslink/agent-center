@@ -108,16 +108,17 @@ func startCodexSessionAdapter(ctx context.Context, spec agentruntime.CodexSpec) 
 		env["CODEX_HOME"] = spec.CodexHome
 	}
 	s, err := agentruntime.StartCodexSession(ctx, agentruntime.CodexSessionConfig{
-		AgentID:        spec.AgentID,
-		TasksDir:       spec.TasksDir,
-		Binary:         spec.Binary,
-		Model:          spec.Model,
-		Env:            env,
-		ResumeThreadID: spec.ResumeThreadID, // T972 resume: seed prior thread_id
-		OnThreadID:     spec.OnThreadID,     // T972 early-persist: capture new thread_id
-		Logger:         spec.Logger,
-		OnEvent:        spec.OnEvent,
-		OnExit:         spec.OnExit,
+		AgentID:         spec.AgentID,
+		TasksDir:        spec.TasksDir,
+		Binary:          spec.Binary,
+		Model:           spec.Model,
+		Env:             env,
+		ResumeThreadID:  spec.ResumeThreadID, // T972 resume: seed prior thread_id
+		OnThreadID:      spec.OnThreadID,     // T972 early-persist: capture new thread_id
+		OnStaleThreadID: spec.OnStaleThreadID,
+		Logger:          spec.Logger,
+		OnEvent:         spec.OnEvent,
+		OnExit:          spec.OnExit,
 	})
 	if err != nil {
 		return nil, err

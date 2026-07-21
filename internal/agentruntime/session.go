@@ -66,9 +66,12 @@ type CodexSpec struct {
 	// OnThreadID persists the thread_id the FIRST turn mints (thread.started) so a later
 	// relaunch can resume it (early-persist, wired to sessioninstance.MarkSessionID).
 	OnThreadID func(threadID string)
-	OnEvent    func(ev claudestream.StreamEvent)
-	OnExit     func(err error)
-	Logger     func(msg string)
+	// OnStaleThreadID clears a previously persisted thread_id after Codex reports that
+	// the local rollout no longer exists, allowing the current turn to retry fresh.
+	OnStaleThreadID func(threadID string)
+	OnEvent         func(ev claudestream.StreamEvent)
+	OnExit          func(err error)
+	Logger          func(msg string)
 }
 
 // SupervisorSessionConfig configures a claude supervisor session start. Moved from

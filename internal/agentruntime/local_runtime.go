@@ -801,6 +801,11 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 				r.log("codex agent=%s: persist thread_id failed: %v (resume unavailable on next restart)", agentID, merr)
 			}
 		},
+		OnStaleThreadID: func(tid string) {
+			if merr := sessioninstance.ClearSessionID(home); merr != nil {
+				r.log("codex agent=%s: clear stale thread_id=%s failed: %v", agentID, tid, merr)
+			}
+		},
 		Logger:  r.rawLogger(),
 		OnEvent: func(ev claudestream.StreamEvent) { r.onEvent(ev) },
 		OnExit:  func(exitErr error) { r.onExit(exitErr) },

@@ -163,6 +163,25 @@ func MarkSessionID(home, sessionID string) error {
 	return writeInstanceAtomic(home, st)
 }
 
+// ClearSessionID removes a stale runtime-minted session id from the current
+// instance while preserving the live lease metadata. This is intentionally separate
+// from MarkSessionID because MarkSessionID("") is a defensive no-op for normal
+// capture paths.
+func ClearSessionID(home string) error {
+	if home == "" {
+		return errors.New("sessioninstance: home required")
+	}
+	st, err := ReadInstance(home)
+	if err != nil {
+		return err
+	}
+	if st.SessionID == "" {
+		return nil
+	}
+	st.SessionID = ""
+	return writeInstanceAtomic(home, st)
+}
+
 // writeInstanceAtomic persists st to <home>/session.instance via a temp file +
 // rename so a crash mid-write never leaves a torn/partial file. The home
 // directory is created if missing (0700).

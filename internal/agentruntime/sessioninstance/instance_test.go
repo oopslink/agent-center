@@ -317,6 +317,36 @@ func TestMarkSessionID_SetsPreservesAndGuards(t *testing.T) {
 	}
 }
 
+func TestClearSessionID_ClearsPreservesAndIsIdempotent(t *testing.T) {
+	home := t.TempDir()
+	if _, err := AcquireInstance(home, "th_stale", 100); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("mark turn: %v", err)
+	}
+	before, err := ReadInstance(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearSessionID(home); err != nil {
+		t.Fatalf("ClearSessionID: %v", err)
+	}
+	after, err := ReadInstance(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.SessionID != "" {
+		t.Fatalf("SessionID = %q, want cleared", after.SessionID)
+	}
+	if after.Generation != before.Generation || after.PID != before.PID || after.CompletedTurn != before.CompletedTurn {
+		t.Fatalf("ClearSessionID clobbered the lease: before=%+v after=%+v", before, after)
+	}
+	if err := ClearSessionID(home); err != nil {
+		t.Fatalf("second ClearSessionID should be idempotent: %v", err)
+	}
+}
+
 func TestMarkCompletedTurn_SetsAndPersists(t *testing.T) {
 	home := t.TempDir()
 	if _, err := AcquireInstance(home, "sess-1", 100); err != nil {

@@ -457,6 +457,75 @@ func TestCodexSession_ResumeThreadID_SeedsResume(t *testing.T) {
 	<-h.exited
 }
 
+func TestCodexSession_StaleResumeClearsAndRetriesFresh(t *testing.T) {
+	var cleared []string
+	var persisted []string
+	lr := &fakeCodexLauncher{
+		turns: [][]string{
+			nil,
+			{
+				`{"type":"thread.started","thread_id":"th_fresh"}`,
+				`{"type":"item.completed","item":{"id":"m","type":"agent_message","text":"recovered"}}`,
+				`{"type":"turn.completed","usage":{"input_tokens":3,"output_tokens":1}}`,
+			},
+		},
+		waitErrs: []error{
+			errors.New("exit status 1: Error: thread/resume: thread/resume failed: no rollout found for thread id th_stale (code -32600)"),
+			nil,
+		},
+	}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID:        "a",
+		Launcher:       lr,
+		OnEvent:        h.onEvent,
+		OnExit:         h.onExit,
+		ResumeThreadID: "th_stale",
+		OnThreadID: func(tid string) {
+			persisted = append(persisted, tid)
+		},
+		OnStaleThreadID: func(tid string) {
+			cleared = append(cleared, tid)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "continue"); err != nil {
+		t.Fatal(err)
+	}
+	r := h.waitResult(t)
+	if r.IsError {
+		t.Fatalf("stale resume should retry fresh and finish successfully, got %+v", r)
+	}
+	if got := lr.specAt(0).ThreadID; got != "th_stale" {
+		t.Fatalf("first attempt thread id = %q, want stale resume", got)
+	}
+	if got := lr.specAt(1); got.ThreadID != "" || got.Prompt != "continue" {
+		t.Fatalf("retry should be fresh with same prompt, got %+v", got)
+	}
+	if !slices.Equal(cleared, []string{"th_stale"}) {
+		t.Fatalf("cleared = %v, want [th_stale]", cleared)
+	}
+	if !slices.Equal(persisted, []string{"th_fresh"}) {
+		t.Fatalf("fresh retry thread id should persist, got %v", persisted)
+	}
+	if s.ThreadID() != "th_fresh" {
+		t.Fatalf("thread id after retry = %q, want th_fresh", s.ThreadID())
+	}
+	var texts []string
+	for _, ev := range h.snapshot() {
+		if ev.Type == "assistant_text" {
+			texts = append(texts, ev.Text)
+		}
+	}
+	if !slices.Equal(texts, []string{"recovered"}) {
+		t.Fatalf("assistant texts after retry: %v", texts)
+	}
+	_ = s.Stop(context.Background())
+	<-h.exited
+}
+
 // T977: a PERMANENT auth error (401 / missing bearer) is TERMINAL (fast-fail), not a
 // transient reconnect blip — the fix for the codex-supervisor-401 retry amplifier.
 func TestMapCodexLine_PermanentAuthError_Terminal(t *testing.T) {

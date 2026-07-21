@@ -27,6 +27,7 @@ package agentruntime
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -120,7 +121,8 @@ func (execCodexLauncher) Launch(ctx context.Context, spec codexLaunchSpec) (code
 	// "Reading additional input from stdin...". Leaving Stdin nil connects the
 	// child to /dev/null → immediate EOF, so it proceeds with the argv prompt.
 	cmd.Stdin = nil
-	cmd.Stderr = os.Stderr
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	// Own process group so a ctx-cancel kill reaches the whole tree.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Graceful cancel: SIGTERM the group, then SIGKILL after the wait delay.
@@ -139,16 +141,27 @@ func (execCodexLauncher) Launch(ctx context.Context, spec codexLaunchSpec) (code
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("codex_session: start %s: %w", argv[0], err)
 	}
-	return &execCodexProc{cmd: cmd, stdout: stdout}, nil
+	return &execCodexProc{cmd: cmd, stdout: stdout, stderr: &stderr}, nil
 }
 
 type execCodexProc struct {
 	cmd    *exec.Cmd
 	stdout io.ReadCloser
+	stderr *bytes.Buffer
 }
 
 func (p *execCodexProc) Stdout() io.Reader { return p.stdout }
-func (p *execCodexProc) Wait() error       { return p.cmd.Wait() }
+func (p *execCodexProc) Wait() error {
+	err := p.cmd.Wait()
+	if err == nil || p.stderr == nil {
+		return err
+	}
+	msg := strings.TrimSpace(p.stderr.String())
+	if msg == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, msg)
+}
 
 // ---------------------------------------------------------------------------
 // codex JSONL → claudestream.StreamEvent mapping.
@@ -168,6 +181,18 @@ func isPermanentCodexError(msg string) bool {
 		}
 	}
 	return false
+}
+
+// isStaleCodexResumeError reports the Codex CLI's durable signal that a persisted
+// thread_id no longer has a local rollout to resume. This is recoverable: clear the
+// stale thread id and retry the same user turn as a fresh `codex exec`.
+func isStaleCodexResumeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := strings.ToLower(err.Error())
+	return strings.Contains(m, "no rollout found for thread id") ||
+		(strings.Contains(m, "thread/resume") && strings.Contains(m, "no rollout"))
 }
 
 // ⚠️ KEEP IN SYNC with ParseCodexRunnerStream (agentruntime/executor/codex_usage.go):
@@ -392,6 +417,10 @@ type CodexSessionConfig struct {
 	// first event) is the ONLY point to persist — there is no completion to capture at.
 	// nil → not persisted (no resume; a fresh session on restart, logged fail-loud).
 	OnThreadID func(threadID string)
+	// OnStaleThreadID is invoked when a seeded/resumed thread id fails with Codex's
+	// "no rollout found" error. The starter wires it to clear the durable
+	// session.instance SessionID before the session retries the same turn fresh.
+	OnStaleThreadID func(threadID string)
 	// Logger receives one-line ops messages. nil → discard.
 	Logger func(msg string)
 	// InjectBuffer bounds the pending-inject queue (0 → 64).
@@ -407,14 +436,14 @@ type CodexSession struct {
 	cancel   context.CancelFunc
 	injectCh chan string
 
-	mu       sync.Mutex
-	closed   bool
-	threadID string
+	mu                sync.Mutex
+	closed            bool
+	threadID          string
+	threadIDPersisted bool
 
-	stopOnce     sync.Once
-	exitOnce     sync.Once
-	threadIDOnce sync.Once
-	done         chan struct{}
+	stopOnce sync.Once
+	exitOnce sync.Once
+	done     chan struct{}
 }
 
 // compile-time: CodexSession satisfies the controller's Session contract,
@@ -450,10 +479,8 @@ func StartCodexSession(ctx context.Context, cfg CodexSessionConfig) (*CodexSessi
 		// T972 resume: seed the thread_id from a prior generation so the FIRST turn is
 		// `codex exec resume <id>` (buildCodexArgv reads s.threadID). It is already
 		// captured/persisted → don't re-fire OnThreadID for a seeded id (consume it).
-		threadID: cfg.ResumeThreadID,
-	}
-	if cfg.ResumeThreadID != "" {
-		s.threadIDOnce.Do(func() {}) // seeded id is already persisted; skip re-persist
+		threadID:          cfg.ResumeThreadID,
+		threadIDPersisted: cfg.ResumeThreadID != "",
 	}
 	go s.runLoop(loopCtx)
 	return s, nil
@@ -488,6 +515,10 @@ func (s *CodexSession) runLoop(ctx context.Context) {
 // (a synthetic error result is emitted so the controller never sits silently);
 // only a spawn failure returns a non-nil (fatal) error.
 func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
+	return s.runTurnAttempt(ctx, msg, false)
+}
+
+func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResumeRetried bool) error {
 	s.mu.Lock()
 	thread := s.threadID
 	s.mu.Unlock()
@@ -527,9 +558,7 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 			// codex thread_id — persist it NOW (via OnThreadID) so a boot-reconcile
 			// relaunch can `codex exec resume <thread_id>`. A long-lived supervisor never
 			// "completes" a turn to capture at, so first-event is the only capture point.
-			if s.cfg.OnThreadID != nil {
-				s.threadIDOnce.Do(func() { s.cfg.OnThreadID(tid) })
-			}
+			s.persistThreadID(tid)
 		}
 		for _, ev := range events {
 			switch {
@@ -547,6 +576,10 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 	waitErr := proc.Wait()
 
 	if !sawResult {
+		if ctx.Err() == nil && thread != "" && !staleResumeRetried && isStaleCodexResumeError(waitErr) {
+			s.clearStaleThreadID(thread, waitErr)
+			return s.runTurnAttempt(ctx, msg, true)
+		}
 		// No terminal result line (crash / killed). Synthesize a failed result so
 		// the controller fails the in-flight work item (no silent failure). When
 		// the turn was cancelled (Stop/Detach), skip — runLoop ends the session.
@@ -560,6 +593,31 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 		}
 	}
 	return nil
+}
+
+func (s *CodexSession) persistThreadID(tid string) {
+	s.mu.Lock()
+	shouldPersist := !s.threadIDPersisted
+	if shouldPersist {
+		s.threadIDPersisted = true
+	}
+	s.mu.Unlock()
+	if shouldPersist && s.cfg.OnThreadID != nil {
+		s.cfg.OnThreadID(tid)
+	}
+}
+
+func (s *CodexSession) clearStaleThreadID(threadID string, cause error) {
+	s.mu.Lock()
+	if s.threadID == threadID {
+		s.threadID = ""
+		s.threadIDPersisted = false
+	}
+	s.mu.Unlock()
+	s.cfg.Logger(fmt.Sprintf("[worker] codex_session: stale resume thread_id=%s: %v — clearing and retrying turn fresh", threadID, cause))
+	if s.cfg.OnStaleThreadID != nil {
+		s.cfg.OnStaleThreadID(threadID)
+	}
 }
 
 // fireExit invokes OnExit exactly once, marks the session closed, then closes
