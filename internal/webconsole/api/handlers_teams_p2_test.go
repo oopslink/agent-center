@@ -49,6 +49,32 @@ func decodeArray(t *testing.T, resp *http.Response) []any {
 
 var implRole = []team.RoleConfig{{Role: "impl", CLI: "claude-code", Model: "claude-opus-4-8", CapabilityTags: []string{"go"}, MaxConcurrency: 2}}
 
+func TestCreateTeam_AllowsNoRoleForEmptyTeam(t *testing.T) {
+	deps, _, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	resp := orgScopedPost(t, ts.URL+"/api/teams", `{"name":"Empty Squad","description":"start blank","visibility":"org-private","roles":[{"role":"","cli":"claude-code","model":"sonnet-5","max_concurrency":1,"count":1,"tags":""}]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		body := decodeBody(t, resp)
+		t.Fatalf("create empty team = %d (%v), want 201", resp.StatusCode, body)
+	}
+	body := decodeBody(t, resp)
+	if body["name"] != "Empty Squad" {
+		t.Fatalf("name = %v, want Empty Squad", body["name"])
+	}
+	roles, ok := body["roles"].([]any)
+	if !ok {
+		t.Fatalf("roles = %T %v, want array", body["roles"], body["roles"])
+	}
+	if len(roles) != 0 {
+		t.Fatalf("blank role rows must be ignored for empty teams, got roles=%v", roles)
+	}
+	if body["status"] != "draft" {
+		t.Fatalf("status = %v, want draft", body["status"])
+	}
+}
+
 // --- auth gate ---------------------------------------------------------------
 
 // TestTeamFacade_AuthGate locks that every new endpoint requires a valid session

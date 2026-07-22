@@ -31,7 +31,7 @@ export function NewTeamModal({
     : hasDuplicateRole
       ? t('newTeamModal.errRoleNameDuplicate')
       : '';
-  const canSubmit = name.trim().length > 0 && roles.length > 0 && !roleValidationError && !create.isPending;
+  const canSubmit = name.trim().length > 0 && !roleValidationError && !create.isPending;
 
   const submit = async () => {
     if (!canSubmit) return;
