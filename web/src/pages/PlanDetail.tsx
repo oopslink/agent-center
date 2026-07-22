@@ -292,10 +292,7 @@ export default function PlanDetail(): React.ReactElement {
             }
           >
             {tab === 'dag' && (
-              <>
-                <PlanStagesPanel projectId={id} plan={p} />
-                <PlanDag projectId={id} plan={p} compact={dagCompact} />
-              </>
+              <PlanDag projectId={id} plan={p} compact={dagCompact} />
             )}
           </div>
           <div
@@ -2238,6 +2235,77 @@ export function layoutStagedGraph(
   return { positioned, boxes, width: canvasWidth, height };
 }
 
+export function layoutLegacyStagedDag(nodes: PlanNode[], stages: PlanStage[]): ReturnType<typeof layoutDag> & { boxes: StageBox[] } {
+  if (stages.length === 0) {
+    return { ...layoutDag(nodes), boxes: [] };
+  }
+
+  const graphNodes: PlanGraphNode[] = nodes.map((node) => ({
+    id: node.task_id,
+    category: 'business',
+    title: node.title,
+    status: 'open',
+    task_id: node.task_id,
+    task_status: node.task_status,
+    org_ref: node.org_ref,
+    assignee_ref: node.assignee_ref,
+  }));
+  const graphEdges: PlanGraphEdge[] = [];
+  const nodeIds = new Set(nodes.map((node) => node.task_id));
+  const dependedOn = new Set<string>();
+  for (const node of nodes) {
+    for (const dep of node.depends_on) {
+      if (!nodeIds.has(dep)) continue;
+      graphEdges.push({ from: dep, to: node.task_id, kind: 'seq' });
+      dependedOn.add(dep);
+    }
+  }
+
+  const startId = '__legacy_stage_start__';
+  const endId = '__legacy_stage_end__';
+  graphNodes.push(
+    { id: startId, category: 'control', control_kind: 'start', title: 'Start', status: 'open' },
+    { id: endId, category: 'control', control_kind: 'end', title: 'End', status: 'open' },
+  );
+  const roots = nodes.filter((node) => !node.depends_on.some((dep) => nodeIds.has(dep)));
+  const leaves = nodes.filter((node) => !dependedOn.has(node.task_id));
+  for (const root of roots) graphEdges.push({ from: startId, to: root.task_id, kind: 'seq' });
+  for (const leaf of leaves) graphEdges.push({ from: leaf.task_id, to: endId, kind: 'seq' });
+
+  const staged = layoutStagedGraph(graphNodes, graphEdges, stages);
+  const planNodeById = new Map(nodes.map((node) => [node.task_id, node]));
+  const positioned: Positioned[] = staged.positioned.flatMap((entry) => {
+    const node = planNodeById.get(entry.node.id);
+    return node ? [{ node, level: entry.level, x: entry.x, y: entry.y }] : [];
+  });
+  const positionById = new Map(staged.positioned.map((entry) => [entry.node.id, entry]));
+  const startPosition = positionById.get(startId);
+  const endPosition = positionById.get(endId);
+  const planPositionById = new Map(positioned.map((entry) => [entry.node.task_id, entry]));
+  const start = startPosition
+    ? {
+        cx: startPosition.x + startPosition.w / 2,
+        cy: startPosition.y + NODE_H / 2,
+        links: roots.flatMap((node) => {
+          const entry = planPositionById.get(node.task_id);
+          return entry ? [{ taskId: node.task_id, x: entry.x + NODE_W / 2, y: entry.y }] : [];
+        }),
+      }
+    : null;
+  const end = endPosition
+    ? {
+        cx: endPosition.x + endPosition.w / 2,
+        cy: endPosition.y + NODE_H / 2,
+        links: leaves.flatMap((node) => {
+          const entry = planPositionById.get(node.task_id);
+          return entry ? [{ taskId: node.task_id, x: entry.x + NODE_W / 2, y: entry.y + NODE_H }] : [];
+        }),
+      }
+    : null;
+
+  return { positioned, boxes: staged.boxes, width: staged.width, height: staged.height, start, end };
+}
+
 // Per-kind edge stroke class + dash. seq = neutral, conditional = accent (routed
 // by a decision), loopback = amber dashed return arc.
 const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
@@ -2560,67 +2628,6 @@ function stageMemberDone(status: PlanStage['members'][number]['task_status']): b
   return status === 'completed' || status === 'discarded';
 }
 
-// PlanStagesPanel renders the §7 stage-level monitoring: a "Stage {done}/{total} ·
-// {status}" summary plus one row per stage (name + status chip + member sub-DAG
-// progress {done}/{total} + retry-round indicator when a gate reject has reopened it).
-//
-// NON-BREAKING (§8): a plan with NO stages (the common case) fetches an empty list and
-// this renders null, so the DAG tab is byte-identical to before. Loading/error also
-// render null (the DAG below is the primary content; stages are an additive overlay).
-function PlanStagesPanel({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement | null {
-  const { t } = useTranslation('work');
-  const stagesQuery = usePlanStages(projectId, plan.id);
-  const stages = stagesQuery.data;
-  if (!stages || stages.length === 0) {
-    return null; // no-stage plan → legacy view unchanged
-  }
-  const doneStages = stages.filter((s) => s.status === 'done').length;
-  return (
-    <div
-      data-testid="plan-stages-panel"
-      className="mb-3 shrink-0 rounded-lg border border-border-subtle bg-bg-surface p-3"
-    >
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
-        <span data-testid="plan-stages-summary">
-          {t('plan.detail.stages.summary', { done: doneStages, total: stages.length })}
-        </span>
-      </div>
-      <ul className="space-y-1.5">
-        {stages.map((stage) => {
-          const totalMembers = stage.members.length;
-          const doneMembers = stage.members.filter((m) => stageMemberDone(m.task_status)).length;
-          return (
-            <li
-              key={stage.id}
-              data-testid={`plan-stage-${stage.id}`}
-              className="flex flex-wrap items-center gap-2 text-sm"
-            >
-              <span className="font-medium text-text-primary">{stage.name}</span>
-              <span
-                data-testid={`plan-stage-status-${stage.id}`}
-                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[0.6875rem] font-medium ${STAGE_STATUS_CLASS[stage.status]}`}
-              >
-                {t(`plan.detail.stages.status.${stage.status}`)}
-              </span>
-              <span className="text-text-secondary" data-testid={`plan-stage-progress-${stage.id}`}>
-                {t('plan.detail.stages.memberProgress', { done: doneMembers, total: totalMembers })}
-              </span>
-              {stage.rounds > 0 && (
-                <span
-                  className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.6875rem] text-warning"
-                  data-testid={`plan-stage-rounds-${stage.id}`}
-                >
-                  {t('plan.detail.stages.retryRound', { round: stage.rounds, max: stage.max_rounds })}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 // v2.30.1 fix-before-ship (React #300): PlanDag is a THIN WRAPPER — it runs the
 // single graph query, then renders EITHER <PlanGraphDag/> OR <LegacyPlanDag/> as
 // a sibling. The previous shape early-returned <PlanGraphDag/> from BETWEEN the
@@ -2665,6 +2672,9 @@ function LegacyPlanDag({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
+  const stagesQuery = usePlanStages(projectId, plan.id);
+  const stages = stagesQuery.data ?? [];
+  const stageDisplay = useMemo(() => stageDisplayMeta(stages), [stages]);
   const isDraft = plan.status === 'draft';
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
   // / wide plan fits in view without endless horizontal scrolling. CSS transform
@@ -2734,7 +2744,10 @@ function LegacyPlanDag({
 
   const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
 
-  const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
+  const { positioned, boxes, width, height, start, end } = useMemo(
+    () => layoutLegacyStagedDag(nodes, stages),
+    [nodes, stages],
+  );
   const posById = useMemo(
     () => new Map(positioned.map((p) => [p.node.task_id, p])),
     [positioned],
@@ -2871,6 +2884,46 @@ function LegacyPlanDag({
               transformOrigin: 'top left',
             }}
           >
+            {boxes.map((box) => {
+              const totalMembers = box.stage.members.length;
+              const doneMembers = box.stage.members.filter((member) => stageMemberDone(member.task_status)).length;
+              const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
+              const display = stageDisplay.byStageId.get(box.stage.id) ?? { ref: box.stage.id, name: box.stage.name };
+              return (
+                <div
+                  key={box.stage.id}
+                  className="absolute rounded-xl border border-border-strong bg-bg-surface"
+                  style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+                  data-testid={`plan-stage-box-${box.stage.id}`}
+                >
+                  <div className="border-b border-border-base px-3.5 py-2">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${box.stage.id}`}>
+                        {t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}
+                      </span>
+                      <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${box.stage.id}`}>
+                        {display.name}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2.5">
+                      <span data-testid={`plan-stage-status-${box.stage.id}`} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[box.stage.status]}`}>
+                        <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
+                        {t(`plan.detail.stages.status.${box.stage.status}`)}
+                      </span>
+                      <span className="h-1 max-w-[7rem] flex-1 overflow-hidden rounded-full bg-bg-subtle" aria-hidden="true">
+                        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+                      </span>
+                      <span className="font-mono text-[0.5625rem] text-text-muted" data-testid={`plan-stage-progress-${box.stage.id}`}>{doneMembers}/{totalMembers}</span>
+                      {box.stage.rounds > 0 && (
+                        <span className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.625rem] text-warning" data-testid={`plan-stage-rounds-${box.stage.id}`}>
+                          {t('plan.detail.stages.retryRound', { round: box.stage.rounds, max: box.stage.max_rounds })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
             {/* Edges (z-0, behind nodes). */}
             <svg
               className="absolute left-0 top-0"

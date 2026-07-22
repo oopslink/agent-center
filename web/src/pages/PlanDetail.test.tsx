@@ -1958,10 +1958,9 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(dag).not.toHaveAttribute('data-graph', 'true');
   });
 
-  // T981 (plan-stage-model §7): the DAG tab shows a stage-level panel above the DAG —
-  // "Stage {done}/{total}" summary + per-stage status chip + member sub-DAG progress +
-  // a retry-round badge when a gate reject has reopened the stage.
-  it('DAG tab renders the stage-level panel: summary + per-stage status/progress/retry', async () => {
+  // T981 (plan-stage-model §7): even has_graph:false plans render their stages
+  // inside the DAG canvas, matching the mockup rather than a detached summary list.
+  it('legacy DAG groups tasks into stage boxes with status/progress/retry', async () => {
     mockPlan();
     server.use(
       http.get('/api/projects/proj-a/plans/PL-1/stages', () =>
@@ -1991,18 +1990,19 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-dag'));
 
-    const panel = await screen.findByTestId('plan-stages-panel');
-    expect(panel).toBeInTheDocument();
-    // Summary: 1 of 2 stages done.
-    expect(screen.getByTestId('plan-stages-summary')).toHaveTextContent('Stage 1/2');
+    expect(await screen.findByTestId('plan-stage-box-st-a')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-box-st-b')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-stages-panel')).not.toBeInTheDocument();
     // Stage A: done, 2/2 members done, no retry badge.
-    expect(within(screen.getByTestId('plan-stage-st-a')).getByTestId('plan-stage-status-st-a')).toHaveTextContent('done');
+    expect(screen.getByTestId('plan-stage-status-st-a')).toHaveTextContent('done');
     expect(screen.getByTestId('plan-stage-progress-st-a')).toHaveTextContent('2/2');
     expect(screen.queryByTestId('plan-stage-rounds-st-a')).not.toBeInTheDocument();
     // Stage B: reopen, 0/2 members done, retry round 1/3 badge present.
     expect(screen.getByTestId('plan-stage-status-st-b')).toHaveTextContent('reopen');
     expect(screen.getByTestId('plan-stage-progress-st-b')).toHaveTextContent('0/2');
     expect(screen.getByTestId('plan-stage-rounds-st-b')).toHaveTextContent('1/3');
+    expect(screen.getByTestId('plan-stage-ref-st-a')).toHaveTextContent('STAGE · S1');
+    expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
   });
 
   // §8 zero-regression: a plan with NO stages renders NO stage panel — the DAG tab is
@@ -2017,6 +2017,6 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
       await new Promise((r) => setTimeout(r, 40));
     });
     expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
-    expect(screen.queryByTestId('plan-stages-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId(/plan-stage-box-/)).not.toBeInTheDocument();
   });
 });
