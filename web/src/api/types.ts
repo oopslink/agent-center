@@ -289,6 +289,8 @@ export interface Agent {
   // T728 (issue-0619f315): per-agent switch to inject the description into the
   // system prompt. Default true — absent ⇒ true (inject). Applies on next restart.
   include_description_in_system_prompt?: boolean;
+  // Per-agent opt-in for isolated git worktrees used by forked executors.
+  executor_git_worktree?: boolean;
 }
 
 // v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,

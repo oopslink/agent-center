@@ -252,6 +252,12 @@
         "enabled": "Concurrency ENABLED — up to {{count}} tasks in parallel.",
         "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel."
       },
+      "gitWorktree": {
+        "heading": "Executor workspace",
+        "ariaLabel": "Enable isolated Git worktrees for executors",
+        "label": "Isolated Git worktrees",
+        "description": "Create a separate Git worktree for every executor forked by this agent. Applies after the agent restarts."
+      },
       "autoAssign": {
         "heading": "Auto-assignment",
         "ariaLabel": "Auto-assignable",
@@ -443,7 +449,8 @@
         "mode": "Mode",
         "provider": "Provider",
         "autoAssign": "Auto-assign",
-        "maxConcurrent": "Max concurrent"
+        "maxConcurrent": "Max concurrent",
+        "gitWorktree": "Git worktree"
       },
       "concurrencyEnabled": "concurrency · cap {{cap}}",
       "concurrencySingle": "single-active · cap 1",

@@ -121,6 +121,11 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                 value={(agent.auto_assignable ?? true) ? t('agents.profile.valueOn') : t('agents.profile.valueOff')}
                 testId="agent-profile-tag-auto-assignable"
               />
+              <ConfigTag
+                label={t('agents.profile.tag.gitWorktree')}
+                value={(agent.executor_git_worktree ?? false) ? t('agents.profile.valueOn') : t('agents.profile.valueOff')}
+                testId="agent-profile-tag-git-worktree"
+              />
             </div>
 
             {/* v2.18.1 (issue-8746a5b9): executor concurrency, read-only. */}

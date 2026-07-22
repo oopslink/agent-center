@@ -85,6 +85,7 @@ type agentLifecycleEvtPayload struct {
 	AllowedModels        []string          `json:"allowed_models,omitempty"`
 	AllowedExecutors     json.RawMessage   `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough (opaque here)
 	JudgeEnabled         bool              `json:"judge_enabled,omitempty"`     // T950 ②: per-agent judge opt-in passthrough
+	ExecutorGitWorktree  bool              `json:"executor_git_worktree,omitempty"`
 	EnvVars              map[string]string `json:"env_vars,omitempty"`
 	// T728: the already-gated description text to inject into the system prompt,
 	// passthrough like DisplayName (empty ⇒ no injection).
@@ -116,6 +117,7 @@ type reconcileCommandPayload struct {
 	AllowedModels        []string          `json:"allowed_models,omitempty"`
 	AllowedExecutors     json.RawMessage   `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough
 	JudgeEnabled         bool              `json:"judge_enabled,omitempty"`     // T950 ②: per-agent judge opt-in passthrough
+	ExecutorGitWorktree  bool              `json:"executor_git_worktree,omitempty"`
 	EnvVars              map[string]string `json:"env_vars,omitempty"`
 	// T728: the already-gated description to inject into the system prompt, passthrough
 	// to the daemon session config → supervisor --prompt-description (empty ⇒ none).
@@ -159,6 +161,7 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 		AllowedModels:        pl.AllowedModels,
 		AllowedExecutors:     pl.AllowedExecutors, // BE-1 passthrough (opaque [{cli,model}])
 		JudgeEnabled:         pl.JudgeEnabled,     // T950 ②: per-agent judge opt-in passthrough
+		ExecutorGitWorktree:  pl.ExecutorGitWorktree,
 		EnvVars:              pl.EnvVars,
 		PromptDescription:    pl.PromptDescription, // T728 passthrough — inject-text for the system prompt
 		Version:              pl.Version,

@@ -36,12 +36,12 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider,
 			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars,
-			capability_tags, auto_assignable, include_description_in_system_prompt, judge_enabled, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			capability_tags, auto_assignable, include_description_in_system_prompt, judge_enabled, executor_git_worktree, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors,
-		env, tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), boolToInt(p.JudgeEnabled), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
+		env, tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), boolToInt(p.JudgeEnabled), boolToInt(p.ExecutorGitWorktree), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
@@ -60,11 +60,11 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?,
 			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?,
-			capability_tags=?, auto_assignable=?, include_description_in_system_prompt=?, judge_enabled=?, lifecycle=?, lifecycle_error=?, updated_at=?, last_lifecycle_transition_at=?, version=? WHERE id=?`,
+			capability_tags=?, auto_assignable=?, include_description_in_system_prompt=?, judge_enabled=?, executor_git_worktree=?, lifecycle=?, lifecycle_error=?, updated_at=?, last_lifecycle_transition_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env,
-		tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), boolToInt(p.JudgeEnabled), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version(), string(a.ID()))
+		tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), boolToInt(p.JudgeEnabled), boolToInt(p.ExecutorGitWorktree), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider,
 	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars,
-	capability_tags, auto_assignable, include_description_in_system_prompt, judge_enabled, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version FROM agents`
+	capability_tags, auto_assignable, include_description_in_system_prompt, judge_enabled, executor_git_worktree, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
@@ -248,11 +248,12 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		autoAssignable                                                      sql.NullInt64
 		includeDescInPrompt                                                 sql.NullInt64
 		judgeEnabled                                                        sql.NullInt64
+		executorGitWorktree                                                 sql.NullInt64
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider,
 		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON,
-		&tagsJSON, &autoAssignable, &includeDescInPrompt, &judgeEnabled, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &lastLifecycleTransitionAt, &version); err != nil {
+		&tagsJSON, &autoAssignable, &includeDescInPrompt, &judgeEnabled, &executorGitWorktree, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &lastLifecycleTransitionAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
@@ -288,7 +289,8 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 			// T728: NOT NULL DEFAULT 1; a defensive NULL reads as "inject" (feature default ON).
 			IncludeDescriptionInSystemPrompt: !includeDescInPrompt.Valid || includeDescInPrompt.Int64 != 0,
 			// T950 ②: NOT NULL DEFAULT 0 (opt-IN); NULL/0 → false (judge OFF, byte-identical).
-			JudgeEnabled: judgeEnabled.Valid && judgeEnabled.Int64 != 0,
+			JudgeEnabled:        judgeEnabled.Valid && judgeEnabled.Int64 != 0,
+			ExecutorGitWorktree: executorGitWorktree.Valid && executorGitWorktree.Int64 != 0,
 		},
 		CapabilityTags: tags, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,

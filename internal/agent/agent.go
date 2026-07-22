@@ -185,6 +185,9 @@ type Profile struct {
 	// → ExecutorConfig.JudgeEnabled). Defaults to false for a hand-built Profile
 	// (opt-in, unlike AutoAssignable), so no create-boundary default is needed.
 	JudgeEnabled bool
+	// ExecutorGitWorktree enables isolated git worktrees for this agent's forked
+	// executors. It is opt-in and applied when the agent-runtime process starts.
+	ExecutorGitWorktree bool
 	// AllowedExecutors is the AUTHORITATIVE executor-candidate list (v2.18.1 BE-1,
 	// issue-8746a5b9): each entry is a {cli, model} profile, because an executor need
 	// not share the orchestrator's CLI (e.g. a claude-code supervisor dispatching a

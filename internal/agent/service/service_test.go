@@ -676,3 +676,28 @@ func TestJudgeEnabled_ServiceRoundTrip(t *testing.T) {
 		t.Fatal("update false → want judge_enabled=false")
 	}
 }
+
+func TestExecutorGitWorktree_ServicePreserveAndOverride(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	ctx := context.Background()
+	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "worktree", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{CLI: "claude-code", ExecutorGitWorktree: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.svc.GetAgent(ctx, id); !got.Profile().ExecutorGitWorktree {
+		t.Fatal("explicit true was not persisted")
+	}
+	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{CLI: "claude-code"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.svc.GetAgent(ctx, id); !got.Profile().ExecutorGitWorktree {
+		t.Fatal("omitted field did not preserve true")
+	}
+}

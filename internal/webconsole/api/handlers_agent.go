@@ -140,8 +140,9 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		// T728: per-agent inject-description-into-system-prompt flag (true = inject); FE回显.
 		"include_description_in_system_prompt": p.IncludeDescriptionInSystemPrompt,
 		// T950 ②: per-agent LLM-judge opt-in (true = ON); default OFF. FE回显.
-		"judge_enabled": p.JudgeEnabled,
-		"env_vars":      envVars, "capability_tags": tags, "worker_id": a.WorkerID(),
+		"judge_enabled":         p.JudgeEnabled,
+		"executor_git_worktree": p.ExecutorGitWorktree,
+		"env_vars":              envVars, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -642,7 +643,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		// T728: per-agent inject-description-into-system-prompt switch. nil (omitted) → preserve.
 		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
 		// T950 ②: per-agent LLM-judge opt-in. nil (field omitted) → preserve.
-		JudgeEnabled *bool `json:"judge_enabled"`
+		JudgeEnabled        *bool `json:"judge_enabled"`
+		ExecutorGitWorktree *bool `json:"executor_git_worktree"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -662,6 +664,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Description:                      req.Description,
 		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve
+		ExecutorGitWorktree:              req.ExecutorGitWorktree,
 	})
 	if err != nil {
 		mapAgentError(w, err)

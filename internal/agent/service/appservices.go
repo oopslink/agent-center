@@ -215,6 +215,9 @@ type UpdateAgentConfigCommand struct {
 	// preserve the existing value (a config edit that omits the field must not silently
 	// flip it), same rule as AutoAssignable.
 	JudgeEnabled *bool
+	// ExecutorGitWorktree opts this agent into isolated executor git worktrees.
+	// nil preserves the existing value; changes apply on agent restart.
+	ExecutorGitWorktree *bool
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -302,6 +305,9 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		// T950 ②: same preserve-unless-sent rule (nil → keep current judge opt-in).
 		if cmd.JudgeEnabled != nil {
 			p.JudgeEnabled = *cmd.JudgeEnabled
+		}
+		if cmd.ExecutorGitWorktree != nil {
+			p.ExecutorGitWorktree = *cmd.ExecutorGitWorktree
 		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err

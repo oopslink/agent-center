@@ -202,6 +202,26 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(patchBody).toMatchObject({ auto_assignable: false });
   });
 
+  it('executor git worktree defaults OFF and PATCHes only this agent ON', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap(base);
+    const toggle = screen.getByTestId('agent-config-executor-git-worktree');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({ executor_git_worktree: true });
+  });
+
   it('T728: include-description toggle defaults ON and PATCHes false when turned off', async () => {
     let patchBody: Record<string, unknown> | undefined;
     server.use(

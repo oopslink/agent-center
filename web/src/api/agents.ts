@@ -117,6 +117,8 @@ export interface UpdateAgentConfigInput {
   // T728 (issue-0619f315): inject the description into the system prompt (default
   // true). Optional so a config edit that omits it preserves the server value.
   include_description_in_system_prompt?: boolean;
+  // Per-agent executor workspace isolation. Applies after the agent restarts.
+  executor_git_worktree?: boolean;
 }
 
 export function useUpdateAgentConfig(id: string) {

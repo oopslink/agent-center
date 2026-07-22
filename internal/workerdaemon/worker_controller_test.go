@@ -56,6 +56,21 @@ func newTestHandler(t *testing.T) (controllerHandler, *stubLauncher) {
 	return h, l
 }
 
+func TestAgentRuntimeSpec_IsPerAgent(t *testing.T) {
+	off := agentRuntimeSpec("off", false)
+	on := agentRuntimeSpec("on", true)
+	if len(off.Env) != 0 {
+		t.Fatalf("off env = %v, want empty", off.Env)
+	}
+	if len(on.Env) != 1 || on.Env[0] != "AC_EXECUTOR_GIT_WORKTREE=1" {
+		t.Fatalf("on env = %v", on.Env)
+	}
+	base := withoutEnv([]string{"PATH=/bin", "AC_EXECUTOR_GIT_WORKTREE=1"}, "AC_EXECUTOR_GIT_WORKTREE")
+	if len(base) != 1 || base[0] != "PATH=/bin" {
+		t.Fatalf("filtered base env = %v", base)
+	}
+}
+
 func newTestHandlerWithReporter(t *testing.T, r lifecycleReporter) (controllerHandler, *stubLauncher, lifecycleReporter) {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "acwh")

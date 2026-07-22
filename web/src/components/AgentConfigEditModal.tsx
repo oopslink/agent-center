@@ -62,6 +62,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
 
   // T566 (issue-577a7b0e): per-agent auto-assign opt-out (default true).
   const [autoAssignable, setAutoAssignable] = useState(agent.auto_assignable ?? true);
+  const [executorGitWorktree, setExecutorGitWorktree] = useState(
+    agent.executor_git_worktree ?? false,
+  );
 
   // T728 (issue-0619f315): inject the agent's description into its system prompt
   // (default true). Echoes the persisted value so editing shows the current state.
@@ -101,6 +104,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         max_concurrent_tasks: maxConcurrent,
         allowed_executors: executors,
         auto_assignable: autoAssignable,
+        executor_git_worktree: executorGitWorktree,
         description: description.trim(),
         include_description_in_system_prompt: includeDescription,
       });
@@ -370,6 +374,26 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 ? t('agentRuntime.configModal.concurrency.enabled', { count: maxConcurrent })
                 : t('agentRuntime.configModal.concurrency.disabled')}
             </p>
+          </div>
+
+          <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-git-worktree-section">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              {t('agentRuntime.configModal.gitWorktree.heading')}
+            </h3>
+            <div className="flex items-start gap-2.5">
+              <ToggleSwitch
+                checked={executorGitWorktree}
+                onChange={setExecutorGitWorktree}
+                ariaLabel={t('agentRuntime.configModal.gitWorktree.ariaLabel')}
+                testId="agent-config-executor-git-worktree"
+              />
+              <span className="text-xs">
+                <span className="font-medium text-text-primary">{t('agentRuntime.configModal.gitWorktree.label')}</span>
+                <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+                  {t('agentRuntime.configModal.gitWorktree.description')}
+                </span>
+              </span>
+            </div>
           </div>
 
           {/* T566 (issue-577a7b0e): per-agent auto-assign opt-out. */}

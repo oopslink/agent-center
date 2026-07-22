@@ -69,8 +69,9 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		return h.handleRuntimeFs(ctx, []byte(cmd.Payload))
 	}
 	var idp struct {
-		AgentID          string `json:"agent_id"`
-		DesiredLifecycle string `json:"desired_lifecycle"`
+		AgentID             string `json:"agent_id"`
+		DesiredLifecycle    string `json:"desired_lifecycle"`
+		ExecutorGitWorktree bool   `json:"executor_git_worktree"`
 	}
 	_ = json.Unmarshal([]byte(cmd.Payload), &idp)
 	agentID := strings.TrimSpace(idp.AgentID)
@@ -97,6 +98,11 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 			}
 		}
 		return nil
+	}
+	if cmd.CommandType == cmdTypeAgentReconcile {
+		if err := h.ctrl.EnsureAgentSpec(agentRuntimeSpec(agentID, idp.ExecutorGitWorktree)); err != nil {
+			return err
+		}
 	}
 	// A reconcile to a desired-running agent and all work/wake/converse commands
 	// (reconcile-running, work, wake, converse, work_available) is proxied to the
@@ -207,7 +213,10 @@ func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint strin
 	if s := strings.TrimSpace(fingerprint); s != "" {
 		baseArgs = append(baseArgs, "--server-fingerprint", s)
 	}
-	starter, err := agentlauncher.NewExecStarter(agentlauncher.ExecStarterConfig{BaseArgs: baseArgs})
+	starter, err := agentlauncher.NewExecStarter(agentlauncher.ExecStarterConfig{
+		BaseArgs: baseArgs,
+		BaseEnv:  withoutEnv(os.Environ(), "AC_EXECUTOR_GIT_WORKTREE"),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -268,15 +277,34 @@ func reconcileControllerFromResumeState(ctx context.Context, ctrl *workercontrol
 		logf(fmt.Sprintf("controller: resume-state at boot: %v (agents will start lazily on first command)", err))
 		return
 	}
-	var desired []string
+	var desired []agentlauncher.AgentSpec
 	for _, ra := range state.Agents {
 		if strings.EqualFold(strings.TrimSpace(ra.DesiredLifecycle), "running") {
-			desired = append(desired, ra.AgentID)
+			desired = append(desired, agentRuntimeSpec(ra.AgentID, ra.ExecutorGitWorktree))
 		}
 	}
 	// T860 gap5: adopt-aware boot reconcile — re-adopt agent processes that survived a
 	// prior worker incarnation (verified live via pid pre-filter + control-socket
 	// identity probe) instead of double-spawning them.
-	ctrl.ReconcileWithAdoption(ctx, desired)
+	ctrl.ReconcileWithAdoptionSpecs(ctx, desired)
 	logf(fmt.Sprintf("controller: reconciled %d desired-running agent(s) at boot", len(desired)))
+}
+
+func agentRuntimeSpec(agentID string, gitWorktree bool) agentlauncher.AgentSpec {
+	spec := agentlauncher.AgentSpec{AgentID: agentID}
+	if gitWorktree {
+		spec.Env = []string{"AC_EXECUTOR_GIT_WORKTREE=1"}
+	}
+	return spec
+}
+
+func withoutEnv(env []string, key string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env))
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			out = append(out, entry)
+		}
+	}
+	return out
 }

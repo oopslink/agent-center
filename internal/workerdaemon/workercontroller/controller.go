@@ -115,13 +115,23 @@ func (c *Controller) clientFor(agentID string) controlClient {
 // Best-effort per agent (one failure is logged, the rest proceed) so a single bad
 // agent does not wedge the whole worker.
 func (c *Controller) Reconcile(desired []string) {
-	want := make(map[string]struct{}, len(desired))
+	specs := make([]agentlauncher.AgentSpec, 0, len(desired))
 	for _, id := range desired {
+		specs = append(specs, agentlauncher.AgentSpec{AgentID: id})
+	}
+	c.ReconcileSpecs(specs)
+}
+
+// ReconcileSpecs is Reconcile with per-agent launch configuration.
+func (c *Controller) ReconcileSpecs(desired []agentlauncher.AgentSpec) {
+	want := make(map[string]struct{}, len(desired))
+	for _, spec := range desired {
+		id := spec.AgentID
 		if id == "" {
 			continue
 		}
 		want[id] = struct{}{}
-		if err := c.launcher.Ensure(agentlauncher.AgentSpec{AgentID: id}); err != nil {
+		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
 		}
 	}
@@ -146,17 +156,27 @@ func (c *Controller) Reconcile(desired []string) {
 // hold is the survivor adopted; otherwise the agent is spawned fresh. Undesired
 // launched agents are stopped (same as Reconcile).
 func (c *Controller) ReconcileWithAdoption(ctx context.Context, desired []string) {
+	specs := make([]agentlauncher.AgentSpec, 0, len(desired))
+	for _, id := range desired {
+		specs = append(specs, agentlauncher.AgentSpec{AgentID: id})
+	}
+	c.ReconcileWithAdoptionSpecs(ctx, specs)
+}
+
+// ReconcileWithAdoptionSpecs is the boot reconcile with per-agent launch config.
+func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []agentlauncher.AgentSpec) {
 	recorded := c.launcher.AdoptablePIDs()
 	want := make(map[string]struct{}, len(desired))
-	for _, id := range desired {
+	for _, spec := range desired {
+		id := spec.AgentID
 		if id == "" {
 			continue
 		}
 		want[id] = struct{}{}
-		if pid, ok := recorded[id]; ok && c.tryAdopt(ctx, id, pid) {
+		if pid, ok := recorded[id]; ok && c.tryAdopt(ctx, spec, pid) {
 			continue // survivor re-adopted — no respawn
 		}
-		if err := c.launcher.Ensure(agentlauncher.AgentSpec{AgentID: id}); err != nil {
+		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
 		}
 	}
@@ -175,7 +195,8 @@ func (c *Controller) ReconcileWithAdoption(ctx context.Context, desired []string
 // tryAdopt confirms a recorded pid is a live survivor of `agentID` and adopts it. It
 // returns false (→ caller respawns) when the pid is dead, the socket does not answer,
 // the answer names a different agent, or Adopt fails.
-func (c *Controller) tryAdopt(ctx context.Context, agentID string, pid int) bool {
+func (c *Controller) tryAdopt(ctx context.Context, spec agentlauncher.AgentSpec, pid int) bool {
+	agentID := spec.AgentID
 	if !agentlauncher.PIDAlive(pid) {
 		return false // fast pre-filter: pid gone
 	}
@@ -188,7 +209,7 @@ func (c *Controller) tryAdopt(ctx context.Context, agentID string, pid int) bool
 		c.log("workercontroller: adopt probe agent=%s pid=%d served %q (respawning)", agentID, pid, got)
 		return false
 	}
-	if err := c.launcher.Adopt(agentlauncher.AgentSpec{AgentID: agentID}, pid); err != nil {
+	if err := c.launcher.Adopt(spec, pid); err != nil {
 		c.log("workercontroller: adopt agent=%s pid=%d: %v (respawning)", agentID, pid, err)
 		return false
 	}
@@ -200,10 +221,15 @@ func (c *Controller) tryAdopt(ctx context.Context, agentID string, pid int) bool
 // agent the controller hasn't reconciled yet — e.g. a work_available arriving before
 // the reconcile). Idempotent.
 func (c *Controller) EnsureAgent(agentID string) error {
-	if agentID == "" {
+	return c.EnsureAgentSpec(agentlauncher.AgentSpec{AgentID: agentID})
+}
+
+// EnsureAgentSpec ensures one agent with its process-start configuration.
+func (c *Controller) EnsureAgentSpec(spec agentlauncher.AgentSpec) error {
+	if spec.AgentID == "" {
 		return errors.New("workercontroller: ensure requires agent_id")
 	}
-	return c.launcher.Ensure(agentlauncher.AgentSpec{AgentID: agentID})
+	return c.launcher.Ensure(spec)
 }
 
 // Deliver proxies one command to its target agent's process. It first ensures the

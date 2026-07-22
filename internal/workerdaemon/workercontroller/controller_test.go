@@ -21,6 +21,7 @@ type fakeLauncher struct {
 	ensERR    map[string]error
 	adoptPIDs map[string]int // returned by AdoptablePIDs
 	adoptERR  error
+	lastSpec  map[string]agentlauncher.AgentSpec
 }
 
 func newFakeLauncher() *fakeLauncher {
@@ -30,6 +31,7 @@ func newFakeLauncher() *fakeLauncher {
 		adoptN:    map[string]int{},
 		ensERR:    map[string]error{},
 		adoptPIDs: map[string]int{},
+		lastSpec:  map[string]agentlauncher.AgentSpec{},
 	}
 }
 
@@ -37,11 +39,30 @@ func (l *fakeLauncher) Ensure(spec agentlauncher.AgentSpec) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.ensureN[spec.AgentID]++
+	l.lastSpec[spec.AgentID] = spec
 	if err := l.ensERR[spec.AgentID]; err != nil {
 		return err
 	}
 	l.running[spec.AgentID] = true
 	return nil
+}
+
+func TestReconcileSpecs_PreservesPerAgentEnv(t *testing.T) {
+	l := newFakeLauncher()
+	c, err := New(Config{Launcher: l, SockDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ReconcileSpecs([]agentlauncher.AgentSpec{
+		{AgentID: "off"},
+		{AgentID: "on", Env: []string{"AC_EXECUTOR_GIT_WORKTREE=1"}},
+	})
+	if len(l.lastSpec["off"].Env) != 0 {
+		t.Fatalf("off env = %v, want empty", l.lastSpec["off"].Env)
+	}
+	if got := l.lastSpec["on"].Env; len(got) != 1 || got[0] != "AC_EXECUTOR_GIT_WORKTREE=1" {
+		t.Fatalf("on env = %v", got)
+	}
 }
 func (l *fakeLauncher) Stop(agentID string) error {
 	l.mu.Lock()

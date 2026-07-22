@@ -754,12 +754,13 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 	a, err := agent.RehydrateAgent(agent.RehydrateAgentInput{
 		ID: agent.AgentID("AG-cc"), OrganizationID: atTestOrg,
 		Profile: agent.Profile{
-			Name:               "AG-cc",
-			CLI:                "claude-code",
-			MaxConcurrentTasks: 3,
-			AllowedExecutors:   []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus-4-8"}},
-			JudgeEnabled:       true, // T950 ②: per-agent judge opt-in must reach the worker
-			EnvVars:            map[string]string{"FOO": "bar", "EMPTY": ""},
+			Name:                "AG-cc",
+			CLI:                 "claude-code",
+			MaxConcurrentTasks:  3,
+			AllowedExecutors:    []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus-4-8"}},
+			JudgeEnabled:        true, // T950 ②: per-agent judge opt-in must reach the worker
+			ExecutorGitWorktree: true,
+			EnvVars:             map[string]string{"FOO": "bar", "EMPTY": ""},
 		},
 		WorkerID: atWorker1, Lifecycle: agent.LifecycleRunning, CreatedBy: "system",
 		CreatedAt: atNow, UpdatedAt: atNow, Version: 1,
@@ -798,6 +799,9 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 	// T950 ②: the per-agent judge opt-in must ride the resume-state to the worker.
 	if je, _ := row["judge_enabled"].(bool); !je {
 		t.Fatalf("judge_enabled = %v, want true", row["judge_enabled"])
+	}
+	if on, _ := row["executor_git_worktree"].(bool); !on {
+		t.Fatalf("executor_git_worktree = %v, want true", row["executor_git_worktree"])
 	}
 	env, ok := row["env_vars"].(map[string]any)
 	if !ok || env["FOO"] != "bar" || env["EMPTY"] != "" {

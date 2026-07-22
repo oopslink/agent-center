@@ -495,6 +495,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"allowed_executors":      executorProfilesToMaps(annotateExecutorsFromCatalog(r.Context(), d.ModelCatalogRepo, a.OrganizationID(), p.AllowedExecutors)),
 			"orchestrator_model":     p.OrchestratorModel,
 			"judge_enabled":          p.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
+			"executor_git_worktree":  p.ExecutorGitWorktree,
 			"default_executor_model": p.DefaultExecutorModel,
 			"env_vars":               p.EnvVars,
 			"version":                a.Version(),

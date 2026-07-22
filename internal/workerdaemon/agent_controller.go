@@ -81,6 +81,7 @@ type reconcilePayload struct {
 	AllowedModels        []string                `json:"allowed_models,omitempty"`
 	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: authoritative {cli,model} candidates (opt-in gate reads this)
 	JudgeEnabled         bool                    `json:"judge_enabled,omitempty"`     // T950 ②: per-agent judge opt-in (default OFF)
+	ExecutorGitWorktree  bool                    `json:"executor_git_worktree,omitempty"`
 	// PromptDescription is the already-gated description text to inject into the
 	// agent's system prompt (T728), carried the SAME way as DisplayName. Empty ⇒ no
 	// injection. Threaded to the supervisor's --prompt-description at spawn.
