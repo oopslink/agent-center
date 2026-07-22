@@ -215,7 +215,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
       <button type="button" className={btnGhost} onClick={onClose}>{t('common.cancel')}</button>
       <button type="button" className={btnSmPrimary} disabled={invalid || update.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
     </div>}>
-    <RoleBuilder roles={roles} onChange={setRoles} idPrefix="edit-team" />
+    <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" />
     {invalid && <p className="mt-3 text-xs text-danger" role="alert">{t('teamDetail.roles.invalid')}</p>}
     {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
   </ModalShell>;

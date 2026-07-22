@@ -1,6 +1,6 @@
-// Team WebUI — the declarative role-card builder shared by New Team and
-// Instantiate. Each card configures one role slot: name, count, CLI, model,
-// concurrency, tags, and (optionally) a description. Total slots = agents built.
+// Team WebUI — the declarative role-card builder shared by New Team,
+// Instantiate, and role-definition edits. Count is team composition; existing
+// team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
@@ -45,11 +45,13 @@ export function RoleBuilder({
   roles,
   onChange,
   showDescription,
+  showCount = true,
   idPrefix,
 }: {
   roles: RoleInput[];
   onChange: (next: RoleInput[]) => void;
   showDescription?: boolean;
+  showCount?: boolean;
   idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
@@ -76,30 +78,34 @@ export function RoleBuilder({
               data-testid={`${idPrefix}-role-${i}-name`}
               onChange={(e) => patch(i, { role: e.target.value })}
             />
-            <span className="ml-1 inline-flex items-center overflow-hidden rounded border border-border-base">
-              <button
-                type="button"
-                className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
-                data-testid={`${idPrefix}-role-${i}-dec`}
-                aria-label={t('roleBuilder.decreaseCount')}
-                onClick={() => patch(i, { count: Math.max(1, r.count - 1) })}
-              >
-                -
-              </button>
-              <span className="h-6 w-8 border-x border-border-base text-center text-sm font-semibold leading-6" data-testid={`${idPrefix}-role-${i}-count`}>
-                {r.count}
-              </span>
-              <button
-                type="button"
-                className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
-                data-testid={`${idPrefix}-role-${i}-inc`}
-                aria-label={t('roleBuilder.increaseCount')}
-                onClick={() => patch(i, { count: r.count + 1 })}
-              >
-                +
-              </button>
-            </span>
-            <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.agentCount')}</span>
+            {showCount && (
+              <>
+                <span className="ml-1 inline-flex items-center overflow-hidden rounded border border-border-base">
+                  <button
+                    type="button"
+                    className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
+                    data-testid={`${idPrefix}-role-${i}-dec`}
+                    aria-label={t('roleBuilder.decreaseCount')}
+                    onClick={() => patch(i, { count: Math.max(1, r.count - 1) })}
+                  >
+                    -
+                  </button>
+                  <span className="h-6 w-8 border-x border-border-base text-center text-sm font-semibold leading-6" data-testid={`${idPrefix}-role-${i}-count`}>
+                    {r.count}
+                  </span>
+                  <button
+                    type="button"
+                    className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
+                    data-testid={`${idPrefix}-role-${i}-inc`}
+                    aria-label={t('roleBuilder.increaseCount')}
+                    onClick={() => patch(i, { count: r.count + 1 })}
+                  >
+                    +
+                  </button>
+                </span>
+                <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.agentCount')}</span>
+              </>
+            )}
             <button
               type="button"
               className="ml-auto text-xs text-text-muted hover:text-danger"
@@ -123,7 +129,7 @@ export function RoleBuilder({
             </div>
           )}
 
-          <div className="grid grid-cols-[1fr_1fr_5rem] gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
             <div>
               <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
               <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
@@ -142,6 +148,7 @@ export function RoleBuilder({
                 data-testid={`${idPrefix}-role-${i}-conc`}
                 onChange={(e) => patch(i, { max_concurrency: Math.max(1, Number(e.target.value) || 1) })}
               />
+              <p className="mt-1 text-[0.6875rem] leading-tight text-text-muted">{t('roleBuilder.concurrencyHint')}</p>
             </div>
           </div>
 

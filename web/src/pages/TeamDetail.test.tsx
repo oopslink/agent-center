@@ -50,6 +50,9 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     const modal = await screen.findByTestId('edit-team-roles-modal');
+    expect(within(modal).queryByTestId('edit-team-role-0-count')).not.toBeInTheDocument();
+    expect(within(modal).getAllByText('Max tasks / agent').length).toBeGreaterThan(0);
+    expect(within(modal).getAllByText('Per-agent task concurrency, not role headcount.').length).toBeGreaterThan(0);
     while (within(modal).queryAllByText('Remove').length > 0) {
       const before = within(modal).getAllByText('Remove').length;
       fireEvent.click(within(modal).getAllByText('Remove')[0]);
