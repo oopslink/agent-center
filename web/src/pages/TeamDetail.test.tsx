@@ -72,9 +72,36 @@ describe('TeamDetail', () => {
   it('switches to the Members tab and lists seeded members', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-mm'));
-    expect(await screen.findByTestId('members-table')).toBeInTheDocument();
+    const table = await screen.findByTestId('members-table');
+    expect(table).toBeInTheDocument();
+    expect(within(table).getByText('Capabilities')).toBeInTheDocument();
+    expect(within(table).queryByText('Tags')).not.toBeInTheDocument();
     expect(screen.getByText('planner-01')).toBeInTheDocument();
     expect(screen.getByTestId('members-exclusivity-note')).toBeInTheDocument();
+  });
+
+  it('keeps long role capabilities compact in the members table', async () => {
+    server.use(http.get('/api/teams/:id/members', () => HttpResponse.json([{
+      team_id: 'team-7c19b0',
+      member_ref: 'agent:agent-long',
+      name: 'long-cap-agent',
+      kind: 'agent',
+      role: 'PD, PM',
+      roles: ['PD', 'PM'],
+      tags: ['产品设计，负责将需求转化为交互方案', 'UI', '用户研究', '需求优先级排序', 'PRD'],
+      cli: 'codex',
+      model: 'gpt-5',
+      concurrency: '3',
+      exclusive: true,
+    }])));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    const row = await screen.findByTestId('member-row-agent:agent-long');
+    expect(within(row).getByText('产品设计，负责将需求转化为交互方案')).toBeInTheDocument();
+    expect(within(row).getByText('UI')).toBeInTheDocument();
+    expect(within(row).getByText('用户研究')).toBeInTheDocument();
+    expect(within(row).getByText('+2')).toHaveAttribute('title', '需求优先级排序 / PRD');
+    expect(within(row).queryByText('需求优先级排序')).not.toBeInTheDocument();
   });
 
   it('adds a free agent (real directory ref) through the add-member modal', async () => {

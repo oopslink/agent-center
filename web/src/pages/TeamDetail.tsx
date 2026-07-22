@@ -263,7 +263,7 @@ function MembersPane({
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colKind')}</th>
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colDeclaredRole')}</th>
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colCliModel')}</th>
-                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colTags')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colCapabilities')}</th>
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colConcurrency')}</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -299,15 +299,7 @@ function MembersPane({
                       {m.cli} · {m.model}
                     </td>
                     <td className="px-4 py-3">
-                      {m.tags.length ? (
-                        m.tags.map((tag) => (
-                          <span key={tag} className="mr-1 inline-block rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] text-text-secondary">
-                            {tag}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-text-muted">—</span>
-                      )}
+                      <CapabilityPills capabilities={m.tags} />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
                     <td className="px-4 py-3 text-right">
@@ -339,6 +331,35 @@ function MembersPane({
           setRemovingRef(null);
         }}
       />
+    </div>
+  );
+}
+
+function CapabilityPills({ capabilities }: { capabilities: string[] }): React.ReactElement {
+  if (capabilities.length === 0) {
+    return <span className="text-text-muted">—</span>;
+  }
+  const visible = capabilities.slice(0, 3);
+  const hidden = capabilities.slice(3);
+  return (
+    <div className="flex max-w-[34rem] flex-wrap gap-1" data-testid="member-capabilities">
+      {visible.map((capability) => (
+        <span
+          key={capability}
+          title={capability}
+          className="max-w-[13rem] truncate rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] text-text-secondary"
+        >
+          {capability}
+        </span>
+      ))}
+      {hidden.length > 0 && (
+        <span
+          title={hidden.join(' / ')}
+          className="rounded border border-border-base bg-bg-muted px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary"
+        >
+          +{hidden.length}
+        </span>
+      )}
     </div>
   );
 }

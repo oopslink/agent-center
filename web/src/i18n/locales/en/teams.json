@@ -130,7 +130,7 @@
       "colKind": "Type",
       "colDeclaredRole": "Declared role",
       "colCliModel": "CLI / Model",
-      "colTags": "Tags",
+      "colCapabilities": "Capabilities",
       "colConcurrency": "Concurrency",
       "exclusiveTag": "exclusive",
       "remove": "Remove",

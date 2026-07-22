@@ -130,7 +130,7 @@
       "colKind": "类型",
       "colDeclaredRole": "声明角色",
       "colCliModel": "CLI / Model",
-      "colTags": "Tags",
+      "colCapabilities": "能力",
       "colConcurrency": "并发",
       "exclusiveTag": "独占",
       "remove": "Remove",
