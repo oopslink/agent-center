@@ -348,6 +348,12 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 		}
 	}
 	out, err := r.run(ctx, rc.WorkspaceDir, r.cmd, onLine)
+	if err != nil && isStaleCodexResume(r.cmd, out) {
+		// A captured Codex thread may disappear from the local rollout store. Retry
+		// this turn once, fresh, in the same workspace so on-disk progress survives.
+		rc.Progress(phaseRunning, "stale codex thread; retrying fresh")
+		out, err = r.run(ctx, rc.WorkspaceDir, codexFreshCommand(r.cmd), onLine)
+	}
 	if err != nil {
 		return RunResult{}, fmt.Errorf("runner command %q: %w: %s", r.cmd[0], err, strings.TrimSpace(out))
 	}
@@ -376,6 +382,20 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 		result = out
 	}
 	return RunResult{Result: result, Summary: summarize(result), Usage: usage, ThreadID: threadID}, nil
+}
+
+func isStaleCodexResume(cmd []string, output string) bool {
+	if len(cmd) < 4 || !isCodexRunnerCmd(cmd) || cmd[2] != "resume" {
+		return false
+	}
+	m := strings.ToLower(output)
+	return strings.Contains(m, "no rollout found for thread id") ||
+		(strings.Contains(m, "thread/resume") && strings.Contains(m, "no rollout"))
+}
+
+func codexFreshCommand(cmd []string) []string {
+	out := append([]string(nil), cmd[:2]...)
+	return append(out, cmd[4:]...)
 }
 
 // isCodexRunnerCmd reports whether a runner argv is a `codex exec ...` invocation, so
