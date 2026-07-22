@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -385,5 +386,44 @@ func TestADR47_TaskClaimableByID_BacklogFalse(t *testing.T) {
 	}
 	if claimable {
 		t.Fatal("a backlog task (no plan) must not be claimable")
+	}
+}
+
+// TaskClaimableByID must not report stale dispatched nodes as claimable after
+// their structured plan stops. start_task uses EnsureTaskRunnable, so the read
+// model must not advertise work that the write gate will reject.
+func TestADR47_TaskClaimableByID_StoppedPlanFalse(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	tid := h.seedAssignedTask(t, pid, planID, "work", "agent:m1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan: %v", err)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("running dispatched task should be runnable before stop: %v", err)
+	}
+	if err := h.svc.StopPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StopPlan: %v", err)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("stopped-plan task runnable = %v, want ErrTaskNotRunnable", err)
+	}
+	claimable, err := h.svc.TaskClaimableByID(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimable {
+		t.Fatal("stopped-plan task must not be reported claimable")
 	}
 }

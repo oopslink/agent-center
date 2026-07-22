@@ -251,6 +251,18 @@ func (f *writeToolsFixture) drain(t *testing.T) {
 // retired; ownership is Task.Assignee now).
 func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 	t.Helper()
+	tid := f.seedOpenAssignedPoolTask(t)
+	ctx := context.Background()
+	// Start the task so block/complete are reachable (running state). The agent
+	// is a project member now (#5a), so it can be the actor.
+	if err := f.pmSvc.StartTask(ctx, pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	return tid
+}
+
+func (f *writeToolsFixture) seedOpenAssignedPoolTask(t *testing.T) string {
+	t.Helper()
 	ctx := context.Background()
 	owner := pm.IdentityRef("user:owner")
 	pid, err := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{
@@ -295,11 +307,6 @@ func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 		t.Fatal(err)
 	}
 	f.drain(t) // assign flow grants AG1 project membership + sets the assignee.
-	// Start the task so block/complete are reachable (running state). The agent
-	// is a project member now (#5a), so it can be the actor.
-	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
-		t.Fatal(err)
-	}
 	return string(tid)
 }
 
@@ -694,6 +701,31 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	// No summary → no new message.
 	if after := len(f.taskMessages(t, tid)); after != before {
 		t.Fatalf("message count changed %d → %d with no summary", before, after)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("task status = %s, want completed", got)
+	}
+}
+
+func TestCompleteTask_OpenAssignedTask_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedOpenAssignedPoolTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "done from open"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	found := false
+	for _, m := range f.taskMessages(t, tid) {
+		if m.Content() == "done from open" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("summary not posted to task conv")
 	}
 	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
 		t.Fatalf("task status = %s, want completed", got)

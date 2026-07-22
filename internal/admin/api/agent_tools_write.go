@@ -1128,7 +1128,24 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := d.PMService.CompleteTaskAfterPrecheck(txCtx, pm.TaskID(req.TaskID),
 			pm.IdentityRef(agentActor(a))); err != nil {
-			return err
+			if !errors.Is(err, pm.ErrIllegalTransition) {
+				return err
+			}
+			t, terr := d.PMService.GetTask(txCtx, pm.TaskID(req.TaskID))
+			if terr != nil {
+				return terr
+			}
+			if t.Status() != pm.TaskOpen && t.Status() != pm.TaskReopened {
+				return err
+			}
+			// The web task status menu intentionally allows any valid status as a
+			// manual progress override. complete_task keeps the typed transition for
+			// running/delivered tasks, but accepts the same owner override for an
+			// assigned open/reopened task so MCP and UI do not disagree.
+			if err := d.PMService.SetTaskStatus(txCtx, pm.TaskID(req.TaskID), pm.TaskCompleted,
+				pm.IdentityRef(agentActor(a))); err != nil {
+				return err
+			}
 		}
 		// T468: a REVIEW node completing with a structured verdict records it (single-
 		// slot, round-tagged) in the SAME tx, so the downstream Decision's B3 reads the

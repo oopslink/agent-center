@@ -512,9 +512,19 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 	// so get_task.claimable matches what ClaimPoolTask will actually accept. A
 	// structured-plan node stays assignee-gated.
 	if p.IsBuiltin() {
-		return pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns), nil
+		if !pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns) {
+			return false, nil
+		}
+	} else if !pm.TaskClaimable(t, ns) {
+		return false, nil
 	}
-	return pm.TaskClaimable(t, ns), nil
+	if err := s.EnsureTaskRunnable(ctx, taskID); err != nil {
+		if errors.Is(err, pm.ErrTaskNotRunnable) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // --- Plan reads (v2.9 #285) -------------------------------------------------
