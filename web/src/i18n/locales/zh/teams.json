@@ -232,7 +232,9 @@
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "这个编队负责什么…",
     "roleMixLabel": "角色配比",
-    "slotsSummary": "Σ {{slots}} slots = 派生 {{slots}} 个 agent"
+    "slotsSummary": "Σ {{slots}} slots = 派生 {{slots}} 个 agent",
+    "errRoleNameRequired": "每个角色都需要填写角色名。",
+    "errRoleNameDuplicate": "角色名不能重复。"
   },
   "instantiateModal": {
     "title": "Instantiate template",

@@ -66,6 +66,20 @@ describe('Teams list', () => {
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toMatch(/^\/teams\/team-/));
   });
 
+  it('prevents creating a team when any role has no name', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByTestId('teams-new'));
+    const modal = await screen.findByTestId('new-team-modal');
+
+    fireEvent.change(within(modal).getByTestId('new-team-name'), { target: { value: 'test' } });
+    fireEvent.click(within(modal).getByTestId('new-team-role-1-remove'));
+    fireEvent.change(within(modal).getByTestId('new-team-role-0-name'), { target: { value: '' } });
+    fireEvent.change(within(modal).getByTestId('new-team-role-0-tags'), { target: { value: 'go' } });
+
+    expect(within(modal).getByTestId('new-team-validation-error')).toHaveTextContent('Each role needs a role name.');
+    expect(within(modal).getByTestId('new-team-submit')).toBeDisabled();
+  });
+
   it('closes the modal via the close button', async () => {
     renderPage();
     fireEvent.click(await screen.findByTestId('teams-new'));

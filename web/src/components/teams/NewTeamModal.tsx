@@ -23,12 +23,25 @@ export function NewTeamModal({
   const [roles, setRoles] = useState<RoleInput[]>([newRole('planner'), { ...newRole('coder'), count: 2 }]);
   const create = useCreateTeam();
 
-  const canSubmit = name.trim().length > 0 && roles.length > 0 && !create.isPending;
+  const roleNames = roles.map((r) => r.role.trim());
+  const hasBlankRole = roleNames.some((role) => role.length === 0);
+  const hasDuplicateRole = new Set(roleNames).size !== roleNames.length;
+  const roleValidationError = hasBlankRole
+    ? t('newTeamModal.errRoleNameRequired')
+    : hasDuplicateRole
+      ? t('newTeamModal.errRoleNameDuplicate')
+      : '';
+  const canSubmit = name.trim().length > 0 && roles.length > 0 && !roleValidationError && !create.isPending;
 
   const submit = async () => {
     if (!canSubmit) return;
     try {
-      const team = await create.mutateAsync({ name: name.trim(), description, visibility, roles });
+      const team = await create.mutateAsync({
+        name: name.trim(),
+        description,
+        visibility,
+        roles: roles.map((r) => ({ ...r, role: r.role.trim(), tags: r.tags.trim() })),
+      });
       onClose();
       onCreated(team.id);
     } catch {
@@ -94,6 +107,12 @@ export function NewTeamModal({
         <span className="text-[0.6875rem] text-text-muted">{t('newTeamModal.slotsSummary', { slots: totalSlots(roles) })}</span>
       </div>
       <RoleBuilder roles={roles} onChange={setRoles} idPrefix="new-team" />
+
+      {roleValidationError && (
+        <p className="mt-3 text-xs text-danger" data-testid="new-team-validation-error">
+          {roleValidationError}
+        </p>
+      )}
 
       {create.isError && (
         <p className="mt-3 text-xs text-danger" data-testid="new-team-error">

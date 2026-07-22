@@ -232,7 +232,9 @@
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "What is this squad responsible for…",
     "roleMixLabel": "Role mix",
-    "slotsSummary": "Σ {{slots}} slots = {{slots}} agents derived"
+    "slotsSummary": "Σ {{slots}} slots = {{slots}} agents derived",
+    "errRoleNameRequired": "Each role needs a role name.",
+    "errRoleNameDuplicate": "Role names must be unique."
   },
   "instantiateModal": {
     "title": "Instantiate template",
