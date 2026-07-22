@@ -111,9 +111,6 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe",
 	"block_task", "complete_task",
-	// ADR-0054 (I107 ①): the acceptance channel — deliver a finished-but-unaccepted task,
-	// and reject a delivery back to its assignee.
-	"deliver_task", "rework_task",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue", // T192: (re)set/clear derived_from_issue after creation
 	// T206 Cognition reminders

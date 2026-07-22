@@ -206,12 +206,8 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 		r.log("agent=%s pending-reconcile list_my_inflight_tasks: %v", r.cfg.AgentID, err)
 		return
 	}
-	// ADR-0054: "still awaiting judgment" == still `running`. A task that has left running
-	// — completed, discarded, or PARKED (delivered / blocked) — has been judged, so the
-	// nudge loop stops. This is the ③ half of the fix: the loop keys on status, and under
-	// ADR-0046 block_task did not change status, so the ONE exit the escalation offered
-	// could not actually terminate the loop it was escalating — the agent had to keep
-	// re-answering a question it had already answered. Now every exit leaves running.
+	// "Still awaiting judgment" == still `running`. A task that has left running
+	// — completed, discarded, or blocked — has been judged, so the nudge loop stops.
 	running := make(map[string]bool, len(tasks))
 	for _, t := range tasks {
 		if t.Status == "running" {
@@ -221,7 +217,7 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 
 	for _, p := range r.pending.snapshot() {
 		if !running[p.TaskRef] {
-			r.pending.drop(p.TaskRef) // judged: completed / discarded / delivered / blocked
+			r.pending.drop(p.TaskRef) // judged: completed / discarded / blocked
 			continue
 		}
 		if p.Escalated {
@@ -257,20 +253,15 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 // had not happened. A canned reason on a repeated, escalating nudge is how false state gets
 // mass-produced: the path of least resistance is to accept the sentence the system already
 // wrote. So: no default text, an explicit instruction to write what is ACTUALLY true, and
-// deliver_task (ADR-0054) as the honest exit for the case that previously had none.
 func escalationPrompt(taskRef string) string {
 	return fmt.Sprintf(
 		"[reminder] Task %s has a finished executor you have not resolved after several nudges. "+
 			"Resolve it NOW by picking the exit that is TRUE — do not pick by convenience:\n"+
-			"  - complete_task(task_id=%q) — you judged the delivery AND it is accepted/done.\n"+
-			"  - deliver_task(task_id=%q, summary=…) — you judged it and the work is delivered, "+
-			"but acceptance is somebody ELSE's call (review / verification / merge). This is the "+
-			"right exit when the work is fine and you are simply waiting on an external verdict; "+
-			"it parks the task honestly instead of forcing a fake completion or a fake block.\n"+
+			"  - complete_task(task_id=%q, delivery={summary:…, outcome:…}) — you judged the assigned work finished; downstream review / verification / merge belongs in the plan DAG.\n"+
 			"  - block_task(task_id=%q, reason=…, reason_type=…) — something genuinely needs a human. "+
 			"WRITE THE REASON YOURSELF, describing what is actually true right now. There is no "+
 			"default reason on purpose — if you did judge the delivery, do not say otherwise.\n"+
 			"Do not leave it pending.",
-		taskRef, taskRef, taskRef, taskRef,
+		taskRef, taskRef, taskRef,
 	)
 }

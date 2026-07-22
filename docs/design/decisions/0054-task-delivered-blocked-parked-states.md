@@ -1,8 +1,11 @@
 # ADR-0054：Task 增加 `delivered` / `blocked` 两个非终态（park），修正 ADR-0046
 
-- **状态**：Accepted
+- **状态**：Superseded
 - **日期**：2026-07-17
 - **来源**：issue I107（executor 生命周期错配）
+- **取代说明**：2026-07-22 快修移除了 `delivered`、`deliver_task`、`rework_task`。工作完成统一通过
+  `complete_task`（可携带结构化 delivery / review 信息）表达；外部验收由 DAG 下游 Review 节点和既有
+  Decision/loopback 返工机制表达。`blocked` 保留为唯一 parked 状态。
 - **关系**：**Amends ADR-0046**（Task 状态机 7→5 简化）。ADR-0046 无独立文件，其决定记录在
   `internal/projectmanager/task.go` 的 `TaskStatus` 注释与 `state_machine_adr46_test.go`（本 ADR 落地后
   更名为 `state_machine_adr54_test.go`）中。

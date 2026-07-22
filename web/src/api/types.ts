@@ -662,23 +662,16 @@ export interface Issue {
 }
 
 // Task mirrors the v2.7 ProjectManager BC Task projection. Tasks are
-// project-scoped (nested under /projects/{pid}/tasks). ADR-0054 state machine:
-// open | running | delivered | blocked | completed | discarded | reopened.
+// project-scoped (nested under /projects/{pid}/tasks). Task state machine:
+// open | running | blocked | completed | discarded | reopened.
 //
-// `delivered` and `blocked` are the two NON-TERMINAL "parked" states (ADR-0054): the
-// task is still active work, but nothing is executing and it will not be dispatched.
-//   - delivered: the work is done and handed over, awaiting an EXTERNAL acceptance
-//     (review / verification / merge). NOT completed — nobody has accepted it, so it
-//     must never render as done.
-//   - blocked: parked on a blocked_reason, needs a human. ADR-0054 restored this as a
-//     real status; under ADR-0046 it was only a `blocked_reason` annotation on a
-//     still-`running` task, which could not stop dispatch. The annotation remains (see
-//     Task.blocked_reason) and still carries the reason text.
+// `blocked` is a NON-TERMINAL parked state: the task is still active work, but
+// nothing is executing and it will not be dispatched. The blocked_reason annotation
+// remains (see Task.blocked_reason) and carries the reason text.
 // `verified` remains removed.
 export type TaskStatus =
   | 'open'
   | 'running'
-  | 'delivered'
   | 'blocked'
   | 'completed'
   | 'discarded'

@@ -10,13 +10,13 @@ import (
 // `query tasks` view) to be EXACTLY the non-terminal set — i.e. every pm.TaskStatus where
 // !IsTerminal(), no more and no less.
 //
-// This test is written by ADR-0054 (I107) because it did not exist. The comment on
+// This test was added after the active-status list drifted because it did not exist. The comment on
 // activeTaskStatuses claimed "Pinned to IsTerminal() by a partition test
 // (TestActiveTaskStatuses_MatchesIsTerminal)" — the name was real, the test was not. So
-// the list was in fact pinned by nothing: adding `delivered` and `blocked` as non-terminal
-// statuses broke no test here, and had the list not been updated by hand, both would have
-// been silently missing from the default active-work view forever. A comment asserting a
-// guard is not a guard; this is the guard.
+// the list was in fact pinned by nothing: adding non-terminal statuses broke no test here,
+// and had the list not been updated by hand, they would have been silently missing from the
+// default active-work view forever. A comment asserting a guard is not a guard; this is the
+// guard.
 //
 // It derives from pm.AllTaskStatuses() rather than a literal list on purpose — a copied
 // list is what rots. If this fails, do not "fix" it by editing the expectation: decide
@@ -47,12 +47,11 @@ func TestActiveTaskStatuses_MatchesIsTerminal(t *testing.T) {
 	}
 }
 
-// TestActiveTaskStatuses_IncludesParked is the ADR-0054 命门-1 guard at the read layer: a
-// PARKED task (delivered / blocked) is active work awaiting a human or an acceptance, so it
-// must appear in the default active view. Dropping it there is how a task quietly stops
-// being anybody's problem — the failure mode this issue exists to prevent.
+// TestActiveTaskStatuses_IncludesParked is the read-layer guard: a PARKED task
+// (blocked) is active work awaiting a human, so it must appear in the default active
+// view. Dropping it there is how a task quietly stops being anybody's problem.
 func TestActiveTaskStatuses_IncludesParked(t *testing.T) {
-	for _, s := range []pm.TaskStatus{pm.TaskDelivered, pm.TaskBlocked} {
+	for _, s := range []pm.TaskStatus{pm.TaskBlocked} {
 		var found bool
 		for _, a := range activeTaskStatuses {
 			if a == s {

@@ -53,6 +53,55 @@ func TestCompleteTask_RecordsReviewVerdict_T468(t *testing.T) {
 	}
 }
 
+func TestCompleteTask_StructuredDeliveryRecordsReviewVerdict(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv := f.server(t)
+	tid := f.seedRunningTask(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1,
+			"task_id":  tid,
+			"delivery": map[string]any{
+				"summary": "reviewed structured payload",
+				"review": map[string]any{
+					"verdict":  "reject",
+					"blocking": true,
+					"reason":   "tests fail",
+					"sha":      "cafebabe",
+				},
+			},
+		})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+
+	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("task status = %s, want completed", got)
+	}
+	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verdicts, err := f.pmSvc.ListReviewVerdicts(context.Background(), tk.PlanID(), pm.IdentityRef("user:owner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got *pm.ReviewVerdict
+	for i := range verdicts {
+		if verdicts[i].TaskID == pm.TaskID(tid) {
+			got = &verdicts[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("no review verdict recorded for %s", tid)
+	}
+	if got.Verdict != pm.ReviewReject || !got.Blocking || got.Reason != "tests fail" || got.SHA != "cafebabe" {
+		t.Fatalf("recorded verdict wrong: %+v", *got)
+	}
+}
+
 // An invalid verdict label fails the completion (the verdict + complete are one tx).
 func TestCompleteTask_InvalidReviewVerdict_Rejected_T468(t *testing.T) {
 	f := newWriteToolsFixture(t)

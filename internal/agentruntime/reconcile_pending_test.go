@@ -109,7 +109,7 @@ func TestReconcile_EscalateThenSilent(t *testing.T) {
 	if !strings.Contains(msgs[0], "[reminder]") {
 		t.Fatalf("escalation nudge = %q, want a [reminder]", msgs[0])
 	}
-	for _, exit := range []string{"complete_task", "deliver_task", "block_task"} {
+	for _, exit := range []string{"complete_task", "block_task"} {
 		if !strings.Contains(msgs[0], exit) {
 			t.Fatalf("escalation nudge must offer the %s exit, got %q", exit, msgs[0])
 		}

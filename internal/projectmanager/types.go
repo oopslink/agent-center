@@ -125,12 +125,11 @@ var (
 	// task cannot renew its execution lease (a block is a lease-free pause).
 	ErrNotTaskAssignee = errors.New("projectmanager: actor is not the task assignee")
 	ErrTaskBlocked     = errors.New("projectmanager: task is blocked (no execution lease)")
-	// ErrTaskParked guards the DISPATCH entrypoints against an ADR-0054 parked task
-	// (delivered / blocked): the work is non-terminal but has nothing in flight, so
-	// starting it would fork a fresh empty-context executor onto work already handed over
-	// or deliberately paused. Recover a parked task through its own door instead — Unblock
-	// (blocked), or Complete/Rework (delivered, the acceptance verdict's two exits).
-	ErrTaskParked = errors.New("projectmanager: task is parked (delivered or blocked) — recover it via unblock / acceptance, not start")
+	// ErrTaskParked guards the DISPATCH entrypoints against a parked task (blocked):
+	// the work is non-terminal but has nothing in flight, so starting it would fork a
+	// fresh empty-context executor onto deliberately paused work. Recover it via
+	// unblock_task instead.
+	ErrTaskParked = errors.New("projectmanager: task is parked (blocked) — recover it via unblock, not start")
 	// ErrTaskDescriptionFrozen guards the task metadata-edit entrypoints (UpdateTask /
 	// BatchUpdateTask) against editing a RUNNING task's description (I109 ①). A running
 	// task has an executor in flight, and that executor's prompt was rendered from the
@@ -145,14 +144,10 @@ var (
 	// missing delivery pipe — a silent no-op is the bug, an error is the fix.
 	//
 	// Deliberately narrow — it bites ONLY status==running (an executor is actually in
-	// flight). open / reopened / blocked / delivered edit freely: a not-yet-dispatched or
+	// flight). open / reopened / blocked edit freely: a not-yet-dispatched or
 	// parked task renders its brief at the NEXT spawn, so the edit genuinely lands.
 	// Re-scope a running task via the judge gate (a narrow delta) or discard + re-dispatch.
 	ErrTaskDescriptionFrozen = errors.New("projectmanager: task is running — its executor's prompt was frozen at spawn, so a description edit cannot reach it (re-scope via the judge gate, or discard and re-dispatch)")
-	// ErrDeliverySummaryRequired guards Task.Deliver: a delivery that says nothing cannot
-	// be judged by the external acceptance it is waiting on, and an unexplained
-	// `delivered` is exactly the un-actionable state I107 ① exists to abolish.
-	ErrDeliverySummaryRequired = errors.New("projectmanager: deliver requires a summary of what was delivered")
 	// ErrLeaseStillLive guards ResetToOpen (T862 reset_task): a tier-3 recovery reset
 	// (running→open, orphan back to pool) is only legal once the running agent's
 	// execution lease has ALSO LAPSED — a still-live lease means the agent may yet be

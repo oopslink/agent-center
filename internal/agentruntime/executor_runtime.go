@@ -668,12 +668,8 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	}
 
 	// Cheap idempotency precheck: only an OPEN/REOPENED task is startable. This is an
-	// allow-list, not a deny-list, so it ALREADY refuses to fork an ADR-0054 parked
-	// (delivered/blocked) task — that is exactly why park-as-a-real-status stops the
-	// re-drive fork that park-as-an-annotation could not: under ADR-0046 a parked task
-	// still read `running`… which this gate also refuses. The gate that actually leaked
-	// was upstream (EnsureTaskRunnable said "runnable"), which is where the ADR-0054 park
-	// check lands. Keep this an allow-list: a future status must opt IN to being forked.
+	// allow-list, not a deny-list, so it refuses to fork a blocked task. Keep this
+	// an allow-list: a future status must opt IN to being forked.
 	//
 	// An empty status (older center / unknown projection) still forks — absence of an
 	// answer is not proof of a park, and failing closed here would strand normal dispatch.

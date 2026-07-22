@@ -9,13 +9,13 @@ import (
 	"testing"
 )
 
-// THE lock for the tester3 finding (I107 review round 1): a PARKED task's dead executor
+// THE lock for the parked-task finding: a PARKED task's dead executor
 // must not be relaunched by BOOT SELF-RECONCILE.
 //
 // This drives the REAL reconcileExecutors path — scan → inflightTaskSet → classify →
 // enact — and asserts the reconcile's own counters. It deliberately does NOT test
 // taskCancelEvidence: that pure function was already correct when this bug shipped, and
-// its unit test + mutation check were green while a delivered task's executor was being
+// its unit test + mutation check were green while a parked task's executor was being
 // relaunched in a real deployment. The defect was that the inflight leg SHORT-CIRCUITS
 // before cancel-evidence is ever consulted, so only a test that goes through the real
 // entrypoint can see it. A pure-function test cannot prove the function gets CALLED.
@@ -35,8 +35,7 @@ func (c *inflightCaller) CallAgentTool(_ context.Context, tool string, _ any, ou
 	switch tool {
 	case "list_my_inflight_tasks":
 		// The center's active set. A parked task is ACTIVE (non-terminal) and so is
-		// returned by an unfiltered center — this is exactly the deployment shape
-		// tester3 observed (`list_my_inflight_tasks → task-1 delivered`).
+		// returned by an unfiltered center.
 		rb, _ := json.Marshal(map[string]any{"tasks": []map[string]any{
 			{"task_id": "task-1", "title": "t", "status": c.status},
 		}})
@@ -49,7 +48,7 @@ func (c *inflightCaller) CallAgentTool(_ context.Context, tool string, _ any, ou
 }
 
 func TestReconcileExecutors_ParkedTaskIsNeverRelaunched(t *testing.T) {
-	for _, status := range []string{"delivered", "blocked"} {
+	for _, status := range []string{"blocked"} {
 		t.Run(status, func(t *testing.T) {
 			var logs []string
 			var logMu sync.Mutex
@@ -77,7 +76,7 @@ func TestReconcileExecutors_ParkedTaskIsNeverRelaunched(t *testing.T) {
 			joined := strings.Join(logs, "\n")
 			if strings.Contains(joined, "self-reconcile relaunched") {
 				t.Fatalf("a %s task's dead executor was RELAUNCHED by boot self-reconcile — "+
-					"an empty-context executor was just forked onto already-delivered work.\nlogs:\n%s", status, joined)
+					"an empty-context executor was just forked onto parked work.\nlogs:\n%s", status, joined)
 			}
 			// The reconcile's own counter is the assertion pd asked for: recovered=0.
 			if !strings.Contains(joined, "recovered=0") {

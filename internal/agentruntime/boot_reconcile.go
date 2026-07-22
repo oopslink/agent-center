@@ -294,13 +294,13 @@ func (r *LocalRuntime) inflightTaskSet(ctx context.Context) (map[string]bool, bo
 		if t.TaskID == "" {
 			continue
 		}
-		// ADR-0054 (I107 review round 1): a PARKED task is active, so the center's
+		// A blocked task is active, so the center's
 		// active set legitimately contains it — but it has nothing in flight to
 		// relaunch. It must not enter the in-flight set, because in-flight membership
 		// SHORT-CIRCUITS classifyExecutor straight to adopt/recover and the
 		// cancel-evidence check (the only place status is consulted) is never reached.
-		// That is how a delivered task's dead executor got relaunched onto finished
-		// work in a real deployment while every unit test here stayed green.
+		// That is how a parked task's dead executor got relaunched onto finished work
+		// in a real deployment while every unit test here stayed green.
 		//
 		// An UNKNOWN/empty status is deliberately NOT filtered: an older center that
 		// does not send one must keep the pre-ADR-0054 behavior (treat as in-flight →
@@ -499,7 +499,7 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 
 // taskCancelEvidence is the PURE cancel-proof test: a task is safe to cancel its
 // executor for ONLY when the center says it is terminal (completed/discarded/
-// cancelled), PARKED (delivered/blocked), it carries a non-empty blocked_reason, OR it
+// cancelled), blocked, it carries a non-empty blocked_reason, OR it
 // is now assigned to a DIFFERENT agent (reassigned). Anything else — running/open and
 // still mine with no block, or an empty/unknown status — is NOT proof, so the executor
 // is kept. Absence-from-inflight alone never reaches here.
@@ -510,7 +510,7 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 // dimension (taskReassigned missing the namespace; point-recovery missing
 // blocked_reason). Both point-recovery (executor_point_recovery.go) and boot
 // self-reconcile (verifyThenCancel) route their should-continue decision through here,
-// so the two new parked statuses are added at this ONE seam rather than at each caller.
+// so the parked status is added at this ONE seam rather than at each caller.
 //
 // The three arms are deliberately redundant, not alternatives:
 //   - the STATUS arm is ADR-0054's positive proof (a parked task has left running);
@@ -535,15 +535,15 @@ func taskCancelEvidence(detail *centerTaskDetail, agentID string) bool {
 }
 
 // taskStatusIsSettledOrParked reports whether a center-reported task status means "do
-// NOT (re)launch an executor for this": it is concluded (terminal) or parked (ADR-0054
-// delivered/blocked). It mirrors pm.TaskStatus.IsTerminal/IsParked over the WIRE string —
+// NOT (re)launch an executor for this": it is concluded (terminal) or blocked. It mirrors
+// pm.TaskStatus.IsTerminal/IsParked over the WIRE string —
 // agentruntime reads the status out of the get_task JSON projection and deliberately does
 // not import the projectmanager domain, so the vocabulary is duplicated here on purpose.
 // "cancelled"/"canceled" are legacy spellings of discarded kept for older centers.
 func taskStatusIsSettledOrParked(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "completed", "discarded", "cancelled", "canceled", // terminal
-		"delivered", "blocked": // ADR-0054 parked
+		"blocked": // parked
 		return true
 	}
 	return false

@@ -9,8 +9,8 @@ var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 
 // TestTaskStatus_IsTerminal_Partition pins the terminal/active partition that
 // the observability default task-query relies on (v2.7 #107 proj-B). ADR-0054
-// (7 states): terminal = {completed, discarded}; active (non-terminal) =
-// {open, running, delivered, blocked, reopened}. "verified" stays deleted. v2.8.1: no
+// terminal = {completed, discarded}; active (non-terminal) =
+// {open, running, blocked, reopened}. "verified" stays deleted. v2.8.1: no
 // "assigned" state (assignee is metadata). Iterating every enum value guards against a
 // new status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson) —
 // which is why AllTaskStatuses is the single source it iterates, rather than a list
@@ -35,8 +35,8 @@ func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 	if nTerminal != 2 {
 		t.Fatalf("expected 2 terminal statuses, got %d", nTerminal)
 	}
-	if n := len(AllTaskStatuses()); n != 7 {
-		t.Fatalf("expected 7 statuses, got %d — update this partition deliberately, never incidentally", n)
+	if n := len(AllTaskStatuses()); n != 6 {
+		t.Fatalf("expected 6 statuses, got %d — update this partition deliberately, never incidentally", n)
 	}
 }
 

@@ -142,10 +142,9 @@ func NewInflightTaskLister(caller ToolCaller) InflightTaskLister {
 }
 
 // ListMyInflightTasks → POST /admin/agent-tools/list_my_inflight_tasks {agent_id}. The
-// center returns the active set minus the ADR-0054 parked states (delivered / blocked —
-// active, but with nothing in flight to relaunch), so a running task with unsatisfied
-// deps is still INCLUDED (unlike list_my_tasks). Returns an empty slice for
-// a well-formed empty response.
+// center returns the active set minus parked blocked tasks (active, but with nothing in
+// flight to relaunch), so a running task with unsatisfied deps is still INCLUDED
+// (unlike list_my_tasks). Returns an empty slice for a well-formed empty response.
 func (a *centerClientAdapter) ListMyInflightTasks(ctx context.Context, agentID string) ([]InflightTask, error) {
 	body := map[string]any{"agent_id": agentID}
 	var raw json.RawMessage

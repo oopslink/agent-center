@@ -35,7 +35,7 @@ function readStoredOpen(): boolean | null {
 // Status options per kind, in lifecycle order — drive the FilterBar chips.
 export const STATUS_OPTIONS: Record<'issue' | 'task', string[]> = {
   issue: ['open', 'in_progress', 'resolved', 'closed', 'discarded', 'reopened'],
-  task: ['open', 'running', 'delivered', 'blocked', 'completed', 'discarded', 'reopened'],
+  task: ['open', 'running', 'blocked', 'completed', 'discarded', 'reopened'],
 };
 
 // #258 date-range filter state — raw "YYYY-MM-DD" `<input type="date">` values

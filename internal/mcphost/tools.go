@@ -407,47 +407,6 @@ func makeBlockTask(cfg Config) mcp.ToolHandlerFor[blockTaskArgs, any] {
 	}
 }
 
-// --- deliver_task / rework_task (ADR-0054, I107 ①) ---------------------------
-
-type deliverTaskArgs struct {
-	TaskID  string `json:"task_id" jsonschema:"the running task whose work you have delivered"`
-	Summary string `json:"summary" jsonschema:"what you delivered, in enough detail for the acceptor to judge it — e.g. the branch/SHA pushed, what was implemented, what you verified (required)"`
-}
-
-// makeDeliverTask parks a running task as `delivered` (running→delivered): the work is
-// done and handed over, and an EXTERNAL acceptance (review / verification / merge) has
-// the next word. Non-terminal on purpose — nothing downstream of completion fires — and
-// it writes no blocked_reason, so it is not an incident. Frees the agent's run slot.
-func makeDeliverTask(cfg Config) mcp.ToolHandlerFor[deliverTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args deliverTaskArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"summary":  args.Summary,
-		}
-		return callAdmin(ctx, cfg, "deliver_task", body)
-	}
-}
-
-type reworkTaskArgs struct {
-	TaskID  string `json:"task_id" jsonschema:"the delivered task you are rejecting"`
-	Comment string `json:"comment" jsonschema:"what is wrong / what the assignee must fix — reaches them in blocked_comment when they resume"`
-}
-
-// makeReworkTask is the REJECT half of the acceptance verdict (delivered→running): it
-// returns the delivery to its (unchanged) assignee with the reject note, and re-wakes
-// them. complete_task is the accept half.
-func makeReworkTask(cfg Config) mcp.ToolHandlerFor[reworkTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args reworkTaskArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"comment":  args.Comment,
-		}
-		return callAdmin(ctx, cfg, "rework_task", body)
-	}
-}
-
 // --- heartbeat (v2.14.0 I14/F5 §五 / §2.5) -----------------------------------
 
 type heartbeatArgs struct {
@@ -549,10 +508,24 @@ type completeTaskArgs struct {
 	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
 	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
 	// T468 structured review verdict (Review nodes only).
-	ReviewVerdict  string `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
-	ReviewBlocking bool   `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
-	ReviewReason   string `json:"review_reason,omitempty" jsonschema:"with review_verdict: a short rationale for the verdict"`
-	ReviewSHA      string `json:"review_sha,omitempty" jsonschema:"with review_verdict: the reviewed commit SHA (audit / staleness context)"`
+	ReviewVerdict  string                    `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
+	ReviewBlocking bool                      `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
+	ReviewReason   string                    `json:"review_reason,omitempty" jsonschema:"with review_verdict: a short rationale for the verdict"`
+	ReviewSHA      string                    `json:"review_sha,omitempty" jsonschema:"with review_verdict: the reviewed commit SHA (audit / staleness context)"`
+	Delivery       *completeTaskDeliveryArgs `json:"delivery,omitempty" jsonschema:"optional structured delivery information; preferred over the legacy flat summary/outcome/review_* fields"`
+}
+
+type completeTaskDeliveryArgs struct {
+	Summary string                 `json:"summary,omitempty" jsonschema:"completion summary posted to the task"`
+	Outcome string                 `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject')"`
+	Review  completeTaskReviewArgs `json:"review,omitempty" jsonschema:"for a REVIEW node only: structured review verdict"`
+}
+
+type completeTaskReviewArgs struct {
+	Verdict  string `json:"verdict,omitempty" jsonschema:"review verdict 'pass' or 'reject'"`
+	Blocking bool   `json:"blocking,omitempty" jsonschema:"true if the objection blocks the work"`
+	Reason   string `json:"reason,omitempty" jsonschema:"short rationale for the verdict"`
+	SHA      string `json:"sha,omitempty" jsonschema:"reviewed commit SHA"`
 }
 
 func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
@@ -566,6 +539,7 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"review_blocking": args.ReviewBlocking,
 			"review_reason":   args.ReviewReason,
 			"review_sha":      args.ReviewSHA,
+			"delivery":        args.Delivery,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
 	}

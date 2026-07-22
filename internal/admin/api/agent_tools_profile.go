@@ -35,8 +35,6 @@ import (
 var projectMemberCapabilities = []string{
 	"create_task", "assign_task",
 	"subscribe", "block_task", "complete_task", "reset_task",
-	// ADR-0054 I107 ①: deliver / reject-back the acceptance-pending state.
-	"deliver_task", "rework_task",
 	// v2.10.3 T170: full issue management for project members.
 	// T200 WS4: posting to a task/issue is the single org-scoped post_message
 	// (target type task|issue), so it is listed in orgAgentCapabilities, not here.

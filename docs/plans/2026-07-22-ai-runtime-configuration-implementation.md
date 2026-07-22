@@ -406,7 +406,7 @@ P7 出口：
 
 ## 11. P8：独立验收流程
 
-P8 由未参与主要实现的 reviewer / QA 执行。功能实现完成只可标记 delivered，必须通过本阶段才能完成 Plan。
+P8 由未参与主要实现的 reviewer / QA 执行。功能实现完成标记 completed；是否通过由本阶段 Review 节点与 Decision/loopback 机制决定。
 
 ### Gate A：代码与迁移审查
 

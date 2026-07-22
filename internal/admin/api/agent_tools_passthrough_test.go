@@ -411,22 +411,15 @@ func TestListMyInflightTasks_SurfacesAssignedTask(t *testing.T) {
 	}
 }
 
-// THE center-side half of the I107 review-round-1 lock: a PARKED task must LEAVE the
-// in-flight set. This drives the real HTTP route (deliver_task / block_task → then
-// list_my_inflight_tasks), because the runtime treats in-flight membership as "relaunch
-// an executor for this" and never consults status once a task is in the set.
+// A PARKED task must LEAVE the in-flight set. This drives the real HTTP route
+// (block_task → then list_my_inflight_tasks), because the runtime treats in-flight
+// membership as "relaunch an executor for this" and never consults status once a
+// task is in the set.
 func TestListMyInflightTasks_ParkedTaskIsNotInflight(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		park func(t *testing.T, srvURL, tid string)
 	}{
-		{"delivered", func(t *testing.T, srvURL, tid string) {
-			st, b := postBearer(t, srvURL, "/admin/agent-tools/deliver_task", "acat_w1",
-				map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "handed over, awaiting acceptance"})
-			if st != http.StatusOK {
-				t.Fatalf("deliver_task status = %d, body = %v", st, b)
-			}
-		}},
 		{"blocked", func(t *testing.T, srvURL, tid string) {
 			st, b := postBearer(t, srvURL, "/admin/agent-tools/block_task", "acat_w1",
 				map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "needs PD triage", "reason_type": "obstacle"})

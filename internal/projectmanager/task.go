@@ -7,13 +7,11 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine. ADR-0054 amends ADR-0046 (which had simplified
-// 7→5) back to 7 states by adding the two NON-TERMINAL states the orchestration
-// reality needs:
+// TaskStatus enum + state machine. ADR-0046 simplified 7→5 states:
 //
-//	open → running → delivered → completed
-//	running/delivered → blocked → running
-//	open/running/delivered/blocked → discarded (terminal)
+//	open → running → completed
+//	running → blocked → running
+//	open/running/blocked → discarded (terminal)
 //	completed → reopened → open | running
 //
 // `reopened` is a RE-DISPATCHABLE non-terminal state (plan_view treats it as
@@ -24,26 +22,17 @@ import (
 // edge fixes T477: start_task on a reopened task previously hit ErrIllegalTransition
 // because `running` was unreachable from `reopened`.
 //
-// `delivered` (I107 ①) is "the work is DONE and handed over, but not yet accepted by
-// an external judge (review / acceptance / merge)". Before it existed, a task in that
-// very common orchestration position had NO true state: `running` lied (nothing is
-// executing), `completed` was a FALSE GREEN (nothing accepted it), and `blocked` read
-// as a false alarm ("stuck, come rescue me"). Callers had to pick the least-wrong
-// state to approximate one that did not exist. It is deliberately NON-terminal — no
-// complete-side downstream (issue-derived-done, plan advance, stage barriers) may fire
-// on it — and it does NOT occupy its agent's run slot (the executor is gone).
-//
 // `blocked` (I107 ②) is a REAL state again, not the annotation ADR-0046 made it. The
 // annotation could not stop dispatch: block_task wrote `blocked_reason` but left
 // status=running, so it marked rather than interrupted, and any re-drive forked a
-// FRESH empty-context executor onto work already delivered. `blocked_reason` /
+// FRESH empty-context executor onto paused work. `blocked_reason` /
 // `blocked_reason_type` REMAIN as the reason-carrying annotation (every reason-keyed
 // consumer is unchanged) — the status is what actually stops the dispatch path.
 //
-// The T16 deadlock class ADR-0046 removed stays removed: both new states carry
-// forward exits (blocked→running via unblock, delivered→completed via acceptance),
-// which TestTaskStates_NoDeadlockableState pins for EVERY non-terminal state. Neither
-// is terminal, so neither is reaped as concluded work.
+// The T16 deadlock class ADR-0046 removed stays removed: blocked carries a forward
+// exit (blocked→running via unblock), which TestTaskStates_NoDeadlockableState pins
+// for EVERY non-terminal state. It is not terminal, so it is not reaped as concluded
+// work.
 //
 // "verified" stays removed (unused; the "nobody self-accepts" discipline lives in
 // process — PD §-1 + Tester/Tester2 — not in a task state). The former "assigned"
@@ -54,9 +43,6 @@ const (
 	TaskOpen TaskStatus = "open"
 	// TaskRunning means an executor is actually in flight on this task.
 	TaskRunning TaskStatus = "running"
-	// TaskDelivered means the work is delivered and awaiting EXTERNAL acceptance
-	// (I107 ①). Non-terminal, holds no run slot, dispatches nothing.
-	TaskDelivered TaskStatus = "delivered"
 	// TaskBlocked means the task is PARKED on a blocked_reason (I107 ②): dispatch is
 	// really stopped, not merely annotated. Non-terminal; recovered via unblock.
 	TaskBlocked   TaskStatus = "blocked"
@@ -68,7 +54,7 @@ const (
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskRunning, TaskDelivered, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened:
+	case TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened:
 		return true
 	}
 	return false
@@ -82,20 +68,16 @@ func (s TaskStatus) IsValid() bool {
 // IsTerminal, and no such test existed — so two new non-terminal statuses broke nothing and
 // were silently excluded from every active view.)
 func AllTaskStatuses() []TaskStatus {
-	return []TaskStatus{TaskOpen, TaskRunning, TaskDelivered, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened}
+	return []TaskStatus{TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened}
 }
 
 // taskTransitions is the allowed-transition adjacency. Start moves open→running
-// directly (assignment is metadata, not a precondition state). ADR-0054: `delivered`
-// and `blocked` are non-terminal states that each keep at least one forward exit, so
-// the ADR-0046 "enters but cannot leave" deadlock class (T16) stays unreachable.
+// directly (assignment is metadata, not a precondition state). ADR-0054: `blocked`
+// is a non-terminal state that keeps a forward exit, so the ADR-0046 "enters but
+// cannot leave" deadlock class (T16) stays unreachable.
 var taskTransitions = map[TaskStatus][]TaskStatus{
 	TaskOpen:    {TaskRunning, TaskDiscarded},
-	TaskRunning: {TaskDelivered, TaskBlocked, TaskCompleted, TaskDiscarded},
-	// delivered exits: → completed is the acceptance verdict (the ONLY way a delivery
-	// becomes done), → running is rework after a reject, → blocked parks it when the
-	// acceptance itself needs outside help.
-	TaskDelivered: {TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded},
+	TaskRunning: {TaskBlocked, TaskCompleted, TaskDiscarded},
 	// blocked exits: → running is Unblock (the recovery entrypoint), → completed lets an
 	// owner conclude a parked task without an unblock hop (preserves the pre-ADR-0054
 	// "complete a blocked task" path), → discarded retires it.
@@ -120,16 +102,13 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 // IsTerminal reports whether the task has reached a concluded state: work is done
 // (completed) or abandoned (discarded). A Reopen can re-activate a completed task, but
 // in any concluded state the task is not "active work in flight". The complement (the
-// active / non-terminal set) is exactly {open, running, delivered, blocked, reopened}.
+// active / non-terminal set) is exactly {open, running, blocked, reopened}.
 // v2.7 #107 Phase-2 (proj-B): the observability default task-query set is the
 // non-terminal set.
 //
-// ADR-0054 命门: `delivered` and `blocked` are deliberately NOT terminal. Making either
-// terminal is the exact failure this issue exists to prevent — a delivered task would
-// be a FALSE GREEN (nothing accepted it) and a parked task would be reaped as concluded
-// work, dropping it out of every active view and recovery sweep that keys on the
-// non-terminal set. They are "not running" (no executor, no run slot), which is a
-// different question from "concluded"; ask IsDispatchable for the former.
+// ADR-0054: `blocked` is deliberately NOT terminal. It is "not running" (no
+// executor, no run slot), which is a different question from "concluded"; ask
+// IsDispatchable for the former.
 func (s TaskStatus) IsTerminal() bool {
 	switch s {
 	case TaskCompleted, TaskDiscarded:
@@ -139,20 +118,19 @@ func (s TaskStatus) IsTerminal() bool {
 }
 
 // IsParked reports whether the task is non-terminal but carries NO live execution and
-// must NOT be (re-)dispatched: `delivered` (handed over, waiting on an external judge)
-// and `blocked` (parked on a reason, waiting on a human). It is the I107 ②/③ load-bearer
+// must NOT be (re-)dispatched: `blocked` (parked on a reason, waiting on a human).
+// It is the I107 ②/③ load-bearer
 // — the ONE named predicate every dispatch / re-drive / recovery path asks instead of
 // re-deriving "which statuses mean stop" from a literal set, so a future state cannot be
 // added to the enum and silently forgotten by one gate (the taskReassigned /
 // point-recovery misses that produced past P0s were exactly that shape).
 //
 // A parked task is still ACTIVE work (non-terminal): it keeps its assignee, stays in
-// every active/board view, and is recovered forward by unblock / an acceptance verdict —
-// it just has nothing in flight to relaunch, so relaunching it forks a fresh empty-context
-// executor onto work that is already done.
+// every active/board view, and is recovered forward by unblock. It just has nothing
+// in flight to relaunch, so relaunching it forks a fresh empty-context executor.
 func (s TaskStatus) IsParked() bool {
 	switch s {
-	case TaskDelivered, TaskBlocked:
+	case TaskBlocked:
 		return true
 	}
 	return false
@@ -244,13 +222,6 @@ const (
 	TaskActionAgentStarted TaskAction = "agent_started"
 	TaskActionBlocked      TaskAction = "blocked"
 	TaskActionUnblocked    TaskAction = "unblocked"
-	// TaskActionDelivered (I107 ①) records a running→delivered hand-over; its Note carries
-	// the assignee's delivery summary (the log IS the summary's storage — there is no
-	// delivery_summary column, so nothing new has to be migrated or projected).
-	TaskActionDelivered TaskAction = "delivered"
-	// TaskActionRework records a delivered→running REJECT by the external acceptance; its
-	// Note carries the reject reason (also mirrored into blocked_comment for the agent).
-	TaskActionRework TaskAction = "rework"
 	TaskActionLeaseExpired TaskAction = "lease_expired"
 	// TaskActionLeaseNudged (T456) records a lapsed-lease NUDGE: the lease-checker no
 	// longer reclaims a running task whose lease lapsed (the old ExpireLease →
@@ -960,8 +931,7 @@ func (t *Task) Unassign(at time.Time) error {
 // `blocked` adjacency does carry a → running edge (that is Unblock's exit, and the
 // no-deadlock guarantee), but Start is the DISPATCH entrypoint: letting it walk that
 // edge would let the very re-drive this issue exists to stop quietly un-park a task and
-// fork a fresh empty-context executor onto it. Recover a parked task through its own
-// door — Unblock for blocked, an acceptance verdict (Complete) or Rework for delivered.
+// fork a fresh empty-context executor onto it. Recover a parked task through Unblock.
 func (t *Task) Start(at time.Time) error {
 	if t.status.IsParked() {
 		return ErrTaskParked
@@ -973,63 +943,7 @@ func (t *Task) Start(at time.Time) error {
 	return nil
 }
 
-// Deliver moves running→delivered (I107 ①): the assignee reports the work is DONE and
-// handed over, and the task now waits on an EXTERNAL acceptance (review / verification /
-// merge) that this agent does not get to self-issue.
-//
-// It is deliberately NOT a completion: nothing downstream of `completed` fires, because
-// nobody has accepted anything yet. It is deliberately NOT a block: `blocked` means
-// "stuck, a human must come rescue me", and reusing it here is what made the board read
-// as a false alarm on a task whose work was fine. It clears the execution lease (there is
-// no executor left to heartbeat) and KEEPS the assignee (still their task; a reject sends
-// it back to them via Rework). Only the assignee may deliver their own running task, and a
-// summary of what was delivered is required — an unexplained delivery cannot be judged.
-func (t *Task) Deliver(summary string, agentRef IdentityRef, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	if t.status != TaskRunning {
-		return ErrIllegalTransition
-	}
-	if t.assignee != agentRef {
-		return ErrNotTaskAssignee
-	}
-	if strings.TrimSpace(summary) == "" {
-		return ErrDeliverySummaryRequired
-	}
-	t.status = TaskDelivered
-	t.statusChangedAt = at.UTC()
-	// A delivery is not a block. Clear any stale annotation so the card does not show a
-	// delivered task as also-stuck, and drop the lease (no executor left to heartbeat).
-	t.blockedReason = ""
-	t.blockedReasonType = ""
-	t.executionLeaseExpiresAt = nil
-	t.appendLog(TaskActionDelivered, agentRef, agentRef, summary, at)
-	t.touch(at)
-	return nil
-}
-
-// Rework moves delivered→running: the external acceptance REJECTED the delivery, so the
-// work goes back to its (unchanged) assignee. The counterpart of Complete on a delivered
-// task — the two exits an acceptance verdict can take. The reject note is kept in
-// blockedComment, the same channel Unblock uses to hand a human's words back to the agent
-// on resume. Rejected only when the task is not delivered (ErrIllegalTransition).
-func (t *Task) Rework(comment string, actorRef IdentityRef, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	if t.status != TaskDelivered {
-		return ErrIllegalTransition
-	}
-	t.status = TaskRunning
-	t.statusChangedAt = at.UTC()
-	t.blockedComment = comment
-	t.appendLog(TaskActionRework, actorRef, t.assignee, comment, at)
-	t.touch(at)
-	return nil
-}
-
-// Block PARKS a running (or delivered) task on a stuck-reason (issue I14 §2.5,
+// Block PARKS a running task on a stuck-reason (issue I14 §2.5,
 // ADR-0054). It is the SINGLE pause entrypoint — reasonType=input_required means the
 // agent needs a user reply, obstacle means an external blocker needs owner/PM
 // intervention.
@@ -1050,7 +964,7 @@ func (t *Task) Block(reason string, reasonType BlockReasonType, agentRef Identit
 	if t.IsArchived() {
 		return ErrTaskArchived
 	}
-	if t.status != TaskRunning && t.status != TaskDelivered {
+	if t.status != TaskRunning {
 		return ErrIllegalTransition
 	}
 	if t.assignee != agentRef {
@@ -1230,7 +1144,7 @@ func (t *Task) ResetToOpen(at time.Time, bypassLease bool) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
 	}
-	// ADR-0054: parked first, so a `blocked`/`delivered` task keeps answering the precise
+	// ADR-0054: parked first, so a `blocked` task keeps answering the precise
 	// ErrTaskBlocked the operator/runtime already handles ("recovered by unblock, not
 	// reset") instead of degrading to ErrIllegalTransition now that it has left running.
 	if t.status.IsParked() {

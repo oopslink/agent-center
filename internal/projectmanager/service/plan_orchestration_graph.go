@@ -531,14 +531,12 @@ func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus 
 	default:
 		// open → node stays open.
 		//
-		// ADR-0054: the two PARKED statuses (delivered/blocked) also land here, and doing
-		// NOTHING is the correct sync for them. The node keeps whatever state it already had
-		// (Running, since the task was running before it parked), which is exactly right on
-		// both sides: downstream stays blocked and IsAutoDone stays false (an un-accepted
-		// delivery must not release a barrier or auto-complete a plan — the false green), and
-		// the node is not driven backwards to open (it is not startable — the park closed the
-		// dispatch gate). Recovery flows in through the task: unblock / rework returns it to
-		// running, and reopenStuckPlanNode re-arms the node for re-dispatch.
+		// ADR-0054: PARKED statuses land here, and doing NOTHING is the correct sync.
+		// The node keeps whatever state it already had (Running, since the task was
+		// running before it parked), which keeps downstream blocked and IsAutoDone false.
+		// The node is not driven backwards to open because it is not startable. Recovery
+		// flows in through the task: unblock returns it to running, and
+		// reopenStuckPlanNode re-arms the node for re-dispatch.
 		return nil
 	}
 }

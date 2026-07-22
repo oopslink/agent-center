@@ -188,15 +188,13 @@ func TestReconcileOneExecutor_BlockedTask_NoRecover(t *testing.T) {
 	}
 }
 
-// TestReconcileOneExecutor_ParkedStatus_NoRecover is the ADR-0054 命门-3 regression lock:
+// TestReconcileOneExecutor_ParkedStatus_NoRecover is the parked-task regression lock:
 // "别只改停、不改别复活" — stopping dispatch is worthless if the recovery chain reads a
 // parked task as still-mine-still-running and resurrects it.
 //
-// It pins the two ADR-0054 parked STATUSES as cancel evidence, INCLUDING the `blocked`
-// case with an EMPTY blocked_reason (which the pre-ADR-0054 reason-only check would have
-// missed entirely and relaunched) and `delivered`, where a relaunch is the worst outcome
-// of all: a fresh empty-context executor forking onto work that is already delivered and
-// pushed, whose frozen prompt tells it to implement everything from scratch.
+// It pins the `blocked` status as cancel evidence, INCLUDING the case with an EMPTY
+// blocked_reason (which the old reason-only check would have missed entirely and
+// relaunched).
 //
 // Crucially it reconciles REPEATEDLY: the historical failure was never "the first tick
 // relaunched" — it was that a later tick / a relaunch path pulled the task back. A single
@@ -210,7 +208,6 @@ func TestReconcileOneExecutor_ParkedStatus_NoRecover(t *testing.T) {
 		// The reason is EMPTY on purpose: the status alone must be sufficient evidence.
 		{"blocked_status_no_reason", "blocked", ""},
 		{"blocked_status_with_reason", "blocked", "obstacle: needs PD triage"},
-		{"delivered_status", "delivered", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rt, ee, home := engineForAgent(t, "ag-park")
@@ -244,10 +241,9 @@ func TestTaskCancelEvidence_ParkedAndLegacy(t *testing.T) {
 		{"terminal completed", centerTaskDetail{Status: "completed", Assignee: me}},
 		{"terminal discarded", centerTaskDetail{Status: "discarded", Assignee: me}},
 		{"legacy canceled spelling", centerTaskDetail{Status: "canceled", Assignee: me}},
-		// ADR-0054 parked statuses — status alone is proof, no reason needed.
+		// Parked status — status alone is proof, no reason needed.
 		{"parked blocked", centerTaskDetail{Status: "blocked", Assignee: me}},
-		{"parked delivered", centerTaskDetail{Status: "delivered", Assignee: me}},
-		{"parked, case-insensitive", centerTaskDetail{Status: "Delivered", Assignee: me}},
+		{"parked, case-insensitive", centerTaskDetail{Status: "Blocked", Assignee: me}},
 		// The legacy ADR-0046 shape must STILL be caught by the reason arm (issue-88e32d98
 		// P0 / the P67 Ship 事故): status reads healthy, only the reason betrays the park.
 		{"legacy running+reason", centerTaskDetail{Status: "running", Assignee: me, BlockedReason: "stuck"}},

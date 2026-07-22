@@ -55,7 +55,6 @@
     "running": "运行中",
     "resolved": "已解决",
     "completed": "已完成",
-    "delivered": "已交付待验收",
     "closed": "已关闭",
     "discarded": "已丢弃",
     "reopened": "已重开",

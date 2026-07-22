@@ -424,11 +424,6 @@ func (s *Server) routes() {
 	// message through the same MessageWriter path as human-created DMs.
 	s.mux.HandleFunc("POST /admin/agent-tools/start_dm", s.startDMHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
-	// ADR-0054 (I107 ①): the honest exit for "delivered, awaiting external acceptance"
-	// + its reject twin. deliver_task is own-task (the assignee delivers); rework_task is
-	// cross-agent by design (acceptance is somebody ELSE's call).
-	s.mux.HandleFunc("POST /admin/agent-tools/deliver_task", s.deliverTaskHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/rework_task", s.reworkTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reset_task", s.resetTaskHandler) // T862 tier-3 recovery

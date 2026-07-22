@@ -18,8 +18,8 @@ import i18n from '@/i18n';
 //   closed (Issue)        → slate (terminal)
 //   discarded (both)      → zinc (terminal, replaces canceled/withdrawn)
 //   reopened              → amber (back in play)
-// ADR-0054: `blocked` is a task status again (a real, non-terminal PARK), joined by
-// `delivered` (done, awaiting external acceptance). `verified` remains deleted. The
+// ADR-0054: `blocked` is a task status again (a real, non-terminal PARK).
+// `verified` remains deleted. The
 // blocked_reason annotation still exists and still carries the reason text — TaskDetail
 // renders it separately as a "Stuck" chip.
 //
@@ -34,13 +34,8 @@ export const STATUS_BG_CLS: Record<string, string> = {
   running: 'bg-status-blue-solid',
   resolved: 'bg-status-green-solid',
   completed: 'bg-status-green-solid',
-  // ADR-0054 parked states. `delivered` is deliberately NOT green: green reads as
-  // "done", and the whole point is that nobody has accepted it yet — teal says
-  // "finished, awaiting a verdict" without claiming the outcome. `blocked` takes orange
-  // (the alert end of the scale, distinct from reopened's amber). Both tokens are
-  // verified to exist in index.css — there is no rose-*-solid, and an absent token
-  // fails SILENTLY as a transparent chip rather than as a build error.
-  delivered: 'bg-status-teal-solid',
+  // ADR-0054 parked state. `blocked` takes orange (the alert end of the scale,
+  // distinct from reopened's amber).
   blocked: 'bg-status-orange-solid',
   closed: 'bg-status-slate-solid',
   discarded: 'bg-status-zinc-solid',

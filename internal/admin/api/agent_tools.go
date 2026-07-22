@@ -126,7 +126,7 @@ func (s *Server) listMyTasksHandler(w http.ResponseWriter, r *http.Request) {
 // listMyInflightTasksHandler is the RUNTIME-facing reconcile query (design §4.2):
 // it returns the agent's DISPATCHABLE active tasks — ListAssignedAgentTasks minus the
 // ADR-0054 parked states, NOT ListRunnableAgentTasks. "In-flight" means "an executor may
-// be relaunched for this"; a parked (delivered / blocked) task is active but has nothing
+// be relaunched for this"; a parked (blocked) task is active but has nothing
 // in flight, and the runtime treats membership here as licence to relaunch. The
 // DEPENDENCY set is still unfiltered, which is the reason this is not
 // ListRunnableAgentTasks. The difference matters for
@@ -158,12 +158,12 @@ func (s *Server) listMyInflightTasksHandler(w http.ResponseWriter, r *http.Reque
 	}
 	out := make([]map[string]any, 0, len(tasks))
 	for _, t := range tasks {
-		// ADR-0054 (I107 review round 1): drop PARKED tasks (delivered / blocked).
+		// ADR-0054: drop PARKED tasks (blocked).
 		// "In-flight" here means "work an executor may be relaunched for", which is
 		// exactly TaskStatus.IsDispatchable. A parked task is still active and still on
 		// every board — it just has nothing in flight — and leaving it in this set makes
 		// boot self-reconcile fork a fresh empty-context executor onto work that is
-		// already delivered.
+		// deliberately paused.
 		//
 		// This stays UNFILTERED in the DEPENDENCY sense (the reason this endpoint is not
 		// ListRunnableAgentTasks): IsDispatchable is a pure STATUS predicate, so a

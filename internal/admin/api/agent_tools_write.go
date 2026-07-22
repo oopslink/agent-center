@@ -757,106 +757,6 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "blocked"})
 }
 
-// --- deliver_task / rework_task (ADR-0054, I107 ①) ----------------------------
-
-type deliverTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Summary string `json:"summary"`
-}
-
-// deliverTaskHandler posts the delivery summary to the task Conversation AND moves the
-// task running→delivered via pm.DeliverTask — ATOMICALLY (one outer RunInTx), mirroring
-// blockTaskHandler: the human-facing record and the state change must not be able to
-// disagree.
-//
-// This is the honest exit for "my work is done, but accepting it is not my call". Before
-// it existed the agent had to pick a lie — complete_task (a false green: nothing accepted
-// it) or block_task (a false alarm: nothing is stuck). Same own-task/backlog gates as
-// block_task: only the running assignee delivers its own task.
-func (s *Server) deliverTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req deliverTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.MessageWriter == nil || d.ConvRepo == nil || d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_or_conversation_not_wired", "")
-		return
-	}
-	if d.DB == nil {
-		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.Summary) == "" {
-		writeError(w, http.StatusBadRequest, "missing_summary", "deliver requires a summary of what was delivered")
-		return
-	}
-	if s.rejectIfBacklog(w, r, d, req.TaskID, "delivering") {
-		return
-	}
-	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
-		return
-	}
-	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
-			return err
-		}
-		return d.PMService.DeliverTask(txCtx, pm.TaskID(req.TaskID), req.Summary,
-			pm.IdentityRef(agentActor(a)))
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "delivered"})
-}
-
-type reworkTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Comment string `json:"comment"`
-}
-
-// reworkTaskHandler is the REJECT half of the acceptance verdict: delivered→running, with
-// the reject note handed back to the assignee (blocked_comment) and a fresh re-dispatch
-// wake — the delivered-state twin of unblock_task.
-//
-// Cross-agent BY DESIGN (the whole point of `delivered` is that acceptance belongs to
-// SOMEONE ELSE — a reviewer/PD rejects another agent's delivery), so it does NOT
-// requireOwnTask; the pm service enforces project membership + project mutability. Rework
-// on a non-delivered task is an illegal transition (422).
-func (s *Server) reworkTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req reworkTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
-		return
-	}
-	if err := d.PMService.ReworkTask(r.Context(), pm.TaskID(req.TaskID), req.Comment,
-		pm.IdentityRef(agentActor(a))); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
-}
-
 // --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
 
 type unblockTaskReq struct {
@@ -1054,10 +954,24 @@ type completeTaskReq struct {
 	// blocking objection (forces auto-reject even with verdict=pass); ReviewReason is
 	// a short rationale; ReviewSHA is the reviewed commit. B3 reads the CURRENT-round
 	// verdict to auto-decide the downstream Decision.
-	ReviewVerdict  string `json:"review_verdict"`
-	ReviewBlocking bool   `json:"review_blocking"`
-	ReviewReason   string `json:"review_reason"`
-	ReviewSHA      string `json:"review_sha"`
+	ReviewVerdict  string                   `json:"review_verdict"`
+	ReviewBlocking bool                     `json:"review_blocking"`
+	ReviewReason   string                   `json:"review_reason"`
+	ReviewSHA      string                   `json:"review_sha"`
+	Delivery       *completeTaskDeliveryReq `json:"delivery"`
+}
+
+type completeTaskDeliveryReq struct {
+	Summary string                `json:"summary"`
+	Outcome string                `json:"outcome"`
+	Review  completeTaskReviewReq `json:"review"`
+}
+
+type completeTaskReviewReq struct {
+	Verdict  string `json:"verdict"`
+	Blocking bool   `json:"blocking"`
+	Reason   string `json:"reason"`
+	SHA      string `json:"sha"`
 }
 
 // completeTaskHandler optionally posts a summary to the task Conversation AND
@@ -1082,6 +996,26 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
 		return
 	}
+	deliverySummary := req.Summary
+	deliveryOutcome := req.Outcome
+	reviewVerdict := req.ReviewVerdict
+	reviewBlocking := req.ReviewBlocking
+	reviewReason := req.ReviewReason
+	reviewSHA := req.ReviewSHA
+	if req.Delivery != nil {
+		if strings.TrimSpace(req.Delivery.Summary) != "" {
+			deliverySummary = req.Delivery.Summary
+		}
+		if strings.TrimSpace(req.Delivery.Outcome) != "" {
+			deliveryOutcome = req.Delivery.Outcome
+		}
+		if strings.TrimSpace(req.Delivery.Review.Verdict) != "" {
+			reviewVerdict = req.Delivery.Review.Verdict
+			reviewBlocking = req.Delivery.Review.Blocking
+			reviewReason = req.Delivery.Review.Reason
+			reviewSHA = req.Delivery.Review.SHA
+		}
+	}
 	// T190: a backlog (inert) task cannot be completed — unified guidance before the
 	// own-work scope check (which would 403 not_agents_task for the missing WorkItem).
 	if s.rejectIfBacklog(w, r, d, req.TaskID, "completing") {
@@ -1094,7 +1028,7 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// deferred to a human). A decision node's outcome is the agent's explicit `outcome`
 	// arg; absent one, the completed decision is deferred to a human via
 	// NotifyDecisionDeferred AFTER the tx.
-	manualOutcome := strings.TrimSpace(req.Outcome)
+	manualOutcome := strings.TrimSpace(deliveryOutcome)
 	// issue-74df441a deferred-decision recovery: a DECISION node can end up
 	// already-completed WITHOUT its outcome recorded (deferred to a human). Re-running
 	// complete_task with an outcome must then record the outcome + advance the plan
@@ -1121,8 +1055,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		if strings.TrimSpace(req.Summary) != "" {
-			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
+		if strings.TrimSpace(deliverySummary) != "" {
+			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, deliverySummary, ""); err != nil {
 				return err
 			}
 		}
@@ -1140,8 +1074,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			// The web task status menu intentionally allows any valid status as a
 			// manual progress override. complete_task keeps the typed transition for
-			// running/delivered tasks, but accepts the same owner override for an
-			// assigned open/reopened task so MCP and UI do not disagree.
+			// running tasks, but accepts the same owner override for an assigned
+			// open/reopened task so MCP and UI do not disagree.
 			if err := d.PMService.SetTaskStatus(txCtx, pm.TaskID(req.TaskID), pm.TaskCompleted,
 				pm.IdentityRef(agentActor(a))); err != nil {
 				return err
@@ -1150,9 +1084,9 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		// T468: a REVIEW node completing with a structured verdict records it (single-
 		// slot, round-tagged) in the SAME tx, so the downstream Decision's B3 reads the
 		// current-round verdict to auto-decide. No-op for an ordinary complete (empty).
-		if strings.TrimSpace(req.ReviewVerdict) != "" {
+		if strings.TrimSpace(reviewVerdict) != "" {
 			if err := d.PMService.RecordReviewVerdict(txCtx, pm.TaskID(req.TaskID),
-				strings.TrimSpace(req.ReviewVerdict), req.ReviewBlocking, req.ReviewReason, req.ReviewSHA,
+				strings.TrimSpace(reviewVerdict), reviewBlocking, reviewReason, reviewSHA,
 				pm.IdentityRef(agentActor(a))); err != nil {
 				return err
 			}
