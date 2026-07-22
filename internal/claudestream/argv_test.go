@@ -151,10 +151,10 @@ func TestBuildStreamingArgv(t *testing.T) {
 
 // TestBuildStreamingArgv_DeferredToolDiscoverabilityGuidance pins T463 (issue
 // d8c8c9b8 (b)): the persistent --append-system-prompt the agent actually
-// receives must carry the "discoverability ≠ absence" hard rule and name the
-// common deferred read tools, so an agent doesn't silently conclude "no tool to
-// read the issue" and block. Asserting on the real BuildStreamingArgv output (not
-// the const directly) proves the text survives into the delivered prompt.
+// receives must carry the "discoverability ≠ absence" hard rule, while issue
+// lifecycle tools are named as core so an agent can follow owner-review nudges
+// such as close_issue directly. Asserting on the real BuildStreamingArgv output
+// (not the const directly) proves the text survives into the delivered prompt.
 func TestBuildStreamingArgv_DeferredToolDiscoverabilityGuidance(t *testing.T) {
 	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil, "", false)
 	if err != nil {
@@ -171,14 +171,15 @@ func TestBuildStreamingArgv_DeferredToolDiscoverabilityGuidance(t *testing.T) {
 	if sysPrompt == "" {
 		t.Fatalf("no --append-system-prompt in argv: %v", argv)
 	}
-	// The hard rule (search_tools before concluding a tool is missing) and the
-	// named deferred read tools must both be present in the delivered prompt.
+	// The hard rule (search_tools before concluding a deferred tool is missing)
+	// and the directly named issue lifecycle tools must both be present in the
+	// delivered prompt.
 	want := []string{
 		"search_tools",
 		"before you conclude that you lack a tool",
 		"get_issue",
+		"close_issue",
 		"get_plan",
-		"download_file",
 		"discoverability ≠ absence",
 	}
 	for _, w := range want {

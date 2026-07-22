@@ -477,9 +477,14 @@ func TestTierTools_DefaultIsLeanCore(t *testing.T) {
 	}
 	// T252: the reminder family is CORE (directly discoverable) — guard against a
 	// regression that re-defers it behind search_tools (the bug PD hit in I4).
+	// Issue lifecycle tools are also CORE: wakeups and owner-review nudges name
+	// get_issue/close_issue directly, and an outer harness may only index tools
+	// already present in the default ListTools result.
 	for _, name := range []string{
 		"list_my_tasks", "start_task", "heartbeat", "complete_task", "post_message",
 		"create_reminder", "list_reminders", "get_reminder", "update_reminder",
+		"get_issue", "list_issues", "list_tasks_of_issue", "create_issue",
+		"update_issue", "close_issue", "reopen_issue",
 	} {
 		if !got[name] {
 			t.Errorf("core tool %q missing from tiered default set", name)

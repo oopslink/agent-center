@@ -25,14 +25,12 @@ var secondaryTools = []struct{ name, summary string }{
 	// org discovery
 	{"find_org_agent", "find an agent in your organization by name"},
 	{"find_org_channel", "find a channel in your organization by name"},
-	// issue read + management
-	{"get_issue", "read an issue"},
-	{"list_issues", "list a project's issues"},
-	{"list_tasks_of_issue", "list the tasks derived from an issue"},
-	{"create_issue", "open a new issue in a project"},
-	{"update_issue", "edit an issue (title/description/status/tags)"},
-	{"close_issue", "close an issue"},
-	{"reopen_issue", "reopen a closed issue"},
+	// Issue read + management tools are CORE (kept OUT of this deferred
+	// manifest). Issue/task wakeups explicitly tell agents to call get_issue or
+	// close_issue; if those are hidden behind this server's search_tools, an outer
+	// harness that only indexes already-advertised tools can double-hide them.
+	// That leaves the agent with a system instruction naming close_issue but no
+	// callable schema. Keep the issue lifecycle directly discoverable.
 	// task link / assignment admin
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
