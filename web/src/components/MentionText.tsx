@@ -105,7 +105,13 @@ export interface ResolvedTaskRef {
 export function useTaskRefResolver(): (ref: string) => ResolvedTaskRef | null {
   const ctx = useOptionalOrgContext();
   const slug = ctx?.slug;
-  const tasks = useOrgWorkItems('task', slug, { status: ['all'] });
+  // SSE invalidation keeps this list live in the normal case, but it is not a
+  // correctness boundary: a disconnected tab or an event delivered before the
+  // resolver observer mounts can leave a fresh cache entry without a task that
+  // was just created and mentioned. Refetch on each observer mount; React Query
+  // deduplicates the message list's shared key, and a newly mounted message then
+  // repairs a missed event without polling.
+  const tasks = useOrgWorkItems('task', slug, { status: ['all'] }, { refetchOnMount: 'always' });
   return useMemo(() => {
     const byRef = new Map<string, { label: string; projectId: string; taskId: string }>();
     for (const it of tasks.data?.items ?? []) {

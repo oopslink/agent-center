@@ -7,6 +7,7 @@ import { server } from '@/test/mswServer';
 import { MarkdownMessage } from './MarkdownMessage';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { OrgContext } from '@/OrgContext';
+import { qk } from '@/api/queryKeys';
 
 // #281 entry ②: @mention tokens in message content open the existing kind-routed
 // SenderDetailSidebar. Mentions weren't previously distinct tokens — this asserts
@@ -220,6 +221,32 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(link).toHaveAttribute('data-task-id', 'task-abc');
+  });
+
+  it('refreshes a fresh-but-stale resolver cache when a new task ref message mounts', async () => {
+    mockOrgTasks();
+    const filters = { status: ['all'] };
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    // Reproduce a missed SSE event: the shared resolver cache is considered
+    // permanently fresh but predates task-abc. Without refetchOnMount:'always',
+    // React Query serves this empty list forever and the token stays plain text.
+    qc.setQueryData(qk.orgTasks({ slug: 'test-org', filters }), { items: [], total: 0 });
+
+    render(
+      <QueryClientProvider client={qc}>
+        <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>
+          <SenderSidebarProvider>
+            <MarkdownMessage content={'created task-abc just now'} />
+          </SenderSidebarProvider>
+        </OrgContext.Provider>
+      </QueryClientProvider>,
+    );
+
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link).toHaveTextContent('T123');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
   });
 
   it('falls back to the FULL id (never a #id-tail hash) when the task has no org_ref (T126)', async () => {

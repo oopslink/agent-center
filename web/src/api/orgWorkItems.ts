@@ -97,10 +97,15 @@ interface OrgWorkItemList {
   total: number;
 }
 
+interface OrgWorkItemQueryOptions {
+  refetchOnMount?: boolean | 'always';
+}
+
 export function useOrgWorkItems(
   kind: OrgWorkItemKind,
   slug: string | undefined,
   filters?: OrgWorkItemFilters,
+  options?: OrgWorkItemQueryOptions,
 ) {
   const path = kind === 'issue' ? '/issues' : '/tasks';
   const key = kind === 'issue' ? qk.orgIssues({ slug, filters }) : qk.orgTasks({ slug, filters });
@@ -110,5 +115,6 @@ export function useOrgWorkItems(
     // kept only to scope the query-cache key + gate the fetch to an org route.
     queryFn: () => api.get<OrgWorkItemList>(`${path}${buildWorkItemQuery(filters)}`),
     enabled: !!slug,
+    refetchOnMount: options?.refetchOnMount,
   });
 }
