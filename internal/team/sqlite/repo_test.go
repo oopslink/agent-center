@@ -41,6 +41,10 @@ func devRole() team.RoleConfig {
 	return team.RoleConfig{Role: "dev", CLI: "claude-code", Model: "claude-opus-4-8", CapabilityTags: []string{"go"}, MaxConcurrency: 2}
 }
 
+func reviewRole() team.RoleConfig {
+	return team.RoleConfig{Role: "review", CLI: "codex", Model: "gpt-5", CapabilityTags: []string{"review"}, MaxConcurrency: 1}
+}
+
 func TestCreateAndGetTeam_RoundTrip(t *testing.T) {
 	db := openTestDB(t)
 	r := NewRepo(db)
@@ -99,7 +103,7 @@ func TestAgentExclusivity_DBLevel(t *testing.T) {
 	db := openTestDB(t)
 	r := NewRepo(db)
 	ctx := context.Background()
-	if err := r.CreateTeam(ctx, newTeam(t, "team-a", "org", "A", devRole())); err != nil {
+	if err := r.CreateTeam(ctx, newTeam(t, "team-a", "org", "A", devRole(), reviewRole())); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.CreateTeam(ctx, newTeam(t, "team-b", "org", "B", devRole())); err != nil {
@@ -115,14 +119,21 @@ func TestAgentExclusivity_DBLevel(t *testing.T) {
 	if !errors.Is(err, team.ErrAgentAlreadyInTeam) {
 		t.Fatalf("agent second team: got %v want ErrAgentAlreadyInTeam", err)
 	}
-	// Same team twice → rejected. At the raw DB layer this violates BOTH the
-	// (team,ref) PK and the agent-exclusivity index; SQLite may report either,
-	// so accept both "already a member" signals. The crisp same-team semantics
-	// (ErrMemberAlreadyInTeam) is asserted at the service layer, which
-	// pre-checks before insert.
+	// Same team and same role twice → rejected by the member-role PK.
 	err = r.AddMember(ctx, &team.TeamMember{TeamID: "team-a", Ref: agent, Kind: team.MemberKindAgent, Role: "dev", CreatedAt: fixedTS})
-	if !errors.Is(err, team.ErrMemberAlreadyInTeam) && !errors.Is(err, team.ErrAgentAlreadyInTeam) {
-		t.Fatalf("agent same team twice: got %v want a membership-exists error", err)
+	if !errors.Is(err, team.ErrMemberAlreadyInTeam) {
+		t.Fatalf("agent same role twice: got %v want ErrMemberAlreadyInTeam", err)
+	}
+	// Same team under a different declared role is valid.
+	if err := r.AddMember(ctx, &team.TeamMember{TeamID: "team-a", Ref: agent, Kind: team.MemberKindAgent, Role: "review", CreatedAt: fixedTS}); err != nil {
+		t.Fatalf("agent second role in same team: %v", err)
+	}
+	members, err := r.ListMembers(ctx, "team-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("agent same team multi-role rows: got %d want 2 (%+v)", len(members), members)
 	}
 	// After removal the agent is free to join another team.
 	if err := r.RemoveMember(ctx, "team-a", agent); err != nil {

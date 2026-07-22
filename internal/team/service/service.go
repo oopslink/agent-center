@@ -167,18 +167,32 @@ func (s *Service) ListTeams(ctx context.Context, orgID string) ([]*team.Team, er
 // The whole check-then-insert runs in one tx so two concurrent adds of the same
 // agent cannot both pass the pre-check.
 func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.MemberRef, role string) (*team.TeamMember, error) {
+	members, err := s.AddMemberRoles(ctx, id, ref, []string{role})
+	if err != nil {
+		return nil, err
+	}
+	return members[0], nil
+}
+
+// AddMemberRoles adds a member under one or more declared roles in the same tx.
+func (s *Service) AddMemberRoles(ctx context.Context, id team.TeamID, ref team.MemberRef, roles []string) ([]*team.TeamMember, error) {
 	kind, err := ref.Kind()
 	if err != nil {
 		return nil, err
 	}
-	var member *team.TeamMember
+	if len(roles) == 0 {
+		return nil, team.ErrInvalidRole
+	}
+	members := make([]*team.TeamMember, 0, len(roles))
 	err = persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
 		t, err := s.repo.GetTeam(ctx, id)
 		if err != nil {
 			return err
 		}
-		if !t.HasRole(role) {
-			return team.ErrRoleNotDeclared
+		for _, role := range roles {
+			if !t.HasRole(role) {
+				return team.ErrRoleNotDeclared
+			}
 		}
 		// Write-path invariant (hardening): the ref must resolve to a real identity
 		// of the matching kind that is a member of THIS team's org. Without it any
@@ -200,30 +214,29 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 			if err != nil {
 				return err
 			}
-			if ok {
-				if existing == id {
-					return team.ErrMemberAlreadyInTeam
-				}
+			if ok && existing != id {
 				return team.ErrAgentAlreadyInTeam
 			}
 		}
-		m := &team.TeamMember{
-			TeamID:    id,
-			Ref:       ref,
-			Kind:      kind,
-			Role:      role,
-			CreatedAt: s.clock.Now(),
+		for _, role := range roles {
+			m := &team.TeamMember{
+				TeamID:    id,
+				Ref:       ref,
+				Kind:      kind,
+				Role:      role,
+				CreatedAt: s.clock.Now(),
+			}
+			if err := s.repo.AddMember(ctx, m); err != nil {
+				return err
+			}
+			members = append(members, m)
 		}
-		if err := s.repo.AddMember(ctx, m); err != nil {
-			return err
-		}
-		member = m
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return member, nil
+	return members, nil
 }
 
 // MoveMember atomically migrates a member ref from fromTeam to toTeam under the
@@ -239,18 +252,33 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 // ErrMemberNotFound (ref not on fromTeam — e.g. a stale migrate_from),
 // ErrAgentAlreadyInTeam (agent still bound to a THIRD team).
 func (s *Service) MoveMember(ctx context.Context, fromTeam, toTeam team.TeamID, ref team.MemberRef, role string) (*team.TeamMember, error) {
+	members, err := s.MoveMemberRoles(ctx, fromTeam, toTeam, ref, []string{role})
+	if err != nil {
+		return nil, err
+	}
+	return members[0], nil
+}
+
+// MoveMemberRoles atomically migrates a member ref from fromTeam to toTeam under
+// one or more destination roles.
+func (s *Service) MoveMemberRoles(ctx context.Context, fromTeam, toTeam team.TeamID, ref team.MemberRef, roles []string) ([]*team.TeamMember, error) {
 	kind, err := ref.Kind()
 	if err != nil {
 		return nil, err
 	}
-	var member *team.TeamMember
+	if len(roles) == 0 {
+		return nil, team.ErrInvalidRole
+	}
+	members := make([]*team.TeamMember, 0, len(roles))
 	err = persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
 		to, err := s.repo.GetTeam(ctx, toTeam)
 		if err != nil {
 			return err
 		}
-		if !to.HasRole(role) {
-			return team.ErrRoleNotDeclared
+		for _, role := range roles {
+			if !to.HasRole(role) {
+				return team.ErrRoleNotDeclared
+			}
 		}
 		// Same write-path hardening as AddMember: reject a dangling / cross-org /
 		// kind-mismatched ref BEFORE mutating anything.
@@ -278,23 +306,25 @@ func (s *Service) MoveMember(ctx context.Context, fromTeam, toTeam team.TeamID, 
 				return team.ErrAgentAlreadyInTeam
 			}
 		}
-		m := &team.TeamMember{
-			TeamID:    toTeam,
-			Ref:       ref,
-			Kind:      kind,
-			Role:      role,
-			CreatedAt: s.clock.Now(),
+		for _, role := range roles {
+			m := &team.TeamMember{
+				TeamID:    toTeam,
+				Ref:       ref,
+				Kind:      kind,
+				Role:      role,
+				CreatedAt: s.clock.Now(),
+			}
+			if err := s.repo.AddMember(ctx, m); err != nil {
+				return err
+			}
+			members = append(members, m)
 		}
-		if err := s.repo.AddMember(ctx, m); err != nil {
-			return err
-		}
-		member = m
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return member, nil
+	return members, nil
 }
 
 // RemoveMember removes a member from a team. ErrMemberNotFound if absent.

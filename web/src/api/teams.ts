@@ -56,6 +56,7 @@ export interface MemberView {
   member_ref: string; // "agent:<id>" | "user:<id>"
   kind: 'agent' | 'human';
   role: string;
+  roles?: string[];
   // Phase-1 display extras:
   name: string;
   tags: string[];
@@ -286,7 +287,8 @@ export interface AddMemberInput {
   member_ref: string;
   name: string;
   kind: 'agent' | 'human';
-  role: string;
+  role?: string;
+  roles: string[];
   migrateFrom?: string;
 }
 
@@ -301,7 +303,8 @@ export function useAddMember() {
         member_ref: input.member_ref,
         name: input.name,
         kind: input.kind,
-        role: input.role,
+        role: input.role ?? input.roles[0],
+        roles: input.roles,
         migrate_from: input.migrateFrom,
       }),
     onSuccess: (_d, v) => {

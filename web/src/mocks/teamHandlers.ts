@@ -96,7 +96,8 @@ export function teamHandlers() {
         member_ref: string;
         name: string;
         kind: 'agent' | 'human';
-        role: string;
+        role?: string;
+        roles?: string[];
         migrate_from?: string;
       };
       const s = teamsStore();
@@ -113,11 +114,20 @@ export function teamHandlers() {
         }
       }
       const list = s.members[id] ?? (s.members[id] = []);
+      const roles = Array.from(new Set((input.roles?.length ? input.roles : [input.role ?? '']).filter(Boolean)));
+      const role = roles[0] ?? '';
+      const existing = list.find((m) => m.member_ref === input.member_ref);
+      if (existing) {
+        existing.roles = Array.from(new Set([...(existing.roles ?? [existing.role]), ...roles]));
+        existing.role = existing.roles.join(', ');
+        return json(existing, 201);
+      }
       const member: MemberView = {
         team_id: id,
         member_ref: input.member_ref,
         kind: input.kind,
-        role: input.role,
+        role: roles.join(', ') || role,
+        roles,
         name: input.name,
         tags: [],
         cli: input.kind === 'agent' ? 'claude-code' : '—',
@@ -127,7 +137,7 @@ export function teamHandlers() {
       };
       list.push(member);
       const team = s.teams.find((t) => t.id === id);
-      if (team) team.members_count = list.length;
+      if (team) team.members_count = new Set(list.map((m) => m.member_ref)).size;
       return json(member, 201);
     }),
 

@@ -106,9 +106,9 @@
     "extractToTemplate": "Extract → Template",
     "memoryHeading": "⌗ team-memory",
     "overview": {
-      "roleMix": "Role mix",
-      "roleMixHint": "declarative slots",
-      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
+      "roleMix": "Role definitions",
+      "roleMixHint": "runtime defaults",
+      "roleSpec": "{{cli}} · {{model}} · max {{conc}} tasks / agent",
       "summary": "Team overview",
       "summaryHint": "structure + team-memory",
       "enrolledMembers": "Enrolled members",
@@ -282,7 +282,7 @@
     "migrateRunningTasksValue": "wrap up / reassign first",
     "migrateError": "Migration failed: {{message}}",
     "title": "Add member",
-    "subtitle": "Enroll an agent or human into a declared role.",
+    "subtitle": "Enroll an agent or human into one or more declared roles.",
     "add": "Add",
     "kindLabel": "Type",
     "kindAgent": "Agent",
@@ -298,7 +298,8 @@
     "free": " (free)",
     "selectHuman": "Select human",
     "selectHumanHint": "A human may belong to many teams.",
-    "roleLabel": "Assign role"
+    "roleLabel": "Assign roles",
+    "roleHint": "A member can hold multiple roles in the same team."
   },
   "extractModal": {
     "title": "Extract → Template",

@@ -157,8 +157,8 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
             {t('teamDetail.roles.edit')}
           </button>
         } />
-        <RoleBar roles={tv.roles} className="w-full" />
-        <RoleLegend roles={tv.roles} />
+        <RoleBar roles={tv.roles} className="w-full" showCount={false} />
+        <RoleLegend roles={tv.roles} showCount={false} />
         <div className="mt-3.5">
           {tv.roles.map((r) => (
             <SpecLine
@@ -166,7 +166,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
               k={
                 <span className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-sm" style={{ background: roleColor(r.role) }} aria-hidden="true" />
-                  {r.role} ×{r.count ?? 1}
+                  {r.role}
                 </span>
               }
               v={t('teamDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}
@@ -269,48 +269,55 @@ function MembersPane({
               </tr>
             </thead>
             <tbody>
-              {members.data.map((m) => (
-                <tr key={m.member_ref} data-testid={`member-row-${m.member_ref}`} className="border-b border-border-base last:border-0">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <Glyph text={m.name[0]?.toUpperCase() ?? '?'} size="sm" kind={m.kind} />
-                      <div>
-                        <div className="font-semibold text-text-primary">{m.name}</div>
-                        <div className="font-mono text-[0.6875rem] text-text-muted">{m.member_ref}</div>
+              {members.data.map((m) => {
+                const memberRoles = m.roles?.length ? m.roles : [m.role];
+                return (
+                  <tr key={m.member_ref} data-testid={`member-row-${m.member_ref}`} className="border-b border-border-base last:border-0">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Glyph text={m.name[0]?.toUpperCase() ?? '?'} size="sm" kind={m.kind} />
+                        <div>
+                          <div className="font-semibold text-text-primary">{m.name}</div>
+                          <div className="font-mono text-[0.6875rem] text-text-muted">{m.member_ref}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <KindTag kind={m.kind} />
-                    {m.exclusive && <span className="ml-1.5 text-[0.625rem] font-semibold text-warning">{t('teamDetail.members.exclusiveTag')}</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded border border-border-base bg-bg-subtle px-2 py-0.5 text-xs font-semibold" style={roleColorChip(m.role)}>
-                      {m.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-muted">
-                    {m.cli} · {m.model}
-                  </td>
-                  <td className="px-4 py-3">
-                    {m.tags.length ? (
-                      m.tags.map((tag) => (
-                        <span key={tag} className="mr-1 inline-block rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] text-text-secondary">
-                          {tag}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => setRemovingRef(m.member_ref)}>
-                      {t('teamDetail.members.remove')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3">
+                      <KindTag kind={m.kind} />
+                      {m.exclusive && <span className="ml-1.5 text-[0.625rem] font-semibold text-warning">{t('teamDetail.members.exclusiveTag')}</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {memberRoles.map((role) => (
+                          <span key={role} className="rounded border border-border-base bg-bg-subtle px-2 py-0.5 text-xs font-semibold" style={roleColorChip(role)}>
+                            {role}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-muted">
+                      {m.cli} · {m.model}
+                    </td>
+                    <td className="px-4 py-3">
+                      {m.tags.length ? (
+                        m.tags.map((tag) => (
+                          <span key={tag} className="mr-1 inline-block rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] text-text-secondary">
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => setRemovingRef(m.member_ref)}>
+                        {t('teamDetail.members.remove')}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

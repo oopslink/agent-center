@@ -110,6 +110,14 @@ func TestTeamViewMap(t *testing.T) {
 	if empty["roles"].([]map[string]any)[0]["count"] != 0 {
 		t.Errorf("no-member role count = %v, want 0", empty["roles"].([]map[string]any)[0]["count"])
 	}
+
+	multiRole := teamViewMap(tm, []*team.TeamMember{
+		{TeamID: "team-1", Ref: "agent:a1", Kind: team.MemberKindAgent, Role: "impl"},
+		{TeamID: "team-1", Ref: "agent:a1", Kind: team.MemberKindAgent, Role: "reviewer"},
+	}, 0)
+	if multiRole["members_count"] != 1 {
+		t.Errorf("multi-role members_count = %v, want 1 unique member", multiRole["members_count"])
+	}
 }
 
 // TestMemberViewMap locks exclusive=false and role-config-sourced tags/cli/model/concurrency.
@@ -139,6 +147,33 @@ func TestMemberViewMap(t *testing.T) {
 	}
 	if tags, ok := v2["tags"].([]string); !ok || tags == nil {
 		t.Errorf("unknown-role tags = %v, want non-nil []", v2["tags"])
+	}
+}
+
+func TestMemberViewsAggregatesRoles(t *testing.T) {
+	roleByName := map[string]team.RoleConfig{
+		"impl":   {Role: "impl", CLI: "claude-code", Model: "sonnet-5", CapabilityTags: []string{"go"}, MaxConcurrency: 3},
+		"review": {Role: "review", CLI: "codex", Model: "gpt-5", CapabilityTags: []string{"go", "audit"}, MaxConcurrency: 1},
+	}
+	members := []*team.TeamMember{
+		{TeamID: "team-1", Ref: "agent:a1", Kind: team.MemberKindAgent, Role: "impl"},
+		{TeamID: "team-1", Ref: "agent:a1", Kind: team.MemberKindAgent, Role: "review"},
+	}
+	views := memberViews(members, roleByName, func(ref team.MemberRef) string { return "Ada" })
+	if len(views) != 1 {
+		t.Fatalf("views len = %d want 1: %v", len(views), views)
+	}
+	v := views[0]
+	roles := v["roles"].([]string)
+	if len(roles) != 2 || roles[0] != "impl" || roles[1] != "review" {
+		t.Fatalf("roles = %v want [impl review]", roles)
+	}
+	if v["role"] != "impl, review" || v["cli"] != "mixed" || v["model"] != "mixed" || v["concurrency"] != "3 / 1" {
+		t.Fatalf("aggregated view = %v", v)
+	}
+	tags := v["tags"].([]string)
+	if len(tags) != 2 || tags[0] != "go" || tags[1] != "audit" {
+		t.Fatalf("tags = %v want [go audit]", tags)
 	}
 }
 

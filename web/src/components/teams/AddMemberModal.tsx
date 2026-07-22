@@ -55,7 +55,7 @@ export function AddMemberModal({
   const [kind, setKind] = useState<Kind>('agent');
   const [agentRef, setAgentRef] = useState('');
   const [humanRef, setHumanRef] = useState('');
-  const [role, setRole] = useState(roleOptions[0] ?? 'coder');
+  const [roles, setRoles] = useState<string[]>(roleOptions[0] ? [roleOptions[0]] : []);
   const [migrating, setMigrating] = useState(false);
   const add = useAddMember();
 
@@ -76,17 +76,29 @@ export function AddMemberModal({
   const fromTeamId = selectedAgent?.team_ids[0];
   const fromTeamName = selectedAgent?.teams[0];
   const needsMigration = kind === 'agent' && !!fromTeamId;
+  const pickedRoles = roles;
+  const roleLabel = pickedRoles.join(', ');
+
+  const toggleRole = (role: string) => {
+    setRoles((current) => {
+      if (current.includes(role)) {
+        return current.filter((r) => r !== role);
+      }
+      return [...current, role];
+    });
+  };
 
   const doAdd = async (opts?: { migrateFrom?: string }) => {
     const picked = kind === 'agent' ? selectedAgent : selectedHuman;
-    if (!picked) return;
+    if (!picked || pickedRoles.length === 0) return;
     try {
       await add.mutateAsync({
         team_id: team.id,
         member_ref: picked.ref,
         name: picked.name,
         kind,
-        role,
+        role: pickedRoles[0],
+        roles: pickedRoles,
         migrateFrom: opts?.migrateFrom,
       });
       onClose();
@@ -149,7 +161,7 @@ export function AddMemberModal({
         </div>
         <div className="rounded-lg border border-border-base bg-bg-subtle p-4">
           <SpecLine k={t('addMemberModal.migrateMovedOut')} v={fromTeamName} />
-          <SpecLine k={t('addMemberModal.migrateMovedIn')} v={`${team.name} · ${role}`} />
+          <SpecLine k={t('addMemberModal.migrateMovedIn')} v={`${team.name} · ${roleLabel}`} />
           <SpecLine k={t('addMemberModal.migrateRunningTasks')} v={<span className="text-warning">{t('addMemberModal.migrateRunningTasksValue')}</span>} />
         </div>
         {add.isError && (
@@ -182,7 +194,7 @@ export function AddMemberModal({
               type="button"
               className={btnPrimary}
               data-testid="add-member-submit"
-              disabled={candidateCount === 0 || add.isPending}
+              disabled={candidateCount === 0 || pickedRoles.length === 0 || add.isPending}
               onClick={onSubmit}
             >
               {t('addMemberModal.add')}
@@ -267,14 +279,30 @@ export function AddMemberModal({
         </Field>
       )}
 
-      <Field label={t('addMemberModal.roleLabel')} required>
-        <select className={inputCls} value={role} data-testid="add-member-role" onChange={(e) => setRole(e.target.value)}>
-          {roleOptions.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+      <Field label={t('addMemberModal.roleLabel')} required hint={t('addMemberModal.roleHint')}>
+        <div className="flex flex-wrap gap-2" data-testid="add-member-roles">
+          {roleOptions.map((r) => {
+            const active = pickedRoles.includes(r);
+            return (
+              <label
+                key={r}
+                className={[
+                  'inline-flex cursor-pointer items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-semibold',
+                  active ? 'border-primary bg-primary/10 text-primary' : 'border-border-base bg-bg-subtle text-text-secondary hover:border-primary/40',
+                ].join(' ')}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-primary"
+                  data-testid={`add-member-role-${r}`}
+                  checked={active}
+                  onChange={() => toggleRole(r)}
+                />
+                {r}
+              </label>
+            );
+          })}
+        </div>
       </Field>
 
       {add.isError && (

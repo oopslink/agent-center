@@ -299,6 +299,9 @@ func (r *Repo) AddMember(ctx context.Context, m *team.TeamMember) error {
 		if persistence.IsUniqueViolation(err) {
 			return classifyMemberUnique(err)
 		}
+		if strings.Contains(err.Error(), "agent already in another team") {
+			return team.ErrAgentAlreadyInTeam
+		}
 		if isForeignKeyViolation(err) {
 			// team_id + role FK: the role was not declared for this team.
 			return team.ErrRoleNotDeclared
@@ -309,16 +312,13 @@ func (r *Repo) AddMember(ctx context.Context, m *team.TeamMember) error {
 }
 
 // classifyMemberUnique maps a UNIQUE failure to the right domain error. The
-// agent-exclusivity partial index keys on member_ref alone, so its message
-// mentions member_ref but not team_id; the (team_id, member_ref) PK mentions
-// both.
+// current PK is (team_id, member_ref, role), so a duplicate unique failure means
+// the same member already has that role in the team. Cross-team agent exclusivity
+// is enforced by a trigger and mapped in AddMember.
 func classifyMemberUnique(err error) error {
 	msg := err.Error()
 	if strings.Contains(msg, "team_id") {
 		return team.ErrMemberAlreadyInTeam
-	}
-	if strings.Contains(msg, "member_ref") {
-		return team.ErrAgentAlreadyInTeam
 	}
 	return team.ErrMemberAlreadyInTeam
 }

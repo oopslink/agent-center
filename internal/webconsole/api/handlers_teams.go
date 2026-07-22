@@ -100,6 +100,7 @@ func teamViewMap(t *team.Team, members []*team.TeamMember, projectsCount int) ma
 	if len(members) > 0 {
 		status = "active"
 	}
+	membersCount := uniqueMemberCount(members)
 	return map[string]any{
 		"id":             string(t.ID()),
 		"org_id":         t.OrgID(),
@@ -109,10 +110,18 @@ func teamViewMap(t *team.Team, members []*team.TeamMember, projectsCount int) ma
 		"version":        t.Version(),
 		"glyph":          teamMonogram(t.Name()),
 		"status":         status,
-		"members_count":  len(members),
+		"members_count":  membersCount,
 		"projects_count": projectsCount,
 		"created":        t.CreatedAt().UTC().Format(time.RFC3339),
 	}
+}
+
+func uniqueMemberCount(members []*team.TeamMember) int {
+	seen := map[string]struct{}{}
+	for _, m := range members {
+		seen[string(m.Kind)+"\x00"+string(m.Ref)] = struct{}{}
+	}
+	return len(seen)
 }
 
 // memberViewMap renders the TS MemberView. name is the resolved identity display name
@@ -130,6 +139,7 @@ func memberViewMap(m *team.TeamMember, roleByName map[string]team.RoleConfig, na
 		"member_ref":  string(m.Ref),
 		"kind":        string(m.Kind),
 		"role":        m.Role,
+		"roles":       []string{m.Role},
 		"name":        name,
 		"tags":        tags,
 		"cli":         rc.CLI,
@@ -137,6 +147,100 @@ func memberViewMap(m *team.TeamMember, roleByName map[string]team.RoleConfig, na
 		"concurrency": strconv.Itoa(rc.MaxConcurrency),
 		"exclusive":   false,
 	}
+}
+
+func memberViews(members []*team.TeamMember, roleByName map[string]team.RoleConfig, resolveName func(team.MemberRef) string) []map[string]any {
+	type group struct {
+		first *team.TeamMember
+		roles []string
+		seen  map[string]struct{}
+	}
+	order := make([]string, 0, len(members))
+	groups := make(map[string]*group, len(members))
+	for _, m := range members {
+		key := string(m.Kind) + "\x00" + string(m.Ref)
+		g := groups[key]
+		if g == nil {
+			g = &group{first: m, seen: map[string]struct{}{}}
+			groups[key] = g
+			order = append(order, key)
+		}
+		if _, ok := g.seen[m.Role]; !ok {
+			g.roles = append(g.roles, m.Role)
+			g.seen[m.Role] = struct{}{}
+		}
+	}
+	out := make([]map[string]any, 0, len(order))
+	for _, key := range order {
+		g := groups[key]
+		m := g.first
+		name := ""
+		if resolveName != nil {
+			name = resolveName(m.Ref)
+		}
+		out = append(out, memberGroupViewMap(m, g.roles, roleByName, name))
+	}
+	return out
+}
+
+func memberGroupViewMap(m *team.TeamMember, roles []string, roleByName map[string]team.RoleConfig, name string) map[string]any {
+	tagsSeen := map[string]struct{}{}
+	tags := []string{}
+	clis := make([]string, 0, len(roles))
+	models := make([]string, 0, len(roles))
+	concurrency := make([]string, 0, len(roles))
+	for _, role := range roles {
+		rc := roleByName[role]
+		for _, tag := range rc.CapabilityTags {
+			if _, ok := tagsSeen[tag]; ok {
+				continue
+			}
+			tagsSeen[tag] = struct{}{}
+			tags = append(tags, tag)
+		}
+		clis = append(clis, rc.CLI)
+		models = append(models, rc.Model)
+		concurrency = append(concurrency, strconv.Itoa(rc.MaxConcurrency))
+	}
+	return map[string]any{
+		"team_id":     string(m.TeamID),
+		"member_ref":  string(m.Ref),
+		"kind":        string(m.Kind),
+		"role":        strings.Join(roles, ", "),
+		"roles":       roles,
+		"name":        name,
+		"tags":        tags,
+		"cli":         uniformOrMixed(clis),
+		"model":       uniformOrMixed(models),
+		"concurrency": uniformOrJoined(concurrency),
+		"exclusive":   false,
+	}
+}
+
+func uniformOrMixed(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	first := values[0]
+	for _, v := range values[1:] {
+		if v != first {
+			return "mixed"
+		}
+	}
+	return first
+}
+
+func uniformOrJoined(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	first := values[0]
+	for _, v := range values[1:] {
+		if v != first {
+			return strings.Join(values, " / ")
+		}
+	}
+	return first
 }
 
 // projectLinkMap renders the TS TeamProjectLink. name/glyph come from the resolved
@@ -347,12 +451,9 @@ func (s *Server) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	roleByName := rolesByName(t)
-	out := make([]map[string]any, 0, len(members))
-	for _, m := range members {
-		name := resolveDisplayName(r, d, conversation.IdentityRef(string(m.Ref)))
-		out = append(out, memberViewMap(m, roleByName, name))
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, memberViews(members, roleByName, func(ref team.MemberRef) string {
+		return resolveDisplayName(r, d, conversation.IdentityRef(string(ref)))
+	}))
 }
 
 func rolesByName(t *team.Team) map[string]team.RoleConfig {
@@ -371,12 +472,37 @@ func rolesByName(t *team.Team) map[string]team.RoleConfig {
 // 409. The field is snake_case to match member_ref/team_id (the FE previously sent
 // camelCase migrateFrom, which the backend silently dropped).
 type addMemberReq struct {
-	TeamID      string `json:"team_id"`
-	MemberRef   string `json:"member_ref"`
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	Role        string `json:"role"`
-	MigrateFrom string `json:"migrate_from"`
+	TeamID      string   `json:"team_id"`
+	MemberRef   string   `json:"member_ref"`
+	Name        string   `json:"name"`
+	Kind        string   `json:"kind"`
+	Role        string   `json:"role"`
+	Roles       []string `json:"roles"`
+	MigrateFrom string   `json:"migrate_from"`
+}
+
+func addMemberRoles(req addMemberReq) ([]string, error) {
+	raw := req.Roles
+	if len(raw) == 0 {
+		raw = []string{req.Role}
+	}
+	seen := map[string]struct{}{}
+	roles := make([]string, 0, len(raw))
+	for _, role := range raw {
+		role = strings.TrimSpace(role)
+		if role == "" {
+			continue
+		}
+		if _, ok := seen[role]; ok {
+			continue
+		}
+		seen[role] = struct{}{}
+		roles = append(roles, role)
+	}
+	if len(roles) == 0 {
+		return nil, team.ErrInvalidRole
+	}
+	return roles, nil
 }
 
 // addTeamMemberHandler serves POST /api/orgs/{slug}/teams/{id}/members → MemberView (201).
@@ -396,21 +522,27 @@ func (s *Server) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	roles, err := addMemberRoles(req)
+	if err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
 	// migrate_from set → atomic cross-team migration (remove from source + add
 	// here, single tx); empty → plain add. Both go through the same identity
 	// hardening in the service.
-	var m *team.TeamMember
+	var members []*team.TeamMember
 	if req.MigrateFrom != "" {
-		m, err = d.TeamService.MoveMember(r.Context(), team.TeamID(req.MigrateFrom), t.ID(), team.MemberRef(req.MemberRef), req.Role)
+		members, err = d.TeamService.MoveMemberRoles(r.Context(), team.TeamID(req.MigrateFrom), t.ID(), team.MemberRef(req.MemberRef), roles)
 	} else {
-		m, err = d.TeamService.AddMember(r.Context(), t.ID(), team.MemberRef(req.MemberRef), req.Role)
+		members, err = d.TeamService.AddMemberRoles(r.Context(), t.ID(), team.MemberRef(req.MemberRef), roles)
 	}
 	if err != nil {
 		mapTeamWebError(w, err)
 		return
 	}
-	name := resolveDisplayName(r, d, conversation.IdentityRef(string(m.Ref)))
-	writeJSON(w, http.StatusCreated, memberViewMap(m, rolesByName(t), name))
+	writeJSON(w, http.StatusCreated, memberViews(members, rolesByName(t), func(ref team.MemberRef) string {
+		return resolveDisplayName(r, d, conversation.IdentityRef(string(ref)))
+	})[0])
 }
 
 // removeTeamMemberHandler serves DELETE /api/orgs/{slug}/teams/{id}/members/{ref}.

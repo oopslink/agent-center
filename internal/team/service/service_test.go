@@ -42,6 +42,10 @@ func devRole() team.RoleConfig {
 	return team.RoleConfig{Role: "dev", CLI: "claude-code", MaxConcurrency: 3}
 }
 
+func reviewRole() team.RoleConfig {
+	return team.RoleConfig{Role: "review", CLI: "codex", MaxConcurrency: 1}
+}
+
 func TestService_CreateTeam_GeneratesIDAndPersistsRoles(t *testing.T) {
 	svc, _ := newService(t)
 	ctx := context.Background()
@@ -98,7 +102,7 @@ func TestService_UpdateTeamRoles_RejectsRemovingRoleInUse(t *testing.T) {
 func TestService_AgentExclusivity(t *testing.T) {
 	svc, _ := newService(t)
 	ctx := context.Background()
-	a := createTeam(t, svc, "A", devRole())
+	a := createTeam(t, svc, "A", devRole(), reviewRole())
 	b := createTeam(t, svc, "B", devRole())
 
 	if _, err := svc.AddMember(ctx, a.ID(), "agent:42", "dev"); err != nil {
@@ -112,6 +116,16 @@ func TestService_AgentExclusivity(t *testing.T) {
 	_, err = svc.AddMember(ctx, a.ID(), "agent:42", "dev")
 	if !errors.Is(err, team.ErrMemberAlreadyInTeam) {
 		t.Fatalf("agent to same team: got %v want ErrMemberAlreadyInTeam", err)
+	}
+	if _, err := svc.AddMember(ctx, a.ID(), "agent:42", "review"); err != nil {
+		t.Fatalf("agent to same team under second role should add: %v", err)
+	}
+	members, err := svc.ListMembers(ctx, a.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("agent same team multi-role rows: got %d want 2 (%+v)", len(members), members)
 	}
 	// Freeing the agent lets it join B.
 	if err := svc.RemoveMember(ctx, a.ID(), "agent:42"); err != nil {

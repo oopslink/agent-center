@@ -13,7 +13,8 @@ export function roleColorChip(role: string): React.CSSProperties {
 // Role proportion bar + legend
 // ---------------------------------------------------------------------------
 
-function slotCount(r: RoleView): number {
+function slotCount(r: RoleView, showCount = true): number {
+  if (!showCount) return 1;
   return r.count ?? 1;
 }
 
@@ -21,12 +22,14 @@ export function RoleBar({
   roles,
   className,
   testId,
+  showCount = true,
 }: {
   roles: RoleView[];
   className?: string;
   testId?: string;
+  showCount?: boolean;
 }): React.ReactElement {
-  const total = roles.reduce((s, r) => s + slotCount(r), 0) || 1;
+  const total = roles.reduce((s, r) => s + slotCount(r, showCount), 0) || 1;
   return (
     <div
       data-testid={testId}
@@ -35,21 +38,21 @@ export function RoleBar({
       {roles.map((r) => (
         <span
           key={r.role}
-          style={{ width: `${(slotCount(r) / total) * 100}%`, background: roleColor(r.role) }}
-          title={`${r.role} ×${slotCount(r)}`}
+          style={{ width: `${(slotCount(r, showCount) / total) * 100}%`, background: roleColor(r.role) }}
+          title={showCount ? `${r.role} ×${slotCount(r)}` : r.role}
         />
       ))}
     </div>
   );
 }
 
-export function RoleLegend({ roles }: { roles: RoleView[] }): React.ReactElement {
+export function RoleLegend({ roles, showCount = true }: { roles: RoleView[]; showCount?: boolean }): React.ReactElement {
   return (
     <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1">
       {roles.map((r) => (
         <span key={r.role} className="flex items-center gap-1 text-[0.65rem] text-text-muted">
           <span className="h-2 w-2 rounded-sm" style={{ background: roleColor(r.role) }} aria-hidden="true" />
-          {r.role}×{slotCount(r)}
+          {r.role}{showCount ? `×${slotCount(r)}` : ''}
         </span>
       ))}
     </div>

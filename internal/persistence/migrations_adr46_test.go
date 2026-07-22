@@ -56,8 +56,8 @@ func TestMigration0058_TaskStateSimplify(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0057+0058+0059): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 112 {
-		t.Fatalf("version after re-Up: got %d want 112", v)
+	if v, _ := mig.Version(ctx); v != 113 {
+		t.Fatalf("version after re-Up: got %d want 113", v)
 	}
 
 	status := func(id string) (string, string) {

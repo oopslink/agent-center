@@ -106,9 +106,9 @@
     "extractToTemplate": "Extract → Template",
     "memoryHeading": "⌗ team-memory",
     "overview": {
-      "roleMix": "角色配比",
-      "roleMixHint": "声明式 slots",
-      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
+      "roleMix": "角色定义",
+      "roleMixHint": "运行默认值",
+      "roleSpec": "{{cli}} · {{model}} · 每 Agent 最多 {{conc}} 个任务",
       "summary": "团队概况",
       "summaryHint": "结构 + team-memory",
       "enrolledMembers": "已编入成员",
@@ -282,7 +282,7 @@
     "migrateRunningTasksValue": "需先收尾 / 转派",
     "migrateError": "迁移失败：{{message}}",
     "title": "Add member",
-    "subtitle": "把 agent 或 human 编入声明角色。",
+    "subtitle": "把 agent 或 human 编入一个或多个声明角色。",
     "add": "Add",
     "kindLabel": "类型",
     "kindAgent": "Agent",
@@ -298,7 +298,8 @@
     "free": "（空闲）",
     "selectHuman": "选择 human",
     "selectHumanHint": "human 可同时属于多个 team。",
-    "roleLabel": "分配角色"
+    "roleLabel": "分配角色",
+    "roleHint": "同一个 member 可以在同一个 team 中关联多个角色。"
   },
   "extractModal": {
     "title": "Extract → Template",

@@ -30,10 +30,11 @@ function renderAt(id: string) {
 describe('TeamDetail', () => {
   beforeEach(() => resetTeamsStore());
 
-  it('shows the overview tab by default with the role配比', async () => {
+  it('shows the overview tab by default with role definitions', async () => {
     renderAt('team-7c19b0');
     expect(await screen.findByRole('heading', { name: 'agent-center core' })).toBeInTheDocument();
-    expect(screen.getByText('Role mix')).toBeInTheDocument();
+    expect(screen.getByText('Role definitions')).toBeInTheDocument();
+    expect(screen.queryByText(/planner×/)).not.toBeInTheDocument();
     expect(screen.getByText('Team overview')).toBeInTheDocument();
   });
 
@@ -77,16 +78,34 @@ describe('TeamDetail', () => {
   });
 
   it('adds a free agent (real directory ref) through the add-member modal', async () => {
+    let body: Record<string, unknown> | undefined;
+    server.use(http.post('/api/teams/:id/members', async ({ request }) => {
+      body = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({
+        team_id: 'team-7c19b0',
+        member_ref: 'agent:agent-d5',
+        name: 'agent-center-dev5',
+        kind: 'agent',
+        role: 'planner, coder',
+        roles: ['planner', 'coder'],
+        tags: [],
+        cli: 'claude-code',
+        model: 'sonnet-5',
+        concurrency: '1 / 2',
+        exclusive: false,
+      }, { status: 201 });
+    }));
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-mm'));
     fireEvent.click(await screen.findByTestId('members-add'));
     const modal = await screen.findByTestId('add-member-modal');
     // pick a real agent not on any team (free) → direct add, canonical ref
     fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-d5' } });
+    fireEvent.click(within(modal).getByTestId('add-member-role-coder'));
     fireEvent.click(within(modal).getByTestId('add-member-submit'));
-    await waitFor(() => expect(screen.getByText('agent-center-dev5')).toBeInTheDocument());
-    // the stored member_ref is the full canonical ref (no truncation)
-    expect(await screen.findByTestId('member-row-agent:agent-d5')).toBeInTheDocument();
+    await waitFor(() => expect(body?.roles).toEqual(['planner', 'coder']));
+    expect(body?.role).toBe('planner');
+    await waitFor(() => expect(screen.queryByTestId('add-member-modal')).not.toBeInTheDocument());
   });
 
   it('requires a migration confirm for an agent already on another team', async () => {

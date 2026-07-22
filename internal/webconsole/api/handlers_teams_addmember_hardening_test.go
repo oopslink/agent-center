@@ -102,3 +102,40 @@ func TestAddMember_MigrateAcrossTeams(t *testing.T) {
 		t.Fatalf("dest team B must hold the migrated agent, got %v", arr)
 	}
 }
+
+func TestAddMember_MultipleRolesAggregatesMemberView(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	agent := team.MemberRef("agent:agent-poly")
+	deps.TeamService = teamservice.New(teamsql.NewRepo(db), db, idgen.NewGenerator(clock.SystemClock{}), clock.SystemClock{}).
+		WithMemberResolver(refAllowlist{agent: true})
+	roles := append([]team.RoleConfig{}, implRole...)
+	roles = append(roles, team.RoleConfig{Role: "review", CLI: "codex", Model: "gpt-5", CapabilityTags: []string{"audit"}, MaxConcurrency: 1})
+	tm := seedTeam(t, deps, sess.OrgID, "Agent Core", roles)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	base := ts.URL + "/api/teams/" + string(tm.ID()) + "/members"
+	resp := orgScopedPost(t, base, `{"member_ref":"agent:agent-poly","roles":["impl","review"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("multi-role add = %d (%v), want 201", resp.StatusCode, decodeBody(t, resp))
+	}
+	created := decodeBody(t, resp)
+	if got := created["role"]; got != "impl, review" {
+		t.Fatalf("created role = %v want impl, review", got)
+	}
+	if roles, ok := created["roles"].([]any); !ok || len(roles) != 2 {
+		t.Fatalf("created roles = %v want two roles", created["roles"])
+	}
+
+	arr := decodeArray(t, orgScopedGet(t, base, sess))
+	if len(arr) != 1 {
+		t.Fatalf("GET members = %v want one aggregated row", arr)
+	}
+	row, ok := arr[0].(map[string]any)
+	if !ok {
+		t.Fatalf("GET row = %T %v, want object", arr[0], arr[0])
+	}
+	if got := row["role"]; got != "impl, review" {
+		t.Fatalf("GET role = %v want impl, review", got)
+	}
+}
