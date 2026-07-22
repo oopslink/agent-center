@@ -73,7 +73,7 @@ make build                  # = build-frontend + build-backend
 
 # 子目标
 make build-frontend         # pnpm install + vite build → internal/webconsole/spa/dist/
-make build-backend          # go build → ./bin/agent-center
+make build-backend          # fresh frontend + go build → ./bin/agent-center
 ```
 
 CI build artifact 命名（v2.7+ 含版本号）：
