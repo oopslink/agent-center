@@ -2096,6 +2096,21 @@ function levelOfStages(stages: PlanStage[]): Map<string, number> {
   return out;
 }
 
+export function stageDisplayMeta(stages: PlanStage[]): {
+  byStageId: Map<string, { ref: string; name: string }>;
+  byGateNodeId: Map<string, string>;
+} {
+  const byStageId = new Map<string, { ref: string; name: string }>();
+  const byGateNodeId = new Map<string, string>();
+  stages.forEach((stage, index) => {
+    const ref = `S${index + 1}`;
+    const name = stage.name.replace(new RegExp(`^${ref}\\s*[-:·]?\\s*`, 'i'), '').trim() || stage.name;
+    byStageId.set(stage.id, { ref, name });
+    if (stage.gate_node_id) byGateNodeId.set(stage.gate_node_id, ref);
+  });
+  return { byStageId, byGateNodeId };
+}
+
 export function layoutStagedGraph(
   nodes: PlanGraphNode[],
   edges: PlanGraphEdge[],
@@ -2235,7 +2250,7 @@ const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; 
 // (diamond) square. Distinct from task cards so the control flow is legible.
 // Mirrors the mockup's `.terminal.start/.end` (filled accent disc vs. a
 // done-toned ring) and `.gate` diamond (two-line label: the gate id + its name).
-function ControlNodeMarker({ node }: { node: PlanGraphNode }): React.ReactElement {
+function ControlNodeMarker({ node, gateStageRef }: { node: PlanGraphNode; gateStageRef?: string }): React.ReactElement {
   const { t } = useTranslation('work');
   const kind = node.control_kind;
   const isCondition = kind === 'condition';
@@ -2258,7 +2273,7 @@ function ControlNodeMarker({ node }: { node: PlanGraphNode }): React.ReactElemen
         >
           <div className="-rotate-45 px-1 text-center leading-tight">
             <div className="font-mono text-[0.5625rem] font-bold uppercase tracking-wide text-status-amber-fg">
-              {t('plan.detail.dag.gateLabel', { defaultValue: 'GATE' })}
+              {t('plan.detail.dag.gateLabel', { defaultValue: 'GATE' })}{gateStageRef ? `:${gateStageRef}` : ''}
             </div>
             <div className="mt-0.5 truncate text-[0.5rem] font-semibold text-text-secondary">{gateName}</div>
           </div>
@@ -2300,6 +2315,11 @@ function PlanGraphDag({
   // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
+  // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
+  // S1/S2 refs, which can be derived from the API's stable stage order without
+  // changing the read model. Strip the same prefix from legacy stage names so
+  // "S1 Data" renders as "STAGE · S1  Data", not "S1  S1 Data".
+  const stageDisplay = useMemo(() => stageDisplayMeta(stages), [stages]);
 
   // Bound task → derived 6-state node_status (for the business-node chip), taken
   // from the plan detail's PlanNode list so the graph chips match the plan view.
@@ -2402,6 +2422,7 @@ function PlanGraphDag({
                 const totalMembers = b.stage.members.length;
                 const doneMembers = b.stage.members.filter((m) => stageMemberDone(m.task_status)).length;
                 const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
+                const display = stageDisplay.byStageId.get(b.stage.id) ?? { ref: b.stage.id, name: b.stage.name };
                 return (
                 <div
                   key={b.stage.id}
@@ -2411,8 +2432,8 @@ function PlanGraphDag({
                 >
                   <div className="border-b border-border-base px-3.5 py-2">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted">{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {b.stage.id}</span>
-                      <span className="truncate text-xs font-semibold text-text-primary">{b.stage.name}</span>
+                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${b.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
+                      <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${b.stage.id}`}>{display.name}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-2.5">
                       <span
@@ -2477,7 +2498,7 @@ function PlanGraphDag({
                 if (p.node.category === 'control') {
                   return (
                     <div key={p.node.id} className="absolute" style={{ left: p.x, top: p.y, width: p.w, height: NODE_H }}>
-                      <ControlNodeMarker node={p.node} />
+                      <ControlNodeMarker node={p.node} gateStageRef={stageDisplay.byGateNodeId.get(p.node.id)} />
                     </div>
                   );
                 }

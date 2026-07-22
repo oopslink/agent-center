@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutGraph, layoutStagedGraph } from './PlanDetail';
+import { layoutGraph, layoutStagedGraph, stageDisplayMeta } from './PlanDetail';
 import type { PlanGraphNode, PlanGraphEdge, PlanStage } from '@/api/plans';
 
 // T800 layout algebra unit tests: buildPlanGraph now emits Start→root / sink→End
@@ -178,5 +178,29 @@ describe('layoutStagedGraph — outer stage DAG + inner sub-DAG (T981 follow-up)
     const stages = [stage({ id: 's1', members: [member('task-A')] })];
     const { positioned } = layoutStagedGraph(nodes, [], stages);
     expect(positioned.some((p) => p.node.id === 'Orphan')).toBe(true);
+  });
+});
+
+describe('stageDisplayMeta — mockup stage refs', () => {
+  it('uses compact plan-local refs, removes duplicate name prefixes, and labels gates', () => {
+    const stages = [
+      stage({ id: 'stage-opaque-a', name: 'S1 Data layer', gate_node_id: 'gate-a' }),
+      stage({ id: 'stage-opaque-b', name: 'S2 · Git storage', gate_node_id: 'gate-b' }),
+      stage({ id: 'stage-opaque-c', name: 'Release' }),
+    ];
+
+    const display = stageDisplayMeta(stages);
+
+    expect(display.byStageId.get('stage-opaque-a')).toEqual({ ref: 'S1', name: 'Data layer' });
+    expect(display.byStageId.get('stage-opaque-b')).toEqual({ ref: 'S2', name: 'Git storage' });
+    expect(display.byStageId.get('stage-opaque-c')).toEqual({ ref: 'S3', name: 'Release' });
+    expect(display.byGateNodeId.get('gate-a')).toBe('S1');
+    expect(display.byGateNodeId.get('gate-b')).toBe('S2');
+  });
+
+  it('keeps the no-stage display metadata empty', () => {
+    const display = stageDisplayMeta([]);
+    expect(display.byStageId.size).toBe(0);
+    expect(display.byGateNodeId.size).toBe(0);
   });
 });
