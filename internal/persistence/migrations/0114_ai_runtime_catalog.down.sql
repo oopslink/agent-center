@@ -1,0 +1,12 @@
+DROP INDEX IF EXISTS idx_ai_runtime_audit_org_revision;
+DROP TABLE IF EXISTS ai_runtime_audit_log;
+DROP INDEX IF EXISTS idx_ai_runtime_profiles_org;
+DROP TABLE IF EXISTS ai_runtime_profiles;
+DROP INDEX IF EXISTS idx_ai_runtime_clis_org;
+DROP TABLE IF EXISTS ai_runtime_clis;
+DROP TABLE IF EXISTS ai_runtime_catalogs;
+DROP INDEX IF EXISTS idx_pm_model_catalog_org_runtime_key;
+ALTER TABLE pm_model_catalog DROP COLUMN enabled;
+ALTER TABLE pm_model_catalog DROP COLUMN default_parameters_json;
+ALTER TABLE pm_model_catalog DROP COLUMN compatible_cli_keys_json;
+ALTER TABLE pm_model_catalog DROP COLUMN runtime_key;

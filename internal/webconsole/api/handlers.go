@@ -16,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
@@ -201,6 +202,7 @@ type HandlerDeps struct {
 	// (GET/POST/PUT/DELETE /api/orgs/{slug}/model-catalog + POST .../import,
 	// issue-93dd8daa ①). Optional — nil degrades the endpoints to 501.
 	ModelCatalogRepo pm.ModelCatalogRepository
+	RuntimeCatalog   *airuntime.Service
 
 	// TeamService backs the Team WebUI facade (plan-32dd9107, P1: teams CRUD +
 	// members + projects under /api/orgs/{slug}/teams/...). Optional — nil degrades

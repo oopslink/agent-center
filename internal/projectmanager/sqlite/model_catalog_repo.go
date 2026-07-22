@@ -25,10 +25,10 @@ func (r *ModelCatalogRepo) Save(ctx context.Context, e *pm.ModelCatalogEntry) er
 // collision to ErrModelCatalogEntryExists.
 func insertModelCatalogEntry(ctx context.Context, exec persistence.SQLExecutor, e *pm.ModelCatalogEntry) error {
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_model_catalog (id, org_id, model_id, display_name, input_cost, output_cost, context_window, tier, created_by, created_at, updated_at, version)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_model_catalog (id, org_id, model_id, display_name, input_cost, output_cost, context_window, tier, created_by, created_at, updated_at, version, runtime_key)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(e.ID()), e.OrgID(), e.ModelID(), e.DisplayName(), e.InputCost(), e.OutputCost(),
-		e.ContextWindow(), e.Tier(), string(e.CreatedBy()), ts(e.CreatedAt()), ts(e.UpdatedAt()), e.Version())
+		e.ContextWindow(), e.Tier(), string(e.CreatedBy()), ts(e.CreatedAt()), ts(e.UpdatedAt()), e.Version(), e.ModelID())
 	if isUnique(err) {
 		return pm.ErrModelCatalogEntryExists
 	}

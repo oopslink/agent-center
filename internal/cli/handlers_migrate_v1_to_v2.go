@@ -170,7 +170,7 @@ func MigrateV1ToV2Command() *Command {
 // I107/ADR-0054 added 0111 (partial indexes over the parked task states — renumbered
 // from 0110 at rebase to land after main's 0110_i105_task_dispatch_mode).
 // Per-agent executor workspace isolation added 0112 (agents.executor_git_worktree).
-const targetSchemaVersion = 113
+const targetSchemaVersion = 114
 
 func runMigrateV1ToV2(
 	ctx context.Context,
