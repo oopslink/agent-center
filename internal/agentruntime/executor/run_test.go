@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -189,7 +190,7 @@ func TestCommandRunner_RunsCommandInWorkspace(t *testing.T) {
 	var progressPhases []string
 	res, err := cr.Run(context.Background(), RunContext{
 		WorkspaceDir: "/ws/exec-1",
-		Progress: func(phase, _ string, _ ...string) { progressPhases = append(progressPhases, phase) },
+		Progress:     func(phase, _ string, _ ...string) { progressPhases = append(progressPhases, phase) },
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -396,6 +397,31 @@ func TestCommandRunner_HeartbeatsDuringStream_T877(t *testing.T) {
 	}
 	if len(phases) < 2 || phases[0] != "start" || phases[len(phases)-1] != "done" {
 		t.Errorf("phases = %v, want start…running…done", phases)
+	}
+}
+
+func TestCommandRunner_StaleCodexResumeRetriesFreshOnce(t *testing.T) {
+	var calls [][]string
+	cr := &CommandRunner{
+		cmd: []string{"codex", "exec", "resume", "stale-thread", "--json", "prompt"},
+		run: func(_ context.Context, _ string, cmd []string, _ func(string)) (string, error) {
+			calls = append(calls, append([]string(nil), cmd...))
+			if len(calls) == 1 {
+				return "thread/resume failed: no rollout found for thread id stale-thread", errors.New("exit 1")
+			}
+			return `{"type":"item.completed","item":{"type":"agent_message","text":"done"}}`, nil
+		},
+	}
+	got, err := cr.Run(context.Background(), RunContext{Progress: func(string, string, ...string) {}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got.Result != "done" || len(calls) != 2 {
+		t.Fatalf("result=%q calls=%v", got.Result, calls)
+	}
+	want := []string{"codex", "exec", "--json", "prompt"}
+	if !reflect.DeepEqual(calls[1], want) {
+		t.Fatalf("fresh retry cmd=%v want=%v", calls[1], want)
 	}
 }
 

@@ -198,6 +198,9 @@ func TestEngine_HandleWork_DispatchesByCLI(t *testing.T) {
 	if codexR.lastModel != "gpt-5.5" {
 		t.Errorf("codex runner saw model %q, want gpt-5.5", codexR.lastModel)
 	}
+	if codexR.lastSess != "" {
+		t.Errorf("fresh codex runner session = %q, want empty", codexR.lastSess)
+	}
 	if claudeR.lastModel != "" {
 		t.Errorf("claude runner must NOT have been built (model=%q)", claudeR.lastModel)
 	}

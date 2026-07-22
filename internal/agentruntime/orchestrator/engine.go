@@ -28,10 +28,10 @@ type IDMinter interface {
 // drive F4 consistency routing; Goal + TaskModel + Context drive F3 model routing
 // and the F2 input.
 type WorkItem struct {
-	TaskID    string
-	TaskRef   string
-	IssueRef  string
-	ChatID    string
+	TaskID   string
+	TaskRef  string
+	IssueRef string
+	ChatID   string
 	// ProjectID scopes an I<n> issue-ref lookup during spawn-time inline expansion
 	// (I109 ①). Empty ⇒ only canonical issue-<8hex> refs can be resolved; an I<n> ref
 	// then fails loudly rather than silently staying dead.
@@ -239,11 +239,12 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		execID = e.ids.NewExecutorID()
 	}
 	// §4.3: allocate a durable, resumable session id for this executor's LLM
-	// conversation. Derived deterministically from execID (a valid v5 UUID claude
-	// accepts as --session-id) so it is stable and reconstructible; the builder binds
-	// it into the argv (claude) or ignores it (codex mints its own thread), and it is
-	// persisted into Record.SessionID for tier-1 --resume crash recovery.
-	sessionID := claudestream.SessionUUID(execID, 0)
+	// conversation for CLIs that support pre-allocation. Claude accepts a stable v5
+	// UUID; Codex must start without one and mint its thread id in thread.started.
+	var sessionID string
+	if modelDec.CLI != "codex" {
+		sessionID = claudestream.SessionUUID(execID, 0)
+	}
 	runnerCmd, err := runner.Build(modelDec.Model, e.buildPrompt(ctx, item), sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
