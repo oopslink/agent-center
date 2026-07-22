@@ -164,7 +164,8 @@ func mapTeamWebError(w http.ResponseWriter, err error) {
 		errors.Is(err, team.ErrProjectNotAssociated):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNameTaken), errors.Is(err, team.ErrMemberAlreadyInTeam),
-		errors.Is(err, team.ErrAgentAlreadyInTeam), errors.Is(err, team.ErrProjectAlreadyAssociated):
+		errors.Is(err, team.ErrAgentAlreadyInTeam), errors.Is(err, team.ErrProjectAlreadyAssociated),
+		errors.Is(err, team.ErrRoleInUse):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, team.ErrInvalidTeam), errors.Is(err, team.ErrInvalidMemberRef),
 		errors.Is(err, team.ErrInvalidRole), errors.Is(err, team.ErrRoleNotDeclared),

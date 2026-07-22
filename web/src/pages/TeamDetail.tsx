@@ -15,6 +15,8 @@ import {
   useTeamMemoryIndex,
   useTeamMembers,
   useTeamProjects,
+  useUpdateTeamRoles,
+  type RoleInput,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -23,6 +25,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { AddMemberModal } from '@/components/teams/AddMemberModal';
 import { ExtractModal } from '@/components/teams/ExtractModal';
 import { MemoryPane } from '@/components/teams/MemoryPane';
+import { RoleBuilder } from '@/components/teams/RoleBuilder';
 import {
   btnGhost,
   btnSm,
@@ -144,11 +147,16 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
   const { t } = useTranslation('teams');
   const memory = useTeamMemoryIndex(tv.id);
   const memoryEntries = memory.data?.length;
+  const [editingRoles, setEditingRoles] = useState(false);
   const NA = <span className="text-text-muted">—</span>;
   return (
     <div className="grid gap-3.5 md:grid-cols-2">
       <Card>
-        <SectionHead title={t('teamDetail.overview.roleMix')} hint={t('teamDetail.overview.roleMixHint')} />
+        <SectionHead title={t('teamDetail.overview.roleMix')} hint={t('teamDetail.overview.roleMixHint')} action={
+          <button type="button" className={btnSm} data-testid="team-edit-roles" onClick={() => setEditingRoles(true)}>
+            {t('teamDetail.roles.edit')}
+          </button>
+        } />
         <RoleBar roles={tv.roles} className="w-full" />
         <RoleLegend roles={tv.roles} />
         <div className="mt-3.5">
@@ -179,8 +187,38 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
         <SpecLine k={t('teamDetail.overview.blockedTasks')} v={NA} />
         <Note testId="team-health-note">{t('teamDetail.overview.healthNote')}</Note>
       </Card>
+      {editingRoles && <EditRolesModal team={tv} onClose={() => setEditingRoles(false)} />}
     </div>
   );
+}
+
+function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void }): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const update = useUpdateTeamRoles();
+  const [roles, setRoles] = useState<RoleInput[]>(() => team.roles.map((role) => ({
+    role: role.role,
+    cli: role.cli,
+    model: role.model,
+    max_concurrency: role.max_concurrency,
+    count: role.count ?? 1,
+    tags: role.capability_tags.join(', '),
+  })));
+  const names = roles.map((role) => role.role.trim());
+  const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
+  const save = async () => {
+    if (invalid) return;
+    await update.mutateAsync({ team_id: team.id, roles: roles.map((role) => ({ ...role, role: role.role.trim(), tags: role.tags.trim() })) });
+    onClose();
+  };
+  return <ModalShell open onClose={onClose} wide testId="edit-team-roles-modal" title={t('teamDetail.roles.title')}
+    subtitle={t('teamDetail.roles.subtitle')} footer={<div className="ml-auto flex gap-2.5">
+      <button type="button" className={btnGhost} onClick={onClose}>{t('common.cancel')}</button>
+      <button type="button" className={btnSmPrimary} disabled={invalid || update.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
+    </div>}>
+    <RoleBuilder roles={roles} onChange={setRoles} idPrefix="edit-team" />
+    {invalid && <p className="mt-3 text-xs text-danger" role="alert">{t('teamDetail.roles.invalid')}</p>}
+    {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
+  </ModalShell>;
 }
 
 function MembersPane({

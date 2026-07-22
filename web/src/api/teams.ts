@@ -257,6 +257,18 @@ export function useDeleteTeam() {
   });
 }
 
+export function useUpdateTeamRoles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { team_id: string; roles: RoleInput[] }) =>
+      api.patch<TeamView>(`/teams/${v.team_id}`, { roles: v.roles }),
+    onSuccess: (team) => {
+      qc.setQueryData(teamKeys.detail(team.id), team);
+      qc.invalidateQueries({ queryKey: teamKeys.list() });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Members
 // ---------------------------------------------------------------------------

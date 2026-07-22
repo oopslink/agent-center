@@ -101,6 +101,41 @@ func (r *Repo) UpdateTeam(ctx context.Context, t *team.Team) error {
 	return nil
 }
 
+func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	roles := t.Roles()
+	for _, rc := range roles {
+		tags, err := json.Marshal(rc.CapabilityTags)
+		if err != nil {
+			return fmt.Errorf("marshal capability_tags: %w", err)
+		}
+		_, err = exec.ExecContext(ctx, `INSERT INTO team_roles
+			(team_id, role, cli, model, capability_tags, max_concurrency, created_at)
+			VALUES (?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
+			cli=excluded.cli, model=excluded.model, capability_tags=excluded.capability_tags,
+			max_concurrency=excluded.max_concurrency`, t.ID().String(), rc.Role, rc.CLI,
+			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
+		if err != nil {
+			return err
+		}
+	}
+	if len(roles) == 0 {
+		_, err = exec.ExecContext(ctx, `DELETE FROM team_roles WHERE team_id=?`, t.ID().String())
+		return err
+	}
+	args := []any{t.ID().String()}
+	marks := make([]string, 0, len(roles))
+	for _, rc := range roles {
+		marks = append(marks, "?")
+		args = append(args, rc.Role)
+	}
+	_, err = exec.ExecContext(ctx, `DELETE FROM team_roles WHERE team_id=? AND role NOT IN (`+strings.Join(marks, ",")+`)`, args...)
+	return err
+}
+
 // DeleteTeam removes the team; FK ON DELETE CASCADE clears roles/members/
 // projects. Idempotent.
 func (r *Repo) DeleteTeam(ctx context.Context, id team.TeamID) error {

@@ -114,6 +114,18 @@ func (t *Team) SetDescription(desc string, now time.Time) {
 	t.touch(now)
 }
 
+// SetRoles replaces the team's declared role definitions after validating the
+// complete set. Membership constraints are enforced by the application service.
+func (t *Team) SetRoles(roles []RoleConfig, now time.Time) error {
+	normalized, err := normalizeRoles(roles)
+	if err != nil {
+		return err
+	}
+	t.roles = normalized
+	t.touch(now)
+	return nil
+}
+
 func (t *Team) touch(now time.Time) {
 	if !now.IsZero() {
 		t.updatedAt = now
