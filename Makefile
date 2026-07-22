@@ -44,7 +44,7 @@ help:
 #
 #   make build              — frontend + backend (one binary, SPA baked in)
 #   make build-frontend     — pnpm install + vite build → internal/webconsole/spa/dist/
-#   make build-backend      — go build (consumes whatever dist/ holds)
+#   make build-backend      — fresh frontend build + go build (SPA baked in)
 #
 # Dev flow is unaffected: run `pnpm --dir web run dev` and start the
 # binary; vite proxies /api to the loopback Go server. The SPA chunk in
@@ -64,7 +64,7 @@ BRANCH   := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILT_AT := $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 VERSION  ?= $(BRANCH)-$(COMMIT)
 
-build: build-frontend build-backend build-fakeagent
+build: build-backend build-fakeagent
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
@@ -74,7 +74,10 @@ build-frontend:
 	# needs the dir to exist before the SPA is ever built).
 	echo "Populated by 'make build-frontend' (vite build outDir)." > ./internal/webconsole/spa/dist/.gitkeep
 
-build-backend:
+# The backend binary embeds spa/dist. Keeping this dependency on the phony
+# frontend target prevents a current Git SHA from being stamped onto a binary
+# that silently contains assets left by an older checkout/build.
+build-backend: build-frontend
 	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT) -X main.buildBranch=$(BRANCH) -X main.buildBuiltAt=$(BUILT_AT)" \
 	    -o ./bin/$(BIN) ./cmd/agent-center
 

@@ -4,10 +4,27 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 )
+
+func TestMakeBuildBackendAlwaysRebuildsEmbeddedFrontend(t *testing.T) {
+	makefile := filepath.Join("..", "..", "..", "Makefile")
+	b, err := os.ReadFile(makefile)
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "build-backend: build-frontend") {
+		t.Fatal("build-backend must depend on build-frontend; otherwise a current backend version can embed stale SPA assets")
+	}
+	if !strings.Contains(s, "build: build-backend build-fakeagent") {
+		t.Fatal("build should compose build-backend + build-fakeagent without a duplicate frontend invocation")
+	}
+}
 
 // Tests inject a synthetic fs.FS via HandlerFromFS so they don't depend
 // on a populated embed.
