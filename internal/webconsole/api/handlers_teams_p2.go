@@ -52,8 +52,9 @@ var facadeIDGen = idgen.NewGenerator(clock.SystemClock{})
 // updateTeamReq is the update body — name/description are optional (nil = leave
 // unchanged), mirroring teamservice.UpdateTeamInput.
 type updateTeamReq struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
+	Name        *string         `json:"name"`
+	Description *string         `json:"description"`
+	Roles       *[]roleInputReq `json:"roles"`
 }
 
 // updateTeamHandler serves PATCH /api/orgs/{slug}/teams/{id} → TeamView.
@@ -73,9 +74,19 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	var configs *[]team.RoleConfig
+	if req.Roles != nil {
+		converted := make([]team.RoleConfig, 0, len(*req.Roles))
+		for _, ri := range *req.Roles {
+			converted = append(converted, team.RoleConfig{Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
+				CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency})
+		}
+		configs = &converted
+	}
 	t, err := d.TeamService.UpdateTeam(r.Context(), team.TeamID(r.PathValue("id")), teamservice.UpdateTeamInput{
 		Name:        req.Name,
 		Description: req.Description,
+		Roles:       configs,
 	})
 	if err != nil {
 		mapTeamWebError(w, err)

@@ -75,6 +75,26 @@ func TestCreateTeam_AllowsNoRoleForEmptyTeam(t *testing.T) {
 	}
 }
 
+func TestUpdateTeam_RoleDefinitions(t *testing.T) {
+	deps, _, sess := setupTeamsAPI(t)
+	tm := seedTeam(t, deps, sess.OrgID, "Agent Core", implRole)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	resp := orgScopedPatch(t, ts.URL+"/api/teams/"+string(tm.ID()), `{"roles":[{"role":"reviewer","cli":"codex","model":"gpt-5","max_concurrency":2,"tags":"go, review"}]}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update roles = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	body := decodeBody(t, resp)
+	roles := body["roles"].([]any)
+	if len(roles) != 1 || roles[0].(map[string]any)["role"] != "reviewer" {
+		t.Fatalf("roles = %#v", roles)
+	}
+	resp = orgScopedPatch(t, ts.URL+"/api/teams/"+string(tm.ID()), `{"roles":[]}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("clear roles = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+}
+
 // --- auth gate ---------------------------------------------------------------
 
 // TestTeamFacade_AuthGate locks that every new endpoint requires a valid session

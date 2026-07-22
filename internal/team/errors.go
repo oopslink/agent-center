@@ -35,6 +35,7 @@ var (
 	ErrRoleNotDeclared = errors.New("team: role not declared for team")
 	// ErrInvalidRole is returned when a RoleConfig fails validation.
 	ErrInvalidRole = errors.New("team: invalid role config")
+	ErrRoleInUse   = errors.New("team: role is assigned to one or more members")
 
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.

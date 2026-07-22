@@ -85,6 +85,13 @@
     }
   },
   "teamDetail": {
+    "roles": {
+      "edit": "编辑角色",
+      "title": "编辑角色定义",
+      "subtitle": "添加、配置或删除角色。已有成员使用的角色不能删除或重命名。",
+      "save": "保存角色",
+      "invalid": "每个角色都必须有唯一名称。"
+    },
     "backToTeams": "← Teams",
     "notFound": "team_not_found",
     "tabs": {

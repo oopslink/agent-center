@@ -58,6 +58,41 @@ func TestService_CreateTeam_GeneratesIDAndPersistsRoles(t *testing.T) {
 	}
 }
 
+func TestService_UpdateTeamRoles_AllowsReplaceAndEmpty(t *testing.T) {
+	svc, _ := newService(t)
+	tm := createTeam(t, svc, "Alpha", devRole())
+	roles := []team.RoleConfig{{Role: "reviewer", CLI: "codex", Model: "gpt-5", MaxConcurrency: 2}}
+	updated, err := svc.UpdateTeam(context.Background(), tm.ID(), UpdateTeamInput{Roles: &roles})
+	if err != nil {
+		t.Fatalf("UpdateTeam roles: %v", err)
+	}
+	if updated.HasRole("dev") || !updated.HasRole("reviewer") {
+		t.Fatalf("unexpected roles: %+v", updated.Roles())
+	}
+	empty := []team.RoleConfig{}
+	updated, err = svc.UpdateTeam(context.Background(), tm.ID(), UpdateTeamInput{Roles: &empty})
+	if err != nil || len(updated.Roles()) != 0 {
+		t.Fatalf("clear roles: roles=%+v err=%v", updated.Roles(), err)
+	}
+}
+
+func TestService_UpdateTeamRoles_RejectsRemovingRoleInUse(t *testing.T) {
+	svc, _ := newService(t)
+	tm := createTeam(t, svc, "Alpha", devRole())
+	if _, err := svc.AddMember(context.Background(), tm.ID(), "agent:42", "dev"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	empty := []team.RoleConfig{}
+	_, err := svc.UpdateTeam(context.Background(), tm.ID(), UpdateTeamInput{Roles: &empty})
+	if !errors.Is(err, team.ErrRoleInUse) {
+		t.Fatalf("got %v, want ErrRoleInUse", err)
+	}
+	got, getErr := svc.GetTeam(context.Background(), tm.ID())
+	if getErr != nil || !got.HasRole("dev") {
+		t.Fatalf("failed update must preserve roles: roles=%+v err=%v", got.Roles(), getErr)
+	}
+}
+
 // TestService_AgentExclusivity is the headline requirement: an agent is bound to
 // a single team; joining a second is rejected.
 func TestService_AgentExclusivity(t *testing.T) {

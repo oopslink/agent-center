@@ -13,6 +13,8 @@ type Repository interface {
 	// UpdateTeam persists name/description/version changes for an existing team.
 	// Returns ErrTeamNotFound if the id is absent, ErrTeamNameTaken on collision.
 	UpdateTeam(ctx context.Context, t *Team) error
+	// ReplaceRoles persists the aggregate's complete declared role set.
+	ReplaceRoles(ctx context.Context, t *Team) error
 	// DeleteTeam removes a team and cascades its roles/members/projects.
 	// Idempotent: a missing id is a no-op.
 	DeleteTeam(ctx context.Context, id TeamID) error

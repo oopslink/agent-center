@@ -85,6 +85,13 @@
     }
   },
   "teamDetail": {
+    "roles": {
+      "edit": "Edit roles",
+      "title": "Edit role definitions",
+      "subtitle": "Add, configure, or remove roles. Roles assigned to members cannot be removed or renamed.",
+      "save": "Save roles",
+      "invalid": "Every role needs a unique name."
+    },
     "backToTeams": "← Teams",
     "notFound": "team_not_found",
     "tabs": {

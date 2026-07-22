@@ -91,6 +91,7 @@ func (s *Service) CreateTeam(ctx context.Context, in CreateTeamInput) (*team.Tea
 type UpdateTeamInput struct {
 	Name        *string
 	Description *string
+	Roles       *[]team.RoleConfig
 }
 
 // UpdateTeam mutates name/description of an existing team.
@@ -110,8 +111,31 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 		if in.Description != nil {
 			t.SetDescription(*in.Description, now)
 		}
+		if in.Roles != nil {
+			if err := t.SetRoles(*in.Roles, now); err != nil {
+				return err
+			}
+			roles := make(map[string]struct{}, len(t.Roles()))
+			for _, rc := range t.Roles() {
+				roles[rc.Role] = struct{}{}
+			}
+			members, err := s.repo.ListMembers(ctx, id)
+			if err != nil {
+				return err
+			}
+			for _, member := range members {
+				if _, ok := roles[member.Role]; !ok {
+					return team.ErrRoleInUse
+				}
+			}
+		}
 		if err := s.repo.UpdateTeam(ctx, t); err != nil {
 			return err
+		}
+		if in.Roles != nil {
+			if err := s.repo.ReplaceRoles(ctx, t); err != nil {
+				return err
+			}
 		}
 		updated = t
 		return nil

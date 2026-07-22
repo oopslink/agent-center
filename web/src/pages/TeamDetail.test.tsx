@@ -37,6 +37,29 @@ describe('TeamDetail', () => {
     expect(screen.getByText('Team overview')).toBeInTheDocument();
   });
 
+  it('edits and saves role definitions from the overview', async () => {
+    let body: { roles?: Array<{ role: string }> } | undefined;
+    server.use(http.patch('/api/teams/:id', async ({ request }) => {
+      body = await request.json() as typeof body;
+      return HttpResponse.json({
+        id: 'team-7c19b0', org_id: 'org-ooo', name: 'agent-center core', description: '',
+        roles: [], version: 2, glyph: 'AC', status: 'draft', members_count: 0,
+        projects_count: 0, created: '2026-07-12',
+      });
+    }));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('team-edit-roles'));
+    const modal = await screen.findByTestId('edit-team-roles-modal');
+    while (within(modal).queryAllByText('Remove').length > 0) {
+      const before = within(modal).getAllByText('Remove').length;
+      fireEvent.click(within(modal).getAllByText('Remove')[0]);
+      await waitFor(() => expect(within(modal).queryAllByText('Remove')).toHaveLength(before - 1));
+    }
+    fireEvent.click(within(modal).getByTestId('team-save-roles'));
+    await waitFor(() => expect(body).toEqual({ roles: [] }));
+    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
+  });
+
   it('renders an error for an unknown team', async () => {
     renderAt('team-does-not-exist');
     expect(await screen.findByTestId('team-detail-error')).toHaveTextContent('team_not_found');
