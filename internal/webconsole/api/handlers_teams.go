@@ -288,6 +288,9 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	roles := make([]team.RoleConfig, 0, len(req.Roles))
 	for _, ri := range req.Roles {
+		if strings.TrimSpace(ri.Role) == "" {
+			continue
+		}
 		roles = append(roles, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
 			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,

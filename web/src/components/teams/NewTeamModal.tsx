@@ -23,7 +23,7 @@ export function NewTeamModal({
   const [roles, setRoles] = useState<RoleInput[]>([newRole('planner'), { ...newRole('coder'), count: 2 }]);
   const create = useCreateTeam();
 
-  const canSubmit = name.trim().length > 0 && roles.length > 0 && !create.isPending;
+  const canSubmit = name.trim().length > 0 && !create.isPending;
 
   const submit = async () => {
     if (!canSubmit) return;

@@ -66,6 +66,19 @@ describe('Teams list', () => {
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toMatch(/^\/teams\/team-/));
   });
 
+  it('creates an empty team after removing every role', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByTestId('teams-new'));
+    const modal = await screen.findByTestId('new-team-modal');
+
+    fireEvent.change(within(modal).getByTestId('new-team-name'), { target: { value: 'empty-squad' } });
+    fireEvent.click(within(modal).getByTestId('new-team-role-1-remove'));
+    fireEvent.click(within(modal).getByTestId('new-team-role-0-remove'));
+
+    fireEvent.click(within(modal).getByTestId('new-team-submit'));
+    await waitFor(() => expect(screen.getByTestId('loc').textContent).toMatch(/^\/teams\/team-/));
+  });
+
   it('closes the modal via the close button', async () => {
     renderPage();
     fireEvent.click(await screen.findByTestId('teams-new'));
