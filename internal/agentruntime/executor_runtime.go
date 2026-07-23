@@ -712,11 +712,11 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		r.log("work_available agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
 		return nil, nil
 	}
-	if codeDispatch && r.cfg.Materializer == nil {
+	if task.Repo != nil && r.cfg.Materializer == nil && r.cfg.CloneMaterializer == nil {
 		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
-			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo materializer unavailable"))
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
 		}
-		r.log("work_available agent=%s task=%s repository preflight failed: materializer unavailable — executor NOT forked", agentID, taskID)
+		r.log("work_available agent=%s task=%s repository preflight failed: workspace materializer unavailable — executor NOT forked", agentID, taskID)
 		return nil, nil
 	}
 
@@ -736,7 +736,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// Everything below the gate is local-disk or center-RPC, i.e. control-path-safe.
 	var execID string
 	var prepared *executor.PreparedWorkspace
-	if task.Repo != nil {
+	if task.Repo != nil && r.cfg.Materializer != nil {
 		target := resolveRepoTarget(task)
 		repoKey := reporepo.RepoKey(target.URL)
 		source, ready := r.freshSource(repoKey)
@@ -795,13 +795,39 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			// commits since the first clone, not this executor's ("ahead 5" for 1 real commit).
 			BaseRef: wt.BaseRef,
 		}
+	} else if task.Repo != nil {
+		target := resolveRepoTarget(task)
+		execID = ee.engine.NewExecutorID()
+		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
+		if wsErr != nil {
+			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+			return nil, nil
+		}
+		clone, cloneErr := r.cfg.CloneMaterializer.PrepareClone(ctx, target, reporepo.CloneRequest{
+			ExecutorID:    execID,
+			TaskID:        taskID,
+			BranchName:    "ac-exec/" + taskID + "/" + execID,
+			WorkspacePath: wsPath,
+			BaseRef:       target.BaseRef,
+		})
+		if cloneErr != nil {
+			r.log("work_available agent=%s task=%s prepare clone: %v — executor NOT forked; failing task loud",
+				agentID, taskID, cloneErr)
+			r.failTaskRepoUnavailable(agentID, taskID, cloneErr)
+			return nil, nil
+		}
+		prepared = &executor.PreparedWorkspace{
+			Path:    clone.WorkspacePath,
+			Branch:  clone.Branch,
+			BaseRef: clone.BaseRef,
+		}
 	}
 
 	// 3. Admission gate: 代 start_task (open→running). The center enforces the ≤N cap.
 	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
 		// start_task declined AFTER the worktree was prepared → tear it down (red line B:
 		// no worktree leak). The task was never admitted, so nothing else to roll back.
-		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
 		r.log("work_available agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
 			agentID, taskID, err)
 		return nil, nil
@@ -811,7 +837,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared), ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
-		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
 		if errors.Is(err, executor.ErrAtCapacity) {
 			// TRANSIENT: the local pool is momentarily saturated. This is NOT a failure —
 			// leave the admitted task queued for retry next tick (unchanged behavior). It is
@@ -833,12 +859,17 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	return &SpawnResult{ExecutorID: launched.ExecutorID, Model: launched.Model, CLI: launched.CLI}, nil
 }
 
-// removePreparedWorktree tears down a worktree materialized in SpawnExecutor before
-// the launch succeeded (every failure path after PrepareWorktree — red line B). No-op
-// when nothing was prepared (flag off / no repo). Best-effort: a teardown failure is
-// logged, not surfaced (the canonical source is untouched — design §10).
-func (r *LocalRuntime) removePreparedWorktree(ctx context.Context, agentID, taskID string, prepared *executor.PreparedWorkspace) {
-	if prepared == nil || r.cfg.Materializer == nil {
+// removePreparedWorkspace tears down a repo workspace materialized in SpawnExecutor
+// before the launch succeeded. ON removes only the linked git worktree; OFF removes the
+// independent clone directory. Best-effort: a teardown failure is logged, not surfaced.
+func (r *LocalRuntime) removePreparedWorkspace(ctx context.Context, agentID, taskID string, prepared *executor.PreparedWorkspace) {
+	if prepared == nil {
+		return
+	}
+	if r.cfg.Materializer == nil || strings.TrimSpace(prepared.SourcePath) == "" {
+		if err := os.RemoveAll(prepared.Path); err != nil {
+			r.log("work_available agent=%s task=%s remove prepared clone workspace: %v", agentID, taskID, err)
+		}
 		return
 	}
 	if err := r.cfg.Materializer.RemoveWorktree(ctx, reporepo.PreparedWorktree{

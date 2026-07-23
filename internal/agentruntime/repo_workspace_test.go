@@ -9,6 +9,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,6 +103,7 @@ type recordingMaterializer struct {
 
 	mu         sync.Mutex
 	prepared   []reporepo.WorktreeRequest
+	cloned     []reporepo.CloneRequest
 	removed    []removeArgs
 	pruneCalls []pruneCall
 	lastTarget reporepo.RepoTarget
@@ -142,6 +144,29 @@ func (m *recordingMaterializer) PrepareWorktree(_ context.Context, source repore
 		WorkspacePath: req.WorkspacePath,
 		Branch:        req.BranchName,
 		BaseRef:       req.BaseRef,
+	}, nil
+}
+
+func (m *recordingMaterializer) PrepareClone(_ context.Context, target reporepo.RepoTarget, req reporepo.CloneRequest) (reporepo.PreparedClone, error) {
+	m.seq.add("PrepareClone")
+	m.mu.Lock()
+	m.lastTarget = target
+	m.cloned = append(m.cloned, req)
+	m.mu.Unlock()
+	if m.prepareErr != nil {
+		return reporepo.PreparedClone{}, m.prepareErr
+	}
+	_ = os.MkdirAll(req.WorkspacePath, 0o755)
+	base := req.BaseRef
+	if base == "" {
+		base = target.BaseRef
+	}
+	return reporepo.PreparedClone{
+		ExecutorID:    req.ExecutorID,
+		RepoKey:       reporepo.RepoKey(target.URL),
+		WorkspacePath: req.WorkspacePath,
+		Branch:        req.BranchName,
+		BaseRef:       base,
 	}, nil
 }
 
@@ -201,6 +226,12 @@ func (m *recordingMaterializer) preparedReqs() []reporepo.WorktreeRequest {
 	return append([]reporepo.WorktreeRequest(nil), m.prepared...)
 }
 
+func (m *recordingMaterializer) cloneReqs() []reporepo.CloneRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]reporepo.CloneRequest(nil), m.cloned...)
+}
+
 // engineForAgentMat builds a flag-ON runtime (materializer wired) + attached engine.
 func engineForAgentMat(t *testing.T, agentID string, mat reporepo.RepoMaterializer) (*LocalRuntime, *ExecutorEngine, string) {
 	t.Helper()
@@ -209,6 +240,28 @@ func engineForAgentMat(t *testing.T, agentID string, mat reporepo.RepoMaterializ
 	rt := newExecRuntime(t, base, agentID, trueBin)
 	rt.cfg.Materializer = mat        // AC_EXECUTOR_GIT_WORKTREE ON
 	rt.cfg.SourcePrewarmBackoff = -1 // collapse the retry backoff: no sleeping in tests
+	home, _, _, err := rt.agentPaths(agentID)
+	if err != nil {
+		t.Fatalf("agentPaths: %v", err)
+	}
+	ee, err := rt.BuildExecutorEngine(home, ExecutorConfig{
+		AgentID:              agentID,
+		MaxConcurrentTasks:   2,
+		DefaultExecutorModel: "claude-default",
+	})
+	if err != nil {
+		t.Fatalf("BuildExecutorEngine: %v", err)
+	}
+	attach(rt, ee)
+	return rt, ee, home
+}
+
+func engineForAgentClone(t *testing.T, agentID string, mat *recordingMaterializer) (*LocalRuntime, *ExecutorEngine, string) {
+	t.Helper()
+	trueBin := lookTrue(t)
+	base := t.TempDir()
+	rt := newExecRuntime(t, base, agentID, trueBin)
+	rt.cfg.CloneMaterializer = mat // AC_EXECUTOR_GIT_WORKTREE OFF
 	home, _, _, err := rt.agentPaths(agentID)
 	if err != nil {
 		t.Fatalf("agentPaths: %v", err)
@@ -287,6 +340,159 @@ func TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare(t *testing.T) {
 	// (the fail-safe live set is built from already-prepared executors; there are none yet).
 	if calls := mat.pruneHookCalls(); len(calls) != 1 || len(calls[0].live) != 0 {
 		t.Fatalf("prune hook: want 1 call with empty live set (new executor not yet a worktree), got %+v", calls)
+	}
+}
+
+func TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{seq: seq, repoKey: "key-off", sourcePath: t.TempDir() + "/src", baseRef: "main"}
+	rt, _, home := engineForAgentClone(t, "agent-repo-off", mat)
+	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-off")}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-off"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("OFF path must fork inline after independent clone, got nil")
+	}
+
+	order := seq.snapshot()
+	if indexOf(order, "EnsureSource") >= 0 || indexOf(order, "PrepareWorktree") >= 0 || indexOf(order, "PruneOrphanWorktrees") >= 0 {
+		t.Fatalf("OFF path must not use canonical source/worktree/prune, order=%v", order)
+	}
+	iClone, iStart := indexOf(order, "PrepareClone"), indexOf(order, "start_task")
+	if iClone < 0 || iStart < 0 || !(iClone < iStart) {
+		t.Fatalf("order violation: want PrepareClone<start_task, got %v", order)
+	}
+	reqs := mat.cloneReqs()
+	if len(reqs) != 1 {
+		t.Fatalf("PrepareClone calls = %d, want 1", len(reqs))
+	}
+	execID := reqs[0].ExecutorID
+	wantWS, _ := rt.execEngine().fx.Layout().WorkspaceDir(execID)
+	if reqs[0].WorkspacePath != wantWS {
+		t.Fatalf("clone path %q != executor workspace %q", reqs[0].WorkspacePath, wantWS)
+	}
+	_, tr := seedExchange(t, home)
+	rec, err := tr.Read(execID)
+	if err != nil {
+		t.Fatalf("read record: %v", err)
+	}
+	if rec.RepoKey != "" || rec.SourcePath != "" {
+		t.Fatalf("OFF clone must not persist worktree cleanup handles, got repo_key=%q source_path=%q", rec.RepoKey, rec.SourcePath)
+	}
+}
+
+func TestSpawnExecutor_Repo_WorktreeSwitchOffCloneFailureFailsLoud(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{seq: seq, repoKey: "key-off", sourcePath: t.TempDir() + "/src", prepareErr: context.Canceled}
+	rt, _, home := engineForAgentClone(t, "agent-repo-off-fail", mat)
+	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-off-fail")}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-off-fail"})
+	if err != nil || res != nil {
+		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
+	}
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("failed clone must NOT fork, got %+v", probs)
+	}
+	blocked, ok := sc.callFor("block_task")
+	if !ok {
+		t.Fatalf("failed clone must FAIL LOUD (block_task), tools=%v", sc.toolsSeen())
+	}
+	if reason, _ := blocked["reason"].(string); !containsSub(reason, string(CauseRepoSourceUnavailable)) {
+		t.Fatalf("blocked_reason = %q, want [cause=%s]", reason, CauseRepoSourceUnavailable)
+	}
+}
+
+func TestSpawnExecutor_Repo_WorktreeSwitchOffStartTaskDeclinedCleansClone(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{seq: seq, repoKey: "key-off", sourcePath: t.TempDir() + "/src", baseRef: "main"}
+	rt, _, _ := engineForAgentClone(t, "agent-repo-off-decl", mat)
+	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-off-decl"), startErr: context.DeadlineExceeded}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-off-decl"})
+	if err != nil || res != nil {
+		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
+	}
+	reqs := mat.cloneReqs()
+	if len(reqs) == 0 {
+		t.Fatal("PrepareClone was not called")
+	}
+	for _, req := range reqs {
+		if _, statErr := os.Stat(req.WorkspacePath); !os.IsNotExist(statErr) {
+			t.Fatalf("declined admission must remove prepared clone %s, stat err=%v", req.WorkspacePath, statErr)
+		}
+	}
+}
+
+func TestRepo_RealGitWorktreeSwitchOffIndependentLocalClone(t *testing.T) {
+	requireGit(t)
+	remote := makeGitRemote(t)
+	reposRoot := t.TempDir()
+	mat, err := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
+	if err != nil {
+		t.Fatalf("NewLocalGitMaterializer: %v", err)
+	}
+	ws := filepath.Join(t.TempDir(), "executors", "exec-off", "workspace")
+	clone, err := mat.PrepareClone(context.Background(), reporepo.RepoTarget{
+		URL: remote, Provider: "git", DefaultBranch: "main", BaseRef: "main",
+	}, reporepo.CloneRequest{
+		ExecutorID: "exec-off", TaskID: "task-off",
+		BranchName: "ac-exec/task-off/exec-off", WorkspacePath: ws, BaseRef: "main",
+	})
+	if err != nil {
+		t.Fatalf("PrepareClone: %v", err)
+	}
+	if clone.WorkspacePath != ws || clone.BaseRef == "" {
+		t.Fatalf("clone result = %+v, want workspace + pinned base", clone)
+	}
+	if _, statErr := os.Stat(filepath.Join(ws, ".git")); statErr != nil {
+		t.Fatalf("independent clone missing .git: %v", statErr)
+	}
+	sourcePath := filepath.Join(reposRoot, reporepo.RepoKey(remote), "source")
+	if _, statErr := os.Stat(sourcePath); !os.IsNotExist(statErr) {
+		t.Fatalf("OFF clone must not create canonical source %s, stat err=%v", sourcePath, statErr)
+	}
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	cmd.Dir = remote
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git worktree list: %v: %s", err, out)
+	}
+	if containsSub(string(out), ws) {
+		t.Fatalf("OFF clone must not register as a linked worktree of the local source:\n%s", out)
+	}
+}
+
+func TestRepo_RealGitWorktreeSwitchOffRejectsLocalRemoteMismatch(t *testing.T) {
+	requireGit(t)
+	local := makeGitRemote(t)
+	cmd := exec.Command("git", "remote", "add", "origin", "https://example.invalid/not-this-repo.git")
+	cmd.Dir = local
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git remote add: %v: %s", err, out)
+	}
+	mat, err := reporepo.NewLocalGitMaterializer(t.TempDir(), nil, nil)
+	if err != nil {
+		t.Fatalf("NewLocalGitMaterializer: %v", err)
+	}
+	ws := filepath.Join(t.TempDir(), "executors", "exec-mismatch", "workspace")
+	_, err = mat.PrepareClone(context.Background(), reporepo.RepoTarget{
+		URL: local, Provider: "git", DefaultBranch: "main", BaseRef: "main",
+	}, reporepo.CloneRequest{
+		ExecutorID: "exec-mismatch", TaskID: "task-mismatch",
+		BranchName: "ac-exec/task-mismatch/exec-mismatch", WorkspacePath: ws, BaseRef: "main",
+	})
+	if !errors.Is(err, reporepo.ErrRemoteMismatch) {
+		t.Fatalf("PrepareClone err = %v, want ErrRemoteMismatch", err)
+	}
+	if _, statErr := os.Stat(ws); !os.IsNotExist(statErr) {
+		t.Fatalf("remote mismatch must not create workspace, stat err=%v", statErr)
 	}
 }
 

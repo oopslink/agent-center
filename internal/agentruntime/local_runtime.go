@@ -103,10 +103,15 @@ type LocalRuntimeConfig struct {
 	TaskLogMaxBytes int64
 	EventWriter     *taskexec.EventStreamWriter
 
-	// Materializer is the mandatory code-executor repo-workspace port. Production
-	// always wires it; nil is retained only for focused tests and fails closed before
-	// a code executor can fork.
+	// Materializer is the executor_git_worktree=ON repo-workspace port: shared
+	// canonical source + per-executor git worktree. Nil when the switch is OFF.
 	Materializer reporepo.RepoMaterializer
+	// CloneMaterializer is the executor_git_worktree=OFF repo-workspace port:
+	// independent per-executor clones directly under the executor workspace. It must
+	// not use shared canonical sources or linked worktrees.
+	CloneMaterializer interface {
+		PrepareClone(context.Context, reporepo.RepoTarget, reporepo.CloneRequest) (reporepo.PreparedClone, error)
+	}
 	// ReposRoot is the canonical <agent_home>/repos root the Materializer is anchored
 	// at (informational; the Materializer already carries it). Empty when the flag is off.
 	ReposRoot string
