@@ -1,12 +1,15 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // Isolation-invariant sentinels (issue-37015227 ①). A fork executor must ALWAYS get its
@@ -36,11 +39,45 @@ type GitRunner interface {
 type execGitRunner struct{}
 
 func (execGitRunner) Run(ctx context.Context, workdir string, env []string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.Command("git", args...)
 	cmd.Dir = workdir
 	cmd.Env = env
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return out.String(), err
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case err := <-done:
+		return out.String(), err
+	case <-ctx.Done():
+		signalProcessGroup(cmd.Process.Pid, syscall.SIGTERM)
+		var err error
+		select {
+		case err = <-done:
+		case <-time.After(2 * time.Second):
+			signalProcessGroup(cmd.Process.Pid, syscall.SIGKILL)
+			err = <-done
+		}
+		if err == nil {
+			err = ctx.Err()
+		}
+		return out.String(), err
+	}
+}
+
+func signalProcessGroup(pid int, sig syscall.Signal) {
+	if pid <= 0 {
+		return
+	}
+	_ = syscall.Kill(-pid, sig)
 }
 
 // NewExecGitRunner returns the real git-binary GitRunner (production default).

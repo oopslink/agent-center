@@ -6,8 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 )
@@ -42,6 +45,50 @@ func TestNewWorktreeProvisioner_Errors(t *testing.T) {
 	if p.runner == nil {
 		t.Fatal("nil runner should default to exec git runner")
 	}
+}
+
+func TestExecGitRunner_ContextCancelKillsGitProcessGroup(t *testing.T) {
+	dir := t.TempDir()
+	sshPath := filepath.Join(dir, "fake-ssh.sh")
+	pidPath := filepath.Join(dir, "ssh.pid")
+	script := "#!/bin/sh\n" +
+		"echo $$ > " + strconv.Quote(pidPath) + "\n" +
+		"printf 'fake ssh started\\n' >&2\n" +
+		"sleep 30\n"
+	if err := os.WriteFile(sshPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake ssh: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	start := time.Now()
+	_, err := NewExecGitRunner().Run(ctx, dir, append(os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_SSH_COMMAND="+sshPath,
+	), "ls-remote", "ssh://example.invalid/repo.git")
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatalf("Run unexpectedly succeeded")
+	}
+	if elapsed > 4*time.Second {
+		t.Fatalf("Run took %s after ctx cancellation; a child process likely kept git pipes open", elapsed)
+	}
+
+	pidBytes, readErr := os.ReadFile(pidPath)
+	if readErr != nil {
+		t.Fatalf("fake ssh was not invoked: %v", readErr)
+	}
+	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if parseErr != nil {
+		t.Fatalf("parse fake ssh pid: %v", parseErr)
+	}
+	for i := 0; i < 10; i++ {
+		if err := syscall.Kill(pid, 0); err != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("fake ssh pid %d survived git context cancellation", pid)
 }
 
 func TestWorktree_Add_Args(t *testing.T) {

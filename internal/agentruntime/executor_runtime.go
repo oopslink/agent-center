@@ -803,13 +803,15 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
 			return nil, nil
 		}
-		clone, cloneErr := r.cfg.CloneMaterializer.PrepareClone(ctx, target, reporepo.CloneRequest{
+		cloneCtx, cloneCancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
+		clone, cloneErr := r.cfg.CloneMaterializer.PrepareClone(cloneCtx, target, reporepo.CloneRequest{
 			ExecutorID:    execID,
 			TaskID:        taskID,
 			BranchName:    "ac-exec/" + taskID + "/" + execID,
 			WorkspacePath: wsPath,
 			BaseRef:       target.BaseRef,
 		})
+		cloneCancel()
 		if cloneErr != nil {
 			r.log("work_available agent=%s task=%s prepare clone: %v — executor NOT forked; failing task loud",
 				agentID, taskID, cloneErr)

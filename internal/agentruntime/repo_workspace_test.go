@@ -104,12 +104,18 @@ type recordingMaterializer struct {
 	mu         sync.Mutex
 	prepared   []reporepo.WorktreeRequest
 	cloned     []reporepo.CloneRequest
+	cloneCtx   []cloneCtxProbe
 	removed    []removeArgs
 	pruneCalls []pruneCall
 	lastTarget reporepo.RepoTarget
 }
 
 var _ reporepo.RepoMaterializer = (*recordingMaterializer)(nil)
+
+type cloneCtxProbe struct {
+	err         error
+	hasDeadline bool
+}
 
 func (m *recordingMaterializer) EnsureSource(_ context.Context, target reporepo.RepoTarget) (reporepo.SourceRepo, error) {
 	m.seq.add("EnsureSource")
@@ -147,11 +153,13 @@ func (m *recordingMaterializer) PrepareWorktree(_ context.Context, source repore
 	}, nil
 }
 
-func (m *recordingMaterializer) PrepareClone(_ context.Context, target reporepo.RepoTarget, req reporepo.CloneRequest) (reporepo.PreparedClone, error) {
+func (m *recordingMaterializer) PrepareClone(ctx context.Context, target reporepo.RepoTarget, req reporepo.CloneRequest) (reporepo.PreparedClone, error) {
 	m.seq.add("PrepareClone")
+	_, hasDeadline := ctx.Deadline()
 	m.mu.Lock()
 	m.lastTarget = target
 	m.cloned = append(m.cloned, req)
+	m.cloneCtx = append(m.cloneCtx, cloneCtxProbe{err: ctx.Err(), hasDeadline: hasDeadline})
 	m.mu.Unlock()
 	if m.prepareErr != nil {
 		return reporepo.PreparedClone{}, m.prepareErr
@@ -230,6 +238,12 @@ func (m *recordingMaterializer) cloneReqs() []reporepo.CloneRequest {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]reporepo.CloneRequest(nil), m.cloned...)
+}
+
+func (m *recordingMaterializer) cloneCtxProbes() []cloneCtxProbe {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]cloneCtxProbe(nil), m.cloneCtx...)
 }
 
 // engineForAgentMat builds a flag-ON runtime (materializer wired) + attached engine.
@@ -382,6 +396,35 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone(t *testing.T) 
 	}
 	if rec.RepoKey != "" || rec.SourcePath != "" {
 		t.Fatalf("OFF clone must not persist worktree cleanup handles, got repo_key=%q source_path=%q", rec.RepoKey, rec.SourcePath)
+	}
+}
+
+func TestSpawnExecutor_Repo_WorktreeSwitchOffPrepareCloneIgnoresCancelledCallerCtx(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{seq: seq, repoKey: "key-off", sourcePath: t.TempDir() + "/src", baseRef: "main"}
+	rt, _, _ := engineForAgentClone(t, "agent-repo-off-short-ctx", mat)
+	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-off-short-ctx")}
+	setToolCaller(rt, sc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	res, err := rt.SpawnExecutor(ctx, SpawnRequest{TaskID: "task-off-short-ctx"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("OFF path must prepare clone under its own bounded ctx and fork, got nil")
+	}
+
+	probes := mat.cloneCtxProbes()
+	if len(probes) != 1 {
+		t.Fatalf("PrepareClone ctx probes = %d, want 1", len(probes))
+	}
+	if probes[0].err != nil {
+		t.Fatalf("PrepareClone inherited cancelled caller ctx: %v", probes[0].err)
+	}
+	if !probes[0].hasDeadline {
+		t.Fatalf("PrepareClone ctx must be independently bounded")
 	}
 }
 
