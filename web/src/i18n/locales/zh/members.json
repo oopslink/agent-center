@@ -98,11 +98,11 @@
       "yesterday": "昨天",
       "concurrency": {
         "slotsLabel": {
-          "live": "个槽位使用中",
+          "live": "个 Agent 执行器槽位使用中",
           "offline": "个槽位 — 工作节点离线",
           "expired": "个槽位 — 快照已过期",
           "disabled": "运行中 · 单活 agent",
-          "nodata": "个槽位 · 等待实时数据"
+          "nodata": "个 Agent 执行器槽位 · 等待实时数据"
         },
         "queued": "· {{count}} 项排队中",
         "adaptiveTitle": "自适应心跳频率",
@@ -111,7 +111,7 @@
         "workerOffline": "工作节点离线",
         "expiredAge": "快照于 {{age}}前 · 最近已知",
         "disabledDetail": "单活 agent · 并发未启用",
-        "nodataDetail": "等待实时槽位数据"
+        "nodataDetail": "等待该 Agent 执行器单元的实时数据"
       },
       "overlay": {
         "slot": "槽位 {{slot}}",
@@ -240,23 +240,23 @@
       "concurrency": {
         "heading": "并发",
         "maxLabel": "最大并发任务数",
-        "maxHint": "0 或 1 = 单任务（无并行）。2 及以上启用并行执行器。",
-        "executorsLabel": "允许的执行器配置",
-        "executorsHint": "守护进程可作为执行器派生的 {cli·model} 组合。至少添加一个以启用并行。",
-        "executorsEmpty": "无执行器配置——智能体保持单任务模式。",
+        "maxHint": "0 或 1 = 单任务（无并行）。2 及以上允许该 Agent 派生并行执行器单元。",
+        "executorsLabel": "允许的执行器单元配置",
+        "executorsHint": "该 Agent 的 Supervisor 控制面可派生为隔离执行器单元的 {cli·model} 组合。至少添加一个以启用并行。",
+        "executorsEmpty": "无执行器单元配置——智能体保持单任务模式。",
         "removeExecutor": "移除 {{cli}} {{model}}",
         "executorCli": "执行器 CLI",
         "executorModel": "执行器模型",
         "executorModelPlaceholder": "模型（例如 opus-4-8）",
         "add": "添加",
         "enabled": "并发已启用——最多 {{count}} 个任务并行执行。",
-        "disabled": "已禁用（单任务）。将最大值设为 ≥ 2 并添加 ≥ 1 个执行器配置以并行运行。"
+        "disabled": "已禁用（单任务）。将最大值设为 ≥ 2 并添加 ≥ 1 个执行器单元配置以并行运行。"
       },
       "gitWorktree": {
         "heading": "执行器工作区",
         "ariaLabel": "为执行器启用独立 Git 工作树",
         "label": "独立 Git 工作树",
-        "description": "为该智能体派生的每个执行器创建隔离的 Git worktree。重启智能体后生效。"
+        "description": "为该智能体派生的每个隔离执行器单元创建 Git worktree。重启智能体后生效。"
       },
       "autoAssign": {
         "heading": "自动分配",
@@ -454,7 +454,7 @@
       },
       "concurrencyEnabled": "并发 · 上限 {{cap}}",
       "concurrencySingle": "单活动 · 上限 1",
-      "allowedExecutors": "允许的执行器",
+      "allowedExecutors": "允许的执行器单元",
       "executorsNone": "无",
       "envVars": "环境变量",
       "envVarsNone": "无",

@@ -98,11 +98,11 @@
       "yesterday": "Yesterday",
       "concurrency": {
         "slotsLabel": {
-          "live": "slots in use",
+          "live": "Agent executor slots in use",
           "offline": "slots — worker offline",
           "expired": "slots — snapshot expired",
           "disabled": "active · single-active agent",
-          "nodata": "slots · awaiting live data"
+          "nodata": "Agent executor slots · awaiting live data"
         },
         "queued": "· {{count}} queued",
         "adaptiveTitle": "Adaptive heartbeat cadence",
@@ -111,7 +111,7 @@
         "workerOffline": "worker offline",
         "expiredAge": "snapshot {{age}} ago · last known",
         "disabledDetail": "single-active agent · concurrency not active",
-        "nodataDetail": "awaiting live slot data"
+        "nodataDetail": "awaiting live data for this Agent's executor units"
       },
       "overlay": {
         "slot": "slot {{slot}}",
@@ -240,23 +240,23 @@
       "concurrency": {
         "heading": "Concurrency",
         "maxLabel": "Max concurrent tasks",
-        "maxHint": "0 or 1 = single active (no parallelism). 2+ enables parallel executors.",
-        "executorsLabel": "Allowed executor profiles",
-        "executorsHint": "The {cli·model} pairs the daemon may fork as executors. Add at least one to enable parallelism.",
-        "executorsEmpty": "No executor profiles — agent stays single-active.",
+        "maxHint": "0 or 1 = single active (no parallelism). 2+ enables this Agent to fork parallel executor units.",
+        "executorsLabel": "Allowed executor unit profiles",
+        "executorsHint": "The {cli·model} pairs this Agent's Supervisor control plane may fork as isolated executor units. Add at least one to enable parallelism.",
+        "executorsEmpty": "No executor unit profiles — agent stays single-active.",
         "removeExecutor": "Remove {{cli}} {{model}}",
         "executorCli": "Executor CLI",
         "executorModel": "Executor model",
         "executorModelPlaceholder": "model (e.g. opus-4-8)",
         "add": "Add",
         "enabled": "Concurrency ENABLED — up to {{count}} tasks in parallel.",
-        "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel."
+        "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor unit profile to run in parallel."
       },
       "gitWorktree": {
         "heading": "Executor workspace",
         "ariaLabel": "Enable isolated Git worktrees for executors",
         "label": "Isolated Git worktrees",
-        "description": "Create a separate Git worktree for every executor forked by this agent. Applies after the agent restarts."
+        "description": "Create a separate Git worktree for every isolated executor unit forked by this agent. Applies after the agent restarts."
       },
       "autoAssign": {
         "heading": "Auto-assignment",
@@ -454,7 +454,7 @@
       },
       "concurrencyEnabled": "concurrency · cap {{cap}}",
       "concurrencySingle": "single-active · cap 1",
-      "allowedExecutors": "Allowed executors",
+      "allowedExecutors": "Allowed executor units",
       "executorsNone": "none",
       "envVars": "Environment",
       "envVarsNone": "none",

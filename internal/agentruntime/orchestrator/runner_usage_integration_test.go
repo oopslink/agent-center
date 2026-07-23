@@ -65,7 +65,7 @@ func TestIntegration_ClaudeBuilderArgvProducesParseableUsage(t *testing.T) {
 	// The REAL CommandRunner (production execRun) forks the argv as a subprocess.
 	res, err := executor.NewCommandRunner(argv).Run(context.Background(), executor.RunContext{
 		WorkspaceDir: t.TempDir(),
-		Progress: func(string, string, ...string) {},
+		Progress:     func(string, string, ...string) {},
 	})
 	if err != nil {
 		t.Fatalf("CommandRunner.Run: %v", err)
@@ -108,7 +108,7 @@ func TestIntegration_NonStreamRunnerRelaysRawResult(t *testing.T) {
 	}
 	res, err := executor.NewCommandRunner([]string{path}).Run(context.Background(), executor.RunContext{
 		WorkspaceDir: t.TempDir(),
-		Progress: func(string, string, ...string) {},
+		Progress:     func(string, string, ...string) {},
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -118,5 +118,60 @@ func TestIntegration_NonStreamRunnerRelaysRawResult(t *testing.T) {
 	}
 	if !strings.Contains(res.Result, "codex finished the task") {
 		t.Errorf("plain result must be relayed raw, got %q", res.Result)
+	}
+}
+
+// TestIntegration_CodexBuilderArgvCarriesExecutorIdentityContract drives the real
+// Codex executor path through a subprocess. The fake codex only emits a successful
+// JSONL result when the final prompt argument contains the same-Agent executor
+// framing, so this catches regressions where the codex path drops the executor
+// system prompt while the Claude --append-system-prompt path stays covered.
+func TestIntegration_CodexBuilderArgvCarriesExecutorIdentityContract(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "codex")
+	script := `#!/bin/sh
+last=""
+for arg in "$@"; do
+  last="$arg"
+done
+case "$last" in
+  *"execution unit of the same Agent"*"not an external agent or separate accountable party"*"Supervisor relays and judges"*)
+    printf '%s\n' '{"type":"thread.started","thread_id":"th_contract"}'
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"codex contract ok"}}'
+    printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":11,"output_tokens":3}}'
+    exit 0
+    ;;
+  *)
+    printf '%s\n' '{"type":"turn.failed","error":{"message":"missing same-Agent executor contract"}}'
+    exit 1
+    ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	argv, err := NewCodexRunnerBuilder(path).Build("gpt-5.5", "do the thing", "")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	res, err := executor.NewCommandRunner(argv).Run(context.Background(), executor.RunContext{
+		WorkspaceDir: t.TempDir(),
+		Progress:     func(string, string, ...string) {},
+	})
+	if err != nil {
+		t.Fatalf("CommandRunner.Run: %v", err)
+	}
+	if res.Result != "codex contract ok" {
+		t.Errorf("result = %q, want codex contract ok", res.Result)
+	}
+	if res.ThreadID != "th_contract" {
+		t.Errorf("thread id = %q, want th_contract", res.ThreadID)
+	}
+	if res.Usage != (executor.TokenUsage{InputTokens: 11, OutputTokens: 3}) {
+		t.Errorf("usage = %+v, want input=11 output=3", res.Usage)
 	}
 }

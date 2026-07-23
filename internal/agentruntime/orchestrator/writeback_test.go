@@ -152,6 +152,20 @@ func TestReport_Succeeded_InjectsJudgment(t *testing.T) {
 			t.Errorf("judgment missing %q: %q", want, j)
 		}
 	}
+	for _, want := range []string{
+		"Your Agent's executor",
+		"Supervisor control plane",
+		"same Agent's isolated execution unit",
+		"final delivery remains YOUR judged responsibility",
+		"if this Agent TRULY delivered",
+	} {
+		if !strings.Contains(j, want) {
+			t.Errorf("judgment missing same-agent identity contract %q: %q", want, j)
+		}
+	}
+	if strings.Contains(j, "Your forked executor") {
+		t.Errorf("judgment kept old externalizing wording: %q", j)
+	}
 }
 
 // TestReport_JudgmentSurfacesDeliveryBranch is the issue-f30b7e7b P0-A lock: the judgment

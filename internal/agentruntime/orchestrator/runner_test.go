@@ -38,6 +38,11 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 	if !strings.Contains(joined, "NO access to the agent-center") {
 		t.Errorf("executor system prompt should forbid center access: %q", joined)
 	}
+	if !strings.Contains(joined, "execution unit of the same Agent") ||
+		!strings.Contains(joined, "not an external agent or separate accountable party") ||
+		!strings.Contains(joined, "Supervisor relays and judges") {
+		t.Errorf("executor system prompt should bind executor to same-agent responsibility: %q", joined)
+	}
 }
 
 func TestCodexRunnerBuilder_Build(t *testing.T) {
@@ -77,6 +82,11 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 	last := argv[len(argv)-1]
 	if !strings.Contains(last, "NO access to the agent-center") {
 		t.Errorf("codex prompt should prepend the executor framing: %q", last)
+	}
+	if !strings.Contains(last, "execution unit of the same Agent") ||
+		!strings.Contains(last, "not an external agent or separate accountable party") ||
+		!strings.Contains(last, "Supervisor relays and judges") {
+		t.Errorf("codex prompt should bind executor to same-agent responsibility: %q", last)
 	}
 	if !strings.Contains(last, "do the thing") {
 		t.Errorf("codex prompt should contain the goal: %q", last)

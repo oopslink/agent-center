@@ -2,7 +2,7 @@
 // (docs/design/features/agent-concurrent-execution.md §4/§5/§8/§11.1): the
 // production wiring that chains the v2.17.0 foundations — F4 consistency routing →
 // F3 model routing → F2 file protocol → F1 process-model Pool — so the resident
-// orchestrator (监工) really forks executors for incoming work.
+// Supervisor control plane really forks this Agent's Executors for incoming work.
 //
 // This package owns the orchestration LOGIC (the Engine) plus the production
 // "real runner" the forked executor runs (a no-mcp claude invocation under the
@@ -54,11 +54,12 @@ func resumeSessionArgv(argv []string) ([]string, bool) {
 }
 
 // executorSystemPrompt is the executor's persistent --append-system-prompt: it
-// frames the forked claude as a focused, isolated worker. CRITICAL framing — the
+// frames the forked claude as a focused, isolated execution unit of the same Agent.
+// CRITICAL framing — the
 // executor has NO mcp / center tools (it is launched without --mcp-config), so it
 // must NOT try to talk to the center; it does the task with its built-in tools in
-// its own workspace and reports the result as its final message (the orchestrator
-// harvests output.json and does all center writeback — design §3/§4).
+// its own workspace and reports the result as its final message (the Supervisor
+// control plane harvests output.json and does all center writeback — design §3/§4).
 //
 // ExecutorSystemPrompt returns the executor framing prompt so callers (e.g. the
 // daemon's launchExecutor) can persist it to the executor's SYSTEM.md for runtime
@@ -66,9 +67,10 @@ func resumeSessionArgv(argv []string) ([]string, bool) {
 func ExecutorSystemPrompt() string { return executorSystemPrompt }
 
 const executorSystemPrompt = "You are an isolated executor working a single task in your current working directory. " +
+	"You are an execution unit of the same Agent whose Supervisor control plane assigned this work, not an external agent or separate accountable party. " +
 	"You have NO access to the agent-center / MCP tools and NO network credentials for the center — do not attempt to message any chat, update any task, or call center tools. " +
-	"Use your built-in tools (read/edit files, run commands) to complete the task entirely within this workspace. " +
-	"When finished, your final message must be a concise report of what you did and the outcome; that message is the result the orchestrator relays."
+	"Use your built-in tools (read/edit files, run commands) to complete the task entirely within this workspace; preserve the process/workspace/MCP isolation boundary. " +
+	"When finished, your final message must be a concise report of what you did and the outcome; that message is the result your Agent's Supervisor relays and judges for final delivery."
 
 // CodexRunnerBuilder builds the production executor runner for the codex CLI: a
 // ONE-SHOT `codex exec` invocation under the F3-selected model (v2.18.1 BE-2,

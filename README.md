@@ -237,7 +237,8 @@ Each is a noun your users will learn, backed by a DDD aggregate / value object /
 | **Conversation** | A message thread attached to a Task / Issue / Channel / DM — the product spine |
 | **Worker** | A machine running agents (local or remote); one machine can host multiple workers (v2.4) |
 | **AgentInstance** | A named, persistent agent identity ("the coder on my MBP") with instructions + MCP + skills |
-| **Supervisor** | A built-in agent that reads Conversation context and decides what to dispatch next — not a "brain," just another agent with logs |
+| **Supervisor** | In concurrent mode, the Agent's resident control plane: it monitors tasks, judges its own Executors' results, and remains responsible for final delivery |
+| **Executor** | An isolated per-task process/workspace forked by the same Agent; no center/MCP credentials, but not an external accountable agent |
 | **InputRequest** | Agent blocks mid-execution asking you to decide; you answer in the Web Console and the agent resumes |
 | **Project** | The container Tasks belong to; a worker can be mapped to multiple Projects |
 | **Plan** | A DAG of tasks; `start` it and the center auto-dispatches each ready node as upstream tasks complete (draft → running → done → archived) |

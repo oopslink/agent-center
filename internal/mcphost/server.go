@@ -183,7 +183,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_profile",
-		Description: "Get the calling agent's own profile: your display_name and agent_ref (the \"agent:<id>\" form others use to @mention you), your organization, the projects you belong to (with role + what you can do in each), and your capabilities. Call this at the start of a session to learn WHO YOU ARE — your display_name tells you which @mentions are actually for you. Several agents may share a conversation; never assume you are an agent whose name merely appears in a message — only your own display_name from this tool identifies you.",
+		Description: "Get the calling agent's own profile: your display_name and agent_ref (the \"agent:<id>\" form others use to @mention you), your organization, the projects you belong to (with role + what you can do in each), and your capabilities. Call this at the start of a session to learn WHO YOU ARE — your display_name tells you which @mentions are actually for you. Several agents may share a conversation; never assume you are an agent whose name merely appears in a message — only your own display_name from this tool identifies you. In concurrent mode, your resident session is this same Agent's Supervisor control plane and forked executors are this same Agent's isolated execution units; process/workspace/MCP isolation does not make them external agents.",
 	}, makeGetMyProfile(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -306,7 +306,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reset_task",
-		Description: "Tier-3 recovery for a task stranded RUNNING under a dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared) so a FRESH executor is auto-assigned and re-dispatched. Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
+		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared) so a FRESH executor is auto-assigned and re-dispatched. Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
 	}, makeResetTask(cfg))
 
 	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
@@ -326,7 +326,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
-		Description: "Optionally post a summary and move the task to completed. For a control-flow DECISION node, pass outcome=\"pass\"/\"reject\" to route its edges. For a REVIEW node, you MUST record your structured verdict via review_verdict=\"pass\"/\"reject\" (+ review_blocking) so the downstream Decision auto-decides — a non-blocking nit is review_verdict=\"pass\", review_blocking=false.",
+		Description: "Optionally post a summary and move the task to completed. In concurrent mode, call this only after you, the Agent's Supervisor control plane, have judged that this same Agent's executor truly delivered; do not complete merely because an executor exited. For a control-flow DECISION node, pass outcome=\"pass\"/\"reject\" to route its edges. For a REVIEW node, you MUST record your structured verdict via review_verdict=\"pass\"/\"reject\" (+ review_blocking) so the downstream Decision auto-decides — a non-blocking nit is review_verdict=\"pass\", review_blocking=false.",
 	}, makeCompleteTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
