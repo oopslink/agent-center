@@ -346,7 +346,7 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			continue // non-pass outcome with no matching loopback → leave the branch gated.
 		}
 		// Bounded round via the engine's countReopens on the condition node.
-		round := conditionReopenCount(n) + 1
+		round := conditionLoopRound(n) + 1
 		if lb.MaxRounds > 0 && round > lb.MaxRounds {
 			// EXHAUSTION terminal (§4): record the "<outcome>_exhausted" outcome, leave the
 			// condition UNRESOLVED so the gated pass branch never releases (Integrate
@@ -375,12 +375,9 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			}
 			continue
 		}
-		// Within bounds: drive the engine reopen (bumps countReopens on the condition),
-		// then mirror onto the tasks so the reopened loop subgraph re-dispatches.
-		if rerr := s.orch.ResolveCondition(txCtx, orch.NodeID(n.ID()), "reject"); rerr != nil {
-			return rerr
-		}
-		if rerr := s.reopenLoopSubgraph(txCtx, p.ID(), edges, lb.ToTaskID, lb.FromTaskID, now); rerr != nil {
+		// Within bounds: preserve the completed round and materialize a fresh task/node
+		// chain for the next round. Historical tasks remain terminal and auditable.
+		if rerr := s.forkLoopSubgraph(txCtx, p, n, edges, lb.ToTaskID, lb.FromTaskID, round, now); rerr != nil {
 			return rerr
 		}
 		// Ledger: the engine-driven bounded loopback re-run (design §4.2/§5 — the reject
@@ -411,6 +408,17 @@ func conditionReopenCount(n *orch.Node) int {
 		}
 	}
 	return count
+}
+
+func conditionLoopRound(n *orch.Node) int {
+	var base int
+	switch v := n.Metadata()["loop_round_base"].(type) {
+	case int:
+		base = v
+	case float64:
+		base = int(v)
+	}
+	return base + conditionReopenCount(n)
 }
 
 // metaHasWhen reports whether the JSON-round-tripped pass_whens metadata ([]any of
@@ -703,42 +711,137 @@ func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, o
 	})
 }
 
-// reopenLoopSubgraph re-activates every node on the forward path from `to` (the loop
-// target) to `from` (the decision), inclusive: a completed node is Reopened
-// (Completed→Reopened, a re-dispatchable non-terminal state), its dispatch record is
-// cleared (so it re-enters the ready-set), and its decision outcome is cleared (so a
-// re-run decision re-decides). Non-completed nodes are left as-is. This is the TASK-
-// layer mirror of the engine's node reopen (ApplyConditionResult) — the node↔task
-// mapping the graph dispatch (task-keyed) needs; driveGraphDecisions calls it on a
-// bounded reject.
-func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, edges []pm.Dependency, to, from pm.TaskID, now time.Time) error {
-	for _, nodeID := range pm.LoopbackResetSet(edges, to, from) {
-		nt, err := s.tasks.FindByID(txCtx, nodeID)
+// forkLoopSubgraph materializes the next bounded-loopback round as fresh tasks and
+// graph nodes. It deliberately leaves every prior-round task completed, preserving
+// its immutable lifecycle and conversation audit trail.
+func (s *Service) forkLoopSubgraph(txCtx context.Context, p *pm.Plan, condition *orch.Node, edges []pm.Dependency, to, from pm.TaskID, round int, now time.Time) error {
+	reset := pm.LoopbackResetSet(edges, to, from)
+	cloned := make(map[pm.TaskID]pm.TaskID, len(reset))
+	nodeOf := make(map[pm.TaskID]orch.NodeID, len(reset))
+	graphID := orch.GraphID(p.GraphID())
+	for _, id := range reset {
+		original, err := s.tasks.FindByID(txCtx, id)
 		if err != nil {
 			return err
 		}
-		if pm.TaskIsDone(nt.Status()) { // Completed→Reopened (a re-dispatchable non-terminal state)
-			prevStatus := nt.Status() // terminal status BEFORE reopen (for the audit entry)
-			if rerr := nt.Reopen(now); rerr != nil {
-				return rerr
-			}
-			if uerr := s.tasks.Update(txCtx, nt); uerr != nil {
-				return uerr
-			}
-			// issue-74df441a: audit the loopback-driven task reopen so the task's OWN
-			// change history shows it (parity with the manual reopen path). Closes the
-			// acceptance finding — reopenLoopSubgraph previously bypassed
-			// auditTaskStatusChange, leaving loopback re-runs invisible in the task ledger.
-			s.auditTaskStatusChange(txCtx, nt, prevStatus, pm.SystemActor("plan-engine"))
+		cloneID, err := s.CreateTask(txCtx, CreateTaskCommand{
+			ProjectID: original.ProjectID(), Title: loopRoundTitle(original.Title(), round+1),
+			Description: original.Description(), DerivedFromIssue: original.DerivedFromIssue(), CreatedBy: original.CreatedBy(),
+			Assignee: original.Assignee(), Model: original.Model(), DispatchMode: original.DispatchMode(), RequiredCapabilities: original.RequiredCapabilities(),
+		})
+		if err != nil {
+			return err
 		}
-		if cerr := s.plans.ClearDispatch(txCtx, planID, nodeID); cerr != nil {
-			return cerr
+		clone, err := s.tasks.FindByID(txCtx, cloneID)
+		if err != nil {
+			return err
 		}
-		if cerr := s.plans.ClearDecisionOutcome(txCtx, planID, nodeID); cerr != nil {
-			return cerr
+		if err := clone.SetPlan(p.ID(), now); err != nil {
+			return err
+		}
+		if original.StageID() != "" {
+			if err := clone.SetStage(original.StageID(), now); err != nil {
+				return err
+			}
+		}
+		nodeID, err := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryBusiness), "", nodeTitle(clone), map[string]any{"task_id": string(cloneID), "loop_round": round + 1})
+		if err != nil {
+			return err
+		}
+		clone.SetNodeID(string(nodeID), now)
+		if err := s.tasks.Update(txCtx, clone); err != nil {
+			return err
+		}
+		cloned[id], nodeOf[id] = cloneID, nodeID
+	}
+
+	graphEdges, err := s.orch.ListEdges(txCtx, graphID)
+	if err != nil {
+		return err
+	}
+	oldTargets := make([]orch.NodeID, 0)
+	for _, edge := range graphEdges {
+		if edge.FromNodeID == orch.NodeID(condition.ID()) {
+			oldTargets = append(oldTargets, edge.ToNodeID)
+			if err := s.orch.RemoveEdge(txCtx, graphID, edge.FromNodeID, edge.ToNodeID); err != nil {
+				return err
+			}
 		}
 	}
+	// With its forward gates detached, success safely settles the historical
+	// condition without releasing the pass branch or reopening old business nodes.
+	if err := s.orch.ResolveCondition(txCtx, orch.NodeID(condition.ID()), "success"); err != nil {
+		return err
+	}
+
+	// Insert forward ancestry before control edges: AddDependency validates a
+	// loopback against the already-persisted forward path.
+	for pass := 0; pass < 2; pass++ {
+		for _, edge := range edges {
+			originalFrom, originalTo := edge.FromTaskID, edge.ToTaskID
+			newFrom, fromOK := cloned[originalFrom]
+			newTo, toOK := cloned[originalTo]
+			if !fromOK && !toOK {
+				continue
+			}
+			control := edge.IsLoopback() || pm.NormalizeEdgeKind(edge.Kind) == pm.EdgeConditional
+			if (pass == 0) == control {
+				continue
+			}
+			if fromOK {
+				edge.FromTaskID = newFrom
+			}
+			if toOK {
+				edge.ToTaskID = newTo
+			}
+			if err := s.plans.AddDependency(txCtx, edge); err != nil {
+				return err
+			}
+			if fromOK && toOK && !control {
+				if err := s.orch.AddEdge(txCtx, graphID, nodeOf[originalTo], nodeOf[originalFrom]); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	newDecision := cloned[from]
+	decisionNode := nodeOf[from]
+	newTarget := nodeOf[to]
+	meta := condition.Metadata()
+	meta["condition_for"] = string(newDecision)
+	meta["on_failure"] = []any{string(newTarget)}
+	meta["loop_round_base"] = round
+	condID, err := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryControl), string(orch.ControlKindCondition), fmt.Sprintf("decision:round-%d", round+1), meta)
+	if err != nil {
+		return err
+	}
+	if err := s.orch.AddEdge(txCtx, graphID, decisionNode, condID); err != nil {
+		return err
+	}
+	for _, target := range oldTargets {
+		if err := s.orch.AddEdge(txCtx, graphID, condID, target); err != nil {
+			return err
+		}
+	}
+	g, err := s.orch.GetGraph(txCtx, graphID)
+	if err != nil {
+		return err
+	}
+	if err := s.orch.AddEdge(txCtx, graphID, g.StartNodeID(), newTarget); err != nil {
+		return err
+	}
 	return nil
+}
+
+func loopRoundTitle(title string, round int) string {
+	if i := strings.LastIndex(title, " (round "); i >= 0 && strings.HasSuffix(title, ")") {
+		var prior int
+		if _, err := fmt.Sscanf(title[i:], " (round %d)", &prior); err == nil {
+			title = title[:i]
+		}
+	}
+	return fmt.Sprintf("%s (round %d)", title, round)
 }
 
 // escalateExhaustion is the bounded-loopback terminal handler: when a cycle's Decision

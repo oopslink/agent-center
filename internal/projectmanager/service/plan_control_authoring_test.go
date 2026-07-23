@@ -78,7 +78,7 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 	}
 
 	// The loopback back-edge drives: walk Dev→Review→Decision, reject, and confirm
-	// Dev is re-dispatched for another round (proves the loopback edge persisted).
+	// a fresh Dev is dispatched for the next round (proves the edge persisted).
 	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -101,8 +101,9 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AdvancePlan reject/loopback: %v", err)
 	}
-	if !graphHasTaskID(dLoop, dev) {
-		t.Fatalf("after reject, dispatch = %v, want Dev re-dispatched (loopback)", dLoop)
+	round2Dev, _, _ := loopRoundTasks(t, h, planID, dev, rev, dec, 2)
+	if !graphHasTaskID(dLoop, round2Dev) {
+		t.Fatalf("after reject, dispatch = %v, want fresh round-2 Dev %s", dLoop, round2Dev)
 	}
 	if graphHasTaskID(dLoop, integ) {
 		t.Fatalf("Integrate released on reject: %v, must stay gated", dLoop)
