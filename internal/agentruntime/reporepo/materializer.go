@@ -77,10 +77,12 @@ func (t RepoTarget) resolvedBaseRef() string {
 
 // SourceRepo is a materialized canonical source checkout (design §4).
 type SourceRepo struct {
-	RepoKey string
-	Path    string // <reposRoot>/<repo_key>/source
-	URL     string
-	BaseRef string // resolved base ref (RepoTarget.resolvedBaseRef)
+	RepoKey     string
+	Path        string // <reposRoot>/<repo_key>/source
+	URL         string
+	BaseRef     string // resolved base ref (RepoTarget.resolvedBaseRef)
+	Stale       bool
+	LastFetchAt time.Time
 }
 
 // WorktreeRequest describes a per-executor worktree to derive from a SourceRepo

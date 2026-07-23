@@ -301,6 +301,7 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 		if spec.Prepared != nil {
 			rec.RepoKey = spec.Prepared.RepoKey
 			rec.SourcePath = spec.Prepared.SourcePath
+			rec.WorkspacePath = spec.Prepared.Path
 			// Prefer the materializer-prepared worktree's base (the real spawn path); fall
 			// back to p.cfg.BaseRef (the legacy in-pool AddNewBranch path) only when the
 			// prepared workspace did not carry one (issue-f30b7e7b P0: this is the producer

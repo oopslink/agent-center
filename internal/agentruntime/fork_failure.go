@@ -49,6 +49,9 @@ const (
 	// wake-sweep re-drives a queued task ONLY while the agent has zero running tasks, so
 	// a busy agent stranded it indefinitely. It is now surfaced as a blocked task.
 	CauseRepoSourceUnavailable ForkFailureCause = "repo_source_unavailable"
+	// CauseRepoRefUnavailable means the mirror is valid but neither a network
+	// refresh nor its cached refs can satisfy the requested target ref.
+	CauseRepoRefUnavailable ForkFailureCause = "repo_ref_unavailable"
 )
 
 // classifyForkFailure maps a fork error to a machine-readable cause so the

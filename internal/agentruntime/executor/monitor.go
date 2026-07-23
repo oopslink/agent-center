@@ -778,9 +778,12 @@ func (m *Monitor) cleanupPreparedWorktree(ctx context.Context, executorID string
 	if err != nil || strings.TrimSpace(rec.RepoKey) == "" {
 		return
 	}
-	ws, err := m.fx.Layout().WorkspaceDir(executorID)
-	if err != nil {
-		return
+	ws := strings.TrimSpace(rec.WorkspacePath)
+	if ws == "" {
+		ws, err = m.fx.Layout().WorkspaceDir(executorID)
+		if err != nil {
+			return
+		}
 	}
 	_ = m.cleaner.RemoveWorktree(ctx, rec.RepoKey, rec.SourcePath, ws)
 }

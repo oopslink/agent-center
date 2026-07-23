@@ -96,6 +96,9 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 	if rec.RepoKey != "rk-1" || rec.SourcePath != "/src/rk-1/source" {
 		t.Fatalf("record handle = {%q,%q}, want {rk-1,/src/rk-1/source}", rec.RepoKey, rec.SourcePath)
 	}
+	if rec.WorkspacePath != ws {
+		t.Fatalf("record WorkspacePath = %q, want %q", rec.WorkspacePath, ws)
+	}
 	// P0 命门 (issue-f30b7e7b): the prepared worktree's base MUST reach the Record — and it
 	// must be the PREPARED base, taking precedence over PoolConfig.BaseRef ("main"). Without
 	// this producer, recordBaseRef()="" → BaseKnown=false / AheadOfBase=0 → eager-push skipped.
@@ -126,9 +129,10 @@ func TestMonitor_FinalizeCallsCleanerForWorktreeRecord(t *testing.T) {
 	if _, err := fx.Provision(wtID); err != nil {
 		t.Fatalf("provision: %v", err)
 	}
+	runtimeWS := filepath.Join(root, "runtime", "worktrees", wtID)
 	if err := tracker.Write(Record{
 		ExecutorID: wtID, PID: 4242, SpawnedAt: time.Unix(1700000000, 0),
-		RepoKey: "rk-9", SourcePath: "/src/rk-9/source",
+		RepoKey: "rk-9", SourcePath: "/src/rk-9/source", WorkspacePath: runtimeWS,
 	}); err != nil {
 		t.Fatalf("write record: %v", err)
 	}
@@ -162,9 +166,8 @@ func TestMonitor_FinalizeCallsCleanerForWorktreeRecord(t *testing.T) {
 		t.Fatalf("cleaner calls after reap = %d, want 1 (only the RepoKey executor)", cleaner.count())
 	}
 	got := cleaner.calls[0]
-	wantWS, _ := layout.WorkspaceDir(wtID)
-	if got.repoKey != "rk-9" || got.sourcePath != "/src/rk-9/source" || got.workspacePath != wantWS {
-		t.Fatalf("cleaner args = %+v, want rk-9//src/rk-9/source/%s", got, wantWS)
+	if got.repoKey != "rk-9" || got.sourcePath != "/src/rk-9/source" || got.workspacePath != runtimeWS {
+		t.Fatalf("cleaner args = %+v, want rk-9//src/rk-9/source/%s", got, runtimeWS)
 	}
 	// Both executor dirs are removed by the reap.
 	if _, err := os.Stat(filepath.Join(root, executorsDirName, wtID)); !os.IsNotExist(err) {

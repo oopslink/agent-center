@@ -451,7 +451,11 @@ func (r *LocalRuntime) enactCancel(ctx context.Context, ee *ExecutorEngine, d ex
 		_ = syscall.Kill(-d.PID, syscall.SIGKILL)
 	}
 	if d.Record != nil && d.Record.RepoKey != "" && r.cfg.Materializer != nil {
-		if ws, err := ee.fx.Layout().WorkspaceDir(d.ExecutorID); err == nil {
+		ws := strings.TrimSpace(d.Record.WorkspacePath)
+		if ws == "" {
+			ws, _ = ee.fx.Layout().WorkspaceDir(d.ExecutorID)
+		}
+		if ws != "" {
 			_ = materializerCleaner{m: r.cfg.Materializer}.RemoveWorktree(ctx, d.Record.RepoKey, d.Record.SourcePath, ws)
 		}
 	}

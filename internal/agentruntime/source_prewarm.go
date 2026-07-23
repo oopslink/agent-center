@@ -49,6 +49,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -377,8 +378,12 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 	ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
 	defer cancel()
 
+	failureCause := CauseRepoSourceUnavailable
+	if errors.Is(cause, reporepo.ErrCacheRefUnavailable) {
+		failureCause = CauseRepoRefUnavailable
+	}
 	r.log("work_available agent=%s task=%s REPO SOURCE UNAVAILABLE [cause=%s] after %d attempt(s): %v — admitting + blocking the task (fail-loud; NOT left silently queued)",
-		agentID, taskID, CauseRepoSourceUnavailable, r.sourcePrewarmAttempts(), cause)
+		agentID, taskID, failureCause, r.sourcePrewarmAttempts(), cause)
 
 	if r.toolCaller() == nil {
 		r.log("work_available agent=%s task=%s repo source unavailable: no center transport — cannot surface, task left queued", agentID, taskID)
@@ -389,7 +394,7 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 			agentID, taskID, err)
 		return
 	}
-	reason := forkFailureReason(CauseRepoSourceUnavailable, cause)
+	reason := forkFailureReason(failureCause, cause)
 	body := map[string]any{
 		"agent_id":    agentID,
 		"task_id":     taskID,

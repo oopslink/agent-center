@@ -258,23 +258,22 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		// this process exits and the worker launcher rebuilds it (bounded backoff).
 		OnFatal: onFatal,
 	}
-	home := filepath.Join(homeBase, "agents", opts.AgentID)
-	reposRoot := filepath.Join(home, "repos")
-	mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
+	runtimeRoot := filepath.Join(homeBase, "runtime")
+	mat, merr := reporepo.NewRepoCacheManager(runtimeRoot, nil, nil)
 	if merr != nil {
-		return nil, fmt.Errorf("agent-runtime agent=%s: build executor repo materializer at %s: %w",
-			opts.AgentID, reposRoot, merr)
+		return nil, fmt.Errorf("agent-runtime agent=%s: build executor repo cache at %s: %w",
+			opts.AgentID, runtimeRoot, merr)
 	}
 	mat.Log = func(msg string) { logf(msg) }
-	if gitWorktreeFlagEnabled() {
-		rc.Materializer = mat
-		rc.ReposRoot = reposRoot
-	} else {
-		rc.CloneMaterializer = mat
-	}
+	mat.SetOwner(opts.AgentID)
+	rc.Materializer = mat
+	rc.ReposRoot = filepath.Join(runtimeRoot, "repos")
 	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{}), nil
 }
 
+// gitWorktreeFlagEnabled remains for compatibility with diagnostics and older
+// tests. Production repository tasks now always use RepoCacheManager regardless
+// of this legacy switch.
 func gitWorktreeFlagEnabled() bool {
 	v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE"))
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")

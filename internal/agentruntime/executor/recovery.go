@@ -50,6 +50,9 @@ type Record struct {
 	// set — never touching the canonical source (design §10).
 	RepoKey    string `json:"repo_key,omitempty"`
 	SourcePath string `json:"source_path,omitempty"`
+	// WorkspacePath is the actual runtime-managed worktree location. It differs
+	// from the executor exchange directory when RepoCacheManager is in use.
+	WorkspacePath string `json:"workspace_path,omitempty"`
 }
 
 // Validate enforces the fields recovery relies on.
