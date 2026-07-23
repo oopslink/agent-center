@@ -53,10 +53,13 @@ type RunOptions struct {
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
-// SIGTERM arrives, then drains in-flight executions (graceful shutdown). It is the
-// single source of truth for the daemon bootstrap (config → AdminClient → token
-// enroll-or-load → Runtime + AgentController → run). Returns nil on clean
-// shutdown; IsShutdownError reports the benign "shutdown grace exceeded" flavor.
+// SIGTERM arrives, then stops the worker control loop. Agent-runtime processes are
+// intentionally left running so the next worker incarnation can re-adopt them from
+// the durable pid store; explicit StopAgent/reset remains the path that terminates
+// an agent runtime. RunDaemon is the single source of truth for the daemon bootstrap
+// (config → AdminClient → token enroll-or-load → Runtime + AgentController → run).
+// Returns nil on clean shutdown; IsShutdownError reports the benign "shutdown grace
+// exceeded" flavor.
 //
 // logf may be nil (defaults to a no-op).
 func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
@@ -209,14 +212,9 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	logf("worker running in controller mode (process-per-agent)")
 
 	rt := NewRuntime(rtCfg, client)
-	// Stop the agent processes when the worker drains.
-	defer func() {
-		shutCtx, cancelSh := context.WithTimeout(context.Background(), 15*time.Second)
-		_ = wctrl.Shutdown(shutCtx)
-		cancelSh()
-	}()
 
-	// Signal-aware context (SIGINT/SIGTERM → cancel → graceful drain).
+	// Signal-aware context (SIGINT/SIGTERM → cancel worker control loop). Agent
+	// runtime processes are independent units and survive for re-adoption.
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	sigCh := make(chan os.Signal, 1)
@@ -233,7 +231,9 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 
 	logf(fmt.Sprintf("starting: worker_id=%s target=%s poll=%s overrides=%d",
 		opts.WorkerID, targetSpec, pollInterval, len(overrides)))
-	return rt.Run(runCtx)
+	err = rt.Run(runCtx)
+	logf("worker exiting; agent-runtime processes left running for next-worker adoption")
+	return err
 }
 
 // IsShutdownError reports whether err is the benign "shutdown grace exceeded"
