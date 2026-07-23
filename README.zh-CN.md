@@ -127,7 +127,8 @@ cd agent-center-v2.4.0-<os>-<arch>/
 | **Conversation** | 一条消息线索，挂在 Task / Issue / Channel / DM 上；产品骨架 |
 | **Worker** | 跑 agent 的机器（本机或远程）；一台机器可装多个 worker（v2.4） |
 | **AgentInstance** | 命名 + 持久化的 agent 身份（"我的 mbp 上的 coder"）；含 instructions / MCP / skill |
-| **Supervisor** | 内置 agent，看 Conversation 上下文做调度决策；不是"大脑"，跟其他 agent 一样有日志 |
+| **Supervisor** | 并发模式下该 Agent 的常驻控制面：监控任务、裁决自身 Executor 的结果，并对最终交付负责 |
+| **Executor** | 同一 Agent 按任务派生的隔离进程 / workspace；没有 center/MCP 凭据，但不是外部责任主体 |
 | **InputRequest** | Agent 卡住向你请示；你在 WC 卡片回，agent 续跑 |
 | **Project** | Task 的归属容器；一个 worker 可以 mapped 到多个 Project |
 | **Artifact** | Agent 跑完的产物（PR URL / 文件 / 报告） |

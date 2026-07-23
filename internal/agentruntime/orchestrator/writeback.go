@@ -1,13 +1,13 @@
 package orchestrator
 
 // writeback.go — W2 (agent-concurrent-execution phase 2) center writeback: the
-// orchestrator's SOLE-WRITER result sink (design §3 "唯一写入者" / §11.2 step g).
+// Supervisor control plane's SOLE-WRITER result sink (design §3 "唯一写入者" / §11.2 step g).
 // It implements the executor.Writeback port the F5 Monitor calls in Finalize,
 // BEFORE it tears down the executor dir — so a writeback failure preserves the
 // durable state for a retry (no silent loss).
 //
-// An executor never connects to the center (F1 isolation); the orchestrator reads
-// its result files and is the only party that writes back. On completion this:
+// An executor never connects to the center (F1 isolation); the Supervisor control
+// plane reads its result files and is the only party that writes back. On completion this:
 //   - Succeeded → complete_task (the agent-tool atomically posts the summary to
 //     the task's conversation AND completes the task in one center tx);
 //   - Failed/Crashed → block_task (atomically posts the reason + blocks, design §9
@@ -46,7 +46,7 @@ const maxRelayChars = 1500
 // CenterClient is the port the writeback uses to reach the center, via the agent
 // -tools transport (the daemon wraps *AdminClient.CallAgentTool). All calls carry
 // the agent id; the center authenticates the worker bearer and maps it to the
-// agent's business identity (the sole writer is the orchestrator on the agent's behalf).
+// agent's business identity (the sole writer is the Supervisor control plane on the agent's behalf).
 type CenterClient interface {
 	// CompleteTask completes taskID; summary is posted to the task's conversation
 	// in the SAME center tx (atomic relay + completion).
@@ -81,7 +81,7 @@ type MemoryWriter interface {
 // UsageReporter is the optional seam (v2.20.0 F2 / T613) that relays a finished
 // executor run's aggregate token usage to the center's report_usage tool. The
 // executor itself never connects to the center (F1 isolation); it records the
-// usage in output.json and the orchestrator — the sole writer, already authed —
+// usage in output.json and the Supervisor control plane — the sole writer, already authed —
 // reports it here. nil disables usage reporting (the writeback degrades unchanged).
 type UsageReporter interface {
 	ReportUsage(ctx context.Context, s UsageSample) error
@@ -103,7 +103,7 @@ type UsageSample struct {
 // executor's structured git delivery status to the center's report_delivery tool, so
 // the center-side stuck-node reconcile can tell a recoverable dead process from a
 // terminal-but-never-pushed (review-only) executor. Same shape as UsageReporter: the
-// executor never connects to the center (F1 isolation); the orchestrator — sole writer,
+// executor never connects to the center (F1 isolation); the Supervisor control plane — sole writer,
 // already authed — reports it here. nil disables it (the writeback degrades unchanged).
 type DeliveryReporter interface {
 	ReportDelivery(ctx context.Context, s DeliverySample) error
@@ -120,7 +120,7 @@ type DeliverySample struct {
 }
 
 // CenterWriteback implements executor.Writeback. One per agent. Its mutex makes
-// the orchestrator the effective SOLE WRITER even though the daemon reaps each
+// the Supervisor control plane the effective SOLE WRITER even though the daemon reaps each
 // executor on its own goroutine (design §3) — concurrent completions serialize, so
 // center writes (and a future memory write) never interleave/clobber.
 type CenterWriteback struct {
@@ -130,11 +130,11 @@ type CenterWriteback struct {
 	mem      MemoryWriter     // optional; nil in W2
 	usage    UsageReporter    // optional; nil disables usage reporting (T613)
 	delivery DeliveryReporter // optional; nil disables delivery reporting (issue-f30b7e7b)
-	// inject delivers a judgment prompt to the agent's supervisor session (option b,
-	// issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
+	// inject delivers a judgment prompt to the agent's Supervisor session (option b,
+	// issue-68ccb310): the Supervisor reviews the executor's REAL delivery and calls
 	// complete_task/block_task ITSELF. Replaces the daemon-side auto-writeback
 	// (CompleteTask/BlockTask on exit outcome) — the "binding" + "complete without
-	// delivering" root cause. nil ⇒ no supervisor to judge (single-claude/degraded);
+	// delivering" root cause. nil ⇒ no Supervisor to judge (single-claude/degraded);
 	// the task path then errors rather than silently auto-completing.
 	inject func(ctx context.Context, taskRef, text string) error
 	mu     sync.Mutex
@@ -173,10 +173,10 @@ func (w *CenterWriteback) WithUsageReporter(u UsageReporter) *CenterWriteback {
 }
 
 // WithSupervisorInjector wires the option-b seam (issue-68ccb310): it injects a
-// judgment prompt into the agent's supervisor session so the supervisor reviews the
+// judgment prompt into the agent's Supervisor session so the Supervisor reviews the
 // executor's REAL delivery and calls complete_task/block_task itself, instead of the
 // daemon auto-completing on exit outcome. Always wired in production (a concurrent
-// agent that forks executors has a supervisor); nil only on the degraded/test path.
+// agent that forks executors has a Supervisor); nil only on the degraded/test path.
 func (w *CenterWriteback) WithSupervisorInjector(fn func(ctx context.Context, taskRef, text string) error) *CenterWriteback {
 	w.inject = fn
 	return w
@@ -261,7 +261,7 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 		// issue-f30b7e7b P0-A ch2: surface the eager-push delivery evidence (branch + SHA +
 		// pushed) onto the TASK conversation — BEFORE the judgment turn — so review / PD /
 		// integration nodes can see which branch to check out / merge, not just the judging
-		// supervisor (ch1). Posting first means a post failure retries WITHOUT a duplicate
+		// Supervisor (ch1). Posting first means a post failure retries WITHOUT a duplicate
 		// judgment inject. Skipped for a non-git (center-action) run.
 		if note := deliveryNote(c.Git); note != "" {
 			if err := w.client.PostToTask(ctx, w.agentID, taskRef, note); err != nil {
@@ -269,7 +269,7 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 			}
 		}
 		// option b (issue-68ccb310): do NOT auto-complete. Deliver the result to the
-		// supervisor as a judgment turn; the supervisor reviews REAL delivery and calls
+		// Supervisor as a judgment turn; the Supervisor reviews REAL delivery and calls
 		// complete_task/block_task itself.
 		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary, c.Git); err != nil {
 			return err
@@ -299,9 +299,9 @@ func validCodeDelivery(git *executor.FinalizedGitStatus) bool {
 func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, c executor.Completion) error {
 	reason := failureReason(c)
 	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" {
-		// option b: deliver the failure to the supervisor for a JUDGED outcome. The
-		// supervisor still decides — a failed/crashed run usually blocks (retryable),
-		// but partial delivery may warrant complete; either way the supervisor writes.
+		// option b: deliver the failure to the Supervisor for a JUDGED outcome. The
+		// Supervisor still decides — a failed/crashed run usually blocks (retryable),
+		// but partial delivery may warrant complete; either way the Supervisor writes.
 		outcome := "failed"
 		if c.Kind == executor.OutcomeCrashed {
 			outcome = "crashed"
@@ -317,9 +317,9 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 	return w.writeMemory(ctx, in, c)
 }
 
-// deliverJudgment injects a judgment prompt into the supervisor session (option b,
-// issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
-// complete_task/block_task itself. Errors if no injector is wired (no supervisor to
+// deliverJudgment injects a judgment prompt into the Supervisor session (option b,
+// issue-68ccb310): the Supervisor reviews the executor's REAL delivery and calls
+// complete_task/block_task itself. Errors if no injector is wired (no Supervisor to
 // judge) — the task is NEVER silently auto-completed on exit outcome.
 func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string, git *executor.FinalizedGitStatus) error {
 	if w.inject == nil {
@@ -331,8 +331,8 @@ func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome,
 	return nil
 }
 
-// judgmentPrompt renders the supervisor-facing judgment turn for a finished executor
-// (option b). It instructs the supervisor to judge REAL delivery — not exit status —
+// judgmentPrompt renders the Supervisor-facing judgment turn for a finished executor
+// (option b). It instructs the Supervisor to judge REAL delivery — not exit status —
 // before completing or blocking, which is what roots out "complete without delivering".
 func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGitStatus) string {
 	s := strings.TrimSpace(summary)
@@ -340,13 +340,15 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 		s = s[:maxRelayChars]
 	}
 	return fmt.Sprintf(
-		"[executor finished] Your forked executor for task %s exited: outcome=%s.\n"+
+		"[executor finished] Your Agent's executor for task %s exited: outcome=%s.\n"+
+			"Identity contract: you are this Agent's Supervisor control plane, and the executor is this same Agent's isolated execution unit. "+
+			"Do not describe it as an external executor, outside agent, or someone else's delivery; final delivery remains YOUR judged responsibility.\n"+
 			"Its self-reported summary/reason:\n%s\n%s\n"+
 			"Now JUDGE the real delivery — check git (the reported delivery branch: is the commit "+
 			"pushed on origin? does the SHA match? and verify its BASE is the EXPECTED baseline via "+
 			"merge-base — not merely that it is recent; a branch cut from the wrong base silently "+
 			"drops already-merged work), whether the task's objective was actually met "+
-			"— then call complete_task(task_id=%q) if it TRULY delivered, or "+
+			"— then call complete_task(task_id=%q) if this Agent TRULY delivered, or "+
 			"block_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
 			"exit status alone: a run that produced nothing must be blocked (retryable), never "+
 			"completed.",

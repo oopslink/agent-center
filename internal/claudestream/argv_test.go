@@ -414,8 +414,16 @@ func TestBuildStreamingArgv_ConcurrencyEnabled(t *testing.T) {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
 	_ = argv
-	if !strings.Contains(sysPrompt, "ORCHESTRATOR") {
-		t.Fatal("concurrent mode must use OrchestratorSystemPrompt")
+	for _, want := range []string{
+		"SUPERVISOR control plane",
+		"EXECUTORS are isolated execution units that this same Agent forks",
+		"not outside contractors",
+		"does not move responsibility away from you",
+		"Do not say or imply that an \"external executor\" failed to deliver",
+	} {
+		if !strings.Contains(sysPrompt, want) {
+			t.Fatalf("concurrent prompt missing unified identity contract %q:\n%s", want, sysPrompt)
+		}
 	}
 	if strings.Contains(sysPrompt, "Only ONE task runs at a time") {
 		t.Fatal("concurrent mode must NOT contain single-task instruction")
@@ -429,7 +437,7 @@ func TestBuildStreamingArgv_ConcurrencyEnabled(t *testing.T) {
 	if !strings.Contains(stPrompt, "Only ONE task runs at a time") {
 		t.Fatal("single-task mode must contain single-task instruction")
 	}
-	if strings.Contains(stPrompt, "ORCHESTRATOR") {
-		t.Fatal("single-task mode must NOT contain orchestrator instruction")
+	if strings.Contains(stPrompt, "SUPERVISOR control plane") {
+		t.Fatal("single-task mode must NOT contain concurrent supervisor/executor instruction")
 	}
 }
