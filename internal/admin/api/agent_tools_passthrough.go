@@ -272,15 +272,16 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := agentTaskMap(t)
-	// I105 Phase 1: the per-node fork override, emitted ONLY when it actually
-	// overrides something (supervisor_inline). An ordinary fork node's get_task stays
-	// byte-for-byte as before — no key at all — so the field can never be read as a
-	// signal on the default path, and old workers ignoring the key keep forking.
+	// Emit the resolved routing decision for every task. Code executors use the
+	// explicit executor_fork value as the fail-closed signal that repo_ref/base
+	// preflight is mandatory; an omitted value is reserved for legacy centers.
 	// Deliberately here (get_task) and NOT in the shared agentTaskMap: list_tasks /
 	// list_tasks_of_issue are browse projections, while the fork gate reads get_task.
-	if t.DispatchMode().RoutesInline() {
-		m["dispatch_mode"] = string(t.DispatchMode())
+	mode := t.DispatchMode()
+	if mode == "" {
+		mode = pm.DispatchExecutorFork
 	}
+	m["dispatch_mode"] = string(mode)
 	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable

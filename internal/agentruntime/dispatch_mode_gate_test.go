@@ -2,8 +2,11 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
 
 // I105 Phase 1 — the per-NODE fork gate on the LIVE dispatch path
@@ -45,8 +48,8 @@ func TestSpawnExecutor_DispatchModeAbsent_StillForks(t *testing.T) {
 }
 
 // TestSpawnExecutor_DispatchModeDefaults_StillFork covers the rest of the "must still
-// fork" input space: an explicit executor_fork, an empty string, a whitespace-only
-// value, and — critically — an UNKNOWN value a newer center might send. None of them
+// fork" legacy input space: an empty string, a whitespace-only value, and —
+// critically — an UNKNOWN value a newer center might send. None of them
 // may suppress the fork: the gate is a strict equality test on supervisor_inline, so
 // anything unrecognized degrades to today's behavior rather than stranding the node.
 func TestSpawnExecutor_DispatchModeDefaults_StillFork(t *testing.T) {
@@ -54,7 +57,6 @@ func TestSpawnExecutor_DispatchModeDefaults_StillFork(t *testing.T) {
 		name string
 		mode any
 	}{
-		{"explicit executor_fork", "executor_fork"},
 		{"empty string", ""},
 		{"whitespace only", "   "},
 		{"unknown value from a newer center", "some_future_mode"},
@@ -91,6 +93,22 @@ func TestSpawnExecutor_DispatchModeDefaults_StillFork(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSpawnExecutor_ExplicitCodeDispatchWithoutRepoFailsClosed(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-code", "title": "dev task", "status": "open", "model": "claude-haiku",
+		"dispatch_mode": "executor_fork",
+	}}
+	_, _, home := spawn(t, "agent-code", "task-code", sc)
+
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("missing repo_ref must not fork: %+v", probs)
+	}
+	body, ok := sc.callFor("block_task")
+	if !ok || !strings.Contains(fmt.Sprint(body["reason"]), "repo_ref") {
+		t.Fatalf("missing repo_ref must block as non-delivery, body=%v", body)
 	}
 }
 
@@ -294,10 +312,10 @@ func TestNotifyWork_SupervisorInline_InjectsDespiteConcurrency(t *testing.T) {
 }
 
 // TestNotifyWork_DispatchModeDefaults_StillFork is the NotifyWork half of red line #1:
-// absent / empty / executor_fork / unknown ⇒ the executor branch still wins whenever
+// absent / empty / unknown ⇒ the legacy executor branch still wins whenever
 // concurrency is on, and the brief is NOT injected into the resident session.
 func TestNotifyWork_DispatchModeDefaults_StillFork(t *testing.T) {
-	for _, mode := range []string{"", "executor_fork", "   ", "some_future_mode", "SUPERVISOR_INLINE"} {
+	for _, mode := range []string{"", "   ", "some_future_mode", "SUPERVISOR_INLINE"} {
 		t.Run("mode="+mode, func(t *testing.T) {
 			rt, ee, home := engineForAgent(t, "agent-nwf")
 			attach(rt, ee)
@@ -318,6 +336,22 @@ func TestNotifyWork_DispatchModeDefaults_StillFork(t *testing.T) {
 				t.Fatalf("dispatch_mode=%q must FORK when concurrency is on: problems=%+v", mode, probs)
 			}
 		})
+	}
+}
+
+func TestNotifyWork_ExplicitCodeDispatchWithoutRepoIsDeclined(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "agent-nwf-code")
+	attach(rt, ee)
+	rt.withState(func(s *SessionState) { s.Session = &fakeSession{} })
+	err := rt.NotifyWork(context.Background(), WorkRequest{
+		AgentID: "agent-nwf-code", TaskID: "t-code", TaskRef: "task-code",
+		Brief: "write the code", DispatchMode: executor.DispatchModeExecutorFork,
+	})
+	if err == nil || !strings.Contains(err.Error(), "repo_ref required") {
+		t.Fatalf("explicit code dispatch without repo must be declined, got %v", err)
+	}
+	if probs := loadRouting(t, home); len(probs) != 1 {
+		t.Fatalf("routing may register before launch validation, got %+v", probs)
 	}
 }
 

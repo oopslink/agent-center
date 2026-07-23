@@ -61,7 +61,7 @@ func TestCreateTask_DispatchModeSupervisorInline_PersistsAndEmits(t *testing.T) 
 // TestGetTask_OrdinaryTask_OmitsDispatchMode is the I105 red line #1 lock at the wire
 // boundary: an ordinary task's get_task projection must carry NO dispatch_mode key at
 // all. If this goes red, every ordinary Dev node started emitting a routing signal.
-func TestGetTask_OrdinaryTask_OmitsDispatchMode(t *testing.T) {
+func TestGetTask_OrdinaryTask_EmitsResolvedDispatchMode(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	_, tid := f.seedMemberProject(t) // a plain seeded task — never marked
@@ -72,8 +72,8 @@ func TestGetTask_OrdinaryTask_OmitsDispatchMode(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
-	if v, ok := body["dispatch_mode"]; ok {
-		t.Fatalf("an ordinary task's get_task must OMIT dispatch_mode entirely, got %v", v)
+	if v := body["dispatch_mode"]; v != "executor_fork" {
+		t.Fatalf("ordinary task dispatch_mode = %v, want executor_fork", v)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestGetTask_OrdinaryTask_OmitsDispatchMode(t *testing.T) {
 // EXPLICIT executor_fork stays off the wire: it is the default, so emitting it would
 // be noise on every fork node's projection. Only a value that actually overrides the
 // default is emitted.
-func TestCreateTask_DispatchModeExecutorFork_OmittedFromGetTask(t *testing.T) {
+func TestCreateTask_DispatchModeExecutorFork_EmittedFromGetTask(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	pid, _ := f.seedMemberProject(t)
@@ -110,8 +110,8 @@ func TestCreateTask_DispatchModeExecutorFork_OmittedFromGetTask(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("get_task status = %d; body = %v", status, got)
 	}
-	if v, ok := got["dispatch_mode"]; ok {
-		t.Fatalf("executor_fork is the default and must NOT be emitted, got %v", v)
+	if v := got["dispatch_mode"]; v != "executor_fork" {
+		t.Fatalf("executor_fork dispatch_mode = %v, want executor_fork", v)
 	}
 }
 

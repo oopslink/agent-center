@@ -245,6 +245,39 @@ func TestReport_Succeeded_SummaryFallback(t *testing.T) {
 	}
 }
 
+func TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		git  *executor.FinalizedGitStatus
+	}{
+		{name: "not a git workspace"},
+		{name: "commit not pushed", git: &executor.FinalizedGitStatus{
+			Probed: true, Branch: "ac-exec/task-1/e", HeadSHA: "abc", BaseRef: "base",
+			BaseKnown: true, AheadOfBase: 1,
+		}},
+		{name: "no commit", git: &executor.FinalizedGitStatus{
+			Probed: true, Pushed: true, Branch: "ac-exec/task-1/e", HeadSHA: "abc",
+			BaseRef: "base", BaseKnown: true,
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeCenter{}
+			in := baseInput("exec-nd")
+			in.Repo = &executor.RepoRef{URL: "git@example/repo.git", BaseRef: "main", BaseSHA: "base"}
+			wb, _ := newWB(t, fc, in)
+			if err := wb.Report(context.Background(), executor.Completion{
+				ExecutorID: "exec-nd", Kind: executor.OutcomeSucceeded, Git: tc.git,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			j := oneInjection(t, fc)
+			if !strings.Contains(j, "outcome=non_delivery") || !strings.Contains(j, "without a verifiable durable git delivery") {
+				t.Fatalf("exit 0 must be judged as non_delivery, got %q", j)
+			}
+		})
+	}
+}
+
 func TestReport_Failed_BlocksTask(t *testing.T) {
 	fc := &fakeCenter{}
 	in := baseInput("exec-4")
@@ -781,6 +814,7 @@ func TestReport_ExecutorFork_Failed_Unchanged(t *testing.T) {
 	fc := &fakeCenter{}
 	in := baseInput("e1")
 	in.DispatchMode = executor.DispatchModeExecutorFork
+	in.Repo = &executor.RepoRef{URL: "git@example/repo.git", BaseRef: "main", BaseSHA: "abc"}
 	wb, _ := newWB(t, fc, in)
 	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeFailed, Error: &executor.ErrorDetail{Kind: "k", Message: "m"}}); err != nil {
 		t.Fatalf("Report: %v", err)

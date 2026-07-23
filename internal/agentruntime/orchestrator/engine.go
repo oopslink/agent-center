@@ -56,6 +56,8 @@ type WorkItem struct {
 	// workspace (P4): it is threaded into the LaunchSpec so the pool uses it as-is and
 	// its teardown handle is persisted. Nil ⇒ today's provisioning path.
 	Prepared *executor.PreparedWorkspace
+	// Repo is the center-resolved repository/base contract copied into input.json.
+	Repo *executor.RepoRef
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -261,6 +263,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 			IssueRef: item.IssueRef,
 			TaskRef:  item.TaskRef,
 		},
+		Repo: item.Repo,
 		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
 		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
 		DispatchMode: item.DispatchMode,

@@ -700,11 +700,31 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
+	// A forked node is a code task. It must have a center-resolved repository and a
+	// runtime materializer; otherwise fail before any model process starts. Starting
+	// then blocking records the durable non-delivery instead of leaving an open task
+	// to be re-emitted forever.
+	codeDispatch := strings.TrimSpace(task.DispatchMode) == executor.DispatchModeExecutorFork
+	if codeDispatch && (task.Repo == nil || strings.TrimSpace(task.Repo.URL) == "") {
+		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
+		}
+		r.log("work_available agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
+		return nil, nil
+	}
+	if codeDispatch && r.cfg.Materializer == nil {
+		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo materializer unavailable"))
+		}
+		r.log("work_available agent=%s task=%s repository preflight failed: materializer unavailable — executor NOT forked", agentID, taskID)
+		return nil, nil
+	}
+
 	// 2. Repo workspace (P3, red line A): materialize the canonical source + a
 	// per-executor worktree BEFORE start_task/reserve, so a source/worktree failure
-	// means the task is NEVER admitted. Only when the flag is ON (materializer wired)
-	// AND the task carries a primary repo; otherwise execID stays empty + prepared nil
-	// ⇒ the plain-dir path is byte-for-byte unchanged.
+	// means the task is NEVER admitted. Production always wires the materializer for
+	// code tasks; the legacy plain-dir fallback is reachable only for an unstamped task
+	// from an older center.
 	//
 	// The source is NOT materialized here (issue-13e7bfe8 layer 1). SpawnExecutor can be
 	// reached from a control command whose transport deadline is 5s, and a `git clone` is
@@ -716,7 +736,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// Everything below the gate is local-disk or center-RPC, i.e. control-path-safe.
 	var execID string
 	var prepared *executor.PreparedWorkspace
-	if r.cfg.Materializer != nil && task.Repo != nil {
+	if task.Repo != nil {
 		target := resolveRepoTarget(task)
 		repoKey := reporepo.RepoKey(target.URL)
 		source, ready := r.freshSource(repoKey)
@@ -1053,6 +1073,19 @@ func (d *centerTaskDetail) goalTitle(taskID string) string {
 // whose worktree was materialized before the launch (empty ⇒ HandleWork mints one);
 // prepared (P4) is the worktree threaded to the pool (nil ⇒ today's provisioning path).
 func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace) orchestrator.WorkItem {
+	var repo *executor.RepoRef
+	if task.Repo != nil {
+		repo = &executor.RepoRef{
+			RefID:    task.Repo.RefID,
+			RepoID:   task.Repo.RepoID,
+			URL:      task.Repo.URL,
+			Provider: task.Repo.Provider,
+			BaseRef:  task.BaseRef,
+		}
+		if prepared != nil {
+			repo.BaseSHA = prepared.BaseRef
+		}
+	}
 	return orchestrator.WorkItem{
 		TaskID:    taskID,
 		TaskRef:   taskID,
@@ -1064,6 +1097,7 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 		TaskModel:  task.Model,
 		ExecutorID: execID,
 		Prepared:   prepared,
+		Repo:       repo,
 		// I105 N2: stamp the center's routing decision onto input.json. On this path it
 		// is normally "" / executor_fork (the gate in SpawnExecutor already diverted a
 		// supervisor_inline node); a supervisor_inline value arriving here means the gate

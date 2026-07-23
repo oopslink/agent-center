@@ -258,35 +258,21 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		// this process exits and the worker launcher rebuilds it (bounded backoff).
 		OnFatal: onFatal,
 	}
-	// Repo-workspace (AC_EXECUTOR_GIT_WORKTREE): wire a per-agent materializer so
-	// SpawnExecutor prepares an isolated git worktree per executor (required for the
-	// §4.3 worktree tiers — without it the three-tier ladder only ever sees plain dirs).
-	// This is the SOLE wire site; home layout matches r.agentPaths.
-	if gitWorktreeFlagEnabled() {
-		home := filepath.Join(homeBase, "agents", opts.AgentID)
-		reposRoot := filepath.Join(home, "repos")
-		mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
-		if merr != nil {
-			// FAIL-LOUD (issue-13e7bfe8): the flag is explicitly ON, so silently
-			// degrading to plain-dir would run every task in the WRONG workspace shape
-			// while the operator believes worktrees are active — an inert misconfig that
-			// only surfaces as confusing downstream behavior. Refuse to start instead.
-			return nil, fmt.Errorf("agent-runtime agent=%s: AC_EXECUTOR_GIT_WORKTREE is ON but the repo materializer could not be built at %s: %w",
-				opts.AgentID, reposRoot, merr)
-		}
-		// Surface self-heal / quarantine of a poisoned canonical source in the worker log.
-		mat.Log = func(msg string) { logf(msg) }
-		rc.Materializer = mat
-		rc.ReposRoot = reposRoot
+	// Every code executor needs a deterministic repository preflight. The worktree
+	// option controls the source-reuse strategy; it no longer controls whether a
+	// repository exists at all. Wiring the materializer unconditionally prevents the
+	// OFF path from silently spawning a model in an empty directory.
+	home := filepath.Join(homeBase, "agents", opts.AgentID)
+	reposRoot := filepath.Join(home, "repos")
+	mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
+	if merr != nil {
+		return nil, fmt.Errorf("agent-runtime agent=%s: build executor repo materializer at %s: %w",
+			opts.AgentID, reposRoot, merr)
 	}
+	mat.Log = func(msg string) { logf(msg) }
+	rc.Materializer = mat
+	rc.ReposRoot = reposRoot
 	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{}), nil
-}
-
-// gitWorktreeFlagEnabled reports whether AC_EXECUTOR_GIT_WORKTREE is on (mirrors the
-// daemon's RunDaemon check).
-func gitWorktreeFlagEnabled() bool {
-	v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE"))
-	return v == "1" || strings.EqualFold(v, "true")
 }
 
 // agentExecConfig fetches THIS agent's executor config from the center ResumeState —

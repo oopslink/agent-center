@@ -103,12 +103,9 @@ type LocalRuntimeConfig struct {
 	TaskLogMaxBytes int64
 	EventWriter     *taskexec.EventStreamWriter
 
-	// Materializer is the repo-workspace port (AC_EXECUTOR_GIT_WORKTREE). nil ⇒ the
-	// flag is OFF: SpawnExecutor prepares NO worktree and the pool/monitor/recovery
-	// behave byte-for-byte as before (the zero-regression contract). Non-nil (a
-	// reporepo.LocalGitMaterializer) ⇒ SpawnExecutor materializes a canonical source +
-	// a per-executor worktree BEFORE start_task, and the Monitor tears it down on
-	// finalize/recovery via a WorktreeCleaner adapter.
+	// Materializer is the mandatory code-executor repo-workspace port. Production
+	// always wires it; nil is retained only for focused tests and fails closed before
+	// a code executor can fork.
 	Materializer reporepo.RepoMaterializer
 	// ReposRoot is the canonical <agent_home>/repos root the Materializer is anchored
 	// at (informational; the Materializer already carries it). Empty when the flag is off.

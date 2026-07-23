@@ -244,6 +244,20 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, c executor.Completion) error {
 	summary := successSummary(in, c)
 	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" {
+		// A CLI exit code of zero is not a code delivery. Repository-backed tasks must
+		// produce a probed, clean commit that was durably pushed; otherwise report the
+		// terminal result as non_delivery so the Supervisor cannot mistake process
+		// completion for task completion. Claude and Codex share this writeback path.
+		if in.Repo != nil && !validCodeDelivery(c.Git) {
+			reason := "non_delivery: code executor exited successfully without a verifiable durable git delivery"
+			if line := deliveryLine(c.Git); line != "" {
+				reason += "\n" + line
+			}
+			if err := w.deliverJudgment(ctx, taskRef, "non_delivery", reason, c.Git); err != nil {
+				return err
+			}
+			return w.writeMemory(ctx, in, c)
+		}
 		// issue-f30b7e7b P0-A ch2: surface the eager-push delivery evidence (branch + SHA +
 		// pushed) onto the TASK conversation — BEFORE the judgment turn — so review / PD /
 		// integration nodes can see which branch to check out / merge, not just the judging
@@ -266,6 +280,17 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 		return err
 	}
 	return w.writeMemory(ctx, in, c)
+}
+
+func validCodeDelivery(git *executor.FinalizedGitStatus) bool {
+	return git != nil &&
+		git.Probed &&
+		git.Pushed &&
+		!git.Dirty &&
+		git.BaseKnown &&
+		git.AheadOfBase > 0 &&
+		strings.TrimSpace(git.Branch) != "" &&
+		strings.TrimSpace(git.HeadSHA) != ""
 }
 
 // reportFailure blocks the source task with the failure reason (atomic relay +

@@ -98,6 +98,18 @@ type SourceRefs struct {
 	TaskRef  string   `json:"task_ref,omitempty"`
 }
 
+// RepoRef is the credential-free repository identity resolved by the center for a
+// code executor. The runtime materializes it before forking the model; the model
+// must never guess a repository URL or base.
+type RepoRef struct {
+	RefID    string `json:"ref_id,omitempty"`
+	RepoID   string `json:"repo_id,omitempty"`
+	URL      string `json:"url"`
+	Provider string `json:"provider,omitempty"`
+	BaseRef  string `json:"base_ref"`
+	BaseSHA  string `json:"base_sha"`
+}
+
 // Input is input.json — written by the orchestrator, read by the executor
 // (design §7). It is the executor's complete starting context: it carries no
 // credentials and no center handle, by design.
@@ -112,6 +124,7 @@ type Input struct {
 	CLI       string     `json:"cli,omitempty"`
 	Context   string     `json:"context,omitempty"`
 	Source    SourceRefs `json:"source"`
+	Repo      *RepoRef   `json:"repo_ref,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
 	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
 	// center stamps it at dispatch so the worker-side writeback — which only sees
@@ -149,6 +162,20 @@ func (in Input) Validate() error {
 	}
 	if in.CreatedAt.IsZero() {
 		return errors.New("executor: input.created_at required")
+	}
+	if strings.TrimSpace(in.DispatchMode) == DispatchModeExecutorFork {
+		if in.Repo == nil {
+			return errors.New("executor: code input.repo_ref required")
+		}
+		if strings.TrimSpace(in.Repo.URL) == "" {
+			return errors.New("executor: code input.repo_ref.url required")
+		}
+		if strings.TrimSpace(in.Repo.BaseRef) == "" {
+			return errors.New("executor: code input.repo_ref.base_ref required")
+		}
+		if strings.TrimSpace(in.Repo.BaseSHA) == "" {
+			return errors.New("executor: code input.repo_ref.base_sha required")
+		}
 	}
 	return nil
 }

@@ -16,7 +16,7 @@
 //   4. The task-dispatch pipeline closes at the control plane: a worker-token +
 //      worker-bound agent creates a task via agent-tools, it is DISPATCHED into
 //      the project's built-in assignment pool (ADR-0047), shows up in the agent's
-//      get_my_work / list_tasks, and the agent CLAIMS it (open → running).
+//      list_tasks, and the agent CLAIMS it (open → running).
 //
 // SCOPE / WHY NO "task → completed" + no real agent subprocess (T212):
 //   The original v2.2 design drove `cmd/fakeagent` through the worker to close
@@ -120,6 +120,25 @@ function adminGET(
     req.on("error", rejectP);
     req.end();
   });
+}
+
+async function waitAdminGET(
+  socketPath: string,
+  path: string,
+  token: string,
+  deadlineMs: number,
+): Promise<{ status: number; body: string }> {
+  const deadline = Date.now() + deadlineMs;
+  let lastErr: unknown = null;
+  while (Date.now() < deadline) {
+    try {
+      return await adminGET(socketPath, path, token);
+    } catch (err) {
+      lastErr = err;
+      await sleep(75);
+    }
+  }
+  throw new Error(`admin socket not ready within ${deadlineMs}ms (last err=${String(lastErr)})`);
 }
 
 // readBootstrapToken waits for the server to write <sqlite_dir>/bootstrap_token
@@ -231,7 +250,16 @@ secret_management:
       expect(adminToken, "bootstrap token plaintext").toBeTruthy();
 
       // admin /health over the socket — server is serving the admin endpoint.
-      const health = await adminGET(sockPath, "/admin/health", adminToken);
+      let health: { status: number; body: string };
+      try {
+        health = await waitAdminGET(sockPath, "/admin/health", adminToken, 8_000);
+      } catch (e) {
+        throw new Error(
+          String(e) +
+            "\n--- server stderr ---\n" +
+            Buffer.concat(serverStderr).toString("utf8").slice(-1500),
+        );
+      }
       expect(health.status, "admin /health: " + health.body).toBe(200);
 
       // --- PHASE 2: the worker BINARY boots + enrolls over the socket -------
@@ -343,21 +371,8 @@ secret_management:
       const taskID = (JSON.parse(create.body) as { task_id: string }).task_id;
       expect(taskID, "created task id").toBeTruthy();
 
-      // The dispatched task surfaces in the agent's work view as claimable.
-      const work = await adminPOST(
-        sockPath,
-        "/admin/agent-tools/get_my_work",
-        { agent_id: agentID },
-        workerToken,
-      );
-      expect(work.status, "get_my_work: " + work.body).toBe(200);
-      const buckets = JSON.parse(work.body) as { claimable: Array<{ id: string }> };
-      expect(
-        buckets.claimable.some((t) => t.id === taskID),
-        "dispatched task is claimable in get_my_work: " + work.body,
-      ).toBe(true);
-
-      // list_tasks reflects it too.
+      // list_tasks reflects the open assignment-pool task. get_my_work was retired
+      // with AgentWorkItem; claim_task is the authoritative claimability check.
       const list = await adminPOST(
         sockPath,
         "/admin/agent-tools/list_tasks",
