@@ -259,13 +259,9 @@ func TestGraphCycle_ConditionGate_PassReleasesDownstream(t *testing.T) {
 	}
 }
 
-// TestGraphCycle_Loopback_RejectReopensDev proves the T805 ③ reject/loopback round is
-// driven by the ENGINE inside AdvancePlan (driveGraphDecisions → ResolveCondition
-// ("reject") → ApplyConditionResult, then reopenLoopSubgraph mirrors onto the tasks)
-// — NOT the task-level applyLoopbacks (gated off for graphed plans). A reject outcome
-// does NOT release Integrate; the same advance reopens the Dev→Review→Decision
-// subgraph and re-dispatches Dev for another round.
-func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
+// TestGraphCycle_Loopback_RejectCreatesNextRound proves a reject preserves the
+// completed first-round tasks and dispatches a newly materialized round instead.
+func TestGraphCycle_Loopback_RejectCreatesNextRound(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -296,8 +292,9 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AdvancePlan reject/loopback: %v", err)
 	}
-	if !graphHasTaskID(dLoop, dev) {
-		t.Fatalf("after reject, dispatch = %v, want Dev re-dispatched for round 2", dLoop)
+	round2Dev, round2Rev, round2Dec := loopRoundTasks(t, h, planID, dev, rev, dec, 2)
+	if !graphHasTaskID(dLoop, round2Dev) {
+		t.Fatalf("after reject, dispatch = %v, want new round-2 Dev %s", dLoop, round2Dev)
 	}
 	if graphHasTaskID(dLoop, integ) {
 		t.Fatalf("Integrate released on reject: %v", dLoop)
@@ -307,12 +304,17 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	if p.Status() == pm.PlanDone {
 		t.Fatal("plan marked done on reject — Integrate should stay gated")
 	}
-	// The decision task was reopened by the loopback (Completed→Reopened).
-	dt, _ := h.tasks.FindByID(ctx, dec)
-	if dt.Status() != pm.TaskReopened && dt.Status() != pm.TaskOpen {
-		t.Fatalf("decision status after loopback = %s, want reopened/open", dt.Status())
+	for _, oldID := range []pm.TaskID{dev, rev, dec} {
+		old, _ := h.tasks.FindByID(ctx, oldID)
+		if old.Status() != pm.TaskCompleted {
+			t.Fatalf("historical task %s status = %s, want completed", oldID, old.Status())
+		}
 	}
-	_ = rev
+	for _, newID := range []pm.TaskID{round2Dev, round2Rev, round2Dec} {
+		if newID == "" {
+			t.Fatal("next-round task was not materialized")
+		}
+	}
 	_ = integ
 
 	// v2.29 F-1: the gate ruling + the engine-driven loopback both hit the change ledger.
@@ -338,20 +340,36 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 		t.Fatalf("loopback detail.round = %q, want 1", got)
 	}
 
-	// issue-74df441a: the loopback-driven reopen must ALSO hit the reopened task's OWN
-	// ledger (not only the plan's) — parity with the manual reopen path; the acceptance
-	// finding this closes (reopenLoopSubgraph previously bypassed auditTaskStatusChange).
+	// No historical task receives a completed→reopened audit row.
 	taskAudit := auditOf(t, h.svc, ctx, pm.AuditObjectTask, string(dec))
-	var sawLoopbackReopen bool
 	for _, e := range taskAudit {
 		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == string(pm.TaskReopened) && e.ActorRef == pm.SystemActor("plan-engine") {
-			sawLoopbackReopen = true
-			break
+			t.Fatal("historical decision was reopened by loopback")
 		}
 	}
-	if !sawLoopbackReopen {
-		t.Fatal("loopback-reopened task has no completed→reopened row (actor=system:plan-engine) in its OWN ledger — reopenLoopSubgraph audit gap (issue-74df441a)")
+}
+
+func loopRoundTasks(t *testing.T, h *planAdvanceHarness, planID pm.PlanID, dev, rev, dec pm.TaskID, round int) (pm.TaskID, pm.TaskID, pm.TaskID) {
+	t.Helper()
+	tasks, err := h.tasks.ListByPlan(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
 	}
+	titleOf := func(id pm.TaskID) string {
+		task, _ := h.tasks.FindByID(h.ctx, id)
+		return loopRoundTitle(task.Title(), round)
+	}
+	wants := map[string]*pm.TaskID{
+		titleOf(dev): new(pm.TaskID),
+		titleOf(rev): new(pm.TaskID),
+		titleOf(dec): new(pm.TaskID),
+	}
+	for _, task := range tasks {
+		if slot := wants[task.Title()]; slot != nil {
+			*slot = task.ID()
+		}
+	}
+	return *wants[titleOf(dev)], *wants[titleOf(rev)], *wants[titleOf(dec)]
 }
 
 // auditDetailField unmarshals the entry's JSON detail blob and returns key as a
@@ -388,7 +406,7 @@ func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
 
 	// rejectRound completes Dev→Review→Decision, records a reject outcome, then advances
 	// (which drives the engine loopback + dispatch in one pass). Returns the dispatch set.
-	rejectRound := func() []pm.TaskID {
+	rejectRound := func(round int) []pm.TaskID {
 		t.Helper()
 		h.setTaskStatus(t, dev, pm.TaskCompleted)
 		h.setTaskStatus(t, rev, pm.TaskCompleted)
@@ -400,14 +418,17 @@ func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AdvancePlan: %v", err)
 		}
+		if round <= 2 {
+			dev, rev, dec = loopRoundTasks(t, h, planID, dev, rev, dec, round+1)
+		}
 		return d
 	}
 
 	// Rounds 1 & 2 (within bound): Dev re-dispatched each time.
-	if d := rejectRound(); !graphHasTaskID(d, dev) {
+	if d := rejectRound(1); !graphHasTaskID(d, dev) {
 		t.Fatalf("round1 reject: dispatch=%v, want Dev re-dispatched", d)
 	}
-	if d := rejectRound(); !graphHasTaskID(d, dev) {
+	if d := rejectRound(2); !graphHasTaskID(d, dev) {
 		t.Fatalf("round2 reject: dispatch=%v, want Dev re-dispatched", d)
 	}
 
