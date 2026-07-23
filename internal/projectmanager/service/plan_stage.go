@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
@@ -20,6 +22,106 @@ import (
 // ErrStagesUnavailable is returned by the Stage AppServices when no StageRepository is
 // wired (s.stages == nil) — fail-loud, mirroring ErrPlansUnavailable.
 var ErrStagesUnavailable = errors.New("projectmanager: stage repository unavailable — Stage operations are not wired")
+
+type PlanDiagnostic struct {
+	NodeID  string `json:"node_id,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Hint    string `json:"hint,omitempty"`
+}
+
+func (s *Service) CompileAndValidatePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) ([]PlanDiagnostic, error) {
+	p, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProjectMember(ctx, p.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	tasks, err := s.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	return s.validateStageGateSpecs(ctx, p, tasks), nil
+}
+
+func (s *Service) validateStageGateSpecs(ctx context.Context, p *pm.Plan, tasks []*pm.Task) []PlanDiagnostic {
+	if s.stages == nil {
+		return nil
+	}
+	stages, err := s.stages.ListByPlan(ctx, p.ID())
+	if err != nil {
+		return []PlanDiagnostic{{Code: "stage_read_failed", Message: err.Error()}}
+	}
+	byID := make(map[pm.TaskID]*pm.Task, len(tasks))
+	for _, task := range tasks {
+		byID[task.ID()] = task
+	}
+	var diagnostics []PlanDiagnostic
+	for _, stage := range stages {
+		spec := stage.GateSpec()
+		gateTask := byID[stage.GateTaskID()]
+		if stage.GateTaskID() == "" || gateTask == nil {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "missing_gate_evaluator",
+				Message: "stage gate has no executable evaluator task",
+				Hint:    "bind a supervisor_inline Decision task before starting the plan",
+			})
+			continue
+		}
+		if spec.EvaluatorKind != pm.GateEvaluatorHuman {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "unsupported_gate_evaluator",
+				Message: "only a bound human evaluator is currently executable",
+			})
+		}
+		if spec.AssigneeRef == "" && strings.TrimSpace(spec.RoleRef) == "" {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "missing_gate_assignee",
+				Message: "human gate requires assignee_ref or role_ref",
+			})
+		}
+		if gateTask.PlanID() != p.ID() || gateTask.StageID() != stage.ID() {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "invalid_gate_binding",
+				Message: "gate evaluator task must belong to the same plan and stage",
+			})
+		}
+		if !gateTask.DispatchMode().RoutesInline() {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "invalid_gate_dispatch_mode",
+				Message: "human gate evaluator must use supervisor_inline dispatch",
+			})
+		}
+		if spec.AssigneeRef != "" && gateTask.Assignee() != spec.AssigneeRef {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "gate_assignee_mismatch",
+				Message: "gate task assignee does not match GateSpec",
+			})
+		}
+	}
+	return diagnostics
+}
+
+func (s *Service) StageForGateTask(ctx context.Context, taskID pm.TaskID) (*pm.Stage, bool, error) {
+	task, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return nil, false, err
+	}
+	if task.PlanID() == "" || s.stages == nil {
+		return nil, false, nil
+	}
+	stages, err := s.stages.ListByPlan(ctx, task.PlanID())
+	if err != nil {
+		return nil, false, err
+	}
+	for _, stage := range stages {
+		if stage.GateTaskID() == taskID {
+			return stage, true, nil
+		}
+	}
+	return nil, false, nil
+}
 
 // ErrNotStageGate is returned by ResolveStageGate when the target node is not a stage
 // gate condition node (no stage_gate metadata) — a caller pointed at the wrong node.
@@ -83,8 +185,12 @@ func (s *Service) CreateStage(ctx context.Context, cmd CreateStageCommand) (pm.S
 		if serr := s.stages.Save(txCtx, st); serr != nil {
 			return serr
 		}
+		gateTaskID, terr := s.provisionStageGateTask(txCtx, p, st, cmd.Actor, now)
+		if terr != nil {
+			return terr
+		}
 		s.auditPlan(txCtx, p, pm.AuditPlanNodeAdded, cmd.Actor, map[string]any{
-			"stage_id": string(stageID), "stage_name": cmd.Name,
+			"stage_id": string(stageID), "stage_name": cmd.Name, "gate_task_id": string(gateTaskID),
 		})
 		return nil
 	})
@@ -92,6 +198,114 @@ func (s *Service) CreateStage(ctx context.Context, cmd CreateStageCommand) (pm.S
 		return "", err
 	}
 	return stageID, nil
+}
+
+func (s *Service) provisionStageGateTask(txCtx context.Context, p *pm.Plan, st *pm.Stage, actor pm.IdentityRef, now time.Time) (pm.TaskID, error) {
+	gateSpec := pm.DefaultHumanGateSpec(actor)
+	gateTaskID, err := s.CreateTask(txCtx, CreateTaskCommand{
+		ProjectID:    p.ProjectID(),
+		Title:        "Gate: " + st.Name(),
+		Description:  "Evaluate the stage acceptance contract and complete with outcome=pass or outcome=reject.",
+		CreatedBy:    actor,
+		Assignee:     actor,
+		DispatchMode: pm.DispatchSupervisorInline,
+	})
+	if err != nil {
+		return "", err
+	}
+	gateTask, err := s.tasks.FindByID(txCtx, gateTaskID)
+	if err != nil {
+		return "", err
+	}
+	if err := gateTask.SetPlan(p.ID(), now); err != nil {
+		return "", err
+	}
+	if err := gateTask.SetStage(st.ID(), now); err != nil {
+		return "", err
+	}
+	if err := s.tasks.Update(txCtx, gateTask); err != nil {
+		return "", err
+	}
+	st.SetGateTask(gateTaskID, gateSpec, now)
+	if err := s.stages.Update(txCtx, st); err != nil {
+		return "", err
+	}
+	return gateTaskID, nil
+}
+
+// ReconcileStageGates is the idempotent recovery path for legacy bare gates.
+// It provisions the missing evaluator task and, for an already-running graph,
+// rewires the existing condition through that task without passing the gate.
+func (s *Service) ReconcileStageGates(ctx context.Context, planID pm.PlanID) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		stages, err := s.stages.ListByPlan(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		for _, stage := range stages {
+			if stage.GateTaskID() != "" {
+				continue
+			}
+			gateTaskID, err := s.provisionStageGateTask(txCtx, p, stage, p.CreatorRef(), now)
+			if err != nil {
+				return err
+			}
+			if p.GraphID() == "" || stage.GateNodeID() == "" || s.orch == nil {
+				continue
+			}
+			graphID := orch.GraphID(p.GraphID())
+			gateID := orch.NodeID(stage.GateNodeID())
+			nodeID, err := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryBusiness), "",
+				"Gate: "+stage.Name(), map[string]any{
+					"task_id": string(gateTaskID), "stage_id": string(stage.ID()), "stage_gate_evaluator": true,
+				})
+			if err != nil {
+				return err
+			}
+			gateTask, err := s.tasks.FindByID(txCtx, gateTaskID)
+			if err != nil {
+				return err
+			}
+			gateTask.SetNodeID(string(nodeID), now)
+			if err := s.tasks.Update(txCtx, gateTask); err != nil {
+				return err
+			}
+			edges, err := s.orch.ListEdges(txCtx, graphID)
+			if err != nil {
+				return err
+			}
+			for _, edge := range edges {
+				if edge.ToNodeID != gateID {
+					continue
+				}
+				if err := s.orch.RemoveEdge(txCtx, graphID, edge.FromNodeID, gateID); err != nil {
+					return err
+				}
+				if err := s.orch.AddEdge(txCtx, graphID, edge.FromNodeID, nodeID); err != nil {
+					return err
+				}
+			}
+			if err := s.orch.AddEdge(txCtx, graphID, nodeID, gateID); err != nil {
+				return err
+			}
+			gate, err := s.orch.GetNode(txCtx, gateID)
+			if err != nil {
+				return err
+			}
+			meta := gate.Metadata()
+			meta["condition_for"] = string(gateTaskID)
+			meta["pass_whens"] = []any{"pass"}
+			if err := s.orch.UpdateNode(txCtx, gateID, gate.Title(), meta); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // AssignTaskToStage sets (or, with stageID=="", clears) a task's Stage membership in a

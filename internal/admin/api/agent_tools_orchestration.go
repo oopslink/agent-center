@@ -446,6 +446,13 @@ func (s *Server) resolveConditionHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
 		return
 	}
+	if node, err := d.OrchService.GetNode(r.Context(), orch.NodeID(req.NodeID)); err == nil {
+		if _, isStageGate := node.Metadata()["stage_gate"]; isStageGate {
+			writeError(w, http.StatusConflict, "stage_gate_requires_decision_task",
+				"complete the bound stage gate Decision task with outcome and evidence")
+			return
+		}
+	}
 	if err := d.OrchService.ResolveCondition(r.Context(), orch.NodeID(req.NodeID), req.Result); err != nil {
 		mapOrchError(w, err)
 		return

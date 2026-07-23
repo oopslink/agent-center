@@ -19,15 +19,16 @@ type StageRepo struct{ db *sql.DB }
 // NewStageRepo constructs the repo.
 func NewStageRepo(db *sql.DB) *StageRepo { return &StageRepo{db: db} }
 
-const stageSelect = `SELECT id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, created_at, updated_at, version FROM pm_stages`
+const stageSelect = `SELECT id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec, created_at, updated_at, version FROM pm_stages`
 
 func (r *StageRepo) Save(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_stages (id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_stages (id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		string(s.ID()), string(s.PlanID()), s.Name(), marshalStageDeps(s.DependsOnStages()),
-		s.GateNodeID(), s.MaxRounds(), ts(s.CreatedAt()), ts(s.UpdatedAt()), s.Version())
+		s.GateNodeID(), s.MaxRounds(), string(s.GateTaskID()), marshalGateSpec(s.GateSpec()),
+		ts(s.CreatedAt()), ts(s.UpdatedAt()), s.Version())
 	if isUnique(err) {
 		return pm.ErrStageExists
 	}
@@ -37,9 +38,9 @@ func (r *StageRepo) Save(ctx context.Context, s *pm.Stage) error {
 func (r *StageRepo) Update(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_stages SET name=?, depends_on_stages=?, gate_node_id=?, max_rounds=?, updated_at=?, version=? WHERE id=?`,
+		`UPDATE pm_stages SET name=?, depends_on_stages=?, gate_node_id=?, max_rounds=?, gate_task_id=?, gate_spec=?, updated_at=?, version=? WHERE id=?`,
 		s.Name(), marshalStageDeps(s.DependsOnStages()), s.GateNodeID(), s.MaxRounds(),
-		ts(s.UpdatedAt()), s.Version(), string(s.ID()))
+		string(s.GateTaskID()), marshalGateSpec(s.GateSpec()), ts(s.UpdatedAt()), s.Version(), string(s.ID()))
 	if err != nil {
 		return err
 	}
@@ -90,9 +91,9 @@ func (r *StageRepo) DeleteByPlan(ctx context.Context, planID pm.PlanID) error {
 }
 
 func scanStage(scan func(...any) error) (*pm.Stage, error) {
-	var id, planID, name, dependsJSON, gateNodeID, createdAt, updatedAt string
+	var id, planID, name, dependsJSON, gateNodeID, gateTaskID, gateSpecJSON, createdAt, updatedAt string
 	var maxRounds, version int
-	if err := scan(&id, &planID, &name, &dependsJSON, &gateNodeID, &maxRounds, &createdAt, &updatedAt, &version); err != nil {
+	if err := scan(&id, &planID, &name, &dependsJSON, &gateNodeID, &maxRounds, &gateTaskID, &gateSpecJSON, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateStage(pm.RehydrateStageInput{
@@ -102,10 +103,26 @@ func scanStage(scan func(...any) error) (*pm.Stage, error) {
 		DependsOnStages: unmarshalStageDeps(dependsJSON),
 		GateNodeID:      gateNodeID,
 		MaxRounds:       maxRounds,
+		GateTaskID:      pm.TaskID(gateTaskID),
+		GateSpec:        unmarshalGateSpec(gateSpecJSON),
 		CreatedAt:       parseTime(createdAt),
 		UpdatedAt:       parseTime(updatedAt),
 		Version:         version,
 	})
+}
+
+func marshalGateSpec(spec pm.GateSpec) string {
+	b, err := json.Marshal(spec)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func unmarshalGateSpec(raw string) pm.GateSpec {
+	var spec pm.GateSpec
+	_ = json.Unmarshal([]byte(raw), &spec)
+	return spec
 }
 
 // marshalStageDeps serializes the depends_on set as a JSON string array — ALWAYS a

@@ -30,6 +30,12 @@ type Stage struct {
 	// when the stage has no acceptance gate (a pure barrier). Stamped by buildPlanGraph
 	// when the plan starts (the gate node lives on the orchestration graph, not here).
 	gateNodeID string
+	// gateTaskID is the executable producer for a human stage gate. It is a
+	// supervisor-inline Decision task selected into the same plan and bound
+	// one-to-one to the gate node. An empty value is legacy data that must be
+	// migrated or rejected before a plan can start.
+	gateTaskID TaskID
+	gateSpec   GateSpec
 	// maxRounds bounds the stage-local retry: how many times a gate reject may re-run
 	// this stage's sub-DAG before the round exhausts and escalates to a human (§5). 0 ⇒
 	// unlimited is intentionally NOT used — a stage is a CLOSED barrier (§5 卡死升级),
@@ -38,6 +44,33 @@ type Stage struct {
 	createdAt time.Time
 	updatedAt time.Time
 	version   int
+}
+
+type GateEvaluatorKind string
+
+const (
+	GateEvaluatorAutomatic GateEvaluatorKind = "automatic"
+	GateEvaluatorHuman     GateEvaluatorKind = "human"
+)
+
+type GateSpec struct {
+	EvaluatorKind      GateEvaluatorKind `json:"evaluator_kind"`
+	AssigneeRef        IdentityRef       `json:"assignee_ref,omitempty"`
+	RoleRef            string            `json:"role_ref,omitempty"`
+	AcceptanceContract string            `json:"acceptance_contract,omitempty"`
+	PassRoute          string            `json:"pass_route"`
+	RejectRoute        string            `json:"reject_route"`
+	ExhaustedRoute     string            `json:"exhausted_route"`
+}
+
+func DefaultHumanGateSpec(assignee IdentityRef) GateSpec {
+	return GateSpec{
+		EvaluatorKind:  GateEvaluatorHuman,
+		AssigneeRef:    assignee,
+		PassRoute:      "downstream",
+		RejectRoute:    "reopen_stage",
+		ExhaustedRoute: "escalate",
+	}
 }
 
 // DefaultStageMaxRounds is the fallback stage-local retry bound when a Stage is
@@ -52,6 +85,8 @@ type NewStageInput struct {
 	Name            string
 	DependsOnStages []StageID
 	MaxRounds       int // 0 ⇒ DefaultStageMaxRounds
+	GateTaskID      TaskID
+	GateSpec        GateSpec
 	CreatedAt       time.Time
 }
 
@@ -87,6 +122,8 @@ func NewStage(in NewStageInput) (*Stage, error) {
 		name:            in.Name,
 		dependsOnStages: deps,
 		maxRounds:       maxRounds,
+		gateTaskID:      in.GateTaskID,
+		gateSpec:        in.GateSpec,
 		createdAt:       at.UTC(),
 		updatedAt:       at.UTC(),
 		version:         1,
@@ -101,6 +138,8 @@ type RehydrateStageInput struct {
 	DependsOnStages []StageID
 	GateNodeID      string
 	MaxRounds       int
+	GateTaskID      TaskID
+	GateSpec        GateSpec
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Version         int
@@ -121,6 +160,8 @@ func RehydrateStage(in RehydrateStageInput) (*Stage, error) {
 		dependsOnStages: deps,
 		gateNodeID:      in.GateNodeID,
 		maxRounds:       in.MaxRounds,
+		gateTaskID:      in.GateTaskID,
+		gateSpec:        in.GateSpec,
 		createdAt:       in.CreatedAt.UTC(),
 		updatedAt:       in.UpdatedAt.UTC(),
 		version:         in.Version,
@@ -161,6 +202,8 @@ func (s *Stage) ID() StageID          { return s.id }
 func (s *Stage) PlanID() PlanID       { return s.planID }
 func (s *Stage) Name() string         { return s.name }
 func (s *Stage) GateNodeID() string   { return s.gateNodeID }
+func (s *Stage) GateTaskID() TaskID   { return s.gateTaskID }
+func (s *Stage) GateSpec() GateSpec   { return s.gateSpec }
 func (s *Stage) MaxRounds() int       { return s.maxRounds }
 func (s *Stage) CreatedAt() time.Time { return s.createdAt }
 func (s *Stage) UpdatedAt() time.Time { return s.updatedAt }
@@ -177,6 +220,12 @@ func (s *Stage) DependsOnStages() []StageID {
 // Called by buildPlanGraph once the gate node is created at plan start.
 func (s *Stage) SetGateNodeID(nodeID string, at time.Time) {
 	s.gateNodeID = nodeID
+	s.touch(at)
+}
+
+func (s *Stage) SetGateTask(taskID TaskID, spec GateSpec, at time.Time) {
+	s.gateTaskID = taskID
+	s.gateSpec = spec
 	s.touch(at)
 }
 

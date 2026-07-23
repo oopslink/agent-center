@@ -333,6 +333,43 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			}
 			continue
 		}
+		if stageID, _ := meta["stage_gate"].(string); stageID != "" {
+			st, serr := s.stages.FindByID(txCtx, pm.StageID(stageID))
+			if serr != nil {
+				return serr
+			}
+			round := conditionLoopRound(n) + 1
+			maxRounds := st.MaxRounds()
+			if maxRounds <= 0 {
+				maxRounds = pm.DefaultStageMaxRounds
+			}
+			if round > maxRounds {
+				exhausted := outcome + exhaustedOutcomeSuffix
+				if rerr := s.plans.RecordDecisionOutcome(txCtx, p.ID(), pm.TaskID(decisionID), exhausted, now); rerr != nil {
+					return rerr
+				}
+				s.auditPlanByID(txCtx, p.ProjectID(), p.ID(), pm.AuditPlanDecisionOutcome, pm.SystemActor("plan-engine"), map[string]any{
+					"stage_id": stageID, "gate": outcome, "round": round, "exhausted": true,
+				})
+				if eerr := s.escalateStageExhaustion(txCtx, p, st); eerr != nil {
+					return eerr
+				}
+				continue
+			}
+			if rerr := s.orch.ResolveCondition(txCtx, orch.NodeID(n.ID()), "reject"); rerr != nil {
+				return rerr
+			}
+			if rerr := s.reopenStageSubgraph(txCtx, p, st, n); rerr != nil {
+				return rerr
+			}
+			if rerr := s.plans.ClearDecisionOutcome(txCtx, p.ID(), pm.TaskID(decisionID)); rerr != nil {
+				return rerr
+			}
+			s.auditPlanByID(txCtx, p.ProjectID(), p.ID(), pm.AuditPlanLoopback, pm.SystemActor("plan-engine"), map[string]any{
+				"stage_id": stageID, "gate": outcome, "round": round,
+			})
+			continue
+		}
 		// REJECT: only a loopback edge whose When matches this outcome fires a re-run
 		// (parity with legacy applyLoopbacks, which keyed on the matching loopback edge).
 		var lb *pm.Dependency

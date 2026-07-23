@@ -172,7 +172,7 @@ func MigrateV1ToV2Command() *Command {
 // Per-agent executor workspace isolation added 0112 (agents.executor_git_worktree).
 // 2026-07-22 quick-fix added 0114 (collapse task status delivered back to completed
 // and rebuild active-task indexes without delivered).
-const targetSchemaVersion = 114
+const targetSchemaVersion = 115
 
 func runMigrateV1ToV2(
 	ctx context.Context,

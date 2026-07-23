@@ -265,12 +265,20 @@ func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
 		t.Fatalf("stage max_rounds=%v want 3", st["max_rounds"])
 	}
 	members, _ := st["members"].([]any)
-	if len(members) != 1 {
-		t.Fatalf("members len=%d want 1; stage=%v", len(members), st)
+	if len(members) != 2 {
+		t.Fatalf("members len=%d want work+gate; stage=%v", len(members), st)
 	}
-	m := members[0].(map[string]any)
-	if m["task_id"] != string(tid) {
-		t.Fatalf("member task_id=%v want %s", m["task_id"], tid)
+	if st["gate_task_id"] == "" || st["gate_task_id"] == nil {
+		t.Fatalf("gate_task_id missing; stage=%v", st)
+	}
+	found := false
+	for _, raw := range members {
+		if raw.(map[string]any)["task_id"] == string(tid) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("business member %s missing; members=%v", tid, members)
 	}
 }
 

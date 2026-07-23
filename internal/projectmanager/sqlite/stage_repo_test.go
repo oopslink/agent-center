@@ -31,6 +31,7 @@ func TestStageRepo_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.SetGateNodeID("gate-node", t0)
+	st.SetGateTask("task-gate", pm.DefaultHumanGateSpec("user:pd"), t0)
 	if err := sr.Save(ctx, st); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -47,6 +48,9 @@ func TestStageRepo_RoundTrip(t *testing.T) {
 	}
 	if got.GateNodeID() != "gate-node" {
 		t.Fatalf("gate = %q, want gate-node", got.GateNodeID())
+	}
+	if got.GateTaskID() != "task-gate" || got.GateSpec().AssigneeRef != "user:pd" {
+		t.Fatalf("gate task/spec = %q %+v", got.GateTaskID(), got.GateSpec())
 	}
 	deps := got.DependsOnStages()
 	if len(deps) != 1 || deps[0] != "st-0" {

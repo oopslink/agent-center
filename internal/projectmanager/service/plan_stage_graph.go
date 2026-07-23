@@ -81,7 +81,13 @@ func (s *Service) buildStages(
 
 	// Pass 1: one gate CONDITION node per stage; upstream = all its business nodes.
 	for _, st := range stages {
-		members := pm.StageMembers(tasks, st.ID())
+		allMembers := pm.StageMembers(tasks, st.ID())
+		members := make([]pm.TaskID, 0, len(allMembers))
+		for _, member := range allMembers {
+			if member != st.GateTaskID() {
+				members = append(members, member)
+			}
+		}
 		entries := pm.StageEntries(members, stageOf, st.ID(), edges)
 		entriesOf[st.ID()] = entries
 
@@ -100,9 +106,11 @@ func (s *Service) buildStages(
 			maxRounds = stageGateReopenLimitDefault
 		}
 		gateMeta := map[string]any{
-			"evaluator":  string(orch.EvaluatorManual),
-			"stage_gate": string(st.ID()),
-			"max_rounds": maxRounds,
+			"evaluator":     string(orch.EvaluatorManual),
+			"stage_gate":    string(st.ID()),
+			"max_rounds":    maxRounds,
+			"condition_for": string(st.GateTaskID()),
+			"pass_whens":    []any{"pass"},
 		}
 		if len(onFailure) > 0 {
 			gateMeta["on_failure"] = onFailure
@@ -119,16 +127,23 @@ func (s *Service) buildStages(
 		if uerr := s.stages.Update(txCtx, st); uerr != nil {
 			return nil, uerr
 		}
-		// upstream = every business member → gate (the gate is ready to resolve once the
-		// stage's members are all done; ReopenChain(gate→entry) walks back over these).
+		gateTaskNode, ok := nodeOf[st.GateTaskID()]
+		if !ok {
+			return nil, pm.ErrMissingGateEvaluator
+		}
+		// Ordinary members release the executable evaluator task. Its business
+		// node then feeds the condition projection that owns pass/reject routing.
 		for _, m := range members {
 			mn, ok := nodeOf[m]
 			if !ok {
 				continue
 			}
-			if eerr := addEdge(mn, gateID); eerr != nil {
+			if eerr := addEdge(mn, gateTaskNode); eerr != nil {
 				return nil, eerr
 			}
+		}
+		if eerr := addEdge(gateTaskNode, gateID); eerr != nil {
+			return nil, eerr
 		}
 	}
 

@@ -533,6 +533,8 @@ func stageDetailMap(detail *pmservice.StageDetail) map[string]any {
 		"name":              st.Name(),
 		"depends_on_stages": deps,
 		"gate_node_id":      st.GateNodeID(),
+		"gate_task_id":      string(st.GateTaskID()),
+		"gate_spec":         st.GateSpec(),
 		"max_rounds":        st.MaxRounds(),
 		"status":            string(detail.Status),
 		"rounds":            detail.Rounds,
@@ -589,7 +591,14 @@ func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "plan not found in this project")
 		return
 	}
-	writeJSON(w, http.StatusOK, planDetailMap(detail))
+	body := planDetailMap(detail)
+	diagnostics, derr := d.PMService.CompileAndValidatePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a)))
+	if derr != nil {
+		mapPlanToolError(w, derr)
+		return
+	}
+	body["diagnostics"] = diagnostics
+	writeJSON(w, http.StatusOK, body)
 }
 
 type listPlansReq struct {

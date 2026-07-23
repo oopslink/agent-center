@@ -51,6 +51,70 @@ func seedTwoStagePlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, pla
 	return a1, a2, b1, stageA, stageB
 }
 
+func TestCreateStage_ProvisionsExecutableGateTask(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+
+	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", Actor: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateStage: %v", err)
+	}
+	detail, err := h.svc.GetStage(ctx, stageID)
+	if err != nil {
+		t.Fatalf("GetStage: %v", err)
+	}
+	if detail.Stage.GateTaskID() == "" {
+		t.Fatal("gate_task_id empty")
+	}
+	gateTask, err := h.tasks.FindByID(ctx, detail.Stage.GateTaskID())
+	if err != nil {
+		t.Fatalf("gate task: %v", err)
+	}
+	if gateTask.PlanID() != planID || gateTask.StageID() != stageID {
+		t.Fatalf("gate binding plan=%s stage=%s", gateTask.PlanID(), gateTask.StageID())
+	}
+	if gateTask.Assignee() != "user:a" || !gateTask.DispatchMode().RoutesInline() {
+		t.Fatalf("gate execution assignee=%s mode=%s", gateTask.Assignee(), gateTask.DispatchMode())
+	}
+	if diagnostics, err := h.svc.CompileAndValidatePlan(ctx, planID, "user:a"); err != nil || len(diagnostics) != 0 {
+		t.Fatalf("CompileAndValidatePlan diagnostics=%+v err=%v", diagnostics, err)
+	}
+}
+
+func TestLegacyBareStageGate_RejectsThenReconciles(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy", CreatedBy: "user:a"})
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "work", "user:a")
+	stage, err := pm.NewStage(pm.NewStageInput{ID: "stage-legacy", PlanID: planID, Name: "Legacy", CreatedAt: h.clk.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.stages.Save(ctx, stage); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AssignTaskToStage(ctx, planID, taskID, stage.ID(), "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); !errors.Is(err, pm.ErrMissingGateEvaluator) {
+		t.Fatalf("StartPlan = %v, want missing_gate_evaluator", err)
+	}
+	if err := h.svc.ReconcileStageGates(ctx, planID); err != nil {
+		t.Fatalf("ReconcileStageGates: %v", err)
+	}
+	if diagnostics, err := h.svc.CompileAndValidatePlan(ctx, planID, "user:a"); err != nil || len(diagnostics) != 0 {
+		t.Fatalf("post-reconcile diagnostics=%+v err=%v", diagnostics, err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan after reconcile: %v", err)
+	}
+}
+
 // TestStage_Barrier_GatePass is the end-to-end for the stage barrier + gate PASS: a
 // downstream stage's entry does NOT dispatch until every upstream-stage business node
 // is done AND the upstream gate passes. Then a gate pass releases it.
@@ -95,8 +159,13 @@ func TestStage_Barrier_GatePass(t *testing.T) {
 		t.Fatalf("dispatch #2 = %v, want [a2]", d2)
 	}
 	h.setTaskStatus(t, a2, pm.TaskCompleted)
-	if d, _ := h.svc.AdvancePlan(ctx, planID, "user:a"); len(d) != 0 {
-		t.Fatalf("dispatch after a2 done = %v, want [] (b1 still gated by unresolved gate A)", d)
+	if d, _ := h.svc.AdvancePlan(ctx, planID, "user:a"); len(d) != 1 {
+		t.Fatalf("dispatch after a2 done = %v, want the single stage evaluator", d)
+	} else {
+		det, _ := h.svc.GetStage(ctx, stageA)
+		if d[0] != det.Stage.GateTaskID() {
+			t.Fatalf("dispatch after a2 done = %v, want gate task %s", d, det.Stage.GateTaskID())
+		}
 	}
 	if dispatchedSet(t, h, planID)[b1] {
 		t.Fatal("b1 dispatched before gate resolution — barrier bypassed")
@@ -108,8 +177,12 @@ func TestStage_Barrier_GatePass(t *testing.T) {
 	}
 
 	// --- gate PASS releases stage B's entry b1 (barrier lifts) ---
-	if err := h.svc.ResolveStageGate(ctx, detA.Stage.GateNodeID(), "pass", "user:a"); err != nil {
-		t.Fatalf("ResolveStageGate pass: %v", err)
+	h.setTaskStatus(t, detA.Stage.GateTaskID(), pm.TaskCompleted)
+	if err := h.svc.RecordDecisionOutcome(ctx, detA.Stage.GateTaskID(), "pass", "user:a"); err != nil {
+		t.Fatalf("RecordDecisionOutcome pass: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after gate pass: %v", err)
 	}
 	if !dispatchedSet(t, h, planID)[b1] {
 		t.Fatal("b1 not dispatched after gate A pass — barrier did not lift")

@@ -78,6 +78,9 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := pm.ValidateNoCycle(edges); err != nil {
 			return err
 		}
+		if diagnostics := s.validateStageGateSpecs(txCtx, p, tasks); len(diagnostics) > 0 {
+			return fmt.Errorf("%w: %s", pm.ErrMissingGateEvaluator, diagnostics[0].Code)
+		}
 		// (c)+(d): every task resolvable-assignee + same project.
 		for _, t := range tasks {
 			if t.ProjectID() != p.ProjectID() {

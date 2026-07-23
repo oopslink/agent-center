@@ -477,6 +477,8 @@ func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
 		"max_rounds":        st.MaxRounds(),
 		"depends_on_stages": deps,
 		"gate_node_id":      st.GateNodeID(),
+		"gate_task_id":      string(st.GateTaskID()),
+		"gate_spec":         st.GateSpec(),
 		"members":           members,
 	}
 }

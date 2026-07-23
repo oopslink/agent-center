@@ -359,6 +359,16 @@ export interface PlanStage {
   max_rounds: number;
   depends_on_stages: string[];
   gate_node_id: string;
+  gate_task_id: string;
+  gate_spec: {
+    evaluator_kind: 'automatic' | 'human';
+    assignee_ref?: string;
+    role_ref?: string;
+    acceptance_contract?: string;
+    pass_route: string;
+    reject_route: string;
+    exhausted_route: string;
+  };
   members: PlanStageMember[];
 }
 
