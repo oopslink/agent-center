@@ -2015,8 +2015,30 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('reject');
     expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('0123456789ab');
     expect(screen.getByTestId('plan-stage-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evaluator-st-b')).toHaveTextContent('human · agent:reviewer');
+    expect(screen.getByTestId('plan-stage-mobile-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('Mobile overlap remains');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('0123456789ab');
+    expect(screen.getByTestId('plan-stage-mobile-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
+    expect(screen.getByTestId('plan-stage-mobile-gate-contract-st-a')).toHaveTextContent('Missing acceptance contract');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-a')).toHaveTextContent('Outcome pending');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-a')).toHaveTextContent('No evidence');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-a')).toHaveTextContent('No reviewed SHA');
     expect(screen.getByTestId('plan-stage-ref-st-a')).toHaveTextContent('STAGE · S1');
     expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
+  });
+
+  it('mobile stage audit exposes a visible API error state', async () => {
+    mockPlan();
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () =>
+        HttpResponse.json({ error: 'stage_read_failed' }, { status: 500 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-dag'));
+    expect(await screen.findByTestId('plan-stage-mobile-error')).toHaveTextContent('could not be loaded');
   });
 
   // §8 zero-regression: a plan with NO stages renders NO stage panel — the DAG tab is

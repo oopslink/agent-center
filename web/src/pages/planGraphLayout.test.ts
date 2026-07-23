@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutGraph, layoutStagedGraph, stageDisplayMeta } from './PlanDetail';
+import { layoutGraph, layoutStagedGraph, stageDisplayMeta, STAGE_HEADER_H } from './PlanDetail';
 import type { PlanGraphNode, PlanGraphEdge, PlanStage } from '@/api/plans';
 
 // T800 layout algebra unit tests: buildPlanGraph now emits Start→root / sink→End
@@ -147,7 +147,7 @@ describe('layoutStagedGraph — outer stage DAG + inner sub-DAG (T981 follow-up)
       const p = positioned.find((p) => p.node.id === id)!;
       expect(p.x).toBeGreaterThanOrEqual(box.x);
       expect(p.x + p.w).toBeLessThanOrEqual(box.x + box.w + 1); // +1 slack for rounding
-      expect(p.y).toBeGreaterThanOrEqual(box.y);
+      expect(p.y).toBeGreaterThanOrEqual(box.y + STAGE_HEADER_H);
       expect(p.y + NODE_H).toBeLessThanOrEqual(box.y + box.h + 1);
     }
   });

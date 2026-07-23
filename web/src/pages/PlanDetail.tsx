@@ -2052,7 +2052,9 @@ export function layoutGraph(
 // Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
 // whose graph predates staging for some nodes) is defensively laid out with
 // the plain algorithm in a trailing row so nothing is silently dropped.
-const STAGE_HEADER_H = 132;
+// Stage header includes the human-gate audit contract. Keep this in sync with the
+// bounded audit surface below so member cards always start beneath it.
+export const STAGE_HEADER_H = 196;
 const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
 const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
 
@@ -2434,6 +2436,7 @@ function PlanGraphDag({
   return (
     <SenderSidebarProvider>
       <div data-testid="plan-dag" data-graph="true" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+        <MobileStageGateAudits stages={stages} error={stagesQuery.isError} />
         {/* Mobile: a simple ordered list of nodes by flow level. */}
         <ol className="mt-1 space-y-1.5 md:hidden" data-testid="plan-graph-stepper">
           {positioned
@@ -2623,31 +2626,59 @@ const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
   open: 'bg-bg-subtle text-text-muted',
 };
 
-function StageGateAudit({ stage }: { stage: PlanStage }) {
+function StageGateAudit({ stage, surface = 'desktop' }: { stage: PlanStage; surface?: 'desktop' | 'mobile' }) {
   const spec = stage.gate_spec;
-  if (!spec) return null;
-  const owner = spec.assignee_ref || spec.role_ref || 'unassigned';
+  const prefix = surface === 'mobile' ? 'plan-stage-mobile-gate' : 'plan-stage-gate';
+  const owner = spec?.assignee_ref || spec?.role_ref || 'Unassigned';
   return (
-    <div className="mt-2 grid gap-1 border-t border-border-base pt-1.5 text-[0.625rem] leading-4 text-text-secondary" data-testid={`plan-stage-gate-audit-${stage.id}`}>
+    <div className="mt-2 grid min-h-[7rem] gap-1 border-t border-border-base pt-1.5 text-[0.625rem] leading-4 text-text-secondary" data-testid={`${prefix}-audit-${stage.id}`}>
       <div className="flex min-w-0 flex-wrap gap-x-3">
-        <span data-testid={`plan-stage-gate-evaluator-${stage.id}`}>{spec.evaluator_kind} · {owner}</span>
-        <span data-testid={`plan-stage-gate-routes-${stage.id}`}>{spec.pass_route} / {spec.reject_route} / {spec.exhausted_route}</span>
+        <span data-testid={`${prefix}-evaluator-${stage.id}`}>{spec?.evaluator_kind || 'Missing evaluator'} · {owner}</span>
+        <span data-testid={`${prefix}-routes-${stage.id}`}>
+          {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
+        </span>
       </div>
-      <div className="line-clamp-2 break-words text-text-primary" title={spec.acceptance_contract} data-testid={`plan-stage-gate-contract-${stage.id}`}>
-        {spec.acceptance_contract || 'Missing acceptance contract'}
+      <div className="line-clamp-2 break-words text-text-primary" title={spec?.acceptance_contract} data-testid={`${prefix}-contract-${stage.id}`}>
+        {spec?.acceptance_contract || 'Missing acceptance contract'}
       </div>
-      {(stage.gate_outcome || stage.gate_evidence || stage.gate_reviewed_sha) && (
-        <div className="flex min-w-0 flex-wrap gap-x-3" data-testid={`plan-stage-gate-evidence-${stage.id}`}>
-          {stage.gate_outcome && <span className="font-semibold uppercase">{stage.gate_outcome}</span>}
-          {stage.gate_evidence && <span className="max-w-[18rem] truncate" title={stage.gate_evidence}>{stage.gate_evidence}</span>}
-          {stage.gate_reviewed_sha && <span className="font-mono">{stage.gate_reviewed_sha.slice(0, 12)}</span>}
+      <div className="flex min-w-0 flex-wrap gap-x-3" data-testid={`${prefix}-evidence-${stage.id}`}>
+        <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
+        <span className="max-w-[18rem] truncate" title={stage.gate_evidence || undefined}>{stage.gate_evidence || 'No evidence'}</span>
+        <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
+      </div>
+      <div
+        className={stage.diagnostics?.length ? 'truncate text-danger' : 'truncate text-text-muted'}
+        title={stage.diagnostics?.map((d) => `${d.code}: ${d.message}`).join('\n')}
+        data-testid={`${prefix}-diagnostics-${stage.id}`}
+      >
+        {stage.diagnostics?.length ? stage.diagnostics.map((d) => d.code).join(', ') : 'No diagnostics'}
+      </div>
+    </div>
+  );
+}
+
+function MobileStageGateAudits({ stages, error }: { stages: PlanStage[]; error: boolean }) {
+  return (
+    <div className="mb-3 grid gap-2 md:hidden" data-testid="plan-stage-mobile-audits">
+      {error && (
+        <div className="rounded border border-danger bg-bg-elevated p-2 text-xs text-danger" role="alert" data-testid="plan-stage-mobile-error">
+          Stage gate audit data could not be loaded.
         </div>
       )}
-      {!!stage.diagnostics?.length && (
-        <div className="truncate text-danger" title={stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n')} data-testid={`plan-stage-gate-diagnostics-${stage.id}`}>
-          {stage.diagnostics.map((d) => d.code).join(', ')}
+      {!error && stages.length === 0 && (
+        <div className="rounded border border-border-base bg-bg-elevated p-2 text-xs text-text-muted" data-testid="plan-stage-mobile-empty">
+          No stage gate audit data.
         </div>
       )}
+      {stages.map((stage) => (
+        <section key={stage.id} className="rounded-lg border border-border-strong bg-bg-surface p-3" data-testid={`plan-stage-mobile-audit-${stage.id}`}>
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
+            <span>{stage.name}</span>
+            <span>{stage.status} · {stage.rounds}/{stage.max_rounds}</span>
+          </div>
+          <StageGateAudit stage={stage} surface="mobile" />
+        </section>
+      ))}
     </div>
   );
 }
@@ -2858,6 +2889,7 @@ function LegacyPlanDag({
         <>
         {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
             stepper. The desktop graph + its controls are md:-only. */}
+        <MobileStageGateAudits stages={stages} error={stagesQuery.isError} />
         <PlanStepper positioned={positioned} projectId={projectId} />
         {/* T348: the Compact toggle moved to the tab row (icon). The connect-mode
             banner (point 3, draft-only) stays here, shown only while connecting. */}
