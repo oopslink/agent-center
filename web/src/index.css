@@ -465,9 +465,18 @@ body {
 /* Inline code only — fenced blocks are <pre><code> (CollapsibleCodeBlock), excluded. */
 .markdown-body :not(pre) > code {
   background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
   padding: 0.1em 0.3em;
   border-radius: 0.25rem;
   font-size: 0.9em;
+}
+
+/* Own-message bubbles use a fixed dark surface and light text in both themes.
+ * Keep inline code on that same surface family instead of applying the page's
+ * near-white subtle background, which produced white-on-white code spans. */
+.markdown-body.text-chatbubble-fg :not(pre) > code {
+  background: rgb(248 245 246 / 14%);
+  color: var(--color-chatbubble-fg);
 }
 
 /*
