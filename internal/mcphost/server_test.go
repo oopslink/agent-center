@@ -521,6 +521,53 @@ func TestSearchTools_LoadsDeferred(t *testing.T) {
 	}
 }
 
+// TestSearchTools_LoadsOperationalReadModels reproduces I119's real acceptance
+// query verbatim. Catalog parity alone is insufficient: production enables
+// TierTools, so all four tools must match the deferred search response and then
+// become callable through tools/list on the same MCP session.
+func TestSearchTools_LoadsOperationalReadModels(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}, TierTools: true})
+	ctx := context.Background()
+	const query = "get_task_audit list_task_executions get_task_execution get_agent_runtime_effective_config"
+
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "search_tools",
+		Arguments: map[string]any{"query": query},
+	})
+	if err != nil {
+		t.Fatalf("search_tools(%q): %v", query, err)
+	}
+	var body struct {
+		Loaded []struct {
+			Name string `json:"name"`
+		} `json:"loaded"`
+	}
+	if err := json.Unmarshal([]byte(textContent(t, res)), &body); err != nil {
+		t.Fatalf("decode search_tools result: %v", err)
+	}
+	got := map[string]bool{}
+	for _, item := range body.Loaded {
+		got[item.Name] = true
+	}
+	want := []string{
+		"get_task_audit",
+		"list_task_executions",
+		"get_task_execution",
+		"get_agent_runtime_effective_config",
+	}
+	for _, name := range want {
+		if !got[name] {
+			t.Errorf("search_tools loaded=%v; missing %q", got, name)
+		}
+		if !toolPresent(t, cs, name) {
+			t.Errorf("%q absent from tools/list after exact search", name)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("search_tools loaded unexpected tools: %v", got)
+	}
+}
+
 func toolPresent(t *testing.T, cs *mcp.ClientSession, name string) bool {
 	t.Helper()
 	res, err := cs.ListTools(context.Background(), nil)
