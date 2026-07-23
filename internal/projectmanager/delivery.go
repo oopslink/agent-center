@@ -37,7 +37,14 @@ type Delivery struct {
 //   - Probed&&!Pushed — committed-but-not-pushed / dirty / no-commit → the teardown-bug
 //     zero-delivery signature that mislabels as success today
 func (d *Delivery) HasValidDelivery() bool {
-	return d != nil && d.Probed && d.Pushed
+	return d != nil &&
+		d.Probed &&
+		d.Pushed &&
+		!d.Dirty &&
+		d.BaseKnown &&
+		d.AheadOfBase > 0 &&
+		d.Branch != "" &&
+		d.HeadSHA != ""
 }
 
 // MarshalDelivery renders a *Delivery to its stored JSON (” for nil). Kept beside the

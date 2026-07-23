@@ -86,6 +86,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskParked):
 		writeError(w, http.StatusConflict, "task_parked", err.Error())
 
+	case errors.Is(err, pm.ErrTaskNoValidDelivery):
+		writeError(w, http.StatusConflict, "task_non_delivery", err.Error())
+
 	// ---- task_description_frozen (409) — I109 ①: a description edit on a RUNNING task.
 	// The in-flight executor's prompt was rendered from the description at spawn and is
 	// never re-fed, so accepting the write would change what the task SAYS while the

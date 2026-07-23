@@ -1251,6 +1251,12 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	if !t.status.CanTransitionTo(TaskCompleted) {
 		return ErrIllegalTransition
 	}
+	// T1169 defense in depth: the application precheck gives callers a useful
+	// early conflict, but the aggregate must enforce the same invariant inside
+	// the write transaction so a concurrent zero-delivery report cannot race it.
+	if t.delivery != nil && !t.delivery.HasValidDelivery() {
+		return ErrTaskNoValidDelivery
+	}
 	t.status = TaskCompleted
 	t.statusChangedAt = at.UTC()
 	t.completedBy = by

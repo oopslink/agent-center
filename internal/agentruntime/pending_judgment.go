@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +36,9 @@ type pendingJudgment struct {
 	Prompt     string    `json:"prompt"`      // re-injected verbatim on a nudge
 	InjectedAt time.Time `json:"injected_at"` // when the first judgment was delivered
 	NudgeCount int       `json:"nudge_count"` // reconcile re-injections so far
+	// MustBlock is true for mechanically verified non_delivery. It survives a
+	// supervisor/session restart so the final escalation cannot re-offer completion.
+	MustBlock bool `json:"must_block,omitempty"`
 	// Escalated marks that the reconcile gave the supervisor a FINAL "resolve or
 	// block_task(input_required)" nudge after exhausting the nudge budget. The entry is
 	// KEPT (not dropped) so a relaunched supervisor still re-judges from the durable set
@@ -64,7 +68,10 @@ func newPendingStore(path string) *pendingStore {
 func (s *pendingStore) record(taskRef, prompt string, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[taskRef] = pendingJudgment{TaskRef: taskRef, Prompt: prompt, InjectedAt: now, NudgeCount: 0}
+	s.m[taskRef] = pendingJudgment{
+		TaskRef: taskRef, Prompt: prompt, InjectedAt: now, NudgeCount: 0,
+		MustBlock: strings.Contains(prompt, "outcome=non_delivery"),
+	}
 	s.persistLocked()
 }
 
@@ -228,7 +235,7 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 		}
 		if p.NudgeCount >= pendingMaxNudges {
 			r.log("WARN agent=%s task=%s: executor finished but supervisor has not judged after %d nudges — escalating", r.cfg.AgentID, p.TaskRef, p.NudgeCount)
-			_ = r.injectSession(ctx, escalationPrompt(p.TaskRef)) // best-effort; never writes status
+			_ = r.injectSession(ctx, escalationPrompt(p.TaskRef, p.MustBlock)) // best-effort; never writes status
 			r.pending.markEscalated(p.TaskRef)
 			continue
 		}
@@ -253,7 +260,16 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 // had not happened. A canned reason on a repeated, escalating nudge is how false state gets
 // mass-produced: the path of least resistance is to accept the sentence the system already
 // wrote. So: no default text, an explicit instruction to write what is ACTUALLY true, and
-func escalationPrompt(taskRef string) string {
+func escalationPrompt(taskRef string, mustBlock bool) string {
+	if mustBlock {
+		return fmt.Sprintf(
+			"[reminder] Task %s has a finished executor with a mechanically verified "+
+				"non_delivery result. Resolve it NOW with block_task(task_id=%q, reason=..., "+
+				"reason_type=obstacle). WRITE THE REASON YOURSELF from the recorded evidence. "+
+				"Task completion is forbidden: zero-delivery cannot complete the task.",
+			taskRef, taskRef,
+		)
+	}
 	return fmt.Sprintf(
 		"[reminder] Task %s has a finished executor you have not resolved after several nudges. "+
 			"Resolve it NOW by picking the exit that is TRUE — do not pick by convenience:\n"+

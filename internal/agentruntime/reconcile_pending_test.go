@@ -139,6 +139,36 @@ func TestReconcile_EscalateThenSilent(t *testing.T) {
 	}
 }
 
+func TestReconcile_ZeroDeliveryEscalationCannotOfferComplete(t *testing.T) {
+	clk := &advClock{t: time.Unix(1_700_000_000, 0)}
+	caller := &scriptedInflightCaller{resp: runningResp("task-zero")}
+	r, fs, store := reconcileRuntime(t, caller, clk)
+	store.record("task-zero", "[executor finished] outcome=non_delivery. block_task only.", clk.now())
+	for i := 0; i < pendingMaxNudges; i++ {
+		store.bumpNudge("task-zero")
+	}
+	clk.advance(time.Duration(pendingMaxNudges+2) * pendingNudgeInterval)
+	r.reconcilePendingJudgments(context.Background(), clk.now())
+	msgs := fs.msgs()
+	if len(msgs) != 1 {
+		t.Fatalf("messages=%v", msgs)
+	}
+	if strings.Contains(msgs[0], "complete_task") || !strings.Contains(msgs[0], "block_task") {
+		t.Fatalf("zero-delivery escalation offered wrong exit: %q", msgs[0])
+	}
+}
+
+func TestPendingStorePersistsZeroDeliveryMustBlockAcrossRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pending.json")
+	store := newPendingStore(path)
+	store.record("task-zero", "[executor finished] outcome=non_delivery.", time.Now())
+	reloaded := newPendingStore(path)
+	snapshot := reloaded.snapshot()
+	if len(snapshot) != 1 || !snapshot[0].MustBlock {
+		t.Fatalf("reloaded pending judgment lost must_block: %+v", snapshot)
+	}
+}
+
 // TestReconcile_ReadErrorIsTransient: a center read error must NOT drop pending
 // entries (never assume terminal on a failed read).
 func TestReconcile_ReadErrorIsTransient(t *testing.T) {

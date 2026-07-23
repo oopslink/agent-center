@@ -689,13 +689,25 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 
 // CompleteTask moves running→completed and records the completer.
 func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
+	if err := s.PrecheckCompleteTask(ctx, taskID); err != nil {
+		return err
+	}
 	return s.CompleteTaskAfterPrecheck(ctx, taskID, by)
 }
 
 // PrecheckCompleteTask runs the external/read-only completion guards before a caller
-// opens its own write transaction. Currently a no-op (the cycle-specific merge guard
-// was removed); retained for API stability with callers that split precheck + commit.
+// opens its own write transaction.
 func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) error {
+	task, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	// T1169: once an executor has reported git evidence, completion must agree with it.
+	// Nil remains allowed for center-action/non-code tasks; a present but invalid
+	// delivery is positive zero/non-delivery evidence and requires block/retry.
+	if delivery := task.Delivery(); delivery != nil && !delivery.HasValidDelivery() {
+		return pm.ErrTaskNoValidDelivery
+	}
 	return nil
 }
 

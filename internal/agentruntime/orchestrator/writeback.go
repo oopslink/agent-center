@@ -199,6 +199,7 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 		// it (the Monitor keeps the dir on a Report error) rather than drop the result.
 		return fmt.Errorf("orchestrator: writeback read input %s: %w", c.ExecutorID, err)
 	}
+	c.Git = recoverInputBaseEvidence(c.Git, in.Repo)
 
 	// Relay this run's token usage (T613) BEFORE the result routing — best-effort so
 	// a usage-report failure never blocks the task completion/block (and so never
@@ -248,7 +249,7 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 		// produce a probed, clean commit that was durably pushed; otherwise report the
 		// terminal result as non_delivery so the Supervisor cannot mistake process
 		// completion for task completion. Claude and Codex share this writeback path.
-		if in.Repo != nil && !validCodeDelivery(c.Git) {
+		if in.Repo != nil && !validCodeDelivery(c.Git, in.Repo) {
 			reason := "non_delivery: code executor exited successfully without a verifiable durable git delivery"
 			if line := deliveryLine(c.Git); line != "" {
 				reason += "\n" + line
@@ -282,15 +283,41 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 	return w.writeMemory(ctx, in, c)
 }
 
-func validCodeDelivery(git *executor.FinalizedGitStatus) bool {
-	return git != nil &&
-		git.Probed &&
-		git.Pushed &&
-		!git.Dirty &&
-		git.BaseKnown &&
-		git.AheadOfBase > 0 &&
-		strings.TrimSpace(git.Branch) != "" &&
-		strings.TrimSpace(git.HeadSHA) != ""
+func validCodeDelivery(git *executor.FinalizedGitStatus, repo *executor.RepoRef) bool {
+	if git == nil || !git.Probed || !git.Pushed || git.Dirty ||
+		strings.TrimSpace(git.Branch) == "" || strings.TrimSpace(git.HeadSHA) == "" {
+		return false
+	}
+	if git.BaseKnown {
+		return git.AheadOfBase > 0
+	}
+	// T1169: session recovery can preserve the pushed HEAD while losing the probe's
+	// resolved BaseKnown/AheadOfBase fields. input.json still carries the immutable
+	// spawn-time BaseSHA. A pushed HEAD different from that expected base is positive
+	// advancement evidence; refusing it reverses a durable delivery to non_delivery.
+	return repo != nil &&
+		strings.TrimSpace(repo.BaseSHA) != "" &&
+		strings.TrimSpace(git.HeadSHA) != strings.TrimSpace(repo.BaseSHA)
+}
+
+// recoverInputBaseEvidence closes the T1169 reconnect gap. input.json is durable and
+// carries the immutable spawn-time BaseSHA even when a recovered git probe cannot
+// resolve its BaseRef. HeadSHA != BaseSHA proves at least one commit of advancement;
+// record that lower bound before both report_delivery persistence and judgment routing.
+func recoverInputBaseEvidence(git *executor.FinalizedGitStatus, repo *executor.RepoRef) *executor.FinalizedGitStatus {
+	if git == nil || repo == nil || git.BaseKnown || strings.TrimSpace(repo.BaseSHA) == "" {
+		return git
+	}
+	recovered := *git
+	if strings.TrimSpace(recovered.BaseRef) == "" {
+		recovered.BaseRef = strings.TrimSpace(repo.BaseSHA)
+	}
+	recovered.BaseKnown = true
+	if strings.TrimSpace(recovered.HeadSHA) != "" &&
+		strings.TrimSpace(recovered.HeadSHA) != strings.TrimSpace(repo.BaseSHA) {
+		recovered.AheadOfBase = 1
+	}
+	return &recovered
 }
 
 // reportFailure blocks the source task with the failure reason (atomic relay +
@@ -339,20 +366,28 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 	if len(s) > maxRelayChars {
 		s = s[:maxRelayChars]
 	}
-	return fmt.Sprintf(
-		"[executor finished] Your Agent's executor for task %s exited: outcome=%s.\n"+
-			"Identity contract: you are this Agent's Supervisor control plane, and the executor is this same Agent's isolated execution unit. "+
-			"Do not describe it as an external executor, outside agent, or someone else's delivery; final delivery remains YOUR judged responsibility.\n"+
-			"Its self-reported summary/reason:\n%s\n%s\n"+
-			"Now JUDGE the real delivery — check git (the reported delivery branch: is the commit "+
+	resolution := fmt.Sprintf(
+		"Now JUDGE the real delivery — check git (the reported delivery branch: is the commit "+
 			"pushed on origin? does the SHA match? and verify its BASE is the EXPECTED baseline via "+
 			"merge-base — not merely that it is recent; a branch cut from the wrong base silently "+
 			"drops already-merged work), whether the task's objective was actually met "+
 			"— then call complete_task(task_id=%q) if this Agent TRULY delivered, or "+
 			"block_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
 			"exit status alone: a run that produced nothing must be blocked (retryable), never "+
-			"completed.",
-		taskRef, outcome, s, deliveryLine(git), taskRef, taskRef,
+			"completed.", taskRef, taskRef)
+	if outcome == "non_delivery" {
+		resolution = fmt.Sprintf(
+			"This result is mechanically classified as non_delivery. You MUST call "+
+				"block_task(task_id=%q, reason=..., reason_type=obstacle) after recording the "+
+				"actual evidence. complete_task is forbidden for this result: process exit zero "+
+				"without a valid pushed delivery cannot complete the task.", taskRef)
+	}
+	return fmt.Sprintf(
+		"[executor finished] Your Agent's executor for task %s exited: outcome=%s.\n"+
+			"Identity contract: you are this Agent's Supervisor control plane, and the executor is this same Agent's isolated execution unit. "+
+			"Do not describe it as an external executor, outside agent, or someone else's delivery; final delivery remains YOUR judged responsibility.\n"+
+			"Its self-reported summary/reason:\n%s\n%s\n%s",
+		taskRef, outcome, s, deliveryLine(git), resolution,
 	)
 }
 

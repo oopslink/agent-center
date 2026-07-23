@@ -292,6 +292,29 @@ func TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery(t *testing.T) {
 	}
 }
 
+// T1169: a reconnect can lose the probe's resolved BaseKnown/AheadOfBase fields while
+// input.json still carries the expected base SHA. A clean pushed HEAD different from that
+// expected base is durable delivery and must not be reversed to non_delivery.
+func TestReport_PushedDeliveryUsesInputBaseWhenProbeBaseEvidenceMissing(t *testing.T) {
+	fc := &fakeCenter{}
+	in := baseInput("exec-pushed-reconnect")
+	in.Repo = &executor.RepoRef{URL: "git@example/repo.git", BaseRef: "main", BaseSHA: "base-sha"}
+	wb, _ := newWB(t, fc, in)
+	err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-pushed-reconnect",
+		Kind:       executor.OutcomeSucceeded,
+		Git: &executor.FinalizedGitStatus{
+			Probed: true, Pushed: true, Branch: "ac-exec/task-1/reconnect", HeadSHA: "delivery-sha",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if judgment := oneInjection(t, fc); !strings.Contains(judgment, "outcome=succeeded") || strings.Contains(judgment, "outcome=non_delivery") {
+		t.Fatalf("pushed delivery was reversed: %q", judgment)
+	}
+}
+
 func TestReport_Failed_BlocksTask(t *testing.T) {
 	fc := &fakeCenter{}
 	in := baseInput("exec-4")

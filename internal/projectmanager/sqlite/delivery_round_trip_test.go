@@ -60,13 +60,16 @@ func TestTaskRepo_Delivery_RoundTrip(t *testing.T) {
 	}
 
 	// A durable pushed delivery IS valid.
-	re.SetDelivery(&pm.Delivery{Probed: true, Pushed: true, Branch: "feat/x", HeadSHA: "def456"})
+	re.SetDelivery(&pm.Delivery{
+		Probed: true, Pushed: true, Branch: "feat/x", HeadSHA: "def456",
+		BaseRef: "base-sha", BaseKnown: true, AheadOfBase: 1,
+	})
 	if err := tr.Update(ctx, re); err != nil {
 		t.Fatal(err)
 	}
 	pushed, _ := tr.FindByID(ctx, "T1")
 	if !pushed.Delivery().HasValidDelivery() {
-		t.Fatalf("probed && pushed must be a valid delivery: %+v", pushed.Delivery())
+		t.Fatalf("pushed delivery with positive base advancement must be valid: %+v", pushed.Delivery())
 	}
 
 	// Complete zeroes the fruitless tally (a valid forward progress).
