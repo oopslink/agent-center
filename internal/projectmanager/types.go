@@ -347,5 +347,9 @@ var (
 	ErrStageStagelessNode = errors.New("projectmanager: a plan with stages may not contain a stageless business node — every node must belong to a stage")
 	// ErrMissingGateEvaluator rejects a staged plan whose gate has no executable
 	// producer task. Such a graph would otherwise wait forever on a bare condition.
-	ErrMissingGateEvaluator = errors.New("missing_gate_evaluator: stage gate has no executable evaluator task")
+	ErrMissingGateEvaluator     = errors.New("missing_gate_evaluator: stage gate has no executable evaluator task")
+	ErrUnsupportedGateEvaluator = errors.New("unsupported_gate_evaluator: only human stage gates are executable")
+	ErrMissingGateAssignee      = errors.New("missing_gate_assignee: human gate requires assignee_ref or role_ref")
+	ErrMissingGateContract      = errors.New("missing_gate_contract: human gate requires a non-empty acceptance_contract")
+	ErrInvalidGateRoute         = errors.New("invalid_gate_route: supported routes are pass=downstream, reject=reopen_stage, exhausted=escalate")
 )

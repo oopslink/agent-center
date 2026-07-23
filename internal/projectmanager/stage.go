@@ -65,12 +65,29 @@ type GateSpec struct {
 
 func DefaultHumanGateSpec(assignee IdentityRef) GateSpec {
 	return GateSpec{
-		EvaluatorKind:  GateEvaluatorHuman,
-		AssigneeRef:    assignee,
-		PassRoute:      "downstream",
-		RejectRoute:    "reopen_stage",
-		ExhaustedRoute: "escalate",
+		EvaluatorKind:      GateEvaluatorHuman,
+		AssigneeRef:        assignee,
+		AcceptanceContract: "Review the stage deliverables and record evidence against the acceptance criteria.",
+		PassRoute:          "downstream",
+		RejectRoute:        "reopen_stage",
+		ExhaustedRoute:     "escalate",
 	}
+}
+
+func (g GateSpec) Validate() error {
+	if g.EvaluatorKind != GateEvaluatorHuman {
+		return ErrUnsupportedGateEvaluator
+	}
+	if g.AssigneeRef == "" && strings.TrimSpace(g.RoleRef) == "" {
+		return ErrMissingGateAssignee
+	}
+	if strings.TrimSpace(g.AcceptanceContract) == "" {
+		return ErrMissingGateContract
+	}
+	if g.PassRoute != "downstream" || g.RejectRoute != "reopen_stage" || g.ExhaustedRoute != "escalate" {
+		return ErrInvalidGateRoute
+	}
+	return nil
 }
 
 // DefaultStageMaxRounds is the fallback stage-local retry bound when a Stage is

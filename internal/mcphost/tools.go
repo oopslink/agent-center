@@ -871,21 +871,35 @@ func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, a
 // --- create_stage / get_stage (2026-07-03 plan-stage-model §6) ---------------
 
 type createStageArgs struct {
-	PlanID          string   `json:"plan_id" jsonschema:"the draft plan to add the stage to"`
-	Name            string   `json:"name" jsonschema:"the stage's display name (its addressable label)"`
-	DependsOnStages []string `json:"depends_on_stages,omitempty" jsonschema:"stage_ids this stage barriers on — it starts only once every upstream stage is fully done AND its gate passes; omit for a root stage"`
-	MaxRounds       int      `json:"max_rounds,omitempty" jsonschema:"stage-local retry cap: how many times a gate reject may re-run this stage before it escalates to a human (default 3)"`
+	PlanID             string   `json:"plan_id" jsonschema:"the draft plan to add the stage to"`
+	Name               string   `json:"name" jsonschema:"the stage's display name (its addressable label)"`
+	DependsOnStages    []string `json:"depends_on_stages,omitempty" jsonschema:"stage_ids this stage barriers on — it starts only once every upstream stage is fully done AND its gate passes; omit for a root stage"`
+	MaxRounds          int      `json:"max_rounds,omitempty" jsonschema:"stage-local retry cap: how many times a gate reject may re-run this stage before it escalates to a human (default 3)"`
+	EvaluatorKind      string   `json:"evaluator_kind" jsonschema:"gate evaluator kind; currently human"`
+	AssigneeRef        string   `json:"assignee_ref,omitempty" jsonschema:"identity ref responsible for the human gate"`
+	RoleRef            string   `json:"role_ref,omitempty" jsonschema:"optional team role responsible for the human gate"`
+	AcceptanceContract string   `json:"acceptance_contract" jsonschema:"required acceptance criteria the evaluator must verify"`
+	PassRoute          string   `json:"pass_route,omitempty" jsonschema:"pass route; supported value downstream"`
+	RejectRoute        string   `json:"reject_route,omitempty" jsonschema:"reject route; supported value reopen_stage"`
+	ExhaustedRoute     string   `json:"exhausted_route,omitempty" jsonschema:"exhausted route; supported value escalate"`
 }
 
 // makeCreateStage backs create_stage. Body keys match createStageReq exactly.
 func makeCreateStage(cfg Config) mcp.ToolHandlerFor[createStageArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args createStageArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":          cfg.AgentID,
-			"plan_id":           args.PlanID,
-			"name":              args.Name,
-			"depends_on_stages": args.DependsOnStages,
-			"max_rounds":        args.MaxRounds,
+			"agent_id":            cfg.AgentID,
+			"plan_id":             args.PlanID,
+			"name":                args.Name,
+			"depends_on_stages":   args.DependsOnStages,
+			"max_rounds":          args.MaxRounds,
+			"evaluator_kind":      args.EvaluatorKind,
+			"assignee_ref":        args.AssigneeRef,
+			"role_ref":            args.RoleRef,
+			"acceptance_contract": args.AcceptanceContract,
+			"pass_route":          args.PassRoute,
+			"reject_route":        args.RejectRoute,
+			"exhausted_route":     args.ExhaustedRoute,
 		}
 		return callAdmin(ctx, cfg, "create_stage", body)
 	}

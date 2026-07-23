@@ -49,7 +49,7 @@ func TestStageRepo_RoundTrip(t *testing.T) {
 	if got.GateNodeID() != "gate-node" {
 		t.Fatalf("gate = %q, want gate-node", got.GateNodeID())
 	}
-	if got.GateTaskID() != "task-gate" || got.GateSpec().AssigneeRef != "user:pd" {
+	if got.GateTaskID() != "task-gate" || got.GateSpec().AssigneeRef != "user:pd" || got.GateSpec().AcceptanceContract == "" {
 		t.Fatalf("gate task/spec = %q %+v", got.GateTaskID(), got.GateSpec())
 	}
 	deps := got.DependsOnStages()

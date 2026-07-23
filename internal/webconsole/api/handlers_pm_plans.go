@@ -479,6 +479,10 @@ func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
 		"gate_node_id":      st.GateNodeID(),
 		"gate_task_id":      string(st.GateTaskID()),
 		"gate_spec":         st.GateSpec(),
+		"gate_outcome":      det.GateOutcome,
+		"gate_evidence":     det.GateEvidence,
+		"gate_reviewed_sha": det.GateReviewedSHA,
+		"diagnostics":       det.Diagnostics,
 		"members":           members,
 	}
 }

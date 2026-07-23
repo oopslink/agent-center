@@ -1029,10 +1029,12 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// arg; absent one, the completed decision is deferred to a human via
 	// NotifyDecisionDeferred AFTER the tx.
 	manualOutcome := strings.TrimSpace(deliveryOutcome)
+	stageGate := false
 	if _, isGate, gerr := d.PMService.StageForGateTask(r.Context(), pm.TaskID(req.TaskID)); gerr != nil {
 		mapDomainError(w, gerr)
 		return
 	} else if isGate {
+		stageGate = true
 		if manualOutcome != "pass" && manualOutcome != "reject" {
 			writeError(w, http.StatusBadRequest, "missing_gate_outcome", "stage gate completion requires outcome=pass|reject")
 			return
@@ -1045,6 +1047,11 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "missing_gate_reviewed_sha", "stage gate completion requires delivery.review.sha")
 			return
 		}
+	}
+	if stageGate {
+		reviewVerdict = manualOutcome
+		reviewBlocking = manualOutcome == pm.ReviewReject
+		reviewReason = deliverySummary
 	}
 	// issue-74df441a deferred-decision recovery: a DECISION node can end up
 	// already-completed WITHOUT its outcome recorded (deferred to a human). Re-running

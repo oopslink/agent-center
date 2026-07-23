@@ -1976,7 +1976,15 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
             },
             {
               id: 'st-b', name: 'Frontend', status: 'reopen', rounds: 1, max_rounds: 3,
-              depends_on_stages: ['st-a'], gate_node_id: 'gate-b',
+              depends_on_stages: ['st-a'], gate_node_id: 'gate-b', gate_task_id: 'gate-task-b',
+              gate_spec: {
+                evaluator_kind: 'human', assignee_ref: 'agent:reviewer',
+                acceptance_contract: 'Verify responsive UI and attach browser evidence.',
+                pass_route: 'downstream', reject_route: 'reopen_stage', exhausted_route: 'escalate',
+              },
+              gate_outcome: 'reject', gate_evidence: 'Mobile overlap remains',
+              gate_reviewed_sha: '0123456789abcdef',
+              diagnostics: [{ code: 'missing_browser_evidence', message: 'Attach a mobile screenshot' }],
               members: [
                 { task_id: 'n3', title: 'frontend list', task_status: 'running' },
                 { task_id: 'n4', title: 'migration', task_status: 'open' },
@@ -2001,6 +2009,12 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-status-st-b')).toHaveTextContent('reopen');
     expect(screen.getByTestId('plan-stage-progress-st-b')).toHaveTextContent('0/2');
     expect(screen.getByTestId('plan-stage-rounds-st-b')).toHaveTextContent('1/3');
+    expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:reviewer');
+    expect(screen.getByTestId('plan-stage-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
+    expect(screen.getByTestId('plan-stage-gate-routes-st-b')).toHaveTextContent('downstream / reopen_stage / escalate');
+    expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('reject');
+    expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('0123456789ab');
+    expect(screen.getByTestId('plan-stage-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
     expect(screen.getByTestId('plan-stage-ref-st-a')).toHaveTextContent('STAGE · S1');
     expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
   });

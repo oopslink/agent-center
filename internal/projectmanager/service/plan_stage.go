@@ -81,6 +81,18 @@ func (s *Service) validateStageGateSpecs(ctx context.Context, p *pm.Plan, tasks 
 				Message: "human gate requires assignee_ref or role_ref",
 			})
 		}
+		if strings.TrimSpace(spec.AcceptanceContract) == "" {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "missing_gate_contract",
+				Message: "human gate requires a non-empty acceptance contract",
+			})
+		}
+		if spec.PassRoute != "downstream" || spec.RejectRoute != "reopen_stage" || spec.ExhaustedRoute != "escalate" {
+			diagnostics = append(diagnostics, PlanDiagnostic{
+				NodeID: string(stage.ID()), Code: "invalid_gate_route",
+				Message: "stage gate routes do not match the executable contract",
+			})
+		}
 		if gateTask.PlanID() != p.ID() || gateTask.StageID() != stage.ID() {
 			diagnostics = append(diagnostics, PlanDiagnostic{
 				NodeID: string(stage.ID()), Code: "invalid_gate_binding",
@@ -133,6 +145,7 @@ type CreateStageCommand struct {
 	Name            string
 	DependsOnStages []pm.StageID
 	MaxRounds       int // 0 ⇒ pm.DefaultStageMaxRounds
+	GateSpec        pm.GateSpec
 	Actor           pm.IdentityRef
 }
 
@@ -164,9 +177,16 @@ func (s *Service) CreateStage(ctx context.Context, cmd CreateStageCommand) (pm.S
 		if !p.IsBuiltin() && p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
+		gateSpec := cmd.GateSpec
+		if gateSpec.EvaluatorKind == "" {
+			gateSpec = pm.DefaultHumanGateSpec(cmd.Actor)
+		}
+		if nerr := gateSpec.Validate(); nerr != nil {
+			return nerr
+		}
 		st, nerr := pm.NewStage(pm.NewStageInput{
 			ID: stageID, PlanID: cmd.PlanID, Name: cmd.Name,
-			DependsOnStages: cmd.DependsOnStages, MaxRounds: cmd.MaxRounds, CreatedAt: now,
+			DependsOnStages: cmd.DependsOnStages, MaxRounds: cmd.MaxRounds, GateSpec: gateSpec, CreatedAt: now,
 		})
 		if nerr != nil {
 			return nerr
@@ -201,13 +221,20 @@ func (s *Service) CreateStage(ctx context.Context, cmd CreateStageCommand) (pm.S
 }
 
 func (s *Service) provisionStageGateTask(txCtx context.Context, p *pm.Plan, st *pm.Stage, actor pm.IdentityRef, now time.Time) (pm.TaskID, error) {
-	gateSpec := pm.DefaultHumanGateSpec(actor)
+	gateSpec := st.GateSpec()
+	if gateSpec.EvaluatorKind == "" {
+		gateSpec = pm.DefaultHumanGateSpec(actor)
+	}
+	assignee := gateSpec.AssigneeRef
+	if assignee == "" {
+		assignee = actor
+	}
 	gateTaskID, err := s.CreateTask(txCtx, CreateTaskCommand{
 		ProjectID:    p.ProjectID(),
 		Title:        "Gate: " + st.Name(),
 		Description:  "Evaluate the stage acceptance contract and complete with outcome=pass or outcome=reject.",
 		CreatedBy:    actor,
-		Assignee:     actor,
+		Assignee:     assignee,
 		DispatchMode: pm.DispatchSupervisorInline,
 	})
 	if err != nil {
@@ -373,7 +400,11 @@ type StageDetail struct {
 	Status  pm.StageStatus
 	// Rounds is the number of completed gate-reject reopen rounds (the stage-local
 	// bounded-retry counter, = countReopens on the gate node). 0 before any reject.
-	Rounds int
+	Rounds          int
+	GateOutcome     string
+	GateEvidence    string
+	GateReviewedSHA string
+	Diagnostics     []PlanDiagnostic
 }
 
 // GetStage returns the DERIVED read model for a stage (§4.1 — status is a projection,
@@ -437,11 +468,46 @@ func (s *Service) projectStage(ctx context.Context, st *pm.Stage, planTasks []*p
 		memberStates = append(memberStates, taskToStageMemberState(t.Status()))
 	}
 	gateState, rounds := s.stageGateState(ctx, st)
+	var outcome, evidence, reviewedSHA string
+	if st.GateTaskID() != "" {
+		if verdict, ok, err := s.plans.GetReviewVerdict(ctx, st.PlanID(), st.GateTaskID()); err == nil && ok {
+			outcome, evidence, reviewedSHA = verdict.Verdict, verdict.Reason, verdict.SHA
+		}
+	}
+	var diagnostics []PlanDiagnostic
+	spec := st.GateSpec()
+	var gateTask *pm.Task
+	for _, task := range planTasks {
+		if task.ID() == st.GateTaskID() {
+			gateTask = task
+			break
+		}
+	}
+	if st.GateTaskID() == "" || gateTask == nil {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "missing_gate_evaluator", Message: "stage gate has no executable evaluator task"})
+	}
+	if spec.EvaluatorKind != pm.GateEvaluatorHuman {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "unsupported_gate_evaluator", Message: "only a bound human evaluator is executable"})
+	}
+	if spec.AssigneeRef == "" && strings.TrimSpace(spec.RoleRef) == "" {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "missing_gate_assignee", Message: "human gate requires assignee_ref or role_ref"})
+	}
+	if strings.TrimSpace(spec.AcceptanceContract) == "" {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "missing_gate_contract", Message: "human gate requires a non-empty acceptance contract"})
+	}
+	if spec.PassRoute != "downstream" || spec.RejectRoute != "reopen_stage" || spec.ExhaustedRoute != "escalate" {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "invalid_gate_route", Message: "stage gate routes do not match the executable contract"})
+	}
+	if gateTask != nil && !gateTask.DispatchMode().RoutesInline() {
+		diagnostics = append(diagnostics, PlanDiagnostic{NodeID: string(st.ID()), Code: "invalid_gate_dispatch_mode", Message: "human gate evaluator must use supervisor_inline dispatch"})
+	}
 	return &StageDetail{
-		Stage:   st,
-		Members: views,
-		Status:  pm.ProjectStageStatus(memberStates, gateState),
-		Rounds:  rounds,
+		Stage:       st,
+		Members:     views,
+		Status:      pm.ProjectStageStatus(memberStates, gateState),
+		Rounds:      rounds,
+		GateOutcome: outcome, GateEvidence: evidence, GateReviewedSHA: reviewedSHA,
+		Diagnostics: diagnostics,
 	}
 }
 

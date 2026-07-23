@@ -118,6 +118,41 @@ func TestCreatePlan_CrossWorker_403(t *testing.T) {
 	}
 }
 
+func TestCreateStage_RejectsMissingHumanGateContract(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, planID := f.seedPlanMember(t)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_stage", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID, "name": "Acceptance", "evaluator_kind": "human"})
+	if status != http.StatusBadRequest || body["error"] != "missing_gate_contract" {
+		t.Fatalf("status=%d body=%v, want 400 missing_gate_contract", status, body)
+	}
+}
+
+func TestCreateStage_PersistsHumanGateContract(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, planID := f.seedPlanMember(t)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_stage", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "plan_id": planID, "name": "Acceptance",
+		"evaluator_kind": "human", "assignee_ref": "agent:" + atAgent1,
+		"role_ref": "reviewer", "acceptance_contract": "Verify API, DB, and browser evidence.",
+		"pass_route": "downstream", "reject_route": "reopen_stage", "exhausted_route": "escalate",
+	})
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	detail, err := f.pmSvc.GetStage(context.Background(), pm.StageID(body["stage_id"].(string)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := detail.Stage.GateSpec(); got.AcceptanceContract != "Verify API, DB, and browser evidence." || got.RoleRef != "reviewer" {
+		t.Fatalf("gate spec = %+v", got)
+	}
+}
+
 // --- add_task_to_plan / remove_task_from_plan --------------------------------
 
 func TestAddTaskToPlan_AsMember_OK(t *testing.T) {

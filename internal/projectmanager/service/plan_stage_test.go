@@ -58,7 +58,10 @@ func TestCreateStage_ProvisionsExecutableGateTask(t *testing.T) {
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
 	h.drain(t)
 
-	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", Actor: "user:a"})
+	spec := pm.DefaultHumanGateSpec("user:a")
+	spec.RoleRef = "reviewer"
+	spec.AcceptanceContract = "All integration tests pass and the reviewed SHA is on main."
+	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", GateSpec: spec, Actor: "user:a"})
 	if err != nil {
 		t.Fatalf("CreateStage: %v", err)
 	}
@@ -79,8 +82,23 @@ func TestCreateStage_ProvisionsExecutableGateTask(t *testing.T) {
 	if gateTask.Assignee() != "user:a" || !gateTask.DispatchMode().RoutesInline() {
 		t.Fatalf("gate execution assignee=%s mode=%s", gateTask.Assignee(), gateTask.DispatchMode())
 	}
+	if got := detail.Stage.GateSpec(); got.AcceptanceContract != spec.AcceptanceContract || got.RoleRef != "reviewer" {
+		t.Fatalf("gate spec = %+v, want persisted contract and role", got)
+	}
 	if diagnostics, err := h.svc.CompileAndValidatePlan(ctx, planID, "user:a"); err != nil || len(diagnostics) != 0 {
 		t.Fatalf("CompileAndValidatePlan diagnostics=%+v err=%v", diagnostics, err)
+	}
+}
+
+func TestCreateStage_RejectsEmptyHumanGateContract(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	spec := pm.DefaultHumanGateSpec("user:a")
+	spec.AcceptanceContract = ""
+	if _, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", GateSpec: spec, Actor: "user:a"}); !errors.Is(err, pm.ErrMissingGateContract) {
+		t.Fatalf("CreateStage error = %v, want ErrMissingGateContract", err)
 	}
 }
 

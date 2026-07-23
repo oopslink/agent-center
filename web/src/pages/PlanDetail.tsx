@@ -2052,7 +2052,7 @@ export function layoutGraph(
 // Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
 // whose graph predates staging for some nodes) is defensively laid out with
 // the plain algorithm in a trailing row so nothing is silently dropped.
-const STAGE_HEADER_H = 40;
+const STAGE_HEADER_H = 132;
 const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
 const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
 
@@ -2526,6 +2526,7 @@ function PlanGraphDag({
                         </span>
                       )}
                     </div>
+                    <StageGateAudit stage={b.stage} />
                   </div>
                 </div>
                 );
@@ -2621,6 +2622,35 @@ const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
   reopen: 'bg-warning/15 text-warning',
   open: 'bg-bg-subtle text-text-muted',
 };
+
+function StageGateAudit({ stage }: { stage: PlanStage }) {
+  const spec = stage.gate_spec;
+  if (!spec) return null;
+  const owner = spec.assignee_ref || spec.role_ref || 'unassigned';
+  return (
+    <div className="mt-2 grid gap-1 border-t border-border-base pt-1.5 text-[0.625rem] leading-4 text-text-secondary" data-testid={`plan-stage-gate-audit-${stage.id}`}>
+      <div className="flex min-w-0 flex-wrap gap-x-3">
+        <span data-testid={`plan-stage-gate-evaluator-${stage.id}`}>{spec.evaluator_kind} · {owner}</span>
+        <span data-testid={`plan-stage-gate-routes-${stage.id}`}>{spec.pass_route} / {spec.reject_route} / {spec.exhausted_route}</span>
+      </div>
+      <div className="line-clamp-2 break-words text-text-primary" title={spec.acceptance_contract} data-testid={`plan-stage-gate-contract-${stage.id}`}>
+        {spec.acceptance_contract || 'Missing acceptance contract'}
+      </div>
+      {(stage.gate_outcome || stage.gate_evidence || stage.gate_reviewed_sha) && (
+        <div className="flex min-w-0 flex-wrap gap-x-3" data-testid={`plan-stage-gate-evidence-${stage.id}`}>
+          {stage.gate_outcome && <span className="font-semibold uppercase">{stage.gate_outcome}</span>}
+          {stage.gate_evidence && <span className="max-w-[18rem] truncate" title={stage.gate_evidence}>{stage.gate_evidence}</span>}
+          {stage.gate_reviewed_sha && <span className="font-mono">{stage.gate_reviewed_sha.slice(0, 12)}</span>}
+        </div>
+      )}
+      {!!stage.diagnostics?.length && (
+        <div className="truncate text-danger" title={stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n')} data-testid={`plan-stage-gate-diagnostics-${stage.id}`}>
+          {stage.diagnostics.map((d) => d.code).join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // stageMemberDone mirrors the backend taskToStageMemberState "done" bucket (§4.1):
 // a member counts as done once its task is terminal (completed or discarded).
@@ -2920,6 +2950,7 @@ function LegacyPlanDag({
                         </span>
                       )}
                     </div>
+                    <StageGateAudit stage={box.stage} />
                   </div>
                 </div>
               );

@@ -86,7 +86,9 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrEmptyStageName), errors.Is(err, pm.ErrStageExists),
 		errors.Is(err, pm.ErrStageCycle), errors.Is(err, pm.ErrStageSelfDependency),
 		errors.Is(err, pm.ErrStageCrossPlanDependency), errors.Is(err, pm.ErrStageProjectMismatch),
-		errors.Is(err, pm.ErrStageCrossEdge), errors.Is(err, pmservice.ErrNotStageGate):
+		errors.Is(err, pm.ErrStageCrossEdge), errors.Is(err, pmservice.ErrNotStageGate),
+		errors.Is(err, pm.ErrUnsupportedGateEvaluator), errors.Is(err, pm.ErrMissingGateAssignee),
+		errors.Is(err, pm.ErrMissingGateContract), errors.Is(err, pm.ErrInvalidGateRoute):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 	default:
 		mapDomainError(w, err)
@@ -430,11 +432,18 @@ func (s *Server) archivePlanHandler(w http.ResponseWriter, r *http.Request) {
 // --- create_stage / get_stage (2026-07-03 plan-stage-model §6) ---------------
 
 type createStageReq struct {
-	AgentID         string   `json:"agent_id"`
-	PlanID          string   `json:"plan_id"`
-	Name            string   `json:"name"`
-	DependsOnStages []string `json:"depends_on_stages"`
-	MaxRounds       int      `json:"max_rounds"`
+	AgentID            string   `json:"agent_id"`
+	PlanID             string   `json:"plan_id"`
+	Name               string   `json:"name"`
+	DependsOnStages    []string `json:"depends_on_stages"`
+	MaxRounds          int      `json:"max_rounds"`
+	EvaluatorKind      string   `json:"evaluator_kind"`
+	AssigneeRef        string   `json:"assignee_ref"`
+	RoleRef            string   `json:"role_ref"`
+	AcceptanceContract string   `json:"acceptance_contract"`
+	PassRoute          string   `json:"pass_route"`
+	RejectRoute        string   `json:"reject_route"`
+	ExhaustedRoute     string   `json:"exhausted_route"`
 }
 
 // createStageHandler authors a Stage in a draft plan via pm.CreateStage (actor=agent).
@@ -460,6 +469,29 @@ func (s *Server) createStageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
 		return
 	}
+	if strings.TrimSpace(req.AcceptanceContract) == "" {
+		writeError(w, http.StatusBadRequest, "missing_gate_contract", "create_stage requires a non-empty acceptance_contract")
+		return
+	}
+	actor := pm.IdentityRef(agentActor(a))
+	spec := pm.DefaultHumanGateSpec(actor)
+	if req.EvaluatorKind != "" {
+		spec.EvaluatorKind = pm.GateEvaluatorKind(req.EvaluatorKind)
+	}
+	if req.AssigneeRef != "" || req.RoleRef != "" {
+		spec.AssigneeRef = pm.IdentityRef(req.AssigneeRef)
+		spec.RoleRef = req.RoleRef
+	}
+	spec.AcceptanceContract = req.AcceptanceContract
+	if req.PassRoute != "" {
+		spec.PassRoute = req.PassRoute
+	}
+	if req.RejectRoute != "" {
+		spec.RejectRoute = req.RejectRoute
+	}
+	if req.ExhaustedRoute != "" {
+		spec.ExhaustedRoute = req.ExhaustedRoute
+	}
 	deps := make([]pm.StageID, 0, len(req.DependsOnStages))
 	for _, d := range req.DependsOnStages {
 		if s := strings.TrimSpace(d); s != "" {
@@ -471,7 +503,8 @@ func (s *Server) createStageHandler(w http.ResponseWriter, r *http.Request) {
 		Name:            req.Name,
 		DependsOnStages: deps,
 		MaxRounds:       req.MaxRounds,
-		Actor:           pm.IdentityRef(agentActor(a)),
+		GateSpec:        spec,
+		Actor:           actor,
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
@@ -538,6 +571,10 @@ func stageDetailMap(detail *pmservice.StageDetail) map[string]any {
 		"max_rounds":        st.MaxRounds(),
 		"status":            string(detail.Status),
 		"rounds":            detail.Rounds,
+		"gate_outcome":      detail.GateOutcome,
+		"gate_evidence":     detail.GateEvidence,
+		"gate_reviewed_sha": detail.GateReviewedSHA,
+		"diagnostics":       detail.Diagnostics,
 		"members":           members,
 	}
 }

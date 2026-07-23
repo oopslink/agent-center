@@ -369,6 +369,10 @@ export interface PlanStage {
     reject_route: string;
     exhausted_route: string;
   };
+  gate_outcome?: 'pass' | 'reject';
+  gate_evidence?: string;
+  gate_reviewed_sha?: string;
+  diagnostics?: Array<{ node_id?: string; code: string; message: string; hint?: string }>;
   members: PlanStageMember[];
 }
 
