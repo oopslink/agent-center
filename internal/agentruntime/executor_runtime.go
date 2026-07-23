@@ -797,27 +797,24 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		}
 	} else if task.Repo != nil {
 		target := resolveRepoTarget(task)
-		execID = ee.engine.NewExecutorID()
-		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
-		if wsErr != nil {
-			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+		clone, ready := r.takePreparedClone(taskID)
+		if !ready {
+			execID = ee.engine.NewExecutorID()
+			wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
+			if wsErr != nil {
+				r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+				return nil, nil
+			}
+			r.deferForClone(agentID, taskID, target, reporepo.CloneRequest{
+				ExecutorID:    execID,
+				TaskID:        taskID,
+				BranchName:    "ac-exec/" + taskID + "/" + execID,
+				WorkspacePath: wsPath,
+				BaseRef:       target.BaseRef,
+			})
 			return nil, nil
 		}
-		cloneCtx, cloneCancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
-		clone, cloneErr := r.cfg.CloneMaterializer.PrepareClone(cloneCtx, target, reporepo.CloneRequest{
-			ExecutorID:    execID,
-			TaskID:        taskID,
-			BranchName:    "ac-exec/" + taskID + "/" + execID,
-			WorkspacePath: wsPath,
-			BaseRef:       target.BaseRef,
-		})
-		cloneCancel()
-		if cloneErr != nil {
-			r.log("work_available agent=%s task=%s prepare clone: %v — executor NOT forked; failing task loud",
-				agentID, taskID, cloneErr)
-			r.failTaskRepoUnavailable(agentID, taskID, cloneErr)
-			return nil, nil
-		}
+		execID = clone.ExecutorID
 		prepared = &executor.PreparedWorkspace{
 			Path:    clone.WorkspacePath,
 			Branch:  clone.Branch,

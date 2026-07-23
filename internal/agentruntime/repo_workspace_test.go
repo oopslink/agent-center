@@ -108,6 +108,10 @@ type recordingMaterializer struct {
 	removed    []removeArgs
 	pruneCalls []pruneCall
 	lastTarget reporepo.RepoTarget
+
+	cloneStarted chan struct{}
+	cloneRelease chan struct{}
+	cloneOnce    sync.Once
 }
 
 var _ reporepo.RepoMaterializer = (*recordingMaterializer)(nil)
@@ -161,6 +165,16 @@ func (m *recordingMaterializer) PrepareClone(ctx context.Context, target reporep
 	m.cloned = append(m.cloned, req)
 	m.cloneCtx = append(m.cloneCtx, cloneCtxProbe{err: ctx.Err(), hasDeadline: hasDeadline})
 	m.mu.Unlock()
+	if m.cloneStarted != nil {
+		m.cloneOnce.Do(func() { close(m.cloneStarted) })
+	}
+	if m.cloneRelease != nil {
+		select {
+		case <-m.cloneRelease:
+		case <-ctx.Done():
+			return reporepo.PreparedClone{}, ctx.Err()
+		}
+	}
 	if m.prepareErr != nil {
 		return reporepo.PreparedClone{}, m.prepareErr
 	}
@@ -368,9 +382,10 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone(t *testing.T) 
 	if err != nil {
 		t.Fatalf("SpawnExecutor: %v", err)
 	}
-	if res == nil {
-		t.Fatalf("OFF path must fork inline after independent clone, got nil")
+	if res != nil {
+		t.Fatalf("OFF path must defer its network clone off the control path, got %+v", res)
 	}
+	rt.waitClonePrewarm()
 
 	order := seq.snapshot()
 	if indexOf(order, "EnsureSource") >= 0 || indexOf(order, "PrepareWorktree") >= 0 || indexOf(order, "PruneOrphanWorktrees") >= 0 {
@@ -399,32 +414,57 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone(t *testing.T) 
 	}
 }
 
-func TestSpawnExecutor_Repo_WorktreeSwitchOffPrepareCloneIgnoresCancelledCallerCtx(t *testing.T) {
+func TestSpawnExecutor_Repo_WorktreeSwitchOffCloneOutlivesControlDeadline(t *testing.T) {
 	seq := &callSeq{}
-	mat := &recordingMaterializer{seq: seq, repoKey: "key-off", sourcePath: t.TempDir() + "/src", baseRef: "main"}
-	rt, _, _ := engineForAgentClone(t, "agent-repo-off-short-ctx", mat)
-	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-off-short-ctx")}
-	setToolCaller(rt, sc)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	res, err := rt.SpawnExecutor(ctx, SpawnRequest{TaskID: "task-off-short-ctx"})
-	if err != nil {
-		t.Fatalf("SpawnExecutor: %v", err)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	mat := &recordingMaterializer{
+		seq:          seq,
+		repoKey:      "key-off-background",
+		sourcePath:   t.TempDir() + "/src",
+		baseRef:      "main",
+		cloneStarted: started,
+		cloneRelease: release,
 	}
-	if res == nil {
-		t.Fatalf("OFF path must prepare clone under its own bounded ctx and fork, got nil")
-	}
+	rt, _, home := engineForAgentClone(t, "agent-repo-off-background", mat)
+	setToolCaller(rt, &scriptedToolCaller{
+		seq:         seq,
+		getTaskBody: repoTaskBody("task-off-background"),
+	})
 
+	controlCtx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	res, err := rt.SpawnExecutor(controlCtx, SpawnRequest{TaskID: "task-off-background"})
+	if err != nil || res != nil {
+		t.Fatalf("SpawnExecutor = (%v, %v), want deferred (nil, nil)", res, err)
+	}
+	if err := controlCtx.Err(); err != nil {
+		t.Fatalf("control deadline expired before SpawnExecutor returned: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("background clone did not start")
+	}
 	probes := mat.cloneCtxProbes()
-	if len(probes) != 1 {
-		t.Fatalf("PrepareClone ctx probes = %d, want 1", len(probes))
+	if len(probes) != 1 || probes[0].err != nil || !probes[0].hasDeadline {
+		t.Fatalf("background clone ctx probes = %+v, want independent live deadline", probes)
 	}
-	if probes[0].err != nil {
-		t.Fatalf("PrepareClone inherited cancelled caller ctx: %v", probes[0].err)
+
+	<-controlCtx.Done()
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("executor forked before clone completed: %+v", probs)
 	}
-	if !probes[0].hasDeadline {
-		t.Fatalf("PrepareClone ctx must be independently bounded")
+	close(release)
+	rt.waitClonePrewarm()
+
+	if probs := loadRouting(t, home); len(probs) != 1 {
+		t.Fatalf("executor routing after clone = %+v, want one launch", probs)
+	}
+	order := seq.snapshot()
+	iClone, iStart := indexOf(order, "PrepareClone"), indexOf(order, "start_task")
+	if iClone < 0 || iStart < 0 || iClone >= iStart {
+		t.Fatalf("order = %v, want clone completion before start_task", order)
 	}
 }
 
@@ -439,6 +479,7 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffCloneFailureFailsLoud(t *testing.T)
 	if err != nil || res != nil {
 		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
 	}
+	rt.waitClonePrewarm()
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("failed clone must NOT fork, got %+v", probs)
 	}
@@ -462,6 +503,7 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffStartTaskDeclinedCleansClone(t *tes
 	if err != nil || res != nil {
 		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
 	}
+	rt.waitClonePrewarm()
 	reqs := mat.cloneReqs()
 	if len(reqs) == 0 {
 		t.Fatal("PrepareClone was not called")

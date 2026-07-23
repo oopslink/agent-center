@@ -127,6 +127,9 @@ type LocalRuntimeConfig struct {
 	SourceFreshFor        time.Duration
 	SourcePrewarmBackoff  time.Duration
 	SourcePrewarmAttempts int
+	// ClonePrepareTimeout bounds one executor_git_worktree=OFF independent clone.
+	// The clone runs off the control path; zero uses the production default.
+	ClonePrepareTimeout time.Duration
 
 	// SkillLayerRoots resolves the four claude-code skill-layer directories to scan for
 	// the OBSERVED installed-skill report (issue-4a45e9cc). It is injected so tests can
@@ -162,6 +165,9 @@ type LocalRuntime struct {
 	// materialize + re-drive of the tasks that deferred on it. See source_prewarm.go.
 	// Has its own lock; never nested with r.mu or forkMu.
 	sources sourceGate
+	// clones keeps executor_git_worktree=OFF network clones off the control path.
+	// It is keyed by task because each task gets one independent executor checkout.
+	clones cloneGate
 
 	// forkMu (red line #1) serializes the get_task→start_task→launch fork sequence
 	// (SpawnExecutor) AND the shared launch tail (launchExecutor) so two concurrent
