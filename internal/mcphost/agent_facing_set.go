@@ -67,6 +67,10 @@ var AgentFacingToolNames = []string{
 	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
 	"get_plan",
 	"get_task",
+	"get_task_audit",
+	"list_task_executions",
+	"get_task_execution",
+	"get_agent_runtime_effective_config",
 	"list_findings",
 	"list_plans",
 	"list_tasks",

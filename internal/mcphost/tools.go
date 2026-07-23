@@ -43,6 +43,37 @@ func makeGetTask(cfg Config) mcp.ToolHandlerFor[getTaskArgs, any] {
 	}
 }
 
+type taskReadArgs struct {
+	TaskID      string `json:"task_id" jsonschema:"task whose audit or executions to read"`
+	ExecutionID string `json:"execution_id,omitempty" jsonschema:"executor run id (required by get_task_execution)"`
+	PageSize    int    `json:"page_size,omitempty" jsonschema:"page size (default 50, max 100)"`
+	Offset      int    `json:"offset,omitempty" jsonschema:"number of records to skip"`
+}
+
+func makeTaskRead(cfg Config, tool string) mcp.ToolHandlerFor[taskReadArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args taskReadArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "task_id": args.TaskID}
+		if args.ExecutionID != "" {
+			body["execution_id"] = args.ExecutionID
+		}
+		if args.PageSize > 0 {
+			body["page_size"] = args.PageSize
+		}
+		if args.Offset > 0 {
+			body["offset"] = args.Offset
+		}
+		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+type effectiveConfigArgs struct{}
+
+func makeEffectiveConfig(cfg Config) mcp.ToolHandlerFor[effectiveConfigArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ effectiveConfigArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_agent_runtime_effective_config", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
 // --- list_tasks (v2.9.1 #T38) ------------------------------------------------
 
 type listTasksArgs struct {

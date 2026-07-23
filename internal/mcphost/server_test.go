@@ -102,6 +102,8 @@ var wantTools = []string{
 	"find_org_channel",
 	// reads
 	"get_task", "get_issue", "list_tasks",
+	"get_task_audit", "list_task_executions", "get_task_execution",
+	"get_agent_runtime_effective_config",
 	// v2.10.3 T170: agent issue management
 	"create_issue", "update_issue", "close_issue", "reopen_issue",
 	"list_issues", "list_tasks_of_issue",

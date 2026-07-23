@@ -203,6 +203,26 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeGetTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_task_audit",
+		Description: "Read a project-visible task's stable, paginated lifecycle audit history. Notes are bounded and secret-shaped content is redacted.",
+	}, makeTaskRead(cfg, "get_task_audit"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_task_executions",
+		Description: "List stable executor runs linked to a project-visible task, reconstructed from persisted executor lifecycle events.",
+	}, makeTaskRead(cfg, "list_task_executions"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_task_execution",
+		Description: "Read one executor run linked to a project-visible task by execution_id, including CLI/model, outcome, error and recovery state.",
+	}, makeTaskRead(cfg, "get_task_execution"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_agent_runtime_effective_config",
+		Description: "Read this agent's desired and observed effective non-sensitive runtime configuration. Secrets and environment values are never returned.",
+	}, makeEffectiveConfig(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_tasks",
 		Description: "List all tasks in a project (board overview), optionally filtered by status and/or assignee. Requires project_id; the caller must be a project member.",
 	}, makeListTasks(cfg))

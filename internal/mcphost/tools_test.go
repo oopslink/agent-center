@@ -40,6 +40,24 @@ func TestJSONToolsForwarding(t *testing.T) {
 			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1"},
 		},
 		{
+			toolName: "get_task_audit",
+			args:     map[string]any{"task_id": "t-1", "page_size": 10, "offset": 20},
+			wantTool: "get_task_audit",
+			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1", "page_size": float64(10), "offset": float64(20)},
+		},
+		{
+			toolName: "get_task_execution",
+			args:     map[string]any{"task_id": "t-1", "execution_id": "exec-1"},
+			wantTool: "get_task_execution",
+			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1", "execution_id": "exec-1"},
+		},
+		{
+			toolName: "get_agent_runtime_effective_config",
+			args:     map[string]any{},
+			wantTool: "get_agent_runtime_effective_config",
+			wantBody: map[string]any{"agent_id": "agent-X"},
+		},
+		{
 			toolName: "get_issue",
 			args:     map[string]any{"issue_id": "i-9"},
 			wantTool: "get_issue",

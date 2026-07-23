@@ -34,6 +34,10 @@ var secondaryTools = []struct{ name, summary string }{
 	// task link / assignment admin
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
+	{"get_task_audit", "read a task's redacted lifecycle audit history"},
+	{"list_task_executions", "list executor runs linked to a task"},
+	{"get_task_execution", "inspect one executor run linked to a task"},
+	{"get_agent_runtime_effective_config", "compare desired and effective runtime configuration without secrets"},
 	// reminders (T206 Cognition) are CORE — kept OUT of this deferred manifest
 	// (T252, issue-c438cde1). They were deferred, but that DOUBLE-hid them: in a
 	// harness whose own tool-search only surfaces tools the MCP server has already
