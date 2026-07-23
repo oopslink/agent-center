@@ -85,6 +85,13 @@ function stage(over: Partial<PlanStage> & { id: string }): PlanStage {
     max_rounds: 3,
     depends_on_stages: [],
     gate_node_id: '',
+    gate_task_id: '',
+    gate_spec: {
+      evaluator_kind: 'human',
+      pass_route: '',
+      reject_route: '',
+      exhausted_route: '',
+    },
     members: [],
     ...over,
   };
