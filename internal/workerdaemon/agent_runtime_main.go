@@ -258,10 +258,6 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		// this process exits and the worker launcher rebuilds it (bounded backoff).
 		OnFatal: onFatal,
 	}
-	// Every code executor needs a deterministic repository preflight. The worktree
-	// option controls the source-reuse strategy; it no longer controls whether a
-	// repository exists at all. Wiring the materializer unconditionally prevents the
-	// OFF path from silently spawning a model in an empty directory.
 	home := filepath.Join(homeBase, "agents", opts.AgentID)
 	reposRoot := filepath.Join(home, "repos")
 	mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
@@ -270,9 +266,18 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 			opts.AgentID, reposRoot, merr)
 	}
 	mat.Log = func(msg string) { logf(msg) }
-	rc.Materializer = mat
-	rc.ReposRoot = reposRoot
+	if gitWorktreeFlagEnabled() {
+		rc.Materializer = mat
+		rc.ReposRoot = reposRoot
+	} else {
+		rc.CloneMaterializer = mat
+	}
 	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{}), nil
+}
+
+func gitWorktreeFlagEnabled() bool {
+	v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 // agentExecConfig fetches THIS agent's executor config from the center ResumeState —

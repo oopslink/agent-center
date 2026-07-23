@@ -108,11 +108,33 @@ type PreparedWorktree struct {
 	BaseRef string
 }
 
+// CloneRequest describes an independent per-executor clone to materialize directly at
+// the executor workspace. This is the executor_git_worktree=OFF path: no shared
+// canonical source and no git worktree admin state are used.
+type CloneRequest struct {
+	ExecutorID    string
+	TaskID        string
+	BranchName    string
+	WorkspacePath string
+	BaseRef       string
+}
+
+// PreparedClone is a standalone executor checkout. BaseRef is the concrete commit SHA
+// checked out before the executor forks.
+type PreparedClone struct {
+	ExecutorID    string
+	RepoKey       string
+	WorkspacePath string
+	Branch        string
+	BaseRef       string
+}
+
 // RepoMaterializer is the replaceable port the runtime uses to materialize repo
 // sources and derive per-executor worktrees (design §8).
 type RepoMaterializer interface {
 	EnsureSource(ctx context.Context, target RepoTarget) (SourceRepo, error)
 	PrepareWorktree(ctx context.Context, source SourceRepo, req WorktreeRequest) (PreparedWorktree, error)
+	PrepareClone(ctx context.Context, target RepoTarget, req CloneRequest) (PreparedClone, error)
 	RemoveWorktree(ctx context.Context, wt PreparedWorktree) error
 	// PruneOrphanWorktrees reaps per-executor worktrees under ONE source whose owning
 	// executor is no longer live (v2.31.1 orphan-reap). isLive reports whether an
@@ -503,6 +525,66 @@ func (m *LocalGitMaterializer) PrepareWorktree(ctx context.Context, source Sourc
 	}, nil
 }
 
+// PrepareClone materializes an independent repository clone directly at the executor
+// workspace. It intentionally does NOT call EnsureSource and does NOT create a git
+// worktree: executor_git_worktree=OFF means no shared canonical checkout and no linked
+// worktree state.
+func (m *LocalGitMaterializer) PrepareClone(ctx context.Context, target RepoTarget, req CloneRequest) (PreparedClone, error) {
+	url := strings.TrimSpace(target.URL)
+	if url == "" {
+		return PreparedClone{}, ErrRepoURLRequired
+	}
+	if strings.TrimSpace(req.WorkspacePath) == "" {
+		return PreparedClone{}, errors.New("reporepo: workspace_path required")
+	}
+	if strings.TrimSpace(req.BranchName) == "" {
+		return PreparedClone{}, errors.New("reporepo: branch_name required")
+	}
+	baseRef := strings.TrimSpace(req.BaseRef)
+	if baseRef == "" {
+		baseRef = target.resolvedBaseRef()
+	}
+	if baseRef == "" {
+		return PreparedClone{}, errors.New("reporepo: base_ref required")
+	}
+
+	key := RepoKey(url)
+	lk := m.lockFor("clone:" + key + ":" + req.ExecutorID)
+	lk.Lock()
+	defer lk.Unlock()
+
+	if pathExists(req.WorkspacePath) {
+		return PreparedClone{}, fmt.Errorf("reporepo: workspace path exists repo_key=%s", key)
+	}
+	if err := os.MkdirAll(filepath.Dir(req.WorkspacePath), 0o755); err != nil {
+		return PreparedClone{}, fmt.Errorf("reporepo: mkdir workspace parent repo_key=%s: %w", key, err)
+	}
+	cloneURL, err := m.trustedCloneURL(ctx, url)
+	if err != nil {
+		return PreparedClone{}, fmt.Errorf("reporepo: validate local clone source repo_key=%s: %w", key, err)
+	}
+	if _, err := m.git(ctx, filepath.Dir(req.WorkspacePath), "clone", cloneURL, req.WorkspacePath); err != nil {
+		_ = os.RemoveAll(req.WorkspacePath)
+		return PreparedClone{}, fmt.Errorf("reporepo: clone workspace repo_key=%s: %w", key, err)
+	}
+	baseCommit, err := m.resolveBaseCommit(ctx, req.WorkspacePath, baseRef)
+	if err != nil {
+		_ = os.RemoveAll(req.WorkspacePath)
+		return PreparedClone{}, fmt.Errorf("reporepo: resolve clone base repo_key=%s: %w", key, err)
+	}
+	if _, err := m.git(ctx, req.WorkspacePath, "checkout", "-B", req.BranchName, baseCommit); err != nil {
+		_ = os.RemoveAll(req.WorkspacePath)
+		return PreparedClone{}, fmt.Errorf("reporepo: checkout clone branch repo_key=%s: %w", key, err)
+	}
+	return PreparedClone{
+		ExecutorID:    req.ExecutorID,
+		RepoKey:       key,
+		WorkspacePath: req.WorkspacePath,
+		Branch:        req.BranchName,
+		BaseRef:       baseCommit,
+	}, nil
+}
+
 // RemoveWorktree tears down ONLY the per-executor worktree (design §10 hard rule:
 // the canonical source is never removed by cleanup). Delegates to
 // executor.WorktreeProvisioner (git worktree remove --force + prune).
@@ -710,6 +792,53 @@ func (m *LocalGitMaterializer) originURL(ctx context.Context, sourcePath string)
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// trustedCloneURL returns url after validating local filesystem repos before cloning
+// from them. Remote URLs fall through to git clone unchanged.
+func (m *LocalGitMaterializer) trustedCloneURL(ctx context.Context, url string) (string, error) {
+	path := localRepoPath(url)
+	if path == "" {
+		return url, nil
+	}
+	if ok, err := isUsableGitRepo(ctx, m, path); err != nil {
+		return "", err
+	} else if !ok {
+		return "", ErrSourceNotGitRepo
+	}
+	if origin, err := m.originURL(ctx, path); err == nil && strings.TrimSpace(origin) != "" {
+		if normalizeRepoURL(origin) != normalizeRepoURL(url) {
+			return "", ErrRemoteMismatch
+		}
+	}
+	return path, nil
+}
+
+func localRepoPath(url string) string {
+	s := strings.TrimSpace(url)
+	if strings.HasPrefix(s, "file://") {
+		return strings.TrimPrefix(s, "file://")
+	}
+	if filepath.IsAbs(s) || strings.HasPrefix(s, ".") {
+		return s
+	}
+	return ""
+}
+
+func isUsableGitRepo(ctx context.Context, m *LocalGitMaterializer, path string) (bool, error) {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if _, err := m.git(ctx, path, "rev-parse", "--is-inside-work-tree"); err == nil {
+		return true, nil
+	}
+	if _, err := m.git(ctx, path, "rev-parse", "--is-bare-repository"); err == nil {
+		return true, nil
+	}
+	return false, nil
 }
 
 // git runs a materializer-owned git command (clone / fetch / remote) under workdir
