@@ -626,6 +626,53 @@ func TestAPI_Bootstrap_ReflectsUserExistence(t *testing.T) {
 	}
 }
 
+func TestAPI_SigninCookieSecureFollowsRequestScheme(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.SigninSvc = identity.NewSigninService(deps.IdentityRepo, testSigningKey)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+	setupTestSession(t, db, deps)
+
+	cookie := signinCookie(t, s.URL, false)
+	if cookie.Secure {
+		t.Fatal("HTTP signin cookie must not be Secure; browsers drop Secure cookies on non-HTTPS production-local access")
+	}
+
+	cookie = signinCookie(t, s.URL, true)
+	if !cookie.Secure {
+		t.Fatal("HTTPS-forwarded signin cookie must be Secure")
+	}
+}
+
+func signinCookie(t *testing.T, base string, forwardedHTTPS bool) *http.Cookie {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, base+"/api/auth/signin", strings.NewReader(`{"display_name":"testuser","passcode":"123456"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if forwardedHTTPS {
+		req.Header.Set("X-Forwarded-Proto", "https")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("signin: status=%d body=%s", resp.StatusCode, body)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == jwtCookieName {
+			return c
+		}
+	}
+	t.Fatal("signin response missing session cookie")
+	return nil
+}
+
 func bootstrapInitialized(t *testing.T, base string) bool {
 	t.Helper()
 	resp, err := http.Get(base + "/api/auth/bootstrap")

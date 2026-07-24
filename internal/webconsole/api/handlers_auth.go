@@ -72,7 +72,7 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 	// Auto-signin: mint JWT and set cookie.
 	if d.SigninSvc != nil {
 		if token, err := d.SigninSvc.Execute(r.Context(), body.DisplayName, body.Passcode); err == nil {
-			setSessionCookie(w, token.JWT)
+			setSessionCookie(w, r, token.JWT)
 		}
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -103,7 +103,7 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "auth_failed", "invalid display name or passcode")
 		return
 	}
-	setSessionCookie(w, res.JWT)
+	setSessionCookie(w, r, res.JWT)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"identity_id": res.IdentityID,
 	})
@@ -235,13 +235,20 @@ func CurrentIdentity(r *http.Request) *identity.Identity {
 	return v
 }
 
-func setSessionCookie(w http.ResponseWriter, jwtToken string) {
+func requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+func setSessionCookie(w http.ResponseWriter, r *http.Request, jwtToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     jwtCookieName,
 		Value:    jwtToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true, // browsers on localhost allow Secure over http; production requires https
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int((7 * 24 * time.Hour).Seconds()),
 	})
