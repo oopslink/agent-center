@@ -124,7 +124,9 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 	// rt.Start → session never starts). Runs AFTER executor self-reconcile (step 3), BEFORE
 	// serving control (step 4) so a later reconcile — if any — hits the rt.Start idempotency
 	// guard and converges on ONE session (no double-start).
-	bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf)
+	if !bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf) {
+		go retryBootStartSupervisorSession(ctx, rt, client, opts, cfg, logf, time.Second)
+	}
 
 	// 4) control server — opened ONLY after Boot returned.
 	sockPath := filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID))
@@ -334,16 +336,16 @@ func agentResumeRecord(ctx context.Context, client *AdminClient, workerID, agent
 //
 // Best-effort: a per-step failure is logged; the process still serves. Idempotent with a
 // later control reconcile via the rt.Start no-double-start guard.
-func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRuntime, client *AdminClient, opts AgentRuntimeOptions, cfg config.Config, logf func(string)) {
+func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRuntime, client *AdminClient, opts AgentRuntimeOptions, cfg config.Config, logf func(string)) bool {
 	agentID := opts.AgentID
 	ra, ok, ferr := agentResumeRecord(ctx, client, opts.Run.WorkerID, agentID)
 	if ferr != nil {
-		logf(fmt.Sprintf("agent-runtime agent=%s boot-session resume-state: %v (skip autonomous start)", agentID, ferr))
-		return
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session resume-state: %v (retry autonomous start)", agentID, ferr))
+		return false
 	}
 	if !ok {
 		logf(fmt.Sprintf("agent-runtime agent=%s boot-session: no center record — skip", agentID))
-		return
+		return true
 	}
 	desiredRunning := strings.EqualFold(strings.TrimSpace(ra.DesiredLifecycle), "running")
 	home := filepath.Join(agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID), "agents", agentID)
@@ -369,6 +371,28 @@ func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRunti
 		}
 	default: // BootSessionNoop
 		closeProbeClient(pr)
+	}
+	return true
+}
+
+func retryBootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRuntime, client *AdminClient, opts AgentRuntimeOptions, cfg config.Config, logf func(string), interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Second
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			logf(fmt.Sprintf("agent-runtime agent=%s boot-session retry stopped: %v", opts.AgentID, ctx.Err()))
+			return
+		case <-timer.C:
+			if bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf) {
+				logf(fmt.Sprintf("agent-runtime agent=%s boot-session retry converged", opts.AgentID))
+				return
+			}
+			timer.Reset(interval)
+		}
 	}
 }
 
