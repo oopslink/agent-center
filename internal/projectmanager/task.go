@@ -943,6 +943,20 @@ func (t *Task) Start(at time.Time) error {
 	return nil
 }
 
+// RecordAgentStarted appends the service-level lifecycle note that an assignee began
+// work. Task.Start stays a pure state transition for domain tests and low-level callers;
+// the application service records this after the full start transaction succeeds.
+func (t *Task) RecordAgentStarted(actorRef IdentityRef, at time.Time) error {
+	if actorRef == "" {
+		actorRef = t.assignee
+	}
+	if err := actorRef.Validate(); err != nil {
+		return err
+	}
+	t.appendLog(TaskActionAgentStarted, actorRef, t.assignee, "", at)
+	return nil
+}
+
 // Block PARKS a running task on a stuck-reason (issue I14 §2.5,
 // ADR-0054). It is the SINGLE pause entrypoint — reasonType=input_required means the
 // agent needs a user reply, obstacle means an external blocker needs owner/PM

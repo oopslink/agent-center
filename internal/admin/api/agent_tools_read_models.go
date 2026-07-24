@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -22,6 +21,18 @@ type taskReadReq struct {
 }
 
 func readPage(size, offset, total int) (int, int) {
+	size, offset = normalizeReadPage(size, offset)
+	end := offset + size
+	if end > total {
+		end = total
+	}
+	if offset > total {
+		offset = total
+	}
+	return offset, end
+}
+
+func normalizeReadPage(size, offset int) (int, int) {
 	if size <= 0 {
 		size = 50
 	}
@@ -31,14 +42,7 @@ func readPage(size, offset, total int) (int, int) {
 	if offset < 0 {
 		offset = 0
 	}
-	end := offset + size
-	if end > total {
-		end = total
-	}
-	if offset > total {
-		offset = total
-	}
-	return offset, end
+	return size, offset
 }
 
 func redactAuditNote(note string) string {
@@ -68,21 +72,15 @@ func (s *Server) getTaskAuditHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
 		return
 	}
-	task, err := d.PMService.GetTask(r.Context(), pm.TaskID(req.TaskID))
+	pageSize, offset := normalizeReadPage(req.PageSize, req.Offset)
+	logs, total, err := d.PMService.ListTaskActionLogs(r.Context(), pm.TaskID(req.TaskID), offset, pageSize)
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	logs := task.ActionLogs()
-	sort.SliceStable(logs, func(i, j int) bool {
-		if logs[i].OccurredAt.Equal(logs[j].OccurredAt) {
-			return logs[i].ID < logs[j].ID
-		}
-		return logs[i].OccurredAt.Before(logs[j].OccurredAt)
-	})
-	start, end := readPage(req.PageSize, req.Offset, len(logs))
-	items := make([]map[string]any, 0, end-start)
-	for _, lg := range logs[start:end] {
+	start, end := readPage(req.PageSize, req.Offset, total)
+	items := make([]map[string]any, 0, len(logs))
+	for _, lg := range logs {
 		items = append(items, map[string]any{
 			"id": lg.ID, "action": lg.Action, "actor_ref": lg.ActorRef,
 			"agent_ref": lg.AgentRef, "note": redactAuditNote(lg.Note),
@@ -90,8 +88,8 @@ func (s *Server) getTaskAuditHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id": req.TaskID, "items": items, "total": len(logs),
-		"offset": start, "has_more": end < len(logs),
+		"task_id": req.TaskID, "items": items, "total": total,
+		"offset": start, "has_more": end < total,
 	})
 }
 

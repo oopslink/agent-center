@@ -2,10 +2,16 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/idgen"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 type readModelActivityRepo struct {
@@ -34,6 +40,13 @@ func readModelEvent(t *testing.T, id, payload string, at time.Time) *agent.Agent
 		t.Fatal(err)
 	}
 	return ev
+}
+
+type readModelAgentDir string
+
+func (d readModelAgentDir) OrgOfAgent(context.Context, string) (string, error) { return string(d), nil }
+func (d readModelAgentDir) ConcurrencyCapOfAgent(context.Context, string) (int, error) {
+	return 0, nil
 }
 
 func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
@@ -65,5 +78,91 @@ func TestRedactAuditNote(t *testing.T) {
 	}
 	if got := redactAuditNote("normal operator note"); got != "normal operator note" {
 		t.Fatalf("ordinary note changed: %q", got)
+	}
+}
+
+func wireReadModelPM(t *testing.T, f *agentToolsFixture) *pmservice.Service {
+	t.Helper()
+	gen := idgen.NewGenerator(f.clk)
+	svc := pmservice.New(pmservice.Deps{
+		DB: f.db, Projects: pmsql.NewProjectRepo(f.db), Members: pmsql.NewProjectMemberRepo(f.db),
+		Tasks: pmsql.NewTaskRepo(f.db), TaskSubs: pmsql.NewTaskSubscriberRepo(f.db), Outbox: outboxsql.NewOutboxRepo(f.db),
+		TaskActionLogs: pmsql.NewTaskActionLogRepo(f.db, gen),
+		AgentDir:       readModelAgentDir(atTestOrg),
+		IDGen:          gen, Clock: f.clk,
+	})
+	f.deps.PMService = svc
+	return svc
+}
+
+func seedAuditedTaskForAgent(t *testing.T, svc *pmservice.Service, assignee string) string {
+	t.Helper()
+	ctx := context.Background()
+	pid, err := svc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: atTestOrg, Name: "Audit P", CreatedBy: "user:owner"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "audit me", CreatedBy: "user:owner"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AssignTask(ctx, tid, pm.IdentityRef(assignee), "user:owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartTask(ctx, tid, pm.IdentityRef(assignee)); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.BlockTask(ctx, tid, "token=must-not-leak", pm.BlockReasonObstacle, pm.IdentityRef(assignee)); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.UnblockTask(ctx, pmservice.UnblockTaskCommand{TaskID: tid, Actor: pm.IdentityRef(assignee), Comment: "approved"}); err != nil {
+		t.Fatal(err)
+	}
+	return string(tid)
+}
+
+func TestGetTaskAuditReadsPersistedLogsPagedAndRedacted(t *testing.T) {
+	f := newAgentToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	svc := wireReadModelPM(t, f)
+	taskID := seedAuditedTaskForAgent(t, svc, "agent:"+atAgent1)
+	s := f.server(t)
+
+	status, body := postBearer(t, s.URL, "/admin/agent-tools/get_task_audit", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": taskID, "page_size": 2, "offset": 1})
+	if status != http.StatusOK {
+		t.Fatalf("status=%d, want 200; body=%v", status, body)
+	}
+	if body["total"] != float64(3) || body["offset"] != float64(1) || body["has_more"] != false {
+		t.Fatalf("page envelope = %v, want total=3 offset=1 has_more=false", body)
+	}
+	items, ok := body["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("items = %#v, want 2 entries", body["items"])
+	}
+	first := items[0].(map[string]any)
+	second := items[1].(map[string]any)
+	if first["action"] != string(pm.TaskActionBlocked) || second["action"] != string(pm.TaskActionUnblocked) {
+		t.Fatalf("actions = %v, %v; want blocked, unblocked", first["action"], second["action"])
+	}
+	if first["note"] != "[redacted]" {
+		t.Fatalf("blocked note = %v, want [redacted]", first["note"])
+	}
+}
+
+func TestGetTaskAuditRejectsCrossProjectAccess(t *testing.T) {
+	f := newAgentToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	svc := wireReadModelPM(t, f)
+	taskID := seedAuditedTaskForAgent(t, svc, "agent:someone-else")
+	s := f.server(t)
+
+	status, body := postBearer(t, s.URL, "/admin/agent-tools/get_task_audit", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": taskID})
+	if status != http.StatusForbidden {
+		t.Fatalf("status=%d, want 403; body=%v", status, body)
+	}
+	if body["error"] != "not_agents_task" {
+		t.Fatalf("error=%v, want not_agents_task", body["error"])
 	}
 }

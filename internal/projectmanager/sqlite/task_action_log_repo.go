@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -52,19 +53,46 @@ func (r *TaskActionLogRepo) Append(ctx context.Context, taskID pm.TaskID, logs [
 // ListByTask returns taskID's action log stable-ordered (occurred_at, id). Empty
 // (not an error) when the task has no entries.
 func (r *TaskActionLogRepo) ListByTask(ctx context.Context, taskID pm.TaskID) ([]pm.TaskActionLog, error) {
+	logs, _, err := r.ListByTaskPage(ctx, taskID, 0, 0)
+	return logs, err
+}
+
+const (
+	DefaultTaskActionLogPageSize = 50
+	MaxTaskActionLogPageSize     = 200
+)
+
+// ListByTaskPage returns taskID's action log stable-ordered (occurred_at, id), offset
+// paged, with the unpaged total for legacy agent-tool response shape.
+func (r *TaskActionLogRepo) ListByTaskPage(ctx context.Context, taskID pm.TaskID, offset, limit int) ([]pm.TaskActionLog, int, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = DefaultTaskActionLogPageSize
+	}
+	if limit > MaxTaskActionLogPageSize {
+		limit = MaxTaskActionLogPageSize
+	}
+	var total int
+	if err := exec.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pm_task_action_logs WHERE task_id = ?`, string(taskID)).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count task action logs: %w", err)
+	}
 	rows, err := exec.QueryContext(ctx,
 		`SELECT id, occurred_at, action, actor_ref, agent_ref, note
-		 FROM pm_task_action_logs WHERE task_id = ? ORDER BY occurred_at, id`, string(taskID))
+		 FROM pm_task_action_logs WHERE task_id = ? ORDER BY occurred_at, id LIMIT ? OFFSET ?`,
+		string(taskID), limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var out []pm.TaskActionLog
 	for rows.Next() {
 		var id, occurredAt, action, actorRef, agentRef, note string
 		if err := rows.Scan(&id, &occurredAt, &action, &actorRef, &agentRef, &note); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, pm.TaskActionLog{
 			ID:         id,
@@ -75,7 +103,10 @@ func (r *TaskActionLogRepo) ListByTask(ctx context.Context, taskID pm.TaskID) ([
 			Note:       note,
 		})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
 }
 
 var _ pm.TaskActionLogRepository = (*TaskActionLogRepo)(nil)

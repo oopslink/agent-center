@@ -165,6 +165,9 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := t.Start(now); err != nil {
 			return err
 		}
+		if err := t.RecordAgentStarted(actor, now); err != nil {
+			return err
+		}
 		// §2.5: grant the execution lease on start.
 		if err := t.RenewLease(DefaultExecutionLeaseTTL, now); err != nil {
 			return err
@@ -176,6 +179,9 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 			return err // pm.ErrAgentHasActiveTask when the agent is at its run-slot cap
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {

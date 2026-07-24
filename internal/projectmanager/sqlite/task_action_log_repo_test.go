@@ -102,6 +102,46 @@ func TestTaskActionLogRepo_AppendListRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTaskActionLogRepo_ListByTaskPage(t *testing.T) {
+	ctx, d := dbSetup(t)
+	repo := NewTaskActionLogRepo(d, idgen.NewGenerator(clock.SystemClock{}))
+	base := time.Date(2026, 6, 22, 1, 0, 0, 0, time.UTC)
+	for i, action := range []pm.TaskAction{
+		pm.TaskActionAssigned,
+		pm.TaskActionAgentStarted,
+		pm.TaskActionBlocked,
+		pm.TaskActionUnblocked,
+		pm.TaskActionCompleted,
+	} {
+		if err := repo.Append(ctx, "T1", []pm.TaskActionLog{{
+			ID:         string(rune('a' + i)),
+			OccurredAt: base.Add(time.Duration(i) * time.Second),
+			Action:     action,
+			ActorRef:   "agent:c",
+			AgentRef:   "agent:c",
+		}}); err != nil {
+			t.Fatalf("Append %d: %v", i, err)
+		}
+	}
+	page, total, err := repo.ListByTaskPage(ctx, "T1", 1, 2)
+	if err != nil {
+		t.Fatalf("ListByTaskPage: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(page) != 2 || page[0].Action != pm.TaskActionAgentStarted || page[1].Action != pm.TaskActionBlocked {
+		t.Fatalf("page = %+v, want agent_started, blocked", page)
+	}
+	empty, total, err := repo.ListByTaskPage(ctx, "T1", 99, 2)
+	if err != nil {
+		t.Fatalf("ListByTaskPage beyond end: %v", err)
+	}
+	if len(empty) != 0 || total != 5 {
+		t.Fatalf("beyond-end page len=%d total=%d, want len=0 total=5", len(empty), total)
+	}
+}
+
 // TestTaskRepo_BlockLeaseRoundTrip proves the F2 TaskRepo round-trip of the three
 // new pm_tasks columns: blocked_reason_type, blocked_comment, execution_lease_expires_at.
 func TestTaskRepo_BlockLeaseRoundTrip(t *testing.T) {

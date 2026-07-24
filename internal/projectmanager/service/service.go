@@ -511,6 +511,16 @@ func (s *Service) ListObjectAudit(ctx context.Context, objType pm.AuditObjectTyp
 	return s.audit.ListByObject(ctx, objType, objID, cursor, limit)
 }
 
+// ListTaskActionLogs returns the persisted task lifecycle action history. GetTask
+// intentionally does not hydrate pm_task_action_logs, so audit/read-model callers must
+// use this service method instead of inspecting Task.ActionLogs().
+func (s *Service) ListTaskActionLogs(ctx context.Context, taskID pm.TaskID, offset, limit int) ([]pm.TaskActionLog, int, error) {
+	if s.actionLogs == nil {
+		return nil, 0, nil
+	}
+	return s.actionLogs.ListByTaskPage(ctx, taskID, offset, limit)
+}
+
 // poolLimit resolves the configured per-agent pool-claim cap, defaulting to
 // DefaultPoolClaimLimit when unset (T83 §3.6).
 func (s *Service) poolLimit() int {

@@ -337,6 +337,10 @@ type TaskActionLogRepository interface {
 	// ListByTask returns taskID's action log stable-ordered (occurred_at, id);
 	// empty (not an error) when the task has no entries.
 	ListByTask(ctx context.Context, taskID TaskID) ([]TaskActionLog, error)
+	// ListByTaskPage returns taskID's action log stable-ordered (occurred_at, id)
+	// with offset pagination plus the unpaged total. Negative offsets clamp to zero;
+	// non-positive limits use the repository default.
+	ListByTaskPage(ctx context.Context, taskID TaskID, offset, limit int) (logs []TaskActionLog, total int, err error)
 }
 
 // AuditLogRepository persists the append-only object-level change ledger
