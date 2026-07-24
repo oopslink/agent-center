@@ -13,6 +13,8 @@ import (
 
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/airuntime"
+	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -123,6 +125,9 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
+		RuntimeCatalog: airuntime.NewService(airuntimesql.NewRepository(a.DB), func() string {
+			return a.IDGen.NewULID()
+		}),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
@@ -552,6 +557,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
+		RuntimeCatalog: airuntime.NewService(airuntimesql.NewRepository(a.DB), func() string {
+			return a.IDGen.NewULID()
+		}),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
