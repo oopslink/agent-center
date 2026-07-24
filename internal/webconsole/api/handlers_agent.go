@@ -386,6 +386,29 @@ func (s *Server) agentRequireInOrg(w http.ResponseWriter, r *http.Request, d Han
 	return a, orgID, true
 }
 
+func agentAvailabilityWithWorkerCache(
+	ctx context.Context,
+	d HandlerDeps,
+	cache map[string]bool,
+	a *agentbc.Agent,
+) (agentbc.Availability, error) {
+	wid := a.WorkerID()
+	if d.WorkerRepo == nil {
+		return d.AgentSvc.Availability(ctx, a)
+	}
+	online, ok := cache[wid]
+	if !ok {
+		online = false
+		if strings.TrimSpace(wid) != "" {
+			if wk, err := d.WorkerRepo.FindByID(ctx, workforce.WorkerID(wid)); err == nil && wk != nil {
+				online = wk.Status() == workforce.WorkerOnline
+			}
+		}
+		cache[wid] = online
+	}
+	return a.Availability(online, false), nil
+}
+
 // agentWriteJSON writes an agent with its derived availability.
 func (s *Server) agentWriteJSON(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agentbc.Agent) {
 	avail, err := d.AgentSvc.Availability(r.Context(), a)
@@ -448,8 +471,9 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out := make([]map[string]any, 0, len(shown))
+	workerOnline := make(map[string]bool)
 	for _, a := range shown {
-		avail, aerr := d.AgentSvc.Availability(r.Context(), a)
+		avail, aerr := agentAvailabilityWithWorkerCache(r.Context(), d, workerOnline, a)
 		if aerr != nil {
 			mapAgentError(w, aerr)
 			return

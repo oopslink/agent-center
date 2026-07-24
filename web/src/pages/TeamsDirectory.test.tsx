@@ -47,6 +47,7 @@ describe('TeamsDirectoryAgents (merged directory + members)', () => {
     renderPage(<TeamsDirectoryAgents />);
     expect(await screen.findByTestId('agents-table')).toBeInTheDocument();
     expect(screen.getByTestId('agent-row-agent-center-pd')).toBeInTheDocument();
+    expect(screen.queryByText('/organizations/:slug/teams/agents')).not.toBeInTheDocument();
     // an agent with no team shows the Unassigned placeholder.
     expect(screen.getAllByText('Unassigned').length).toBeGreaterThan(0);
   });
@@ -194,6 +195,7 @@ describe('TeamsDirectoryHumans (merged directory + members)', () => {
     renderPage(<TeamsDirectoryHumans />);
     expect(await screen.findByTestId('humans-table')).toBeInTheDocument();
     expect(screen.getByTestId('human-row-oopslink')).toBeInTheDocument();
+    expect(screen.queryByText('/organizations/:slug/teams/humans')).not.toBeInTheDocument();
     // carol is invited with no teams → the TEAMS cell shows Unassigned.
     expect(screen.getAllByText('Unassigned').length).toBeGreaterThan(0);
   });

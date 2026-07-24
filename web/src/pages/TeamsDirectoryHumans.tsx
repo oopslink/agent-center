@@ -148,7 +148,6 @@ export default function TeamsDirectoryHumans(): React.ReactElement {
     <section className="space-y-4" data-testid="page-TeamsDirectoryHumans">
       <header>
         <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('humans.title')}</h1>
-        <p className="mt-1 font-mono text-xs text-text-muted">/organizations/:slug/teams/humans</p>
       </header>
 
       {/* Mobile (col② hidden <md): segmented Humans/Agents switch. */}

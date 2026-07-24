@@ -206,7 +206,6 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('agents.title')}</h1>
-          <p className="mt-1 font-mono text-xs text-text-muted">/organizations/:slug/teams/agents</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-[0.65rem] font-semibold text-success">
