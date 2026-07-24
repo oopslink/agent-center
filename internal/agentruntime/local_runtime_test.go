@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,9 +12,10 @@ import (
 
 // fakeSession is a test Session: it records injects and drives OnExit/OnEvent.
 type fakeSession struct {
-	mu       sync.Mutex
-	injected []string
-	closed   bool
+	mu        sync.Mutex
+	injected  []string
+	closed    bool
+	injectErr error
 }
 
 func (f *fakeSession) Inject(_ context.Context, msg string) error {
@@ -21,6 +23,9 @@ func (f *fakeSession) Inject(_ context.Context, msg string) error {
 	defer f.mu.Unlock()
 	if f.closed {
 		return context.Canceled
+	}
+	if f.injectErr != nil {
+		return f.injectErr
 	}
 	f.injected = append(f.injected, msg)
 	return nil
@@ -107,6 +112,36 @@ func TestNotifyWork_NoSessionRetries(t *testing.T) {
 	rt, _ := newTestRuntime(t)
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "wi-1"}); err == nil {
 		t.Fatal("expected an error when no running session")
+	}
+}
+
+func TestNotifyConverse_SessionClosedSignalsFatal(t *testing.T) {
+	rep := &nopReporter{}
+	st := &SessionState{Session: &fakeSession{injectErr: ErrSessionClosed}}
+	fatalCh := make(chan string, 1)
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:  "agent-x",
+		Reporter: rep,
+		Log:      func(string, ...any) {},
+		OnFatal:  func(reason string) { fatalCh <- reason },
+	}, st)
+
+	err := rt.NotifyConverse(context.Background(), ConverseRequest{
+		AgentID:        "agent-x",
+		ConversationID: "c1",
+		MessageID:      "m1",
+		MessageText:    "hi",
+	})
+	if err == nil {
+		t.Fatal("expected inject error")
+	}
+	select {
+	case got := <-fatalCh:
+		if !strings.Contains(got, ErrSessionClosed.Error()) {
+			t.Fatalf("fatal reason = %q, want session closed", got)
+		}
+	default:
+		t.Fatal("expected fatal signal for closed session")
 	}
 }
 

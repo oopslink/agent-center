@@ -21,7 +21,13 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useDirectoryAgents, useTeams, type DirectoryAgent } from '@/api/teams';
-import { useAgents, useDeleteAgent, useBatchAgentLifecycle, type AgentBatchAction } from '@/api/agents';
+import {
+  useAgentAvailability,
+  useAgents,
+  useDeleteAgent,
+  useBatchAgentLifecycle,
+  type AgentBatchAction,
+} from '@/api/agents';
 import { BatchToolbar, batchLabel } from '@/components/AgentBatchToolbar';
 import {
   useMembers,
@@ -30,7 +36,7 @@ import {
   type MemberResult,
 } from '@/api/members';
 import { useWorkers } from '@/api/workers';
-import type { Agent } from '@/api/types';
+import type { Agent, Availability } from '@/api/types';
 import { ApiError } from '@/api/client';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -83,7 +89,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
   const { t } = useTranslation('teams');
   const { t: tm } = useTranslation('members');
   const dirAgents = useDirectoryAgents();
-  const agents = useAgents();
+  const agents = useAgents({ includeAvailability: false });
   const members = useMembers();
   const teams = useTeams();
   const workers = useWorkers();
@@ -139,15 +145,37 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
     return [...byKey.values()];
   }, [members.data, agents.data, dirAgents.data]);
 
+  const liveAgentIds = useMemo(
+    () => allRows.map((r) => r.agentId).filter((id): id is string => !!id),
+    [allRows],
+  );
+  const availability = useAgentAvailability(liveAgentIds);
+  const availabilityById = useMemo(() => {
+    const byId = new Map<string, Availability>();
+    for (const a of availability.data ?? []) byId.set(a.id, a.availability);
+    return byId;
+  }, [availability.data]);
+  const rowAvailability = useCallback(
+    (r: AgentRow): Availability | undefined => {
+      if (!r.agent) return undefined;
+      return availabilityById.get(r.agent.id) ?? r.agent.availability;
+    },
+    [availabilityById],
+  );
+
   // Runtime working/idle for the chip + count. Prefer the directory's runtime
   // flag; a live-agent-only row derives it from running+busy so it is not
   // wrongly hidden by a Working/Idle filter.
   const runtimeStatus = useCallback((r: AgentRow): RuntimeStatus => {
     if (r.agent && r.agent.lifecycle !== 'running') return null;
     if (r.dir) return r.dir.status;
-    if (r.agent) return r.agent.lifecycle === 'running' && r.agent.availability === 'busy' ? 'working' : 'idle';
+    if (r.agent) {
+      const a = rowAvailability(r);
+      if (!a) return null;
+      return r.agent.lifecycle === 'running' && a === 'busy' ? 'working' : 'idle';
+    }
     return 'idle';
-  }, []);
+  }, [rowAvailability]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -350,6 +378,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
                   key={r.key}
                   row={r}
                   runtime={runtimeStatus(r)}
+                  availability={rowAvailability(r)}
                   workerName={workerName}
                   selected={!!r.agentId && selected.has(r.agentId)}
                   selectDisabled={running}
@@ -414,6 +443,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
 function AgentTableRow({
   row,
   runtime,
+  availability,
   workerName,
   selected,
   selectDisabled,
@@ -422,6 +452,7 @@ function AgentTableRow({
 }: {
   row: AgentRow;
   runtime: RuntimeStatus;
+  availability?: Availability;
   workerName: (id: string) => string | undefined;
   selected: boolean;
   selectDisabled: boolean;
@@ -489,7 +520,7 @@ function AgentTableRow({
         {agent ? (
           <span className="inline-flex flex-wrap items-center gap-1 whitespace-nowrap">
             <LifecycleBadge lifecycle={agent.lifecycle} />
-            <AvailabilityBadge availability={agent.availability} />
+            {availability && <AvailabilityBadge availability={availability} />}
           </span>
         ) : (
           EM_DASH

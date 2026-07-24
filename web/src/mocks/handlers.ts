@@ -266,6 +266,11 @@ function agentHandlers() {
   });
   return [
     http.get('/api/agents', () => ok({ agents: [baseAgent('A-1')] })),
+    http.get('/api/agents/availability', ({ request }) => {
+      const url = new URL(request.url);
+      const ids = (url.searchParams.get('ids') ?? 'A-1').split(',').filter(Boolean);
+      return ok({ availability: ids.map((id) => ({ id, availability: 'available' })) });
+    }),
     // v2.7 #186/#77: POST /api/agents removed; agent creation = POST /api/members/agent.
     http.get('/api/agents/:id', ({ params }) =>
       ok(baseAgent(String(params.id))),

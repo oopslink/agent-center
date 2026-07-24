@@ -470,20 +470,71 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 			loads = lm
 		}
 	}
+	includeAvailability := r.URL.Query().Get("include_availability") != "false"
 	out := make([]map[string]any, 0, len(shown))
 	workerOnline := make(map[string]bool)
 	for _, a := range shown {
-		avail, aerr := agentAvailabilityWithWorkerCache(r.Context(), d, workerOnline, a)
-		if aerr != nil {
-			mapAgentError(w, aerr)
-			return
+		avail := agentbc.Unavailable
+		if includeAvailability {
+			var aerr error
+			avail, aerr = agentAvailabilityWithWorkerCache(r.Context(), d, workerOnline, a)
+			if aerr != nil {
+				mapAgentError(w, aerr)
+				return
+			}
 		}
 		m := agentMap(a, avail)
+		if !includeAvailability {
+			delete(m, "availability")
+		}
 		enrichAgentLastActivity(m, latestActivity[a.ID()])
 		enrichAgentLoad(m, loads[pm.IdentityRef("agent:"+agentFacingID(a))])
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
+}
+
+func (s *Server) agentAvailabilityHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AgentSvc == nil {
+		writeError(w, http.StatusNotImplemented, "agent_not_wired", "")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	as, err := d.AgentSvc.ListAgents(r.Context(), orgID)
+	if err != nil {
+		mapAgentError(w, err)
+		return
+	}
+	requested := map[string]bool{}
+	if raw := strings.TrimSpace(r.URL.Query().Get("ids")); raw != "" {
+		for _, part := range strings.Split(raw, ",") {
+			if id := strings.TrimSpace(part); id != "" {
+				requested[id] = true
+			}
+		}
+	}
+	workerOnline := make(map[string]bool)
+	out := []map[string]any{}
+	for _, a := range as {
+		if a.Lifecycle() == agentbc.LifecycleArchived {
+			continue
+		}
+		id := agentFacingID(a)
+		if len(requested) > 0 && !requested[id] && !requested[string(a.ID())] {
+			continue
+		}
+		avail, aerr := agentAvailabilityWithWorkerCache(r.Context(), d, workerOnline, a)
+		if aerr != nil {
+			mapAgentError(w, aerr)
+			return
+		}
+		out = append(out, map[string]any{"id": id, "availability": string(avail)})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"availability": out})
 }
 
 // NOTE: agentCreateHandler (POST /api/agents) was removed in v2.7 (#185 /

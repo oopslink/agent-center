@@ -91,6 +91,26 @@ describe('DMDetail page', () => {
     expect(screen.queryByTestId('participants-panel')).not.toBeInTheDocument();
   });
 
+  it('marks system-to-agent DMs with a SYSTEM tag in the header', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-SYS',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          dm_type: 'system_dm',
+          peer_identity_id: 'agent:bot-1',
+          peer_display_name: 'Bot One',
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/dms/C-SYS');
+    expect(await screen.findByTestId('dm-heading')).toHaveTextContent('@Bot One');
+    expect(screen.getByTestId('system-dm-badge')).toHaveTextContent('SYSTEM');
+  });
+
   it('#7thDM: header renders the back arrow, peer avatar, follow + overflow (no dead search)', async () => {
     server.use(
       http.get('/api/conversations/:id', () =>

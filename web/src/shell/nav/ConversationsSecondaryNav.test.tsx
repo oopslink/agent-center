@@ -158,6 +158,7 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     const systemGroup = screen.getByTestId('conv-nav-dms-system');
     const target = within(systemGroup).getByText('@tester3');
     expect(target).toBeInTheDocument();
+    expect(within(systemGroup).getByTestId('system-dm-badge')).toHaveTextContent('SYSTEM');
     expect(target.closest('[data-testid="conv-nav-dm"]')).toHaveAttribute('data-dm-type', 'system_dm');
     // The system DM must NOT bleed into the "Mine" group.
     expect(within(screen.getByTestId('conv-nav-dms-mine')).queryByText('@tester3')).not.toBeInTheDocument();

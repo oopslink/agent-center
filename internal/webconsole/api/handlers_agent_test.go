@@ -203,6 +203,62 @@ func TestAPI_Agent_CreateWorkerNotInOrg(t *testing.T) {
 	}
 }
 
+func TestAPI_Agent_AvailabilityEndpoint(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerWithStatus(t, db, sess.OrgID, "w-online", workforce.WorkerOnline)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"coder","description":"d","model":"claude","cli":"claude-code","worker_id":"w-online"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: got %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+	if id == "" {
+		t.Fatalf("missing created identity id: %v", created)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedGet(t, s.URL+"/api/agents?include_availability=false", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list without availability: got %d", resp.StatusCode)
+	}
+	var list struct {
+		Agents []map[string]any `json:"agents"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&list)
+	resp.Body.Close()
+	if len(list.Agents) != 1 {
+		t.Fatalf("agents len = %d, want 1", len(list.Agents))
+	}
+	if _, ok := list.Agents[0]["availability"]; ok {
+		t.Fatalf("include_availability=false must omit availability, got %+v", list.Agents[0])
+	}
+
+	resp = orgScopedPost(t, s.URL+"/api/agents/"+id+"/start", `{}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("start: got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedGet(t, s.URL+"/api/agents/availability?ids="+id, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("availability: got %d", resp.StatusCode)
+	}
+	var got struct {
+		Availability []map[string]any `json:"availability"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&got)
+	resp.Body.Close()
+	if len(got.Availability) != 1 || got.Availability[0]["id"] != id || got.Availability[0]["availability"] != "available" {
+		t.Fatalf("availability = %+v", got.Availability)
+	}
+}
+
 // TestAPI_Agent_CrossOrgAgent404 proves the org-in gate: an agent that belongs
 // to another org is invisible (404) to a member of a different org, and an
 // unknown id is 404 too.

@@ -206,6 +206,11 @@ export type AgentLifecycle =
 
 export type Availability = 'available' | 'busy' | 'unavailable';
 
+export interface AgentAvailability {
+  id: string;
+  availability: Availability;
+}
+
 // issue-4a45e9cc: the four claude-code skill-resolution precedence layers, low→high.
 export type SkillLayer = 'built-in' | 'plugin' | 'user' | 'project';
 

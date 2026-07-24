@@ -21,6 +21,7 @@ import { TypeChip } from '@/components/TypeChip';
 import { Avatar } from '@/components/Avatar';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
+import { SystemDmBadge } from '@/components/SystemDmBadge';
 
 // DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
 // ParticipantsPanel — DM membership is fixed at create time (per
@@ -68,6 +69,7 @@ function DMDetailInner(): React.ReactElement {
   // undefined here — guard each access; the query is `enabled`-gated on a ref.
   const meBare = me ? normalizeIdentityRef(me) : '';
   const isAgentAgentDM = conv.data?.dm_type === 'agent_agent_dm';
+  const isSystemDM = conv.data?.dm_type === 'system_dm';
   const peerRef =
     isAgentAgentDM
       ? ''
@@ -209,6 +211,7 @@ function DMDetailInner(): React.ReactElement {
                 </button>
               </h2>
               <TypeChip kind="dm" />
+              {isSystemDM && <SystemDmBadge />}
               {/* Bot badge — only for an agent peer. Labelled text (not emoji /
                   color-only) so it reads in any theme + to AT. */}
               {(isAgentAgentDM || isAgentPeer) && (

@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Agent, AgentActivityEvent, AgentTask, ExecutorProfile } from './types';
+import type { Agent, AgentActivityEvent, AgentAvailability, AgentTask, ExecutorProfile } from './types';
 
 // Agent BC (v2.7 #101). Org-scoped agents backed by /api/agents. Replaces
 // the retired workforce.AgentInstance surface. List/work-items/activity
@@ -26,13 +26,33 @@ export interface ResetAgentInput {
   confirm: boolean;
 }
 
-export function useAgents() {
+export function useAgents(options: { includeAvailability?: boolean } = {}) {
+  const includeAvailability = options.includeAvailability !== false;
   return useQuery({
-    queryKey: qk.agents(),
+    queryKey: qk.agents(includeAvailability ? undefined : { includeAvailability: false }),
     queryFn: async () => {
-      const resp = await api.get<{ agents: Agent[] }>('/agents');
+      const resp = await api.get<{ agents: Agent[] }>(
+        includeAvailability ? '/agents' : '/agents?include_availability=false',
+      );
       return resp.agents;
     },
+  });
+}
+
+export function useAgentAvailability(ids: string[]) {
+  const stableIds = [...new Set(ids)].sort();
+  return useQuery({
+    queryKey: qk.agentAvailability(stableIds),
+    queryFn: async () => {
+      const qs = new URLSearchParams();
+      if (stableIds.length > 0) qs.set('ids', stableIds.join(','));
+      const suffix = qs.toString();
+      const resp = await api.get<{ availability: AgentAvailability[] }>(
+        suffix ? `/agents/availability?${suffix}` : '/agents/availability',
+      );
+      return resp.availability;
+    },
+    enabled: stableIds.length > 0,
   });
 }
 
@@ -54,6 +74,7 @@ function useLifecycleMutation(id: string, action: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.agent(id) });
       void qc.invalidateQueries({ queryKey: qk.agents() });
+      void qc.invalidateQueries({ queryKey: qk.agentAvailability() });
     },
   });
 }
@@ -223,6 +244,7 @@ export function useBatchAgentLifecycle() {
         setProgress((p) => ({ ...p, done: results.length, results: [...results] }));
       }
       await qc.invalidateQueries({ queryKey: qk.agents() });
+      await qc.invalidateQueries({ queryKey: qk.agentAvailability() });
       setProgress((p) => ({ ...p, running: false }));
     },
     [qc],

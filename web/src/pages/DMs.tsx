@@ -15,6 +15,7 @@ import { dmDisplayName } from '@/components/dmDisplay';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { SystemDmBadge } from '@/components/SystemDmBadge';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { CONVERSATION_SEGMENTS } from './conversationSegments';
@@ -175,6 +176,7 @@ export default function DMs(): React.ReactElement {
                           {t('dms.agentAgentBadge')}
                         </span>
                       )}
+                      {c.dm_type === 'system_dm' && <SystemDmBadge />}
                     </span>
                   </OrgLink>
                   <button
@@ -238,4 +240,3 @@ export default function DMs(): React.ReactElement {
     </section>
   );
 }
-

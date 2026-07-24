@@ -63,7 +63,9 @@ export const qk = {
   // (GET /conversations/{convId}/threads) — drives the Participants thread list.
   conversationThreads: (convId: string) => o('conversationThreads', convId),
   refs: (convId: string) => o('refs', convId),
-  agents: () => o('agents'),
+  agents: (options?: unknown) => (options === undefined ? o('agents') : o('agents', options)),
+  agentAvailability: (ids?: readonly string[]) =>
+    ids === undefined ? o('agents', 'availability') : o('agents', 'availability', ids),
   invitations: () => o('invitations'),
   agent: (id: string) => o('agent', id),
   agentTasks: (id: string) => o('agentTasks', id),

@@ -370,6 +370,7 @@ func (s *Server) routes() {
 	// workforce.AgentInstance /api/agents routes (retired — old handlers are
 	// dead code, that backend retires with #107). {name}→{id} forces a repoint.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents", s.agentListHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/availability", s.agentAvailabilityHandler)
 	// v2.7 #185 / no-middle-state: POST /api/agents (standalone agent WITHOUT an
 	// identity member) is removed. The single creation entry is POST
 	// /api/orgs/{slug}/members/agent, which atomically provisions identity+member+

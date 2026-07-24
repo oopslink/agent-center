@@ -335,7 +335,11 @@ func (r *LocalRuntime) injectSession(ctx context.Context, text string) error {
 	if sess == nil {
 		return fmt.Errorf("agentruntime: no supervisor session to inject (agent %s)", r.cfg.AgentID)
 	}
-	return sess.Inject(ctx, text)
+	if err := sess.Inject(ctx, text); err != nil {
+		r.signalFatalIfSessionClosed("inject_session", err)
+		return err
+	}
+	return nil
 }
 
 // injectToSupervisor is the writeback's option-b seam: deliver a judgment prompt AND
@@ -475,6 +479,7 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	}
 
 	if err := sess.Inject(ctx, req.Brief); err != nil {
+		r.signalFatalIfSessionClosed("work inject", err)
 		return fmt.Errorf("agent_controller: inject agent=%s: %w", agentID, err)
 	}
 
@@ -508,6 +513,7 @@ func (r *LocalRuntime) NotifyWake(ctx context.Context, req WakeRequest) error {
 	}
 
 	if err := sess.Inject(ctx, req.MessageText); err != nil {
+		r.signalFatalIfSessionClosed("wake inject", err)
 		return fmt.Errorf("agent_controller: wake inject agent=%s: %w", agentID, err)
 	}
 
@@ -548,6 +554,7 @@ func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) 
 	}
 
 	if err := sess.Inject(ctx, BuildConverseBrief(req)); err != nil {
+		r.signalFatalIfSessionClosed("converse inject", err)
 		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", agentID, err)
 	}
 	r.recordWake(req.MessageID)
@@ -570,6 +577,31 @@ func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) 
 		}
 	}
 	return nil
+}
+
+func (r *LocalRuntime) signalFatalIfSessionClosed(op string, err error) {
+	if err == nil || !isSessionClosedInjectError(err) {
+		return
+	}
+	reason := fmt.Sprintf("%s: %v", op, err)
+	r.log("agent=%s %s — exiting for launcher rebuild", r.cfg.AgentID, reason)
+	if r.cfg.OnFatal != nil {
+		r.cfg.OnFatal(reason)
+	}
+}
+
+func isSessionClosedInjectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrSessionClosed) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, ErrSessionClosed.Error()) ||
+		strings.Contains(msg, "agentsupervisor: supervisor closed") ||
+		strings.Contains(msg, "agentsupervisor: client closed") ||
+		strings.Contains(msg, "supervisor_session: client closed")
 }
 
 // recordWake records messageID in the shared wake-dedup set (FIFO eviction). Unlike

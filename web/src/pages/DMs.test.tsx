@@ -76,6 +76,7 @@ describe('DMs page', () => {
     // Switching to the System tab reveals it, labeled by the target.
     fireEvent.click(systemTab);
     expect(await screen.findByText('@tester3')).toBeInTheDocument();
+    expect(screen.getByTestId('system-dm-badge')).toHaveTextContent('SYSTEM');
   });
 
   it('shows the empty state when there are no DMs', async () => {

@@ -10,6 +10,7 @@ import {
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { dmDisplayName, dmParticipantLabels } from '@/components/dmDisplay';
+import { SystemDmBadge } from '@/components/SystemDmBadge';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
 import { UnreadConversationsSection } from './UnreadConversationsSection';
@@ -210,57 +211,59 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   // width that caused the truncation.
   const renderDmRow = (d: Conversation, order: ListOrder): React.ReactElement => {
     const isA2A = d.dm_type === 'agent_agent_dm';
+    const isSystem = d.dm_type === 'system_dm';
     const a2aLabels = isA2A ? dmParticipantLabels(d) : [];
     return (
-    <li key={d.id} {...order.rowProps(d.id)} className={rowDragClass(order, d.id)}>
-      <div className="flex items-center gap-1">
-        <NavLink
-          to={`${orgBase}/dms/${encodeURIComponent(d.id)}`}
-          className={rowClass}
-          data-testid="conv-nav-dm"
-          data-dm-type={d.dm_type ?? 'my_dm'}
-        >
-          {isA2A && a2aLabels.length > 0 ? (
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5" data-testid="conv-nav-dm-a2a">
-              {a2aLabels.map((label, i) => (
-                <span key={i} className="flex min-w-0 items-center gap-1 leading-tight">
-                  {i > 0 && (
-                    <span aria-hidden="true" className="shrink-0 text-[0.625rem] text-text-muted">
-                      ↔
-                    </span>
-                  )}
-                  <span className="min-w-0 truncate">{label}</span>
-                </span>
-              ))}
-            </span>
-          ) : (
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="min-w-0 truncate">{dmLabel(d)}</span>
-            </span>
-          )}
-          <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
-        </NavLink>
-        {dmCanDelete(d) && (
-          <button
-            type="button"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
-            data-testid="sidebar-dm-delete-button"
-            aria-label={t('shell.conv.deleteDmLabel', { name: dmLabel(d) })}
-            title={t('shell.conv.deleteDmTitle')}
-            onClick={() => {
-              deleteConversation.reset();
-              setPendingDeleteDM({
-                id: d.id,
-                to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
-                label: dmLabel(d),
-              });
-            }}
+      <li key={d.id} {...order.rowProps(d.id)} className={rowDragClass(order, d.id)}>
+        <div className="flex items-center gap-1">
+          <NavLink
+            to={`${orgBase}/dms/${encodeURIComponent(d.id)}`}
+            className={rowClass}
+            data-testid="conv-nav-dm"
+            data-dm-type={d.dm_type ?? 'my_dm'}
           >
-            <TrashIcon />
-          </button>
-        )}
-      </div>
-    </li>
+            {isA2A && a2aLabels.length > 0 ? (
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5" data-testid="conv-nav-dm-a2a">
+                {a2aLabels.map((label, i) => (
+                  <span key={i} className="flex min-w-0 items-center gap-1 leading-tight">
+                    {i > 0 && (
+                      <span aria-hidden="true" className="shrink-0 text-[0.625rem] text-text-muted">
+                        ↔
+                      </span>
+                    )}
+                    <span className="min-w-0 truncate">{label}</span>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="min-w-0 truncate">{dmLabel(d)}</span>
+                {isSystem && <SystemDmBadge className="shrink-0" />}
+              </span>
+            )}
+            <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
+          </NavLink>
+          {dmCanDelete(d) && (
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
+              data-testid="sidebar-dm-delete-button"
+              aria-label={t('shell.conv.deleteDmLabel', { name: dmLabel(d) })}
+              title={t('shell.conv.deleteDmTitle')}
+              onClick={() => {
+                deleteConversation.reset();
+                setPendingDeleteDM({
+                  id: d.id,
+                  to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
+                  label: dmLabel(d),
+                });
+              }}
+            >
+              <TrashIcon />
+            </button>
+          )}
+        </div>
+      </li>
     );
   };
 
