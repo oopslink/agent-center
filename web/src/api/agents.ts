@@ -26,14 +26,24 @@ export interface ResetAgentInput {
   confirm: boolean;
 }
 
-export function useAgents(options: { includeAvailability?: boolean } = {}) {
+export function useAgents(options: { includeAvailability?: boolean; includeEnrichment?: boolean } = {}) {
   const includeAvailability = options.includeAvailability !== false;
+  const includeEnrichment = options.includeEnrichment !== false;
+  const keyOptions =
+    includeAvailability && includeEnrichment
+      ? undefined
+      : {
+          ...(includeAvailability ? {} : { includeAvailability: false }),
+          ...(includeEnrichment ? {} : { includeEnrichment: false }),
+        };
   return useQuery({
-    queryKey: qk.agents(includeAvailability ? undefined : { includeAvailability: false }),
+    queryKey: qk.agents(keyOptions),
     queryFn: async () => {
-      const resp = await api.get<{ agents: Agent[] }>(
-        includeAvailability ? '/agents' : '/agents?include_availability=false',
-      );
+      const qs = new URLSearchParams();
+      if (!includeAvailability) qs.set('include_availability', 'false');
+      if (!includeEnrichment) qs.set('include_enrichment', 'false');
+      const suffix = qs.toString();
+      const resp = await api.get<{ agents: Agent[] }>(suffix ? `/agents?${suffix}` : '/agents');
       return resp.agents;
     },
   });

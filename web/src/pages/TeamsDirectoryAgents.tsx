@@ -89,7 +89,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
   const { t } = useTranslation('teams');
   const { t: tm } = useTranslation('members');
   const dirAgents = useDirectoryAgents();
-  const agents = useAgents({ includeAvailability: false });
+  const agents = useAgents({ includeAvailability: false, includeEnrichment: false });
   const members = useMembers();
   const teams = useTeams();
   const workers = useWorkers();
@@ -192,8 +192,8 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
 
   const workingCount = allRows.filter((r) => runtimeStatus(r) === 'working').length;
   const idleCount = allRows.filter((r) => runtimeStatus(r) === 'idle').length;
-  const isLoading = dirAgents.isLoading || agents.isLoading || members.isLoading;
-  const isError = dirAgents.isError || agents.isError || members.isError;
+  const isLoading = dirAgents.isLoading || members.isLoading;
+  const isError = dirAgents.isError || members.isError;
 
   // Batch selection is scoped to the LIVE agent ids that are currently VISIBLE
   // (respecting the active search / status / team filter) — mirroring the old
@@ -306,7 +306,7 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
       {isLoading && <Skeleton height="12rem" />}
       {isError && (
         <p className="text-sm text-danger" data-testid="agents-error">
-          {t('common.loadFailed', { error: String(dirAgents.error ?? agents.error ?? members.error) })}
+          {t('common.loadFailed', { error: String(dirAgents.error ?? members.error) })}
         </p>
       )}
       {!isLoading && !isError && rows.length === 0 && (

@@ -91,6 +91,21 @@ describe('TeamsDirectoryAgents (merged directory + members)', () => {
     expect(within(dirOnly).queryByTestId('agent-select-checkbox')).toBeNull();
   });
 
+  it('renders directory rows even when the live agents overlay is still unavailable', async () => {
+    let agentsURL = '';
+    server.use(
+      http.get('/api/agents', ({ request }) => {
+        agentsURL = request.url;
+        return HttpResponse.json({ error: 'slow_agents', message: 'still loading' }, { status: 503 });
+      }),
+    );
+    renderPage(<TeamsDirectoryAgents />);
+    expect(await screen.findByTestId('agents-table')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-row-agent-center-pd')).toBeInTheDocument();
+    await waitFor(() => expect(agentsURL).toContain('include_availability=false'));
+    expect(agentsURL).toContain('include_enrichment=false');
+  });
+
   it('does not show a stopped live agent as idle in the runtime column', async () => {
     server.use(http.get('/api/agents', () => HttpResponse.json({ agents: [liveAgent] })));
     renderPage(<TeamsDirectoryAgents />);

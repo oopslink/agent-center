@@ -446,13 +446,14 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		shown = append(shown, a)
 	}
+	includeEnrichment := r.URL.Query().Get("include_enrichment") != "false"
 	// v2.8.1 #278 agents-list enrich: batch-fetch the latest activity event for the
 	// WHOLE page in ONE window-function query (NO N+1 — query count is constant
 	// regardless of list size). Keyed by the execution-entity AgentID (the
 	// agent_activity_events partition key). Fail-soft: a batch error → no enrich
 	// (last_activity_* stay null), never a 500.
 	latestActivity := map[agentbc.AgentID]*agentbc.AgentActivityEvent{}
-	if len(shown) > 0 {
+	if includeEnrichment && len(shown) > 0 {
 		ids := make([]agentbc.AgentID, len(shown))
 		for i, a := range shown {
 			ids[i] = a.ID()
@@ -465,7 +466,7 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 	// page in ONE grouped query (no N+1). Fail-soft — a load error → no enrich
 	// (task_load stays 0), never a 500.
 	loads := map[pm.IdentityRef]pm.AgentTaskLoad{}
-	if d.PM != nil {
+	if includeEnrichment && d.PM != nil {
 		if lm, lerr := d.PM.AgentTaskLoads(r.Context()); lerr == nil {
 			loads = lm
 		}
@@ -487,8 +488,10 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 		if !includeAvailability {
 			delete(m, "availability")
 		}
-		enrichAgentLastActivity(m, latestActivity[a.ID()])
-		enrichAgentLoad(m, loads[pm.IdentityRef("agent:"+agentFacingID(a))])
+		if includeEnrichment {
+			enrichAgentLastActivity(m, latestActivity[a.ID()])
+			enrichAgentLoad(m, loads[pm.IdentityRef("agent:"+agentFacingID(a))])
+		}
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})

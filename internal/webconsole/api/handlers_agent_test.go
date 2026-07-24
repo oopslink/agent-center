@@ -223,7 +223,7 @@ func TestAPI_Agent_AvailabilityEndpoint(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	resp = orgScopedGet(t, s.URL+"/api/agents?include_availability=false", sess)
+	resp = orgScopedGet(t, s.URL+"/api/agents?include_availability=false&include_enrichment=false", sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("list without availability: got %d", resp.StatusCode)
 	}
@@ -237,6 +237,12 @@ func TestAPI_Agent_AvailabilityEndpoint(t *testing.T) {
 	}
 	if _, ok := list.Agents[0]["availability"]; ok {
 		t.Fatalf("include_availability=false must omit availability, got %+v", list.Agents[0])
+	}
+	if _, ok := list.Agents[0]["last_activity_at"]; ok {
+		t.Fatalf("include_enrichment=false must omit last activity, got %+v", list.Agents[0])
+	}
+	if _, ok := list.Agents[0]["task_load"]; ok {
+		t.Fatalf("include_enrichment=false must omit task load, got %+v", list.Agents[0])
 	}
 
 	resp = orgScopedPost(t, s.URL+"/api/agents/"+id+"/start", `{}`, sess)
