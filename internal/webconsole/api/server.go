@@ -263,6 +263,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/orgs/{slug}/model-catalog/{id}", s.updateModelCatalogHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/model-catalog/{id}", s.deleteModelCatalogHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/model-catalog/import", s.importModelCatalogHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime", s.getRuntimeCatalogHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/clis", s.listRuntimeCLIsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/clis", s.createRuntimeCLIHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/clis/{id}", s.updateRuntimeCLIHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/models", s.listRuntimeModelsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/models", s.createRuntimeModelHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/models/{id}", s.updateRuntimeModelHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/profiles", s.listRuntimeProfilesHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/profiles", s.createRuntimeProfileHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/profiles/{id}", s.updateRuntimeProfileHandler)
+	s.mux.HandleFunc("PUT /api/orgs/{slug}/ai-runtime/default-profile", s.setRuntimeDefaultProfileHandler)
 
 	// Team WebUI facade (plan-32dd9107, P1: teams CRUD + members + projects).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams", s.listTeamsHandler)
