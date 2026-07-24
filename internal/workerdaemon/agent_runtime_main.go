@@ -438,6 +438,7 @@ func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRunti
 		return
 	}
 	logf(fmt.Sprintf("boot-session relaunch agent=%s resume=%v version=%d", agentID, resume, ra.Version))
+	rt.ReportRecovered()
 	// Reply-guardrail re-trigger (T341 fix B): proactively re-inject an unanswered directed
 	// message after the relaunch. (No per-agent WorkItem resume — see the note on
 	// bootStartSupervisorSession: task continuity is the lease/re-dispatch layer's job.)
