@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -91,6 +92,45 @@ func TestRunExecutor_SuccessWritesOutputAndDoneStatus(t *testing.T) {
 	prog, err := fx.ReadProgress("exec-ok")
 	if err != nil || len(prog) == 0 {
 		t.Errorf("expected progress entries, got %v err=%v", prog, err)
+	}
+}
+
+func TestRunExecutor_UsesWorkspaceDirOverride(t *testing.T) {
+	fx, root := runHarness(t, "exec-prepared")
+	preparedWS := filepath.Join(root, "runtime", "worktrees", "exec-prepared")
+	if err := os.MkdirAll(preparedWS, 0o700); err != nil {
+		t.Fatalf("mkdir prepared workspace: %v", err)
+	}
+	fr := &fakeComputeRunner{res: RunResult{Result: "all good", Summary: "ok"}}
+	err := RunExecutor(context.Background(), RunConfig{
+		AgentRoot:    root,
+		ExecutorID:   "exec-prepared",
+		WorkspaceDir: preparedWS,
+		Runner:       fr,
+		Clock:        clock.NewFakeClock(time.Unix(1700000000, 0)),
+	})
+	if err != nil {
+		t.Fatalf("RunExecutor with workspace override returned err: %v", err)
+	}
+	if fr.gotWS != preparedWS {
+		t.Fatalf("runner workspace = %q, want prepared workspace %q", fr.gotWS, preparedWS)
+	}
+	if _, err := fx.ReadOutput("exec-prepared"); err != nil {
+		t.Fatalf("ReadOutput: %v", err)
+	}
+}
+
+func TestRunExecutor_RejectsRelativeWorkspaceDirOverride(t *testing.T) {
+	_, root := runHarness(t, "exec-relative-ws")
+	err := RunExecutor(context.Background(), RunConfig{
+		AgentRoot:    root,
+		ExecutorID:   "exec-relative-ws",
+		WorkspaceDir: "relative/ws",
+		Runner:       &fakeComputeRunner{},
+		Clock:        clock.NewFakeClock(time.Unix(1700000000, 0)),
+	})
+	if err == nil || !strings.Contains(err.Error(), "workspace_dir must be absolute") {
+		t.Fatalf("RunExecutor relative workspace err = %v, want absolute-path error", err)
 	}
 }
 

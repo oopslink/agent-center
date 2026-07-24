@@ -14,15 +14,15 @@ import (
 
 func TestRunExecutor_UsageErrors(t *testing.T) {
 	var errw bytes.Buffer
-	if code := runExecutor(context.Background(), &errw, "", "exec-1", ""); code != ExitUsage {
+	if code := runExecutor(context.Background(), &errw, "", "exec-1", "", ""); code != ExitUsage {
 		t.Errorf("missing agent-root: code = %v, want ExitUsage", code)
 	}
 	errw.Reset()
-	if code := runExecutor(context.Background(), &errw, "/root", "", ""); code != ExitUsage {
+	if code := runExecutor(context.Background(), &errw, "/root", "", "", ""); code != ExitUsage {
 		t.Errorf("missing executor-id: code = %v, want ExitUsage", code)
 	}
 	errw.Reset()
-	if code := runExecutor(context.Background(), &errw, "/root", "exec-1", "{not json"); code != ExitUsage {
+	if code := runExecutor(context.Background(), &errw, "/root", "exec-1", "", "{not json"); code != ExitUsage {
 		t.Errorf("bad runner-cmd JSON: code = %v, want ExitUsage", code)
 	}
 	if !strings.Contains(errw.String(), "runner-cmd") {
@@ -64,7 +64,7 @@ func TestRunExecutor_EndToEndWithRealCommand(t *testing.T) {
 
 	var errw bytes.Buffer
 	// `true` ignores its cwd, so no workspace dir is needed; it exits 0 with no output.
-	code := runExecutor(context.Background(), &errw, root, id, `["true"]`)
+	code := runExecutor(context.Background(), &errw, root, id, "", `["true"]`)
 	if code != ExitOK {
 		t.Fatalf("runExecutor code = %v (stderr %q), want ExitOK", code, errw.String())
 	}

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -41,6 +42,10 @@ type SpawnSpec struct {
 	// AgentRoot is the per-agent home the FileExchange Layout anchors at (becomes
 	// --agent-root). The child resolves <agent_root>/executors/<id>/ from it.
 	AgentRoot string
+	// WorkspaceDir, when set, is the actual workspace where the runner command chdirs.
+	// It is distinct from AgentRoot's file protocol dir for materializer-prepared
+	// worktrees that live outside <agent_root>/executors/<id>/workspace.
+	WorkspaceDir string
 	// RunnerCmd is the optional pure-compute command the executor runs inside its
 	// workspace (becomes --runner-cmd). The orchestrator/F3 supplies the model
 	// -routed agent CLI; left empty the executor entrypoint errors clearly rather
@@ -58,6 +63,9 @@ func (s SpawnSpec) validate() error {
 	}
 	if strings.TrimSpace(s.AgentRoot) == "" {
 		return errors.New("executor: spawn agent_root required")
+	}
+	if ws := strings.TrimSpace(s.WorkspaceDir); ws != "" && !filepath.IsAbs(ws) {
+		return errors.New("executor: spawn workspace_dir must be absolute")
 	}
 	return nil
 }
@@ -134,6 +142,9 @@ func buildExecutorCommand(spec SpawnSpec) (*exec.Cmd, error) {
 		"worker", "executor",
 		"--executor-id", spec.ExecutorID,
 		"--agent-root", spec.AgentRoot,
+	}
+	if ws := strings.TrimSpace(spec.WorkspaceDir); ws != "" {
+		args = append(args, "--workspace-dir", filepath.Clean(ws))
 	}
 	// The runner command (the isolated compute) is passed as a JSON array in a
 	// single --runner-cmd flag, NOT as bare trailing argv: the CLI's permissive

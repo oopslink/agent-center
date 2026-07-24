@@ -39,13 +39,14 @@ func ExecutorCommand() *Command {
 			"can show that something happened, never that something did not. Do not read an " +
 			"absence in it as proof an action was skipped; use git reflog / the remote / the " +
 			"center's task rows for that. " +
-			"Flags: --agent-root, --executor-id, [--runner-cmd].",
+			"Flags: --agent-root, --executor-id, [--workspace-dir], [--runner-cmd].",
 		Flags: func(fs *flag.FlagSet) Handler {
 			agentRoot := fs.String("agent-root", "", "per-agent home anchoring executors/<id>/ (required)")
 			executorID := fs.String("executor-id", "", "the executor id whose directory this process operates in (required)")
+			workspaceDir := fs.String("workspace-dir", "", "actual workspace to run in; defaults to <agent-root>/executors/<id>/workspace")
 			runnerCmd := fs.String("runner-cmd", "", "JSON array of the model-routed command to run in the workspace (e.g. [\"claude\",\"-p\",\"...\"])")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				return runExecutor(ctx, errw, *agentRoot, *executorID, *runnerCmd)
+				return runExecutor(ctx, errw, *agentRoot, *executorID, *workspaceDir, *runnerCmd)
 			}
 		},
 	}
@@ -54,9 +55,10 @@ func ExecutorCommand() *Command {
 // runExecutor decodes the flags and drives executor.RunExecutor. The process exit
 // code IS the completion signal (design §9): 0 on success, non-zero on failure
 // (RunExecutor having recorded output.json + status=failed for the detail).
-func runExecutor(ctx context.Context, errw io.Writer, agentRoot, executorID, runnerCmdJSON string) ExitCode {
+func runExecutor(ctx context.Context, errw io.Writer, agentRoot, executorID, workspaceDir, runnerCmdJSON string) ExitCode {
 	agentRoot = strings.TrimSpace(agentRoot)
 	executorID = strings.TrimSpace(executorID)
+	workspaceDir = strings.TrimSpace(workspaceDir)
 	if agentRoot == "" {
 		fmt.Fprintln(errw, "Error: executor: --agent-root is required")
 		return ExitUsage
@@ -89,9 +91,10 @@ func runExecutor(ctx context.Context, errw io.Writer, agentRoot, executorID, run
 	}()
 
 	err := executor.RunExecutor(runCtx, executor.RunConfig{
-		AgentRoot:  agentRoot,
-		ExecutorID: executorID,
-		RunnerCmd:  runnerCmd,
+		AgentRoot:    agentRoot,
+		ExecutorID:   executorID,
+		WorkspaceDir: workspaceDir,
+		RunnerCmd:    runnerCmd,
 	})
 	if err != nil {
 		fmt.Fprintf(errw, "Error: executor: %v\n", err)

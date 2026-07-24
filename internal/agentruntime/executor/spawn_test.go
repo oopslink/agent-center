@@ -15,11 +15,12 @@ var fakeProcess = os.Process{Pid: 4242}
 
 func TestBuildExecutorCommand_ArgvEnvAndProcessGroup(t *testing.T) {
 	spec := SpawnSpec{
-		BinaryPath: "/opt/agent-center",
-		ExecutorID: "exec-abc",
-		AgentRoot:  "/home/agent",
-		RunnerCmd:  []string{"claude", "-p", "do the thing"},
-		AgentEnv:   map[string]string{"GIT_AUTHOR_NAME": "dev1", "AC_MCP_WORKER_TOKEN": "leak"},
+		BinaryPath:   "/opt/agent-center",
+		ExecutorID:   "exec-abc",
+		AgentRoot:    "/home/agent",
+		WorkspaceDir: "/var/runtime/worktrees/exec-abc",
+		RunnerCmd:    []string{"claude", "-p", "do the thing"},
+		AgentEnv:     map[string]string{"GIT_AUTHOR_NAME": "dev1", "AC_MCP_WORKER_TOKEN": "leak"},
 	}
 	cmd, err := buildExecutorCommand(spec)
 	if err != nil {
@@ -29,7 +30,7 @@ func TestBuildExecutorCommand_ArgvEnvAndProcessGroup(t *testing.T) {
 		t.Errorf("binary path = %q, want /opt/agent-center", cmd.Path)
 	}
 	joined := strings.Join(cmd.Args, " ")
-	for _, want := range []string{"worker executor", "--executor-id exec-abc", "--agent-root /home/agent", "--runner-cmd"} {
+	for _, want := range []string{"worker executor", "--executor-id exec-abc", "--agent-root /home/agent", "--workspace-dir /var/runtime/worktrees/exec-abc", "--runner-cmd"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("argv %q missing %q", joined, want)
 		}
@@ -68,6 +69,9 @@ func TestSpawn_RejectsBadSpec(t *testing.T) {
 	}
 	if _, err := sp.Spawn(SpawnSpec{ExecutorID: "ok", AgentRoot: "  "}); err == nil {
 		t.Error("Spawn must reject an empty agent_root")
+	}
+	if _, err := sp.Spawn(SpawnSpec{ExecutorID: "ok", AgentRoot: "/r", WorkspaceDir: "relative/ws"}); err == nil {
+		t.Error("Spawn must reject a relative workspace_dir")
 	}
 }
 

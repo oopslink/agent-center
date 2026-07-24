@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -60,8 +61,14 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 		t.Fatalf("NewWorktreeProvisioner: %v", err)
 	}
 	var pidSeq int
+	var spawnedArgs []string
 	sp := &Spawner{
-		start:  func(cmd *exec.Cmd) error { pidSeq++; cmd.Process = &os.Process{Pid: 5000 + pidSeq}; return nil },
+		start: func(cmd *exec.Cmd) error {
+			pidSeq++
+			spawnedArgs = append([]string(nil), cmd.Args...)
+			cmd.Process = &os.Process{Pid: 5000 + pidSeq}
+			return nil
+		},
 		signal: func(int, syscall.Signal) error { return nil },
 	}
 	pool, err := NewPool(PoolConfig{
@@ -73,7 +80,7 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 	}
 
 	id := "exec-prepared1"
-	ws, _ := layout.WorkspaceDir(id)
+	ws := filepath.Join(root, "runtime", "worktrees", id)
 	if err := os.MkdirAll(ws, 0o755); err != nil { // stand-in for the materializer's worktree
 		t.Fatalf("mkdir ws: %v", err)
 	}
@@ -98,6 +105,9 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 	}
 	if rec.WorkspacePath != ws {
 		t.Fatalf("record WorkspacePath = %q, want %q", rec.WorkspacePath, ws)
+	}
+	if gotArgs := strings.Join(spawnedArgs, " "); !strings.Contains(gotArgs, "--workspace-dir "+ws) {
+		t.Fatalf("spawn argv = %q, want prepared workspace dir %q passed to child", gotArgs, ws)
 	}
 	// P0 命门 (issue-f30b7e7b): the prepared worktree's base MUST reach the Record — and it
 	// must be the PREPARED base, taking precedence over PoolConfig.BaseRef ("main"). Without

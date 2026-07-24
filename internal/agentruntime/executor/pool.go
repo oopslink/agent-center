@@ -256,6 +256,7 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	// edits are confined to wsPath by the F2 containment guard + its process group.
 	switch {
 	case spec.Prepared != nil && strings.TrimSpace(spec.Prepared.Path) != "":
+		wsPath = strings.TrimSpace(spec.Prepared.Path)
 		// The worktree was materialized before start_task (SpawnExecutor / P3) at the
 		// executor's workspace path; do NOT re-provision it.
 	case p.cfg.Worktrees != nil && strings.TrimSpace(p.cfg.BaseRef) != "":
@@ -272,11 +273,12 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 		return nil, fmt.Errorf("executor: pool write input %s: %w", id, err)
 	}
 	h, err := p.spawner.Spawn(SpawnSpec{
-		BinaryPath: p.cfg.BinaryPath,
-		ExecutorID: id,
-		AgentRoot:  p.cfg.AgentRoot,
-		RunnerCmd:  spec.RunnerCmd,
-		AgentEnv:   p.cfg.AgentEnv,
+		BinaryPath:   p.cfg.BinaryPath,
+		ExecutorID:   id,
+		AgentRoot:    p.cfg.AgentRoot,
+		WorkspaceDir: wsPath,
+		RunnerCmd:    spec.RunnerCmd,
+		AgentEnv:     p.cfg.AgentEnv,
 	})
 	if err != nil {
 		return nil, err

@@ -97,6 +97,9 @@ type RunConfig struct {
 	AgentRoot string
 	// ExecutorID is this executor's id (its directory under executors/).
 	ExecutorID string
+	// WorkspaceDir, when set, is the actual workspace passed to the runner. It allows
+	// materializer-prepared worktrees to live outside the file-exchange executor dir.
+	WorkspaceDir string
 	// Runner does the compute. Nil → a CommandRunner built from RunnerCmd.
 	Runner Runner
 	// RunnerCmd is the default-runner command (the model-routed agent CLI passed by
@@ -143,9 +146,17 @@ func RunExecutor(ctx context.Context, cfg RunConfig) error {
 		return fmt.Errorf("executor: write running status: %w", err)
 	}
 
-	wsDir, err := layout.WorkspaceDir(in.ExecutorID)
-	if err != nil {
-		return err
+	wsDir := strings.TrimSpace(cfg.WorkspaceDir)
+	if wsDir == "" {
+		wsDir, err = layout.WorkspaceDir(in.ExecutorID)
+		if err != nil {
+			return err
+		}
+	} else {
+		if !filepath.IsAbs(wsDir) {
+			return errors.New("executor: workspace_dir must be absolute")
+		}
+		wsDir = filepath.Clean(wsDir)
 	}
 
 	runner := cfg.Runner
