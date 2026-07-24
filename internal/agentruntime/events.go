@@ -128,7 +128,15 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		var isCodex bool
 		r.mu.Lock()
 		isCodex = st.CLI == CLICodex
+		completedConvID := ""
+		if st.CurrentTaskID == "" && st.CurrentConversationID != "" {
+			completedConvID = st.CurrentConversationID
+			st.CurrentConversationID = ""
+		}
 		r.mu.Unlock()
+		if completedConvID != "" {
+			r.log("converse agent=%s conv=%s clean turn completed — cleared in-flight conversation", agentID, completedConvID)
+		}
 		if !isCodex {
 			if home, _, _, pathErr := r.agentPaths(agentID); pathErr == nil {
 				r.bg.Add(1)

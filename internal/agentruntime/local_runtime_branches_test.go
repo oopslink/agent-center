@@ -20,6 +20,8 @@ type recReporter struct {
 	converse  []string // "conv|summary"
 	activity  []string // eventType
 	usage     []UsageReport
+	nudges    []string
+	fetches   int
 }
 
 func (r *recReporter) ReportUsage(_ context.Context, u UsageReport) error {
@@ -53,11 +55,23 @@ func (r *recReporter) ReportAgentActivity(_ context.Context, _, eventType, _, _,
 	r.mu.Unlock()
 	return nil
 }
+func (r *recReporter) FetchReplyNudges(context.Context, string) ([]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fetches++
+	return append([]string(nil), r.nudges...), nil
+}
 
 func (r *recReporter) lifecycles() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), r.lifecycle...)
+}
+
+func (r *recReporter) fetchCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fetches
 }
 
 // fullRuntime wires the deps onExit needs (reporter, clock, OnFatal). fatal reports
@@ -275,6 +289,34 @@ func TestSurfaceTurnFailure_Branches(t *testing.T) {
 	if len(rep3.converse) != 0 {
 		t.Fatal("idle is_error must not post a converse message")
 	}
+}
+
+func TestCleanConverseTurnClearsContextAndRunsReplyNudge(t *testing.T) {
+	rt, rep, _ := fullRuntime(t)
+	rep.nudges = []string{"reply to the pending directed message"}
+	fs := &fakeSession{}
+	rt.withState(func(s *SessionState) {
+		s.Session = fs
+		s.CurrentConversationID = "conv-1"
+	})
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
+
+	var gotConv string
+	rt.withState(func(s *SessionState) { gotConv = s.CurrentConversationID })
+	if gotConv != "" {
+		t.Fatalf("clean converse turn must clear CurrentConversationID so reply guardrail can run, got %q", gotConv)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		msgs := fs.msgs()
+		if len(msgs) == 1 && msgs[0] == "reply to the pending directed message" && rep.fetchCount() > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("clean converse turn must fetch and inject reply nudge, fetches=%d msgs=%v", rep.fetchCount(), fs.msgs())
 }
 
 // --- reportRecovered / reportLifecycleOnce ---
