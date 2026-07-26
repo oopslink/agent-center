@@ -35,7 +35,7 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &runtimeErr):
 		status := http.StatusBadRequest
-		if runtimeErr.Reason == airuntime.ReasonRevisionConflict {
+		if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
 			status = http.StatusConflict
 		}
 		writeJSON(w, status, runtimeErr)
@@ -44,6 +44,46 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	}
+}
+
+func (s *Server) exportRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	doc, err := d.RuntimeCatalog.Export(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, doc)
+}
+
+func (s *Server) importRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ImportRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.Import(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		var runtimeErr *airuntime.Error
+		if errors.As(err, &runtimeErr) {
+			status := http.StatusBadRequest
+			if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
+				status = http.StatusConflict
+			}
+			writeJSON(w, status, map[string]any{"report": report, "error": runtimeErr})
+			return
+		}
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
 }
 
 func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
