@@ -12,3 +12,7 @@ type Repository interface {
 	UpdateProfile(context.Context, RuntimeProfile, int64, AuditEvent) (int64, error)
 	SetDefaultProfile(context.Context, string, string, int64, AuditEvent) (int64, error)
 }
+
+type BulkRepository interface {
+	ApplyBulkImport(context.Context, BulkMutation, int64, AuditEvent) (int64, error)
+}

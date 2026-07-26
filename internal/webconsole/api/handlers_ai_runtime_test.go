@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/airuntime"
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 )
 
 func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
@@ -60,6 +62,61 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/clis", `{"expected_revision":3,"value":{"key":"custom","display_name":"Custom","executable":"custom","enabled":true}}`, member)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("member write status=%d want 403", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	n := 0
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("runtime-bulk-%d", n)
+	})
+	owner := setupTestSession(t, db, deps)
+	member := memberSessionInOrg(t, db, owner.OrgID, owner.OrgSlug)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export", member)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("member export status=%d", resp.StatusCode)
+	}
+	var doc airuntime.ExportDocument
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	payload, _ := json.Marshal(airuntime.ImportRequest{
+		ExpectedRevision: 0, DryRun: true, ConflictStrategy: airuntime.ConflictSkip, Document: doc,
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), member)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member import status=%d want 403", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("owner dry-run import status=%d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	other, err := identity.OrganizationFactory{}.New("runtime-other", "Runtime Other", owner.IdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewSQLiteOrganizationRepo(db).Save(context.Background(), other); err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/orgs/"+other.Slug()+"/ai-runtime/export", nil)
+	req.AddCookie(owner.Cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross-org export status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
 }

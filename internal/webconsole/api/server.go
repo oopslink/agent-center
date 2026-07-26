@@ -264,6 +264,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/model-catalog/{id}", s.deleteModelCatalogHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/model-catalog/import", s.importModelCatalogHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime", s.getRuntimeCatalogHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/export", s.exportRuntimeCatalogHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/import", s.importRuntimeCatalogHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/clis", s.listRuntimeCLIsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/clis", s.createRuntimeCLIHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/clis/{id}", s.updateRuntimeCLIHandler)
