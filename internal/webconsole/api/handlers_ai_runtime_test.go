@@ -11,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/airuntime"
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
+	"gopkg.in/yaml.v3"
 )
 
 func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
@@ -78,7 +79,7 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export", member)
+	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export?format=json", member)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("member export status=%d", resp.StatusCode)
 	}
@@ -91,29 +92,43 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 		t.Fatalf("export contract = %+v", doc)
 	}
 
-	payload, _ := json.Marshal(airuntime.ImportRequest{
-		ExpectedRevision: 0, DryRun: true, Strategy: airuntime.StrategyCreate, Document: doc,
+	payload, _ := json.Marshal(airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyCreate, Document: doc,
 	})
-	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), member)
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(payload), member)
 	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("member import status=%d want 403", resp.StatusCode)
+		t.Fatalf("member preview status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
-	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), owner)
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(payload), owner)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("owner dry-run import status=%d", resp.StatusCode)
+		t.Fatalf("owner preview status=%d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
 	doc.Runtime.CLIs = doc.Runtime.CLIs[:1]
-	payload, _ = json.Marshal(airuntime.ImportRequest{
-		ExpectedRevision: 0, Strategy: airuntime.StrategyReplace, Document: doc,
+	payload, _ = json.Marshal(airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyReplace, Document: doc,
 	})
-	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), owner)
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(payload), owner)
 	if resp.StatusCode != http.StatusOK {
 		var failure any
 		_ = json.NewDecoder(resp.Body).Decode(&failure)
-		t.Fatalf("owner replace import status=%d body=%+v", resp.StatusCode, failure)
+		t.Fatalf("owner replace preview status=%d body=%+v", resp.StatusCode, failure)
+	}
+	var replacePreview airuntime.PreviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&replacePreview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	payload, _ = json.Marshal(airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyReplace, Document: doc, ValidationToken: replacePreview.ValidationToken,
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/apply", string(payload), owner)
+	if resp.StatusCode != http.StatusOK {
+		var failure any
+		_ = json.NewDecoder(resp.Body).Decode(&failure)
+		t.Fatalf("owner replace apply status=%d body=%+v", resp.StatusCode, failure)
 	}
 	var replaceReport airuntime.ImportReport
 	if err := json.NewDecoder(resp.Body).Decode(&replaceReport); err != nil {
@@ -144,7 +159,7 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	if err := identity.NewSQLiteOrganizationRepo(db).Save(context.Background(), other); err != nil {
 		t.Fatal(err)
 	}
-	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/orgs/"+other.Slug()+"/ai-runtime/export", nil)
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/orgs/"+other.Slug()+"/ai-runtime/export?format=json", nil)
 	req.AddCookie(owner.Cookie)
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
@@ -163,4 +178,100 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 			t.Fatalf("replace crossed org boundary: %+v", otherCatalog.CLIs)
 		}
 	}
+}
+
+func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
+		airuntimesql.NewRepository(db),
+		func() string { return "runtime-http-contract" },
+		[]byte("0123456789abcdef0123456789abcdef"),
+	)
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export", owner)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/yaml") {
+		t.Fatalf("default export status=%d content-type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	var yamlDoc map[string]any
+	if err := yaml.NewDecoder(resp.Body).Decode(&yamlDoc); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if yamlDoc["schema_version"] != 1 {
+		t.Fatalf("yaml export=%+v", yamlDoc)
+	}
+
+	resp = orgScopedGet(t, server.URL+"/api/ai-runtime/export?format=json&scope=cli&cli_keys=codex", owner)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		t.Fatalf("json export status=%d content-type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	var doc airuntime.ExportDocument
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(doc.Runtime.CLIs) != 1 || doc.Runtime.CLIs[0].Key != "codex" || len(doc.Runtime.Models) != 0 {
+		t.Fatalf("scoped export=%+v", doc.Runtime)
+	}
+
+	docJSON, _ := json.Marshal(doc)
+	var yamlDocument any
+	_ = json.Unmarshal(docJSON, &yamlDocument)
+	previewPayload, err := yaml.Marshal(map[string]any{
+		"strategy": "merge",
+		"document": yamlDocument,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	previewURL := orgScopedURL(server.URL+"/api/ai-runtime/import/preview", owner.OrgSlug)
+	req, _ := http.NewRequest(http.MethodPost, previewURL, strings.NewReader(string(previewPayload)))
+	req.Header.Set("Content-Type", "application/yaml")
+	req.AddCookie(owner.Cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("preview status=%d body=%+v", resp.StatusCode, body)
+	}
+	var preview airuntime.PreviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if preview.ValidationToken == "" {
+		t.Fatal("preview omitted validation_token")
+	}
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", `{}`, owner)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("combined import endpoint remains public: status=%d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	applyPayload, _ := json.Marshal(airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc, ValidationToken: preview.ValidationToken,
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/apply", string(applyPayload), owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("apply status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+
+	var apply map[string]any
+	_ = json.Unmarshal(applyPayload, &apply)
+	apply["validation_token"] = preview.ValidationToken + "tampered"
+	tampered, _ := json.Marshal(apply)
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/apply", string(tampered), owner)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("tampered apply status=%d", resp.StatusCode)
+	}
+	resp.Body.Close()
 }
