@@ -43,3 +43,51 @@ func TestParameterSchemaValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestParameterSchemaValidationUsesFullJSONSchemaSemantics(t *testing.T) {
+	schema := json.RawMessage(`{
+		"type":"object",
+		"properties":{
+			"config":{
+				"type":"object",
+				"properties":{
+					"name":{"type":"string","minLength":3,"pattern":"^[a-z]+$"},
+					"retries":{"type":"integer","minimum":1,"maximum":3},
+					"tags":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}}
+				},
+				"required":["name","retries","tags"],
+				"additionalProperties":false
+			}
+		},
+		"required":["config"]
+	}`)
+	valid := map[string]any{"config": map[string]any{
+		"name": "codex", "retries": float64(2), "tags": []any{"fast", "safe"},
+	}}
+	if err := validateParameters(schema, valid); err != nil {
+		t.Fatal(err)
+	}
+	invalid := []map[string]any{
+		{"config": map[string]any{"name": "x", "retries": float64(2), "tags": []any{"fast"}}},
+		{"config": map[string]any{"name": "Codex", "retries": float64(2), "tags": []any{"fast"}}},
+		{"config": map[string]any{"name": "codex", "retries": float64(4), "tags": []any{"fast"}}},
+		{"config": map[string]any{"name": "codex", "retries": float64(2), "tags": []any{"fast", "fast"}}},
+	}
+	for _, params := range invalid {
+		if err := validateParameters(schema, params); err == nil {
+			t.Fatalf("expected nested schema violation: %#v", params)
+		}
+	}
+}
+
+func TestValidateSchemaRejectsInvalidKeywordSemantics(t *testing.T) {
+	for _, schema := range []json.RawMessage{
+		json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`),
+		json.RawMessage(`{"type":"object","required":"x"}`),
+		json.RawMessage(`{"type":"object","properties":{"x":{"minimum":"one"}}}`),
+	} {
+		if err := validateSchema(schema); err == nil {
+			t.Fatalf("expected invalid schema: %s", schema)
+		}
+	}
+}

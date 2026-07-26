@@ -108,6 +108,70 @@ func TestProfileRejectsDisabledCatalogEntries(t *testing.T) {
 	}
 }
 
+func TestCatalogUpdatesRevalidateDependentProfiles(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/runtime.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("cascade-%d", n)
+	})
+	ctx := context.Background()
+	catalog, err := svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codex airuntime.CLIDefinition
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			codex = cli
+		}
+	}
+	codex.ParameterSchema = json.RawMessage(`{"type":"object","properties":{"retries":{"type":"integer","maximum":3}},"additionalProperties":false}`)
+	codex, rev, err := svc.UpdateCLI(ctx, "org", "user:a", 0, codex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", rev, airuntime.ModelDefinition{
+		Key: "gpt", ModelKey: "gpt", CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{"retries": float64(2)}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rev, err = svc.CreateProfile(ctx, "org", "user:a", rev, airuntime.RuntimeProfile{
+		Key: "coding", Name: "Coding", CLIKey: "codex", ModelKey: model.Key,
+		Parameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tighterCLI := codex
+	tighterCLI.ParameterSchema = json.RawMessage(`{"type":"object","properties":{"retries":{"type":"integer","maximum":1}},"additionalProperties":false}`)
+	if _, _, err := svc.UpdateCLI(ctx, "org", "user:a", rev, tighterCLI); err == nil {
+		t.Fatal("CLI schema update must reject an invalid dependent model/profile")
+	}
+
+	incompatibleModel := model
+	incompatibleModel.CompatibleCLIKeys = []string{"claude-code"}
+	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, incompatibleModel); err == nil {
+		t.Fatal("model compatibility update must reject an invalid dependent profile")
+	}
+
+	invalidDefaults := model
+	invalidDefaults.DefaultParameters = map[string]any{"retries": float64(4)}
+	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, invalidDefaults); err == nil {
+		t.Fatal("model defaults update must reject an invalid dependent profile")
+	}
+}
+
 func TestProfileRejectsIncompatibleModel(t *testing.T) {
 	db, _ := persistence.Open(t.TempDir() + "/runtime.db")
 	defer db.Close()

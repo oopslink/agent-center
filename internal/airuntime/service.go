@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -91,6 +90,24 @@ func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected i
 			}
 		}
 	}
+	candidate := cat
+	for i := range candidate.CLIs {
+		if candidate.CLIs[i].ID == in.ID {
+			candidate.CLIs[i] = in
+		}
+	}
+	for _, model := range candidate.Models {
+		if err := validateModel(candidate, model); err != nil {
+			return in, 0, err
+		}
+	}
+	for _, profile := range candidate.Profiles {
+		if profile.Enabled {
+			if err := validateProfile(candidate, profile); err != nil {
+				return in, 0, err
+			}
+		}
+	}
 	rev, err := s.repo.UpdateCLI(ctx, in, expected, s.audit(orgID, actor, "cli", in.Key, "updated", old, in))
 	return in, rev, err
 }
@@ -163,6 +180,19 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 		for _, p := range cat.Profiles {
 			if p.ModelKey == in.Key && p.Enabled {
 				return in, 0, errors.New("model is referenced by an enabled profile")
+			}
+		}
+	}
+	candidate := cat
+	for i := range candidate.Models {
+		if candidate.Models[i].ID == in.ID {
+			candidate.Models[i] = in
+		}
+	}
+	for _, profile := range candidate.Profiles {
+		if profile.Enabled {
+			if err := validateProfile(candidate, profile); err != nil {
+				return in, 0, err
 			}
 		}
 	}
@@ -312,70 +342,22 @@ func validateParameters(raw json.RawMessage, params map[string]any) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	var schema map[string]any
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		return err
+	var document any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return parameterError("", err.Error())
 	}
-	props, _ := schema["properties"].(map[string]any)
-	if additional, ok := schema["additionalProperties"].(bool); ok && !additional {
-		for k := range params {
-			if _, ok := props[k]; !ok {
-				return parameterError(k, "is not allowed")
-			}
-		}
+	schema, err := compileSchema(document)
+	if err != nil {
+		return parameterError("", err.Error())
 	}
-	if required, ok := schema["required"].([]any); ok {
-		for _, v := range required {
-			k, _ := v.(string)
-			if _, ok := params[k]; !ok {
-				return parameterError(k, "is required")
-			}
-		}
-	}
-	for k, v := range params {
-		rule, _ := props[k].(map[string]any)
-		typ, _ := rule["type"].(string)
-		if typ != "" && !matchesType(typ, v) {
-			return parameterError(k, fmt.Sprintf("must be %s", typ))
-		}
-		if enum, ok := rule["enum"].([]any); ok {
-			found := false
-			for _, x := range enum {
-				found = found || fmt.Sprint(x) == fmt.Sprint(v)
-			}
-			if !found {
-				return parameterError(k, "is not in enum")
-			}
-		}
+	if err := schema.Validate(params); err != nil {
+		return parameterError("", err.Error())
 	}
 	return nil
 }
 
 func parameterError(field, msg string) error {
 	return &Error{Reason: ReasonParametersInvalid, Message: "runtime parameters are invalid", Details: map[string]any{"field": field, "error": msg}}
-}
-func matchesType(t string, v any) bool {
-	switch t {
-	case "string":
-		_, ok := v.(string)
-		return ok
-	case "boolean":
-		_, ok := v.(bool)
-		return ok
-	case "number":
-		_, ok := v.(float64)
-		return ok
-	case "integer":
-		f, ok := v.(float64)
-		return ok && f == float64(int64(f))
-	case "object":
-		_, ok := v.(map[string]any)
-		return ok
-	case "array":
-		_, ok := v.([]any)
-		return ok
-	}
-	return true
 }
 
 func (s *Service) audit(org, actor, entityType, entityKey, action string, before, after any) AuditEvent {

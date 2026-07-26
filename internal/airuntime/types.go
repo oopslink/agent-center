@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 type Reason string
@@ -146,12 +148,29 @@ func validateSchema(raw json.RawMessage) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	var schema map[string]any
-	if err := json.Unmarshal(raw, &schema); err != nil {
+	var document any
+	if err := json.Unmarshal(raw, &document); err != nil {
 		return fmt.Errorf("parameter_schema: %w", err)
 	}
-	if typ, ok := schema["type"].(string); ok && typ != "object" {
+	root, ok := document.(map[string]any)
+	if !ok {
+		return errors.New("parameter_schema root must be an object schema")
+	}
+	if typ, ok := root["type"].(string); ok && typ != "object" {
 		return errors.New("parameter_schema root type must be object")
 	}
+	_, err := compileSchema(document)
+	if err != nil {
+		return fmt.Errorf("parameter_schema: %w", err)
+	}
 	return nil
+}
+
+func compileSchema(document any) (*jsonschema.Schema, error) {
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	if err := compiler.AddResource("urn:agent-center:ai-runtime-parameters", document); err != nil {
+		return nil, err
+	}
+	return compiler.Compile("urn:agent-center:ai-runtime-parameters")
 }
