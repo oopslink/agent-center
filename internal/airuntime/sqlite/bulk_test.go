@@ -64,7 +64,7 @@ func TestBulkImportRoundTripAndDeterministicOrdering(t *testing.T) {
 	svc, _ := newBulkService(t)
 	source := seededDocument(t, svc, "org-source")
 	report, err := svc.Import(context.Background(), "org-target", "user:owner", airuntime.ImportRequest{
-		ExpectedRevision: 0, ConflictStrategy: airuntime.ConflictOverwrite, Document: source,
+		ExpectedRevision: 0, Strategy: airuntime.StrategyMerge, Document: source,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestBulkImportRoundTripAndDeterministicOrdering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.SourceRevision, target.SourceRevision = 0, 0
+	source.ExportedAt = target.ExportedAt
 	if !reflect.DeepEqual(source, target) {
 		a, _ := json.MarshalIndent(source, "", "  ")
 		b, _ := json.MarshalIndent(target, "", "  ")
@@ -92,23 +92,23 @@ func TestBulkImportRoundTripAndDeterministicOrdering(t *testing.T) {
 
 func TestBulkImportRejectsMalformedUnsupportedAndInvalidDocuments(t *testing.T) {
 	svc, db := newBulkService(t)
-	valid := airuntime.ExportDocument{Kind: airuntime.ExportKind, Version: airuntime.ExportVersion, Catalog: airuntime.ExportCatalog{}}
+	valid := airuntime.ExportDocument{Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion, Runtime: airuntime.ExportCatalog{}}
 	cases := []struct {
 		name string
 		doc  airuntime.ExportDocument
 		want airuntime.Reason
 	}{
-		{"malformed kind", airuntime.ExportDocument{Version: 1}, airuntime.ReasonImportMalformed},
-		{"unsupported version", airuntime.ExportDocument{Kind: airuntime.ExportKind, Version: 99}, airuntime.ReasonImportVersionUnsupported},
+		{"malformed kind", airuntime.ExportDocument{SchemaVersion: 1}, airuntime.ReasonImportMalformed},
+		{"unsupported version", airuntime.ExportDocument{Kind: airuntime.ExportKind, SchemaVersion: 99}, airuntime.ReasonImportVersionUnsupported},
 		{"invalid key", func() airuntime.ExportDocument {
 			d := valid
-			d.Catalog.CLIs = []airuntime.ExportCLI{{Key: "BAD KEY", DisplayName: "Bad", Executable: "bad", ParameterSchema: json.RawMessage(`{"type":"object"}`)}}
+			d.Runtime.CLIs = []airuntime.ExportCLI{{Key: "BAD KEY", DisplayName: "Bad", Executable: "bad", ParameterSchema: json.RawMessage(`{"type":"object"}`)}}
 			return d
 		}(), airuntime.ReasonImportInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ConflictStrategy: airuntime.ConflictReject, Document: tc.doc})
+			_, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{Strategy: airuntime.StrategyMerge, Document: tc.doc})
 			var runtimeErr *airuntime.Error
 			if !errors.As(err, &runtimeErr) || runtimeErr.Reason != tc.want {
 				t.Fatalf("error = %v want %s", err, tc.want)
@@ -121,8 +121,8 @@ func TestBulkImportRejectsMalformedUnsupportedAndInvalidDocuments(t *testing.T) 
 func TestBulkImportRejectsReferentialIntegrityAndSchemaFailuresAtomically(t *testing.T) {
 	svc, db := newBulkService(t)
 	doc := airuntime.ExportDocument{
-		Kind: airuntime.ExportKind, Version: airuntime.ExportVersion,
-		Catalog: airuntime.ExportCatalog{
+		Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion,
+		Runtime: airuntime.ExportCatalog{
 			CLIs: []airuntime.ExportCLI{
 				{Key: "valid", DisplayName: "Valid", Executable: "valid", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true},
 				{Key: "bad-schema", DisplayName: "Bad", Executable: "bad", ParameterSchema: json.RawMessage(`{"type":"object","required":"wrong"}`), Enabled: true},
@@ -130,7 +130,7 @@ func TestBulkImportRejectsReferentialIntegrityAndSchemaFailuresAtomically(t *tes
 			Models: []airuntime.ExportModel{{Key: "orphan", ModelKey: "orphan", CompatibleCLIKeys: []string{"missing"}, DefaultParameters: map[string]any{}, Enabled: true}},
 		},
 	}
-	report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ConflictStrategy: airuntime.ConflictReject, Document: doc})
+	report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{Strategy: airuntime.StrategyMerge, Document: doc})
 	var runtimeErr *airuntime.Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonImportInvalid {
 		t.Fatalf("error = %v", err)
@@ -145,29 +145,23 @@ func TestBulkImportRejectsReferentialIntegrityAndSchemaFailuresAtomically(t *tes
 	}
 }
 
-func TestBulkImportConflictPolicies(t *testing.T) {
-	for _, strategy := range []airuntime.ConflictStrategy{airuntime.ConflictReject, airuntime.ConflictSkip, airuntime.ConflictOverwrite} {
+func TestBulkImportStrategies(t *testing.T) {
+	for _, strategy := range []airuntime.ImportStrategy{airuntime.StrategyMerge, airuntime.StrategyCreate} {
 		t.Run(string(strategy), func(t *testing.T) {
 			svc, db := newBulkService(t)
-			doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, Version: airuntime.ExportVersion, Catalog: airuntime.ExportCatalog{
+			doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion, Runtime: airuntime.ExportCatalog{
 				CLIs: []airuntime.ExportCLI{{Key: "codex", DisplayName: "Imported Codex", Executable: "codex-new", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true}},
 			}}
-			report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ConflictStrategy: strategy, Document: doc})
+			report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{Strategy: strategy, Document: doc})
 			switch strategy {
-			case airuntime.ConflictReject:
-				var runtimeErr *airuntime.Error
-				if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonImportConflict {
-					t.Fatalf("reject error = %v", err)
+			case airuntime.StrategyCreate:
+				if err != nil || report.Applied || report.Items[0].Action != "unchanged" {
+					t.Fatalf("create_only report=%+v err=%v", report, err)
 				}
 				assertCatalogState(t, db, "org", 0, 0)
-			case airuntime.ConflictSkip:
-				if err != nil || report.Applied || report.Items[0].Action != "skip" {
-					t.Fatalf("skip report=%+v err=%v", report, err)
-				}
-				assertCatalogState(t, db, "org", 0, 0)
-			case airuntime.ConflictOverwrite:
-				if err != nil || !report.Applied || report.Items[0].Action != "overwrite" {
-					t.Fatalf("overwrite report=%+v err=%v", report, err)
+			case airuntime.StrategyMerge:
+				if err != nil || !report.Applied || report.Items[0].Action != "update" {
+					t.Fatalf("merge report=%+v err=%v", report, err)
 				}
 				assertCatalogState(t, db, "org", 1, 1)
 				cat, _ := svc.Catalog(context.Background(), "org")
@@ -181,10 +175,10 @@ func TestBulkImportConflictPolicies(t *testing.T) {
 
 func TestBulkImportDryRunAndRevisionConflictHaveZeroMutation(t *testing.T) {
 	svc, db := newBulkService(t)
-	doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, Version: airuntime.ExportVersion, Catalog: airuntime.ExportCatalog{
+	doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion, Runtime: airuntime.ExportCatalog{
 		CLIs: []airuntime.ExportCLI{{Key: "custom", DisplayName: "Custom", Executable: "custom", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true}},
 	}}
-	report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{DryRun: true, ConflictStrategy: airuntime.ConflictReject, Document: doc})
+	report, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{DryRun: true, Strategy: airuntime.StrategyMerge, Document: doc})
 	if err != nil || report.Applied || len(report.Items) != 1 {
 		t.Fatalf("dry run report=%+v err=%v", report, err)
 	}
@@ -192,7 +186,7 @@ func TestBulkImportDryRunAndRevisionConflictHaveZeroMutation(t *testing.T) {
 	if _, _, err := svc.CreateCLI(context.Background(), "org", "user:owner", 0, airuntime.CLIDefinition{Key: "other", DisplayName: "Other", Executable: "other", Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ExpectedRevision: 0, ConflictStrategy: airuntime.ConflictReject, Document: doc})
+	_, err = svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ExpectedRevision: 0, Strategy: airuntime.StrategyMerge, Document: doc})
 	var runtimeErr *airuntime.Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonRevisionConflict {
 		t.Fatalf("revision error = %v", err)
@@ -203,13 +197,13 @@ func TestBulkImportDryRunAndRevisionConflictHaveZeroMutation(t *testing.T) {
 func TestBulkImportRepositoryErrorRollsBackEntireMutation(t *testing.T) {
 	_, db := newBulkService(t)
 	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string { return "duplicate-id" })
-	doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, Version: airuntime.ExportVersion, Catalog: airuntime.ExportCatalog{
+	doc := airuntime.ExportDocument{Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion, Runtime: airuntime.ExportCatalog{
 		CLIs: []airuntime.ExportCLI{
 			{Key: "first", DisplayName: "First", Executable: "first", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true},
 			{Key: "second", DisplayName: "Second", Executable: "second", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true},
 		},
 	}}
-	if _, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{ConflictStrategy: airuntime.ConflictReject, Document: doc}); err == nil {
+	if _, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{Strategy: airuntime.StrategyMerge, Document: doc}); err == nil {
 		t.Fatal("expected duplicate generated ID to fail")
 	}
 	assertCatalogState(t, db, "org", 0, 0)
@@ -243,7 +237,7 @@ func TestBulkExportRedactsSensitiveFieldsAndIsolatesOrganizations(t *testing.T) 
 	if strings.Contains(string(raw), "secret-value") || strings.Contains(string(raw), "token-value") || strings.Contains(string(raw), "org-a") || strings.Contains(string(raw), "user:owner") {
 		t.Fatalf("sensitive or org data leaked: %s", raw)
 	}
-	params := a.Catalog.Models[0].DefaultParameters
+	params := a.Runtime.Models[0].DefaultParameters
 	if params["api_key"] != airuntime.RedactedValue || params["nested"].(map[string]any)["access_token"] != airuntime.RedactedValue {
 		t.Fatalf("parameters not redacted: %#v", params)
 	}
@@ -251,9 +245,105 @@ func TestBulkExportRedactsSensitiveFieldsAndIsolatesOrganizations(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.Catalog.Models) != 0 {
-		t.Fatalf("cross-org model leak: %+v", b.Catalog.Models)
+	if len(b.Runtime.Models) != 0 {
+		t.Fatalf("cross-org model leak: %+v", b.Runtime.Models)
 	}
+}
+
+func TestBulkImportReplaceDisablesMissingEntriesWithinOrganization(t *testing.T) {
+	svc, _ := newBulkService(t)
+	doc := seededDocument(t, svc, "org-a")
+	_, revision, err := svc.CreateCLI(context.Background(), "org-a", "user:owner", 3, airuntime.CLIDefinition{
+		Key: "extra", DisplayName: "Extra", Executable: "extra", Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, otherRevision, err := svc.CreateCLI(context.Background(), "org-b", "user:owner", 0, airuntime.CLIDefinition{
+		Key: "extra", DisplayName: "Other Extra", Executable: "other-extra", Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc.Runtime.CLIs = []airuntime.ExportCLI{doc.Runtime.CLIs[1]} // codex only; omit claude-code and extra.
+	report, err := svc.Import(context.Background(), "org-a", "user:owner", airuntime.ImportRequest{
+		ExpectedRevision: revision,
+		Strategy:         airuntime.StrategyReplace,
+		Document:         doc,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Applied || report.Revision != revision+1 {
+		t.Fatalf("replace report=%+v", report)
+	}
+	a, err := svc.Catalog(context.Background(), "org-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clis := cliByKeyForTest(a.CLIs)
+	if clis["extra"].Enabled || clis["claude-code"].Enabled || !clis["codex"].Enabled {
+		t.Fatalf("replace CLI states=%+v", clis)
+	}
+	b, err := svc.Catalog(context.Background(), "org-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cliByKeyForTest(b.CLIs)["extra"].Enabled || b.Revision != otherRevision {
+		t.Fatalf("replace crossed organization boundary: %+v", b)
+	}
+}
+
+func TestBulkImportPreservesExportedRedactedSecretsAndRejectsMissingValues(t *testing.T) {
+	svc, db := newBulkService(t)
+	_, revision, err := svc.CreateModel(context.Background(), "org-a", "user:owner", 0, airuntime.ModelDefinition{
+		Key: "secure", ModelKey: "secure", DisplayName: "Secure", CompatibleCLIKeys: []string{"codex"}, Enabled: true,
+		DefaultParameters: map[string]any{
+			"api_key": "keep-me",
+			"nested":  map[string]any{"access_token": "keep-nested", "temperature": 0.2},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := svc.Export(context.Background(), "org-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Runtime.Models[0].DisplayName = "Updated Secure"
+
+	dryRun, err := svc.Import(context.Background(), "org-a", "user:owner", airuntime.ImportRequest{
+		ExpectedRevision: revision, DryRun: true, Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	if err != nil || dryRun.Applied {
+		t.Fatalf("redacted dry-run report=%+v err=%v", dryRun, err)
+	}
+	assertCatalogState(t, db, "org-a", revision, 1)
+
+	applied, err := svc.Import(context.Background(), "org-a", "user:owner", airuntime.ImportRequest{
+		ExpectedRevision: revision, Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	if err != nil || !applied.Applied {
+		t.Fatalf("redacted apply report=%+v err=%v", applied, err)
+	}
+	cat, err := svc.Catalog(context.Background(), "org-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := cat.Models[0].DefaultParameters
+	if params["api_key"] != "keep-me" || params["nested"].(map[string]any)["access_token"] != "keep-nested" {
+		t.Fatalf("redacted placeholders were persisted or lost: %#v", params)
+	}
+
+	rejected, err := svc.Import(context.Background(), "org-b", "user:owner", airuntime.ImportRequest{
+		ExpectedRevision: 0, Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	var runtimeErr *airuntime.Error
+	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonImportInvalid {
+		t.Fatalf("missing redacted secret error=%v report=%+v", err, rejected)
+	}
+	assertCatalogState(t, db, "org-b", 0, 0)
 }
 
 func assertCatalogState(t *testing.T, db *sql.DB, org string, revision int64, audits int) {
