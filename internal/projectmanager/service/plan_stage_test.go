@@ -364,6 +364,96 @@ func TestStageGateReadiness_ReloadsPersistedMembersFailClosed(t *testing.T) {
 	}
 }
 
+func TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{
+		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
+	})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+	})
+	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{
+		PlanID: planID, Name: "S1", MaxRounds: 2, Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateStage: %v", err)
+	}
+	member := h.seedAssignedTask(t, pid, planID, "member", "user:a")
+	if err := h.svc.AssignTaskToStage(ctx, planID, member, stageID, "user:a"); err != nil {
+		t.Fatalf("AssignTaskToStage: %v", err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	detail, err := h.svc.GetStage(ctx, stageID)
+	if err != nil {
+		t.Fatalf("GetStage: %v", err)
+	}
+	gateTaskID := detail.Stage.GateTaskID()
+	if gateTaskID == "" {
+		t.Fatal("missing stage gate task")
+	}
+
+	if err := h.svc.EnsureTaskRunnable(ctx, gateTaskID); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("gate with open member: EnsureTaskRunnable = %v, want ErrTaskNotRunnable", err)
+	}
+
+	h.setTaskStatus(t, member, pm.TaskCompleted)
+	if err := h.svc.EnsureTaskRunnable(ctx, gateTaskID); err != nil {
+		t.Fatalf("gate after all members terminal: EnsureTaskRunnable = %v, want nil", err)
+	}
+}
+
+func TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{
+		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
+	})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+	})
+	stageA, err := h.svc.CreateStage(ctx, CreateStageCommand{
+		PlanID: planID, Name: "A", MaxRounds: 2, Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateStage A: %v", err)
+	}
+	stageB, err := h.svc.CreateStage(ctx, CreateStageCommand{
+		PlanID: planID, Name: "B", DependsOnStages: []pm.StageID{stageA},
+		MaxRounds: 2, Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateStage B: %v", err)
+	}
+	memberA := h.seedAssignedTask(t, pid, planID, "member-a", "user:a")
+	memberB := h.seedAssignedTask(t, pid, planID, "member-b", "user:a")
+	if err := h.svc.AssignTaskToStage(ctx, planID, memberA, stageA, "user:a"); err != nil {
+		t.Fatalf("AssignTaskToStage A: %v", err)
+	}
+	if err := h.svc.AssignTaskToStage(ctx, planID, memberB, stageB, "user:a"); err != nil {
+		t.Fatalf("AssignTaskToStage B: %v", err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.setTaskStatus(t, memberA, pm.TaskCompleted)
+	h.setTaskStatus(t, memberB, pm.TaskCompleted)
+	detailA, _ := h.svc.GetStage(ctx, stageA)
+	detailB, _ := h.svc.GetStage(ctx, stageB)
+
+	if err := h.svc.EnsureTaskRunnable(ctx, detailB.Stage.GateTaskID()); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("downstream gate before upstream pass: EnsureTaskRunnable = %v, want ErrTaskNotRunnable", err)
+	}
+	if err := h.svc.ResolveStageGate(ctx, detailA.Stage.GateNodeID(), "pass", "user:a"); err != nil {
+		t.Fatalf("ResolveStageGate A pass: %v", err)
+	}
+	if err := h.svc.EnsureTaskRunnable(ctx, detailB.Stage.GateTaskID()); err != nil {
+		t.Fatalf("downstream gate after upstream pass: EnsureTaskRunnable = %v, want nil", err)
+	}
+}
+
 func TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
