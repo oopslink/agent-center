@@ -454,6 +454,69 @@ func TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass(t *testi
 	}
 }
 
+func TestGetPlanDetail_HidesStageGatesUntilReadinessPasses(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{
+		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
+	})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+	})
+	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{
+		PlanID: planID, Name: "S1", MaxRounds: 2, Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateStage: %v", err)
+	}
+	member := h.seedAssignedTask(t, pid, planID, "member", "user:a")
+	if err := h.svc.AssignTaskToStage(ctx, planID, member, stageID, "user:a"); err != nil {
+		t.Fatalf("AssignTaskToStage: %v", err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	stage, _ := h.svc.GetStage(ctx, stageID)
+	gateTaskID := stage.Stage.GateTaskID()
+
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatalf("GetPlanDetail: %v", err)
+	}
+	assertGateReadView(t, detail, gateTaskID, pm.NodeBlocked, false)
+
+	h.setTaskStatus(t, member, pm.TaskCompleted)
+	detail, err = h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatalf("GetPlanDetail after member complete: %v", err)
+	}
+	assertGateReadView(t, detail, gateTaskID, pm.NodeReady, true)
+}
+
+func assertGateReadView(t *testing.T, detail *PlanDetail, gateTaskID pm.TaskID, wantStatus pm.NodeStatus, wantReady bool) {
+	t.Helper()
+	var gotStatus pm.NodeStatus
+	for _, node := range detail.View.Nodes {
+		if node.TaskID == gateTaskID {
+			gotStatus = node.NodeStatus
+			break
+		}
+	}
+	if gotStatus != wantStatus {
+		t.Fatalf("gate node status = %s, want %s", gotStatus, wantStatus)
+	}
+	gotReady := false
+	for _, taskID := range detail.View.ReadySet {
+		if taskID == gateTaskID {
+			gotReady = true
+			break
+		}
+	}
+	if gotReady != wantReady {
+		t.Fatalf("gate in ready_set = %v, want %v; ready_set=%v", gotReady, wantReady, detail.View.ReadySet)
+	}
+}
+
 func TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx

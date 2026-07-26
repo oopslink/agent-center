@@ -186,6 +186,28 @@ func (s *Service) applyStageBarrierView(ctx context.Context, detail *PlanDetail)
 	return nil
 }
 
+// applyStageGateReadinessView projects the executable gate-task barrier onto the
+// read model. DerivePlanView sees only ordinary task dependencies, so an unbound
+// gate task otherwise appears ready even while stageGateReadiness correctly keeps
+// it out of dispatch and start_task rejects it.
+func (s *Service) applyStageGateReadinessView(ctx context.Context, detail *PlanDetail) error {
+	if detail == nil || detail.Plan == nil {
+		return nil
+	}
+	readiness, err := s.stageGateReadiness(ctx, detail.Plan.ID(), detail.Tasks)
+	if err != nil {
+		return err
+	}
+	held := make(map[pm.TaskID]bool)
+	for taskID, ready := range readiness {
+		if !ready {
+			held[taskID] = true
+		}
+	}
+	applyBarrierHeldToView(detail, held)
+	return nil
+}
+
 // applyBarrierHeldToView is the PURE (no-IO) barrier projection shared by the single
 // (get_plan) and batched (list_plans) read paths so both surfaces tell the SAME
 // stage-aware truth: each barrier-held entry ready→blocked and dropped from ReadySet.
@@ -196,7 +218,7 @@ func applyBarrierHeldToView(detail *PlanDetail, held map[pm.TaskID]bool) {
 	}
 	for i := range detail.View.Nodes {
 		n := &detail.View.Nodes[i]
-		if held[n.TaskID] && n.NodeStatus == pm.NodeReady {
+		if held[n.TaskID] && (n.NodeStatus == pm.NodeReady || n.NodeStatus == pm.NodeDispatched) {
 			n.NodeStatus = pm.NodeBlocked // stage barrier holds it — not actually startable.
 		}
 	}
@@ -256,6 +278,9 @@ func (s *Service) fillStageGates(ctx context.Context, detail *PlanDetail) error 
 // truth. Errors from the graph reads propagate (the caller returns them).
 func (s *Service) enrichStageView(ctx context.Context, detail *PlanDetail) error {
 	if err := s.applyStageBarrierView(ctx, detail); err != nil {
+		return err
+	}
+	if err := s.applyStageGateReadinessView(ctx, detail); err != nil {
 		return err
 	}
 	return s.fillStageGates(ctx, detail)
