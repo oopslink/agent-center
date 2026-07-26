@@ -319,6 +319,41 @@ func TestStageGateReadiness_RequiresEveryMemberTerminal(t *testing.T) {
 	assertReady(true)
 }
 
+func TestStageGateReadiness_ReloadsPersistedMembersFailClosed(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, a2, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	detail, err := h.svc.GetStage(ctx, stageA)
+	if err != nil {
+		t.Fatalf("GetStage: %v", err)
+	}
+
+	h.setTaskStatus(t, a1, pm.TaskCompleted)
+	firstMemberOnly, err := h.tasks.FindByID(ctx, a1)
+	if err != nil {
+		t.Fatalf("FindByID(a1): %v", err)
+	}
+	ready, err := h.svc.stageGateReadiness(ctx, planID, []*pm.Task{firstMemberOnly})
+	if err != nil {
+		t.Fatalf("stageGateReadiness: %v", err)
+	}
+	if ready[detail.Stage.GateTaskID()] {
+		t.Fatalf("gate ready with only first completed member supplied; persisted member %s is still open", a2)
+	}
+
+	h.setTaskStatus(t, a2, pm.TaskCompleted)
+	ready, err = h.svc.stageGateReadiness(ctx, planID, []*pm.Task{firstMemberOnly})
+	if err != nil {
+		t.Fatalf("stageGateReadiness after all persisted members done: %v", err)
+	}
+	if !ready[detail.Stage.GateTaskID()] {
+		t.Fatal("gate not ready after every persisted stage member completed")
+	}
+}
+
 func mustListPlanTasks(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) []*pm.Task {
 	t.Helper()
 	tasks, err := h.tasks.ListByPlan(h.ctx, planID)

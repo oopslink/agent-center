@@ -705,6 +705,11 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 // legacy or partially migrated graphs too: a missing member->gate edge must never wake
 // an evaluator while a stage member is still non-terminal. A reject reopens members,
 // so this same check closes the gate again until the new round settles.
+//
+// The caller's task slice may be a derived ready subset; the barrier decision must
+// always be made from the persisted Stage membership (pm_tasks.stage_id) for the whole
+// plan. Reloading here keeps every caller fail-closed instead of making correctness
+// depend on a precondition at the call site.
 func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, tasks []*pm.Task) (map[pm.TaskID]bool, error) {
 	result := make(map[pm.TaskID]bool)
 	if s.stages == nil {
@@ -713,6 +718,13 @@ func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, task
 	stages, err := s.stages.ListByPlan(ctx, planID)
 	if err != nil {
 		return nil, err
+	}
+	persistedTasks, err := s.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	if len(persistedTasks) > 0 {
+		tasks = persistedTasks
 	}
 	for _, stage := range stages {
 		gateTaskID := stage.GateTaskID()
