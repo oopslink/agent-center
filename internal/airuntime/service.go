@@ -56,16 +56,17 @@ func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected i
 	if err != nil {
 		return in, 0, err
 	}
-	var old *CLIDefinition
+	oldIndex := -1
 	for i := range cat.CLIs {
 		if cat.CLIs[i].ID == in.ID {
-			old = &cat.CLIs[i]
+			oldIndex = i
 			break
 		}
 	}
-	if old == nil {
+	if oldIndex < 0 {
 		return in, 0, ErrNotFound
 	}
+	old := cat.CLIs[oldIndex]
 	if in.Key != "" && in.Key != old.Key {
 		return in, 0, errors.New("cli key is immutable")
 	}
@@ -91,11 +92,7 @@ func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected i
 		}
 	}
 	candidate := cat
-	for i := range candidate.CLIs {
-		if candidate.CLIs[i].ID == in.ID {
-			candidate.CLIs[i] = in
-		}
-	}
+	candidate.CLIs[oldIndex] = in
 	for _, model := range candidate.Models {
 		if err := validateModel(candidate, model); err != nil {
 			return in, 0, err
@@ -148,16 +145,17 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 	if err != nil {
 		return in, 0, err
 	}
-	var old *ModelDefinition
+	oldIndex := -1
 	for i := range cat.Models {
 		if cat.Models[i].ID == in.ID {
-			old = &cat.Models[i]
+			oldIndex = i
 			break
 		}
 	}
-	if old == nil {
+	if oldIndex < 0 {
 		return in, 0, ErrNotFound
 	}
+	old := cat.Models[oldIndex]
 	if in.Key != "" && in.Key != old.Key {
 		return in, 0, errors.New("model key is immutable")
 	}
@@ -184,11 +182,7 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 		}
 	}
 	candidate := cat
-	for i := range candidate.Models {
-		if candidate.Models[i].ID == in.ID {
-			candidate.Models[i] = in
-		}
-	}
+	candidate.Models[oldIndex] = in
 	for _, profile := range candidate.Profiles {
 		if profile.Enabled {
 			if err := validateProfile(candidate, profile); err != nil {
