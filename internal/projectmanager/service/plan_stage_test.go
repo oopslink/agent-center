@@ -280,6 +280,52 @@ func TestStage_GateReject_ReopensStageSubgraph(t *testing.T) {
 	if detA.Status != pm.StageReopen {
 		t.Fatalf("stage A status = %q, want reopen", detA.Status)
 	}
+	gateReady, err := h.svc.stageGateReadiness(ctx, planID, mustListPlanTasks(t, h, planID))
+	if err != nil {
+		t.Fatalf("stageGateReadiness after reject: %v", err)
+	}
+	if gateReady[detA.Stage.GateTaskID()] {
+		t.Fatal("gate evaluator ready immediately after reject — reopened members must close the barrier")
+	}
+}
+
+func TestStageGateReadiness_RequiresEveryMemberTerminal(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, a2, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	detail, err := h.svc.GetStage(ctx, stageA)
+	if err != nil {
+		t.Fatalf("GetStage: %v", err)
+	}
+
+	assertReady := func(want bool) {
+		t.Helper()
+		got, rerr := h.svc.stageGateReadiness(ctx, planID, mustListPlanTasks(t, h, planID))
+		if rerr != nil {
+			t.Fatalf("stageGateReadiness: %v", rerr)
+		}
+		if got[detail.Stage.GateTaskID()] != want {
+			t.Fatalf("gate ready = %v, want %v", got[detail.Stage.GateTaskID()], want)
+		}
+	}
+
+	assertReady(false)
+	h.setTaskStatus(t, a1, pm.TaskCompleted)
+	assertReady(false)
+	h.setTaskStatus(t, a2, pm.TaskCompleted)
+	assertReady(true)
+}
+
+func mustListPlanTasks(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) []*pm.Task {
+	t.Helper()
+	tasks, err := h.tasks.ListByPlan(h.ctx, planID)
+	if err != nil {
+		t.Fatalf("ListByPlan: %v", err)
+	}
+	return tasks
 }
 
 // TestStage_GateReject_ExhaustEscalates asserts that once max_rounds is exhausted the
