@@ -731,7 +731,20 @@ func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, task
 		if gateTaskID == "" {
 			continue
 		}
-		ready := true
+		// A stage gate is executable only through its bound inline decision task.
+		// Missing/misbound/fork-routed evaluators fail closed instead of entering the
+		// normal code-executor path.
+		ready := false
+		for _, task := range tasks {
+			if task.ID() == gateTaskID {
+				ready = task.StageID() == stage.ID() && task.DispatchMode().RoutesInline()
+				break
+			}
+		}
+		if !ready {
+			result[gateTaskID] = false
+			continue
+		}
 		for _, task := range tasks {
 			if task.StageID() != stage.ID() || task.ID() == gateTaskID {
 				continue

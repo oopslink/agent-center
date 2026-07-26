@@ -275,6 +275,15 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if cerr := s.driveGraphDecisions(txCtx, p, edges, outcomes); cerr != nil {
 		return nil, cerr
 	}
+	// A reject/loopback can reopen stage members inside driveGraphDecisions. The task
+	// slice loaded above is then stale (it still says completed), which can make the
+	// stage gate barrier pass in the same dispatch sweep. Re-read the authoritative
+	// member states before computing readiness; this also keeps the dispatch payload
+	// below aligned with the reopened round.
+	tasks, err = s.tasks.ListByPlan(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
 	// T805 ③: a reject/loopback round CLEARS the dispatch records of the reopened loop
 	// tasks (reopenLoopSubgraph) INSIDE driveGraphDecisions — so the `records` loaded
 	// above are now stale. Re-read them so graphReadySet's dispatch-idempotency sees the

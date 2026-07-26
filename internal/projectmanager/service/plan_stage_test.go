@@ -280,6 +280,16 @@ func TestStage_GateReject_ReopensStageSubgraph(t *testing.T) {
 	if detA.Status != pm.StageReopen {
 		t.Fatalf("stage A status = %q, want reopen", detA.Status)
 	}
+	if dispatchedSet(t, h, planID)[detA.Stage.GateTaskID()] {
+		t.Fatal("gate evaluator re-dispatched in the reject sweep before reopened members completed")
+	}
+	gateTask, err := h.tasks.FindByID(ctx, detA.Stage.GateTaskID())
+	if err != nil {
+		t.Fatalf("FindByID gate task: %v", err)
+	}
+	if gateTask.DispatchMode() != pm.DispatchSupervisorInline {
+		t.Fatalf("gate dispatch mode after reject = %q, want supervisor_inline", gateTask.DispatchMode())
+	}
 	gateReady, err := h.svc.stageGateReadiness(ctx, planID, mustListPlanTasks(t, h, planID))
 	if err != nil {
 		t.Fatalf("stageGateReadiness after reject: %v", err)
@@ -351,6 +361,42 @@ func TestStageGateReadiness_ReloadsPersistedMembersFailClosed(t *testing.T) {
 	}
 	if !ready[detail.Stage.GateTaskID()] {
 		t.Fatal("gate not ready after every persisted stage member completed")
+	}
+}
+
+func TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, _, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan initial: %v", err)
+	}
+	h.setTaskStatus(t, a1, pm.TaskCompleted)
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after first member: %v", err)
+	}
+	if err := h.svc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans: %v", err)
+	}
+	detail, err := h.svc.GetStage(ctx, stageA)
+	if err != nil {
+		t.Fatalf("GetStage: %v", err)
+	}
+	if dispatchedSet(t, h, planID)[detail.Stage.GateTaskID()] {
+		t.Fatal("gate dispatched while another stage member remained open")
+	}
+	gateTask, err := h.tasks.FindByID(ctx, detail.Stage.GateTaskID())
+	if err != nil {
+		t.Fatalf("FindByID gate task: %v", err)
+	}
+	if gateTask.DispatchMode() != pm.DispatchSupervisorInline {
+		t.Fatalf("gate dispatch mode = %q, want supervisor_inline", gateTask.DispatchMode())
 	}
 }
 
