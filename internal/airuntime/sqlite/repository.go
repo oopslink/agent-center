@@ -67,15 +67,38 @@ func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutati
 				return mapConstraint(err)
 			}
 		}
-		if m.DefaultProfileKey != "" {
+		if m.SetDefaultProfile {
+			if m.DefaultProfileKey == "" {
+				res, err := exec.ExecContext(ctx, `
+					UPDATE ai_runtime_catalogs
+					SET default_profile_id=''
+					WHERE org_id=?`, m.OrgID)
+				if err != nil {
+					return err
+				}
+				if n, _ := res.RowsAffected(); n == 0 {
+					return airuntime.ErrNotFound
+				}
+				return nil
+			}
 			res, err := exec.ExecContext(ctx, `
 				UPDATE ai_runtime_catalogs
-				SET default_profile_id=(SELECT id FROM ai_runtime_profiles WHERE org_id=? AND key=?)
+				SET default_profile_id=(
+					SELECT id FROM ai_runtime_profiles
+					WHERE org_id=? AND key=? AND enabled=1
+				)
 				WHERE org_id=?`, m.OrgID, m.DefaultProfileKey, m.OrgID)
 			if err != nil {
 				return err
 			}
 			if n, _ := res.RowsAffected(); n == 0 {
+				return airuntime.ErrNotFound
+			}
+			var profileID string
+			if err := exec.QueryRowContext(ctx, `SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, m.OrgID).Scan(&profileID); err != nil {
+				return err
+			}
+			if profileID == "" {
 				return airuntime.ErrNotFound
 			}
 		}

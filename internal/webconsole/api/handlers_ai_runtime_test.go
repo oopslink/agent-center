@@ -87,9 +87,12 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	if doc.Kind != "agent-center-ai-runtime" || doc.SchemaVersion != 1 || doc.ExportedAt.IsZero() {
+		t.Fatalf("export contract = %+v", doc)
+	}
 
 	payload, _ := json.Marshal(airuntime.ImportRequest{
-		ExpectedRevision: 0, DryRun: true, ConflictStrategy: airuntime.ConflictSkip, Document: doc,
+		ExpectedRevision: 0, DryRun: true, Strategy: airuntime.StrategyCreate, Document: doc,
 	})
 	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), member)
 	if resp.StatusCode != http.StatusForbidden {
@@ -101,6 +104,38 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 		t.Fatalf("owner dry-run import status=%d", resp.StatusCode)
 	}
 	resp.Body.Close()
+
+	doc.Runtime.CLIs = doc.Runtime.CLIs[:1]
+	payload, _ = json.Marshal(airuntime.ImportRequest{
+		ExpectedRevision: 0, Strategy: airuntime.StrategyReplace, Document: doc,
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import", string(payload), owner)
+	if resp.StatusCode != http.StatusOK {
+		var failure any
+		_ = json.NewDecoder(resp.Body).Decode(&failure)
+		t.Fatalf("owner replace import status=%d body=%+v", resp.StatusCode, failure)
+	}
+	var replaceReport airuntime.ImportReport
+	if err := json.NewDecoder(resp.Body).Decode(&replaceReport); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !replaceReport.Applied {
+		t.Fatalf("replace report=%+v", replaceReport)
+	}
+	ownerCatalog, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := 0
+	for _, cli := range ownerCatalog.CLIs {
+		if cli.Enabled {
+			enabled++
+		}
+	}
+	if enabled != 1 {
+		t.Fatalf("replace did not disable omitted CLI: %+v", ownerCatalog.CLIs)
+	}
 
 	other, err := identity.OrganizationFactory{}.New("runtime-other", "Runtime Other", owner.IdentityID)
 	if err != nil {
@@ -119,4 +154,13 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 		t.Fatalf("cross-org export status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
+	otherCatalog, err := deps.RuntimeCatalog.Catalog(context.Background(), string(other.ID()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cli := range otherCatalog.CLIs {
+		if !cli.Enabled {
+			t.Fatalf("replace crossed org boundary: %+v", otherCatalog.CLIs)
+		}
+	}
 }
