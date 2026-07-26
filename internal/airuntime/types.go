@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 type Reason string
@@ -146,12 +148,24 @@ func validateSchema(raw json.RawMessage) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	var schema map[string]any
+	var schema jsonschema.Schema
 	if err := json.Unmarshal(raw, &schema); err != nil {
 		return fmt.Errorf("parameter_schema: %w", err)
 	}
-	if typ, ok := schema["type"].(string); ok && typ != "object" {
+	if schema.Type != "" && schema.Type != "object" {
 		return errors.New("parameter_schema root type must be object")
+	}
+	if len(schema.Types) > 0 {
+		allowsObject := false
+		for _, typ := range schema.Types {
+			allowsObject = allowsObject || typ == "object"
+		}
+		if !allowsObject {
+			return errors.New("parameter_schema root type must include object")
+		}
+	}
+	if _, err := schema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true}); err != nil {
+		return fmt.Errorf("parameter_schema: %w", err)
 	}
 	return nil
 }

@@ -63,3 +63,41 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestAIRuntimeProfileInvalidParametersReturnsDiagnosticRuntimeError(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	n := 0
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string { n++; return fmt.Sprintf("runtime-%d", n) })
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	schema := `{"type":"object","properties":{"label":{"type":"string","minLength":3}},"additionalProperties":false}`
+	resp := orgScopedPost(t, server.URL+"/api/ai-runtime/clis", fmt.Sprintf(`{"expected_revision":0,"value":{"key":"custom","display_name":"Custom","executable":"custom","parameter_schema":%s,"enabled":true}}`, schema), owner)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create cli status=%d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/models", `{"expected_revision":1,"value":{"key":"custom-model","model_key":"custom-model","display_name":"Custom Model","compatible_cli_keys":["custom"],"default_parameters":{"label":"safe"},"enabled":true}}`, owner)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create model status=%d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/profiles", `{"expected_revision":2,"value":{"key":"bad-profile","name":"Bad Profile","cli_key":"custom","model_key":"custom-model","parameters":{"label":"x"},"enabled":true}}`, owner)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create invalid profile status=%d want 400", resp.StatusCode)
+	}
+	var runtimeErr airuntime.Error
+	if err := json.NewDecoder(resp.Body).Decode(&runtimeErr); err != nil {
+		t.Fatal(err)
+	}
+	if runtimeErr.Reason != airuntime.ReasonParametersInvalid {
+		t.Fatalf("reason=%q want %q body=%+v", runtimeErr.Reason, airuntime.ReasonParametersInvalid, runtimeErr)
+	}
+	if runtimeErr.Details["error"] == "" {
+		t.Fatalf("missing diagnostic details: %#v", runtimeErr.Details)
+	}
+}

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 var ErrNotFound = errors.New("ai runtime entity not found")
@@ -84,12 +86,9 @@ func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected i
 	if err := validateSchema(in.ParameterSchema); err != nil {
 		return in, 0, err
 	}
-	if !in.Enabled {
-		for _, p := range cat.Profiles {
-			if p.CLIKey == in.Key && p.Enabled {
-				return in, 0, errors.New("cli is referenced by an enabled profile")
-			}
-		}
+	next := catalogWithCLI(cat, in)
+	if err := validateEnabledProfiles(next); err != nil {
+		return in, 0, err
 	}
 	rev, err := s.repo.UpdateCLI(ctx, in, expected, s.audit(orgID, actor, "cli", in.Key, "updated", old, in))
 	return in, rev, err
@@ -159,12 +158,9 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 	if err := validateModel(cat, in); err != nil {
 		return in, 0, err
 	}
-	if !in.Enabled {
-		for _, p := range cat.Profiles {
-			if p.ModelKey == in.Key && p.Enabled {
-				return in, 0, errors.New("model is referenced by an enabled profile")
-			}
-		}
+	next := catalogWithModel(cat, in)
+	if err := validateEnabledProfiles(next); err != nil {
+		return in, 0, err
 	}
 	rev, err := s.repo.UpdateModel(ctx, in, expected, s.audit(orgID, actor, "model", in.Key, "updated", old, in))
 	return in, rev, err
@@ -266,6 +262,50 @@ func validateModel(cat Catalog, model ModelDefinition) error {
 	return nil
 }
 
+func catalogWithCLI(cat Catalog, cli CLIDefinition) Catalog {
+	next := cat
+	next.CLIs = append([]CLIDefinition(nil), cat.CLIs...)
+	for i := range next.CLIs {
+		if next.CLIs[i].ID == cli.ID {
+			next.CLIs[i] = cli
+			break
+		}
+	}
+	return next
+}
+
+func catalogWithModel(cat Catalog, model ModelDefinition) Catalog {
+	next := cat
+	next.Models = append([]ModelDefinition(nil), cat.Models...)
+	for i := range next.Models {
+		if next.Models[i].ID == model.ID {
+			next.Models[i] = model
+			break
+		}
+	}
+	return next
+}
+
+func validateEnabledProfiles(cat Catalog) error {
+	for _, profile := range cat.Profiles {
+		if !profile.Enabled {
+			continue
+		}
+		if err := validateProfile(cat, profile); err != nil {
+			var runtimeErr *Error
+			if errors.As(err, &runtimeErr) {
+				if runtimeErr.Details == nil {
+					runtimeErr.Details = map[string]any{}
+				}
+				runtimeErr.Details["profile_id"] = profile.ID
+				runtimeErr.Details["profile_key"] = profile.Key
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 func validateProfile(cat Catalog, p RuntimeProfile) error {
 	var cli *CLIDefinition
 	var model *ModelDefinition
@@ -312,70 +352,22 @@ func validateParameters(raw json.RawMessage, params map[string]any) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	var schema map[string]any
+	var schema jsonschema.Schema
 	if err := json.Unmarshal(raw, &schema); err != nil {
-		return err
+		return parameterError("", fmt.Sprintf("invalid schema: %v", err))
 	}
-	props, _ := schema["properties"].(map[string]any)
-	if additional, ok := schema["additionalProperties"].(bool); ok && !additional {
-		for k := range params {
-			if _, ok := props[k]; !ok {
-				return parameterError(k, "is not allowed")
-			}
-		}
+	resolved, err := schema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
+	if err != nil {
+		return parameterError("", fmt.Sprintf("invalid schema: %v", err))
 	}
-	if required, ok := schema["required"].([]any); ok {
-		for _, v := range required {
-			k, _ := v.(string)
-			if _, ok := params[k]; !ok {
-				return parameterError(k, "is required")
-			}
-		}
-	}
-	for k, v := range params {
-		rule, _ := props[k].(map[string]any)
-		typ, _ := rule["type"].(string)
-		if typ != "" && !matchesType(typ, v) {
-			return parameterError(k, fmt.Sprintf("must be %s", typ))
-		}
-		if enum, ok := rule["enum"].([]any); ok {
-			found := false
-			for _, x := range enum {
-				found = found || fmt.Sprint(x) == fmt.Sprint(v)
-			}
-			if !found {
-				return parameterError(k, "is not in enum")
-			}
-		}
+	if err := resolved.Validate(params); err != nil {
+		return parameterError("", err.Error())
 	}
 	return nil
 }
 
 func parameterError(field, msg string) error {
 	return &Error{Reason: ReasonParametersInvalid, Message: "runtime parameters are invalid", Details: map[string]any{"field": field, "error": msg}}
-}
-func matchesType(t string, v any) bool {
-	switch t {
-	case "string":
-		_, ok := v.(string)
-		return ok
-	case "boolean":
-		_, ok := v.(bool)
-		return ok
-	case "number":
-		_, ok := v.(float64)
-		return ok
-	case "integer":
-		f, ok := v.(float64)
-		return ok && f == float64(int64(f))
-	case "object":
-		_, ok := v.(map[string]any)
-		return ok
-	case "array":
-		_, ok := v.([]any)
-		return ok
-	}
-	return true
 }
 
 func (s *Service) audit(org, actor, entityType, entityKey, action string, before, after any) AuditEvent {
