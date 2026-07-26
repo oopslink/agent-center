@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -170,6 +171,224 @@ func TestCatalogUpdatesRevalidateDependentProfiles(t *testing.T) {
 	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, invalidDefaults); err == nil {
 		t.Fatal("model defaults update must reject an invalid dependent profile")
 	}
+}
+
+func TestCatalogUpdateAuditsPreserveBeforeAndAfter(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/runtime.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("audit-%d", n)
+	})
+	ctx := context.Background()
+	catalog, err := svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codex airuntime.CLIDefinition
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			codex = cli
+		}
+	}
+
+	originalSchema := append(json.RawMessage(nil), codex.ParameterSchema...)
+	updatedSchema := json.RawMessage(`{
+		"type":"object",
+		"properties":{
+			"config":{
+				"type":"object",
+				"properties":{"retries":{"type":"integer","maximum":5}},
+				"required":["retries"],
+				"additionalProperties":false
+			}
+		},
+		"required":["config"],
+		"additionalProperties":false
+	}`)
+	codex.ParameterSchema = updatedSchema
+	codex, rev, err := svc.UpdateCLI(ctx, "org", "user:a", 0, codex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cliBeforeJSON, cliAfterJSON string
+	if err := db.QueryRow(`
+		SELECT before_json, after_json
+		FROM ai_runtime_audit_log
+		WHERE org_id=? AND entity_type='cli' AND entity_key=? AND action='updated'
+		ORDER BY revision DESC LIMIT 1
+	`, "org", codex.Key).Scan(&cliBeforeJSON, &cliAfterJSON); err != nil {
+		t.Fatal(err)
+	}
+	var cliBefore, cliAfter airuntime.CLIDefinition
+	if err := json.Unmarshal([]byte(cliBeforeJSON), &cliBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(cliAfterJSON), &cliAfter); err != nil {
+		t.Fatal(err)
+	}
+	if !equalJSON(cliBefore.ParameterSchema, originalSchema) {
+		t.Fatalf("CLI audit before schema = %s want %s", cliBefore.ParameterSchema, originalSchema)
+	}
+	if !equalJSON(cliAfter.ParameterSchema, updatedSchema) {
+		t.Fatalf("CLI audit after schema = %s want %s", cliAfter.ParameterSchema, updatedSchema)
+	}
+
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", rev, airuntime.ModelDefinition{
+		Key: "gpt", ModelKey: "gpt", CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{"config": map[string]any{"retries": float64(2)}},
+		Enabled:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.DefaultParameters = map[string]any{"config": map[string]any{"retries": float64(4)}}
+	model, rev, err = svc.UpdateModel(ctx, "org", "user:a", rev, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modelBeforeJSON, modelAfterJSON string
+	if err := db.QueryRow(`
+		SELECT before_json, after_json
+		FROM ai_runtime_audit_log
+		WHERE org_id=? AND entity_type='model' AND entity_key=? AND action='updated'
+		ORDER BY revision DESC LIMIT 1
+	`, "org", model.Key).Scan(&modelBeforeJSON, &modelAfterJSON); err != nil {
+		t.Fatal(err)
+	}
+	var modelBefore, modelAfter airuntime.ModelDefinition
+	if err := json.Unmarshal([]byte(modelBeforeJSON), &modelBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(modelAfterJSON), &modelAfter); err != nil {
+		t.Fatal(err)
+	}
+	beforeRetries := modelBefore.DefaultParameters["config"].(map[string]any)["retries"]
+	afterRetries := modelAfter.DefaultParameters["config"].(map[string]any)["retries"]
+	if beforeRetries != float64(2) || afterRetries != float64(4) {
+		t.Fatalf("Model audit retries before=%v after=%v", beforeRetries, afterRetries)
+	}
+}
+
+func TestCatalogUpdateValidationFailuresDoNotPersistOrAudit(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/runtime.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("failed-%d", n)
+	})
+	ctx := context.Background()
+	catalog, err := svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codex airuntime.CLIDefinition
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			codex = cli
+		}
+	}
+	codex.ParameterSchema = json.RawMessage(`{
+		"type":"object",
+		"properties":{"config":{"type":"object","properties":{"retries":{"type":"integer","maximum":5}},"required":["retries"],"additionalProperties":false}},
+		"required":["config"],
+		"additionalProperties":false
+	}`)
+	codex, rev, err := svc.UpdateCLI(ctx, "org", "user:a", 0, codex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", rev, airuntime.ModelDefinition{
+		Key: "gpt", ModelKey: "gpt", CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{"config": map[string]any{"retries": float64(4)}},
+		Enabled:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rev, err = svc.CreateProfile(ctx, "org", "user:a", rev, airuntime.RuntimeProfile{
+		Key: "coding", Name: "Coding", CLIKey: "codex", ModelKey: model.Key,
+		Parameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var auditsBefore int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_runtime_audit_log WHERE org_id=?`, "org").Scan(&auditsBefore); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidCLI := codex
+	invalidCLI.ParameterSchema = json.RawMessage(`{
+		"type":"object",
+		"properties":{"config":{"type":"object","properties":{"retries":{"type":"integer","maximum":3}},"required":["retries"],"additionalProperties":false}},
+		"required":["config"],
+		"additionalProperties":false
+	}`)
+	if _, _, err := svc.UpdateCLI(ctx, "org", "user:a", rev, invalidCLI); err == nil {
+		t.Fatal("expected nested CLI schema validation failure")
+	}
+	invalidModel := model
+	invalidModel.DefaultParameters = map[string]any{"config": map[string]any{"retries": float64(6)}}
+	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, invalidModel); err == nil {
+		t.Fatal("expected nested model arguments validation failure")
+	}
+
+	after, err := svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Revision != rev {
+		t.Fatalf("revision after failed updates = %d want %d", after.Revision, rev)
+	}
+	var storedCLI airuntime.CLIDefinition
+	for _, cli := range after.CLIs {
+		if cli.ID == codex.ID {
+			storedCLI = cli
+		}
+	}
+	var storedModel airuntime.ModelDefinition
+	for _, candidate := range after.Models {
+		if candidate.ID == model.ID {
+			storedModel = candidate
+		}
+	}
+	if !equalJSON(storedCLI.ParameterSchema, codex.ParameterSchema) {
+		t.Fatalf("failed CLI update persisted schema: %s", storedCLI.ParameterSchema)
+	}
+	storedRetries := storedModel.DefaultParameters["config"].(map[string]any)["retries"]
+	if storedRetries != float64(4) {
+		t.Fatalf("failed Model update persisted retries=%v", storedRetries)
+	}
+	var auditsAfter int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_runtime_audit_log WHERE org_id=?`, "org").Scan(&auditsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if auditsAfter != auditsBefore {
+		t.Fatalf("audit rows after failed updates = %d want %d", auditsAfter, auditsBefore)
+	}
+}
+
+func equalJSON(left, right []byte) bool {
+	var compactLeft, compactRight bytes.Buffer
+	if json.Compact(&compactLeft, left) != nil || json.Compact(&compactRight, right) != nil {
+		return false
+	}
+	return bytes.Equal(compactLeft.Bytes(), compactRight.Bytes())
 }
 
 func TestProfileRejectsIncompatibleModel(t *testing.T) {
