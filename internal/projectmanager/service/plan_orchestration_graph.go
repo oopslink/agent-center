@@ -655,6 +655,10 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 	if err != nil {
 		return nil, false, err
 	}
+	gateReady, err := s.stageGateReadiness(txCtx, p.ID(), tasks)
+	if err != nil {
+		return nil, false, err
+	}
 	dispatched := make(map[pm.TaskID]struct{}, len(records))
 	for _, r := range records {
 		dispatched[r.TaskID] = struct{}{}
@@ -684,6 +688,9 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 		if failed[taskID] {
 			continue // failed task is terminal-failed, never ready (§9.7 parity).
 		}
+		if ready, isGate := gateReady[taskID]; isGate && !ready {
+			continue
+		}
 		ready = append(ready, taskID)
 	}
 	g, err := s.orch.GetGraph(txCtx, graphID)
@@ -691,6 +698,40 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 		return nil, false, err
 	}
 	return ready, g.IsAutoDone(), nil
+}
+
+// stageGateReadiness is the domain barrier for executable gate tasks. Graph edges
+// normally encode the same rule, but the dispatch/reconcile path must fail closed for
+// legacy or partially migrated graphs too: a missing member->gate edge must never wake
+// an evaluator while a stage member is still non-terminal. A reject reopens members,
+// so this same check closes the gate again until the new round settles.
+func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, tasks []*pm.Task) (map[pm.TaskID]bool, error) {
+	result := make(map[pm.TaskID]bool)
+	if s.stages == nil {
+		return result, nil
+	}
+	stages, err := s.stages.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	for _, stage := range stages {
+		gateTaskID := stage.GateTaskID()
+		if gateTaskID == "" {
+			continue
+		}
+		ready := true
+		for _, task := range tasks {
+			if task.StageID() != stage.ID() || task.ID() == gateTaskID {
+				continue
+			}
+			if !pm.TaskIsDone(task.Status()) && !pm.TaskIsFailed(task.Status()) {
+				ready = false
+				break
+			}
+		}
+		result[gateTaskID] = ready
+	}
+	return result, nil
 }
 
 // nodeTaskID reads the bound task id from a node's metadata ("task_id").
