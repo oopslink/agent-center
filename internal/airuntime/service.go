@@ -2,6 +2,7 @@ package airuntime
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -13,13 +14,39 @@ var ErrNotFound = errors.New("ai runtime entity not found")
 type IDGenerator func() string
 
 type Service struct {
-	repo Repository
-	id   IDGenerator
-	now  func() time.Time
+	repo                Repository
+	id                  IDGenerator
+	now                 func() time.Time
+	importTokenKey      []byte
+	importTokenLifetime time.Duration
 }
 
 func NewService(repo Repository, id IDGenerator) *Service {
-	return &Service{repo: repo, id: id, now: func() time.Time { return time.Now().UTC() }}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		panic("generate AI Runtime import token key: " + err.Error())
+	}
+	return newService(repo, id, key)
+}
+
+// NewServiceWithValidationKey creates a service with a stable import-token key.
+// Deployments with more than one API process must provide the same secret to each
+// process so Preview tokens can be verified by any Apply request.
+func NewServiceWithValidationKey(repo Repository, id IDGenerator, key []byte) *Service {
+	if len(key) < 32 {
+		panic("AI Runtime import validation key must contain at least 32 bytes")
+	}
+	return newService(repo, id, append([]byte(nil), key...))
+}
+
+func newService(repo Repository, id IDGenerator, key []byte) *Service {
+	return &Service{
+		repo:                repo,
+		id:                  id,
+		now:                 func() time.Time { return time.Now().UTC() },
+		importTokenKey:      key,
+		importTokenLifetime: 10 * time.Minute,
+	}
 }
 
 func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {

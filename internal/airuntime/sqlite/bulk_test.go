@@ -203,7 +203,15 @@ func TestBulkImportRepositoryErrorRollsBackEntireMutation(t *testing.T) {
 			{Key: "second", DisplayName: "Second", Executable: "second", ParameterSchema: json.RawMessage(`{"type":"object"}`), Enabled: true},
 		},
 	}}
-	if _, err := svc.Import(context.Background(), "org", "user:owner", airuntime.ImportRequest{Strategy: airuntime.StrategyMerge, Document: doc}); err == nil {
+	preview, err := svc.PreviewImport(context.Background(), "org", airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyImport(context.Background(), "org", "user:owner", airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc, ValidationToken: preview.ValidationToken,
+	}); err == nil {
 		t.Fatal("expected duplicate generated ID to fail")
 	}
 	assertCatalogState(t, db, "org", 0, 0)
@@ -344,6 +352,100 @@ func TestBulkImportPreservesExportedRedactedSecretsAndRejectsMissingValues(t *te
 		t.Fatalf("missing redacted secret error=%v report=%+v", err, rejected)
 	}
 	assertCatalogState(t, db, "org-b", 0, 0)
+}
+
+func TestPreviewApplyPreservesRedactedSecretsInsideArrays(t *testing.T) {
+	svc, _ := newBulkService(t)
+	_, _, err := svc.CreateModel(context.Background(), "org-a", "user:owner", 0, airuntime.ModelDefinition{
+		Key: "secure-array", ModelKey: "secure-array", DisplayName: "Secure Array",
+		CompatibleCLIKeys: []string{"codex"}, Enabled: true,
+		DefaultParameters: map[string]any{
+			"providers": []any{
+				map[string]any{"api_key": "keep-first"},
+				map[string]any{"nested": []any{map[string]any{"access_token": "keep-second"}}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := svc.Export(context.Background(), "org-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Runtime.Models[0].DisplayName = "Updated"
+	preview, err := svc.PreviewImport(context.Background(), "org-a", airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := svc.ApplyImport(context.Background(), "org-a", "user:owner", airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc, ValidationToken: preview.ValidationToken,
+	})
+	if err != nil || !report.Applied {
+		t.Fatalf("apply report=%+v err=%v", report, err)
+	}
+	catalog, err := svc.Catalog(context.Background(), "org-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	providers := catalog.Models[0].DefaultParameters["providers"].([]any)
+	if providers[0].(map[string]any)["api_key"] != "keep-first" ||
+		providers[1].(map[string]any)["nested"].([]any)[0].(map[string]any)["access_token"] != "keep-second" {
+		t.Fatalf("array secrets were not restored: %#v", providers)
+	}
+
+	_, err = svc.PreviewImport(context.Background(), "org-b", airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc,
+	})
+	var runtimeErr *airuntime.Error
+	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonImportInvalid {
+		t.Fatalf("missing array secret error=%v", err)
+	}
+}
+
+func TestCreateOnlyDoesNotChangeExistingDefaultProfile(t *testing.T) {
+	svc, db := newBulkService(t)
+	doc := seededDocument(t, svc, "org")
+	catalog, err := svc.Catalog(context.Background(), "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalDefaultID := catalog.DefaultProfileID
+	other, revision, err := svc.CreateProfile(context.Background(), "org", "user:owner", catalog.Revision, airuntime.RuntimeProfile{
+		Key: "other", Name: "Other", CLIKey: "codex", ModelKey: "gpt", Parameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err = svc.Export(context.Background(), "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Runtime.DefaultProfileKey = other.Key
+	preview, err := svc.PreviewImport(context.Background(), "org", airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyCreate, Document: doc,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := svc.ApplyImport(context.Background(), "org", "user:owner", airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyCreate, Document: doc, ValidationToken: preview.ValidationToken,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Applied {
+		t.Fatalf("create_only unexpectedly applied: %+v", report)
+	}
+	var defaultID string
+	if err := db.QueryRow(`SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, "org").Scan(&defaultID); err != nil {
+		t.Fatal(err)
+	}
+	if defaultID != originalDefaultID || revision == 0 {
+		t.Fatalf("default profile changed under create_only: %s", defaultID)
+	}
 }
 
 func assertCatalogState(t *testing.T, db *sql.DB, org string, revision int64, audits int) {

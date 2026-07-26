@@ -2,6 +2,9 @@ package airuntime
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,53 +28,55 @@ const (
 	ReasonImportVersionUnsupported Reason = "runtime_import_version_unsupported"
 	ReasonImportInvalid            Reason = "runtime_import_invalid"
 	ReasonImportConflict           Reason = "runtime_import_conflict"
+	ReasonImportTokenInvalid       Reason = "runtime_import_validation_token_invalid"
 )
 
 type ExportDocument struct {
-	SchemaVersion int           `json:"schema_version"`
-	Kind          string        `json:"kind"`
-	ExportedAt    time.Time     `json:"exported_at"`
-	Runtime       ExportCatalog `json:"runtime"`
+	SchemaVersion int           `json:"schema_version" yaml:"schema_version"`
+	Kind          string        `json:"kind" yaml:"kind"`
+	ExportedAt    time.Time     `json:"exported_at" yaml:"exported_at"`
+	Runtime       ExportCatalog `json:"runtime" yaml:"runtime"`
+	Warnings      []string      `json:"warnings,omitempty" yaml:"warnings,omitempty"`
 }
 
 type ExportCatalog struct {
-	DefaultProfileKey string          `json:"default_profile_key,omitempty"`
-	CLIs              []ExportCLI     `json:"clis"`
-	Models            []ExportModel   `json:"models"`
-	Profiles          []ExportProfile `json:"profiles"`
+	DefaultProfileKey string          `json:"default_profile_key,omitempty" yaml:"default_profile_key,omitempty"`
+	CLIs              []ExportCLI     `json:"clis" yaml:"clis"`
+	Models            []ExportModel   `json:"models" yaml:"models"`
+	Profiles          []ExportProfile `json:"profiles" yaml:"profiles"`
 }
 
 type ExportCLI struct {
-	Key               string          `json:"key"`
-	DisplayName       string          `json:"display_name"`
-	Executable        string          `json:"executable"`
-	VersionConstraint string          `json:"version_constraint,omitempty"`
-	RequiredFeatures  []string        `json:"required_features"`
-	ParameterSchema   json.RawMessage `json:"parameter_schema"`
-	Enabled           bool            `json:"enabled"`
+	Key               string          `json:"key" yaml:"key"`
+	DisplayName       string          `json:"display_name" yaml:"display_name"`
+	Executable        string          `json:"executable" yaml:"executable"`
+	VersionConstraint string          `json:"version_constraint,omitempty" yaml:"version_constraint,omitempty"`
+	RequiredFeatures  []string        `json:"required_features" yaml:"required_features"`
+	ParameterSchema   json.RawMessage `json:"parameter_schema" yaml:"parameter_schema"`
+	Enabled           bool            `json:"enabled" yaml:"enabled"`
 }
 
 type ExportModel struct {
-	Key               string         `json:"key"`
-	ModelKey          string         `json:"model_key"`
-	DisplayName       string         `json:"display_name"`
-	CompatibleCLIKeys []string       `json:"compatible_cli_keys"`
-	DefaultParameters map[string]any `json:"default_parameters"`
-	Enabled           bool           `json:"enabled"`
-	ContextWindow     int            `json:"context_window,omitempty"`
-	InputCost         float64        `json:"input_cost_per_mtok,omitempty"`
-	OutputCost        float64        `json:"output_cost_per_mtok,omitempty"`
-	Tier              string         `json:"tier,omitempty"`
+	Key               string         `json:"key" yaml:"key"`
+	ModelKey          string         `json:"model_key" yaml:"model_key"`
+	DisplayName       string         `json:"display_name" yaml:"display_name"`
+	CompatibleCLIKeys []string       `json:"compatible_cli_keys" yaml:"compatible_cli_keys"`
+	DefaultParameters map[string]any `json:"default_parameters" yaml:"default_parameters"`
+	Enabled           bool           `json:"enabled" yaml:"enabled"`
+	ContextWindow     int            `json:"context_window,omitempty" yaml:"context_window,omitempty"`
+	InputCost         float64        `json:"input_cost_per_mtok,omitempty" yaml:"input_cost_per_mtok,omitempty"`
+	OutputCost        float64        `json:"output_cost_per_mtok,omitempty" yaml:"output_cost_per_mtok,omitempty"`
+	Tier              string         `json:"tier,omitempty" yaml:"tier,omitempty"`
 }
 
 type ExportProfile struct {
-	Key         string         `json:"key"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	CLIKey      string         `json:"cli_key"`
-	ModelKey    string         `json:"model_key"`
-	Parameters  map[string]any `json:"parameters"`
-	Enabled     bool           `json:"enabled"`
+	Key         string         `json:"key" yaml:"key"`
+	Name        string         `json:"name" yaml:"name"`
+	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
+	CLIKey      string         `json:"cli_key" yaml:"cli_key"`
+	ModelKey    string         `json:"model_key" yaml:"model_key"`
+	Parameters  map[string]any `json:"parameters" yaml:"parameters"`
+	Enabled     bool           `json:"enabled" yaml:"enabled"`
 }
 
 type ImportStrategy string
@@ -81,6 +86,50 @@ type ImportRequest struct {
 	DryRun           bool           `json:"dry_run"`
 	Strategy         ImportStrategy `json:"strategy"`
 	Document         ExportDocument `json:"document"`
+}
+
+type ExportScope string
+
+const (
+	ExportScopeAll      ExportScope = "all"
+	ExportScopeCLI      ExportScope = "cli"
+	ExportScopeModel    ExportScope = "model"
+	ExportScopeProfile  ExportScope = "profile"
+	ExportScopeSelected ExportScope = "selected"
+)
+
+type ExportOptions struct {
+	Scope               ExportScope
+	CLIKeys             []string
+	ModelKeys           []string
+	ProfileKeys         []string
+	IncludeDependencies bool
+}
+
+type PreviewRequest struct {
+	Strategy ImportStrategy `json:"strategy" yaml:"strategy"`
+	Document ExportDocument `json:"document" yaml:"document"`
+}
+
+type PreviewResponse struct {
+	Report          ImportReport `json:"report" yaml:"report"`
+	ValidationToken string       `json:"validation_token" yaml:"validation_token"`
+	ExpiresAt       time.Time    `json:"expires_at" yaml:"expires_at"`
+	DocumentSHA256  string       `json:"document_sha256" yaml:"document_sha256"`
+}
+
+type ApplyRequest struct {
+	Strategy        ImportStrategy `json:"strategy" yaml:"strategy"`
+	Document        ExportDocument `json:"document" yaml:"document"`
+	ValidationToken string         `json:"validation_token" yaml:"validation_token"`
+}
+
+type validationClaims struct {
+	OrgID          string         `json:"org_id"`
+	DocumentDigest string         `json:"document_digest"`
+	Strategy       ImportStrategy `json:"strategy"`
+	Revision       int64          `json:"revision"`
+	ExpiresAt      int64          `json:"expires_at"`
 }
 
 type Diagnostic struct {
@@ -115,13 +164,120 @@ type BulkMutation struct {
 }
 
 func (s *Service) Export(ctx context.Context, orgID string) (ExportDocument, error) {
+	return s.ExportWithOptions(ctx, orgID, ExportOptions{Scope: ExportScopeAll, IncludeDependencies: true})
+}
+
+func (s *Service) ExportWithOptions(ctx context.Context, orgID string, opts ExportOptions) (ExportDocument, error) {
 	cat, err := s.repo.GetCatalog(ctx, orgID)
 	if err != nil {
 		return ExportDocument{}, err
 	}
 	doc := exportCatalog(cat)
 	doc.ExportedAt = s.now()
+	if opts.Scope == "" {
+		opts.Scope = ExportScopeAll
+	}
+	if opts.Scope != ExportScopeAll {
+		filtered, warnings, err := filterExport(doc.Runtime, opts)
+		if err != nil {
+			return ExportDocument{}, err
+		}
+		doc.Runtime, doc.Warnings = filtered, warnings
+	}
 	return doc, nil
+}
+
+func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRequest) (PreviewResponse, error) {
+	strategy, err := normalizeImportStrategy(req.Strategy)
+	if err != nil {
+		return PreviewResponse{}, err
+	}
+	current, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return PreviewResponse{}, err
+	}
+	report, err := s.validateImport(orgID, current, req.Document, strategy)
+	if err != nil {
+		return PreviewResponse{Report: report}, err
+	}
+	digest, err := documentDigest(req.Document)
+	if err != nil {
+		return PreviewResponse{}, err
+	}
+	expires := s.now().Add(s.importTokenLifetime)
+	claims := validationClaims{
+		OrgID: orgID, DocumentDigest: digest, Strategy: strategy,
+		Revision: current.Revision, ExpiresAt: expires.Unix(),
+	}
+	token, err := s.signValidationClaims(claims)
+	if err != nil {
+		return PreviewResponse{}, err
+	}
+	return PreviewResponse{
+		Report: report, ValidationToken: token, ExpiresAt: expires, DocumentSHA256: digest,
+	}, nil
+}
+
+func (s *Service) ApplyImport(ctx context.Context, orgID, actor string, req ApplyRequest) (ImportReport, error) {
+	strategy, err := normalizeImportStrategy(req.Strategy)
+	if err != nil {
+		return ImportReport{}, err
+	}
+	claims, err := s.verifyValidationToken(req.ValidationToken)
+	if err != nil {
+		return ImportReport{}, err
+	}
+	digest, err := documentDigest(req.Document)
+	if err != nil {
+		return ImportReport{}, err
+	}
+	if claims.OrgID != orgID || claims.DocumentDigest != digest || claims.Strategy != strategy {
+		return ImportReport{}, importError(ReasonImportConflict, "validation_token", "validation token does not match organization, document, or strategy")
+	}
+	current, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return ImportReport{}, err
+	}
+	if current.Revision != claims.Revision {
+		return ImportReport{}, &Error{Reason: ReasonRevisionConflict, Message: "catalog revision changed after preview", Details: map[string]any{"expected_revision": claims.Revision, "actual_revision": current.Revision}}
+	}
+	report, err := s.validateImport(orgID, current, req.Document, strategy)
+	if err != nil {
+		return report, err
+	}
+	if len(report.Items) == 0 || allUnchanged(report.Items) {
+		return report, nil
+	}
+	mutation, _, _ := s.planImport(orgID, current, req.Document.Runtime, strategy)
+	assignImportIDs(&mutation, s.id)
+	before := exportCatalog(current)
+	after := candidateCatalog(current, mutation)
+	audit := s.audit(orgID, actor, "catalog", orgID, "bulk_imported", before, exportCatalog(after))
+	bulkRepo, ok := s.repo.(BulkRepository)
+	if !ok {
+		return report, errors.New("AI Runtime repository does not support bulk import")
+	}
+	rev, err := bulkRepo.ApplyBulkImport(ctx, mutation, claims.Revision, audit)
+	if err != nil {
+		return report, err
+	}
+	report.Applied, report.Revision = true, rev
+	return report, nil
+}
+
+func (s *Service) validateImport(orgID string, current Catalog, doc ExportDocument, strategy ImportStrategy) (ImportReport, error) {
+	report := ImportReport{DryRun: true, Revision: current.Revision, Items: []ImportItem{}, Diagnostics: []Diagnostic{}}
+	if doc.Kind != ExportKind {
+		return report, importError(ReasonImportMalformed, "kind", "document kind must be "+ExportKind)
+	}
+	if doc.SchemaVersion != ExportVersion {
+		return report, importError(ReasonImportVersionUnsupported, "schema_version", fmt.Sprintf("unsupported document schema_version %d", doc.SchemaVersion))
+	}
+	_, report.Items, report.Diagnostics = s.planImport(orgID, current, doc.Runtime, strategy)
+	if len(report.Diagnostics) != 0 {
+		return report, &Error{Reason: report.Diagnostics[0].Code, Message: "AI Runtime import validation failed", Details: map[string]any{"diagnostics": report.Diagnostics}}
+	}
+	return report, nil
 }
 
 func (s *Service) Import(ctx context.Context, orgID, actor string, req ImportRequest) (ImportReport, error) {
@@ -175,7 +331,7 @@ func (s *Service) planImport(orgID string, current Catalog, in ExportCatalog, st
 	m := BulkMutation{
 		OrgID:             orgID,
 		DefaultProfileKey: strings.TrimSpace(in.DefaultProfileKey),
-		SetDefaultProfile: strategy == StrategyReplace || strings.TrimSpace(in.DefaultProfileKey) != "",
+		SetDefaultProfile: strategy == StrategyReplace || (strategy != StrategyCreate && strings.TrimSpace(in.DefaultProfileKey) != ""),
 	}
 	items := make([]ImportItem, 0, len(in.CLIs)+len(in.Models)+len(in.Profiles))
 	diags := make([]Diagnostic, 0)
@@ -476,16 +632,37 @@ func preserveRedactedMap(in, existing map[string]any, path, entityType, key stri
 			out[name] = old
 			continue
 		}
-		if nested, ok := value.(map[string]any); ok {
-			oldMap, _ := old.(map[string]any)
-			var nestedDiags []Diagnostic
-			out[name], nestedDiags = preserveRedactedMap(nested, oldMap, path+"."+name, entityType, key)
-			diags = append(diags, nestedDiags...)
-			continue
-		}
-		out[name] = value
+		out[name], diags = preserveRedactedValue(value, old, path+"."+name, entityType, key, diags)
 	}
 	return out, diags
+}
+
+func preserveRedactedValue(value, existing any, path, entityType, key string, diags []Diagnostic) (any, []Diagnostic) {
+	switch nested := value.(type) {
+	case map[string]any:
+		oldMap, _ := existing.(map[string]any)
+		out, nestedDiags := preserveRedactedMap(nested, oldMap, path, entityType, key)
+		return out, append(diags, nestedDiags...)
+	case []any:
+		oldSlice, _ := existing.([]any)
+		out := make([]any, len(nested))
+		for i, item := range nested {
+			var old any
+			if i < len(oldSlice) {
+				old = oldSlice[i]
+			}
+			out[i], diags = preserveRedactedValue(item, old, fmt.Sprintf("%s[%d]", path, i), entityType, key, diags)
+		}
+		return out, diags
+	default:
+		if value == RedactedValue {
+			if existing == nil || existing == RedactedValue {
+				return nil, append(diags, diagnostic(ReasonImportInvalid, path, entityType, key, "redacted value has no existing value to preserve"))
+			}
+			return existing, diags
+		}
+		return value, diags
+	}
 }
 
 func rejectUnresolvedRedacted(in map[string]any, path, entityType, key string) []Diagnostic {
@@ -632,4 +809,152 @@ func sensitiveKey(k string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeImportStrategy(strategy ImportStrategy) (ImportStrategy, error) {
+	if strategy == "" {
+		strategy = StrategyMerge
+	}
+	switch strategy {
+	case StrategyMerge, StrategyCreate, StrategyReplace:
+		return strategy, nil
+	default:
+		return "", importError(ReasonImportMalformed, "strategy", "strategy must be merge, create_only, or replace")
+	}
+}
+
+func documentDigest(doc ExportDocument) (string, error) {
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+func (s *Service) signValidationClaims(claims validationClaims) (string, error) {
+	raw, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	payload := base64.RawURLEncoding.EncodeToString(raw)
+	mac := hmac.New(sha256.New, s.importTokenKey)
+	_, _ = mac.Write([]byte(payload))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return payload + "." + signature, nil
+}
+
+func (s *Service) verifyValidationToken(token string) (validationClaims, error) {
+	var claims validationClaims
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return claims, importError(ReasonImportTokenInvalid, "validation_token", "validation token is malformed")
+	}
+	mac := hmac.New(sha256.New, s.importTokenKey)
+	_, _ = mac.Write([]byte(parts[0]))
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || !hmac.Equal(signature, mac.Sum(nil)) {
+		return claims, importError(ReasonImportTokenInvalid, "validation_token", "validation token signature is invalid")
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || json.Unmarshal(raw, &claims) != nil {
+		return claims, importError(ReasonImportTokenInvalid, "validation_token", "validation token payload is invalid")
+	}
+	if claims.ExpiresAt <= s.now().Unix() {
+		return claims, importError(ReasonImportTokenInvalid, "validation_token", "validation token has expired")
+	}
+	if claims.OrgID == "" || claims.DocumentDigest == "" || claims.Strategy == "" {
+		return claims, importError(ReasonImportTokenInvalid, "validation_token", "validation token claims are incomplete")
+	}
+	return claims, nil
+}
+
+func filterExport(in ExportCatalog, opts ExportOptions) (ExportCatalog, []string, error) {
+	if opts.Scope != ExportScopeCLI && opts.Scope != ExportScopeModel && opts.Scope != ExportScopeProfile && opts.Scope != ExportScopeSelected {
+		return ExportCatalog{}, nil, importError(ReasonImportMalformed, "scope", "scope must be all, cli, model, profile, or selected")
+	}
+	cliWanted, modelWanted, profileWanted := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	add := func(dst map[string]bool, keys []string) {
+		for _, key := range keys {
+			if key = strings.TrimSpace(key); key != "" {
+				dst[key] = true
+			}
+		}
+	}
+	switch opts.Scope {
+	case ExportScopeCLI:
+		add(cliWanted, opts.CLIKeys)
+		if len(cliWanted) == 0 {
+			for _, item := range in.CLIs {
+				cliWanted[item.Key] = true
+			}
+		}
+	case ExportScopeModel:
+		add(modelWanted, opts.ModelKeys)
+		if len(modelWanted) == 0 {
+			for _, item := range in.Models {
+				modelWanted[item.Key] = true
+			}
+		}
+	case ExportScopeProfile:
+		add(profileWanted, opts.ProfileKeys)
+		if len(profileWanted) == 0 {
+			for _, item := range in.Profiles {
+				profileWanted[item.Key] = true
+			}
+		}
+	case ExportScopeSelected:
+		add(cliWanted, opts.CLIKeys)
+		add(modelWanted, opts.ModelKeys)
+		add(profileWanted, opts.ProfileKeys)
+		if len(cliWanted)+len(modelWanted)+len(profileWanted) == 0 {
+			return ExportCatalog{}, nil, importError(ReasonImportMalformed, "scope", "selected scope requires at least one key")
+		}
+	}
+
+	if opts.IncludeDependencies {
+		for _, profile := range in.Profiles {
+			if profileWanted[profile.Key] {
+				cliWanted[profile.CLIKey] = true
+				modelWanted[profile.ModelKey] = true
+			}
+		}
+		for _, model := range in.Models {
+			if modelWanted[model.Key] {
+				for _, cliKey := range model.CompatibleCLIKeys {
+					cliWanted[cliKey] = true
+				}
+			}
+		}
+	}
+
+	out := ExportCatalog{CLIs: []ExportCLI{}, Models: []ExportModel{}, Profiles: []ExportProfile{}}
+	for _, item := range in.CLIs {
+		if cliWanted[item.Key] {
+			out.CLIs = append(out.CLIs, item)
+			delete(cliWanted, item.Key)
+		}
+	}
+	for _, item := range in.Models {
+		if modelWanted[item.Key] {
+			out.Models = append(out.Models, item)
+			delete(modelWanted, item.Key)
+		}
+	}
+	for _, item := range in.Profiles {
+		if profileWanted[item.Key] {
+			out.Profiles = append(out.Profiles, item)
+			delete(profileWanted, item.Key)
+			if item.Key == in.DefaultProfileKey {
+				out.DefaultProfileKey = item.Key
+			}
+		}
+	}
+	if len(cliWanted)+len(modelWanted)+len(profileWanted) != 0 {
+		return ExportCatalog{}, nil, importError(ReasonImportInvalid, "scope", "one or more selected stable keys do not exist")
+	}
+	if opts.IncludeDependencies {
+		return out, nil, nil
+	}
+	return out, []string{"partial bundle: dependencies were not included and the document may not be independently importable"}, nil
 }
