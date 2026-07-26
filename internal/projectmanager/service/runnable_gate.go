@@ -155,6 +155,17 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if p.Status() != pm.PlanRunning {
 		return pm.ErrTaskNotRunnable
 	}
+	// A stage gate is a real executable task, so start_task must enforce the same
+	// fail-closed member barrier as graphReadySet. Without this check an assigned
+	// evaluator can call start_task directly while claimable=false and bypass the
+	// dispatcher's stageGateReadiness filter.
+	gateReady, err := s.stageGateReadiness(ctx, p.ID(), nil)
+	if err != nil {
+		return err
+	}
+	if ready, isStageGate := gateReady[taskID]; isStageGate && !ready {
+		return pm.ErrTaskNotRunnable
+	}
 	// §13.A dependency gate (structured DAG plan): derive the node's status from the
 	// plan view (the engine's own readiness logic — seq AND + conditional routing) and
 	// allow the start ONLY when the blockedBy deps are resolved (ready = deps done, not

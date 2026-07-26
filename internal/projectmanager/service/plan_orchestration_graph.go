@@ -726,6 +726,10 @@ func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, task
 	if len(persistedTasks) > 0 {
 		tasks = persistedTasks
 	}
+	stagesByID := make(map[pm.StageID]*pm.Stage, len(stages))
+	for _, stage := range stages {
+		stagesByID[stage.ID()] = stage
+	}
 	for _, stage := range stages {
 		gateTaskID := stage.GateTaskID()
 		if gateTaskID == "" {
@@ -738,6 +742,26 @@ func (s *Service) stageGateReadiness(ctx context.Context, planID pm.PlanID, task
 		for _, task := range tasks {
 			if task.ID() == gateTaskID {
 				ready = task.StageID() == stage.ID() && task.DispatchMode().RoutesInline()
+				break
+			}
+		}
+		if !ready {
+			result[gateTaskID] = false
+			continue
+		}
+		// A downstream stage cannot evaluate its own gate before every upstream
+		// stage gate has passed. The orchestration graph normally holds the
+		// downstream entry nodes, but persisted task state may already be terminal
+		// (manual recovery/import) and start_task must still fail closed.
+		for _, upstreamID := range stage.DependsOnStages() {
+			upstream := stagesByID[upstreamID]
+			if upstream == nil {
+				ready = false
+				break
+			}
+			state, _ := s.stageGateState(ctx, upstream)
+			if state != pm.StageGatePassed {
+				ready = false
 				break
 			}
 		}
