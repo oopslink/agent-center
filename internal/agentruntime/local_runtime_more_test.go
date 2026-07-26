@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,9 +15,6 @@ func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 	ctx := context.Background()
 
 	// No engine + no ToolCaller → SpawnExecutor logs + returns (nil, nil), never wedges.
-	if err := rt.NotifyWorkAvailable(ctx, "wi-1"); err != nil {
-		t.Errorf("NotifyWorkAvailable (no engine) = %v, want nil", err)
-	}
 	res, err := rt.SpawnExecutor(ctx, SpawnRequest{TaskID: "wi-1"})
 	if res != nil || err != nil {
 		t.Errorf("SpawnExecutor (no engine) = (%v, %v), want (nil, nil)", res, err)
@@ -29,6 +27,38 @@ func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 	}
 	if rt.HasExecutor() {
 		t.Error("a runtime with no engine attached must report HasExecutor()=false")
+	}
+}
+
+func TestNotifyWorkAvailable_InjectsSupervisorNudgeOnly(t *testing.T) {
+	rt, _ := newTestRuntime(t)
+	fs := &fakeSession{}
+	rt.withState(func(s *SessionState) { s.Session = fs })
+
+	if err := rt.NotifyWorkAvailable(context.Background(), "task-17"); err != nil {
+		t.Fatalf("NotifyWorkAvailable: %v", err)
+	}
+	msgs := fs.msgs()
+	if len(msgs) != 1 {
+		t.Fatalf("work_available must inject exactly one supervisor nudge, got %d", len(msgs))
+	}
+	if got := msgs[0]; !strings.Contains(got, "task-17") || !strings.Contains(got, "fork_executor") {
+		t.Fatalf("nudge must name the task and explicit fork tool, got %q", got)
+	}
+	rt.withState(func(s *SessionState) {
+		if !s.HadWork {
+			t.Errorf("NotifyWorkAvailable should mark HadWork")
+		}
+		if s.CurrentTaskID != "" {
+			t.Errorf("NotifyWorkAvailable must not claim a running task, got %q", s.CurrentTaskID)
+		}
+	})
+}
+
+func TestNotifyWorkAvailable_NoSessionRetries(t *testing.T) {
+	rt, _ := newTestRuntime(t)
+	if err := rt.NotifyWorkAvailable(context.Background(), "task-17"); err == nil {
+		t.Fatal("work_available without a supervisor session must return an error so the control command retries")
 	}
 }
 

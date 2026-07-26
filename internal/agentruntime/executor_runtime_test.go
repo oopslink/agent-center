@@ -189,7 +189,7 @@ func TestBuildWorkItem(t *testing.T) {
 	t.Run("full detail", func(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
-		}, "", nil)
+		}, "", nil, "", "")
 		want := orchestrator.WorkItem{
 			TaskID: "task-9", TaskRef: "task-9", TaskModel: "claude-haiku",
 			Goal: executor.Goal{Title: "Fix the bug", Description: "do the fix"},
@@ -199,15 +199,26 @@ func TestBuildWorkItem(t *testing.T) {
 		}
 	})
 	t.Run("title falls back to first description line", func(t *testing.T) {
-		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"}, "", nil)
+		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"}, "", nil, "", "")
 		if got.Goal.Title != "first line" {
 			t.Errorf("goal title = %q, want 'first line'", got.Goal.Title)
 		}
 	})
 	t.Run("title falls back to task id", func(t *testing.T) {
-		got := buildWorkItem("task-7", &centerTaskDetail{}, "", nil)
+		got := buildWorkItem("task-7", &centerTaskDetail{}, "", nil, "", "")
 		if got.Goal.Title != "task task-7" {
 			t.Errorf("goal title = %q, want 'task task-7'", got.Goal.Title)
+		}
+	})
+	t.Run("supervisor override supplies model and context", func(t *testing.T) {
+		got := buildWorkItem("task-9", &centerTaskDetail{
+			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
+		}, "", nil, " claude-opus ", " use this traceback ")
+		if got.TaskModel != "claude-opus" {
+			t.Errorf("TaskModel override = %q, want claude-opus", got.TaskModel)
+		}
+		if got.Context != "use this traceback" {
+			t.Errorf("Context override = %q, want trimmed context", got.Context)
 		}
 	})
 }
@@ -233,7 +244,7 @@ func TestBuildExecutorEngine_WiresWriteback(t *testing.T) {
 	}
 }
 
-// ---- SpawnExecutor (was forkOnWorkAvailable) ----
+// ---- SpawnExecutor (explicit fork_executor primitive) ----
 
 // spawn drives SpawnExecutor with the given scripted caller attached.
 func spawn(t *testing.T, agentID, taskID string, sc ToolCaller) (*LocalRuntime, *ExecutorEngine, string) {
@@ -296,9 +307,9 @@ func TestSpawnExecutor_AlreadyRunningSkips(t *testing.T) {
 }
 
 // TestSpawnExecutor_SkipsForeignAssignee_Guard locks the issue-d118b5dc ② FIX: SpawnExecutor
-// (the agent.work_available fork path) now GUARDS on the assignee — if the fetched task is
+// (the explicit fork_executor path) now GUARDS on the assignee — if the fetched task is
 // assigned to a DIFFERENT agent, it stops after get_task (no start_task, no fork), leaving the
-// task queued for its real assignee. Here agent-self receives a work_available for task-x
+// task queued for its real assignee. Here agent-self receives a fork request for task-x
 // assigned to agent-OTHER: it must NOT force-start or fork a cross-namespace executor. The
 // DISPATCH-CROSS-NAMESPACE decision log is still emitted (fail-loud keeper).
 func TestSpawnExecutor_SkipsForeignAssignee_Guard(t *testing.T) {

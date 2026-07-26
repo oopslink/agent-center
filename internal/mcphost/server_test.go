@@ -82,6 +82,8 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 var wantTools = []string{
 	// v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
 	"list_my_tasks",
+	// Supervisor dispatch decision: explicit fork, never automatic from work_available.
+	"fork_executor",
 	// v2.14.0 I14/F5 §五: agent drives its own task queue by task_id (open→running + lease)
 	"start_task",
 	// T83: claim an open assignment-pool task (pull, ownerless)
@@ -481,6 +483,7 @@ func TestTierTools_DefaultIsLeanCore(t *testing.T) {
 	// already present in the default ListTools result.
 	for _, name := range []string{
 		"list_my_tasks", "start_task", "heartbeat", "complete_task", "post_message",
+		"fork_executor",
 		"create_reminder", "list_reminders", "get_reminder", "update_reminder",
 		"get_issue", "list_issues", "list_tasks_of_issue", "create_issue",
 		"update_issue", "close_issue", "reopen_issue",

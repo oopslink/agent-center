@@ -384,6 +384,9 @@ func (s *Server) routes() {
 	// v2.14.0 F7 (issue I14): get_my_work + the work-item fail_task/pause_task/
 	// resume_task routes were removed — AgentWorkItem retired (no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
+	// Explicit supervisor dispatch decision: enqueue a runtime fork command. The
+	// automatic work_available→fork path is intentionally gone.
+	s.mux.HandleFunc("POST /admin/agent-tools/fork_executor", s.forkExecutorHandler)
 	// Runtime-facing reconcile query (§4.2): the DISPATCHABLE in-flight (open/running,
 	// minus ADR-0054 parked)
 	// set — includes deps-unsatisfied tasks list_my_tasks drops. Admin-only agent-tool

@@ -139,9 +139,8 @@ type Runtime interface {
     // === 信号投递（daemon → runtime → supervisor session） ===
 
     // NotifyWorkAvailable: 有任务来了。
-    // FIXME(phase-6): 过渡期直接调 SpawnExecutor（W4a 行为）。
-    // Phase 6（supervisor 接入 fork_executor MCP tool）完成后，必须改为
-    // inject nudge 到 supervisor session，并删除直接 SpawnExecutor 调用。
+    // 只 inject nudge 到 supervisor session；Supervisor 决定 inline 处理
+    // 还是调用 fork_executor(task_id) 显式 fork。
     NotifyWorkAvailable(ctx context.Context, taskID string) error
 
     // NotifyConverse: 人类发来日常对话消息。
@@ -172,8 +171,8 @@ type Runtime interface {
     // 并发约束：SpawnExecutor 内部使用 per-runtime mutex 串行化整个
     // get_task → prepare → start_task → launch 序列。原因：
     // (a) Pool.Launch 内部 mutex 只保护 cap 计数，不保护前序步骤；
-    // (b) 调用方可能来自不同 goroutine（MCP tool handler vs 过渡期
-    //     NotifyWorkAvailable），必须防止同 agent 的并发 double-fork。
+    // (b) 调用方可能来自不同 goroutine（显式 fork_executor、prewarm redrive、
+    //     恢复路径），必须防止同 agent 的并发 double-fork。
     SpawnExecutor(ctx context.Context, req SpawnRequest) (*SpawnResult, error)
 
     // === 周期性运维 ===
@@ -229,7 +228,7 @@ type SpawnResult struct {
 | wake inject | `wake` | `Runtime.NotifyWake` |
 | converse inject | `converse` | `Runtime.NotifyConverse` |
 | work_available 通知 | `workAvailable` (并发 agent 分支) | `Runtime.NotifyWorkAvailable` |
-| executor fork / drain | `forkOnWorkAvailable` / `launchExecutor` / `drainExecutor` / `workViaExecutor` | `Runtime.SpawnExecutor` 内部 |
+| executor fork / drain | `fork_executor` / `SpawnExecutor` / `launchExecutor` / `drainExecutor` / `workViaExecutor` | `Runtime.SpawnExecutor` 内部 |
 | executor engine 构建 | `buildExecutorEngine` | `NewLocalRuntime` 工厂 |
 | executor recovery / watchdog | `recoverExecutors` / `maybeRunExecutorWatchdog` / `checkOrphanOnce` | `Runtime.Recover` / `Tick`（内部 sweep） |
 | center RPC (fork 准入) | `fetchCenterTask` / `startCenterTask` / `blockTaskOnModelNotAllowed` | 通过 `CenterClient` 端口 |
@@ -346,7 +345,7 @@ Phase 0 体量大，建议分 3 个子步骤独立合并：
 |---|---|---|
 | **0a** | 定义 `Runtime` 接口 + `LocalRuntime` 骨架 + daemon 侧 `managedAgent` 改为持有 `Runtime`。NotifyConverse/NotifyWork/NotifyWake 先实现为直接转发到内部 session（行为不变）。 | 低：接口定义 + 薄 wrapper |
 | **0b** | 搬迁 session 生命周期（Start/Stop）+ onEvent/onExit + self-heal + rate-limit/API-error resume + task events 到 `LocalRuntime`。daemon 的 `reconcileRunning` 改为调 `runtime.Start`。 | 中：搬迁最多代码，但行为不变 |
-| **0c** | 搬迁 executor 面（executorEngine / forkOnWorkAvailable / launchExecutor / drainExecutor / recovery / watchdog）到 `LocalRuntime`。暴露 `SpawnExecutor` + `Recover`；watchdog sweep 归入 `Tick`。 | 中：依赖 0b 的 session 集成 |
+| **0c** | 搬迁 executor 面（executorEngine / SpawnExecutor / launchExecutor / drainExecutor / recovery / watchdog）到 `LocalRuntime`。暴露 `SpawnExecutor` + `Recover`；watchdog sweep 归入 `Tick`。 | 中：依赖 0b 的 session 集成 |
 
 ### Phase 1：数据面 — get_task 投影补 repo hint
 
@@ -418,7 +417,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
         // fork 失败但 task 已 running（step 4 start_task 已成功）。
         // - worktree 必须清理（否则泄漏）；
         // - task 状态依赖 lease reclaim 自动回收到 open（与现有 W4a
-        //   行为一致：forkOnWorkAvailable 也不回滚 start_task）。
+        //   行为一致：SpawnExecutor 也不回滚 start_task）。
         if prepared != nil {
             r.materializer.RemoveWorktree(ctx, prepared.worktree)
         }
@@ -444,15 +443,15 @@ Feature flag：`AC_EXECUTOR_GIT_WORKTREE=1` → 创建 materializer；off → ni
 
 Reconciler 读到有 RepoKey 的 Record → 终态 executor 用 materializer 清理 worktree。无 metadata → 现有行为。
 
-### Phase 6（后续）：supervisor 接入 fork_executor MCP tool
+### Phase 6（当前）：supervisor 接入 fork_executor MCP tool
 
-不在本次范围。Phase 0-5 的结构已为此做好准备：
+当前机制：
 
-1. center 新增 `fork_executor` agent-tool endpoint
-2. MCP host 注册 `fork_executor` tool
-3. tool handler 调 `runtime.SpawnExecutor(req)`
-4. `NotifyWorkAvailable` 从直接 SpawnExecutor 改为 inject supervisor session
-5. supervisor system prompt 补充 fork 决策指导
+1. center `fork_executor` agent-tool endpoint 只做授权 + durable enqueue：向目标 worker control stream 投递 `agent.fork_executor`
+2. MCP host 注册 `fork_executor` tool，agent_id 仍由进程配置注入，模型不能伪造
+3. worker/agent-runtime 收到 `agent.fork_executor` 后调用 `runtime.SpawnExecutor(req)`
+4. `NotifyWorkAvailable` 只 inject supervisor nudge，不再直接 SpawnExecutor
+5. supervisor system prompt 明确：收到 work_available 后自己决定 inline 处理还是显式 fork
 
 `SpawnExecutor` 接口和内部流程不变。
 

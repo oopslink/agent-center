@@ -354,7 +354,7 @@ func statErr(path string) error { _, err := os.Stat(path); return err }
 // slot when the executor exits) and mirrors the inject path's hadWork/currentTaskID.
 func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) (*orchestrator.Launched, error) {
 	// issue-d118b5dc instrument: the single commit point where an executor fork is actually
-	// launched (reached from BOTH SpawnExecutor(work_available) and workViaExecutor(work)).
+	// launched (reached from BOTH SpawnExecutor(fork_executor) and workViaExecutor(work)).
 	// Fail-loud entry log with the forking runtime's namespace so a repro can correlate WHICH
 	// runtime committed the fork for a given task_id (pairs with the DISPATCH-DECISION logs to
 	// prove a ① dual fan-out / ② cross-namespace fork). Instrument-only, no behavior change.
@@ -577,8 +577,8 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// SpawnExecutor — the live get_task→start_task→launch fork sequence (was
-// forkOnWorkAvailable), serialized end-to-end under forkMu (red line #1).
+// SpawnExecutor — the explicit fork_executor get_task→start_task→launch fork
+// sequence, serialized end-to-end under forkMu (red line #1).
 // ---------------------------------------------------------------------------
 
 // SpawnExecutor admits a queued task through the center (start_task, ≤N cap) and
@@ -611,45 +611,35 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	taskID := req.TaskID
 	ee := r.execEngine()
 	if ee == nil {
-		r.log("work_available agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
+		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
 		return nil, nil
 	}
 
-	// issue-d118b5dc instrument: entry probe for the agent.work_available → NotifyWorkAvailable
-	// → SpawnExecutor route. Fail-loud so a ① dual fan-out (this firing for a task that ALSO got
-	// an agent.work inject) is visible. Instrument-only, no behavior change.
-	//
-	// This is an ENTRY probe, NOT the dispatch decision: since I105 this route is no longer an
-	// unconditional fork — a task marked dispatch_mode=supervisor_inline routes to the supervisor
-	// instead (see the gate below). The mode is read off the task, and fetchCenterTask has not run
-	// yet at this point, so this line deliberately asserts NO dispatch_mode. The routing outcome
-	// is logged where it is actually known: DISPATCH-DECISION … dispatch_mode=supervisor-inline at
-	// the gate below, or DISPATCH-FORK-ENTRY at the fork commit point (launchExecutorLocked).
-	r.log("DISPATCH-ENTRY route=NotifyWorkAvailable(agent.work_available) agent_namespace=%s task_id=%s — SpawnExecutor entry (dispatch_mode not yet read; routing outcome logged separately)",
+	r.log("DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=%s task_id=%s — SpawnExecutor entry",
 		agentID, taskID)
 
 	r.forkMu.Lock()
 	defer r.forkMu.Unlock()
 
 	if strings.TrimSpace(taskID) == "" {
-		r.log("work_available agent=%s concurrency fork: empty task_id — skipping", agentID)
+		r.log("fork_executor agent=%s concurrency fork: empty task_id — skipping", agentID)
 		return nil, nil
 	}
 	caller := r.toolCaller()
 	if caller == nil {
-		r.log("work_available agent=%s task=%s concurrency fork: no ToolCaller — left queued", agentID, taskID)
+		r.log("fork_executor agent=%s task=%s concurrency fork: no ToolCaller — left queued", agentID, taskID)
 		return nil, nil
 	}
 
 	// 1. Pull the task detail to build the WorkItem (title/description/model).
 	task, err := r.fetchCenterTask(ctx, agentID, taskID)
 	if err != nil {
-		r.log("work_available agent=%s task=%s get_task: %v — left queued", agentID, taskID, err)
+		r.log("fork_executor agent=%s task=%s get_task: %v — left queued", agentID, taskID, err)
 		return nil, nil
 	}
 
 	// issue-d118b5dc ② foreign-assignee guard: SpawnExecutor forks for whatever task_id the
-	// agent.work_available command carried, so a work_available for a task assigned to agent B
+	// fork_executor command carried, so a fork request for a task assigned to agent B
 	// that reaches agent A's runtime would have A fork an executor for B's task = a cross-
 	// namespace fork (A also force-starts it as itself). Guard: if the fetched task's assignee
 	// names an agent OTHER than this runtime, SKIP — do not start_task, do not fork, leave the
@@ -662,7 +652,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// same-agent fork (false positive → skipping every dispatch). This mirrors the
 	// boot-reconcile / point-recovery identity compare (taskCancelEvidence uses identityRef).
 	if ref := r.identityRef(); taskReassigned(task.Assignee, ref) {
-		r.log("DISPATCH-CROSS-NAMESPACE agent_namespace=%s agent_ref=%s task_id=%s task_assignee=%q — work_available fork on a task NOT assigned to this runtime (issue-d118b5dc ②); SKIPPING fork (foreign-assignee guard), left queued for the real assignee",
+		r.log("DISPATCH-CROSS-NAMESPACE agent_namespace=%s agent_ref=%s task_id=%s task_assignee=%q — fork_executor on a task NOT assigned to this runtime (issue-d118b5dc ②); SKIPPING fork (foreign-assignee guard), left queued for the real assignee",
 			agentID, ref, taskID, task.Assignee)
 		return nil, nil
 	}
@@ -674,29 +664,16 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// An empty status (older center / unknown projection) still forks — absence of an
 	// answer is not proof of a park, and failing closed here would strand normal dispatch.
 	if st := strings.TrimSpace(task.Status); st != "" && st != "open" && st != "reopened" {
-		r.log("work_available agent=%s task=%s already %s — not forking", agentID, taskID, st)
+		r.log("fork_executor agent=%s task=%s already %s — not forking", agentID, taskID, st)
 		return nil, nil
 	}
 
-	// I105 Phase 1 — the per-NODE fork gate. THE live dispatch path: the center's
-	// work_available lands here and, until now, forked UNCONDITIONALLY whenever the
-	// agent had concurrency on (per-AGENT control, no per-node say). A task-backed
-	// center-action node (deploy / synthesis / verdict) has no code worktree, so the
-	// fork lands a `claude -p` in an empty workspace that cannot deliver.
-	//
-	// RED LINE (regression lock): the gate is "route inline ONLY IF the task is
-	// explicitly marked supervisor_inline". Missing / empty / executor_fork / an
-	// unknown value all fall through to the fork below, byte-for-byte as before. The
-	// inverse (suppress on anything unrecognized) would starve every Dev node, so
-	// RoutesInline() is a strict equality test and get_task omits the key entirely on
-	// ordinary nodes. Placed AFTER the assignee + status guards (never inject a
-	// foreign or already-running task) and BEFORE the repo/worktree materialization
-	// (an inline node must not pay for a worktree it will never use).
-	// The const is the worker-side executor.DispatchMode* vocabulary (already the N4
-	// writeback's input signal) — NOT a new import of the center's pm domain, which
-	// this package deliberately does not depend on.
+	// A task explicitly marked supervisor_inline must be handled by the supervisor,
+	// not by this fork primitive. work_available already nudges the supervisor; if it
+	// calls fork_executor anyway, refuse loudly and leave the task queued.
 	if strings.TrimSpace(task.DispatchMode) == executor.DispatchModeSupervisorInline {
-		r.routeSupervisorInline(ctx, agentID, taskID, task)
+		r.log("FORK-REJECTED route=fork_executor dispatch_mode=supervisor_inline agent_namespace=%s task_id=%s — supervisor_inline tasks must be handled inline by the supervisor",
+			agentID, taskID)
 		return nil, nil
 	}
 
@@ -709,14 +686,14 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
 		}
-		r.log("work_available agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
+		r.log("fork_executor agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
 		return nil, nil
 	}
 	if task.Repo != nil && r.cfg.Materializer == nil && r.cfg.CloneMaterializer == nil {
 		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
 		}
-		r.log("work_available agent=%s task=%s repository preflight failed: workspace materializer unavailable — executor NOT forked", agentID, taskID)
+		r.log("fork_executor agent=%s task=%s repository preflight failed: workspace materializer unavailable — executor NOT forked", agentID, taskID)
 		return nil, nil
 	}
 
@@ -755,7 +732,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
 		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 		if wsErr != nil {
-			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+			r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
 			return nil, nil
 		}
 		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap
@@ -766,7 +743,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		// isLive = the current pool+orphan snapshot (fail-safe KEEP for anything live).
 		live := r.liveExecIDs(ee)
 		if n, perr := r.cfg.Materializer.PruneOrphanWorktrees(ctx, source, func(id string) bool { return live[id] }); perr != nil {
-			r.log("work_available agent=%s repo_key=%s prune orphan worktrees: %v (non-fatal)", agentID, source.RepoKey, perr)
+			r.log("fork_executor agent=%s repo_key=%s prune orphan worktrees: %v (non-fatal)", agentID, source.RepoKey, perr)
 		} else if n > 0 {
 			r.log("agent=%s repo_key=%s reaped %d orphan worktree(s) at spawn", agentID, source.RepoKey, n)
 		}
@@ -778,7 +755,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			BaseRef:       source.BaseRef,
 		})
 		if wtErr != nil {
-			r.log("work_available agent=%s task=%s prepare worktree: %v — left queued (start_task NOT called)",
+			r.log("fork_executor agent=%s task=%s prepare worktree: %v — left queued (start_task NOT called)",
 				agentID, taskID, wtErr)
 			return nil, nil
 		}
@@ -802,7 +779,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			execID = ee.engine.NewExecutorID()
 			wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 			if wsErr != nil {
-				r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+				r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
 				return nil, nil
 			}
 			r.deferForClone(agentID, taskID, target, reporepo.CloneRequest{
@@ -827,13 +804,13 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		// start_task declined AFTER the worktree was prepared → tear it down (red line B:
 		// no worktree leak). The task was never admitted, so nothing else to roll back.
 		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
-		r.log("work_available agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
+		r.log("fork_executor agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
 			agentID, taskID, err)
 		return nil, nil
 	}
 
 	// 4. Fork the executor (W1 HandleWork chain) under the SAME forkMu.
-	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared), ee)
+	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context), ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
 		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
@@ -842,7 +819,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			// leave the admitted task queued for retry next tick (unchanged behavior). It is
 			// the one fork error that must NOT block (a block here would wedge normal
 			// back-pressure).
-			r.log("work_available agent=%s task=%s fork at capacity: %v — left queued for retry",
+			r.log("fork_executor agent=%s task=%s fork at capacity: %v — left queued for retry",
 				agentID, taskID, err)
 			return nil, nil
 		}
@@ -867,7 +844,7 @@ func (r *LocalRuntime) removePreparedWorkspace(ctx context.Context, agentID, tas
 	}
 	if r.cfg.Materializer == nil || strings.TrimSpace(prepared.SourcePath) == "" {
 		if err := os.RemoveAll(prepared.Path); err != nil {
-			r.log("work_available agent=%s task=%s remove prepared clone workspace: %v", agentID, taskID, err)
+			r.log("fork_executor agent=%s task=%s remove prepared clone workspace: %v", agentID, taskID, err)
 		}
 		return
 	}
@@ -877,7 +854,7 @@ func (r *LocalRuntime) removePreparedWorkspace(ctx context.Context, agentID, tas
 		WorkspacePath: prepared.Path,
 		Branch:        prepared.Branch,
 	}); err != nil {
-		r.log("work_available agent=%s task=%s remove prepared worktree: %v", agentID, taskID, err)
+		r.log("fork_executor agent=%s task=%s remove prepared worktree: %v", agentID, taskID, err)
 	}
 }
 
@@ -893,7 +870,7 @@ func (r *LocalRuntime) removePreparedWorkspace(ctx context.Context, agentID, tas
 func (r *LocalRuntime) blockTaskOnForkFailure(ctx context.Context, agentID, taskID string, err error) {
 	cause := classifyForkFailure(err)
 	reason := forkFailureReason(cause, err)
-	r.log("work_available agent=%s task=%s FORK FAILED [cause=%s]: %v — blocking task (running→blocked, retryable)",
+	r.log("fork_executor agent=%s task=%s FORK FAILED [cause=%s]: %v — blocking task (running→blocked, retryable)",
 		agentID, taskID, cause, err)
 	caller := r.toolCaller()
 	if caller == nil {
@@ -906,7 +883,7 @@ func (r *LocalRuntime) blockTaskOnForkFailure(ctx context.Context, agentID, task
 		"reason_type": "obstacle",
 	}
 	if bErr := caller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
-		r.log("work_available agent=%s task=%s block_task failed: %v", agentID, taskID, bErr)
+		r.log("fork_executor agent=%s task=%s block_task failed: %v", agentID, taskID, bErr)
 	}
 }
 
@@ -928,88 +905,6 @@ func (r *LocalRuntime) fetchCenterTask(ctx context.Context, agentID, taskID stri
 		return nil, fmt.Errorf("decode get_task response: %w", err)
 	}
 	return &t, nil
-}
-
-// routeSupervisorInline delivers an explicitly-marked supervisor_inline node to the
-// resident supervisor session INSTEAD of forking an executor (I105 Phase 1).
-//
-// It deliberately does NOT start_task: the supervisor drives its own admission with
-// its own tools once it picks the brief up, which is exactly the semantics of the
-// pre-existing single-active inject path in NotifyWork. Leaving the task open also
-// keeps the center's wake-sweep free to re-drive it if the supervisor never engages.
-//
-// NON-WEDGING (issue-13e7bfe8): this returns no error to SpawnExecutor's caller and
-// never blocks on network I/O beyond a bounded center RPC. SpawnExecutor can be
-// reached from a control-command handler with a ~5s transport deadline; returning an
-// error here would leave the command un-acked and re-delivered forever on the
-// worker's SHARED control cursor, starving every other agent on the worker. So a
-// failure is surfaced (block / log), never propagated.
-//
-// INJECT-FAIL IS AN EXPLICIT PATH, NOT A SILENT DROP (I105 red line #2): if the
-// session is dead / busy / the inject errors, the node must not vanish. It falls back
-// to the SAME start_task→block_task(obstacle) shape failTaskRepoUnavailable uses (the
-// center refuses to block a non-running task, so admission has to come first) — the
-// existing fail-loud seam, not a new mechanism. Worst case (no transport at all) it
-// is logged loudly and left queued for a later wake.
-func (r *LocalRuntime) routeSupervisorInline(ctx context.Context, agentID, taskID string, task *centerTaskDetail) {
-	r.log("DISPATCH-DECISION route=NotifyWorkAvailable(agent.work_available) dispatch_mode=supervisor-inline agent_namespace=%s task_id=%s — task marked supervisor_inline: NOT forking, injecting into supervisor session (I105)",
-		agentID, taskID)
-
-	if err := r.injectSession(ctx, inlineNodeBrief(task, taskID)); err != nil {
-		r.log("DISPATCH-INLINE-INJECT-FAILED agent_namespace=%s task_id=%s: %v — supervisor session unavailable for a supervisor_inline node; admitting + blocking so the node is NOT silently dropped (I105 red line #2)",
-			agentID, taskID, err)
-		r.blockInlineInjectFailure(ctx, agentID, taskID, err)
-		return
-	}
-
-	r.mu.Lock()
-	r.state.HadWork = true
-	r.mu.Unlock()
-}
-
-// blockInlineInjectFailure surfaces a failed supervisor_inline inject via the
-// start_task→block_task(obstacle) seam. Mirrors failTaskRepoUnavailable: the center's
-// Task.Block requires status==running, so a bare block_task on a queued task would
-// 422 and leave no trace. Every step is best-effort and logged; nothing propagates.
-func (r *LocalRuntime) blockInlineInjectFailure(ctx context.Context, agentID, taskID string, cause error) {
-	caller := r.toolCaller()
-	if caller == nil {
-		r.log("work_available agent=%s task=%s supervisor_inline inject failed: no center transport — cannot surface, task left queued", agentID, taskID)
-		return
-	}
-	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
-		r.log("work_available agent=%s task=%s supervisor_inline inject failed: start_task (to make the task blockable) declined: %v — task left queued, failure visible in this log only",
-			agentID, taskID, err)
-		return
-	}
-	body := map[string]any{
-		"agent_id": agentID,
-		"task_id":  taskID,
-		"reason": fmt.Sprintf("supervisor_inline node could not be delivered to the supervisor session: %v. "+
-			"This node is marked dispatch_mode=supervisor_inline (its deliverable is a center action, so it must NOT be forked into a code worktree), "+
-			"but the resident supervisor session was unavailable. Needs a human: restart/unblock the supervisor session and reopen this task, "+
-			"or re-mark the task dispatch_mode=executor_fork if it is in fact a code task.", cause),
-		"reason_type": "obstacle",
-	}
-	if bErr := caller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
-		r.log("work_available agent=%s task=%s supervisor_inline inject failed: block_task failed: %v", agentID, taskID, bErr)
-	}
-}
-
-// inlineNodeBrief renders the supervisor-facing brief for a supervisor_inline node.
-// The supervisor owns admission (start_task) + completion, so the brief has to carry
-// the task id it must act on, not just the prose.
-func inlineNodeBrief(task *centerTaskDetail, taskID string) string {
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("[dispatch_mode=supervisor_inline] Task %s is assigned to you and is routed to you INLINE (no executor fork: this node's deliverable is a center action, not code).\n\n", taskID))
-	if t := strings.TrimSpace(task.Title); t != "" {
-		b.WriteString("Title: " + t + "\n")
-	}
-	if d := strings.TrimSpace(task.Description); d != "" {
-		b.WriteString("\n" + d + "\n")
-	}
-	b.WriteString(fmt.Sprintf("\nHandle it yourself in this session: start_task(task_id=%q), do the center action, then complete_task / block_task. Do NOT fork an executor for it.\n", taskID))
-	return b.String()
 }
 
 // startCenterTask admits a task by calling start_task on the agent's behalf.
@@ -1102,7 +997,7 @@ func (d *centerTaskDetail) goalTitle(taskID string) string {
 // so the §5 model chain can hard-override. execID (P3) is the pre-minted executor id
 // whose worktree was materialized before the launch (empty ⇒ HandleWork mints one);
 // prepared (P4) is the worktree threaded to the pool (nil ⇒ today's provisioning path).
-func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace) orchestrator.WorkItem {
+func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace, modelOverride, contextOverride string) orchestrator.WorkItem {
 	var repo *executor.RepoRef
 	if task.Repo != nil {
 		repo = &executor.RepoRef{
@@ -1124,7 +1019,8 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 			Title:       task.goalTitle(taskID),
 			Description: task.Description,
 		},
-		TaskModel:  task.Model,
+		TaskModel:  firstNonEmpty(modelOverride, task.Model),
+		Context:    strings.TrimSpace(contextOverride),
 		ExecutorID: execID,
 		Prepared:   prepared,
 		Repo:       repo,
@@ -1134,6 +1030,15 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 		// was bypassed, which is precisely what the N4 writeback net exists to catch.
 		DispatchMode: strings.TrimSpace(task.DispatchMode),
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // materializerCleaner adapts a reporepo.RepoMaterializer to the narrow

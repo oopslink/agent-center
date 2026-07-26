@@ -130,6 +130,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Your single \"what do I have to do?\" query. Returns the open/running tasks assigned to you that are runnable now (their dependencies are satisfied) — each with task_id, title, status, and blocked_reason / blocked_reason_type / blocked_comment / lease_expires_at. start_task one (by task_id) to begin it. A task waiting on you (unblocked with a comment) shows a cleared blocked_reason and the reply in blocked_comment. Call it at the start of your loop and after finishing a task.",
 	}, makeListMyTasks(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "fork_executor",
+		Description: "Supervisor-only dispatch control: fork one of your assigned runnable tasks into this same Agent's isolated executor. Use after a work_available nudge when the task should run as code/tooling work outside the resident supervisor session. Returns accepted when the fork command is durably enqueued; inspect list_task_executions/get_task_execution for actual executor progress and judge the result before complete_task. Do not use for supervisor_inline/control tasks you should handle in this session.",
+	}, makeForkExecutor(cfg))
+
 	// v2.14.0 I14/F5 §五 (pull model on Task): the agent works its OWN tasks one at a
 	// time — pick a runnable task_id from list_my_tasks, start_task it (open→running +
 	// lease), heartbeat to renew the lease while it runs, complete_task it, then

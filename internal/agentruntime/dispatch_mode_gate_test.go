@@ -9,8 +9,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
 
-// I105 Phase 1 — the per-NODE fork gate on the LIVE dispatch path
-// (agent.work_available → NotifyWorkAvailable → SpawnExecutor).
+// Explicit fork_executor dispatch gate.
 //
 // Every test here runs with an executor engine ATTACHED, i.e. concurrency ENABLED
 // (ee != nil) — the only configuration in which the gate can change anything. With
@@ -21,9 +20,7 @@ import (
 //	① default-path liveness  — absent / empty / executor_fork / unknown ⇒ STILL FORKS.
 //	   This is the one that matters most: the gate suppressing a fork on anything
 //	   other than an explicit supervisor_inline would starve every Dev node.
-//	② the override itself    — explicit supervisor_inline ⇒ no fork, inject instead.
-//	③ inject-fail            — a dead/failing session ⇒ the node is BLOCKED (loud),
-//	   never silently dropped.
+//	② the override itself    — explicit supervisor_inline ⇒ no fork; supervisor handles it inline.
 
 // --- ① default-path liveness (red line #1) ----------------------------------
 
@@ -112,16 +109,12 @@ func TestSpawnExecutor_ExplicitCodeDispatchWithoutRepoFailsClosed(t *testing.T) 
 	}
 }
 
-// --- ② the override itself (acceptance (a)) ---------------------------------
+// --- ② the override itself ---------------------------------------------------
 
-// TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects is the I105 headline: a
-// task-backed center-action node marked supervisor_inline must NOT fork EVEN THOUGH
-// concurrency is enabled (ee != nil) — it is injected into the resident supervisor
-// session instead. Pre-I105 this forked a `claude -p` into an empty workspace.
-//
-// It also locks that the node is NOT admitted here (no start_task): the supervisor
-// owns its own admission, mirroring the single-active inject path.
-func TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects(t *testing.T) {
+// TestSpawnExecutor_SupervisorInline_RejectsFork is the explicit-dispatch lock:
+// fork_executor is a fork primitive only. If the supervisor asks it to fork a
+// supervisor_inline node, it refuses without start_task, injection, block, or fork.
+func TestSpawnExecutor_SupervisorInline_RejectsFork(t *testing.T) {
 	sc := &scriptedToolCaller{getTaskBody: map[string]any{
 		"id": "task-inline", "title": "Deploy v2.31.0", "description": "cut the release",
 		"status": "open", "model": "claude-haiku", "dispatch_mode": "supervisor_inline",
@@ -136,27 +129,17 @@ func TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects(t *testing.T) {
 		t.Fatalf("SpawnExecutor: %v", err)
 	}
 
-	// No fork: the whole point.
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("supervisor_inline node must NOT fork even with concurrency on: problems=%+v", probs)
 	}
-	// Not admitted by the runtime — the supervisor does that itself.
 	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
-		t.Fatalf("tool calls = %v — an inline node must stop after get_task (want [get_task])", seen)
+		t.Fatalf("tool calls = %v — fork_executor must reject supervisor_inline after get_task only", seen)
 	}
-	// Delivered to the resident session, carrying the task id it must act on.
-	msgs := fs.msgs()
-	if len(msgs) != 1 {
-		t.Fatalf("supervisor_inline node must be injected into the resident session, got %d injects", len(msgs))
-	}
-	if !strings.Contains(msgs[0], "task-inline") {
-		t.Errorf("inline brief must name the task id, got %q", msgs[0])
-	}
-	if !strings.Contains(msgs[0], "supervisor_inline") {
-		t.Errorf("inline brief should state the routing decision, got %q", msgs[0])
+	if msgs := fs.msgs(); len(msgs) != 0 {
+		t.Fatalf("fork_executor must not inject inline work; supervisor already owns that decision, got %v", msgs)
 	}
 	if got := rt.CurrentTaskID(); got != "" {
-		t.Errorf("currentTaskID = %q — an inline node must not claim the fork run-slot", got)
+		t.Errorf("currentTaskID = %q — rejected fork must not claim the fork run-slot", got)
 	}
 }
 
@@ -205,79 +188,6 @@ func TestSpawnExecutor_SupervisorInline_AlreadyRunning_Skips(t *testing.T) {
 	}
 	if msgs := fs.msgs(); len(msgs) != 0 {
 		t.Fatalf("a non-open inline task must not be re-injected, got %v", msgs)
-	}
-}
-
-// --- ③ inject-fail must not swallow the node (red line #2) -------------------
-
-// TestSpawnExecutor_SupervisorInline_InjectFails_BlocksTask locks I105 red line #2:
-// when the resident session is dead/busy and the inject fails, the node must NOT
-// silently disappear. It falls back to the existing fail-loud seam — start_task (the
-// center refuses to block a non-running task) then block_task(obstacle) — so a human
-// sees it. It must still never fork, and must never propagate an error (SpawnExecutor
-// is non-wedging: an error here would leave the control command un-acked and starve
-// every agent on the worker — issue-13e7bfe8).
-func TestSpawnExecutor_SupervisorInline_InjectFails_BlocksTask(t *testing.T) {
-	sc := &scriptedToolCaller{getTaskBody: map[string]any{
-		"id": "task-deadsess", "title": "center action", "status": "open",
-		"dispatch_mode": "supervisor_inline",
-	}}
-	rt, ee, home := engineForAgent(t, "agent-deadsess")
-	attach(rt, ee)
-	setToolCaller(rt, sc)
-	fs := &fakeSession{}
-	fs.Detach() // session is dead → Inject returns an error
-	rt.withState(func(s *SessionState) { s.Session = fs })
-
-	// Non-wedging: no error may escape.
-	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-deadsess"}); err != nil {
-		t.Fatalf("SpawnExecutor must not propagate an inject failure (non-wedging): %v", err)
-	}
-	// Not silently dropped: admitted, then blocked for a human.
-	if seen := sc.toolsSeen(); len(seen) != 3 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "block_task" {
-		t.Fatalf("tool calls = %v — a failed inline inject must admit+block (want [get_task start_task block_task])", seen)
-	}
-	body, ok := sc.callFor("block_task")
-	if !ok {
-		t.Fatal("block_task must be called when a supervisor_inline node cannot be delivered")
-	}
-	if body["reason_type"] != "obstacle" {
-		t.Errorf("block reason_type = %v, want obstacle (needs human intervention)", body["reason_type"])
-	}
-	if body["task_id"] != "task-deadsess" {
-		t.Errorf("block task_id = %v, want task-deadsess", body["task_id"])
-	}
-	if reason, _ := body["reason"].(string); !strings.Contains(reason, "supervisor_inline") {
-		t.Errorf("block reason must explain the inline-delivery failure, got %q", reason)
-	}
-	// Still no fork — a failed inline delivery must not fall back to forking into an
-	// empty workspace (that is the very bug I105 exists to remove).
-	if probs := loadRouting(t, home); len(probs) != 0 {
-		t.Fatalf("a failed inline inject must NOT fork: problems=%+v", probs)
-	}
-}
-
-// TestSpawnExecutor_SupervisorInline_NoSession_BlocksTask is the same lock for the
-// "no resident session at all" shape (session never started / already torn down),
-// which reaches injectSession's nil-session branch rather than a failing Inject.
-func TestSpawnExecutor_SupervisorInline_NoSession_BlocksTask(t *testing.T) {
-	sc := &scriptedToolCaller{getTaskBody: map[string]any{
-		"id": "task-nosess", "title": "center action", "status": "open",
-		"dispatch_mode": "supervisor_inline",
-	}}
-	rt, ee, home := engineForAgent(t, "agent-nosess")
-	attach(rt, ee)
-	setToolCaller(rt, sc)
-	// NOTE: no s.Session assigned — nil session.
-
-	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-nosess"}); err != nil {
-		t.Fatalf("SpawnExecutor must not propagate (non-wedging): %v", err)
-	}
-	if _, ok := sc.callFor("block_task"); !ok {
-		t.Fatalf("no-session inline node must be blocked, not dropped; tools=%v", sc.toolsSeen())
-	}
-	if probs := loadRouting(t, home); len(probs) != 0 {
-		t.Fatalf("no-session inline node must NOT fork: problems=%+v", probs)
 	}
 }
 

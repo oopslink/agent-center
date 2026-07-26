@@ -67,14 +67,14 @@ func (r *LocalRuntime) deferForClone(agentID, taskID string, target reporepo.Rep
 	}
 	if entry := r.clones.entries[taskID]; entry != nil {
 		r.clones.mu.Unlock()
-		r.log("work_available agent=%s task=%s: independent clone already materializing — task left queued",
+		r.log("fork_executor agent=%s task=%s: independent clone already materializing — task left queued",
 			agentID, taskID)
 		return
 	}
 	r.clones.entries[taskID] = &cloneEntry{inflight: true}
 	r.clones.mu.Unlock()
 
-	r.log("work_available agent=%s task=%s: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)",
+	r.log("fork_executor agent=%s task=%s: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)",
 		agentID, taskID)
 
 	r.clones.wg.Add(1)
@@ -87,7 +87,7 @@ func (r *LocalRuntime) deferForClone(agentID, taskID string, target reporepo.Rep
 			r.clones.mu.Lock()
 			delete(r.clones.entries, taskID)
 			r.clones.mu.Unlock()
-			r.log("work_available agent=%s task=%s prepare independent clone: %v — executor NOT forked; failing task loud",
+			r.log("fork_executor agent=%s task=%s prepare independent clone: %v — executor NOT forked; failing task loud",
 				agentID, taskID, err)
 			r.failTaskRepoUnavailable(agentID, taskID, err)
 			return
@@ -125,7 +125,7 @@ func (r *LocalRuntime) redriveDeferredClone(agentID, taskID string) {
 			r.log("agent=%s task=%s re-drive after independent clone ready: not forked before consuming clone — removed prepared workspace",
 				agentID, taskID)
 		} else {
-			r.log("agent=%s task=%s re-drive after independent clone ready: not forked — prepared clone was cleaned; waiting for a new work_available",
+			r.log("agent=%s task=%s re-drive after independent clone ready: not forked — prepared clone was cleaned; waiting for a new fork_executor request",
 				agentID, taskID)
 		}
 		return

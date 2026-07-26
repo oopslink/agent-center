@@ -433,15 +433,14 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	// unknown value all still fork exactly as before, so no ordinary Dev node can be
 	// starved by an absent or malformed field.
 	//
-	// NOTE (why this gate is defense-in-depth, not the live one): no center-side
-	// producer emits agent.work today — the per-WorkItem agent.work re-emit was retired
-	// with AgentWorkItem (I14/F7), leaving agent.work_available → SpawnExecutor as the
-	// live dispatch path, where the enforcing gate lives. This branch is kept in sync so
-	// the route cannot regress if a producer is ever restored.
+	// NOTE: no center-side producer emits agent.work today — the per-WorkItem
+	// agent.work re-emit was retired with AgentWorkItem (I14/F7). work_available now
+	// nudges the supervisor, and explicit fork_executor calls SpawnExecutor instead.
+	// This branch remains as defense-in-depth if an agent.work producer is restored.
 	if ee != nil && !routesSupervisorInline(req.DispatchMode) {
 		// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to a FORK
 		// here (concurrency ON, ee != nil). Fail-loud decision log so a double fan-out (this
-		// firing for a task that ALSO got an agent.work_available fork, or a single-active
+		// firing for a task that ALSO got an explicit fork_executor, or a single-active
 		// inject) is visible with the deciding namespace/mode. Instrument-only, no behavior change.
 		r.log("DISPATCH-DECISION route=NotifyWork(agent.work) dispatch_mode=executor-fork agent_namespace=%s task_id=%s — forking via executor engine",
 			agentID, req.TaskID)
@@ -451,7 +450,7 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to an INJECT
 	// here — either single-active (concurrency OFF, ee == nil) or, since I105, an explicit
 	// per-node supervisor_inline override with concurrency ON. Mode should be XOR with any
-	// fork path — if this AND a work_available fork both fire for one ready event, that is
+	// fork path — if this AND an explicit fork_executor both fire for one ready event, that is
 	// the ① dual fan-out.
 	inlineMode := "single-active-inject"
 	if ee != nil {
@@ -996,14 +995,29 @@ func (r *LocalRuntime) ReportLifecycleOnce(ctx context.Context, state, errMsg st
 // ResumeNudgeText exposes the resume nudge for the daemon boot-relaunch path.
 func (r *LocalRuntime) ResumeNudgeText() string { return r.resumeNudgeText() }
 
-// NotifyWorkAvailable is the interface entry for a work_available signal that routes
-// straight to a fork (SpawnExecutor). The daemon's workAvailable command handler owns
-// the dedup/relaunch/nudge orchestration and calls SpawnExecutor directly for the
-// concurrency branch, so this thin delegate is here for interface completeness /
-// future supervisor-driven fork_executor wiring.
+// NotifyWorkAvailable nudges the resident supervisor that a runnable task exists.
+// It deliberately does NOT fork: the supervisor owns the dispatch decision and
+// calls fork_executor only for tasks it wants isolated in an executor.
 func (r *LocalRuntime) NotifyWorkAvailable(ctx context.Context, taskID string) error {
-	_, err := r.SpawnExecutor(ctx, SpawnRequest{TaskID: taskID})
-	return err
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		r.log("work_available agent=%s: empty task_id — skipping supervisor nudge", r.cfg.AgentID)
+		return nil
+	}
+	brief := workAvailableBrief(taskID)
+	if err := r.injectSession(ctx, brief); err != nil {
+		return fmt.Errorf("agent_controller: work_available inject agent=%s task=%s: %w", r.cfg.AgentID, taskID, err)
+	}
+	r.mu.Lock()
+	r.state.HadWork = true
+	r.mu.Unlock()
+	r.log("SUPERVISOR-WAKE route=NotifyWorkAvailable(agent.work_available) agent_namespace=%s task_id=%s — injected supervisor dispatch nudge; executor fork requires explicit fork_executor",
+		r.cfg.AgentID, taskID)
+	return nil
+}
+
+func workAvailableBrief(taskID string) string {
+	return fmt.Sprintf("[work_available] Task %s is assigned to you.\n\nDecide in this supervisor session: inspect it with get_task/list_my_tasks, handle it inline when it is a supervisor/control task, or call fork_executor(task_id=%q) when it should run in an isolated executor. Do not complete the task until you have judged the result.", taskID, taskID)
 }
 
 // cloneEnv duplicates an env overlay (nil-safe).

@@ -1,5 +1,11 @@
 # W4a 实现说明 — live work_available → executor fork 触发
 
+> **Superseded (2026-07-26)**：本文记录的是已废弃的旧实现语义。
+> 当前机制改为：`agent.work_available` 只唤醒/提示 Supervisor；Supervisor 在会话里决定
+> inline 处理还是显式调用 MCP `fork_executor(task_id)`；只有 `fork_executor`
+> 会向 worker runtime 投递 `agent.fork_executor` 并触发 `SpawnExecutor`。
+> 不要再按本文的 `work_available → daemon/runtime 自动 fork` 机制新增代码。
+
 > 父设计：[agent-concurrent-execution.md](agent-concurrent-execution.md)（§3 唯一写入者 /
 > §11 调用链）+ [W1](agent-concurrent-execution-w1-orchestrator-loop.md)（fork 入口 HandleWork）。
 > 阶段二 issue-47fe2a78（I55）/ 任务 T608（cycle dev/v2.20.0）。

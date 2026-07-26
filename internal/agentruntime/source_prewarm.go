@@ -90,11 +90,11 @@ type sourceEntry struct {
 	readyAt time.Time
 
 	// inflight marks that a prewarm goroutine owns this key — the dedup that keeps N
-	// concurrent work_available commands for one repo to ONE clone.
+	// concurrent fork_executor commands for one repo to ONE clone.
 	inflight bool
 
 	// waiters are task ids that deferred on this key and must be re-driven when the
-	// source lands. A set: repeated work_available for the same task coalesces.
+	// source lands. A set: repeated fork_executor for the same task coalesces.
 	waiters map[string]struct{}
 }
 
@@ -202,14 +202,14 @@ func (r *LocalRuntime) deferForSource(agentID, taskID, key string, target repore
 		// A clone for this repo is already running; this task just joined its waiters
 		// and will be re-driven with the rest. Do NOT start a second clone.
 		r.sources.mu.Unlock()
-		r.log("work_available agent=%s task=%s repo_key=%s: repo source materializing (already in flight) — task left queued, will be re-driven when it lands",
+		r.log("fork_executor agent=%s task=%s repo_key=%s: repo source materializing (already in flight) — task left queued, will be re-driven when it lands",
 			agentID, taskID, key)
 		return
 	}
 	e.inflight = true
 	r.sources.mu.Unlock()
 
-	r.log("work_available agent=%s task=%s repo_key=%s: repo source not ready — starting BACKGROUND materialize (control command returns now, task left queued, re-driven on completion)",
+	r.log("fork_executor agent=%s task=%s repo_key=%s: repo source not ready — starting BACKGROUND materialize (control command returns now, task left queued, re-driven on completion)",
 		agentID, taskID, key)
 
 	r.sources.wg.Add(1)
@@ -299,7 +299,7 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 	usable := e.ready != nil
 	if !usable {
 		// Nothing materialized and nothing cached: drop the entry so a later
-		// work_available starts a clean episode (fresh attempt budget) rather than
+		// fork_executor starts a clean episode (fresh attempt budget) rather than
 		// inheriting this one's exhausted state.
 		delete(r.sources.entries, key)
 	}
@@ -360,7 +360,7 @@ func (r *LocalRuntime) redriveDeferredSpawn(agentID, taskID string) {
 	// was cancelled, completed, or picked up elsewhere), and blocking a healthy task on
 	// that basis would be worse than the log. This line is the last trace of a task that
 	// deferred on a repo source and never forked.
-	r.log("work_available agent=%s task=%s: repo source is READY but the task did not fork after %d re-drive attempt(s) — NOT retrying further; if the task is still open it needs a new work_available",
+	r.log("fork_executor agent=%s task=%s: repo source is READY but the task did not fork after %d re-drive attempt(s) — NOT retrying further; if the task is still open it needs a new fork_executor request",
 		agentID, taskID, attempts)
 }
 
@@ -382,15 +382,15 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 	if errors.Is(cause, reporepo.ErrCacheRefUnavailable) {
 		failureCause = CauseRepoRefUnavailable
 	}
-	r.log("work_available agent=%s task=%s REPO SOURCE UNAVAILABLE [cause=%s] after %d attempt(s): %v — admitting + blocking the task (fail-loud; NOT left silently queued)",
+	r.log("fork_executor agent=%s task=%s REPO SOURCE UNAVAILABLE [cause=%s] after %d attempt(s): %v — admitting + blocking the task (fail-loud; NOT left silently queued)",
 		agentID, taskID, failureCause, r.sourcePrewarmAttempts(), cause)
 
 	if r.toolCaller() == nil {
-		r.log("work_available agent=%s task=%s repo source unavailable: no center transport — cannot surface, task left queued", agentID, taskID)
+		r.log("fork_executor agent=%s task=%s repo source unavailable: no center transport — cannot surface, task left queued", agentID, taskID)
 		return
 	}
 	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
-		r.log("work_available agent=%s task=%s repo source unavailable: start_task (to make the task blockable) declined: %v — task left queued, failure visible in this log only",
+		r.log("fork_executor agent=%s task=%s repo source unavailable: start_task (to make the task blockable) declined: %v — task left queued, failure visible in this log only",
 			agentID, taskID, err)
 		return
 	}
@@ -402,7 +402,7 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 		"reason_type": "obstacle",
 	}
 	if bErr := r.toolCaller().CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
-		r.log("work_available agent=%s task=%s repo source unavailable: block_task failed: %v", agentID, taskID, bErr)
+		r.log("fork_executor agent=%s task=%s repo source unavailable: block_task failed: %v", agentID, taskID, bErr)
 	}
 }
 

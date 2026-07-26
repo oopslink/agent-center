@@ -46,8 +46,8 @@ type Runtime interface {
 	// === 信号投递（daemon → runtime → supervisor session） ===
 
 	// NotifyWorkAvailable: 有新任务的信号（v2.8.1 #278 pull model）。
-	// FIXME(phase-6): 过渡期直接触发 executor fork（现有 workAvailable 行为）。
-	// Phase 6（supervisor 接入 fork_executor MCP tool）后必须改为 inject nudge。
+	// It nudges the resident supervisor session only; the supervisor then decides
+	// whether to handle the task inline or call fork_executor.
 	NotifyWorkAvailable(ctx context.Context, taskID string) error
 
 	// NotifyConverse: 人类发来的日常对话消息（DM/channel），注入 supervisor session。
@@ -72,7 +72,7 @@ type Runtime interface {
 
 	// === Executor 管理（supervisor MCP tool → runtime） ===
 
-	// SpawnExecutor: supervisor 决定 fork 时调用（前置检查 → repo/worktree →
+	// SpawnExecutor: supervisor 通过 fork_executor 决定 fork 时调用（前置检查 → repo/worktree →
 	// start_task → spawn）。整个序列由 per-runtime mutex 串行化以防 double-fork。
 	SpawnExecutor(ctx context.Context, req SpawnRequest) (*SpawnResult, error)
 

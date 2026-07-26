@@ -42,6 +42,7 @@ const (
 	cmdTypeAgentWake      = "agent.wake"
 	cmdTypeAgentConverse  = "agent.converse"       // v2.7 #185: DM/channel message → inject (no WorkItem)
 	cmdTypeWorkAvailable  = "agent.work_available" // v2.8.1 #278 D pull-model WAKE (PR2 emit / PR3 handle)
+	cmdTypeAgentForkExec  = "agent.fork_executor"  // supervisor fork_executor tool → explicit executor spawn
 )
 
 // mcpServerName is the `mcpServers` map key for the per-agent worker mcp-host
@@ -131,6 +132,15 @@ type wakePayload struct {
 type workAvailablePayload struct {
 	AgentID string `json:"agent_id"`
 	TaskID  string `json:"task_id"`
+}
+
+// forkExecutorPayload decodes an explicit supervisor fork command emitted by
+// /admin/agent-tools/fork_executor.
+type forkExecutorPayload struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	Model   string `json:"model,omitempty"`
+	Context string `json:"context,omitempty"`
 }
 
 // conversePayload decodes an "agent.converse" command (v2.7 #185). Mirrors

@@ -60,9 +60,9 @@ lifecycle-event → reconcile chain DOES carry the concurrency fields correctly
   profile → the worker attaches `ma.exec` → it reports `active:0` snapshots even with
   zero executors → the overlay flips to `0/cap · slots in use · updated Ns ago`. This
   is an operator action, not a code change.
-- Making the agent **truly fork executors** (so `active>0`) needs the live
-  `work_available → daemon fork` trigger, which is the blocked W4a work-stream
-  (escalated architectural decision), not in scope here.
+- Making the agent **truly fork executors** (so `active>0`) requires the supervisor
+  to call `fork_executor(task_id)` after a `work_available` nudge; automatic
+  `work_available → daemon fork` is no longer the supported mechanism.
 - **Executor-emitted usage with a bound `task_id`** (issue ① / this task's AC#3) is a
   separate, unbuilt feature: the executor process emits no usage events at all today
   (the `executor` package has zero usage code). The source binding it would use

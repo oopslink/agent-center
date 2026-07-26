@@ -20,7 +20,7 @@
 | `executor.WorktreeProvisioner` | 已封装 `git worktree add` / `add -b` / `remove --force` / `prune` |
 | `executor.Pool.provisionAndSpawn` | 如果 `PoolConfig.Worktrees + BaseRef` 同时存在，则创建 worktree；否则只 `MkdirAll(workspace)` |
 | `buildExecutorEngine` | 生产 wiring 明确选择 plain isolated dir，注释说明尚无 per-agent source git repo |
-| `forkOnWorkAvailable` | live 路径为 `get_task -> start_task -> launchExecutor` |
+| `fork_executor` / `SpawnExecutor` | supervisor 显式 fork 路径为 `get_task -> start_task -> launchExecutor`；`work_available` 只 nudge supervisor |
 | `centerTaskDetail` / `buildWorkItem` | 只投影 title / description / status / model / org_ref，无 repo / base ref |
 | CodeRepo 数据 | 已有 `code_repos` 与 `pm_code_repo_refs`，project 可标 primary repo |
 
@@ -260,7 +260,7 @@ repo metadata 的非敏感摘要用于上下文说明，但不包含 source path
 
 - `RepoMaterializer`：clone/fetch、remote mismatch fail closed、base ref 不存在、并发同 repo
   mutex、错误不含 credential。
-- `forkOnWorkAvailable` / runtime：验证顺序为 `get_task -> prepare worktree -> start_task -> spawn`；
+- `fork_executor` / runtime：验证顺序为 `get_task -> prepare worktree -> start_task -> spawn`；
   prepare 失败不调用 `start_task`；at-cap 不做 repo work；旧 plain fallback 不回归。
 - `executor.Pool`：拆分 prepare/spawn 后仍精确守并发上限，prepare 失败释放 reservation，
   duplicate executor id 不泄漏 worktree。

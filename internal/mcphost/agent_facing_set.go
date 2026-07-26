@@ -61,6 +61,7 @@ var AgentFacingToolNames = []string{
 	"download_file",
 	"find_org_agent",
 	"find_org_channel",
+	"fork_executor",
 	"get_issue",
 	"get_my_profile",
 	"get_my_unread",

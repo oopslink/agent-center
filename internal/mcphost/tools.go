@@ -16,6 +16,7 @@
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason?}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
+//   - fork_executor               : {task_id, model?, context?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
 //   - verify_task                 : {task_id}
@@ -71,6 +72,30 @@ type effectiveConfigArgs struct{}
 func makeEffectiveConfig(cfg Config) mcp.ToolHandlerFor[effectiveConfigArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, _ effectiveConfigArgs) (*mcp.CallToolResult, any, error) {
 		return callAdmin(ctx, cfg, "get_agent_runtime_effective_config", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
+// --- fork_executor ----------------------------------------------------------
+
+type forkExecutorArgs struct {
+	TaskID  string `json:"task_id" jsonschema:"task to fork into an isolated executor"`
+	Model   string `json:"model,omitempty" jsonschema:"optional executor model override; omit to use the agent's routing policy"`
+	Context string `json:"context,omitempty" jsonschema:"optional supervisor context to pass to the executor"`
+}
+
+func makeForkExecutor(cfg Config) mcp.ToolHandlerFor[forkExecutorArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args forkExecutorArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		if args.Model != "" {
+			body["model"] = args.Model
+		}
+		if args.Context != "" {
+			body["context"] = args.Context
+		}
+		return callAdmin(ctx, cfg, "fork_executor", body)
 	}
 }
 
