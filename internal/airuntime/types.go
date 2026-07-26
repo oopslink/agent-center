@@ -21,6 +21,11 @@ const (
 	ReasonProfileDisabled   Reason = "runtime_profile_disabled"
 	ReasonDefaultMissing    Reason = "runtime_default_missing"
 	ReasonRevisionConflict  Reason = "runtime_catalog_revision_conflict"
+	ReasonCLIDisabled       Reason = "runtime_cli_disabled"
+	ReasonModelDisabled     Reason = "runtime_model_disabled"
+	ReasonProfileNotFound   Reason = "runtime_profile_not_found"
+	ReasonSelectionInvalid  Reason = "runtime_selection_invalid"
+	ReasonLegacyUnmapped    Reason = "runtime_legacy_unmapped"
 )
 
 type Error struct {
@@ -91,6 +96,12 @@ type RuntimeSelection struct {
 	ModelID    string         `json:"model_id,omitempty"`
 	Parameters map[string]any `json:"parameters,omitempty"`
 }
+
+const (
+	SelectionInherit  = "inherit"
+	SelectionProfile  = "profile"
+	SelectionOverride = "override"
+)
 
 type RuntimeSnapshot struct {
 	SchemaVersion        int            `json:"schema_version"`
