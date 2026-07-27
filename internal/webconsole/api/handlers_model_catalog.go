@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/airuntime"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -197,8 +199,8 @@ func (s *Server) loadOwnedCatalogEntry(w http.ResponseWriter, r *http.Request, d
 // rejects the entire import (no half-swallow).
 func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.ModelCatalogRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog repo not wired")
+	if d.RuntimeCatalog == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "AI Runtime Catalog is not configured")
 		return
 	}
 	callerID, _, orgID, ok := requireOrgMember(w, r, d)
@@ -231,39 +233,61 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	now := time.Now().UTC()
-	actor := pm.IdentityRef("user:" + callerID.ID())
 	seen := make(map[string]struct{}, len(dtos))
-	entries := make([]*pm.ModelCatalogEntry, 0, len(dtos))
+	models := make([]airuntime.ExportModel, 0, len(dtos))
 	for i, dto := range dtos {
-		id, err := generateModelCatalogID()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
+		if dto.ModelID == "" || dto.DisplayName == "" || dto.InputCost < 0 || dto.OutputCost < 0 || dto.ContextWindow < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: invalid catalog fields (whole batch rejected)", i))
 			return
 		}
-		e, err := pm.NewModelCatalogEntry(pm.NewModelCatalogEntryInput{
-			ID: pm.ModelCatalogEntryID(id), OrgID: orgID, Fields: dto.fields(), CreatedBy: actor, CreatedAt: now,
+		if _, dup := seen[dto.ModelID]; dup {
+			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("duplicate model_id %q (whole batch rejected)", dto.ModelID))
+			return
+		}
+		seen[dto.ModelID] = struct{}{}
+		models = append(models, airuntime.ExportModel{
+			Key: dto.ModelID, ModelKey: dto.ModelID, DisplayName: dto.DisplayName,
+			CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{},
+			Enabled: true, ContextWindow: dto.ContextWindow, InputCost: dto.InputCost,
+			OutputCost: dto.OutputCost, Tier: dto.Tier,
 		})
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: %s (whole batch rejected)", i, err.Error()))
-			return
-		}
-		if _, dup := seen[e.ModelID()]; dup {
-			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("duplicate model_id %q (whole batch rejected)", e.ModelID()))
-			return
-		}
-		seen[e.ModelID()] = struct{}{}
-		entries = append(entries, e)
 	}
-	var err error
-	if mode == "replace" {
-		err = d.ModelCatalogRepo.ReplaceForOrg(r.Context(), orgID, entries)
-	} else {
-		err = d.ModelCatalogRepo.UpsertForOrg(r.Context(), orgID, entries)
-	}
+	doc, err := d.RuntimeCatalog.Export(r.Context(), orgID)
 	if err != nil {
-		mapModelCatalogWebError(w, err)
+		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode, "imported": len(entries)})
+	if mode == "replace" {
+		doc.Runtime.Models = models
+	} else {
+		byKey := make(map[string]airuntime.ExportModel, len(doc.Runtime.Models)+len(models))
+		for _, model := range doc.Runtime.Models {
+			byKey[model.Key] = model
+		}
+		for _, model := range models {
+			byKey[model.Key] = model
+		}
+		doc.Runtime.Models = doc.Runtime.Models[:0]
+		for _, model := range byKey {
+			doc.Runtime.Models = append(doc.Runtime.Models, model)
+		}
+		sort.Slice(doc.Runtime.Models, func(i, j int) bool { return doc.Runtime.Models[i].Key < doc.Runtime.Models[j].Key })
+	}
+	strategy := airuntime.ImportStrategy(airuntime.StrategyMerge)
+	if mode == "replace" {
+		strategy = airuntime.StrategyReplace
+	}
+	preview, err := d.RuntimeCatalog.PreviewImport(r.Context(), orgID, airuntime.PreviewRequest{Strategy: strategy, Document: doc})
+	if err != nil {
+		writeRuntimeImportError(w, preview.Report, err)
+		return
+	}
+	_, err = d.RuntimeCatalog.ApplyImport(r.Context(), orgID, "user:"+callerID.ID(), airuntime.ApplyRequest{
+		Strategy: strategy, Document: doc, ValidationToken: preview.ValidationToken,
+	})
+	if err != nil {
+		writeRuntimeImportError(w, airuntime.ImportReport{}, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode, "imported": len(models)})
 }

@@ -275,3 +275,119 @@ func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestAIRuntimePreviewWarnsOnUnknownJSONAndYAMLFields(t *testing.T) {
+	for _, contentType := range []string{"application/json", "application/yaml"} {
+		t.Run(contentType, func(t *testing.T) {
+			deps, db := setupAPIWithAuth(t)
+			deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
+				airuntimesql.NewRepository(db),
+				func() string { return "runtime-warning" },
+				[]byte("0123456789abcdef0123456789abcdef"),
+			)
+			owner := setupTestSession(t, db, deps)
+			server := newTestServer(t, deps)
+			defer server.Close()
+
+			payload := map[string]any{
+				"strategy":     "merge",
+				"unknown_root": true,
+				"document": map[string]any{
+					"schema_version": 1,
+					"kind":           airuntime.ExportKind,
+					"runtime": map[string]any{
+						"unknown_runtime": true,
+						"clis": []any{map[string]any{
+							"key": "custom", "display_name": "Custom", "executable": "custom",
+							"parameter_schema": map[string]any{"type": "object"},
+							"enabled":          true,
+							"unknown_cli":      true,
+						}},
+						"models":   []any{},
+						"profiles": []any{},
+					},
+				},
+			}
+			var body []byte
+			var err error
+			if contentType == "application/yaml" {
+				body, err = yaml.Marshal(payload)
+			} else {
+				body, err = json.Marshal(payload)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			req, _ := http.NewRequest(http.MethodPost, orgScopedURL(server.URL+"/api/ai-runtime/import/preview", owner.OrgSlug), strings.NewReader(string(body)))
+			req.Header.Set("Content-Type", contentType)
+			req.AddCookie(owner.Cookie)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status=%d", resp.StatusCode)
+			}
+			var preview airuntime.PreviewResponse
+			if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+				t.Fatal(err)
+			}
+			var paths []string
+			for _, diagnostic := range preview.Report.Diagnostics {
+				if diagnostic.Code == airuntime.ReasonImportUnknownField && diagnostic.Severity == "warning" {
+					paths = append(paths, diagnostic.Path)
+				}
+			}
+			want := []string{"$.document.runtime.clis[0].unknown_cli", "$.document.runtime.unknown_runtime", "$.unknown_root"}
+			if fmt.Sprint(paths) != fmt.Sprint(want) {
+				t.Fatalf("warning paths=%v want=%v", paths, want)
+			}
+		})
+	}
+}
+
+func TestLegacyModelCatalogImportUsesRuntimePreviewApplyAdapter(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
+		airuntimesql.NewRepository(db),
+		func() string { return "legacy-adapter-id" },
+		[]byte("0123456789abcdef0123456789abcdef"),
+	)
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedPost(t, server.URL+"/api/model-catalog/import", `{
+		"mode":"upsert",
+		"entries":[{
+			"model_id":"gpt-legacy",
+			"display_name":"GPT Legacy",
+			"input_cost":1.25,
+			"output_cost":2.5,
+			"context_window":128000,
+			"tier":"standard"
+		}]
+	}`, owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("legacy import status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+
+	catalog, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imported *airuntime.ModelDefinition
+	for i := range catalog.Models {
+		if catalog.Models[i].Key == "gpt-legacy" {
+			imported = &catalog.Models[i]
+			break
+		}
+	}
+	if imported == nil || imported.ContextWindow != 128000 || imported.InputCost != 1.25 || imported.OutputCost != 2.5 {
+		t.Fatalf("legacy import did not mutate Runtime Catalog: %+v", catalog.Models)
+	}
+}

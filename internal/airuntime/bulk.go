@@ -109,13 +109,15 @@ type ExportOptions struct {
 type PreviewRequest struct {
 	Strategy ImportStrategy `json:"strategy" yaml:"strategy"`
 	Document ExportDocument `json:"document" yaml:"document"`
+	Warnings []Diagnostic   `json:"-" yaml:"-"`
 }
 
 type PreviewResponse struct {
-	Report          ImportReport `json:"report" yaml:"report"`
-	ValidationToken string       `json:"validation_token" yaml:"validation_token"`
-	ExpiresAt       time.Time    `json:"expires_at" yaml:"expires_at"`
-	DocumentSHA256  string       `json:"document_sha256" yaml:"document_sha256"`
+	Report          ImportReport      `json:"report" yaml:"report"`
+	Coverage        []RuntimeCoverage `json:"coverage" yaml:"coverage"`
+	ValidationToken string            `json:"validation_token" yaml:"validation_token"`
+	ExpiresAt       time.Time         `json:"expires_at" yaml:"expires_at"`
+	DocumentSHA256  string            `json:"document_sha256" yaml:"document_sha256"`
 }
 
 type ApplyRequest struct {
@@ -134,10 +136,32 @@ type validationClaims struct {
 
 type Diagnostic struct {
 	Code       Reason `json:"code"`
+	Severity   string `json:"severity,omitempty"`
 	Path       string `json:"path,omitempty"`
 	EntityType string `json:"entity_type,omitempty"`
 	Key        string `json:"key,omitempty"`
 	Message    string `json:"message"`
+}
+
+const ReasonImportUnknownField Reason = "runtime_import_unknown_field"
+
+type CoverageReason struct {
+	Code    string `json:"code"`
+	Count   int    `json:"count"`
+	Message string `json:"message"`
+}
+
+type RuntimeCoverage struct {
+	ProfileID           string           `json:"profile_id"`
+	OnlineWorkerCount   int              `json:"online_worker_count"`
+	EligibleWorkerCount int              `json:"eligible_worker_count"`
+	Status              string           `json:"status"`
+	Reasons             []CoverageReason `json:"reasons"`
+	CalculatedAt        time.Time        `json:"calculated_at"`
+}
+
+type CoverageProvider interface {
+	Coverage(context.Context, Catalog) ([]RuntimeCoverage, error)
 }
 
 type ImportItem struct {
@@ -200,6 +224,27 @@ func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRe
 	if err != nil {
 		return PreviewResponse{Report: report}, err
 	}
+	report.Diagnostics = append(report.Diagnostics, req.Warnings...)
+	mutation, _, _ := s.planImport(orgID, current, req.Document.Runtime, strategy)
+	candidate := candidateCatalog(current, mutation)
+	var coverage []RuntimeCoverage
+	if s.coverage == nil {
+		report.Diagnostics = append(report.Diagnostics, Diagnostic{
+			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+			Path: "coverage", Message: "scheduler coverage data is unavailable",
+		})
+		coverage = []RuntimeCoverage{}
+	} else {
+		coverage, err = s.coverage.Coverage(ctx, candidate)
+		if err != nil {
+			report.Diagnostics = append(report.Diagnostics, Diagnostic{
+				Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+				Path: "coverage", Message: "scheduler coverage data is unavailable",
+			})
+			coverage = []RuntimeCoverage{}
+		}
+	}
+	sort.Slice(coverage, func(i, j int) bool { return coverage[i].ProfileID < coverage[j].ProfileID })
 	digest, err := documentDigest(req.Document)
 	if err != nil {
 		return PreviewResponse{}, err
@@ -214,7 +259,7 @@ func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRe
 		return PreviewResponse{}, err
 	}
 	return PreviewResponse{
-		Report: report, ValidationToken: token, ExpiresAt: expires, DocumentSHA256: digest,
+		Report: report, Coverage: coverage, ValidationToken: token, ExpiresAt: expires, DocumentSHA256: digest,
 	}, nil
 }
 
@@ -277,53 +322,6 @@ func (s *Service) validateImport(orgID string, current Catalog, doc ExportDocume
 	if len(report.Diagnostics) != 0 {
 		return report, &Error{Reason: report.Diagnostics[0].Code, Message: "AI Runtime import validation failed", Details: map[string]any{"diagnostics": report.Diagnostics}}
 	}
-	return report, nil
-}
-
-func (s *Service) Import(ctx context.Context, orgID, actor string, req ImportRequest) (ImportReport, error) {
-	report := ImportReport{DryRun: req.DryRun, Revision: req.ExpectedRevision, Items: []ImportItem{}, Diagnostics: []Diagnostic{}}
-	if req.Document.Kind != ExportKind {
-		return report, importError(ReasonImportMalformed, "kind", "document kind must be "+ExportKind)
-	}
-	if req.Document.SchemaVersion != ExportVersion {
-		return report, importError(ReasonImportVersionUnsupported, "schema_version", fmt.Sprintf("unsupported document schema_version %d", req.Document.SchemaVersion))
-	}
-	if req.Strategy == "" {
-		req.Strategy = StrategyMerge
-	}
-	if req.Strategy != StrategyMerge && req.Strategy != StrategyCreate && req.Strategy != StrategyReplace {
-		return report, importError(ReasonImportMalformed, "strategy", "strategy must be merge, create_only, or replace")
-	}
-	current, err := s.repo.GetCatalog(ctx, orgID)
-	if err != nil {
-		return report, err
-	}
-	if current.Revision != req.ExpectedRevision {
-		return report, &Error{Reason: ReasonRevisionConflict, Message: "catalog revision changed", Details: map[string]any{"expected_revision": req.ExpectedRevision, "actual_revision": current.Revision}}
-	}
-
-	mutation, items, diagnostics := s.planImport(orgID, current, req.Document.Runtime, req.Strategy)
-	report.Items, report.Diagnostics = items, diagnostics
-	if len(diagnostics) != 0 {
-		return report, &Error{Reason: diagnostics[0].Code, Message: "AI Runtime import validation failed", Details: map[string]any{"diagnostics": diagnostics}}
-	}
-	if req.DryRun || len(items) == 0 || allUnchanged(items) {
-		return report, nil
-	}
-
-	assignImportIDs(&mutation, s.id)
-	before := exportCatalog(current)
-	after := candidateCatalog(current, mutation)
-	audit := s.audit(orgID, actor, "catalog", orgID, "bulk_imported", before, exportCatalog(after))
-	bulkRepo, ok := s.repo.(BulkRepository)
-	if !ok {
-		return report, errors.New("AI Runtime repository does not support bulk import")
-	}
-	rev, err := bulkRepo.ApplyBulkImport(ctx, mutation, req.ExpectedRevision, audit)
-	if err != nil {
-		return report, err
-	}
-	report.Applied, report.Revision = true, rev
 	return report, nil
 }
 

@@ -37,6 +37,15 @@ import (
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
 
+func newAIRuntimeService(a *App) *airuntime.Service {
+	repo := airuntimesql.NewRepository(a.DB)
+	id := func() string { return a.IDGen.NewULID() }
+	if len(a.RuntimeImportValidationKey) >= 32 {
+		return airuntime.NewServiceWithValidationKey(repo, id, a.RuntimeImportValidationKey)
+	}
+	return airuntime.NewService(repo, id)
+}
+
 // buildFilesService constructs the files transfer Service from the App's DB +
 // the configured blobstore root (mirrors the GC-loop construction in
 // runWebConsole). Returns nil when the blobstore root is unset or the local
@@ -125,9 +134,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog: airuntime.NewService(airuntimesql.NewRepository(a.DB), func() string {
-			return a.IDGen.NewULID()
-		}),
+		RuntimeCatalog:   newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
@@ -557,9 +564,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog: airuntime.NewService(airuntimesql.NewRepository(a.DB), func() string {
-			return a.IDGen.NewULID()
-		}),
+		RuntimeCatalog:   newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member

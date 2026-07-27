@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,24 +20,39 @@ type Service struct {
 	now                 func() time.Time
 	importTokenKey      []byte
 	importTokenLifetime time.Duration
+	coverage            CoverageProvider
 }
 
+var (
+	defaultValidationKey     []byte
+	defaultValidationKeyOnce sync.Once
+)
+
+// NewService creates a service whose validation tokens remain valid across
+// service instances in this process. Production servers should use
+// NewServiceWithValidationKey with restart-stable key material.
 func NewService(repo Repository, id IDGenerator) *Service {
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		panic("generate AI Runtime import token key: " + err.Error())
-	}
-	return newService(repo, id, key)
+	defaultValidationKeyOnce.Do(func() {
+		defaultValidationKey = make([]byte, 32)
+		if _, err := rand.Read(defaultValidationKey); err != nil {
+			panic("generate AI Runtime import validation key: " + err.Error())
+		}
+	})
+	return newService(repo, id, defaultValidationKey)
 }
 
 // NewServiceWithValidationKey creates a service with a stable import-token key.
-// Deployments with more than one API process must provide the same secret to each
-// process so Preview tokens can be verified by any Apply request.
+// Every constructor in an API process, and every replica serving the same API,
+// must receive the same restart-stable secret.
 func NewServiceWithValidationKey(repo Repository, id IDGenerator, key []byte) *Service {
 	if len(key) < 32 {
 		panic("AI Runtime import validation key must contain at least 32 bytes")
 	}
 	return newService(repo, id, append([]byte(nil), key...))
+}
+
+func (s *Service) SetCoverageProvider(provider CoverageProvider) {
+	s.coverage = provider
 }
 
 func newService(repo Repository, id IDGenerator, key []byte) *Service {

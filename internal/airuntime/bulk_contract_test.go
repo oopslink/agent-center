@@ -3,9 +3,21 @@ package airuntime
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
+
+type recordingCoverageProvider struct {
+	catalog Catalog
+	result  []RuntimeCoverage
+	err     error
+}
+
+func (p *recordingCoverageProvider) Coverage(_ context.Context, catalog Catalog) ([]RuntimeCoverage, error) {
+	p.catalog = catalog
+	return p.result, p.err
+}
 
 func TestPreviewApplyTokenBindsAllClaimsAndExpires(t *testing.T) {
 	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a", Revision: 7}}
@@ -80,6 +92,61 @@ func TestPreviewApplyTokenBindsAllClaimsAndExpires(t *testing.T) {
 	var runtimeErr *Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != ReasonImportTokenInvalid {
 		t.Fatalf("expired token error=%v", err)
+	}
+}
+
+func TestPreviewCalculatesCoverageAgainstCandidateCatalog(t *testing.T) {
+	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a", Revision: 4}}
+	provider := &recordingCoverageProvider{result: []RuntimeCoverage{
+		{ProfileID: "profile-b", Status: "partial"},
+		{ProfileID: "profile-a", Status: "full"},
+	}}
+	svc := NewServiceWithValidationKey(repo, func() string { return "generated-id" }, []byte("0123456789abcdef0123456789abcdef"))
+	svc.SetCoverageProvider(provider)
+	doc := ExportDocument{
+		SchemaVersion: ExportVersion,
+		Kind:          ExportKind,
+		Runtime: ExportCatalog{
+			CLIs: []ExportCLI{{
+				Key: "custom", DisplayName: "Custom", Executable: "custom",
+				ParameterSchema: []byte(`{"type":"object"}`), Enabled: true,
+			}},
+		},
+	}
+	preview, err := svc.PreviewImport(context.Background(), "org-a", PreviewRequest{
+		Strategy: StrategyMerge,
+		Document: doc,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cliByKey(provider.catalog.CLIs)["custom"]; !ok {
+		t.Fatalf("coverage provider received pre-import catalog: %+v", provider.catalog.CLIs)
+	}
+	if got := []string{preview.Coverage[0].ProfileID, preview.Coverage[1].ProfileID}; !reflect.DeepEqual(got, []string{"profile-a", "profile-b"}) {
+		t.Fatalf("coverage order=%v", got)
+	}
+}
+
+func TestPreviewReportsUnavailableCoverageAsWarning(t *testing.T) {
+	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a"}}
+	svc := NewServiceWithValidationKey(repo, func() string { return "id" }, []byte("0123456789abcdef0123456789abcdef"))
+	doc := ExportDocument{SchemaVersion: ExportVersion, Kind: ExportKind, Runtime: ExportCatalog{}}
+	preview, err := svc.PreviewImport(context.Background(), "org-a", PreviewRequest{Strategy: StrategyMerge, Document: doc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.Coverage == nil || len(preview.Coverage) != 0 {
+		t.Fatalf("coverage=%+v want explicit empty list", preview.Coverage)
+	}
+	found := false
+	for _, diagnostic := range preview.Report.Diagnostics {
+		if diagnostic.Code == Reason("runtime_coverage_unavailable") && diagnostic.Severity == "warning" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics=%+v", preview.Report.Diagnostics)
 	}
 }
 

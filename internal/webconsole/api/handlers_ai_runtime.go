@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -168,9 +170,66 @@ func decodeRuntimeDocument(r *http.Request, dst any) error {
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(normalized, dst)
+		raw = normalized
 	}
-	return json.Unmarshal(raw, dst)
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return err
+	}
+	preview, ok := dst.(*airuntime.PreviewRequest)
+	if !ok {
+		return nil
+	}
+	preview.Warnings = runtimeUnknownFieldWarnings(value)
+	return nil
+}
+
+func runtimeUnknownFieldWarnings(value any) []airuntime.Diagnostic {
+	root, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	var out []airuntime.Diagnostic
+	visitUnknown := func(object map[string]any, path string, allowed map[string]bool) {
+		for key := range object {
+			if !allowed[key] {
+				out = append(out, airuntime.Diagnostic{
+					Code: airuntime.ReasonImportUnknownField, Severity: "warning",
+					Path: path + "." + key, Message: "unknown schema v1 field was ignored",
+				})
+			}
+		}
+	}
+	visitUnknown(root, "$", map[string]bool{"strategy": true, "document": true})
+	doc, _ := root["document"].(map[string]any)
+	visitUnknown(doc, "$.document", map[string]bool{"schema_version": true, "kind": true, "exported_at": true, "runtime": true, "warnings": true})
+	runtime, _ := doc["runtime"].(map[string]any)
+	visitUnknown(runtime, "$.document.runtime", map[string]bool{"default_profile_key": true, "clis": true, "models": true, "profiles": true})
+	scanList := func(raw any, path string, allowed map[string]bool) {
+		items, _ := raw.([]any)
+		for i, item := range items {
+			object, _ := item.(map[string]any)
+			visitUnknown(object, fmt.Sprintf("%s[%d]", path, i), allowed)
+		}
+	}
+	scanList(runtime["clis"], "$.document.runtime.clis", map[string]bool{
+		"key": true, "display_name": true, "executable": true, "version_constraint": true,
+		"required_features": true, "parameter_schema": true, "enabled": true,
+	})
+	scanList(runtime["models"], "$.document.runtime.models", map[string]bool{
+		"key": true, "model_key": true, "display_name": true, "compatible_cli_keys": true,
+		"default_parameters": true, "enabled": true, "context_window": true,
+		"input_cost_per_mtok": true, "output_cost_per_mtok": true, "tier": true,
+	})
+	scanList(runtime["profiles"], "$.document.runtime.profiles", map[string]bool{
+		"key": true, "name": true, "description": true, "cli_key": true,
+		"model_key": true, "parameters": true, "enabled": true,
+	})
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
 }
 
 func splitRuntimeKeys(raw string) []string {
