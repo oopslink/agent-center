@@ -38,12 +38,12 @@ import (
 )
 
 func newAIRuntimeService(a *App) *airuntime.Service {
+	if len(a.RuntimeImportValidationKey) < 32 {
+		return nil
+	}
 	repo := airuntimesql.NewRepository(a.DB)
 	id := func() string { return a.IDGen.NewULID() }
-	if len(a.RuntimeImportValidationKey) >= 32 {
-		return airuntime.NewServiceWithValidationKey(repo, id, a.RuntimeImportValidationKey)
-	}
-	return airuntime.NewService(repo, id)
+	return airuntime.NewServiceWithValidationKey(repo, id, a.RuntimeImportValidationKey)
 }
 
 // buildFilesService constructs the files transfer Service from the App's DB +
