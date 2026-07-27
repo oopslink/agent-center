@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
 )
 
 // TestStartCodex_WritesMCPConfigAndCodexHome pins the T972 supervisor-MCP wiring:
@@ -72,5 +74,52 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 	// carries center creds — that is how it authenticates its tool calls).
 	if !strings.Contains(s, "tok-secret") {
 		t.Errorf("config.toml missing per-agent worker token; got:\n%s", s)
+	}
+}
+
+func TestStartCodex_DoesNotResumePriorThreadWithoutHealthyResume(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "agents", "agent-x")
+	if _, err := sessioninstance.AcquireInstance(home, "th_poisoned", 1234); err != nil {
+		t.Fatalf("seed prior instance: %v", err)
+	}
+
+	var got CodexSpec
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			got = spec
+			return &fakeSession{}, nil
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	if err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 1,
+		CLI:     CLICodex,
+		// Resume is false on the boot-reconcile Codex path; a prior SessionID alone is
+		// not enough to resume because it can point at a poisoned incomplete turn.
+		Resume: false,
+	}); err != nil {
+		t.Fatalf("Start(codex): %v", err)
+	}
+
+	if got.ResumeThreadID != "" {
+		t.Fatalf("CodexSpec.ResumeThreadID = %q, want empty fresh session", got.ResumeThreadID)
+	}
+	persisted, err := sessioninstance.ReadInstance(home)
+	if err != nil {
+		t.Fatalf("read instance: %v", err)
+	}
+	if persisted.SessionID != "" {
+		t.Fatalf("persisted SessionID = %q, want cleared by fresh generation", persisted.SessionID)
 	}
 }

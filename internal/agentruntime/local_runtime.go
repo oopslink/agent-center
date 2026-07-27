@@ -803,15 +803,16 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}
 
-	// T972 supervisor resume (early-persist): read the prior generation's captured
-	// thread_id (persisted via OnThreadID→MarkSessionID) so this relaunch RESUMES it,
-	// then claim the single-instance lease (like the claude path) seeded with it. A
-	// relaunch (a prior generation existed) that left NO thread_id can't resume → a
-	// FRESH session, logged fail-loud (codex mints its thread_id only at thread.started,
-	// so a session that died before its first event has nothing to resume — the safe,
-	// visible fallback, never a silent loss).
+	// Codex resume is health-gated. A captured thread_id is only safe to seed when
+	// the caller explicitly requested a resume AND the prior generation proved it
+	// completed a clean turn. Otherwise a poisoned but locally-existing rollout can be
+	// resumed forever, leaving new messages delivered/seen while Codex is stuck inside
+	// an old incomplete turn.
 	prior, _ := sessioninstance.ReadInstance(home)
-	resumeThreadID := prior.SessionID
+	resumeThreadID := ""
+	if spec.Resume && prior.CompletedTurn {
+		resumeThreadID = prior.SessionID
+	}
 	// T977 fix #3: never resume across a cli-switch — a session_id from a non-codex prior
 	// generation is a claude session id, not a codex thread_id (`codex exec resume` →
 	// "no rollout"). Discard it + start fresh, logged.
@@ -820,7 +821,14 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		resumeThreadID = ""
 	}
 	if prior.Generation > 0 && resumeThreadID == "" {
-		r.log("codex agent=%s: prior generation left no thread_id (thread.started never captured) — starting a FRESH codex session, prior conversation NOT resumed", agentID)
+		switch {
+		case prior.SessionID != "" && !spec.Resume:
+			r.log("codex agent=%s: resume not requested — discarding prior thread_id and starting a FRESH codex session", agentID)
+		case prior.SessionID != "" && !prior.CompletedTurn:
+			r.log("codex agent=%s: prior generation did not complete a clean turn — discarding prior thread_id and starting a FRESH codex session", agentID)
+		default:
+			r.log("codex agent=%s: prior generation left no thread_id (thread.started never captured) — starting a FRESH codex session, prior conversation NOT resumed", agentID)
+		}
 	}
 	if _, lerr := sessioninstance.AcquireInstance(home, resumeThreadID, os.Getpid()); lerr != nil {
 		return fmt.Errorf("agent_controller: acquire codex instance: %w", lerr)
