@@ -26,6 +26,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const maxAgentToolResultBytes = 64 * 1024
+
 // AdminCaller is the seam the MCP tool handlers call to reach the center's
 // admin agent-tool endpoints. Implementations POST `body` (a JSON object
 // that already carries the process-fixed agent_id) to
@@ -172,7 +174,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_messages",
-		Description: "Read the chat history of ONE conversation you participate in — a DM, a channel, or a task/issue/plan conversation. This is how you catch up on context: get_my_unread only shows messages addressed to you (your DMs + @mentions), while list_messages returns the FULL message stream of a conversation, including messages you were never mentioned in or already marked seen. Pass conversation_id (from get_my_unread, find_org_channel, or a message you were given). Returns the most recent messages (limit, default 50, max 200) oldest→newest, plus has_more and next_before_message_id; to read OLDER history, call again with before_message_id = next_before_message_id. You must be an active participant — a channel you have not joined returns not_a_channel_member.",
+		Description: "Read the chat history of ONE conversation you participate in — a DM, a channel, or a task/issue/plan conversation. This is how you catch up on context: get_my_unread only shows messages addressed to you (your DMs + @mentions), while list_messages returns the FULL message stream of a conversation, including messages you were never mentioned in or already marked seen. Pass conversation_id (from get_my_unread, find_org_channel, or a message you were given). Returns the most recent messages (limit, default 50, max 50) oldest→newest, plus has_more and next_before_message_id; to read OLDER history, call again with before_message_id = next_before_message_id instead of requesting a huge page. You must be an active participant — a channel you have not joined returns not_a_channel_member.",
 	}, makeListMessages(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -701,6 +703,23 @@ func callAdmin(ctx context.Context, cfg Config, tool string, body any) (*mcp.Cal
 		return nil, nil, err
 	}
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: string(raw)}},
+		Content: []mcp.Content{&mcp.TextContent{Text: adminToolResultText(raw)}},
 	}, nil, nil
+}
+
+func adminToolResultText(raw json.RawMessage) string {
+	if len(raw) <= maxAgentToolResultBytes {
+		return string(raw)
+	}
+	omitted := len(raw) - maxAgentToolResultBytes
+	env := map[string]any{
+		"truncated":     true,
+		"omitted_bytes": omitted,
+		"prefix":        string(raw[:maxAgentToolResultBytes]),
+	}
+	b, err := json.Marshal(env)
+	if err != nil {
+		return fmt.Sprintf(`{"truncated":true,"omitted_bytes":%d}`, omitted)
+	}
+	return string(b)
 }

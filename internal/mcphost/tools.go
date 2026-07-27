@@ -28,6 +28,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const (
+	listMessagesDefaultLimit = 50
+	listMessagesMaxLimit     = 50
+)
+
 // --- get_task ----------------------------------------------------------------
 
 type getTaskArgs struct {
@@ -427,16 +432,23 @@ func makeMarkSeen(cfg Config) mcp.ToolHandlerFor[markSeenArgs, any] {
 // chat history. There is NO agent_id (process-fixed, injected by the handler).
 type listMessagesArgs struct {
 	ConversationID  string `json:"conversation_id" jsonschema:"the conversation to read — a conversation_id from get_my_unread, find_org_channel, or a DM/channel/task/issue/plan you participate in"`
-	Limit           int    `json:"limit,omitempty" jsonschema:"how many of the most recent messages to return (default 50, max 200)"`
+	Limit           int    `json:"limit,omitempty" jsonschema:"how many of the most recent messages to return (default 50, max 50); use before_message_id to page older history instead of requesting a huge page"`
 	BeforeMessageID string `json:"before_message_id,omitempty" jsonschema:"older-history cursor: return the page of messages strictly older than this message id. Pass the previous response's next_before_message_id to walk further back. Omit for the most recent page."`
 }
 
 func makeListMessages(cfg Config) mcp.ToolHandlerFor[listMessagesArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args listMessagesArgs) (*mcp.CallToolResult, any, error) {
+		limit := args.Limit
+		if limit <= 0 {
+			limit = listMessagesDefaultLimit
+		}
+		if limit > listMessagesMaxLimit {
+			limit = listMessagesMaxLimit
+		}
 		body := map[string]any{
 			"agent_id":          cfg.AgentID,
 			"conversation_id":   args.ConversationID,
-			"limit":             args.Limit,
+			"limit":             limit,
 			"before_message_id": args.BeforeMessageID,
 		}
 		return callAdmin(ctx, cfg, "list_messages", body)

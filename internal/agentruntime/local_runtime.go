@@ -37,6 +37,13 @@ const (
 	MCPServerName = "agent-center"
 	// WakeDedupCap bounds the per-agent wake/converse dedup set.
 	WakeDedupCap = 256
+	// defaultCodexRecycleInputTokens bounds one long-lived Codex logical session by
+	// successful-turn input size; the agent-runtime exits after the turn so the worker
+	// rebuilds it fresh.
+	defaultCodexRecycleInputTokens = 40_000
+	// defaultCodexRecycleCleanTurns bounds one long-lived Codex logical session by clean
+	// turn count when usage accounting is unavailable or consistently small.
+	defaultCodexRecycleCleanTurns = 8
 	// DefaultResumeNudge is injected to re-drive an interrupted turn (self-heal /
 	// boot relaunch / rate-limit / api-error resume) when cfg.ResumeNudge is unset.
 	DefaultResumeNudge = "Resume your current task."
@@ -97,6 +104,15 @@ type LocalRuntimeConfig struct {
 	APIErrorBackoffBase time.Duration
 	APIErrorBackoffCap  time.Duration
 	APIErrorMaxRetries  int
+
+	// CodexRecycleInputTokens exits the agent-runtime after a successful Codex turn at
+	// or above this input size, letting the worker rebuild a fresh Codex session. 0 uses
+	// the production default; a negative value disables the token trigger.
+	CodexRecycleInputTokens int
+	// CodexRecycleCleanTurns exits after this many successful Codex turns in one
+	// logical session. 0 uses the production default; a negative value disables the
+	// count trigger.
+	CodexRecycleCleanTurns int
 
 	TaskDirManager  *taskexec.DirManager
 	SegmentMaxBytes int64

@@ -179,6 +179,10 @@ type SessionState struct {
 	PromptDescription string
 	EnvVars           map[string]string
 	CLI               string
+	// CodexCleanTurns counts successful turns in the current in-process Codex logical
+	// session. The runtime uses it to checkpoint-recycle long-lived supervisors before
+	// their Codex thread accumulates unbounded prompt history.
+	CodexCleanTurns int
 
 	// Rate-limit window remembered for the current turn.
 	RLRetryAfterSecs int

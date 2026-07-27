@@ -3,6 +3,7 @@ package mcphost
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -318,6 +319,49 @@ func TestCallListMyTasks(t *testing.T) {
 	}
 	if got := textContent(t, res); got != `{"tasks":[{"task_id":"task-1"}]}` {
 		t.Errorf("text content = %q, want canned JSON", got)
+	}
+}
+
+func TestCallListMessages_CapsLimit(t *testing.T) {
+	fake := &fakeAdmin{canned: json.RawMessage(`{"ok":true}`)}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: fake})
+
+	_, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "list_messages",
+		Arguments: map[string]any{
+			"conversation_id": "conv-1",
+			"limit":           200,
+		},
+	})
+	if err != nil {
+		t.Fatalf("call list_messages: %v", err)
+	}
+	if fake.gotTool != "list_messages" {
+		t.Fatalf("tool = %q, want list_messages", fake.gotTool)
+	}
+	if got := fake.gotBody["limit"]; got != float64(listMessagesMaxLimit) {
+		t.Fatalf("limit = %v, want capped %d", got, listMessagesMaxLimit)
+	}
+}
+
+func TestCallAdmin_TruncatesHugeResult(t *testing.T) {
+	raw := json.RawMessage(`{"blob":"` + strings.Repeat("x", maxAgentToolResultBytes+32) + `"}`)
+	fake := &fakeAdmin{canned: raw}
+	res, _, err := callAdmin(context.Background(), Config{AgentID: "agent-1", Admin: fake}, "get_task", map[string]any{"agent_id": "agent-1"})
+	if err != nil {
+		t.Fatalf("callAdmin: %v", err)
+	}
+	txt := textContent(t, res)
+	var env struct {
+		Truncated    bool   `json:"truncated"`
+		OmittedBytes int    `json:"omitted_bytes"`
+		Prefix       string `json:"prefix"`
+	}
+	if err := json.Unmarshal([]byte(txt), &env); err != nil {
+		t.Fatalf("truncated result should stay valid JSON: %v\n%s", err, txt)
+	}
+	if !env.Truncated || env.OmittedBytes <= 0 || env.Prefix == "" {
+		t.Fatalf("bad truncation envelope: %+v", env)
 	}
 }
 

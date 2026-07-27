@@ -8,6 +8,7 @@ package agentruntime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -126,12 +127,21 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	if ev.Type == "result" && !ev.IsError {
 		r.resetAPIErrorRetries(agentID)
 		var isCodex bool
+		var codexRecycleReason string
 		r.mu.Lock()
 		isCodex = st.CLI == CLICodex
 		completedConvID := ""
 		if st.CurrentTaskID == "" && st.CurrentConversationID != "" {
 			completedConvID = st.CurrentConversationID
 			st.CurrentConversationID = ""
+		}
+		if isCodex {
+			st.CodexCleanTurns++
+			codexRecycleReason = r.codexRecycleReasonLocked(ev, st.CodexCleanTurns)
+			if codexRecycleReason != "" {
+				// Prevent repeated signals if tests wire OnFatal as a no-op.
+				st.CodexCleanTurns = 0
+			}
 		}
 		r.mu.Unlock()
 		if completedConvID != "" {
@@ -154,7 +164,31 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		usageTaskID = st.UsageTaskAtResult()
 		r.mu.Unlock()
 		go r.maybeReportUsage(agentID, ev, usageTaskID)
+		if codexRecycleReason != "" {
+			r.log("codex agent=%s checkpoint recycle: %s", agentID, codexRecycleReason)
+			if r.cfg.OnFatal != nil {
+				r.cfg.OnFatal(codexRecycleReason)
+			}
+		}
 	}
+}
+
+func (r *LocalRuntime) codexRecycleReasonLocked(ev claudestream.StreamEvent, cleanTurns int) string {
+	inputLimit := r.cfg.CodexRecycleInputTokens
+	if inputLimit == 0 {
+		inputLimit = defaultCodexRecycleInputTokens
+	}
+	if inputLimit > 0 && ev.TokensIn >= inputLimit {
+		return fmt.Sprintf("codex checkpoint recycle after clean turn: input_tokens=%d >= %d", ev.TokensIn, inputLimit)
+	}
+	turnLimit := r.cfg.CodexRecycleCleanTurns
+	if turnLimit == 0 {
+		turnLimit = defaultCodexRecycleCleanTurns
+	}
+	if turnLimit > 0 && cleanTurns >= turnLimit {
+		return fmt.Sprintf("codex checkpoint recycle after %d clean turns", cleanTurns)
+	}
+	return ""
 }
 
 // onExit coordinates the exactly-once lifecycle report on session exit (three exit

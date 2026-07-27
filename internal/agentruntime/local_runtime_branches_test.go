@@ -240,6 +240,40 @@ func TestOnExit_CodexCrashReportsCrashedAndFiresFatal(t *testing.T) {
 	}
 }
 
+func TestOnEvent_CodexLargeCleanTurnTriggersRecycle(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.cfg.CodexRecycleInputTokens = 100
+	rt.cfg.CodexRecycleCleanTurns = -1
+	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result", TokensIn: 101})
+
+	if !*fatal {
+		t.Fatal("large clean codex turn must trigger OnFatal recycle")
+	}
+	rt.withState(func(s *SessionState) {
+		if s.CodexCleanTurns != 0 {
+			t.Fatalf("CodexCleanTurns = %d, want reset after recycle signal", s.CodexCleanTurns)
+		}
+	})
+}
+
+func TestOnEvent_CodexCleanTurnCountTriggersRecycle(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.cfg.CodexRecycleInputTokens = -1
+	rt.cfg.CodexRecycleCleanTurns = 2
+	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result"})
+	if *fatal {
+		t.Fatal("first clean codex turn must not recycle yet")
+	}
+	rt.onEvent(claudestream.StreamEvent{Type: "result"})
+	if !*fatal {
+		t.Fatal("second clean codex turn must trigger OnFatal recycle")
+	}
+}
+
 // TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal is the T860 gap4 guard: a claude
 // unexpected crash reports "crashed" once and fires OnFatal (→ the agent-runtime process
 // exits → the worker launcher rebuilds it with bounded backoff). No in-process self-heal.
