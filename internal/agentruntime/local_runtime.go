@@ -25,6 +25,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/skillscan"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/cognition/memory"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
@@ -818,6 +819,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if w := provisionCodexAuth(codexHome, resolveSourceCodexHome()); w != "" {
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}
+	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription)
 
 	// Codex resume is health-gated. A captured thread_id is only safe to seed when
 	// the caller explicitly requested a resume AND the prior generation proved it
@@ -851,14 +853,15 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	}
 
 	sess, err := r.cfg.CodexStarter(ctx, CodexSpec{
-		AgentID:        agentID,
-		TasksDir:       tasksDir,
-		Binary:         r.cfg.CodexBinary,
-		Model:          spec.Model,
-		DisplayName:    spec.DisplayName,
-		EnvVars:        spec.EnvVars,
-		CodexHome:      codexHome,
-		ResumeThreadID: resumeThreadID,
+		AgentID:           agentID,
+		TasksDir:          tasksDir,
+		Binary:            r.cfg.CodexBinary,
+		Model:             spec.Model,
+		DisplayName:       spec.DisplayName,
+		EnvVars:           spec.EnvVars,
+		CodexHome:         codexHome,
+		ExtraSystemPrompt: extraSystemPrompt,
+		ResumeThreadID:    resumeThreadID,
 		OnThreadID: func(tid string) {
 			if merr := sessioninstance.MarkSessionID(home, tid); merr != nil {
 				r.log("codex agent=%s: persist thread_id failed: %v (resume unavailable on next restart)", agentID, merr)
@@ -883,6 +886,19 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path).
 	r.kickInstalledSkillsReport()
 	return nil
+}
+
+func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptDescription string) string {
+	memEngine := memory.NewEngine(filepath.Join(home, "memory"), "")
+	var memoryContext string
+	if initErr := memEngine.EnsureRootInit(ctx); initErr != nil {
+		r.log("codex agent=%s: memory init: %v (continuing without memory)", r.cfg.AgentID, initErr)
+	} else if mc, ctxErr := memEngine.HarnessContext(ctx); ctxErr != nil {
+		r.log("codex agent=%s: memory load: %v (continuing without memory)", r.cfg.AgentID, ctxErr)
+	} else {
+		memoryContext = mc
+	}
+	return claudestream.ComposeExtraSystemPrompt(promptDescription, memoryContext)
 }
 
 // rawLogger adapts the prefixed Log back to the func(string) the session configs

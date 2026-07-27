@@ -59,6 +59,10 @@ type CodexSpec struct {
 	// process so codex loads the generated $CODEX_HOME/config.toml (its [mcp_servers.*]
 	// agent-center tables). "" → no CODEX_HOME override (codex uses its default).
 	CodexHome string
+	// ExtraSystemPrompt carries the composed persona + memory harness for a fresh
+	// Codex logical session. Codex has no separate --append-system-prompt path in this
+	// one-shot runner, so CodexSession prepends this only to the first fresh turn.
+	ExtraSystemPrompt string
 	// ResumeThreadID is the codex thread_id captured from a PRIOR generation (persisted
 	// in session.instance.SessionID), threaded on a boot-reconcile relaunch so the first
 	// turn is `codex exec resume <thread_id>` (T972 supervisor resume). "" → fresh session.

@@ -400,6 +400,47 @@ func TestCodexSession_SingleTurn_FreshThenResume(t *testing.T) {
 	}
 }
 
+func TestCodexSession_PrependsExtraPromptOnlyForFreshTurn(t *testing.T) {
+	lr := &fakeCodexLauncher{turns: [][]string{
+		{
+			`{"type":"thread.started","thread_id":"T1"}`,
+			`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+		},
+		{
+			`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+		},
+	}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID:           "agent-1",
+		Launcher:          lr,
+		ExtraSystemPrompt: "MEMORY HARNESS",
+		OnEvent:           h.onEvent,
+		OnExit:            h.onExit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Inject(context.Background(), "first"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitResult(t)
+	if err := s.Inject(context.Background(), "second"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitResult(t)
+
+	if got := lr.specAt(0).Prompt; got != "MEMORY HARNESS\n\nfirst" {
+		t.Fatalf("fresh prompt = %q, want extra prompt prepended once", got)
+	}
+	if got := lr.specAt(1); got.ThreadID != "T1" || got.Prompt != "second" {
+		t.Fatalf("resume prompt should not repeat extra harness, got %+v", got)
+	}
+	_ = s.Stop(context.Background())
+	<-h.exited
+}
+
 // TestCodexSession_TransientErrorThenCompleted_NoFalseDeath is the issue-c7a1fe3e
 // regression lock at the SESSION level: a transient `error` mid-turn (reconnect blip)
 // followed by a normal turn.completed must yield a SUCCESS result — the blip must not

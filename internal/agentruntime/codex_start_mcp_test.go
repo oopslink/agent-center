@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
+	"github.com/oopslink/agent-center/internal/cognition/memory"
 )
 
 // TestStartCodex_WritesMCPConfigAndCodexHome pins the T972 supervisor-MCP wiring:
@@ -121,5 +122,50 @@ func TestStartCodex_DoesNotResumePriorThreadWithoutHealthyResume(t *testing.T) {
 	}
 	if persisted.SessionID != "" {
 		t.Fatalf("persisted SessionID = %q, want cleared by fresh generation", persisted.SessionID)
+	}
+}
+
+func TestStartCodex_IncludesMemoryHarnessInFreshPrompt(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "agents", "agent-x")
+	mem := memory.NewEngine(filepath.Join(home, "memory"), "")
+	ctx := context.Background()
+	if err := mem.EnsureRootInit(ctx); err != nil {
+		t.Fatalf("EnsureRootInit: %v", err)
+	}
+	if err := mem.WriteScoped(ctx, memory.MemoryScope{Kind: memory.MemScopeGlobal}, "GLOBAL-BRAIN\n", "t", "t@x", "seed"); err != nil {
+		t.Fatalf("seed memory: %v", err)
+	}
+
+	var got CodexSpec
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			got = spec
+			return &fakeSession{}, nil
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	if err := rt.Start(ctx, StartSpec{
+		AgentID:           "agent-x",
+		Version:           1,
+		CLI:               CLICodex,
+		PromptDescription: "Persona note.",
+	}); err != nil {
+		t.Fatalf("Start(codex): %v", err)
+	}
+
+	for _, want := range []string{"Persona note.", "== Your memory ==", "GLOBAL-BRAIN"} {
+		if !strings.Contains(got.ExtraSystemPrompt, want) {
+			t.Fatalf("ExtraSystemPrompt missing %q; got:\n%s", want, got.ExtraSystemPrompt)
+		}
 	}
 }

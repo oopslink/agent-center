@@ -401,6 +401,10 @@ type CodexSessionConfig struct {
 	// supervisor resume): non-empty → the first turn is `codex exec resume <id>`
 	// (continuation with full history); "" → a fresh session.
 	ResumeThreadID string
+	// ExtraSystemPrompt is prepended once to the first FRESH codex exec prompt. Codex
+	// has no --append-system-prompt in this one-shot runner path; resumed turns already
+	// carry the thread history and must not repeat the harness.
+	ExtraSystemPrompt string
 	// Env is merged into each turn's child environment.
 	Env map[string]string
 	// Launcher starts each turn's process. Defaults to execCodexLauncher when nil.
@@ -546,7 +550,7 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		Binary:   s.cfg.Binary,
 		Model:    s.cfg.Model,
 		ThreadID: thread,
-		Prompt:   msg,
+		Prompt:   s.promptForTurn(thread, msg),
 		Env:      s.cfg.Env,
 	})
 	if err != nil {
@@ -623,6 +627,14 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		return timeoutErr
 	}
 	return nil
+}
+
+func (s *CodexSession) promptForTurn(threadID, msg string) string {
+	extra := strings.TrimSpace(s.cfg.ExtraSystemPrompt)
+	if threadID != "" || extra == "" {
+		return msg
+	}
+	return extra + "\n\n" + msg
 }
 
 func (s *CodexSession) startTurnWatchdog(ctx context.Context, cancelTurn context.CancelFunc) (func(), <-chan error, func()) {

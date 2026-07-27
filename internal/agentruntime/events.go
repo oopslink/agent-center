@@ -164,6 +164,13 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		usageTaskID = st.UsageTaskAtResult()
 		r.mu.Unlock()
 		go r.maybeReportUsage(agentID, ev, usageTaskID)
+		if isCodex {
+			if codexRecycleReason != "" {
+				r.commitDirtyMemory(agentID)
+			} else {
+				go r.commitDirtyMemory(agentID)
+			}
+		}
 		if codexRecycleReason != "" {
 			r.log("codex agent=%s checkpoint recycle: %s", agentID, codexRecycleReason)
 			if r.cfg.OnFatal != nil {
