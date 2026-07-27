@@ -199,8 +199,8 @@ func (s *Server) loadOwnedCatalogEntry(w http.ResponseWriter, r *http.Request, d
 // rejects the entire import (no half-swallow).
 func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.RuntimeCatalog == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "AI Runtime Catalog is not configured")
+	if d.RuntimeCatalog == nil || d.ModelCatalogRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog adapter is not configured")
 		return
 	}
 	callerID, _, orgID, ok := requireOrgMember(w, r, d)
@@ -235,6 +235,9 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 	}
 	seen := make(map[string]struct{}, len(dtos))
 	models := make([]airuntime.ExportModel, 0, len(dtos))
+	legacyEntries := make([]*pm.ModelCatalogEntry, 0, len(dtos))
+	now := time.Now().UTC()
+	actor := pm.IdentityRef("user:" + callerID.ID())
 	for i, dto := range dtos {
 		if dto.ModelID == "" || dto.DisplayName == "" || dto.InputCost < 0 || dto.OutputCost < 0 || dto.ContextWindow < 0 {
 			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: invalid catalog fields (whole batch rejected)", i))
@@ -245,6 +248,20 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		seen[dto.ModelID] = struct{}{}
+		id, err := generateModelCatalogID()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
+			return
+		}
+		entry, err := pm.NewModelCatalogEntry(pm.NewModelCatalogEntryInput{
+			ID: pm.ModelCatalogEntryID(id), OrgID: orgID, Fields: dto.fields(),
+			CreatedBy: actor, CreatedAt: now,
+		})
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: %s (whole batch rejected)", i, err.Error()))
+			return
+		}
+		legacyEntries = append(legacyEntries, entry)
 		models = append(models, airuntime.ExportModel{
 			Key: dto.ModelID, ModelKey: dto.ModelID, DisplayName: dto.DisplayName,
 			CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{},
@@ -273,10 +290,9 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		}
 		sort.Slice(doc.Runtime.Models, func(i, j int) bool { return doc.Runtime.Models[i].Key < doc.Runtime.Models[j].Key })
 	}
+	// The legacy replace scope is only the legacy model-catalog projection. It
+	// must not disable unrelated Runtime Catalog models or invalidate profiles.
 	strategy := airuntime.ImportStrategy(airuntime.StrategyMerge)
-	if mode == "replace" {
-		strategy = airuntime.StrategyReplace
-	}
 	preview, err := d.RuntimeCatalog.PreviewImport(r.Context(), orgID, airuntime.PreviewRequest{Strategy: strategy, Document: doc})
 	if err != nil {
 		writeRuntimeImportError(w, preview.Report, err)
@@ -287,6 +303,15 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		writeRuntimeImportError(w, airuntime.ImportReport{}, err)
+		return
+	}
+	if mode == "replace" {
+		err = d.ModelCatalogRepo.ReplaceForOrg(r.Context(), orgID, legacyEntries)
+	} else {
+		err = d.ModelCatalogRepo.UpsertForOrg(r.Context(), orgID, legacyEntries)
+	}
+	if err != nil {
+		mapModelCatalogWebError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode, "imported": len(models)})
