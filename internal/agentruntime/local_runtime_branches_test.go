@@ -227,17 +227,16 @@ func TestOnExit_ExpectedStopReportsNothing(t *testing.T) {
 	}
 }
 
-func TestOnExit_CodexCrashReportsErrorOnce(t *testing.T) {
+func TestOnExit_CodexCrashReportsCrashedAndFiresFatal(t *testing.T) {
 	rt, rep, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
-	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
-		t.Fatalf("codex crash must report error once, got %v", got)
+	if len(got) != 1 || !strings.HasPrefix(got[0], "crashed|") {
+		t.Fatalf("codex crash must report crashed once, got %v", got)
 	}
-	// codex has no --resume / no restart → must NOT fire OnFatal (no process-exit rebuild).
-	if *fatal {
-		t.Fatal("codex crash must NOT fire OnFatal")
+	if !*fatal {
+		t.Fatal("codex crash must fire OnFatal (→ process exit → launcher rebuild)")
 	}
 }
 

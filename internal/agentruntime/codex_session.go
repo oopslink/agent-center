@@ -14,15 +14,13 @@
 // comes and goes once per turn: each Inject runs a fresh `codex exec`/`exec
 // resume`, maps its JSONL to claudestream.StreamEvent via OnEvent, and the
 // process exiting at end-of-turn does NOT end the session (it stays ready for the
-// next Inject). OnExit fires only on Stop / Detach / a fatal spawn failure.
+// next Inject). OnExit fires on Stop / Detach / fatal spawn failure / per-turn
+// watchdog timeout.
 //
 // It satisfies the same Session control surface (Inject / Stop / Detach) the
 // AgentController needs, and emits the SAME claudestream.StreamEvent type the
-// controller's onEvent consumes — so it is drop-in for a future cli-aware
-// sessionStarter (see IMPLEMENTATION_PLAN.md Stage 3). It is NOT yet wired into
-// the controller (agent.cli is not plumbed to the worker today), so this file is
-// exercised by unit tests + the env-gated real-codex integration test, not by a
-// production path.
+// controller's onEvent consumes. The production cli=codex path wires this through
+// startCodexSessionAdapter.
 package agentruntime
 
 import (
@@ -45,6 +43,11 @@ import (
 
 // ErrCodexInvalidEvent is returned by mapCodexLine for a malformed JSONL line.
 var ErrCodexInvalidEvent = errors.New("codex_session: invalid event JSON")
+
+const (
+	defaultCodexTurnStartTimeout = 10 * time.Minute
+	defaultCodexTurnIdleTimeout  = 15 * time.Minute
+)
 
 // codexProc is one running `codex exec` process. The real impl wraps os/exec;
 // tests inject a fake that emits canned stdout lines. Codex takes its prompt as
@@ -425,6 +428,12 @@ type CodexSessionConfig struct {
 	Logger func(msg string)
 	// InjectBuffer bounds the pending-inject queue (0 → 64).
 	InjectBuffer int
+	// TurnStartTimeout bounds how long a launched codex turn may go without any
+	// JSONL event. 0 uses the production default; a negative value disables it.
+	TurnStartTimeout time.Duration
+	// TurnIdleTimeout bounds how long a started codex turn may go without any
+	// further JSONL event. 0 uses the production default; a negative value disables it.
+	TurnIdleTimeout time.Duration
 }
 
 // CodexSession is a long-lived logical handle that runs one `codex exec` turn per
@@ -469,6 +478,12 @@ func StartCodexSession(ctx context.Context, cfg CodexSessionConfig) (*CodexSessi
 	if cfg.InjectBuffer <= 0 {
 		cfg.InjectBuffer = 64
 	}
+	if cfg.TurnStartTimeout == 0 {
+		cfg.TurnStartTimeout = defaultCodexTurnStartTimeout
+	}
+	if cfg.TurnIdleTimeout == 0 {
+		cfg.TurnIdleTimeout = defaultCodexTurnIdleTimeout
+	}
 	loopCtx, cancel := context.WithCancel(context.Background())
 	s := &CodexSession{
 		cfg:      cfg,
@@ -487,7 +502,7 @@ func StartCodexSession(ctx context.Context, cfg CodexSessionConfig) (*CodexSessi
 }
 
 // runLoop processes injected messages one turn at a time until the loop ctx is
-// cancelled (Stop/Detach) or a turn hits a fatal spawn failure.
+// cancelled (Stop/Detach) or a turn hits a fatal failure.
 func (s *CodexSession) runLoop(ctx context.Context) {
 	var fatal error
 	for {
@@ -513,7 +528,7 @@ func (s *CodexSession) runLoop(ctx context.Context) {
 // runTurn runs ONE codex turn for msg: spawn fresh/resume, stream+map stdout to
 // OnEvent, capture thread_id. A non-zero process exit is NOT fatal to the session
 // (a synthetic error result is emitted so the controller never sits silently);
-// only a spawn failure returns a non-nil (fatal) error.
+// spawn failures and watchdog timeouts return a non-nil fatal error.
 func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 	return s.runTurnAttempt(ctx, msg, false)
 }
@@ -523,7 +538,10 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 	thread := s.threadID
 	s.mu.Unlock()
 
-	proc, err := s.launcher.Launch(ctx, codexLaunchSpec{
+	turnCtx, cancelTurn := context.WithCancel(ctx)
+	defer cancelTurn()
+
+	proc, err := s.launcher.Launch(turnCtx, codexLaunchSpec{
 		TasksDir: s.cfg.TasksDir,
 		Binary:   s.cfg.Binary,
 		Model:    s.cfg.Model,
@@ -537,8 +555,12 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 
 	scanner := bufio.NewScanner(proc.Stdout())
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	heartbeat, timeoutErrCh, stopWatchdog := s.startTurnWatchdog(turnCtx, cancelTurn)
+	defer stopWatchdog()
+
 	sawResult := false
 	for scanner.Scan() {
+		heartbeat()
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -574,6 +596,7 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		}
 	}
 	waitErr := proc.Wait()
+	timeoutErr := readTimeoutErr(timeoutErrCh)
 
 	if !sawResult {
 		if ctx.Err() == nil && thread != "" && !staleResumeRetried && isStaleCodexResumeError(waitErr) {
@@ -584,15 +607,99 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		// the controller fails the in-flight work item (no silent failure). When
 		// the turn was cancelled (Stop/Detach), skip — runLoop ends the session.
 		if ctx.Err() == nil {
+			result := fmt.Sprintf("codex exited without completing the turn: %v", waitErr)
+			if timeoutErr != nil {
+				result = timeoutErr.Error()
+			}
 			s.cfg.OnEvent(claudestream.StreamEvent{
 				Type:    "result",
 				Subtype: "error",
 				IsError: true,
-				Result:  fmt.Sprintf("codex exited without completing the turn: %v", waitErr),
+				Result:  result,
 			})
 		}
 	}
+	if ctx.Err() == nil && timeoutErr != nil {
+		return timeoutErr
+	}
 	return nil
+}
+
+func (s *CodexSession) startTurnWatchdog(ctx context.Context, cancelTurn context.CancelFunc) (func(), <-chan error, func()) {
+	startTimeout := s.cfg.TurnStartTimeout
+	idleTimeout := s.cfg.TurnIdleTimeout
+	if startTimeout < 0 && idleTimeout < 0 {
+		return func() {}, nil, func() {}
+	}
+
+	activity := make(chan struct{}, 1)
+	timeoutErr := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		timeout := startTimeout
+		phase := "start"
+		if timeout < 0 {
+			timeout = idleTimeout
+			phase = "idle"
+		}
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-activity:
+				if idleTimeout < 0 {
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					continue
+				}
+				phase = "idle"
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(idleTimeout)
+			case <-timer.C:
+				err := fmt.Errorf("codex turn %s timeout after %s", phase, timeout)
+				s.cfg.Logger(fmt.Sprintf("[worker] codex_session: %v; cancelling turn", err))
+				select {
+				case timeoutErr <- err:
+				default:
+				}
+				cancelTurn()
+				return
+			}
+		}
+	}()
+	heartbeat := func() {
+		select {
+		case activity <- struct{}{}:
+		default:
+		}
+	}
+	stop := func() { close(done) }
+	return heartbeat, timeoutErr, stop
+}
+
+func readTimeoutErr(ch <-chan error) error {
+	if ch == nil {
+		return nil
+	}
+	select {
+	case err := <-ch:
+		return err
+	default:
+		return nil
+	}
 }
 
 func (s *CodexSession) persistThreadID(tid string) {

@@ -174,7 +174,6 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	displayName := st.DisplayName
 	promptDescription := st.PromptDescription
 	envVars := cloneEnv(st.EnvVars)
-	cli := st.CLI
 	// The executor engine now lives on the runtime (Phase 0c); read it under the held
 	// Mu (this whole block is inside r.mu.Lock()).
 	wasConcurrent := r.exec != nil
@@ -206,23 +205,15 @@ func (r *LocalRuntime) onExit(exitErr error) {
 		msg = "process exited unexpectedly"
 	}
 	r.log("agent=%s crashed: %s", agentID, msg)
-	// codex has no --resume: report error, no restart (unchanged).
-	if cli == CLICodex {
-		st.LifecycleOnce.Do(func() {
-			if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
-				r.log("agent=%s (codex) report error: %v", agentID, err)
-			}
-		})
-		return
-	}
 	// T860 piece ③ (gap4): the controller/process-per-agent model has NO in-process
-	// self-heal (SelfHealStore is gone). A claude unexpected crash → report the crash
-	// lifecycle once, then signal THIS agent-runtime PROCESS to exit (OnFatal). The
-	// worker's launcher rebuilds it with BOUNDED backoff + max-attempts (crash-loop
-	// safety lives in the durable launcher, not the crashing process), and the rebuilt
-	// process re-Boots + re-Starts the session. _ = version/hadWork/... : the relaunch
-	// spec fields the old in-process self-heal carried are re-derived by the rebuilt
-	// process from the center's ResumeState, so they are not threaded through here.
+	// self-heal (SelfHealStore is gone). An unexpected session crash → report the
+	// crash lifecycle once, then signal THIS agent-runtime PROCESS to exit (OnFatal).
+	// The worker's launcher rebuilds it with BOUNDED backoff + max-attempts
+	// (crash-loop safety lives in the durable launcher, not the crashing process), and
+	// the rebuilt process re-Boots + re-Starts the session. _ = version/hadWork/... :
+	// the relaunch spec fields the old in-process self-heal carried are re-derived by
+	// the rebuilt process from the center's ResumeState, so they are not threaded
+	// through here.
 	_ = version
 	_ = hadWork
 	_ = taskID

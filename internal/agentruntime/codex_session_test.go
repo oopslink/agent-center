@@ -241,6 +241,43 @@ func (l *fakeCodexLauncher) specAt(i int) codexLaunchSpec {
 	return l.specs[i]
 }
 
+type blockingCodexProc struct {
+	r    io.Reader
+	done <-chan struct{}
+	err  func() error
+}
+
+func (p *blockingCodexProc) Stdout() io.Reader { return p.r }
+func (p *blockingCodexProc) Wait() error {
+	<-p.done
+	return p.err()
+}
+
+type blockingCodexLauncher struct {
+	lines []string
+}
+
+func (l *blockingCodexLauncher) Launch(ctx context.Context, _ codexLaunchSpec) (codexProc, error) {
+	pr, pw := io.Pipe()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, line := range l.lines {
+			if _, err := io.WriteString(pw, line+"\n"); err != nil {
+				_ = pw.Close()
+				return
+			}
+		}
+		<-ctx.Done()
+		_ = pw.CloseWithError(ctx.Err())
+	}()
+	return &blockingCodexProc{
+		r:    pr,
+		done: done,
+		err:  ctx.Err,
+	}, nil
+}
+
 // sessionHarness collects events and signals each turn's terminal "result".
 type sessionHarness struct {
 	mu      sync.Mutex
@@ -285,6 +322,17 @@ func (h *sessionHarness) waitResult(t *testing.T) claudestream.StreamEvent {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for turn result")
 		return claudestream.StreamEvent{}
+	}
+}
+
+func (h *sessionHarness) waitExit(t *testing.T) error {
+	t.Helper()
+	select {
+	case <-h.exited:
+		return h.exitErr
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for session exit")
+		return nil
 	}
 }
 
@@ -594,6 +642,64 @@ func TestCodexSession_CrashWithoutResult_SynthesizesError(t *testing.T) {
 		t.Fatalf("expected synthesized error result, got %+v", r)
 	}
 	_ = s.Stop(context.Background())
+}
+
+func TestCodexSession_StartTimeout_SynthesizesErrorAndFatalExit(t *testing.T) {
+	lr := &blockingCodexLauncher{}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID:          "a",
+		Launcher:         lr,
+		OnEvent:          h.onEvent,
+		OnExit:           h.onExit,
+		TurnStartTimeout: 20 * time.Millisecond,
+		TurnIdleTimeout:  -1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	r := h.waitResult(t)
+	if !r.IsError || !strings.Contains(r.Result, "codex turn start timeout") {
+		t.Fatalf("expected start-timeout error result, got %+v", r)
+	}
+	if err := h.waitExit(t); err == nil || !strings.Contains(err.Error(), "codex turn start timeout") {
+		t.Fatalf("expected fatal start-timeout exit, got %v", err)
+	}
+	if err := s.Inject(context.Background(), "next"); !errors.Is(err, ErrSessionClosed) {
+		t.Fatalf("inject after watchdog fatal exit: %v", err)
+	}
+}
+
+func TestCodexSession_IdleTimeoutAfterActivity_SynthesizesErrorAndFatalExit(t *testing.T) {
+	lr := &blockingCodexLauncher{lines: []string{`{"type":"thread.started","thread_id":"T"}`}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID:          "a",
+		Launcher:         lr,
+		OnEvent:          h.onEvent,
+		OnExit:           h.onExit,
+		TurnStartTimeout: time.Second,
+		TurnIdleTimeout:  20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	r := h.waitResult(t)
+	if !r.IsError || !strings.Contains(r.Result, "codex turn idle timeout") {
+		t.Fatalf("expected idle-timeout error result, got %+v", r)
+	}
+	if got := s.ThreadID(); got != "T" {
+		t.Fatalf("thread id = %q, want T", got)
+	}
+	if err := h.waitExit(t); err == nil || !strings.Contains(err.Error(), "codex turn idle timeout") {
+		t.Fatalf("expected fatal idle-timeout exit, got %v", err)
+	}
 }
 
 func TestCodexSession_LaunchFailure_FatalExit(t *testing.T) {
