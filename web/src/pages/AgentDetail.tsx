@@ -160,6 +160,7 @@ export default function AgentDetail(): React.ReactElement {
   // resetting (or archived) agent must settle first (backend also 409-guards with
   // reset_requires_stopped). The operator stops the agent, then resets.
   const canReset = lc === 'stopped' || lc === 'error' || lc === 'failed';
+  const showReset = !isArchived;
   // v2.8 #270/#272 (b strict-two-step): archive only a settled (stopped/error)
   // agent — a running agent must be stopped first (backend also 409-guards).
   const canArchive = lc === 'stopped' || lc === 'error';
@@ -259,14 +260,18 @@ export default function AgentDetail(): React.ReactElement {
               </button>
             </>
           )}
-          {canReset && (
+          {showReset && (
             <button
               type="button"
               onClick={() => setResetOpen(true)}
-              disabled={transient || reset.isPending}
+              disabled={!canReset || transient || reset.isPending}
               className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
               data-testid="agent-reset-btn"
-              title={t('agents.detail.controls.resetTitle')}
+              title={
+                canReset
+                  ? t('agents.detail.controls.resetTitle')
+                  : t('agents.detail.controls.resetRequiresStoppedTitle')
+              }
               aria-label={t('agents.detail.controls.resetAria')}
             >
               <ResetIcon />

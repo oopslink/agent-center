@@ -385,6 +385,7 @@
         "restartTitle": "重启",
         "restartAria": "重启智能体",
         "resetTitle": "重置",
+        "resetRequiresStoppedTitle": "重置前请先停止智能体",
         "resetAria": "重置智能体",
         "archiveTitle": "归档",
         "archiveAria": "归档智能体",

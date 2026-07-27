@@ -281,8 +281,10 @@ describe('AgentDetail page', () => {
       expect(btn).toHaveAttribute('aria-label', aria);
       expect(btn).not.toHaveTextContent(tip);
     }
-    // Reset is hidden while running (W5 precondition).
-    expect(screen.queryByTestId('agent-reset-btn')).not.toBeInTheDocument();
+    const reset = screen.getByTestId('agent-reset-btn');
+    expect(reset).toBeDisabled();
+    expect(reset).toHaveAttribute('title', 'Stop agent before reset');
+    expect(reset).toHaveAttribute('aria-label', 'Reset agent');
   });
 
   it('Reset control is icon-ified + destructive for a settled (stopped) agent (#250 / W5)', async () => {
@@ -297,11 +299,13 @@ describe('AgentDetail page', () => {
     expect(reset.className).toContain('text-danger');
   });
 
-  it('Reset is hidden while running (v2.16 W5 settled-state precondition)', async () => {
+  it('Reset is disabled while running with a stop-first tooltip (v2.16 W5 settled-state precondition)', async () => {
     stubAgent({ lifecycle: 'running' });
     wrap('/agents/A1');
     await screen.findByTestId('agent-stop-btn');
-    expect(screen.queryByTestId('agent-reset-btn')).not.toBeInTheDocument();
+    const reset = screen.getByTestId('agent-reset-btn');
+    expect(reset).toBeDisabled();
+    expect(reset).toHaveAttribute('title', 'Stop agent before reset');
   });
 
   it('error agent shows Start', async () => {
@@ -311,11 +315,13 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-lifecycle-error')).toHaveTextContent('boom');
   });
 
-  it('resetting agent hides Reset + shows transient note', async () => {
+  it('resetting agent disables Reset + shows transient note', async () => {
     stubAgent({ lifecycle: 'resetting' });
     wrap('/agents/A1');
     await waitFor(() => expect(screen.getByTestId('agent-transient-note')).toBeInTheDocument());
-    expect(screen.queryByTestId('agent-reset-btn')).not.toBeInTheDocument();
+    const reset = screen.getByTestId('agent-reset-btn');
+    expect(reset).toBeDisabled();
+    expect(reset).toHaveAttribute('title', 'Stop agent before reset');
   });
 
   it('reset requires scope + second confirmation before firing with confirm:true', async () => {

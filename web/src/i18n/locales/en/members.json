@@ -385,6 +385,7 @@
         "restartTitle": "Restart",
         "restartAria": "Restart agent",
         "resetTitle": "Reset",
+        "resetRequiresStoppedTitle": "Stop agent before reset",
         "resetAria": "Reset agent",
         "archiveTitle": "Archive",
         "archiveAria": "Archive agent",
