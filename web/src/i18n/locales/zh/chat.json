@@ -187,6 +187,20 @@
       "originalUnavailable": "原消息已不可用"
     }
   },
+  "threadPreview": {
+    "chip_one": "#{{id}} · {{count}} 条回复",
+    "chip_other": "#{{id}} · {{count}} 条回复",
+    "openThread_one": "打开专题 — {{count}} 条回复",
+    "openThread_other": "打开专题 — {{count}} 条回复",
+    "earlierReplies_one": "{{count}} 条更早回复 >",
+    "earlierReplies_other": "{{count}} 条更早回复 >",
+    "unreadActivity": "新动态",
+    "seenActivity": "已读",
+    "loading": "正在加载回复…",
+    "loadError": "无法加载回复。",
+    "noPreview": "打开专题查看回复。",
+    "deletedSender": "（已删除）"
+  },
   "panels": {
     "participants": {
       "ariaLabel": "参与者",

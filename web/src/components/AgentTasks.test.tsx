@@ -299,7 +299,7 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     wrap();
     const sum = await screen.findByTestId('agent-concurrency-summary');
     expect(sum).toHaveAttribute('data-mode', 'nodata');
-    expect(sum).toHaveTextContent(/awaiting live slot data/i);
+    expect(sum).toHaveTextContent(/awaiting live data/i);
     expect(sum).not.toHaveTextContent(/unreachable/i);
     expect(sum).not.toHaveTextContent(/offline/i);
     expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument();
@@ -333,7 +333,7 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     wrap();
     const sum = await screen.findByTestId('agent-concurrency-summary');
     expect(sum).toHaveAttribute('data-mode', 'nodata');
-    expect(sum).toHaveTextContent(/awaiting live slot data/i);
+    expect(sum).toHaveTextContent(/awaiting live data/i);
     expect(sum).not.toHaveTextContent(/concurrency not active/i);
     expect(screen.getByTestId('agent-concurrency-slots')).toHaveTextContent('~2/3'); // fallback, not "—"
   });

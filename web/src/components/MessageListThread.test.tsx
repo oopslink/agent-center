@@ -41,24 +41,58 @@ describe('MessageList thread affordance', () => {
     expect(screen.getByTestId('thread-button')).toBeInTheDocument();
   });
 
-  it('shows the reply count, and the dot only when there is NEW activity (P3)', () => {
+  it('shows a thread preview with reply count, and the dot only when there is NEW activity (P3)', async () => {
+    server.use(
+      http.get('/api/conversations/:id/messages/:mid/replies', () =>
+        HttpResponse.json([
+          msg({
+            id: 'R1',
+            sender_identity_id: 'agent:x9527',
+            parent_message_id: 'M1',
+            content: 'I started fixing this bug.',
+            posted_at: '2026-06-12T00:02:00Z',
+          }),
+          msg({
+            id: 'R2',
+            sender_identity_id: 'agent:x9527',
+            parent_message_id: 'M1',
+            content: 'Fix pushed to origin/main.',
+            posted_at: '2026-06-12T00:03:00Z',
+          }),
+          msg({
+            id: 'R3',
+            sender_identity_id: 'agent:x9527',
+            parent_message_id: 'M1',
+            content: 'Fixed and deployed.',
+            posted_at: '2026-06-12T00:04:00Z',
+          }),
+        ]),
+      ),
+    );
     render(
       <MessageList
         messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: true })]}
       />,
     );
-    expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('4');
-    expect(screen.getByTestId('thread-activity-dot')).toBeInTheDocument();
+    expect(screen.getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
+    expect(screen.getByTestId('thread-preview-activity-dot')).toBeInTheDocument();
+    expect(await screen.findAllByTestId('thread-preview-reply')).toHaveLength(3);
+    expect(screen.getByTestId('thread-preview-earlier')).toHaveTextContent('1 earlier reply');
   });
 
   it('hides the dot when there are replies but no NEW activity (seen)', () => {
+    server.use(
+      http.get('/api/conversations/:id/messages/:mid/replies', () =>
+        HttpResponse.json([], { status: 200 }),
+      ),
+    );
     render(
       <MessageList
         messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: false })]}
       />,
     );
-    expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('4');
-    expect(screen.queryByTestId('thread-activity-dot')).toBeNull();
+    expect(screen.getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
+    expect(screen.queryByTestId('thread-preview-activity-dot')).toBeNull();
   });
 
   it('hides the thread button when showThreads is false (used inside a thread)', () => {
@@ -78,5 +112,25 @@ describe('MessageList thread affordance', () => {
     expect(screen.getByTestId('thread-sidebar')).toBeInTheDocument();
     // the root message content shows inside the sidebar (plus the row) → ≥1
     expect(screen.getAllByText('open me').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('opens the thread sidebar from a populated preview', async () => {
+    server.use(
+      http.get('/api/conversations/:id/messages/:mid/replies', () =>
+        HttpResponse.json([
+          msg({
+            id: 'R1',
+            parent_message_id: 'M1',
+            sender_identity_id: 'agent:x9527',
+            content: 'reply body',
+            posted_at: '2026-06-12T00:02:00Z',
+          }),
+        ]),
+      ),
+    );
+    render(<MessageList messages={[msg({ content: 'thread root', reply_count: 1 })]} />);
+    await userEvent.click(screen.getByTestId('thread-preview-panel'));
+    expect(screen.getByTestId('thread-sidebar')).toBeInTheDocument();
+    expect(screen.getAllByText('thread root').length).toBeGreaterThanOrEqual(1);
   });
 });

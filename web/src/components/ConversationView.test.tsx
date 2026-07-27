@@ -90,8 +90,8 @@ describe('ConversationView (#264 surface-agnostic shell)', () => {
     );
     wrap(<ConversationView surface="channel" conversationId="C1" />);
     await waitFor(() => expect(screen.getByText('thread me')).toBeInTheDocument());
-    const threadBtn = screen.getByTestId('thread-button');
-    expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('2');
+    const threadBtn = screen.getByTestId('thread-preview-chip');
+    expect(threadBtn).toHaveTextContent('2 replies');
     expect(screen.queryByTestId('thread-sidebar')).toBeNull();
     await userEvent.click(threadBtn);
     expect(screen.getByTestId('thread-sidebar')).toBeInTheDocument();

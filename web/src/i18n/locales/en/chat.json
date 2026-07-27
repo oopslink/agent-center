@@ -187,6 +187,20 @@
       "originalUnavailable": "Original message unavailable"
     }
   },
+  "threadPreview": {
+    "chip_one": "#{{id}} · {{count}} reply",
+    "chip_other": "#{{id}} · {{count}} replies",
+    "openThread_one": "Open thread — {{count}} reply",
+    "openThread_other": "Open thread — {{count}} replies",
+    "earlierReplies_one": "{{count}} earlier reply >",
+    "earlierReplies_other": "{{count}} earlier replies >",
+    "unreadActivity": "new",
+    "seenActivity": "seen",
+    "loading": "Loading replies…",
+    "loadError": "Couldn't load replies.",
+    "noPreview": "Open thread to view replies.",
+    "deletedSender": "(deleted)"
+  },
   "panels": {
     "participants": {
       "ariaLabel": "participants",

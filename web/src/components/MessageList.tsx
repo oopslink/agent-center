@@ -17,6 +17,7 @@ import { useSenderSidebar } from './SenderSidebarContext';
 import { ThreadButton } from './ThreadButton';
 import { ThreadSidebar } from './ThreadSidebar';
 import { useThreadSidebar } from './ThreadSidebarContext';
+import { ThreadPreview } from './ThreadPreview';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -441,13 +442,22 @@ export function MessageList({
     // dot), aligned to the message's side. Opens the thread sidebar for THIS
     // message. Omitted when showThreads=false (i.e. inside a thread itself).
     const threadAffordance = showThreads ? (
-      <ThreadButton
-        replyCount={m.reply_count}
-        // v2.9.1 P3: dot = NEW activity since last viewed (server-derived), not
-        // merely "has any replies".
-        hasActivity={!!m.has_new_activity}
-        onClick={() => openThread(m)}
-      />
+      (m.reply_count ?? 0) > 0 ? (
+        <ThreadPreview
+          rootMessage={m}
+          align={isOwn ? 'right' : 'left'}
+          // v2.9.1 P3: dot = NEW activity since last viewed (server-derived), not
+          // merely "has any replies".
+          hasActivity={!!m.has_new_activity}
+          onOpenThread={() => openThread(m)}
+        />
+      ) : (
+        <ThreadButton
+          replyCount={m.reply_count}
+          hasActivity={!!m.has_new_activity}
+          onClick={() => openThread(m)}
+        />
+      )
     ) : null;
 
     // Hex-inspired: own = right-aligned eggplant bubble (light: #31263B,
