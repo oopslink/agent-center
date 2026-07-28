@@ -156,6 +156,9 @@ export interface Message {
   // unavailable" placeholder. Both absent when the message quotes nothing.
   quoted_message_id?: string;
   quoted_message?: QuotedMessagePreview;
+  // Primary reply linkage: when present, this message is the main answer to the
+  // source message. Orthogonal to quotes and threads.
+  reply_to_message_id?: string;
 }
 
 // QuotedMessagePreview is the inlined preview of the message a quoting message
@@ -906,6 +909,7 @@ export interface SendMessageInput {
   // Renders a preview card above the sent message. Orthogonal to a thread reply;
   // absent → no quote. Mirrors the BE sendMessageReq `quoted_message_id`.
   quoted_message_id?: string;
+  reply_to_message_id?: string;
 }
 
 export interface SendMessageResult {

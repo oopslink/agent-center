@@ -997,6 +997,78 @@ func TestPostTaskMessage_ParentMessageID_ThreadsReply(t *testing.T) {
 	t.Fatalf("reply message %s not found", replyID)
 }
 
+func TestPostTaskMessage_ReplyToRejectsOldThreadTarget(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "old thread root"})
+	if status != http.StatusOK {
+		t.Fatalf("post old root status=%d body=%v", status, body)
+	}
+	oldRoot, _ := body["message_id"].(string)
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "new source"})
+	if status != http.StatusOK {
+		t.Fatalf("post source status=%d body=%v", status, body)
+	}
+	sourceID, _ := body["message_id"].(string)
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{
+			"agent_id":            atAgent1,
+			"target":              map[string]any{"type": "task", "id": tid},
+			"content":             "wrong primary reply",
+			"reply_to_message_id": sourceID,
+			"parent_message_id":   oldRoot,
+		})
+	if status != http.StatusBadRequest {
+		t.Fatalf("status=%d want 400 body=%v", status, body)
+	}
+	if body["error"] != "invalid_reply_target" {
+		t.Fatalf("error=%v want invalid_reply_target body=%v", body["error"], body)
+	}
+}
+
+func TestPostTaskMessage_ReplyToCanOpenSourceThread(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "source"})
+	if status != http.StatusOK {
+		t.Fatalf("post source status=%d body=%v", status, body)
+	}
+	sourceID, _ := body["message_id"].(string)
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{
+			"agent_id":            atAgent1,
+			"target":              map[string]any{"type": "task", "id": tid},
+			"content":             "threaded primary reply",
+			"reply_to_message_id": sourceID,
+			"parent_message_id":   sourceID,
+		})
+	if status != http.StatusOK {
+		t.Fatalf("post primary reply status=%d body=%v", status, body)
+	}
+	replyID, _ := body["message_id"].(string)
+	for _, m := range f.taskMessages(t, tid) {
+		if string(m.ID()) == replyID {
+			if m.ReplyToMessageID() != conversation.MessageID(sourceID) || m.ParentMessageID() != conversation.MessageID(sourceID) {
+				t.Fatalf("reply got reply_to=%q parent=%q, want %q", m.ReplyToMessageID(), m.ParentMessageID(), sourceID)
+			}
+			return
+		}
+	}
+	t.Fatalf("reply message %s not found", replyID)
+}
+
 // --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
 
 func TestUnblockTask_OK(t *testing.T) {

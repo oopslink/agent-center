@@ -1783,6 +1783,8 @@ func decodeJSON(r *http.Request, dst any) error {
 
 func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, conversation.ErrMessageInvalidReplyTarget):
+		writeError(w, http.StatusBadRequest, "invalid_reply_target", err.Error())
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
 		// v2.9.1 Thread P1: a reply targeting a parent in another conversation is
@@ -1886,6 +1888,9 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 	// lookup instead of a per-message round-trip (see attachQuotePreviews).
 	if qid := m.QuotedMessageID(); qid != "" {
 		out["quoted_message_id"] = string(qid)
+	}
+	if rid := m.ReplyToMessageID(); rid != "" {
+		out["reply_to_message_id"] = string(rid)
 	}
 	// context_refs lets the UI segment a task conversation's messages by
 	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set

@@ -112,9 +112,9 @@ func BuildConverseBrief(req ConverseRequest) string {
 	if showConvNote {
 		convNote = " This is a conversation, not a task — there is no work item to complete."
 	}
-	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q.%s)", req.ConversationID, convNote)
+	replyHint := fmt.Sprintf("(To reply with your main answer, use the post_message tool with conversation_id=%q and reply_to_message_id=%q. You may omit reply_to_message_id only for side notifications/handoffs that should not count as answering this message.%s)", req.ConversationID, req.MessageID, convNote)
 	if root := strings.TrimSpace(req.RootMessageID); root != "" {
-		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", req.ConversationID, root)
+		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply with your main answer IN that thread, use the post_message tool with conversation_id=%q, reply_to_message_id=%q, AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread. Omit reply_to_message_id only for side notifications/handoffs that should not count as answering this message.)", req.ConversationID, req.MessageID, root)
 	}
 	if anchorNote != "" {
 		replyHint = anchorNote + "\n" + replyHint

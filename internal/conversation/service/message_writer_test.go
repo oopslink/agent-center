@@ -545,6 +545,93 @@ func TestAddMessage_Quote_CrossConversation(t *testing.T) {
 	}
 }
 
+func TestAddMessage_PrimaryReply_TopLevelMayReplyTopLevelOrOpenThread(t *testing.T) {
+	w, msgRepo := setupWithRepos(t)
+	conv := openDM(t, w)
+	sourceID := addMsg(t, w, conv, "")
+
+	top, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("agent:bot"),
+		ContentKind: conversation.MessageContentText, Content: "top-level answer", Direction: conversation.DirectionOutbound,
+		ReplyToMessageID: sourceID, Actor: observability.Actor("agent:bot"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotTop, err := msgRepo.FindByID(context.Background(), top.MessageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTop.ReplyToMessageID() != sourceID || gotTop.ParentMessageID() != "" {
+		t.Fatalf("top-level primary reply got reply_to=%q parent=%q", gotTop.ReplyToMessageID(), gotTop.ParentMessageID())
+	}
+
+	threaded, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("agent:bot"),
+		ContentKind: conversation.MessageContentText, Content: "thread answer", Direction: conversation.DirectionOutbound,
+		ParentMessageID: sourceID, ReplyToMessageID: sourceID, Actor: observability.Actor("agent:bot"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotThreaded, err := msgRepo.FindByID(context.Background(), threaded.MessageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotThreaded.ReplyToMessageID() != sourceID || gotThreaded.ParentMessageID() != sourceID || gotThreaded.RootMessageID() != sourceID {
+		t.Fatalf("threaded primary reply got reply_to=%q parent=%q root=%q", gotThreaded.ReplyToMessageID(), gotThreaded.ParentMessageID(), gotThreaded.RootMessageID())
+	}
+}
+
+func TestAddMessage_PrimaryReplyRejectsOldThreadForNewTopLevelSource(t *testing.T) {
+	w, _ := setupWithRepos(t)
+	conv := openDM(t, w)
+	oldRoot := addMsg(t, w, conv, "")
+	sourceID := addMsg(t, w, conv, "")
+
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("agent:bot"),
+		ContentKind: conversation.MessageContentText, Content: "wrong thread", Direction: conversation.DirectionOutbound,
+		ParentMessageID: oldRoot, ReplyToMessageID: sourceID, Actor: observability.Actor("agent:bot"),
+	})
+	if !errors.Is(err, conversation.ErrMessageInvalidReplyTarget) {
+		t.Fatalf("got %v, want ErrMessageInvalidReplyTarget", err)
+	}
+}
+
+func TestAddMessage_PrimaryReplyThreadSourceRequiresSameRoot(t *testing.T) {
+	w, msgRepo := setupWithRepos(t)
+	conv := openDM(t, w)
+	rootID := addMsg(t, w, conv, "")
+	sourceReplyID := addMsg(t, w, conv, rootID)
+	otherRoot := addMsg(t, w, conv, "")
+
+	ok, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("agent:bot"),
+		ContentKind: conversation.MessageContentText, Content: "same thread", Direction: conversation.DirectionOutbound,
+		ParentMessageID: rootID, ReplyToMessageID: sourceReplyID, Actor: observability.Actor("agent:bot"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := msgRepo.FindByID(context.Background(), ok.MessageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ReplyToMessageID() != sourceReplyID || got.ParentMessageID() != rootID {
+		t.Fatalf("got reply_to=%q parent=%q, want %q/%q", got.ReplyToMessageID(), got.ParentMessageID(), sourceReplyID, rootID)
+	}
+
+	_, err = w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("agent:bot"),
+		ContentKind: conversation.MessageContentText, Content: "wrong thread", Direction: conversation.DirectionOutbound,
+		ParentMessageID: otherRoot, ReplyToMessageID: sourceReplyID, Actor: observability.Actor("agent:bot"),
+	})
+	if !errors.Is(err, conversation.ErrMessageInvalidReplyTarget) {
+		t.Fatalf("got %v, want ErrMessageInvalidReplyTarget", err)
+	}
+}
+
 // v2.7 #187: conversation ids are user-facing "<kind>-<8hex>" for channel/DM;
 // task (and other internal) conversations keep the ULID (navigated via owner_ref).
 func TestNewConversationID_PrefixByKind(t *testing.T) {

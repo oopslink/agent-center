@@ -259,4 +259,8 @@ var (
 	// itself, and (at the writer) the quoted message must exist in the SAME
 	// conversation. The HTTP edge maps it to 404 (existence-non-disclosure, §5.7).
 	ErrMessageInvalidQuote = errors.New("conversation: quoted message invalid (must exist in the same conversation and not be self)")
+	// ErrMessageInvalidReplyTarget guards primary-reply linkage: reply_to_message_id
+	// must point at a message in the same conversation, and the outbound message's
+	// thread placement must match that source message.
+	ErrMessageInvalidReplyTarget = errors.New("conversation: reply_to_message_id invalid for this target/thread")
 )

@@ -654,6 +654,9 @@ func messageMap(m *conversation.Message) map[string]any {
 	if qid := m.QuotedMessageID(); qid != "" {
 		out["quoted_message_id"] = string(qid)
 	}
+	if rid := m.ReplyToMessageID(); rid != "" {
+		out["reply_to_message_id"] = string(rid)
+	}
 	return out
 }
 

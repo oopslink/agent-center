@@ -253,6 +253,11 @@ type AddMessageCommand struct {
 	// or a cross-conversation target is rejected (ErrMessageInvalidQuote). Empty
 	// when the message quotes nothing.
 	QuotedMessageID conversation.MessageID
+	// ReplyToMessageID links this message as the primary reply to a source message.
+	// If the source is top-level, the reply may be top-level or posted under that
+	// source. If the source is in a thread, the reply must be posted to the same
+	// thread root. Empty for ordinary messages/notifications.
+	ReplyToMessageID conversation.MessageID
 	// MentionRefs (T460 ①) are explicit, typo-proof agent mention refs ("agent:<id>")
 	// the sender passed structurally — they ride the cross-BC message_added wake event
 	// so the WakeProjector wakes the named candidate even without a matching
@@ -323,6 +328,28 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			}
 			quotedRef = quoted.ID()
 		}
+		var replyToRef conversation.MessageID
+		if strings.TrimSpace(string(cmd.ReplyToMessageID)) != "" {
+			replyTo, err := w.msgRepo.FindByID(txCtx, cmd.ReplyToMessageID)
+			if err != nil {
+				if errors.Is(err, conversation.ErrMessageNotFound) {
+					return conversation.ErrMessageInvalidReplyTarget
+				}
+				return err
+			}
+			if replyTo.ConversationID() != cmd.ConversationID {
+				return conversation.ErrMessageInvalidReplyTarget
+			}
+			rawParent := conversation.MessageID(strings.TrimSpace(string(cmd.ParentMessageID)))
+			if replyTo.ParentMessageID() == "" {
+				if rawParent != "" && rawParent != replyTo.ID() {
+					return conversation.ErrMessageInvalidReplyTarget
+				}
+			} else if rawParent != replyTo.RootMessageID() {
+				return conversation.ErrMessageInvalidReplyTarget
+			}
+			replyToRef = replyTo.ID()
+		}
 		m, err := conversation.NewMessage(conversation.NewMessageInput{
 			ID:               conversation.MessageID(w.idgen.NewULID()),
 			ConversationID:   cmd.ConversationID,
@@ -335,6 +362,7 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			ParentMessageID:  parentRef,
 			RootMessageID:    rootRef,
 			QuotedMessageID:  quotedRef,
+			ReplyToMessageID: replyToRef,
 			PostedAt:         w.clock.Now(),
 		})
 		if err != nil {

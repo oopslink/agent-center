@@ -39,8 +39,8 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 	const stmt = `INSERT INTO messages (
 		id, conversation_id, sender_identity_id, content_kind, content,
 		direction, input_request_ref, context_refs, attachments, posted_at, created_at,
-		parent_message_id, root_message_id, quoted_message_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		parent_message_id, root_message_id, quoted_message_id, reply_to_message_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.ConversationID()),
@@ -56,6 +56,7 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 		nullString(string(m.ParentMessageID())),
 		nullString(string(m.RootMessageID())),
 		nullString(string(m.QuotedMessageID())),
+		nullString(string(m.ReplyToMessageID())),
 	)
 	return err
 }
@@ -285,7 +286,7 @@ func (r *MessageRepo) RecentByConversations(ctx context.Context, convIDs []conve
 // RecentByConversations reuses messageCols directly inside its window subquery.
 const messageCols = `id, conversation_id, sender_identity_id, content_kind, content,
 	direction, input_request_ref, context_refs, attachments, posted_at, created_at,
-	parent_message_id, root_message_id, quoted_message_id`
+	parent_message_id, root_message_id, quoted_message_id, reply_to_message_id`
 
 const messageSelect = `SELECT ` + messageCols + ` FROM messages`
 
@@ -294,12 +295,12 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		id, conversationID, senderIdentityID, contentKind, content, direction string
 		inputRequestRef                                                       sql.NullString
 		contextRefsJSON, attachmentsJSON                                      sql.NullString
-		parentMessageID, rootMessageID, quotedMessageID                       sql.NullString
+		parentMessageID, rootMessageID, quotedMessageID, replyToMessageID     sql.NullString
 		postedAt, createdAt                                                   string
 	)
 	if err := scan(&id, &conversationID, &senderIdentityID, &contentKind, &content,
 		&direction, &inputRequestRef, &contextRefsJSON, &attachmentsJSON, &postedAt, &createdAt,
-		&parentMessageID, &rootMessageID, &quotedMessageID); err != nil {
+		&parentMessageID, &rootMessageID, &quotedMessageID, &replyToMessageID); err != nil {
 		return nil, err
 	}
 	pt, err := time.Parse(time.RFC3339Nano, postedAt)
@@ -331,6 +332,7 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		ParentMessageID:  conversation.MessageID(parentMessageID.String),
 		RootMessageID:    conversation.MessageID(rootMessageID.String),
 		QuotedMessageID:  conversation.MessageID(quotedMessageID.String),
+		ReplyToMessageID: conversation.MessageID(replyToMessageID.String),
 		PostedAt:         pt,
 		CreatedAt:        ct,
 	})

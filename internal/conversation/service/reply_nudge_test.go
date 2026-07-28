@@ -166,7 +166,7 @@ func TestNudge_DischargedAfterReply(t *testing.T) {
 	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", bot, "user:alice")
 	f.seedMsg(t, "dm-1-m1", "dm-1", "user:alice", "please reply")
 	f.markSeen(t, bot, "dm-1", "dm-1-m1")
-	f.seedMsg(t, "dm-1-m2", "dm-1", bot, "here is my reply")
+	f.seedMsgWithReplyTo(t, "dm-1-m2", "dm-1", bot, "here is my reply", "dm-1-m1")
 
 	svc := f.buildNudgeSvc(wakeguard.NewGuard(wakeguard.DefaultConfig()), nudgeCfg(3, time.Minute))
 	if ns := f.nudges(t, svc, "bot-1", "", "org-1", "Bot"); len(ns) != 0 {

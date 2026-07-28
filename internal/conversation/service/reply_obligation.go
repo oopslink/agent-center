@@ -59,9 +59,9 @@ type ReplyObligation struct {
 //     idleGrace (woken-but-not-acked). "Perceived" is the chance-to-see gate; it
 //     is NOT discharge.
 //   - Discharged = the agent posted ANY message to the SAME conversation after
-//     the trigger (id > trigger.id). mark_seen alone NEVER discharges a human
-//     obligation (§5-③). A reply to a DIFFERENT destination does not count
-//     (§5-④ — the obligation is per-conversation).
+//     the trigger via reply_to_message_id (the primary-reply link). mark_seen
+//     alone NEVER discharges a human obligation (§5-③). A message to a DIFFERENT
+//     destination, or a side notification in the same conversation, does not count.
 type ReplyObligationService struct {
 	db       *sql.DB
 	convRepo conversation.ConversationRepository
@@ -146,7 +146,7 @@ func (s *ReplyObligationService) deriveForConversation(
 	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
 	// Scan the most-recent tail (id DESC, bounded) — newest messages decide both
 	// the last agent reply and the latest unanswered human message.
-	const stmt = `SELECT id, sender_identity_id, content, posted_at
+	const stmt = `SELECT id, sender_identity_id, content, posted_at, reply_to_message_id
 		FROM messages
 		WHERE conversation_id = ?
 		ORDER BY id DESC
@@ -158,27 +158,31 @@ func (s *ReplyObligationService) deriveForConversation(
 	defer rows.Close()
 
 	type msg struct {
-		id, sender, content, postedAt string
+		id, sender, content, postedAt, replyTo string
 	}
 	var msgs []msg
 	for rows.Next() {
 		var m msg
-		if err := rows.Scan(&m.id, &m.sender, &m.content, &m.postedAt); err != nil {
+		var replyTo sql.NullString
+		if err := rows.Scan(&m.id, &m.sender, &m.content, &m.postedAt, &replyTo); err != nil {
 			return ReplyObligation{}, false, err
 		}
+		m.replyTo = replyTo.String
 		msgs = append(msgs, m)
 	}
 	if err := rows.Err(); err != nil {
 		return ReplyObligation{}, false, err
 	}
 
-	// Pass 1: the latest agent reply id (rows are id DESC, so the first own
-	// message wins). Any human message with id ≤ this is already discharged.
-	var lastAgentReplyID string
+	// Pass 1: primary replies by this agent, keyed by the source message they close.
+	// Side notifications/handoffs have no reply_to_message_id and deliberately do
+	// not discharge an obligation.
+	primaryReplies := map[string]string{}
 	for _, m := range msgs {
-		if refContains(refs, conversation.IdentityRef(m.sender)) {
-			lastAgentReplyID = m.id
-			break
+		if refContains(refs, conversation.IdentityRef(m.sender)) && m.replyTo != "" {
+			if _, seen := primaryReplies[m.replyTo]; !seen {
+				primaryReplies[m.replyTo] = m.id
+			}
 		}
 	}
 
@@ -201,8 +205,8 @@ func (s *ReplyObligationService) deriveForConversation(
 		if isMentionKind && !mention.Present(m.content, displayName) {
 			continue
 		}
-		// §5-③④ discharged if an agent reply followed it IN THIS conversation.
-		if lastAgentReplyID != "" && m.id <= lastAgentReplyID {
+		// §5-③④ discharged only by an explicit primary reply to THIS message.
+		if replyID := primaryReplies[m.id]; replyID != "" && m.id <= replyID {
 			continue
 		}
 		pt, err := time.Parse(time.RFC3339Nano, m.postedAt)

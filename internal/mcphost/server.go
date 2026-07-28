@@ -179,7 +179,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). For the main answer to a message you were given, pass reply_to_message_id with that source message id; if replying in a thread also pass parent_message_id. Omit reply_to_message_id for side notifications/handoffs that should not count as answering the source. @mention a participant by name to notify them. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -614,6 +614,10 @@ type postMessageArgs struct {
 	// preview card of it above your message. The quoted message must be in the SAME
 	// conversation you are posting to. Orthogonal to a thread reply; omit for none.
 	QuotedMessageID string `json:"quoted_message_id,omitempty" jsonschema:"to quote an earlier message (renders a preview card above yours), its message id in the SAME conversation; omit if not quoting"`
+	// ReplyToMessageID marks this post as the primary reply closing a source message.
+	// The center derives the legal destination from the source message. Omit for
+	// side notifications/handoffs that should not count as answering the source.
+	ReplyToMessageID string `json:"reply_to_message_id,omitempty" jsonschema:"source message id this is the main answer to; top-level sources may be answered top-level or with parent_message_id equal to the source id; threaded sources must use parent_message_id equal to the thread root; omit for side notifications/handoffs"`
 	// Attachments (T44): files to share in the conversation, rendered as preview
 	// cards. Upload each via upload_file first, then pass the returned file_uri here.
 	Attachments []postMessageAttachment `json:"attachments,omitempty" jsonschema:"optional files to attach (upload each via upload_file first, then pass the returned file_uri as uri); the UI renders them as preview cards"`
@@ -643,6 +647,9 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 		}
 		if args.QuotedMessageID != "" {
 			body["quoted_message_id"] = args.QuotedMessageID
+		}
+		if args.ReplyToMessageID != "" {
+			body["reply_to_message_id"] = args.ReplyToMessageID
 		}
 		if len(args.MentionRefs) > 0 {
 			body["mention_refs"] = args.MentionRefs

@@ -33,8 +33,12 @@ type Message struct {
 	// Empty when the message quotes nothing. Soft reference — the target may be
 	// gone by read time, so the read side degrades rather than failing.
 	quotedMessageID MessageID
-	postedAt        time.Time
-	createdAt       time.Time
+	// replyToMessageID links a primary reply back to the source message it closes.
+	// Unlike a quote, this drives product semantics: UI/guardrails can mark that
+	// source message as answered. Empty for ordinary messages/notifications.
+	replyToMessageID MessageID
+	postedAt         time.Time
+	createdAt        time.Time
 }
 
 // NewMessageInput captures the constructor args.
@@ -57,7 +61,10 @@ type NewMessageInput struct {
 	// when nothing is quoted). The caller (MessageWriter.AddMessage) validates it
 	// exists in the same conversation before constructing the Message.
 	QuotedMessageID MessageID
-	PostedAt        time.Time
+	// ReplyToMessageID is the source message this message is the primary reply to.
+	// The caller validates source conversation + legal thread placement.
+	ReplyToMessageID MessageID
+	PostedAt         time.Time
 }
 
 // NewMessage constructs a Message after validating invariants.
@@ -86,6 +93,9 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 	if in.QuotedMessageID != "" && in.QuotedMessageID == in.ID {
 		return nil, ErrMessageInvalidQuote // a message cannot quote itself
 	}
+	if in.ReplyToMessageID != "" && in.ReplyToMessageID == in.ID {
+		return nil, ErrMessageInvalidReplyTarget
+	}
 	at := in.PostedAt.UTC()
 	return &Message{
 		id:               in.ID,
@@ -100,6 +110,7 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 		parentMessageID:  in.ParentMessageID,
 		rootMessageID:    in.RootMessageID,
 		quotedMessageID:  in.QuotedMessageID,
+		replyToMessageID: in.ReplyToMessageID,
 		postedAt:         at,
 		createdAt:        at,
 	}, nil
@@ -138,6 +149,7 @@ type RehydrateMessageInput struct {
 	ParentMessageID  MessageID
 	RootMessageID    MessageID
 	QuotedMessageID  MessageID
+	ReplyToMessageID MessageID
 	PostedAt         time.Time
 	CreatedAt        time.Time
 }
@@ -163,6 +175,7 @@ func RehydrateMessage(in RehydrateMessageInput) (*Message, error) {
 		parentMessageID:  in.ParentMessageID,
 		rootMessageID:    in.RootMessageID,
 		quotedMessageID:  in.QuotedMessageID,
+		replyToMessageID: in.ReplyToMessageID,
 		postedAt:         in.PostedAt.UTC(),
 		createdAt:        in.CreatedAt.UTC(),
 	}, nil
@@ -181,6 +194,7 @@ func (m *Message) ContextRefs() ContextRefs        { return m.contextRefs }
 func (m *Message) ParentMessageID() MessageID      { return m.parentMessageID }
 func (m *Message) RootMessageID() MessageID        { return m.rootMessageID }
 func (m *Message) QuotedMessageID() MessageID      { return m.quotedMessageID }
+func (m *Message) ReplyToMessageID() MessageID     { return m.replyToMessageID }
 func (m *Message) PostedAt() time.Time             { return m.postedAt }
 func (m *Message) CreatedAt() time.Time            { return m.createdAt }
 

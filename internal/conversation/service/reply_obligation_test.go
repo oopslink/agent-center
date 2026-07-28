@@ -18,8 +18,8 @@ import (
 // T341: ReplyObligationService.OutstandingForIdentity is the detection half of
 // the reply-guardrail. directed = DM (all) + @mention (channel/task/issue/plan);
 // human AND agent authors both create an obligation (system excluded); discharge
-// = an agent reply to the SAME conversation after the trigger; perceived = cursor
-// past it OR deliverable ≥ idleGrace.
+// = an agent primary reply linked by reply_to_message_id; perceived = cursor past
+// it OR deliverable ≥ idleGrace.
 
 const (
 	obTTL   = time.Hour
@@ -88,12 +88,17 @@ func (f *oblFixture) seedConv(t *testing.T, id conversation.ConversationID, kind
 // seedMsg appends a message and returns its posted_at.
 func (f *oblFixture) seedMsg(t *testing.T, id conversation.MessageID, conv conversation.ConversationID, sender conversation.IdentityRef, content string) time.Time {
 	t.Helper()
+	return f.seedMsgWithReplyTo(t, id, conv, sender, content, "")
+}
+
+func (f *oblFixture) seedMsgWithReplyTo(t *testing.T, id conversation.MessageID, conv conversation.ConversationID, sender conversation.IdentityRef, content string, replyTo conversation.MessageID) time.Time {
+	t.Helper()
 	f.clock.Advance(time.Millisecond)
 	at := f.clock.Now()
 	m, err := conversation.NewMessage(conversation.NewMessageInput{
 		ID: id, ConversationID: conv, SenderIdentityID: sender,
 		ContentKind: conversation.MessageContentText, Content: content,
-		Direction: conversation.DirectionInbound, PostedAt: at,
+		Direction: conversation.DirectionInbound, ReplyToMessageID: replyTo, PostedAt: at,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -142,15 +147,28 @@ func TestObl_HumanDM_MarkSeenNoReply_IsOutstanding(t *testing.T) {
 	}
 }
 
-// A reply (any agent post to the same conversation after the trigger) discharges.
+// A primary reply linked to the trigger discharges.
 func TestObl_RepliedAfter_Discharged(t *testing.T) {
 	f := setupObl(t)
 	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", bot, "user:alice")
 	at := f.seedMsg(t, "dm-1-m1", "dm-1", "user:alice", "ping")
-	f.seedMsg(t, "dm-1-m2", "dm-1", bot, "on it")
+	f.seedMsgWithReplyTo(t, "dm-1-m2", "dm-1", bot, "on it", "dm-1-m1")
 
 	if obs := f.outstanding(t, bot, "org-1", "Bot", at.Add(time.Second)); len(obs) != 0 {
 		t.Fatalf("reply should discharge, got %d obligations", len(obs))
+	}
+}
+
+func TestObl_SameConversationSideNotification_DoesNotDischarge(t *testing.T) {
+	f := setupObl(t)
+	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", bot, "user:alice")
+	at := f.seedMsg(t, "dm-1-m1", "dm-1", "user:alice", "ping")
+	f.markSeen(t, bot, "dm-1", "dm-1-m1")
+	f.seedMsg(t, "dm-1-m2", "dm-1", bot, "side note without primary reply link")
+
+	obs := f.outstanding(t, bot, "org-1", "Bot", at.Add(time.Second))
+	if len(obs) != 1 || obs[0].TriggerMessageID != "dm-1-m1" {
+		t.Fatalf("side notification must not discharge, got %+v", obs)
 	}
 }
 
@@ -234,7 +252,7 @@ func TestObl_LatestUndischarged(t *testing.T) {
 	f := setupObl(t)
 	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", bot, "user:alice")
 	f.seedMsg(t, "dm-1-m1", "dm-1", "user:alice", "first")
-	f.seedMsg(t, "dm-1-m2", "dm-1", bot, "ack first")
+	f.seedMsgWithReplyTo(t, "dm-1-m2", "dm-1", bot, "ack first", "dm-1-m1")
 	at := f.seedMsg(t, "dm-1-m3", "dm-1", "user:alice", "second, newer")
 	f.markSeen(t, bot, "dm-1", "dm-1-m3")
 

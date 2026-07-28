@@ -18,7 +18,7 @@ func TestBuildConverseBrief_PlanSnapshot_ByteStable_T254(t *testing.T) {
 	want := "[Plan chat — \"Reminder feature\" (plan_id=plan-abc123)] hayang mentioned you:\n" +
 		"完成这个 plan\n\n" +
 		"(This message belongs to plan_id=plan-abc123. When it refers to \"this plan\" — e.g. completing, archiving, or editing it — act on THAT plan_id, not any other plan you may also be in.)\n" +
-		"(To reply, use the post_message tool with conversation_id=\"conv-plan-1\". This is a conversation, not a task — there is no work item to complete.)"
+		"(To reply with your main answer, use the post_message tool with conversation_id=\"conv-plan-1\" and reply_to_message_id=\"m-1\". You may omit reply_to_message_id only for side notifications/handoffs that should not count as answering this message. This is a conversation, not a task — there is no work item to complete.)"
 	if got != want {
 		t.Fatalf("plan brief drifted.\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
@@ -38,6 +38,7 @@ func TestBuildConverseBrief_IssueChat_AnchorsIssueID_T254(t *testing.T) {
 		"This message belongs to issue_id=issue-7",
 		"this issue",
 		"act on THAT issue_id, not any other issue",
+		"reply_to_message_id=\"m\"",
 	} {
 		if !strings.Contains(brief, want) {
 			t.Fatalf("issue brief missing %q, got:\n%s", want, brief)
@@ -68,6 +69,7 @@ func TestBuildConverseBrief_TaskChat_AnchorsTaskID_T254(t *testing.T) {
 		"This message belongs to task_id=task-9",
 		"this task",
 		"act on THAT task_id, not any other task",
+		"reply_to_message_id=\"m\"",
 	} {
 		if !strings.Contains(brief, want) {
 			t.Fatalf("task brief missing %q, got:\n%s", want, brief)
@@ -106,6 +108,9 @@ func TestBuildConverseBrief_AnchoredOwner_InThread_KeepsIDAndParent_T254(t *test
 	})
 	if !strings.Contains(brief, "parent_message_id=\"m-root\"") {
 		t.Fatalf("in-thread brief must instruct parent_message_id, got:\n%s", brief)
+	}
+	if !strings.Contains(brief, "reply_to_message_id=\"m\"") {
+		t.Fatalf("in-thread brief must instruct reply_to_message_id, got:\n%s", brief)
 	}
 	if !strings.Contains(brief, "This message belongs to task_id=task-9") {
 		t.Fatalf("in-thread brief must still carry the task_id anchor, got:\n%s", brief)

@@ -23,6 +23,9 @@ import (
 // still see the underlying error text in the message field.
 func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, conversation.ErrMessageInvalidReplyTarget):
+		writeError(w, http.StatusBadRequest, "invalid_reply_target", err.Error())
+
 	// ---- not_found (404) -------------------------------------------------
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
