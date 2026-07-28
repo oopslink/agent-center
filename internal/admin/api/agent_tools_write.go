@@ -1071,18 +1071,31 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 				mapDomainError(w, verr)
 				return
 			}
+			matchesPriorVerdict := false
 			for _, verdict := range verdicts {
 				if verdict.TaskID == pm.TaskID(req.TaskID) &&
 					verdict.Verdict == manualOutcome &&
 					verdict.SHA == strings.TrimSpace(reviewSHA) &&
 					verdict.Reason == strings.TrimSpace(deliverySummary) {
-					writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
-					return
+					matchesPriorVerdict = true
+					break
 				}
 			}
-			writeError(w, http.StatusConflict, "stage_gate_not_running",
-				"stage gate must wait for reopened members and be started before recording a new verdict")
-			return
+			if matchesPriorVerdict && !pm.TaskIsDone(gateTask.Status()) {
+				// The reject already projected and reopened the next round.
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+				return
+			}
+			if matchesPriorVerdict {
+				// A terminal gate with a matching durable verdict may be a pre-fix
+				// partial commit: completion/verdict/outcome landed, but loopback did
+				// not. Fall through to the terminal recovery path below, which
+				// re-records the outcome and advances the plan idempotently.
+			} else {
+				writeError(w, http.StatusConflict, "stage_gate_not_running",
+					"stage gate must wait for reopened members and be started before recording a new verdict")
+				return
+			}
 		}
 	}
 	// issue-74df441a deferred-decision recovery: a DECISION node can end up
