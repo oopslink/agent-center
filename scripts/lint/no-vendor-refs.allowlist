@@ -3,7 +3,7 @@
 # Each non-comment line is a regex matched against the FULL line of git
 # grep output (`path:lineno:content`). A hit is whitelisted if any rule
 # matches. Reasons live in
-#   docs/plans/phase-12-audits/s1-v1-residue-audit.md
+#   docs/plans/audits/s1-v1-residue-audit.md
 #
 # Rule of thumb: only allow tokens that document v1→v2 history, the
 # v2-side guard tests that prove v1 vocabulary is rejected, ADRs, plan
@@ -15,7 +15,7 @@
 # subsystems they replaced.
 ^docs/adr/
 ^docs/plans/
-^docs/release/
+^docs/releases/
 # /CHANGELOG.md at repo root — v2.0 breaking-change section names the
 # v1 vendor tokens by design (operators need to know what was removed).
 ^CHANGELOG\.md:

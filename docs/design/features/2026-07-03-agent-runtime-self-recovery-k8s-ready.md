@@ -35,7 +35,7 @@ runtime 拥有自己的：状态（私有锁/配置）、center 连接、boot �
 
 ### 4.1 去共享状态（前提）
 - 现状：`cfg.Mu == &AgentController.mu`（`local_runtime.go:53`）、`cfg.BG == &AgentController.bg`、全局 map `c.agents`/`c.execConfig`/`c.recoveredExec`、`cfg.RemoveAgent`/`cfg.SelfHeal`。
-- 改：LocalRuntime 用**私有** `sync.Mutex` + `sync.WaitGroup`；exec-config/recovered-once 变**每 runtime 一份**；从 `LocalRuntimeConfig` 去掉 `RemoveAgent`/`SelfHeal`（崩溃语义见 §4.5）。`forkMu` 已是 per-runtime，保留。
+- 改：LocalRuntime 用**私有** `sync.Mutex` + `sync.WaitGroup`；exec-config/recovered-once 变**每 runtime 一份**；从 `LocalRuntimeConfig` 去掉 `RemoveAgent`/`SelfHeal`（崩溃语义见 §4.5）。当时保留 per-runtime `forkMu`；后续 supervisor-driven fork 可靠性修复已将其收窄为按 task 的短临界区，≤N 由 Pool 原子 reservation 保证。
 
 ### 4.2 runtime 自建 center 连接 + list-my-tasks
 - 现状：center 访问是 daemon 注入的共享 `*AdminClient`（`run.go:213`，`cfg.ToolCaller`）；`centerClientAdapter`（`center_client.go`）只有 complete/block/post，`get_task` 走 `toolCaller().CallAgentTool`。

@@ -9,6 +9,7 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -107,11 +108,15 @@ type recordingMaterializer struct {
 	cloneCtx   []cloneCtxProbe
 	removed    []removeArgs
 	pruneCalls []pruneCall
+	pruneSeq   int
 	lastTarget reporepo.RepoTarget
 
 	cloneStarted chan struct{}
 	cloneRelease chan struct{}
 	cloneOnce    sync.Once
+	pruneEntered chan struct{}
+	pruneRelease chan struct{}
+	pruneOnce    sync.Once
 }
 
 var _ reporepo.RepoMaterializer = (*recordingMaterializer)(nil)
@@ -205,12 +210,25 @@ func (m *recordingMaterializer) RemoveWorktree(_ context.Context, wt reporepo.Pr
 // pruneCall records one PruneOrphanWorktrees invocation (the spawn-hook) + the ids the
 // runtime's isLive predicate reported live at that moment.
 type pruneCall struct {
+	ordinal int
 	repoKey string
 	live    map[string]bool
 }
 
 func (m *recordingMaterializer) PruneOrphanWorktrees(_ context.Context, source reporepo.SourceRepo, isLive func(string) bool) (int, error) {
 	m.seq.add("PruneOrphanWorktrees")
+	m.mu.Lock()
+	m.pruneSeq++
+	ordinal := m.pruneSeq
+	m.mu.Unlock()
+	// Optional first-call barrier: capture the runtime's callback, then let another
+	// spawn register+prepare before evaluating it. This detects a stale snapshot.
+	if ordinal == 1 && m.pruneEntered != nil {
+		m.pruneOnce.Do(func() { close(m.pruneEntered) })
+		if m.pruneRelease != nil {
+			<-m.pruneRelease
+		}
+	}
 	// Snapshot which of the previously-prepared executor ids the runtime considers live,
 	// so a test can assert the fail-safe (a live executor's worktree is never reaped).
 	live := map[string]bool{}
@@ -220,7 +238,7 @@ func (m *recordingMaterializer) PruneOrphanWorktrees(_ context.Context, source r
 			live[req.ExecutorID] = true
 		}
 	}
-	m.pruneCalls = append(m.pruneCalls, pruneCall{repoKey: source.RepoKey, live: live})
+	m.pruneCalls = append(m.pruneCalls, pruneCall{ordinal: ordinal, repoKey: source.RepoKey, live: live})
 	m.mu.Unlock()
 	return 0, nil
 }
@@ -368,6 +386,115 @@ func TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare(t *testing.T) {
 	// (the fail-safe live set is built from already-prepared executors; there are none yet).
 	if calls := mat.pruneHookCalls(); len(calls) != 1 || len(calls[0].live) != 0 {
 		t.Fatalf("prune hook: want 1 call with empty live set (new executor not yet a worktree), got %+v", calls)
+	}
+}
+
+type taskStartGateCaller struct {
+	mu           sync.Mutex
+	startCalls   map[string]int
+	blockTaskID  string
+	startEntered chan struct{}
+	releaseStart chan struct{}
+	enteredOnce  sync.Once
+}
+
+func (c *taskStartGateCaller) CallAgentTool(_ context.Context, tool string, body any, out *json.RawMessage) error {
+	encoded, _ := json.Marshal(body)
+	var fields map[string]any
+	_ = json.Unmarshal(encoded, &fields)
+	taskID, _ := fields["task_id"].(string)
+	switch tool {
+	case "get_task":
+		if out != nil {
+			raw, _ := json.Marshal(repoTaskBody(taskID))
+			*out = append((*out)[:0], raw...)
+		}
+	case "start_task":
+		c.mu.Lock()
+		if c.startCalls == nil {
+			c.startCalls = map[string]int{}
+		}
+		c.startCalls[taskID]++
+		c.mu.Unlock()
+		if taskID == c.blockTaskID {
+			c.enteredOnce.Do(func() { close(c.startEntered) })
+			<-c.releaseStart
+		}
+	}
+	return nil
+}
+
+// TestSpawnExecutor_Repo_ConcurrentPruneKeepsPreparingSibling locks the gap created
+// when distinct tasks are allowed to fork concurrently. Task A has a worktree but is
+// deliberately held before Pool.Launch; task B's spawn-time prune must see A's
+// pre-pool executor id as live and therefore keep its worktree.
+func TestSpawnExecutor_Repo_ConcurrentPruneKeepsPreparingSibling(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{
+		seq: seq, repoKey: "key-concurrent", sourcePath: t.TempDir() + "/repos/key-concurrent/source", baseRef: "main",
+		pruneEntered: make(chan struct{}), pruneRelease: make(chan struct{}),
+	}
+	rt, _, _ := engineForAgentMat(t, "agent-concurrent-repo", mat)
+	caller := &taskStartGateCaller{
+		blockTaskID: "task-a", startEntered: make(chan struct{}), releaseStart: make(chan struct{}),
+	}
+	setToolCaller(rt, caller)
+
+	url := repoTaskBody("task-a")["repo"].(map[string]any)["url"].(string)
+	key := reporepo.RepoKey(url)
+	source := reporepo.SourceRepo{RepoKey: key, Path: mat.sourcePath, URL: url, BaseRef: "main"}
+	rt.sources.entries = map[string]*sourceEntry{
+		key: {ready: &source, readyAt: rt.now()},
+	}
+
+	bDone := make(chan struct{})
+	go func() {
+		defer close(bDone)
+		_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-b"})
+	}()
+	select {
+	case <-mat.pruneEntered: // B captured its liveness callback before A existed.
+	case <-time.After(5 * time.Second):
+		t.Fatal("task B did not enter the prune barrier")
+	}
+
+	aDone := make(chan struct{})
+	go func() {
+		defer close(aDone)
+		_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-a"})
+	}()
+	select {
+	case <-caller.startEntered: // A prepared after B captured the callback.
+	case <-time.After(5 * time.Second):
+		t.Fatal("task A did not reach the post-prepare admission gate")
+	}
+	prepared := mat.preparedReqs()
+	if len(prepared) != 1 || prepared[0].TaskID != "task-a" {
+		t.Fatalf("prepared before releasing task B prune = %+v, want only task-a", prepared)
+	}
+	aExecID := prepared[0].ExecutorID
+	close(mat.pruneRelease)
+	select {
+	case <-bDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("task B did not finish after prune release")
+	}
+	calls := mat.pruneHookCalls()
+	var first pruneCall
+	for _, call := range calls {
+		if call.ordinal == 1 {
+			first = call
+		}
+	}
+	if !first.live[aExecID] {
+		t.Fatalf("task B's earlier callback became stale and missed task A preparing executor %q: calls=%+v", aExecID, calls)
+	}
+
+	close(caller.releaseStart)
+	select {
+	case <-aDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("task A did not finish after admission release")
 	}
 }
 

@@ -87,8 +87,8 @@ func TestBuildExecutorEngine_JudgeEnabledButNoModel_WarnsLoud(t *testing.T) {
 
 func TestDrainExecutor_NilGuards(t *testing.T) {
 	rt, ee, _ := engineForAgent(t, "agent-nilguard")
-	rt.drainExecutor(nil, nil) // must not panic
-	rt.drainExecutor(ee, nil)  // nil handle → no-op
+	rt.drainExecutor(nil, "", nil) // must not panic
+	rt.drainExecutor(ee, "", nil)  // nil handle → no-op
 }
 
 func TestBuildExecutorEngine_ForksAndDrainFreesSlot(t *testing.T) {
@@ -108,7 +108,7 @@ func TestBuildExecutorEngine_ForksAndDrainFreesSlot(t *testing.T) {
 	if ee.engine.Pool().Active() != 1 {
 		t.Fatalf("active = %d, want 1 after fork", ee.engine.Pool().Active())
 	}
-	rt.drainExecutor(ee, launched.Handle)
+	rt.drainExecutor(ee, "", launched.Handle)
 	if ee.engine.Pool().Active() != 0 {
 		t.Errorf("active = %d, want 0 after drain", ee.engine.Pool().Active())
 	}
@@ -294,15 +294,47 @@ func TestSpawnExecutor_StartTaskDeclinedSkipsFork(t *testing.T) {
 	}
 }
 
-func TestSpawnExecutor_AlreadyRunningSkips(t *testing.T) {
-	sc := &scriptedToolCaller{getTaskBody: map[string]any{"id": "task-3", "title": "t", "status": "running"}}
+func TestSpawnExecutor_AlreadyRunningWithoutExecutorForksWithoutRestart(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-3", "title": "t", "status": "running", "assignee": "agent:agent-again",
+	}}
 	_, _, home := spawn(t, "agent-again", "task-3", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
-		t.Fatalf("tool calls = %v, want get_task only (no start on a running task)", seen)
+	for _, tool := range sc.toolsSeen() {
+		if tool == "start_task" {
+			t.Fatalf("already-admitted task must not be started twice: calls=%v", sc.toolsSeen())
+		}
 	}
-	if probs := loadRouting(t, home); len(probs) != 0 {
-		t.Errorf("running task must NOT fork, got %+v", probs)
+	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) != 1 || probs[0].TaskRefs[0] != "task-3" {
+		t.Fatalf("running task without an executor must fork exactly once, got %+v", probs)
+	}
+}
+
+func TestSpawnExecutor_NonDispatchableStatesSkip(t *testing.T) {
+	for _, tc := range []struct {
+		name, status, blockedReason string
+	}{
+		{name: "blocked", status: "blocked", blockedReason: "waiting"},
+		{name: "legacy running blocked", status: "running", blockedReason: "waiting"},
+		{name: "completed", status: "completed"},
+		{name: "discarded", status: "discarded"},
+		{name: "unknown", status: "future_state"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sc := &scriptedToolCaller{getTaskBody: map[string]any{
+				"id": "task-stop", "title": "t", "status": tc.status,
+				"blocked_reason": tc.blockedReason, "assignee": "agent:agent-stop",
+			}}
+			_, _, home := spawn(t, "agent-stop", "task-stop", sc)
+			for _, tool := range sc.toolsSeen() {
+				if tool == "start_task" || tool == "block_task" {
+					t.Fatalf("state %q must stop after read, calls=%v", tc.status, sc.toolsSeen())
+				}
+			}
+			if probs := loadRouting(t, home); len(probs) != 0 {
+				t.Fatalf("state %q must not fork, got %+v", tc.status, probs)
+			}
+		})
 	}
 }
 
@@ -413,26 +445,26 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("admission still runs: tool calls = %v", seen)
+	if seen := sc.toolsSeen(); len(seen) != 3 || seen[1] != "start_task" || seen[2] != "block_task" {
+		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
 		t.Errorf("pool active = %d, want 2 (saturated; failed fork took no slot)", act)
 	}
 }
 
-// blockingToolCaller detects overlapping in-flight center calls so the fork-mutex
-// serialization can be asserted, and returns a canned get_task body. Overlap is tracked
-// over START_TASK (fork-exclusive): since T851 §4.6 a drained executor also probes
-// get_task via the reactive point-recovery path, so get_task is NO LONGER fork-exclusive
-// and can't measure fork overlap; start_task is only ever called inside the forkMu-held
-// fork sequence, so its max concurrency is the clean serialization signal.
+// blockingToolCaller is a channel/barrier collaborator: it holds start_task until the
+// expected number of distinct fork sequences are concurrently inside admission. No
+// sleep is involved, so a failure is an invariant failure rather than scheduler timing.
 type blockingToolCaller struct {
 	mu               sync.Mutex
 	startInFlight    int
 	maxStartInFlight int
 	getTasks         int
-	delay            time.Duration
+	expectedStarts   int
+	startsReady      chan struct{}
+	releaseStarts    chan struct{}
+	readyOnce        sync.Once
 }
 
 func (b *blockingToolCaller) CallAgentTool(_ context.Context, tool string, _ any, out *json.RawMessage) error {
@@ -442,14 +474,21 @@ func (b *blockingToolCaller) CallAgentTool(_ context.Context, tool string, _ any
 		if b.startInFlight > b.maxStartInFlight {
 			b.maxStartInFlight = b.startInFlight
 		}
+		if b.startInFlight == b.expectedStarts && b.startsReady != nil {
+			b.readyOnce.Do(func() { close(b.startsReady) })
+		}
 	}
 	if tool == "get_task" {
 		b.getTasks++
 	}
 	b.mu.Unlock()
 
-	if b.delay > 0 {
-		time.Sleep(b.delay)
+	if tool == "start_task" && b.releaseStarts != nil {
+		select {
+		case <-b.releaseStarts:
+		case <-time.After(5 * time.Second):
+			return errors.New("test start_task barrier timed out")
+		}
 	}
 	if tool == "get_task" && out != nil {
 		rb, _ := json.Marshal(map[string]any{"id": "t", "title": "t", "status": "open"})
@@ -464,15 +503,17 @@ func (b *blockingToolCaller) CallAgentTool(_ context.Context, tool string, _ any
 	return nil
 }
 
-// TestSpawnExecutor_ForkMutexSerializes proves red line #1: two concurrent
-// SpawnExecutor calls for ONE runtime never overlap inside the get_task→start_task→
-// launch sequence (forkMu holds it end-to-end), so two forks can't both slip past the
-// pool cap. Without forkMu the two get_task calls (each sleeping) would overlap and
-// maxInFlight would reach 2.
-func TestSpawnExecutor_ForkMutexSerializes(t *testing.T) {
-	rt, ee, _ := engineForAgent(t, "agent-serial") // pool max 2 (both forks fit)
+// TestSpawnExecutor_DistinctTasksProceedConcurrently locks the intended N-way model:
+// per-task single-flight must not serialize two different tasks. Pool.Launch remains
+// the sole atomic ≤N gate.
+func TestSpawnExecutor_DistinctTasksProceedConcurrently(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-parallel") // pool max 2 (both forks fit)
 	attach(rt, ee)
-	btc := &blockingToolCaller{delay: 25 * time.Millisecond}
+	btc := &blockingToolCaller{
+		expectedStarts: 2,
+		startsReady:    make(chan struct{}),
+		releaseStarts:  make(chan struct{}),
+	}
 	setToolCaller(rt, btc)
 
 	var wg sync.WaitGroup
@@ -483,22 +524,127 @@ func TestSpawnExecutor_ForkMutexSerializes(t *testing.T) {
 			_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-" + string(rune('a'+n))})
 		}(i)
 	}
+	select {
+	case <-btc.startsReady:
+	case <-time.After(5 * time.Second):
+		t.Fatal("distinct task forks did not overlap at start_task")
+	}
+	close(btc.releaseStarts)
 	wg.Wait()
 
 	btc.mu.Lock()
 	maxIn, got := btc.maxStartInFlight, btc.getTasks
 	btc.mu.Unlock()
 
-	// Both forks must reach get_task (≥2). Since T851 §4.6, a drained executor that died
-	// without a verdict (here /usr/bin/true → exit 0, no output.json → Crashed) also fires
-	// a should-continue get_task via the reactive point-recovery path, so the total can
-	// exceed 2 — this test's subject is the fork-sequence serialization (maxInFlight below),
-	// not the exact get_task count.
 	if got < 2 {
 		t.Fatalf("both SpawnExecutor calls must reach get_task, got %d", got)
 	}
-	if maxIn != 1 {
-		t.Fatalf("forkMu must serialize the fork sequence: maxInFlight = %d, want 1 (concurrent get_task ⇒ double-fork risk)", maxIn)
+	if maxIn != 2 {
+		t.Fatalf("distinct fork sequences max concurrent start_task = %d, want 2", maxIn)
+	}
+}
+
+type gatedGetTaskCaller struct {
+	mu         sync.Mutex
+	getCalls   int
+	startCalls int
+	getEntered chan struct{}
+	releaseGet chan struct{}
+	enterOnce  sync.Once
+}
+
+func (g *gatedGetTaskCaller) CallAgentTool(_ context.Context, tool string, _ any, out *json.RawMessage) error {
+	switch tool {
+	case "get_task":
+		g.mu.Lock()
+		g.getCalls++
+		g.mu.Unlock()
+		g.enterOnce.Do(func() { close(g.getEntered) })
+		<-g.releaseGet
+		if out != nil {
+			raw, _ := json.Marshal(map[string]any{
+				"id": "task-one", "title": "one", "status": "open", "assignee": "agent:agent-one",
+			})
+			*out = append((*out)[:0], raw...)
+		}
+	case "start_task":
+		g.mu.Lock()
+		g.startCalls++
+		g.mu.Unlock()
+	}
+	return nil
+}
+
+func TestSpawnExecutor_SameTaskConcurrentCallsCoalesce(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "agent-one")
+	attach(rt, ee)
+	caller := &gatedGetTaskCaller{getEntered: make(chan struct{}), releaseGet: make(chan struct{})}
+	setToolCaller(rt, caller)
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-one"})
+	}()
+	select {
+	case <-caller.getEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first fork did not enter get_task")
+	}
+
+	secondDone := make(chan struct{})
+	go func() {
+		defer close(secondDone)
+		_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-one"})
+	}()
+	select {
+	case <-secondDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("duplicate fork waited instead of coalescing")
+	}
+	caller.mu.Lock()
+	getCallsBeforeRelease := caller.getCalls
+	caller.mu.Unlock()
+	if getCallsBeforeRelease != 1 {
+		t.Fatalf("duplicate fork reached center %d times before release, want 1", getCallsBeforeRelease)
+	}
+
+	close(caller.releaseGet)
+	select {
+	case <-firstDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first fork did not finish")
+	}
+	caller.mu.Lock()
+	startCalls := caller.startCalls
+	caller.mu.Unlock()
+	if startCalls != 1 {
+		t.Fatalf("same task start_task calls = %d, want 1", startCalls)
+	}
+	if probs := loadRouting(t, home); len(probs) != 1 {
+		t.Fatalf("same task must create one executor route, got %+v", probs)
+	}
+}
+
+func TestSpawnExecutor_SameTaskWithLiveExecutorCoalescesBeforeCenterRead(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "agent-live")
+	attach(rt, ee)
+	caller := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-live", "title": "live", "status": "running", "assignee": "agent:agent-live",
+	}}
+	setToolCaller(rt, caller)
+	rt.trackTaskExecutor("task-live", "exec-live")
+	defer rt.untrackTaskExecutor("task-live", "exec-live")
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-live"})
+	if err != nil || res != nil {
+		t.Fatalf("duplicate live spawn = (%+v, %v), want coalesced nil result", res, err)
+	}
+	if calls := caller.toolsSeen(); len(calls) != 0 {
+		t.Fatalf("known live executor duplicate reached center: calls=%v", calls)
+	}
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("known live executor duplicate created another route: %+v", probs)
 	}
 }
 

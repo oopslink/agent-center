@@ -172,8 +172,8 @@ func TestMonitor_Finalize_CarriesGitStatusToWriteback(t *testing.T) {
 	f.mon.git = scriptedGitRunner{out: map[string]string{
 		"rev-parse HEAD":              "deadbeef00\n",
 		"rev-parse --abbrev-ref HEAD": "feat/review-only\n",
-		"status --porcelain":          "",  // clean — work was committed, nothing dangling
-		"branch -r --contains HEAD":   "",  // NOT on any remote → the never-pushed shape
+		"status --porcelain":          "", // clean — work was committed, nothing dangling
+		"branch -r --contains HEAD":   "", // NOT on any remote → the never-pushed shape
 	}}
 	// Use a terminal Failed outcome so the git-carry (this test's subject) is isolated from
 	// the non-delivery gate (which only rewrites Succeeded — a never-pushed Succeeded would be

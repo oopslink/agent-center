@@ -180,17 +180,22 @@ type LocalRuntime struct {
 	// sources is the per-repo_key repo-source prewarm gate (issue-13e7bfe8 layer 1):
 	// it keeps `git clone` OFF the control-command path and owns the background
 	// materialize + re-drive of the tasks that deferred on it. See source_prewarm.go.
-	// Has its own lock; never nested with r.mu or forkMu.
+	// Has its own lock; never nested with r.mu or forkStateMu.
 	sources sourceGate
 	// clones keeps executor_git_worktree=OFF network clones off the control path.
 	// It is keyed by task because each task gets one independent executor checkout.
 	clones cloneGate
 
-	// forkMu (red line #1) serializes the get_task→start_task→launch fork sequence
-	// (SpawnExecutor) AND the shared launch tail (launchExecutor) so two concurrent
-	// forks for one agent cannot both pass the pool cap. SEPARATE from r.mu (the
-	// SessionState lock) — a different concern; never guards the same field.
-	forkMu sync.Mutex
+	// forkStateMu guards ONLY the short-lived fork identity registries below. It is
+	// deliberately never held across center RPC, git/worktree I/O, or process spawn:
+	// different tasks must be able to fill distinct executor slots concurrently. The
+	// executor Pool owns the atomic ≤N reservation; this registry owns per-task
+	// idempotency and the pre-pool liveness gap used by orphan pruning.
+	// SEPARATE from r.mu (the SessionState lock); never guards the same field.
+	forkStateMu        sync.Mutex
+	forkingTasks       map[string]struct{} // task is inside fetch/prepare/admit/launch
+	taskExecutors      map[string]string   // task → live/reconciling executor id
+	preparingExecutors map[string]struct{} // worktree may exist before Pool sees it
 
 	// execConfig caches the concurrency ExecutorConfig this runtime last built its
 	// engine from (T848 §4.4 migration: was AgentController.execConfig, keyed by agent).
@@ -320,7 +325,7 @@ func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime 
 
 // withState runs fn with the SessionState held under r.mu. Every SessionState field
 // is guarded by this lock (see session.go), and the runtime hands out goroutines
-// (launchExecutorLocked → drainExecutor → resetRecoveredTask) that write those fields
+// (launchExecutorNow → drainExecutor → resetRecoveredTask) that write those fields
 // concurrently — so this is the ONLY way to reach them. Deliberately unexported and
 // deliberately closure-shaped: there is no `*SessionState` escape hatch to forget the
 // lock on, because a bare-pointer accessor made the unlocked read the shortest thing

@@ -9,6 +9,26 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name != "fork_executor" {
+			continue
+		}
+		for _, phrase := range []string{"performs start/admission", "do NOT call start_task first", "already-running task is tolerated"} {
+			if !strings.Contains(tool.Description, phrase) {
+				t.Fatalf("fork_executor description missing %q: %s", phrase, tool.Description)
+			}
+		}
+		return
+	}
+	t.Fatal("fork_executor tool missing")
+}
+
 // fakeAdmin records the last CallAgentTool invocation and returns canned
 // JSON (or a canned error). It stands in for the real AdminClient transport
 // so the tests exercise the real mcp.Server end-to-end over an in-memory

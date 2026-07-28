@@ -5,13 +5,11 @@ package agentruntime
 // build / fork / drain / recover / watchdog, plus the SpawnExecutor
 // (get_task→start_task→launch) and NotifyWork executor branch.
 //
-// 🔴 FORK MUTEX (防双 fork / 爆 max_concurrent): forkMu (a field on LocalRuntime,
-// SEPARATE from r.mu which guards SessionState) serializes the WHOLE
-// get_task→start_task→launch sequence in SpawnExecutor AND the shared launch tail
-// (launchExecutor), so two concurrent forks for one agent can never both pass the
-// pool cap. forkMu is held only for the fork/launch bookkeeping — the drain goroutine
-// runs detached as before, and the SessionState write (HadWork/CurrentTaskID) takes
-// r.mu separately (never nested under forkMu guarding the same field).
+// Fork concurrency has two independent invariants. The executor Pool atomically
+// reserves the ≤N process slots. LocalRuntime.forkStateMu only protects per-task
+// idempotency plus the brief "worktree prepared, Pool not yet aware" liveness gap.
+// It is never held across center RPC, git/worktree I/O, or process spawn, so distinct
+// tasks can actually launch concurrently. SessionState remains guarded by r.mu.
 
 import (
 	"context"
@@ -310,14 +308,104 @@ func (r *LocalRuntime) workViaExecutor(ctx context.Context, req WorkRequest, ee 
 	return r.launchExecutor(ctx, req.AgentID, req.TaskID, item, ee)
 }
 
-// launchExecutor is the shared fork tail: it serializes the whole HandleWork + drain
-// + bookkeeping under forkMu (red line #1) so two concurrent forks for one agent
-// cannot both pass the pool cap. Used by BOTH the agent.work executor branch
-// (workViaExecutor) and callers that already hold the built WorkItem.
+// beginTaskFork is the per-task single-flight gate. It deliberately does not wait:
+// duplicate durable commands are already satisfied by the in-flight/live executor,
+// while blocking here would spend the agent-control delivery deadline on work that
+// must not run twice anyway. Different task ids never block one another.
+func (r *LocalRuntime) beginTaskFork(taskID string) (bool, string) {
+	r.forkStateMu.Lock()
+	defer r.forkStateMu.Unlock()
+	if execID := r.taskExecutors[taskID]; execID != "" {
+		return false, execID
+	}
+	if _, exists := r.forkingTasks[taskID]; exists {
+		return false, ""
+	}
+	if r.forkingTasks == nil {
+		r.forkingTasks = make(map[string]struct{})
+	}
+	r.forkingTasks[taskID] = struct{}{}
+	return true, ""
+}
+
+func (r *LocalRuntime) endTaskFork(taskID string) {
+	r.forkStateMu.Lock()
+	delete(r.forkingTasks, taskID)
+	r.forkStateMu.Unlock()
+}
+
+// trackPreparingExecutor closes the orphan-prune visibility gap between creating a
+// worktree and Pool.Launch reserving/tracking the executor. The returned release is
+// idempotent by construction (called once via defer by SpawnExecutor).
+func (r *LocalRuntime) trackPreparingExecutor(execID string) func() {
+	if execID == "" {
+		return func() {}
+	}
+	r.forkStateMu.Lock()
+	if r.preparingExecutors == nil {
+		r.preparingExecutors = make(map[string]struct{})
+	}
+	r.preparingExecutors[execID] = struct{}{}
+	r.forkStateMu.Unlock()
+	return func() {
+		r.forkStateMu.Lock()
+		delete(r.preparingExecutors, execID)
+		r.forkStateMu.Unlock()
+	}
+}
+
+func (r *LocalRuntime) trackTaskExecutor(taskID, execID string) {
+	if taskID == "" || execID == "" {
+		return
+	}
+	r.forkStateMu.Lock()
+	if r.taskExecutors == nil {
+		r.taskExecutors = make(map[string]string)
+	}
+	r.taskExecutors[taskID] = execID
+	r.forkStateMu.Unlock()
+}
+
+func (r *LocalRuntime) untrackTaskExecutor(taskID, execID string) {
+	r.forkStateMu.Lock()
+	if r.taskExecutors[taskID] == execID {
+		delete(r.taskExecutors, taskID)
+	}
+	r.forkStateMu.Unlock()
+}
+
+// executorForTask checks both the explicit live-task registry and recovered/adopted
+// executor snapshots. Snapshot enrichment reads input.json, the durable task binding.
+func (r *LocalRuntime) executorForTask(ee *ExecutorEngine, taskID string) (string, bool) {
+	r.forkStateMu.Lock()
+	execID := r.taskExecutors[taskID]
+	r.forkStateMu.Unlock()
+	if execID != "" {
+		return execID, true
+	}
+	for _, snap := range ee.SnapshotConcurrency() {
+		if snap.TaskID == taskID {
+			return snap.ExecutorID, true
+		}
+	}
+	return "", false
+}
+
+// launchExecutor is the shared fork tail used by the legacy agent.work branch.
+// Per-task single-flight prevents duplicate work; Pool.Launch independently enforces
+// the atomic ≤N cap while allowing distinct tasks to provision and spawn in parallel.
 func (r *LocalRuntime) launchExecutor(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) error {
-	r.forkMu.Lock()
-	defer r.forkMu.Unlock()
-	_, err := r.launchExecutorLocked(ctx, agentID, taskID, item, ee)
+	if existing, ok := r.executorForTask(ee, taskID); ok {
+		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_active", agentID, taskID, existing)
+		return nil
+	}
+	started, existing := r.beginTaskFork(taskID)
+	if !started {
+		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_in_flight", agentID, taskID, existing)
+		return nil
+	}
+	defer r.endTaskFork(taskID)
+	_, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	return err
 }
 
@@ -346,19 +434,17 @@ func codexAuthPreflight(cli, codexHome string, statFn func(string) error) (strin
 // statErr adapts os.Stat to the codexAuthPreflight statFn signature.
 func statErr(path string) error { _, err := os.Stat(path); return err }
 
-// launchExecutorLocked forks an executor for a fully-built WorkItem and wires the
-// reap + work-state bookkeeping. The CALLER MUST hold forkMu (SpawnExecutor holds it
-// across the whole get_task→start_task→launch sequence; launchExecutor holds it for
-// the fork tail alone). At capacity it returns a retryable ErrAtCapacity; any other
-// fork error is wrapped. On success it detaches a drain goroutine (freeing the pool
-// slot when the executor exits) and mirrors the inject path's hadWork/currentTaskID.
-func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) (*orchestrator.Launched, error) {
+// launchExecutorNow forks an executor for a WorkItem after the caller has acquired
+// the task single-flight gate. At capacity it returns ErrAtCapacity; on success it
+// registers task→executor before starting the drain goroutine, closing the duplicate
+// request race even for a very short-lived child process.
+func (r *LocalRuntime) launchExecutorNow(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) (*orchestrator.Launched, error) {
 	// issue-d118b5dc instrument: the single commit point where an executor fork is actually
 	// launched (reached from BOTH SpawnExecutor(fork_executor) and workViaExecutor(work)).
 	// Fail-loud entry log with the forking runtime's namespace so a repro can correlate WHICH
 	// runtime committed the fork for a given task_id (pairs with the DISPATCH-DECISION logs to
 	// prove a ① dual fan-out / ② cross-namespace fork). Instrument-only, no behavior change.
-	r.log("DISPATCH-FORK-ENTRY agent_namespace=%s task_id=%s — launchExecutorLocked committing an executor fork", agentID, taskID)
+	r.log("DISPATCH-FORK-ENTRY agent_namespace=%s task_id=%s — launchExecutorNow committing an executor fork", agentID, taskID)
 	launched, err := ee.engine.HandleWork(ctx, item)
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
@@ -392,11 +478,11 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 		}
 	}
 
-	// Reap the executor when it exits, freeing its pool slot. Runs detached.
-	go r.drainExecutor(ee, launched.Handle)
+	// Register before the drain goroutine can observe an instant child exit; the drain
+	// keeps this binding until recovery/finalization completes.
+	r.trackTaskExecutor(taskID, launched.ExecutorID)
 
-	// Mirror the inject path's work-state bookkeeping (takes r.mu, NOT forkMu — two
-	// different concerns; matches today's launchExecutor which took c.mu only here).
+	// Mirror the inject path's work-state bookkeeping under the SessionState lock.
 	r.mu.Lock()
 	if r.state != nil {
 		r.state.HadWork = true
@@ -406,6 +492,9 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 		}
 	}
 	r.mu.Unlock()
+
+	// Reap the executor when it exits, freeing its pool slot. Runs detached.
+	go r.drainExecutor(ee, taskID, launched.Handle)
 	return launched, nil
 }
 
@@ -416,10 +505,11 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 // or terminally finalizes (success / gone task / budget exhausted). This is the reactive,
 // immediate death detection for a this-process child (it holds a reapable handle — no
 // lease/poll). wasStall carries the watchdog stall-kill cause for the tiered budget.
-func (r *LocalRuntime) drainExecutor(ee *ExecutorEngine, h *executor.Handle) {
+func (r *LocalRuntime) drainExecutor(ee *ExecutorEngine, taskID string, h *executor.Handle) {
 	if ee == nil || h == nil {
 		return
 	}
+	defer r.untrackTaskExecutor(taskID, h.ExecutorID)
 	comp, wasStall, err := ee.monitor.AwaitCompletionNoFinalize(h)
 	if err != nil {
 		// Rare (harvest/classify error): fall back to the plain finalize so the slot is
@@ -467,8 +557,28 @@ func (r *LocalRuntime) Recover(ctx context.Context) error {
 	return nil
 }
 
+// executorIDLive dynamically answers the spawn-time prune callback. It must not be
+// replaced with a captured snapshot: another task can register and prepare a sibling
+// worktree while this prune waits on the materializer's per-repo lock.
+func (r *LocalRuntime) executorIDLive(ee *ExecutorEngine, execID string) bool {
+	r.forkStateMu.Lock()
+	_, preparing := r.preparingExecutors[execID]
+	r.forkStateMu.Unlock()
+	if preparing {
+		return true
+	}
+	for _, s := range ee.SnapshotConcurrency() {
+		if s.ExecutorID == execID {
+			return true
+		}
+	}
+	return false
+}
+
 // liveExecIDs snapshots the currently live executor id set (pool-active + adopted
-// orphans) for the orphan-reap fail-safe: only an executor id ABSENT here is reaped.
+// orphans + worktree-prepared/in-flight). The last set closes the interval between
+// PrepareWorktree and Pool.Launch: a concurrent spawn must not prune a sibling's
+// newly prepared worktree merely because the Pool has not registered it yet.
 func (r *LocalRuntime) liveExecIDs(ee *ExecutorEngine) map[string]bool {
 	live := map[string]bool{}
 	for _, s := range ee.SnapshotConcurrency() {
@@ -476,6 +586,11 @@ func (r *LocalRuntime) liveExecIDs(ee *ExecutorEngine) map[string]bool {
 			live[s.ExecutorID] = true
 		}
 	}
+	r.forkStateMu.Lock()
+	for id := range r.preparingExecutors {
+		live[id] = true
+	}
+	r.forkStateMu.Unlock()
 	return live
 }
 
@@ -577,16 +692,14 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// SpawnExecutor — the explicit fork_executor get_task→start_task→launch fork
-// sequence, serialized end-to-end under forkMu (red line #1).
+// SpawnExecutor — the explicit supervisor-driven fork_executor sequence.
 // ---------------------------------------------------------------------------
 
-// SpawnExecutor admits a queued task through the center (start_task, ≤N cap) and
-// forks an executor for it. It is best-effort and NON-WEDGING — every non-success
-// outcome (empty id / no transport / get_task error / already-running / declined /
-// at-cap reap-skew) is logged and returns (nil, nil), leaving the task queued for a
-// later re-emit. A model-not-allowed fork blocks the task (already admitted). On a
-// successful fork it returns the SpawnResult.
+// SpawnExecutor either admits an open/reopened task through the center or consumes a
+// Supervisor's already-admitted running task, then forks an executor. Duplicate calls
+// for the same task coalesce; distinct tasks proceed concurrently and Pool.Launch owns
+// the atomic ≤N cap. It is best-effort and NON-WEDGING — bounded control-path failures
+// are surfaced/logged and do not hold the worker's shared control cursor indefinitely.
 //
 // NON-WEDGING IS A DEADLINE CLAIM, NOT JUST A RETURN-VALUE CLAIM. A caller may be a
 // control-command handler whose transport deadline is 5s (see source_prewarm.go), so
@@ -601,30 +714,28 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 // re-drives a queued task only while the agent has NO running task. Any new path that
 // leaves a task queued must either be re-driven by its own follow-up (as the prewarm
 // gate does) or be surfaced loudly — never silently dropped.
-//
-// forkMu is held across the WHOLE sequence so two concurrent SpawnExecutor calls for
-// one agent can't both pass the pool cap (red line #1 — the single-ControlLoop
-// serialization guarantee is gone now that SpawnExecutor is callable from multiple
-// entry points).
 func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*SpawnResult, error) {
 	agentID := r.cfg.AgentID
-	taskID := req.TaskID
+	taskID := strings.TrimSpace(req.TaskID)
 	ee := r.execEngine()
 	if ee == nil {
 		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
 		return nil, nil
 	}
 
-	r.log("DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=%s task_id=%s — SpawnExecutor entry",
-		agentID, taskID)
-
-	r.forkMu.Lock()
-	defer r.forkMu.Unlock()
-
 	if strings.TrimSpace(taskID) == "" {
 		r.log("fork_executor agent=%s concurrency fork: empty task_id — skipping", agentID)
 		return nil, nil
 	}
+	r.log("DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=%s task_id=%s — SpawnExecutor entry",
+		agentID, taskID)
+	started, existing := r.beginTaskFork(taskID)
+	if !started {
+		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_in_flight", agentID, taskID, existing)
+		return nil, nil
+	}
+	defer r.endTaskFork(taskID)
+
 	caller := r.toolCaller()
 	if caller == nil {
 		r.log("fork_executor agent=%s task=%s concurrency fork: no ToolCaller — left queued", agentID, taskID)
@@ -657,17 +768,6 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
-	// Cheap idempotency precheck: only an OPEN/REOPENED task is startable. This is an
-	// allow-list, not a deny-list, so it refuses to fork a blocked task. Keep this
-	// an allow-list: a future status must opt IN to being forked.
-	//
-	// An empty status (older center / unknown projection) still forks — absence of an
-	// answer is not proof of a park, and failing closed here would strand normal dispatch.
-	if st := strings.TrimSpace(task.Status); st != "" && st != "open" && st != "reopened" {
-		r.log("fork_executor agent=%s task=%s already %s — not forking", agentID, taskID, st)
-		return nil, nil
-	}
-
 	// A task explicitly marked supervisor_inline must be handled by the supervisor,
 	// not by this fork primitive. work_available already nudges the supervisor; if it
 	// calls fork_executor anyway, refuse loudly and leave the task queued.
@@ -677,20 +777,55 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
+	// The supervisor-driven protocol has TWO valid entry states:
+	//   - open/reopened (or legacy empty): fork_executor owns start_task admission;
+	//   - running: the Supervisor already called start_task, so skip admission and fork.
+	// The previous auto-dispatch-era guard rejected the second case with nil error. The
+	// worker then acked the durable command despite creating no executor — the dominant
+	// production failure mode after dispatch became supervisor-driven.
+	//
+	// Parked/terminal/unknown states remain fail-closed. A legacy running task carrying
+	// blocked_reason is parked even though its status still says running (ADR-0046).
+	alreadyAdmitted := false
+	if reason := strings.TrimSpace(task.BlockedReason); reason != "" {
+		r.log("FORK-REJECTED agent_namespace=%s task_id=%s status=%s reason=task_blocked — blocked_reason is non-empty", agentID, taskID, strings.TrimSpace(task.Status))
+		return nil, nil
+	}
+	switch st := strings.TrimSpace(task.Status); st {
+	case "running":
+		alreadyAdmitted = true
+	case "", "open", "reopened":
+		// fork_executor performs admission below.
+	default:
+		r.log("FORK-REJECTED agent_namespace=%s task_id=%s status=%s reason=task_not_dispatchable", agentID, taskID, st)
+		return nil, nil
+	}
+	if activeID, active := r.executorForTask(ee, taskID); active {
+		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_active", agentID, taskID, activeID)
+		return nil, nil
+	}
+	if alreadyAdmitted {
+		r.log("FORK-ADMISSION-REUSED agent_namespace=%s task_id=%s status=running — Supervisor already admitted task; continuing to executor launch", agentID, taskID)
+	}
+
 	// A forked node is a code task. It must have a center-resolved repository and a
 	// runtime materializer; otherwise fail before any model process starts. Starting
 	// then blocking records the durable non-delivery instead of leaving an open task
 	// to be re-emitted forever.
 	codeDispatch := strings.TrimSpace(task.DispatchMode) == executor.DispatchModeExecutorFork
 	if codeDispatch && (task.Repo == nil || strings.TrimSpace(task.Repo.URL) == "") {
-		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
+		if alreadyAdmitted {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
+		} else if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
 		}
 		r.log("fork_executor agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
 		return nil, nil
 	}
 	if task.Repo != nil && r.cfg.Materializer == nil && r.cfg.CloneMaterializer == nil {
-		if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
+		if alreadyAdmitted {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
+		} else if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
 		}
 		r.log("fork_executor agent=%s task=%s repository preflight failed: workspace materializer unavailable — executor NOT forked", agentID, taskID)
@@ -730,6 +865,8 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			return nil, nil
 		}
 		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
+		releasePreparing := r.trackPreparingExecutor(execID)
+		defer releasePreparing()
 		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 		if wsErr != nil {
 			r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
@@ -738,11 +875,10 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap
 		// any orphaned worktrees under this source (a prior retryable-crash's kept worktree
 		// whose task was re-dispatched fresh-id — never reused, nothing else cleans it).
-		// Safe here: we hold forkMu (no concurrent same-agent spawn) and the new execID's
-		// worktree does not exist yet (PrepareWorktree is below), so it can't be reaped.
-		// isLive = the current pool+orphan snapshot (fail-safe KEEP for anything live).
-		live := r.liveExecIDs(ee)
-		if n, perr := r.cfg.Materializer.PruneOrphanWorktrees(ctx, source, func(id string) bool { return live[id] }); perr != nil {
+		// Concurrent same-agent spawns are valid. The callback dynamically checks the
+		// preparing registry (not a stale snapshot), so one spawn cannot reap a sibling
+		// between that sibling's PrepareWorktree and Pool.Launch.
+		if n, perr := r.cfg.Materializer.PruneOrphanWorktrees(ctx, source, func(id string) bool { return r.executorIDLive(ee, id) }); perr != nil {
 			r.log("fork_executor agent=%s repo_key=%s prune orphan worktrees: %v (non-fatal)", agentID, source.RepoKey, perr)
 		} else if n > 0 {
 			r.log("agent=%s repo_key=%s reaped %d orphan worktree(s) at spawn", agentID, source.RepoKey, n)
@@ -799,28 +935,32 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		}
 	}
 
-	// 3. Admission gate: 代 start_task (open→running). The center enforces the ≤N cap.
-	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
-		// start_task declined AFTER the worktree was prepared → tear it down (red line B:
-		// no worktree leak). The task was never admitted, so nothing else to roll back.
-		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
-		r.log("fork_executor agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
-			agentID, taskID, err)
-		return nil, nil
+	// 3. Admission gate. Open/reopened tasks transition through start_task here. A
+	// Supervisor may already have admitted the task before calling fork_executor; in
+	// that valid running state a second start would be rejected and must be skipped.
+	if !alreadyAdmitted {
+		if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
+			// start_task declined AFTER the worktree was prepared → tear it down (red line B:
+			// no worktree leak). The task was never admitted, so nothing else to roll back.
+			r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+			r.log("fork_executor agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
+				agentID, taskID, err)
+			return nil, nil
+		}
 	}
 
-	// 4. Fork the executor (W1 HandleWork chain) under the SAME forkMu.
-	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context), ee)
+	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
+	// atomically; no global runtime mutex is held across the process launch.
+	launched, err := r.launchExecutorNow(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context), ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
 		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
 		if errors.Is(err, executor.ErrAtCapacity) {
-			// TRANSIENT: the local pool is momentarily saturated. This is NOT a failure —
-			// leave the admitted task queued for retry next tick (unchanged behavior). It is
-			// the one fork error that must NOT block (a block here would wedge normal
-			// back-pressure).
-			r.log("fork_executor agent=%s task=%s fork at capacity: %v — left queued for retry",
-				agentID, taskID, err)
+			// The task is already running and the explicit command will be acked; there is
+			// no queued-task wake that can safely redrive it. Surface the center/local cap
+			// skew as retryable blocked work instead of silently leaving it fake-running.
+			r.blockTaskOnForkFailure(ctx, agentID, taskID,
+				fmt.Errorf("center admitted task but local executor pool is at capacity: %w", err))
 			return nil, nil
 		}
 		// NON-TRANSIENT fork failure (no model resolvable / model not allowed / rate-limited

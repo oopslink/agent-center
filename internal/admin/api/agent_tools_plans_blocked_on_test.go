@@ -57,10 +57,10 @@ func TestPlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue(t *testing.T) {
 	detail := &pmservice.PlanDetail{
 		Plan: dtoPlan(t),
 		View: pm.PlanView{Nodes: []pm.PlanNodeView{
-			nodeView("t-a", pm.NodeRunning),  // executor_liveness
-			nodeView("t-b", pm.NodeBlocked),  // upstream_completion
-			nodeView("t-dec", pm.NodeReady),  // human_decision
-			nodeView("t-done", pm.NodeDone),  // terminal — no blocked_on even if a stray row exists
+			nodeView("t-a", pm.NodeRunning), // executor_liveness
+			nodeView("t-b", pm.NodeBlocked), // upstream_completion
+			nodeView("t-dec", pm.NodeReady), // human_decision
+			nodeView("t-done", pm.NodeDone), // terminal — no blocked_on even if a stray row exists
 		}},
 		BlockedOn: []pm.BlockedOn{
 			{TaskID: "t-b", NodeID: "n-b", WaitType: pm.WaitUpstreamCompletion, WaitKeys: []string{"t-a"}, TriggerCondition: "A completes", WaitedSince: waited},

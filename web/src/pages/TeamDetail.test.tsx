@@ -128,7 +128,8 @@ describe('TeamDetail', () => {
     const modal = await screen.findByTestId('add-member-modal');
     // pick a real agent not on any team (free) → direct add, canonical ref
     fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-d5' } });
-    fireEvent.click(within(modal).getByTestId('add-member-role-coder'));
+    fireEvent.click(within(modal).getByTestId('add-member-role-picker-trigger'));
+    fireEvent.click(await screen.findByRole('option', { name: 'coder' }));
     fireEvent.click(within(modal).getByTestId('add-member-submit'));
     await waitFor(() => expect(body?.roles).toEqual(['planner', 'coder']));
     expect(body?.role).toBe('planner');

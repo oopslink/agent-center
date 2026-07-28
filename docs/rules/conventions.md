@@ -467,7 +467,7 @@ DB schema **不使用 FOREIGN KEY** 约束；表间引用语义用列名约定�
 
 - **单元测试行覆盖率 ≥ 90%**（整体 + diff），CI 阻断 < 90% 的合并
 - **每次测试必须有测试计划 + 测试报告**，条目编号 1:1 对齐，**逐条确认**通过 / 失败 / 跳过 + 理由
-- **关键路径 e2e**：`worker enroll → dispatch → 任务结束`、`Web Console 入口 → supervisor → task → 回流`
+- **关键路径 e2e**：`worker enroll → dispatch → 任务结束`、`Web Console 入口 → supervisor → task → 回流`、`supervisor fork_executor → agent-runtime Unix socket → executor 子进程`
 - **BlobStore 契约测试**：local 实现 / S3 mock 实现走同一份契约
 - 设计 / 实现侧的可测性硬约束见下面 [§ 14.x](#-14x-设计与实现必须可测)
 

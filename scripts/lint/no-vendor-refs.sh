@@ -123,7 +123,7 @@ if [[ -n "$VIOLATIONS" ]]; then
   echo "Either remove the reference, or add an allowlist entry to" >&2
   echo "  scripts/lint/no-vendor-refs.allowlist" >&2
   echo "and document the reason in" >&2
-  echo "  docs/plans/phase-12-audits/s1-v1-residue-audit.md" >&2
+  echo "  docs/plans/audits/s1-v1-residue-audit.md" >&2
   exit 1
 fi
 

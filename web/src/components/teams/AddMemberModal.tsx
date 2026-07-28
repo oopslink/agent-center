@@ -11,6 +11,7 @@ import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 import { useAddMember, useDirectoryAgents, useDirectoryHumans, type TeamView } from '@/api/teams';
+import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { Skeleton } from '@/components/Skeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell, SpecLine } from './kit';
@@ -78,15 +79,6 @@ export function AddMemberModal({
   const needsMigration = kind === 'agent' && !!fromTeamId;
   const pickedRoles = roles;
   const roleLabel = pickedRoles.join(', ');
-
-  const toggleRole = (role: string) => {
-    setRoles((current) => {
-      if (current.includes(role)) {
-        return current.filter((r) => r !== role);
-      }
-      return [...current, role];
-    });
-  };
 
   const doAdd = async (opts?: { migrateFrom?: string }) => {
     const picked = kind === 'agent' ? selectedAgent : selectedHuman;
@@ -280,28 +272,14 @@ export function AddMemberModal({
       )}
 
       <Field label={t('addMemberModal.roleLabel')} required hint={t('addMemberModal.roleHint')}>
-        <div className="flex flex-wrap gap-2" data-testid="add-member-roles">
-          {roleOptions.map((r) => {
-            const active = pickedRoles.includes(r);
-            return (
-              <label
-                key={r}
-                className={[
-                  'inline-flex cursor-pointer items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-semibold',
-                  active ? 'border-primary bg-primary/10 text-primary' : 'border-border-base bg-bg-subtle text-text-secondary hover:border-primary/40',
-                ].join(' ')}
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-primary"
-                  data-testid={`add-member-role-${r}`}
-                  checked={active}
-                  onChange={() => toggleRole(r)}
-                />
-                {r}
-              </label>
-            );
-          })}
+        <div data-testid="add-member-roles">
+          <EntityMultiSelect
+            testId="add-member-role-picker"
+            options={roleOptions.map((role) => ({ value: role, label: role }))}
+            values={pickedRoles}
+            onChange={setRoles}
+            ariaLabel={t('addMemberModal.roleLabel')}
+          />
         </div>
       </Field>
 

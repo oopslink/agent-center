@@ -183,7 +183,7 @@ function HumansSection({ onOpenInvitations }: { onOpenInvitations: () => void })
         </table>
       </div>
       {humans.length === 0 && <EmptyState title={t('orgSettings.humans.emptyTitle')} body={t('orgSettings.humans.emptyBody')} />}
-      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <div className="rounded border border-status-amber-border bg-status-amber-bg px-3 py-2 text-sm text-status-amber-fg">
         {t('orgSettings.humans.note')}
       </div>
       <ConfirmModal
@@ -451,7 +451,7 @@ function StatusPill({ status }: { status: string }): React.ReactElement {
   const cls = status === 'active' || status === 'accepted'
     ? 'bg-success/10 text-success'
     : status === 'pending'
-      ? 'bg-amber-100 text-amber-800'
+      ? 'bg-status-amber-bg text-status-amber-fg'
       : 'bg-bg-subtle text-text-muted';
   return <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
 }

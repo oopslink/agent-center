@@ -20,7 +20,7 @@
 | `executor.WorktreeProvisioner` | 已封装 `git worktree add` / `add -b` / `remove --force` / `prune` |
 | `executor.Pool.provisionAndSpawn` | 如果 `PoolConfig.Worktrees + BaseRef` 同时存在，则创建 worktree；否则只 `MkdirAll(workspace)` |
 | `buildExecutorEngine` | 生产 wiring 明确选择 plain isolated dir，注释说明尚无 per-agent source git repo |
-| `fork_executor` / `SpawnExecutor` | supervisor 显式 fork 路径为 `get_task -> start_task -> launchExecutor`；`work_available` 只 nudge supervisor |
+| `fork_executor` / `SpawnExecutor` | supervisor 显式 fork；`open/reopened` 走 `get_task -> prepare -> start_task -> launch`，兼容 supervisor 已准入的 `running -> prepare -> launch`；`work_available` 只 nudge supervisor |
 | `centerTaskDetail` / `buildWorkItem` | 只投影 title / description / status / model / org_ref，无 repo / base ref |
 | CodeRepo 数据 | 已有 `code_repos` 与 `pm_code_repo_refs`，project 可标 primary repo |
 
@@ -152,14 +152,16 @@ work_available
 
 ```text
 work_available
-  -> runtime.HandleWorkAvailable(agent_id, task_id)
+  -> nudge Supervisor
+  -> Supervisor fork_executor(task_id)
+  -> runtime.SpawnExecutor(agent_id, task_id)
      -> get_task
-     -> status precheck
+     -> status/assignee/duplicate precheck
      -> resolve repo/base_ref
-     -> ensure repo source + fetch
+     -> ensure repo source + fetch (cold source 在后台 prewarm 后 redrive)
      -> prepare executor dir + git worktree
      -> write input.json
-     -> start_task
+     -> open/reopened: start_task；running: 复用 Supervisor 已完成的 admission
      -> spawn executor
 ```
 
@@ -182,8 +184,9 @@ Prepare(ctx, spec) (PreparedExecutor, error) // reserve + dir + worktree + input
 SpawnPrepared(ctx, prepared, runnerCmd) (*executor.Handle, error)
 ```
 
-如果 `SpawnPrepared` 失败，任务已经 running，仍按现有 lease reclaim 兜底；但 repo/worktree
-类错误已经前移，显著缩小准入后失败窗口。
+如果最终 spawn 失败，任务已经 running，runtime 必须立即以结构化
+`[cause=<code>]` blocked reason 显式 block，不能静默等待 lease reclaim；repo/worktree
+类错误仍尽量前移，缩小准入后失败窗口。
 
 ## 8. RepoMaterializer
 
@@ -260,8 +263,9 @@ repo metadata 的非敏感摘要用于上下文说明，但不包含 source path
 
 - `RepoMaterializer`：clone/fetch、remote mismatch fail closed、base ref 不存在、并发同 repo
   mutex、错误不含 credential。
-- `fork_executor` / runtime：验证顺序为 `get_task -> prepare worktree -> start_task -> spawn`；
-  prepare 失败不调用 `start_task`；at-cap 不做 repo work；旧 plain fallback 不回归。
+- `fork_executor` / runtime：验证 open 路径为 `get_task -> prepare worktree -> start_task -> spawn`，
+  以及已准入 running 路径为 `get_task -> prepare worktree -> spawn`（不重复 start）；prepare
+  失败不调用 `start_task`；同 task 去重、不同 task 真并发且不误删 sibling worktree；旧 plain fallback 不回归。
 - `executor.Pool`：拆分 prepare/spawn 后仍精确守并发上限，prepare 失败释放 reservation，
   duplicate executor id 不泄漏 worktree。
 - `get_task` 投影：project primary CodeRepo 解析 repo hint；无 primary 时旧行为兼容。

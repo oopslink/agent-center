@@ -41,6 +41,12 @@ func (s *Server) forkExecutorHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Reject a bad/foreign task before claiming the command was durably accepted.
+	// Runtime repeats the assignee check as defense in depth because assignment may
+	// change between enqueue and delivery.
+	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+		return
+	}
 	if d.EnvControlSvc == nil {
 		writeError(w, http.StatusNotImplemented, "env_control_not_wired", "")
 		return

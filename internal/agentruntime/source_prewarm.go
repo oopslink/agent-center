@@ -223,8 +223,8 @@ func (r *LocalRuntime) deferForSource(agentID, taskID, key string, target repore
 // every task that deferred on it. It retries a bounded number of times and, on final
 // failure, fails its waiters LOUDLY rather than leaving them silently queued.
 //
-// Runs on its own goroutine. Never holds forkMu (the re-drive re-acquires it via
-// SpawnExecutor) and never holds sources.mu across the clone.
+// Runs on its own goroutine. Never holds forkStateMu (the re-drive acquires only the
+// short per-task gate via SpawnExecutor) and never holds sources.mu across the clone.
 func (r *LocalRuntime) runSourcePrewarm(agentID, key string, target reporepo.RepoTarget) {
 	attempts := r.sourcePrewarmAttempts()
 	var lastErr error

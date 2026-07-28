@@ -14,8 +14,9 @@ import (
 )
 
 func TestForkExecutorHandler_EnqueuesRuntimeCommand(t *testing.T) {
-	fx := newAgentToolsFixture(t)
+	fx := newWriteToolsFixture(t)
 	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	_, taskID := fx.seedMemberProject(t)
 	envWorkers := envsqlite.NewWorkerRepo(fx.db)
 	envEvents := envsqlite.NewControlEventRepo(fx.db)
 	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
@@ -32,7 +33,7 @@ func TestForkExecutorHandler_EnqueuesRuntimeCommand(t *testing.T) {
 
 	st, body := postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w1", map[string]any{
 		"agent_id": atAgent1,
-		"task_id":  "task-123",
+		"task_id":  taskID,
 		"model":    "claude-sonnet",
 		"context":  "prefer tests first",
 	})
@@ -57,11 +58,42 @@ func TestForkExecutorHandler_EnqueuesRuntimeCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(cmds[0].Payload()), &pl); err != nil {
 		t.Fatalf("payload json: %v", err)
 	}
-	if pl["agent_id"] != atAgent1 || pl["task_id"] != "task-123" || pl["model"] != "claude-sonnet" || pl["context"] != "prefer tests first" {
+	if pl["agent_id"] != atAgent1 || pl["task_id"] != taskID || pl["model"] != "claude-sonnet" || pl["context"] != "prefer tests first" {
 		t.Fatalf("payload=%v", pl)
 	}
-	if !strings.Contains(cmds[0].IdempotencyKey(), "fork_executor:"+atAgent1+":task-123:") {
+	if !strings.Contains(cmds[0].IdempotencyKey(), "fork_executor:"+atAgent1+":"+taskID+":") {
 		t.Fatalf("idempotency key=%q", cmds[0].IdempotencyKey())
+	}
+}
+
+func TestForkExecutorHandler_RejectsTaskAssignedToAnotherAgent(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w2", atWorker2)
+	_, taskID := fx.seedMemberProject(t) // assigned to AG1
+	envWorkers := envsqlite.NewWorkerRepo(fx.db)
+	envEvents := envsqlite.NewControlEventRepo(fx.db)
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envWorkers, Events: envEvents,
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	if _, err := fx.deps.EnvControlSvc.ConnectWorker(context.Background(), environment.WorkerID(atWorker2)); err != nil {
+		t.Fatalf("connect env worker: %v", err)
+	}
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w2", map[string]any{
+		"agent_id": atAgent2,
+		"task_id":  taskID,
+	})
+	if st != http.StatusForbidden || body["error"] != "not_agents_task" {
+		t.Fatalf("status=%d body=%v, want not_agents_task", st, body)
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker2), 0)
+	if err != nil {
+		t.Fatalf("commands after: %v", err)
+	}
+	if len(cmds) != 0 {
+		t.Fatalf("foreign task enqueued %d command(s), want 0", len(cmds))
 	}
 }
 

@@ -70,7 +70,7 @@ func buildDecisionTimeoutSink(a *App) pmservice.TimeoutSink {
 		projects:  pmsql.NewProjectRepo(a.DB),
 		now:       a.Clock.Now,
 		log: func(f string, args ...any) {
-			slog.Warn("i103 decision-timeout: "+fmt.Sprintf(f, args...))
+			slog.Warn("i103 decision-timeout: " + fmt.Sprintf(f, args...))
 		},
 	}
 	return pmservice.NewHumanDecisionTimeoutSink(adapter, pmservice.DefaultDecisionEscalateAfter)
