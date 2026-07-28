@@ -139,6 +139,14 @@ func (s *Service) StageForGateTask(ctx context.Context, taskID pm.TaskID) (*pm.S
 // gate condition node (no stage_gate metadata) — a caller pointed at the wrong node.
 var ErrNotStageGate = errors.New("projectmanager: node is not a stage gate")
 
+// ErrStageGateNotExhausted is returned by the supported recovery action when the
+// stage gate is not currently in the durable exhausted/escalated state.
+var ErrStageGateNotExhausted = errors.New("projectmanager: stage gate is not exhausted")
+
+// ErrStageGateReopenForbidden is returned when a project member who is neither a
+// project owner nor this Plan's creator attempts to grant an extra stage round.
+var ErrStageGateReopenForbidden = errors.New("projectmanager: actor must be a project owner or the plan creator")
+
 // CreateStageCommand authors a Stage in a draft Plan (design §6).
 type CreateStageCommand struct {
 	PlanID          pm.PlanID
@@ -147,6 +155,25 @@ type CreateStageCommand struct {
 	MaxRounds       int // 0 ⇒ pm.DefaultStageMaxRounds
 	GateSpec        pm.GateSpec
 	Actor           pm.IdentityRef
+}
+
+// ReopenExhaustedStageCommand is the owner/PD recovery action for an exhausted stage
+// acceptance gate. Each accepted call grants exactly one extra round, requires an
+// explicit reason, and is idempotent on (plan_id, stage_id, idempotency_key).
+type ReopenExhaustedStageCommand struct {
+	PlanID         pm.PlanID
+	StageID        pm.StageID
+	Reason         string
+	IdempotencyKey string
+	Actor          pm.IdentityRef
+}
+
+type ReopenExhaustedStageResult struct {
+	PlanID     pm.PlanID
+	StageID    pm.StageID
+	NewRound   int
+	Duplicate  bool
+	Dispatched []pm.TaskID
 }
 
 // CreateStage authors a new Stage for a DRAFT plan (§6 create_stage). Guards: the
@@ -333,6 +360,186 @@ func (s *Service) ReconcileStageGates(ctx context.Context, planID pm.PlanID) err
 		}
 		return nil
 	})
+}
+
+// ReopenExhaustedStage grants one manually authorized extra rework round after a
+// stage gate has exhausted. It does NOT pass the gate and therefore does not release
+// downstream stages: it applies one more reject loopback through the graph engine,
+// reopens the stage's existing member/evaluator tasks, clears only the current
+// exhausted decision outcome so the gate must be reviewed again, and advances the
+// plan so the first reopened member dispatches.
+func (s *Service) ReopenExhaustedStage(ctx context.Context, cmd ReopenExhaustedStageCommand) (ReopenExhaustedStageResult, error) {
+	var out ReopenExhaustedStageResult
+	if s.stages == nil || s.orch == nil {
+		return out, ErrStagesUnavailable
+	}
+	if s.plans == nil {
+		return out, ErrPlansUnavailable
+	}
+	reason := strings.TrimSpace(cmd.Reason)
+	key := strings.TrimSpace(cmd.IdempotencyKey)
+	if reason == "" {
+		return out, errors.New("projectmanager: reason required")
+	}
+	if key == "" {
+		return out, errors.New("projectmanager: idempotency_key required")
+	}
+	now := s.clock.Now()
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, cmd.PlanID)
+		if err != nil {
+			return err
+		}
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, cmd.Actor); err != nil {
+			return err
+		}
+		if existing, ok, err := s.plans.GetStageGateReopenRequest(txCtx, cmd.PlanID, cmd.StageID, key); err != nil {
+			return err
+		} else if ok {
+			out = ReopenExhaustedStageResult{
+				PlanID:    existing.PlanID,
+				StageID:   existing.StageID,
+				NewRound:  existing.NewRound,
+				Duplicate: true,
+			}
+			return nil
+		}
+		if p.Status() != pm.PlanRunning {
+			return pm.ErrPlanNotRunning
+		}
+		st, err := s.stages.FindByID(txCtx, cmd.StageID)
+		if err != nil {
+			return err
+		}
+		if st.PlanID() != p.ID() {
+			return pm.ErrStageProjectMismatch
+		}
+		if st.GateTaskID() == "" || st.GateNodeID() == "" || p.GraphID() == "" {
+			return ErrStageGateNotExhausted
+		}
+		gate, err := s.orch.GetNode(txCtx, orch.NodeID(st.GateNodeID()))
+		if err != nil {
+			return err
+		}
+		stageID, _ := gate.Metadata()["stage_gate"].(string)
+		decisionID, _ := gate.Metadata()["condition_for"].(string)
+		if stageID != string(st.ID()) || decisionID != string(st.GateTaskID()) ||
+			gate.ControlKind() != orch.ControlKindCondition ||
+			gate.Status() == orch.NodeCompleted || gate.Status() == orch.NodeDiscarded {
+			return ErrStageGateNotExhausted
+		}
+		outcomes, err := s.plans.ListDecisionOutcomes(txCtx, p.ID())
+		if err != nil {
+			return err
+		}
+		if !hasDecisionOutcome(outcomes, st.GateTaskID(), "reject"+exhaustedOutcomeSuffix) {
+			return ErrStageGateNotExhausted
+		}
+		priorRound := conditionLoopRound(gate)
+		maxRounds := st.MaxRounds()
+		if maxRounds <= 0 {
+			maxRounds = pm.DefaultStageMaxRounds
+		}
+		if priorRound < maxRounds {
+			return ErrStageGateNotExhausted
+		}
+		newRound := priorRound + 1
+		created, err := s.plans.RecordStageGateReopenRequest(txCtx, pm.StageGateReopenRequest{
+			PlanID: cmd.PlanID, StageID: cmd.StageID, IdempotencyKey: key,
+			ActorRef: cmd.Actor, Reason: reason, PriorGateTaskID: st.GateTaskID(),
+			PriorRound: priorRound, NewRound: newRound, CreatedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+		if !created {
+			existing, ok, err := s.plans.GetStageGateReopenRequest(txCtx, cmd.PlanID, cmd.StageID, key)
+			if err != nil {
+				return err
+			}
+			if ok {
+				out = ReopenExhaustedStageResult{
+					PlanID:    existing.PlanID,
+					StageID:   existing.StageID,
+					NewRound:  existing.NewRound,
+					Duplicate: true,
+				}
+				return nil
+			}
+			return errors.New("projectmanager: stage gate reopen request conflict")
+		}
+
+		meta := gate.Metadata()
+		meta["max_rounds"] = newRound
+		if err := s.orch.UpdateNode(txCtx, gate.ID(), gate.Title(), meta); err != nil {
+			return err
+		}
+		gate, err = s.orch.GetNode(txCtx, gate.ID())
+		if err != nil {
+			return err
+		}
+		if err := s.orch.ResolveCondition(txCtx, gate.ID(), "reject"); err != nil {
+			return err
+		}
+		if err := s.reopenStageSubgraph(txCtx, p, st, gate); err != nil {
+			return err
+		}
+		if err := s.plans.ClearDecisionOutcome(txCtx, p.ID(), st.GateTaskID()); err != nil {
+			return err
+		}
+		s.auditPlanByID(txCtx, p.ProjectID(), p.ID(), pm.AuditPlanLoopback, cmd.Actor, map[string]any{
+			"stage_id":        string(st.ID()),
+			"gate":            "reject",
+			"manual":          true,
+			"reason":          reason,
+			"idempotency_key": key,
+			"prior_round":     priorRound,
+			"round":           newRound,
+			"prior_outcome":   "reject" + exhaustedOutcomeSuffix,
+			"gate_task_id":    string(st.GateTaskID()),
+		})
+		dispatched, err := s.AdvancePlan(txCtx, p.ID(), cmd.Actor)
+		if err != nil {
+			return err
+		}
+		out = ReopenExhaustedStageResult{
+			PlanID:     p.ID(),
+			StageID:    st.ID(),
+			NewRound:   newRound,
+			Dispatched: dispatched,
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (s *Service) requirePlanCreatorOrProjectOwner(ctx context.Context, p *pm.Plan, actor pm.IdentityRef) error {
+	if p.CreatorRef() == actor {
+		return nil
+	}
+	if _, err := s.projects.FindByID(ctx, p.ProjectID()); err != nil {
+		return err
+	}
+	m, err := s.members.FindByProjectAndIdentity(ctx, p.ProjectID(), actor)
+	if err != nil {
+		if errors.Is(err, pm.ErrMemberNotFound) {
+			return ErrNotMember
+		}
+		return err
+	}
+	if m.Role() != pm.RoleOwner {
+		return ErrStageGateReopenForbidden
+	}
+	return nil
+}
+
+func hasDecisionOutcome(outcomes []pm.DecisionOutcome, taskID pm.TaskID, want string) bool {
+	for _, outcome := range outcomes {
+		if outcome.TaskID == taskID && outcome.Outcome == want {
+			return true
+		}
+	}
+	return false
 }
 
 // AssignTaskToStage sets (or, with stageID=="", clears) a task's Stage membership in a

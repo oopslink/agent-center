@@ -56,6 +56,10 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrStageNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pmservice.ErrStageGateReopenForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", err.Error())
+	case errors.Is(err, pmservice.ErrStageGateNotExhausted):
+		writeError(w, http.StatusConflict, "stage_gate_not_exhausted", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrProjectArchived),
@@ -544,6 +548,73 @@ func (s *Server) getStageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, stageDetailMap(detail))
+}
+
+type reopenExhaustedStageReq struct {
+	AgentID        string `json:"agent_id"`
+	PlanID         string `json:"plan_id"`
+	StageID        string `json:"stage_id"`
+	Reason         string `json:"reason"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// reopenExhaustedStageHandler is the sanctioned owner/plan-creator recovery path for
+// an exhausted stage acceptance gate. It adds one audited rework round and reopens the
+// existing stage member/evaluator tasks; it does not pass the gate.
+func (s *Server) reopenExhaustedStageHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req reopenExhaustedStageReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	if strings.TrimSpace(req.StageID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_stage_id", "")
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		writeError(w, http.StatusBadRequest, "missing_reason", "")
+		return
+	}
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		writeError(w, http.StatusBadRequest, "missing_idempotency_key", "")
+		return
+	}
+	res, err := d.PMService.ReopenExhaustedStage(r.Context(), pmservice.ReopenExhaustedStageCommand{
+		PlanID:         pm.PlanID(req.PlanID),
+		StageID:        pm.StageID(req.StageID),
+		Reason:         req.Reason,
+		IdempotencyKey: req.IdempotencyKey,
+		Actor:          pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	dispatched := make([]string, 0, len(res.Dispatched))
+	for _, id := range res.Dispatched {
+		dispatched = append(dispatched, string(id))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"plan_id":    string(res.PlanID),
+		"stage_id":   string(res.StageID),
+		"round":      res.NewRound,
+		"duplicate":  res.Duplicate,
+		"dispatched": dispatched,
+	})
 }
 
 // stageDetailMap renders the get_stage DTO: the Stage fields + the DERIVED status +

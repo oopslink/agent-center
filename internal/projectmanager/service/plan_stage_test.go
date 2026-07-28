@@ -605,6 +605,155 @@ func TestStage_GateReject_ExhaustEscalates(t *testing.T) {
 	}
 }
 
+func TestReopenExhaustedStage_AddsOneAuditedRoundAndHoldsDownstream(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatalf("AddProjectMember user:b: %v", err)
+	}
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, a2, b1, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if _, err := h.svc.ReopenExhaustedStage(ctx, ReopenExhaustedStageCommand{
+		PlanID: planID, StageID: stageA, Reason: "too early", IdempotencyKey: "too-early", Actor: "user:a",
+	}); !errors.Is(err, ErrStageGateNotExhausted) {
+		t.Fatalf("not-exhausted reopen = %v, want ErrStageGateNotExhausted", err)
+	}
+
+	driveStageAToGate := func() pm.TaskID {
+		t.Helper()
+		if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+			t.Fatalf("AdvancePlan stage entry: %v", err)
+		}
+		h.setTaskStatus(t, a1, pm.TaskCompleted)
+		if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+			t.Fatalf("AdvancePlan stage second member: %v", err)
+		}
+		h.setTaskStatus(t, a2, pm.TaskCompleted)
+		if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+			t.Fatalf("AdvancePlan stage gate: %v", err)
+		}
+		det, err := h.svc.GetStage(ctx, stageA)
+		if err != nil {
+			t.Fatalf("GetStage: %v", err)
+		}
+		return det.Stage.GateTaskID()
+	}
+	rejectGate := func(gateTask pm.TaskID) {
+		t.Helper()
+		h.setTaskStatus(t, gateTask, pm.TaskCompleted)
+		if err := h.svc.RecordDecisionOutcome(ctx, gateTask, "reject", "user:a"); err != nil {
+			t.Fatalf("RecordDecisionOutcome(reject): %v", err)
+		}
+		if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+			t.Fatalf("AdvancePlan after reject: %v", err)
+		}
+	}
+
+	for round := 1; round <= 4; round++ {
+		rejectGate(driveStageAToGate())
+	}
+	detA, err := h.svc.GetStage(ctx, stageA)
+	if err != nil {
+		t.Fatalf("GetStage exhausted: %v", err)
+	}
+	if detA.Rounds != 3 {
+		t.Fatalf("exhausted rounds = %d, want 3 before manual extra round", detA.Rounds)
+	}
+	if dispatchedSet(t, h, planID)[b1] {
+		t.Fatal("b1 dispatched while stage A gate exhausted — downstream barrier must hold")
+	}
+	mustNotRunnable(t, h, b1, "b1 while stage A exhausted")
+	outcomes, err := h.plans.ListDecisionOutcomes(ctx, planID)
+	if err != nil {
+		t.Fatalf("ListDecisionOutcomes: %v", err)
+	}
+	if !hasDecisionOutcome(outcomes, detA.Stage.GateTaskID(), "reject"+exhaustedOutcomeSuffix) {
+		t.Fatalf("missing reject_exhausted outcome before manual reopen: %+v", outcomes)
+	}
+	if _, err := h.svc.ReopenExhaustedStage(ctx, ReopenExhaustedStageCommand{
+		PlanID: planID, StageID: stageA, Reason: "member cannot authorize", IdempotencyKey: "unauthorized", Actor: "user:b",
+	}); !errors.Is(err, ErrStageGateReopenForbidden) {
+		t.Fatalf("unauthorized reopen = %v, want ErrStageGateReopenForbidden", err)
+	}
+
+	res, err := h.svc.ReopenExhaustedStage(ctx, ReopenExhaustedStageCommand{
+		PlanID: planID, StageID: stageA, Reason: "owner approved one isolated rework round", IdempotencyKey: "manual-round-4", Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("ReopenExhaustedStage: %v", err)
+	}
+	if res.Duplicate || res.NewRound != 4 || len(res.Dispatched) != 1 || res.Dispatched[0] != a1 {
+		t.Fatalf("reopen result = %+v, want round 4 dispatch [a1]", res)
+	}
+	detA, _ = h.svc.GetStage(ctx, stageA)
+	if detA.Rounds != 4 {
+		t.Fatalf("manual reopen rounds = %d, want 4", detA.Rounds)
+	}
+	ta1, _ := h.tasks.FindByID(ctx, a1)
+	ta2, _ := h.tasks.FindByID(ctx, a2)
+	tgate, _ := h.tasks.FindByID(ctx, detA.Stage.GateTaskID())
+	if ta1.Status() != pm.TaskReopened || ta2.Status() != pm.TaskReopened || tgate.Status() != pm.TaskReopened {
+		t.Fatalf("stage tasks after manual reopen = a1:%s a2:%s gate:%s, want all reopened", ta1.Status(), ta2.Status(), tgate.Status())
+	}
+	dispatched := dispatchedSet(t, h, planID)
+	if !dispatched[a1] || dispatched[a2] || dispatched[detA.Stage.GateTaskID()] || dispatched[b1] {
+		t.Fatalf("dispatch records after manual reopen = %+v; want only a1 reopened, downstream held", dispatched)
+	}
+	mustNotRunnable(t, h, b1, "b1 after manual extra round starts")
+	outcomes, err = h.plans.ListDecisionOutcomes(ctx, planID)
+	if err != nil {
+		t.Fatalf("ListDecisionOutcomes after reopen: %v", err)
+	}
+	if hasDecisionOutcome(outcomes, detA.Stage.GateTaskID(), "reject"+exhaustedOutcomeSuffix) {
+		t.Fatalf("current exhausted outcome was not cleared after manual reopen: %+v", outcomes)
+	}
+	ledger, ok, err := h.plans.GetStageGateReopenRequest(ctx, planID, stageA, "manual-round-4")
+	if err != nil || !ok {
+		t.Fatalf("GetStageGateReopenRequest ok=%v err=%v", ok, err)
+	}
+	if ledger.PriorRound != 3 || ledger.NewRound != 4 || ledger.Reason == "" {
+		t.Fatalf("ledger = %+v, want prior 3/new 4 with reason", ledger)
+	}
+	audit, _, err := h.audit.ListByObject(ctx, pm.AuditObjectPlan, string(planID), "", 100)
+	if err != nil {
+		t.Fatalf("audit ListByObject: %v", err)
+	}
+	foundAudit := false
+	for _, e := range audit {
+		if e.ChangeType == pm.AuditPlanLoopback && e.ActorRef == "user:a" &&
+			strings.Contains(e.Detail, `"manual":true`) &&
+			strings.Contains(e.Detail, `"idempotency_key":"manual-round-4"`) {
+			foundAudit = true
+			break
+		}
+	}
+	if !foundAudit {
+		t.Fatalf("manual reopen audit entry not found in %d plan audit rows", len(audit))
+	}
+
+	dupe, err := h.svc.ReopenExhaustedStage(ctx, ReopenExhaustedStageCommand{
+		PlanID: planID, StageID: stageA, Reason: "retry same request", IdempotencyKey: "manual-round-4", Actor: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("duplicate ReopenExhaustedStage: %v", err)
+	}
+	if !dupe.Duplicate || dupe.NewRound != 4 || len(dupe.Dispatched) != 0 {
+		t.Fatalf("duplicate result = %+v, want duplicate round 4 with no dispatch", dupe)
+	}
+	detA, _ = h.svc.GetStage(ctx, stageA)
+	if detA.Rounds != 4 {
+		t.Fatalf("duplicate changed rounds to %d, want still 4", detA.Rounds)
+	}
+	if dispatchedSet(t, h, planID)[b1] {
+		t.Fatal("duplicate request released downstream")
+	}
+}
+
 // TestStage_ZeroRegression asserts a plan with NO stages builds a graph with NO stage
 // gate nodes (§8: pm_stages empty + stage_id all empty = today's pure-node DAG).
 func TestStage_ZeroRegression(t *testing.T) {

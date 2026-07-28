@@ -936,7 +936,7 @@ func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, a
 	}
 }
 
-// --- create_stage / get_stage (2026-07-03 plan-stage-model §6) ---------------
+// --- create_stage / get_stage / reopen_exhausted_stage ----------------------
 
 type createStageArgs struct {
 	PlanID             string   `json:"plan_id" jsonschema:"the draft plan to add the stage to"`
@@ -982,6 +982,26 @@ func makeGetStage(cfg Config) mcp.ToolHandlerFor[getStageArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args getStageArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{"agent_id": cfg.AgentID, "stage_id": args.StageID}
 		return callAdmin(ctx, cfg, "get_stage", body)
+	}
+}
+
+type reopenExhaustedStageArgs struct {
+	PlanID         string `json:"plan_id" jsonschema:"the running plan containing the exhausted stage"`
+	StageID        string `json:"stage_id" jsonschema:"the stage whose acceptance gate is currently exhausted/escalated"`
+	Reason         string `json:"reason" jsonschema:"required audit reason explaining why one extra rework round is authorized"`
+	IdempotencyKey string `json:"idempotency_key" jsonschema:"required stable retry key; repeat the same key for a retry of the same request"`
+}
+
+func makeReopenExhaustedStage(cfg Config) mcp.ToolHandlerFor[reopenExhaustedStageArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args reopenExhaustedStageArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":        cfg.AgentID,
+			"plan_id":         args.PlanID,
+			"stage_id":        args.StageID,
+			"reason":          args.Reason,
+			"idempotency_key": args.IdempotencyKey,
+		}
+		return callAdmin(ctx, cfg, "reopen_exhausted_stage", body)
 	}
 }
 

@@ -513,6 +513,44 @@ func (r *PlanRepo) ListReviewVerdicts(ctx context.Context, planID pm.PlanID) ([]
 	return out, rows.Err()
 }
 
+// --- Stage gate extra-round request ledger ---------------------------------
+
+func (r *PlanRepo) RecordStageGateReopenRequest(ctx context.Context, req pm.StageGateReopenRequest) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT INTO pm_stage_gate_reopen_requests
+		 (plan_id, stage_id, idempotency_key, actor_ref, reason, prior_gate_task_id, prior_round, new_round, created_at)
+		 VALUES (?,?,?,?,?,?,?,?,?)`,
+		string(req.PlanID), string(req.StageID), req.IdempotencyKey, string(req.ActorRef), req.Reason,
+		string(req.PriorGateTaskID), req.PriorRound, req.NewRound, ts(req.CreatedAt))
+	if isUnique(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (r *PlanRepo) GetStageGateReopenRequest(ctx context.Context, planID pm.PlanID, stageID pm.StageID, key string) (pm.StageGateReopenRequest, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		`SELECT actor_ref, reason, prior_gate_task_id, prior_round, new_round, created_at
+		 FROM pm_stage_gate_reopen_requests
+		 WHERE plan_id = ? AND stage_id = ? AND idempotency_key = ?`,
+		string(planID), string(stageID), key)
+	req := pm.StageGateReopenRequest{PlanID: planID, StageID: stageID, IdempotencyKey: key}
+	var actorRef, gateTaskID, createdAt string
+	switch err := row.Scan(&actorRef, &req.Reason, &gateTaskID, &req.PriorRound, &req.NewRound, &createdAt); err {
+	case nil:
+		req.ActorRef = pm.IdentityRef(actorRef)
+		req.PriorGateTaskID = pm.TaskID(gateTaskID)
+		req.CreatedAt = parseTime(createdAt)
+		return req, true, nil
+	case sql.ErrNoRows:
+		return pm.StageGateReopenRequest{}, false, nil
+	default:
+		return pm.StageGateReopenRequest{}, false, err
+	}
+}
+
 // --- BlockedOn snapshots (I103 §1) -----------------------------------------
 
 // encodeWaitKeys serializes the wait_keys id list to a stored JSON array. A nil/empty

@@ -36,6 +36,7 @@ type planAdvanceHarness struct {
 	relay      *outbox.Relay
 	clk        *clock.FakeClock
 	actionLogs *pmsql.TaskActionLogRepo
+	audit      *pmsql.AuditLogRepo
 	ctx        context.Context
 }
 

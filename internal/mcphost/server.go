@@ -418,6 +418,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeGetStage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "reopen_exhausted_stage",
+		Description: "Owner/plan-creator recovery for an exhausted Stage acceptance gate. Requires plan_id, stage_id, reason, and idempotency_key. Grants exactly one extra rework round, reopens the existing Stage member/evaluator tasks, dispatches the ready reopened node, preserves historical rejects, and does NOT release downstream stages.",
+	}, makeReopenExhaustedStage(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_plan_dependency",
 		Description: "DEPRECATED — prefer edit_plan_topology (add_edge), which also works on RUNNING plans and batches with node changes atomically. Add an edge to a draft plan's DAG. Default (kind=seq, or omitted) is a hard depends_on: from_task_id runs after to_task_id. For control flow, set kind: 'conditional' routes a branch only when to_task_id (a decision node) completes with outcome==when; 'loopback' is a bounded back-edge — when from_task_id (a decision) completes with outcome==when, the to_task_id subgraph (a forward ancestor, e.g. Dev) re-runs, up to max_rounds. Conditional and loopback REQUIRE when; loopback also requires max_rounds>=1 and its to_task_id must be a forward ancestor. With create_plan + add_task_to_plan this authors a full Decision/loopback cycle plan. Both tasks must already be nodes in the plan; self-edges and forward cycles are rejected.",
 	}, makeAddPlanDep(cfg))

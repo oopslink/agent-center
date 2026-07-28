@@ -152,7 +152,7 @@ var wantTools = []string{
 	"start_plan", "stop_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read
-	"create_stage", "get_stage",
+	"create_stage", "get_stage", "reopen_exhausted_stage",
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared context)
 	"record_finding", "list_findings",
 	// orchestration graph tools are NOT agent-facing (issue-74df441a): the graph is
@@ -186,7 +186,7 @@ var planTools = []string{
 	"start_plan", "stop_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
-	"create_stage", "get_stage",
+	"create_stage", "get_stage", "reopen_exhausted_stage",
 }
 
 func TestInitializeAndListTools(t *testing.T) {

@@ -249,6 +249,13 @@ type PlanRepository interface {
 	GetReviewVerdict(ctx context.Context, planID PlanID, taskID TaskID) (ReviewVerdict, bool, error)
 	ListReviewVerdicts(ctx context.Context, planID PlanID) ([]ReviewVerdict, error)
 
+	// Stage gate extra-round requests are the idempotency ledger for the supported
+	// owner/PD recovery action after an acceptance gate exhausts. The PK is
+	// (plan_id, stage_id, idempotency_key); a duplicate request must not mutate the
+	// graph a second time.
+	RecordStageGateReopenRequest(ctx context.Context, req StageGateReopenRequest) (created bool, err error)
+	GetStageGateReopenRequest(ctx context.Context, planID PlanID, stageID StageID, key string) (StageGateReopenRequest, bool, error)
+
 	// BlockedOn snapshots (I103 §1) — the旁路 OBSERVATIONAL "why is this node not
 	// progressing" descriptor the reconcile sweep materializes per non-terminal node
 	// and clears when the node enters ready/running/terminal. SINGLE-SLOT latest-wins
