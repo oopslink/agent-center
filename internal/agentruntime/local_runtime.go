@@ -578,6 +578,9 @@ func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) 
 		r.signalFatalIfSessionClosed("converse inject", err)
 		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", agentID, err)
 	}
+	if err := r.persistInterruptedConverse(agentID, req); err != nil {
+		return fmt.Errorf("agent_controller: persist interrupted converse agent=%s: %w", agentID, err)
+	}
 	r.recordWake(req.MessageID)
 
 	if err := r.cfg.Reporter.ReportAgentActivity(

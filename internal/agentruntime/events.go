@@ -145,6 +145,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		}
 		r.mu.Unlock()
 		if completedConvID != "" {
+			r.clearInterruptedConverse(agentID)
 			r.log("converse agent=%s conv=%s clean turn completed — cleared in-flight conversation", agentID, completedConvID)
 		}
 		if !isCodex {
@@ -371,6 +372,7 @@ func (r *LocalRuntime) surfaceConverseFailure(agentID, convID string, ev claudes
 		return
 	}
 	r.log("L2 agent=%s conv=%s converse turn failed (is_error, subtype=%q) — system notice posted", agentID, convID, ev.Subtype)
+	r.clearInterruptedConverse(agentID)
 	r.mu.Lock()
 	if r.state.CurrentConversationID == convID {
 		r.state.CurrentConversationID = ""

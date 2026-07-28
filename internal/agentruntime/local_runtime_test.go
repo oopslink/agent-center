@@ -2,11 +2,13 @@ package agentruntime
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 )
 
@@ -87,6 +89,20 @@ func newTestRuntime(t *testing.T) (*LocalRuntime, *nopReporter) {
 	return NewLocalRuntime(cfg, st), rep
 }
 
+func newPersistentTestRuntime(t *testing.T, base string, rep Reporter) *LocalRuntime {
+	t.Helper()
+	if rep == nil {
+		rep = &nopReporter{}
+	}
+	return NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		AgentHomeBase: base,
+		WorkerID:      "worker-test",
+		Reporter:      rep,
+		Log:           func(string, ...any) {},
+	}, &SessionState{})
+}
+
 // TestNotifyWork_InjectsAndSetsState pins the wired NotifyWork inject path: with a
 // live session it injects the brief and records the in-flight work.
 func TestNotifyWork_InjectsAndSetsState(t *testing.T) {
@@ -112,6 +128,67 @@ func TestNotifyWork_NoSessionRetries(t *testing.T) {
 	rt, _ := newTestRuntime(t)
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-x", TaskID: "wi-1"}); err == nil {
 		t.Fatal("expected an error when no running session")
+	}
+}
+
+func TestInterruptedConverseMarkerLifecycle(t *testing.T) {
+	rt := newPersistentTestRuntime(t, t.TempDir(), nil)
+	fs := &fakeSession{}
+	rt.withState(func(s *SessionState) { s.Session = fs })
+	req := ConverseRequest{AgentID: "agent-x", ConversationID: "conv-1", MessageID: "msg-1", MessageText: "hello"}
+
+	if err := rt.NotifyConverse(context.Background(), req); err != nil {
+		t.Fatalf("NotifyConverse: %v", err)
+	}
+	path, err := rt.interruptedConversePath("agent-x")
+	if err != nil {
+		t.Fatalf("interruptedConversePath: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("accepted converse must persist marker: %v", err)
+	}
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result", IsError: false})
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("clean converse turn must clear marker, stat err=%v", err)
+	}
+}
+
+func TestRecoverInterruptedConverseReplaysOnceThenSurfaces(t *testing.T) {
+	base := t.TempDir()
+	rt := newPersistentTestRuntime(t, base, nil)
+	fs := &fakeSession{}
+	rt.withState(func(s *SessionState) { s.Session = fs })
+	req := ConverseRequest{AgentID: "agent-x", ConversationID: "conv-1", MessageID: "msg-1", MessageText: "hello"}
+	if err := rt.NotifyConverse(context.Background(), req); err != nil {
+		t.Fatalf("NotifyConverse: %v", err)
+	}
+
+	rt2 := newPersistentTestRuntime(t, base, nil)
+	fs2 := &fakeSession{}
+	rt2.withState(func(s *SessionState) { s.Session = fs2 })
+	if err := rt2.RecoverInterruptedConverse(context.Background()); err != nil {
+		t.Fatalf("RecoverInterruptedConverse: %v", err)
+	}
+	if got := fs2.msgs(); len(got) != 1 || !strings.Contains(got[0], "hello") {
+		t.Fatalf("recover must replay original converse brief once, got %v", got)
+	}
+
+	rep3 := &recReporter{}
+	rt3 := newPersistentTestRuntime(t, base, rep3)
+	rt3.withState(func(s *SessionState) { s.Session = &fakeSession{} })
+	if err := rt3.RecoverInterruptedConverse(context.Background()); err != nil {
+		t.Fatalf("RecoverInterruptedConverse second: %v", err)
+	}
+	if len(rep3.converse) != 1 || !strings.Contains(rep3.converse[0], "conv-1|agent turn was interrupted") {
+		t.Fatalf("second interrupted recovery must post visible converse error, got %v", rep3.converse)
+	}
+	path, err := rt3.interruptedConversePath("agent-x")
+	if err != nil {
+		t.Fatalf("interruptedConversePath: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("spent recovery must clear marker, stat err=%v", err)
 	}
 }
 

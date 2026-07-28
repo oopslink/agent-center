@@ -124,7 +124,11 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 	// rt.Start → session never starts). Runs AFTER executor self-reconcile (step 3), BEFORE
 	// serving control (step 4) so a later reconcile — if any — hits the rt.Start idempotency
 	// guard and converges on ONE session (no double-start).
-	if !bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf) {
+	if bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf) {
+		if rerr := rt.RecoverInterruptedConverse(ctx); rerr != nil {
+			logf(fmt.Sprintf("agent-runtime agent=%s interrupted-converse recover: %v", opts.AgentID, rerr))
+		}
+	} else {
 		go retryBootStartSupervisorSession(ctx, rt, client, opts, cfg, logf, time.Second)
 	}
 
@@ -388,6 +392,9 @@ func retryBootStartSupervisorSession(ctx context.Context, rt *agentruntime.Local
 			return
 		case <-timer.C:
 			if bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf) {
+				if rerr := rt.RecoverInterruptedConverse(ctx); rerr != nil {
+					logf(fmt.Sprintf("agent-runtime agent=%s interrupted-converse recover: %v", opts.AgentID, rerr))
+				}
 				logf(fmt.Sprintf("agent-runtime agent=%s boot-session retry converged", opts.AgentID))
 				return
 			}
