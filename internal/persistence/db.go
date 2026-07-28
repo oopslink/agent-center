@@ -3,7 +3,9 @@
 //
 // Per 02-persistence-schema § 1.1: driver is modernc.org/sqlite (pure Go, no
 // CGO). Per § 1.2: WAL + busy_timeout=5000 + foreign_keys=ON + synchronous=
-// NORMAL. Per § 5: tx flows through context.
+// NORMAL. Transactions use BEGIN IMMEDIATE so read-then-write application
+// services acquire the writer slot before reading and do not fail later with
+// SQLITE_BUSY_SNAPSHOT under concurrent writes. Per § 5: tx flows through context.
 package persistence
 
 import (
@@ -22,6 +24,7 @@ const (
 	paramBusyTimeout = "_pragma=busy_timeout(5000)"
 	paramForeignKeys = "_pragma=foreign_keys(ON)"
 	paramSync        = "_pragma=synchronous(NORMAL)"
+	paramTxLock      = "_txlock=immediate"
 )
 
 // Open opens a SQLite database at dsn and applies pragmas required by 02-
@@ -76,7 +79,7 @@ func isInMemoryDSN(dsn string) bool {
 // a temp-dir file DB with WAL.
 func MemoryDSN() string {
 	return "file::memory:?" +
-		paramBusyTimeout + "&" + paramForeignKeys + "&" + paramSync
+		paramBusyTimeout + "&" + paramForeignKeys + "&" + paramSync + "&" + paramTxLock
 }
 
 // FileDSN wraps a filesystem path into a "file:..." DSN with required pragmas.
@@ -87,6 +90,7 @@ func FileDSN(path string) string {
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "foreign_keys(ON)")
 	q.Add("_pragma", "synchronous(NORMAL)")
+	q.Set("_txlock", "immediate")
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -126,6 +130,9 @@ func normalizeDSN(in string) (string, error) {
 		if !have[k] {
 			q.Add("_pragma", v)
 		}
+	}
+	if q.Get("_txlock") == "" {
+		q.Set("_txlock", "immediate")
 	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil

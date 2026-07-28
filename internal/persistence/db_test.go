@@ -71,10 +71,20 @@ func TestNormalizeDSN_AppendsMissingPragmas(t *testing.T) {
 		t.Fatalf("normalizeDSN: %v", err)
 	}
 	// URL encoding turns '(' / ')' into %28 / %29; check both forms.
-	for _, want := range []string{"busy_timeout", "foreign_keys", "synchronous"} {
+	for _, want := range []string{"busy_timeout", "foreign_keys", "synchronous", "_txlock=immediate"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("normalizeDSN missing pragma %s: %s", want, out)
 		}
+	}
+}
+
+func TestNormalizeDSN_PreservesExplicitTxLock(t *testing.T) {
+	out, err := normalizeDSN("file:foo.db?_txlock=deferred")
+	if err != nil {
+		t.Fatalf("normalizeDSN: %v", err)
+	}
+	if !strings.Contains(out, "_txlock=deferred") {
+		t.Fatalf("normalizeDSN should preserve explicit txlock: %s", out)
 	}
 }
 
@@ -88,7 +98,7 @@ func TestNormalizeDSN_MemoryShortForm(t *testing.T) {
 	}
 	// Memory DSN intentionally lacks journal_mode (SQLite forces 'memory').
 	// We still expect the rest of the pragmas.
-	for _, want := range []string{"foreign_keys", "busy_timeout", "synchronous"} {
+	for _, want := range []string{"foreign_keys", "busy_timeout", "synchronous", "_txlock=immediate"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("memory DSN missing %s pragma: %s", want, out)
 		}
