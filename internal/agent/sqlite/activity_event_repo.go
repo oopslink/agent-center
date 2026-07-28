@@ -60,6 +60,27 @@ func truncateActivityPayload(payload string) string {
 	if err != nil {
 		return `{"truncated":true}`
 	}
+	for len(b) > maxActivityPayloadBytes && len(prefix) > 0 {
+		excess := len(b) - maxActivityPayloadBytes
+		cut := excess
+		if cut < 1024 {
+			cut = 1024
+		}
+		if cut >= len(prefix) {
+			prefix = ""
+		} else {
+			prefix = prefix[:len(prefix)-cut]
+			for !utf8.ValidString(prefix) && len(prefix) > 0 {
+				prefix = prefix[:len(prefix)-1]
+			}
+		}
+		out["prefix"] = prefix
+		out["omitted_bytes"] = len(payload) - len(prefix)
+		b, err = json.Marshal(out)
+		if err != nil {
+			return `{"truncated":true}`
+		}
+	}
 	return string(b)
 }
 

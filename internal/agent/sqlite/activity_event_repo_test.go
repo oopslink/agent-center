@@ -97,7 +97,7 @@ func TestActivityEventRepo_AppendTruncatesLargePayload(t *testing.T) {
 		t.Fatalf("events = %d, want 1", len(got))
 	}
 	stored := got[0].Payload()
-	if len(stored) > maxActivityPayloadBytes+4096 {
+	if len(stored) > maxActivityPayloadBytes {
 		t.Fatalf("stored payload too large: %d", len(stored))
 	}
 	var env map[string]any
