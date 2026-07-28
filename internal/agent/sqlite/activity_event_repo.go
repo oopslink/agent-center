@@ -3,7 +3,9 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
+	"unicode/utf8"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -12,17 +14,53 @@ import (
 // ActivityEventRepo implements agent.ActivityEventRepository (append-only).
 type ActivityEventRepo struct{ db *sql.DB }
 
+const maxActivityPayloadBytes = 64 * 1024
+
 // NewActivityEventRepo constructs the repo.
 func NewActivityEventRepo(db *sql.DB) *ActivityEventRepo { return &ActivityEventRepo{db: db} }
 
 func (r *ActivityEventRepo) Append(ctx context.Context, e *agent.AgentActivityEvent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	payload := truncateActivityPayload(e.Payload())
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at)
 		 VALUES (?,?,?,?,?,?,?)`,
 		e.ID(), string(e.AgentID()), nullString(e.TaskRef()), nullString(e.InteractionRef()),
-		e.EventType(), e.Payload(), ts(e.OccurredAt()))
+		e.EventType(), payload, ts(e.OccurredAt()))
 	return err
+}
+
+func truncateActivityPayload(payload string) string {
+	if len(payload) <= maxActivityPayloadBytes {
+		return payload
+	}
+	prefix := payload
+	if len(prefix) > maxActivityPayloadBytes {
+		prefix = prefix[:maxActivityPayloadBytes]
+		for !utf8.ValidString(prefix) && len(prefix) > 0 {
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	var probe map[string]any
+	typ := ""
+	if err := json.Unmarshal([]byte(payload), &probe); err == nil {
+		if s, ok := probe["type"].(string); ok {
+			typ = s
+		}
+	}
+	out := map[string]any{
+		"truncated":     true,
+		"omitted_bytes": len(payload) - len(prefix),
+		"prefix":        prefix,
+	}
+	if typ != "" {
+		out["type"] = typ
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return `{"truncated":true}`
+	}
+	return string(b)
 }
 
 // ListByAgent returns an agent's activity events newest-first. v2.8 #274 adds

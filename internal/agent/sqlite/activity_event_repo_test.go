@@ -2,6 +2,8 @@ package sqlite
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,5 +79,32 @@ func TestActivityEventRepo_LatestByAgents_Empty(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("empty input want empty map, got %d", len(got))
+	}
+}
+
+func TestActivityEventRepo_AppendTruncatesLargePayload(t *testing.T) {
+	r := newActivityDB(t)
+	ctx := context.Background()
+	payload := `{"type":"tool_result","tool_result":"` + strings.Repeat("x", maxActivityPayloadBytes*2) + `"}`
+	if err := r.Append(ctx, mkActivity(t, "big-a", "A1", time.Now(), payload)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.ListByAgent(ctx, "A1", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("events = %d, want 1", len(got))
+	}
+	stored := got[0].Payload()
+	if len(stored) > maxActivityPayloadBytes+4096 {
+		t.Fatalf("stored payload too large: %d", len(stored))
+	}
+	var env map[string]any
+	if err := json.Unmarshal([]byte(stored), &env); err != nil {
+		t.Fatalf("stored payload must remain valid JSON: %v", err)
+	}
+	if env["truncated"] != true || env["type"] != "tool_result" {
+		t.Fatalf("unexpected truncation envelope: %+v", env)
 	}
 }
