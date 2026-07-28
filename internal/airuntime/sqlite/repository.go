@@ -15,6 +15,97 @@ type Repository struct{ db *sql.DB }
 
 func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 
+func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutation, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, m.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
+		for _, x := range m.CLIs {
+			features, _ := json.Marshal(x.RequiredFeatures)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_clis(id,org_id,key,display_name,executable,version_constraint,required_features_json,parameter_schema_json,enabled,system,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET
+					display_name=excluded.display_name, executable=excluded.executable,
+					version_constraint=excluded.version_constraint, required_features_json=excluded.required_features_json,
+					parameter_schema_json=excluded.parameter_schema_json, enabled=excluded.enabled,
+					updated_at=excluded.updated_at`,
+				x.ID, m.OrgID, x.Key, x.DisplayName, x.Executable, x.VersionConstraint, string(features),
+				string(x.ParameterSchema), boolInt(x.Enabled), boolInt(x.System), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		for _, x := range m.Models {
+			clis, _ := json.Marshal(x.CompatibleCLIKeys)
+			params, _ := json.Marshal(x.DefaultParameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO pm_model_catalog(id,org_id,model_id,display_name,input_cost,output_cost,context_window,tier,created_by,created_at,updated_at,version,runtime_key,compatible_cli_keys_json,default_parameters_json,enabled)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,runtime_key) DO UPDATE SET
+					model_id=excluded.model_id, display_name=excluded.display_name,
+					input_cost=excluded.input_cost, output_cost=excluded.output_cost,
+					context_window=excluded.context_window, tier=excluded.tier,
+					updated_at=excluded.updated_at, version=pm_model_catalog.version+1,
+					compatible_cli_keys_json=excluded.compatible_cli_keys_json,
+					default_parameters_json=excluded.default_parameters_json, enabled=excluded.enabled`,
+				x.ID, m.OrgID, x.ModelKey, x.DisplayName, x.InputCost, x.OutputCost, x.ContextWindow, x.Tier,
+				a.Actor, stamp(x.CreatedAt), stamp(x.UpdatedAt), 1, x.Key, string(clis), string(params), boolInt(x.Enabled))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		for _, x := range m.Profiles {
+			params, _ := json.Marshal(x.Parameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET
+					name=excluded.name, description=excluded.description, cli_key=excluded.cli_key,
+					model_key=excluded.model_key, parameters_json=excluded.parameters_json,
+					enabled=excluded.enabled, updated_at=excluded.updated_at`,
+				x.ID, m.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params),
+				boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		if m.SetDefaultProfile {
+			if m.DefaultProfileKey == "" {
+				res, err := exec.ExecContext(ctx, `
+					UPDATE ai_runtime_catalogs
+					SET default_profile_id=''
+					WHERE org_id=?`, m.OrgID)
+				if err != nil {
+					return err
+				}
+				if n, _ := res.RowsAffected(); n == 0 {
+					return airuntime.ErrNotFound
+				}
+				return nil
+			}
+			res, err := exec.ExecContext(ctx, `
+				UPDATE ai_runtime_catalogs
+				SET default_profile_id=(
+					SELECT id FROM ai_runtime_profiles
+					WHERE org_id=? AND key=? AND enabled=1
+				)
+				WHERE org_id=?`, m.OrgID, m.DefaultProfileKey, m.OrgID)
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return airuntime.ErrNotFound
+			}
+			var profileID string
+			if err := exec.QueryRowContext(ctx, `SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, m.OrgID).Scan(&profileID); err != nil {
+				return err
+			}
+			if profileID == "" {
+				return airuntime.ErrNotFound
+			}
+		}
+		return nil
+	})
+}
+
 func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Catalog, error) {
 	c := airuntime.Catalog{OrgID: org, CLIs: []airuntime.CLIDefinition{}, Models: []airuntime.ModelDefinition{}, Profiles: []airuntime.RuntimeProfile{}}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

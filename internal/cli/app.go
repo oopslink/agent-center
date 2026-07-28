@@ -82,6 +82,10 @@ type App struct {
 	Clock clock.Clock
 	IDGen idgen.Generator
 
+	// RuntimeImportValidationKey signs AI Runtime Preview/Apply tokens. It is
+	// derived from the restart-stable server master key.
+	RuntimeImportValidationKey []byte
+
 	WorkerRepo workforce.WorkerRepository
 	// PMProjectRepo is the new-model (pm) project repo used by the
 	// operator-scoped CLI project READ handlers (list/show). v2.7 #131
@@ -539,10 +543,16 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	runtimeFsDispatcher := runtimefs.NewDispatcher()
 
 	app := &App{
-		Config:              cfg,
-		DB:                  db,
-		Clock:               clk,
-		IDGen:               gen,
+		Config: cfg,
+		DB:     db,
+		Clock:  clk,
+		IDGen:  gen,
+		RuntimeImportValidationKey: func() []byte {
+			if masterKey == nil {
+				return nil
+			}
+			return masterKey.Bytes()
+		}(),
 		PMService:           pmSvc,
 		CodeRepoService:     codeRepoSvc,
 		OrchService:         orchSvc,

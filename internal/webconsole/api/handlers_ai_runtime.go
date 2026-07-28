@@ -1,11 +1,18 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
+	"gopkg.in/yaml.v3"
 )
 
 type runtimeWrite[T any] struct {
@@ -35,7 +42,7 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &runtimeErr):
 		status := http.StatusBadRequest
-		if runtimeErr.Reason == airuntime.ReasonRevisionConflict {
+		if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
 			status = http.StatusConflict
 		}
 		writeJSON(w, status, runtimeErr)
@@ -44,6 +51,192 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	}
+}
+
+func (s *Server) exportRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	includeDependencies := true
+	if raw := query.Get("include_dependencies"); raw != "" {
+		var err error
+		includeDependencies, err = strconv.ParseBool(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "include_dependencies must be true or false")
+			return
+		}
+	}
+	doc, err := d.RuntimeCatalog.ExportWithOptions(r.Context(), org, airuntime.ExportOptions{
+		Scope:               airuntime.ExportScope(query.Get("scope")),
+		CLIKeys:             splitRuntimeKeys(query.Get("cli_keys")),
+		ModelKeys:           splitRuntimeKeys(query.Get("model_keys")),
+		ProfileKeys:         splitRuntimeKeys(query.Get("profile_keys")),
+		IncludeDependencies: includeDependencies,
+	})
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	format := strings.ToLower(query.Get("format"))
+	if format == "" {
+		format = "yaml"
+	}
+	switch format {
+	case "json":
+		writeJSON(w, http.StatusOK, doc)
+	case "yaml", "yml":
+		var value any
+		raw, _ := json.Marshal(doc)
+		if err := json.Unmarshal(raw, &value); err != nil {
+			writeRuntimeError(w, err)
+			return
+		}
+		out, err := yaml.Marshal(value)
+		if err != nil {
+			writeRuntimeError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(out)
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_input", "format must be yaml or json")
+	}
+}
+
+func (s *Server) previewRuntimeCatalogImportHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.PreviewRequest
+	if err := decodeRuntimeDocument(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_document", err.Error())
+		return
+	}
+	result, err := d.RuntimeCatalog.PreviewImport(r.Context(), org, req)
+	if err != nil {
+		writeRuntimeImportError(w, result.Report, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) applyRuntimeCatalogImportHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ApplyRequest
+	if err := decodeRuntimeDocument(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_document", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.ApplyImport(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		writeRuntimeImportError(w, report, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func writeRuntimeImportError(w http.ResponseWriter, report airuntime.ImportReport, err error) {
+	var runtimeErr *airuntime.Error
+	if errors.As(err, &runtimeErr) {
+		status := http.StatusBadRequest
+		if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
+			status = http.StatusConflict
+		}
+		writeJSON(w, status, map[string]any{"report": report, "error": runtimeErr})
+		return
+	}
+	writeRuntimeError(w, err)
+}
+
+func decodeRuntimeDocument(r *http.Request, dst any) error {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+	if err != nil {
+		return err
+	}
+	contentType := strings.ToLower(strings.Split(r.Header.Get("Content-Type"), ";")[0])
+	if contentType == "application/yaml" || contentType == "text/yaml" || contentType == "application/x-yaml" {
+		var value any
+		if err := yaml.Unmarshal(raw, &value); err != nil {
+			return err
+		}
+		normalized, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		raw = normalized
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return err
+	}
+	preview, ok := dst.(*airuntime.PreviewRequest)
+	if !ok {
+		return nil
+	}
+	preview.Warnings = runtimeUnknownFieldWarnings(value)
+	return nil
+}
+
+func runtimeUnknownFieldWarnings(value any) []airuntime.Diagnostic {
+	root, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	var out []airuntime.Diagnostic
+	visitUnknown := func(object map[string]any, path string, allowed map[string]bool) {
+		for key := range object {
+			if !allowed[key] {
+				out = append(out, airuntime.Diagnostic{
+					Code: airuntime.ReasonImportUnknownField, Severity: "warning",
+					Path: path + "." + key, Message: "unknown schema v1 field was ignored",
+				})
+			}
+		}
+	}
+	visitUnknown(root, "$", map[string]bool{"strategy": true, "document": true})
+	doc, _ := root["document"].(map[string]any)
+	visitUnknown(doc, "$.document", map[string]bool{"schema_version": true, "kind": true, "exported_at": true, "runtime": true, "warnings": true})
+	runtime, _ := doc["runtime"].(map[string]any)
+	visitUnknown(runtime, "$.document.runtime", map[string]bool{"default_profile_key": true, "clis": true, "models": true, "profiles": true})
+	scanList := func(raw any, path string, allowed map[string]bool) {
+		items, _ := raw.([]any)
+		for i, item := range items {
+			object, _ := item.(map[string]any)
+			visitUnknown(object, fmt.Sprintf("%s[%d]", path, i), allowed)
+		}
+	}
+	scanList(runtime["clis"], "$.document.runtime.clis", map[string]bool{
+		"key": true, "display_name": true, "executable": true, "version_constraint": true,
+		"required_features": true, "parameter_schema": true, "enabled": true,
+	})
+	scanList(runtime["models"], "$.document.runtime.models", map[string]bool{
+		"key": true, "model_key": true, "display_name": true, "compatible_cli_keys": true,
+		"default_parameters": true, "enabled": true, "context_window": true,
+		"input_cost_per_mtok": true, "output_cost_per_mtok": true, "tier": true,
+	})
+	scanList(runtime["profiles"], "$.document.runtime.profiles", map[string]bool{
+		"key": true, "name": true, "description": true, "cli_key": true,
+		"model_key": true, "parameters": true, "enabled": true,
+	})
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+func splitRuntimeKeys(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return strings.Split(raw, ",")
 }
 
 func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
