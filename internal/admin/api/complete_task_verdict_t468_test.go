@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 // T468: completing a task with review_verdict plumbs the structured verdict through
@@ -117,5 +118,95 @@ func TestCompleteTask_InvalidReviewVerdict_Rejected_T468(t *testing.T) {
 	// The task must NOT have completed (the tx rolled back).
 	if st := f.taskStatus(t, tid); st != pm.TaskRunning {
 		t.Fatalf("task status = %s, want running (completion rolled back with the bad verdict)", st)
+	}
+}
+
+func TestCompleteTask_StageGateRejectAtomicallyReopensMembersAndReplayIsIdempotent(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv := f.server(t)
+	ctx := context.Background()
+	pid, planIDRaw := f.seedPlanMember(t)
+	planID := pm.PlanID(planIDRaw)
+
+	spec := pm.DefaultHumanGateSpec(pm.IdentityRef("agent:" + atAgent1))
+	spec.AcceptanceContract = "Reject until the reviewed SHA passes the acceptance suite."
+	stageID, err := f.pmSvc.CreateStage(ctx, pmservice.CreateStageCommand{
+		PlanID: planID, Name: "Build", MaxRounds: 3, GateSpec: spec,
+		Actor: pm.IdentityRef("agent:" + atAgent1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberID := pm.TaskID(f.seedPlanTask(t, pid, planIDRaw))
+	if err := f.pmSvc.AssignTaskToStage(ctx, planID, memberID, stageID,
+		pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pmSvc.StartPlan(ctx, planID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pmSvc.AdvancePlan(ctx, planID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pmSvc.StartTask(ctx, memberID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pmSvc.CompleteTask(ctx, memberID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pmSvc.AdvancePlan(ctx, planID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	stage, err := f.pmSvc.GetStage(ctx, stageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateTaskID := stage.Stage.GateTaskID()
+	if err := f.pmSvc.StartTask(ctx, gateTaskID, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  string(gateTaskID),
+		"delivery": map[string]any{
+			"summary": "blocking regression remains",
+			"outcome": "reject",
+			"review": map[string]any{
+				"verdict": "reject", "blocking": true,
+				"reason": "blocking regression remains", "sha": "3f956f29",
+			},
+		},
+	}
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1", payload)
+	if status != http.StatusOK {
+		t.Fatalf("first reject status=%d body=%v", status, body)
+	}
+	member, err := f.pmSvc.GetTask(ctx, memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if member.Status() != pm.TaskReopened {
+		t.Fatalf("member status after reject = %s, want reopened", member.Status())
+	}
+	stage, err = f.pmSvc.GetStage(ctx, stageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stage.Rounds != 1 {
+		t.Fatalf("rounds after reject = %d, want 1", stage.Rounds)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1", payload)
+	if status != http.StatusOK {
+		t.Fatalf("idempotent replay status=%d body=%v", status, body)
+	}
+	stage, err = f.pmSvc.GetStage(ctx, stageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stage.Rounds != 1 {
+		t.Fatalf("rounds after identical replay = %d, want 1", stage.Rounds)
 	}
 }

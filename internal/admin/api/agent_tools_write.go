@@ -1030,11 +1030,13 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// NotifyDecisionDeferred AFTER the tx.
 	manualOutcome := strings.TrimSpace(deliveryOutcome)
 	stageGate := false
-	if _, isGate, gerr := d.PMService.StageForGateTask(r.Context(), pm.TaskID(req.TaskID)); gerr != nil {
+	var stageGatePlanID pm.PlanID
+	if gateStage, isGate, gerr := d.PMService.StageForGateTask(r.Context(), pm.TaskID(req.TaskID)); gerr != nil {
 		mapDomainError(w, gerr)
 		return
 	} else if isGate {
 		stageGate = true
+		stageGatePlanID = gateStage.PlanID()
 		if manualOutcome != "pass" && manualOutcome != "reject" {
 			writeError(w, http.StatusBadRequest, "missing_gate_outcome", "stage gate completion requires outcome=pass|reject")
 			return
@@ -1052,6 +1054,36 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		reviewVerdict = manualOutcome
 		reviewBlocking = manualOutcome == pm.ReviewReject
 		reviewReason = deliverySummary
+		gateTask, terr := d.PMService.GetTask(r.Context(), pm.TaskID(req.TaskID))
+		if terr != nil {
+			mapDomainError(w, terr)
+			return
+		}
+		if gateTask.Status() != pm.TaskRunning {
+			// A bounded reject reopens the evaluator task along with its stage
+			// subgraph. An HTTP retry can therefore arrive while the task is Reopened,
+			// not Completed. Match the durable verdict ledger before the run-state
+			// guard so an identical retry is a no-op, while a new verdict must wait for
+			// the members to finish and the evaluator to be started in the new round.
+			verdicts, verr := d.PMService.ListReviewVerdicts(r.Context(), stageGatePlanID,
+				pm.IdentityRef(agentActor(a)))
+			if verr != nil {
+				mapDomainError(w, verr)
+				return
+			}
+			for _, verdict := range verdicts {
+				if verdict.TaskID == pm.TaskID(req.TaskID) &&
+					verdict.Verdict == manualOutcome &&
+					verdict.SHA == strings.TrimSpace(reviewSHA) &&
+					verdict.Reason == strings.TrimSpace(deliverySummary) {
+					writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+					return
+				}
+			}
+			writeError(w, http.StatusConflict, "stage_gate_not_running",
+				"stage gate must wait for reopened members and be started before recording a new verdict")
+			return
+		}
 	}
 	// issue-74df441a deferred-decision recovery: a DECISION node can end up
 	// already-completed WITHOUT its outcome recorded (deferred to a human). Re-running
@@ -1119,8 +1151,19 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		// auto-advance (driveGraphDecisions) routes its conditional/loopback edges.
 		// No-op for an ordinary task / a decision left undecided (deferred to a human).
 		if manualOutcome != "" {
-			return d.PMService.RecordDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
-				manualOutcome, pm.IdentityRef(agentActor(a)))
+			if err := d.PMService.RecordDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
+				manualOutcome, pm.IdentityRef(agentActor(a))); err != nil {
+				return err
+			}
+			if stageGate {
+				// A stage-gate verdict owns its round/loopback projection. Drive it
+				// before committing the completion transaction so completed gate +
+				// verdict + round bump + reopened members + dispatch records cannot
+				// be split by a crash or delayed projector sweep.
+				_, err := d.PMService.AdvancePlan(txCtx, stageGatePlanID,
+					pm.IdentityRef(agentActor(a)))
+				return err
+			}
 		}
 		return nil
 	})
