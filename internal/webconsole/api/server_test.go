@@ -626,7 +626,7 @@ func TestAPI_Bootstrap_ReflectsUserExistence(t *testing.T) {
 	}
 }
 
-func TestAPI_SigninCookieSecureFollowsRequestScheme(t *testing.T) {
+func TestAPI_SigninCookieDoesNotTrustForwardedProto(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	deps.SigninSvc = identity.NewSigninService(deps.IdentityRepo, testSigningKey)
 	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
@@ -640,8 +640,8 @@ func TestAPI_SigninCookieSecureFollowsRequestScheme(t *testing.T) {
 	}
 
 	cookie = signinCookie(t, s.URL, true)
-	if !cookie.Secure {
-		t.Fatal("HTTPS-forwarded signin cookie must be Secure")
+	if cookie.Secure {
+		t.Fatal("HTTP signin cookie must ignore forwarded proto; a stray proxy header would make browsers drop the session")
 	}
 }
 
