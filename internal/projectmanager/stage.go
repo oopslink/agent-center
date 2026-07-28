@@ -46,6 +46,22 @@ type Stage struct {
 	version   int
 }
 
+// StageGateReopenRequest is the durable idempotency/audit boundary for the
+// owner/PD recovery action that grants one extra rework round after a stage gate
+// has exhausted. Historical gate verdicts/outcomes stay in their own ledgers; this
+// row records the explicit authorization request exactly once.
+type StageGateReopenRequest struct {
+	PlanID          PlanID
+	StageID         StageID
+	IdempotencyKey  string
+	ActorRef        IdentityRef
+	Reason          string
+	PriorGateTaskID TaskID
+	PriorRound      int
+	NewRound        int
+	CreatedAt       time.Time
+}
+
 type GateEvaluatorKind string
 
 const (

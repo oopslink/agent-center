@@ -47,6 +47,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 	plans := pmsql.NewPlanRepo(db)
 	tasks := pmsql.NewTaskRepo(db)
 	actionLogs := pmsql.NewTaskActionLogRepo(db, gen)
+	auditRepo := pmsql.NewAuditLogRepo(db, gen)
 	orchSvc := orch.NewService(orch.ServiceDeps{
 		DB: db, Graphs: orchsql.NewGraphRepo(db), Nodes: orchsql.NewNodeRepo(db),
 		Edges: orchsql.NewEdgeRepo(db), IDGen: gen, Clock: clk,
@@ -60,14 +61,14 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		OrgSeq:         pmsql.NewOrgSequenceRepo(db),
 		AgentDir:       allOrgDir("org-1"),
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
-		Orch:           orchSvc,                        // T768: graph-backed dispatch
-		Stages:         pmsql.NewStageRepo(db),         // 2026-07-03 plan-stage-model: Stage落图/driver
-		Audit:          pmsql.NewAuditLogRepo(db, gen), // v2.29: change-ledger (decision_outcome/loopback write-points)
+		Orch:           orchSvc,                // T768: graph-backed dispatch
+		Stages:         pmsql.NewStageRepo(db), // 2026-07-03 plan-stage-model: Stage落图/driver
+		Audit:          auditRepo,              // v2.29: change-ledger (decision_outcome/loopback write-points)
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	h := &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, ctx: context.Background()}
+	h := &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
 	return h, orchSvc
 }
 

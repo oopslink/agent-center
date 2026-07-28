@@ -71,6 +71,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"list_plans", "list a project's plans"},
 	{"delete_plan", "delete a draft plan"},
 	{"archive_plan", "archive a finished plan"},
+	{"reopen_exhausted_stage", "grant one audited extra rework round for an exhausted stage gate"},
 	// plan shared findings
 	{"record_finding", "record a shared finding on a plan"},
 	{"list_findings", "list a plan's shared findings"},

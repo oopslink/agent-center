@@ -496,6 +496,7 @@ func (s *Server) routes() {
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
 	s.mux.HandleFunc("POST /admin/agent-tools/create_stage", s.createStageHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_stage", s.getStageHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reopen_exhausted_stage", s.reopenExhaustedStageHandler)
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
 	s.mux.HandleFunc("POST /admin/agent-tools/record_finding", s.recordFindingHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_findings", s.listFindingsHandler)
