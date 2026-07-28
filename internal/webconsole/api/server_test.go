@@ -645,6 +645,41 @@ func TestAPI_SigninCookieSecureFollowsRequestScheme(t *testing.T) {
 	}
 }
 
+func TestAPI_SigninAcceptsEmailLogin(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.SigninSvc = identity.NewSigninService(deps.IdentityRepo, testSigningKey)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+	sess := setupTestSession(t, db, deps)
+
+	ident, err := deps.IdentityRepo.GetByID(context.Background(), sess.IdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ident.SetEmail("Owner@Example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.IdentityRepo.Update(context.Background(), ident); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, s.URL+"/api/auth/signin", strings.NewReader(`{"login":"owner@example.com","passcode":"123456"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("signin: status=%d body=%s", resp.StatusCode, body)
+	}
+}
+
 func signinCookie(t *testing.T, base string, forwardedHTTPS bool) *http.Cookie {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, base+"/api/auth/signin", strings.NewReader(`{"display_name":"testuser","passcode":"123456"}`))

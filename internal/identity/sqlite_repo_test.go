@@ -69,6 +69,29 @@ func TestSQLiteIdentityRepo_GetByDisplayName(t *testing.T) {
 	}
 }
 
+func TestSQLiteIdentityRepo_GetByEmail(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewSQLiteIdentityRepo(db)
+	ctx := context.Background()
+
+	f := IdentityFactory{}
+	id, _ := f.NewUser("EmailUser", "hash")
+	if err := id.SetEmail("Owner@Example.COM"); err != nil {
+		t.Fatalf("SetEmail: %v", err)
+	}
+	if err := repo.Save(ctx, id); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := repo.GetByEmail(ctx, " owner@example.com ")
+	if err != nil {
+		t.Fatalf("GetByEmail: %v", err)
+	}
+	if got.ID() != id.ID() {
+		t.Error("id mismatch")
+	}
+}
+
 func TestSQLiteIdentityRepo_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewSQLiteIdentityRepo(db)

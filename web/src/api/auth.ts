@@ -18,7 +18,8 @@ export interface SignupResult {
 }
 
 export interface SigninPayload {
-  display_name: string;
+  login: string;
+  display_name?: string;
   passcode: string;
 }
 

@@ -177,11 +177,11 @@ func TestSigninService_Execute(t *testing.T) {
 	signingKey := testSigningKey()
 	signinSvc := NewSigninService(idRepo, signingKey)
 
-	form := SignupForm{DisplayName: "LoginUser", PasscodePlain: "Passw0rd1!", OrganizationName: "Org", OrganizationSlug: "login-org"}
+	form := SignupForm{DisplayName: "LoginUser", Email: "login@example.com", PasscodePlain: "Passw0rd1!", OrganizationName: "Org", OrganizationSlug: "login-org"}
 	signupSvc.Execute(ctx, form)
 
-	t.Run("correct credentials", func(t *testing.T) {
-		result, err := signinSvc.Execute(ctx, "LoginUser", "Passw0rd1!")
+	t.Run("correct email credentials", func(t *testing.T) {
+		result, err := signinSvc.Execute(ctx, "LOGIN@example.com", "Passw0rd1!")
 		if err != nil {
 			t.Fatalf("expected success, got: %v", err)
 		}
@@ -198,8 +198,18 @@ func TestSigninService_Execute(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy display name credentials", func(t *testing.T) {
+		result, err := signinSvc.Execute(ctx, "LoginUser", "Passw0rd1!")
+		if err != nil {
+			t.Fatalf("expected success, got: %v", err)
+		}
+		if result.JWT == "" {
+			t.Error("expected non-empty JWT")
+		}
+	})
+
 	t.Run("wrong passcode", func(t *testing.T) {
-		_, err := signinSvc.Execute(ctx, "LoginUser", "000000")
+		_, err := signinSvc.Execute(ctx, "login@example.com", "000000")
 		if err != ErrPasscodeInvalid {
 			t.Errorf("expected ErrPasscodeInvalid, got %v", err)
 		}

@@ -8,6 +8,7 @@ type IdentityRepository interface {
 	Update(ctx context.Context, id *Identity) error
 	GetByID(ctx context.Context, id string) (*Identity, error)
 	GetByDisplayName(ctx context.Context, name string) (*Identity, error)
+	GetByEmail(ctx context.Context, email string) (*Identity, error)
 	List(ctx context.Context) ([]*Identity, error)
 	// Delete hard-removes an Identity row by id. v2.7 #197: currently used ONLY by
 	// the agent-delete cascade (delete the execution agent + its agent-identity +

@@ -216,10 +216,12 @@ func NewSigninServiceWithSink(identities IdentityRepository, signingKey []byte, 
 	return &SigninService{identities: identities, signingKey: signingKey, sink: sink}
 }
 
-// Execute authenticates and returns a JWT. Returns ErrPasscodeInvalid on any
-// auth failure (no enumeration leakage).
-func (s *SigninService) Execute(ctx context.Context, displayName, passcodePlain string) (*SigninResult, error) {
-	identity, err := s.identities.GetByDisplayName(ctx, displayName)
+// Execute authenticates and returns a JWT. login is the stable credential
+// identifier: email for current users, with display_name kept as a legacy fallback.
+// Returns ErrPasscodeInvalid on any auth failure (no enumeration leakage).
+func (s *SigninService) Execute(ctx context.Context, login, passcodePlain string) (*SigninResult, error) {
+	login = strings.TrimSpace(login)
+	identity, err := s.lookupLogin(ctx, login)
 	if err != nil || identity == nil {
 		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{}, observability.Actor("system"), map[string]any{"reason": "not_found", "message": "identity not found"})
 		return nil, ErrPasscodeInvalid
@@ -249,6 +251,15 @@ func (s *SigninService) Execute(ctx context.Context, displayName, passcodePlain 
 	identity.RecordSession(time.Now())
 	_ = s.identities.Update(ctx, identity)
 	return &SigninResult{IdentityID: identity.ID(), JWT: token, Jti: jti}, nil
+}
+
+func (s *SigninService) lookupLogin(ctx context.Context, login string) (*Identity, error) {
+	if strings.Contains(login, "@") {
+		if identity, err := s.identities.GetByEmail(ctx, login); err == nil && identity != nil {
+			return identity, nil
+		}
+	}
+	return s.identities.GetByDisplayName(ctx, login)
 }
 
 // ============================================================

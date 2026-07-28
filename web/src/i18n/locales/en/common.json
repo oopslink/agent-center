@@ -125,8 +125,8 @@
   "signin": {
     "title": "Sign in",
     "subtitle": "Sign in with your Agent Center account",
-    "displayNameLabel": "Display name",
-    "displayNamePlaceholder": "Your name",
+    "loginLabel": "Email",
+    "loginPlaceholder": "you@example.com",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Your password",
     "submit": "Sign in",
@@ -134,7 +134,7 @@
     "noAccount": "Don't have an account?",
     "signupLink": "Sign up",
     "errors": {
-      "invalidCredentials": "Incorrect display name or password",
+      "invalidCredentials": "Incorrect email or password",
       "generic": "Sign-in failed, please try again later"
     }
   },

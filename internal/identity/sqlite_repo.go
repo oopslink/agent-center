@@ -178,6 +178,21 @@ func (r *SQLiteIdentityRepo) GetByDisplayName(ctx context.Context, name string) 
 	return scanIdentity(row)
 }
 
+// GetByEmail returns a user Identity by email. Email is a credential identifier,
+// so lookup is case-insensitive and ignores surrounding whitespace.
+func (r *SQLiteIdentityRepo) GetByEmail(ctx context.Context, email string) (*Identity, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	e := strings.TrimSpace(email)
+	const q = `SELECT id, kind, display_name, description, account_status,
+		passcode_hash, passcode_set_at, created_at, updated_at, email, last_session_at
+		FROM identities WHERE lower(email)=lower(?) AND kind='user'`
+	row := exec.QueryRowContext(ctx, q, e)
+	return scanIdentity(row)
+}
+
 // List returns all identities.
 func (r *SQLiteIdentityRepo) List(ctx context.Context) ([]*Identity, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)

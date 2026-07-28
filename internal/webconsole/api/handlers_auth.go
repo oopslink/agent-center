@@ -91,6 +91,7 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
+		Login       string `json:"login"`
 		DisplayName string `json:"display_name"`
 		Passcode    string `json:"passcode"`
 	}
@@ -98,9 +99,13 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	res, err := d.SigninSvc.Execute(r.Context(), body.DisplayName, body.Passcode)
+	login := strings.TrimSpace(body.Login)
+	if login == "" {
+		login = body.DisplayName
+	}
+	res, err := d.SigninSvc.Execute(r.Context(), login, body.Passcode)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "auth_failed", "invalid display name or passcode")
+		writeError(w, http.StatusUnauthorized, "auth_failed", "invalid login or passcode")
 		return
 	}
 	setSessionCookie(w, r, res.JWT)
