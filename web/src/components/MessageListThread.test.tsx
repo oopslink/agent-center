@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render as rtlRender, screen } from '@testing-library/react';
+import { cleanup, render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import type React from 'react';
@@ -74,8 +74,10 @@ describe('MessageList thread affordance', () => {
         messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: true })]}
       />,
     );
-    expect(screen.getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
-    expect(screen.getByTestId('thread-preview-activity-dot')).toBeInTheDocument();
+    const panel = screen.getByTestId('thread-preview-panel');
+    expect(within(panel).getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
+    expect(within(panel).getByText('new')).toBeInTheDocument();
+    expect(within(panel).getByTestId('thread-preview-activity-dot')).toBeInTheDocument();
     expect(await screen.findAllByTestId('thread-preview-reply')).toHaveLength(3);
     expect(screen.getByTestId('thread-preview-earlier')).toHaveTextContent('1 earlier reply');
   });
@@ -91,8 +93,25 @@ describe('MessageList thread affordance', () => {
         messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: false })]}
       />,
     );
-    expect(screen.getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
+    const panel = screen.getByTestId('thread-preview-panel');
+    expect(within(panel).getByTestId('thread-preview-chip')).toHaveTextContent('4 replies');
+    expect(within(panel).getByText('seen')).toBeInTheDocument();
     expect(screen.queryByTestId('thread-preview-activity-dot')).toBeNull();
+  });
+
+  it('keeps thread metadata inside the attached preview and aligns it with its root bubble', () => {
+    server.use(
+      http.get('/api/conversations/:id/messages/:mid/replies', () =>
+        HttpResponse.json([], { status: 200 }),
+      ),
+    );
+    render(<MessageList messages={[msg({ reply_count: 1 })]} />);
+    const preview = screen.getByTestId('thread-preview');
+    const panel = within(preview).getByTestId('thread-preview-panel');
+    expect(preview).toHaveAttribute('data-align', 'right');
+    expect(within(panel).getByTestId('thread-preview-header')).toContainElement(
+      within(panel).getByTestId('thread-preview-chip'),
+    );
   });
 
   it('hides the thread button when showThreads is false (used inside a thread)', () => {

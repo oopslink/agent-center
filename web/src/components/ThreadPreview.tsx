@@ -42,57 +42,60 @@ export function ThreadPreview({
 
   return (
     <section
-      className={`mt-1.5 w-full max-w-full md:max-w-[75%] ${align === 'right' ? 'self-end' : ''}`}
+      className={`mt-0.5 w-full max-w-full md:max-w-[75%] ${align === 'right' ? 'self-end' : ''}`}
       data-testid="thread-preview"
       data-root-id={rootMessage.id}
+      data-align={align}
     >
       <button
         type="button"
         onClick={onOpenThread}
-        data-testid="thread-preview-chip"
+        data-testid="thread-preview-panel"
         aria-label={t('threadPreview.openThread', { count: replyCount })}
         title={t('threadPreview.openThread', { count: replyCount })}
-        className={`mb-2 inline-flex min-h-8 items-center gap-1.5 rounded border border-border-strong bg-bg-base px-2.5 py-1 text-xs font-semibold text-text-primary shadow-sm hover:bg-bg-subtle focus-visible:ring-2 focus-visible:ring-accent ${
-          align === 'right' ? 'float-right' : ''
+        className={`block w-full rounded-b-lg rounded-t-sm border border-border-base bg-bg-base px-3 py-2 text-left hover:border-border-strong hover:bg-bg-subtle focus-visible:ring-2 focus-visible:ring-accent ${
+          align === 'right'
+            ? 'border-r-2 border-r-border-strong text-right'
+            : 'border-l-2 border-l-border-strong'
         }`}
       >
-        <svg
-          viewBox="0 0 20 20"
-          fill="none"
-          className="h-3.5 w-3.5 stroke-current"
-          strokeWidth="1.7"
-          aria-hidden="true"
+        <div
+          className="mb-1.5 flex items-center gap-2 border-b border-border-base pb-1.5"
+          data-testid="thread-preview-header"
         >
-          <path d="M2.75 10s2.6-4.25 7.25-4.25S17.25 10 17.25 10s-2.6 4.25-7.25 4.25S2.75 10 2.75 10z" />
-          <circle cx="10" cy="10" r="1.8" />
-        </svg>
-        <span>{t('threadPreview.chip', { count: replyCount, id: rootMessage.id.slice(-4) })}</span>
-        {hasActivity && (
           <span
-            className="h-2 w-2 rounded-full bg-accent"
-            data-testid="thread-preview-activity-dot"
-            aria-hidden="true"
-          />
-        )}
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenThread}
-        data-testid="thread-preview-panel"
-        className={`clear-both block w-full rounded border border-border-base bg-bg-subtle px-3 py-2 text-left shadow-sm hover:border-border-strong hover:bg-bg-base focus-visible:ring-2 focus-visible:ring-accent ${
-          align === 'right' ? 'text-right' : ''
-        }`}
-      >
-        <div className={`mb-1 flex items-center gap-2 ${align === 'right' ? 'justify-end' : ''}`}>
+            className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-text-primary"
+            data-testid="thread-preview-chip"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-3.5 w-3.5 shrink-0 stroke-current"
+              strokeWidth="1.7"
+              aria-hidden="true"
+            >
+              <path d="M2.75 10s2.6-4.25 7.25-4.25S17.25 10 17.25 10s-2.6 4.25-7.25 4.25S2.75 10 2.75 10z" />
+              <circle cx="10" cy="10" r="1.8" />
+            </svg>
+            <span className="truncate">
+              {t('threadPreview.chip', { count: replyCount, id: rootMessage.id.slice(-4) })}
+            </span>
+            {hasActivity && (
+              <span
+                className="h-2 w-2 shrink-0 rounded-full bg-accent"
+                data-testid="thread-preview-activity-dot"
+                aria-hidden="true"
+              />
+            )}
+          </span>
+          <span className="ml-auto text-[0.625rem] font-medium uppercase text-text-muted">
+            {statusLabel}
+          </span>
           {earlierCount > 0 && (
             <span className="text-xs font-semibold text-text-secondary" data-testid="thread-preview-earlier">
               {t('threadPreview.earlierReplies', { count: earlierCount })}
             </span>
           )}
-          <span className="text-[0.625rem] font-medium uppercase text-text-muted">
-            {statusLabel}
-          </span>
         </div>
 
         {replies.isLoading && (
