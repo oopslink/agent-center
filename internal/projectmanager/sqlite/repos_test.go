@@ -418,6 +418,7 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, a1)   // a1 doing
 	save("T2", "PB", pm.TaskOpen, a1)      // a1 pending (other project)
 	save("T3", "PA", pm.TaskOpen, a1)      // a1 pending
+	save("T7", "PA", pm.TaskReopened, a1)  // a1 pending (re-dispatchable)
 	save("T4", "PA", pm.TaskRunning, a2)   // a2 doing
 	save("T5", "PA", pm.TaskCompleted, a1) // terminal — excluded
 	save("T6", "PA", pm.TaskOpen, "")      // unassigned — excluded
@@ -426,8 +427,8 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got[a1].Running != 1 || got[a1].Pending != 2 {
-		t.Fatalf("a1: got %+v want {Running:1 Pending:2}", got[a1])
+	if got[a1].Running != 1 || got[a1].Pending != 3 {
+		t.Fatalf("a1: got %+v want {Running:1 Pending:3}", got[a1])
 	}
 	if got[a2].Running != 1 || got[a2].Pending != 0 {
 		t.Fatalf("a2: got %+v want {Running:1 Pending:0}", got[a2])

@@ -383,7 +383,7 @@ func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.
 }
 
 // CountActiveByAssignee returns, per assignee, the active-task split (Running
-// "doing" + Pending "open") across ALL projects in ONE grouped scan — the
+// "doing" + Pending "open/reopened/blocked") across ALL projects in ONE grouped scan — the
 // agent-load metric source (T342). Terminal tasks and unassigned rows are
 // excluded. A blocked task is still status=running (blocked_reason set), so it
 // counts as Running (the agent is on it).
@@ -396,11 +396,11 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		`SELECT t.assignee, t.status, COUNT(*) FROM pm_tasks t
-		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?, ?)
+		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?, ?, ?)
 		     AND (t.plan_id IS NULL OR t.plan_id = ''
 		          OR t.plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   GROUP BY t.assignee, t.status`,
-		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskBlocked),
+		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskReopened), string(pm.TaskBlocked),
 		string(pm.PlanArchived), string(pm.PlanDone))
 	if err != nil {
 		return nil, err
@@ -422,7 +422,7 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 		switch pm.TaskStatus(status) {
 		case pm.TaskRunning:
 			l.Running += n
-		case pm.TaskOpen, pm.TaskBlocked:
+		case pm.TaskOpen, pm.TaskReopened, pm.TaskBlocked:
 			l.Pending += n
 		}
 		out[pm.IdentityRef(assignee)] = l
@@ -431,7 +431,7 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 }
 
 // ListActiveByAssignee returns the actual task rows that CountActiveByAssignee
-// counts for one assignee: non-terminal (open/running/blocked) tasks that are
+// counts for one assignee: non-terminal (open/reopened/running/blocked) tasks that are
 // NOT in a terminal (archived/done) plan, stable-ordered (created_at, id). It is the
 // list-shaped twin of the backlog metric, so the Agent-detail Tasks panel can
 // show EXACTLY the set the "backlog: N" badge counts — including tasks whose
@@ -442,12 +442,12 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 func (r *TaskRepo) ListActiveByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		taskSelect+` WHERE assignee = ? AND status IN (?, ?, ?)
+		taskSelect+` WHERE assignee = ? AND status IN (?, ?, ?, ?)
 		     AND (plan_id IS NULL OR plan_id = ''
 		          OR plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   ORDER BY created_at, id`,
 		string(assignee),
-		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskBlocked),
+		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskReopened), string(pm.TaskBlocked),
 		string(pm.PlanArchived), string(pm.PlanDone))
 	if err != nil {
 		return nil, err

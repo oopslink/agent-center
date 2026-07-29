@@ -20,8 +20,8 @@ type dispatchPMReads interface {
 	// AgentFreedFromTask reports whether the task no longer occupies its agent's single-active
 	// slot (terminal, or blocked-running) — the re-push "is the agent free now?" gate.
 	AgentFreedFromTask(ctx context.Context, taskID pm.TaskID) (bool, error)
-	// ListRunnableAgentTasks lists the assignee's deps-satisfied open-or-running tasks (the
-	// same query list_my_tasks uses); firstOpenTaskID picks the next startable one.
+	// ListRunnableAgentTasks lists the assignee's deps-satisfied dispatchable tasks (the
+	// same query list_my_tasks uses); firstQueuedTaskID picks the next startable one.
 	ListRunnableAgentTasks(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error)
 }
 
@@ -47,7 +47,7 @@ func buildAssignTarget(pmr dispatchPMReads, ar sweepAgentReads) func(context.Con
 }
 
 // buildRepushTarget produces the RepushTarget resolver for the re-push trigger: when an
-// agent's task frees its slot (AgentFreedFromTask) AND the agent has another OPEN runnable
+// agent's task frees its slot (AgentFreedFromTask) AND the agent has another queued runnable
 // assigned task, return that next task's wake target; else ok=false. The status/prevStatus
 // hint lets us skip the common open→running start without any read (a fresh start can never
 // free the slot, and ListRunnableAgentTasks would otherwise count the just-started running
@@ -75,7 +75,7 @@ func buildRepushTarget(pmr dispatchPMReads, ar sweepAgentReads) func(context.Con
 		if err != nil {
 			return envservice.DispatchWakeTarget{}, false, err
 		}
-		next := firstOpenTaskID(runnable)
+		next := firstQueuedTaskID(runnable)
 		if next == "" {
 			return envservice.DispatchWakeTarget{}, false, nil // nothing else startable
 		}

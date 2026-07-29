@@ -72,7 +72,7 @@ func buildSweepCandidates(pmr sweepPMReads, ar sweepAgentReads) func(context.Con
 			if err != nil {
 				return nil, err
 			}
-			taskID := firstOpenTaskID(runnable)
+			taskID := firstQueuedTaskID(runnable)
 			if taskID == "" {
 				continue // pending tasks are all dependency-blocked — not pullable
 			}
@@ -102,13 +102,13 @@ func resolveSweepAgent(ctx context.Context, ar sweepAgentReads, id string) *agen
 	return nil
 }
 
-// firstOpenTaskID returns the id of the first OPEN task in the runnable set (a wake
-// payload needs a task id as its dedup anchor). Running tasks are skipped — the
+// firstQueuedTaskID returns the id of the first queued task in the runnable set (a
+// wake payload needs a task id as its dedup anchor). Running tasks are skipped — the
 // candidate prefilter already guarantees there are none, but this keeps the payload
 // anchored to genuinely-queued work.
-func firstOpenTaskID(tasks []*pm.Task) string {
+func firstQueuedTaskID(tasks []*pm.Task) string {
 	for _, t := range tasks {
-		if t.Status() == pm.TaskOpen {
+		if t.Status() == pm.TaskOpen || t.Status() == pm.TaskReopened {
 			return string(t.ID())
 		}
 	}

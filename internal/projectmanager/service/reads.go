@@ -393,7 +393,7 @@ func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRe
 	return out, nil
 }
 
-// ListRunnableAgentTasks returns the open/running tasks assigned to `assignee` that
+// ListRunnableAgentTasks returns the dispatchable tasks assigned to `assignee` that
 // are RUNNABLE right now — the agent's "what do I have to do?" queue in the Task
 // model (v2.14.0 I14/F5 §五, MCP `list_my_tasks`, replacing get_my_work). It is the
 // pull counterpart of the §13.A run-ahead gate: a task is included only when
@@ -422,7 +422,7 @@ func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.Identi
 	}
 	out := make([]*pm.Task, 0, len(tasks))
 	for _, t := range tasks {
-		if t.Status() != pm.TaskOpen && t.Status() != pm.TaskRunning {
+		if !t.Status().IsDispatchable() {
 			// Terminal (completed/discarded) is history; parked (blocked)
 			// is active work with nothing to run — both are un-pullable. This allow-list is a
 			// SECOND independent gate: EnsureTaskRunnable below rejects parked tasks too, and

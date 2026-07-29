@@ -115,6 +115,27 @@ func TestRepushTarget_FreedWithNext_ResolvesNext(t *testing.T) {
 	}
 }
 
+// A reopened runnable task is also next queued work; re-push must wake it after the
+// prior task frees the agent slot.
+func TestRepushTarget_FreedWithReopenedNext_ResolvesNext(t *testing.T) {
+	ref := pm.IdentityRef("agent:member-1")
+	ag := mustAgent(t, "entity-1", "member-1", "W1", agent.LifecycleRunning)
+	ars := newAgentReads()
+	ars.put(ag)
+	pmr := fakeDispatchReads{
+		freed:    map[string]bool{"T-done": true},
+		runnable: map[pm.IdentityRef][]*pm.Task{ref: {reopenedTask(t, "T-reopen")}},
+	}
+	tgt, ok, err := buildRepushTarget(pmr, ars)(
+		context.Background(), "agent:member-1", "T-done", string(pm.TaskCompleted), string(pm.TaskRunning))
+	if err != nil || !ok {
+		t.Fatalf("want ok, got ok=%v err=%v", ok, err)
+	}
+	if tgt.TaskID != "T-reopen" || tgt.AgentID != "entity-1" {
+		t.Fatalf("target = %+v, want next=T-reopen/entity-1", tgt)
+	}
+}
+
 // Freed but NO further open task → no re-push.
 func TestRepushTarget_FreedNoNext_Skipped(t *testing.T) {
 	ref := pm.IdentityRef("agent:member-1")

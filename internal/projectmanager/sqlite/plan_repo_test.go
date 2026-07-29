@@ -372,20 +372,21 @@ func TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks(t *testing.T) 
 	mkPlan("PL-ARCH", pm.PlanArchived)
 	mkPlan("PL-DONE", pm.PlanDone)
 	mkPlan("PL-RUN", pm.PlanRunning)
-	mkTask("TA1", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
-	mkTask("TA2", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
-	mkTask("TD1", "PL-DONE", pm.TaskOpen)   // done plan → excluded
-	mkTask("TR1", "PL-RUN", pm.TaskOpen)    // running plan → counted
-	mkTask("TRr", "PL-RUN", pm.TaskRunning) // running plan, doing → counted
-	mkTask("TB1", "", pm.TaskOpen)          // no plan (backlog) → counted
+	mkTask("TA1", "PL-ARCH", pm.TaskOpen)    // archived plan → excluded
+	mkTask("TA2", "PL-ARCH", pm.TaskOpen)    // archived plan → excluded
+	mkTask("TD1", "PL-DONE", pm.TaskOpen)    // done plan → excluded
+	mkTask("TR1", "PL-RUN", pm.TaskOpen)     // running plan → counted
+	mkTask("TRr", "PL-RUN", pm.TaskRunning)  // running plan, doing → counted
+	mkTask("TRo", "PL-RUN", pm.TaskReopened) // running plan, queued → counted
+	mkTask("TB1", "", pm.TaskOpen)           // no plan (backlog) → counted
 
 	got, err := tr.CountActiveByAssignee(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Pending = TR1 + TB1 (the 2 archived + 1 done excluded); Running = TRr.
-	if got[ag].Pending != 2 || got[ag].Running != 1 {
-		t.Fatalf("got %+v, want {Running:1 Pending:2} (terminal-plan tasks excluded)", got[ag])
+	// Pending = TR1 + TRo + TB1 (the 2 archived + 1 done excluded); Running = TRr.
+	if got[ag].Pending != 3 || got[ag].Running != 1 {
+		t.Fatalf("got %+v, want {Running:1 Pending:3} (terminal-plan tasks excluded)", got[ag])
 	}
 }
 
@@ -427,6 +428,7 @@ func TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount(t *testing.T) {
 	mkPlan("PL-RUN", pm.PlanRunning)
 	mkTask("TR1", "PL-RUN", pm.TaskOpen, ag)      // running plan, open → listed
 	mkTask("TRr", "PL-RUN", pm.TaskRunning, ag)   // running plan, doing → listed
+	mkTask("TRo", "PL-RUN", pm.TaskReopened, ag)  // running plan, reopened → listed
 	mkTask("TB1", "", pm.TaskOpen, ag)            // no plan (backlog) → listed
 	mkTask("TA1", "PL-ARCH", pm.TaskOpen, ag)     // archived plan → excluded
 	mkTask("TC1", "PL-RUN", pm.TaskCompleted, ag) // terminal task → excluded
@@ -440,7 +442,7 @@ func TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount(t *testing.T) {
 	for _, tk := range got {
 		gotIDs = append(gotIDs, string(tk.ID()))
 	}
-	want := []string{"TB1", "TR1", "TRr"} // order = (created_at, id); same t0 → id asc
+	want := []string{"TB1", "TR1", "TRo", "TRr"} // order = (created_at, id); same t0 → id asc
 	if len(gotIDs) != len(want) {
 		t.Fatalf("got %v, want %v", gotIDs, want)
 	}

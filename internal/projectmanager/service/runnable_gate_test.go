@@ -205,3 +205,31 @@ func TestEnsureTaskRunnable_RunningPoolTask_OK(t *testing.T) {
 		t.Fatalf("gate(running pool task) = %v, want nil", err)
 	}
 }
+
+// A reopened task is re-dispatchable and must appear in the agent-facing runnable
+// queue. Regression: ListRunnableAgentTasks used an open/running allow-list, so a
+// re-opened task could be startable by state machine but invisible to the agent and
+// to wake-sweep fallback.
+func TestListRunnableAgentTasks_ReopenedPoolTask_Included(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, tid := dispatchedPoolTask(t, h, "org-reopen", "P")
+	const assignee = pm.IdentityRef("agent:m1")
+	addMember(t, h, pid, assignee)
+	if err := h.svc.ClaimPoolTask(h.ctx, tid, assignee); err != nil {
+		t.Fatalf("ClaimPoolTask: %v", err)
+	}
+	if err := h.svc.SetTaskStatus(h.ctx, tid, pm.TaskCompleted, assignee); err != nil {
+		t.Fatalf("SetTaskStatus(completed): %v", err)
+	}
+	if err := h.svc.SetTaskStatus(h.ctx, tid, pm.TaskReopened, "user:a"); err != nil {
+		t.Fatalf("SetTaskStatus(reopened): %v", err)
+	}
+
+	got, err := h.svc.ListRunnableAgentTasks(h.ctx, assignee)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != tid || got[0].Status() != pm.TaskReopened {
+		t.Fatalf("ListRunnableAgentTasks = %+v, want reopened %s", got, tid)
+	}
+}

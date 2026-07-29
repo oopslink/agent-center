@@ -169,10 +169,14 @@ func MigrateV1ToV2Command() *Command {
 // instead of forking a center-action node into an empty workspace).
 // I107/ADR-0054 added 0111 (partial indexes over the parked task states — renumbered
 // from 0110 at rebase to land after main's 0110_i105_task_dispatch_mode).
-// Per-agent executor workspace isolation added 0112 (agents.executor_git_worktree).
+// Per-agent executor workspace isolation added 0112 (agents.executor_git_worktree);
+// 0113 team_member_multi_role added multi-role team memberships.
 // 2026-07-22 quick-fix added 0114 (collapse task status delivered back to completed
 // and rebuild active-task indexes without delivered).
-const targetSchemaVersion = 116
+// 0115 added first-class stage gates; 0116 added the AI runtime catalog.
+// 0117 added messages.reply_to_message_id for primary-reply binding.
+// 0118 added pm_stage_gate_reopen_requests.
+const targetSchemaVersion = 118
 
 func runMigrateV1ToV2(
 	ctx context.Context,
