@@ -25,7 +25,7 @@
 | 1 | PASS | `go test ./internal/airuntime/...` includes `TestExecutionFreezerReadsFrozenSnapshotBeforeMutableCatalog` |
 | 2 | PASS | `go test ./internal/projectmanager/service -run TestRuntimeSnapshotProductionLifecycleIsByteStable`; the same case also passed under `-race` |
 | 3 | PASS | `pnpm exec playwright test tests/v22-deployed-pipeline.spec.ts`: 1 passed. Fresh binaries started a temporary server/worker instance; the test asserted `snapshot_json` byte equality before and after Catalog revision, block/unblock, and reassign |
-| 4 | Pending | Filled after the final full-suite run |
+| 4 | Explicit non-product failure | On code SHA `70fc4ea3`, `go test -p 1 -timeout 30m ./...` passed `internal/admin/api` (1623.520s), `internal/agentruntime` (564.315s), and all preceding packages, then failed in untouched `internal/agentruntime/executor`: `TestExecGitRunner_ContextCancelKillsGitProcessGroup` did not observe its fake SSH `ssh.pid`. Immediate isolated reproduction with `-count=5` failed 5/5 for the same missing precondition file. The run was stopped after this definitive non-zero result; no AI Runtime assertion failed. |
 
 ## Layered inventory
 
@@ -45,4 +45,10 @@ fail-closed and report the exact failed stage.
 
 ## Conclusion
 
-Pending the final repository-wide test result.
+PASS for the T1247 acceptance contract: the focused unit/integration coverage and
+fresh deployed-binary lifecycle are green, including the exact historical
+Snapshot byte-invariance assertion.
+
+The repository-wide command has a separately reproducible executor process-test
+failure outside this change set. It is not reported as green or silently
+excluded: the exact test, symptom, and reproduction count are recorded above.
