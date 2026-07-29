@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { authApi } from '@/api/auth';
+import { reloadAfterSignin } from '@/api/authRedirect';
 import { ApiError } from '@/api/client';
 
 export default function Signin(): React.ReactElement {
   const { t } = useTranslation('common');
-  const navigate = useNavigate();
   const [login, setLogin] = useState('');
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +19,10 @@ export default function Signin(): React.ReactElement {
     setError('');
     try {
       await authApi.signin({ login: login.trim(), passcode });
-      navigate('/', { replace: true });
+      // Leave the current SPA runtime after auth. A pre-signin /api 401 can still
+      // have an async redirect-to-/signin promise alive; a full navigation prevents
+      // that stale unauth redirect from racing the successful login.
+      reloadAfterSignin();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError(t('signin.errors.invalidCredentials'));
