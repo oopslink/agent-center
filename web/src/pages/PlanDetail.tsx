@@ -58,6 +58,8 @@ import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
 import { ActivityRefText } from '@/components/ActivityRefText';
+import { IconClose } from '@/components/icons';
+import { useModalA11y } from '@/components/useModalA11y';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
@@ -2053,9 +2055,9 @@ export function layoutGraph(
 // Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
 // whose graph predates staging for some nodes) is defensively laid out with
 // the plain algorithm in a trailing row so nothing is silently dropped.
-// Stage header includes the human-gate audit contract. Keep this in sync with the
-// bounded audit surface below so member cards always start beneath it.
-export const STAGE_HEADER_H = 196;
+// Stage header carries compact metadata only; gate/audit details live behind the
+// info button so member cards can start closer to the stage title.
+export const STAGE_HEADER_H = 118;
 const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
 const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
 
@@ -2629,98 +2631,154 @@ const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
 
 function StageGateAudit({ stage, surface = 'desktop' }: { stage: PlanStage; surface?: 'desktop' | 'mobile' }) {
   const { t } = useTranslation();
-  const spec = stage.gate_spec;
   const prefix = surface === 'mobile' ? 'plan-stage-mobile-gate' : 'plan-stage-gate';
-  const owner = spec?.assignee_ref || spec?.role_ref || 'Unassigned';
-  const evidence = stage.gate_evidence || 'No evidence';
-  const diagnostics = stage.diagnostics?.length ? stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n') : 'No diagnostics';
+  const [open, setOpen] = useState(false);
+  const title = t('plan.detail.stages.auditTitle', { defaultValue: 'Stage gate details' });
   return (
-    <div className="mt-2 grid min-h-[7rem] gap-1 border-t border-border-base pt-1.5 text-[0.625rem] leading-4 text-text-secondary" data-testid={`${prefix}-audit-${stage.id}`}>
-      <div className="flex min-w-0 flex-wrap gap-x-3">
-        <span data-testid={`${prefix}-evaluator-${stage.id}`}>
-          {spec?.evaluator_kind || 'Missing evaluator'} · <ActivityRefText text={owner} />
-        </span>
-        <span data-testid={`${prefix}-routes-${stage.id}`}>
-          {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
-        </span>
+    <>
+      <div className="mt-2 flex justify-end border-t border-border-base pt-1.5" data-testid={`${prefix}-audit-${stage.id}`}>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-muted hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          aria-label={title}
+          title={title}
+          data-testid={`${prefix}-audit-info-${stage.id}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          <StageInfoIcon />
+        </button>
       </div>
-      <StageAuditText
-        text={spec?.acceptance_contract || 'Missing acceptance contract'}
-        testId={`${prefix}-contract-${stage.id}`}
-        className="text-text-primary"
-        showMoreLabel={t('widgets.collapsible.showMore')}
-        showLessLabel={t('widgets.collapsible.showLess')}
+      <StageAuditDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        stage={stage}
+        prefix={prefix}
+        title={title}
       />
-      <div className="grid min-w-0 gap-0.5" data-testid={`${prefix}-evidence-${stage.id}`}>
-        <div className="flex min-w-0 flex-wrap gap-x-3">
-          <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
-          <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
+    </>
+  );
+}
+
+function StageAuditDialog({
+  open,
+  onClose,
+  stage,
+  prefix,
+  title,
+}: {
+  open: boolean;
+  onClose: () => void;
+  stage: PlanStage;
+  prefix: string;
+  title: string;
+}) {
+  const id = React.useId();
+  const containerRef = useModalA11y({ open, onClose });
+  if (!open) return null;
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={id}
+      data-testid={`${prefix}-audit-dialog-${stage.id}`}
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-lg border border-border-base bg-bg-elevated text-text-primary shadow-[var(--shadow-3)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
+          <h2 id={id} className="text-sm font-semibold">
+            {title}
+          </h2>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            aria-label="Close"
+            data-testid={`${prefix}-audit-dialog-close-${stage.id}`}
+            onClick={onClose}
+          >
+            <IconClose className="h-4 w-4" />
+          </button>
         </div>
-        <StageAuditText
-          text={evidence}
-          testId={`${prefix}-evidence-text-${stage.id}`}
-          showMoreLabel={t('widgets.collapsible.showMore')}
-          showLessLabel={t('widgets.collapsible.showLess')}
-        />
+        <StageAuditDetails stage={stage} prefix={prefix} />
       </div>
-      <StageAuditText
-        text={diagnostics}
-        testId={`${prefix}-diagnostics-${stage.id}`}
-        className={stage.diagnostics?.length ? 'text-danger' : 'text-text-muted'}
-        showMoreLabel={t('widgets.collapsible.showMore')}
-        showLessLabel={t('widgets.collapsible.showLess')}
-      />
     </div>
   );
 }
 
-function StageAuditText({
-  text,
-  testId,
-  className = 'text-text-muted',
-  showMoreLabel,
-  showLessLabel,
-}: {
-  text: string;
-  testId: string;
-  className?: string;
-  showMoreLabel: string;
-  showLessLabel: string;
-}) {
-  const id = React.useId();
-  // DAG stage boxes are narrow; text that is only a few dozen characters can
-  // still wrap into multiple visual rows. Keep the audit surface compact by
-  // offering collapse for any real multi-token audit note, not only long blobs.
-  const trimmed = text.trim();
-  const collapsible =
-    (trimmed.length > 36 && /\s/.test(trimmed)) || text.split(/\r?\n/).length > 1;
-  const [expanded, setExpanded] = useState(false);
+function StageAuditDetails({ stage, prefix }: { stage: PlanStage; prefix: string }) {
+  const spec = stage.gate_spec;
+  const owner = spec?.assignee_ref || spec?.role_ref || 'Unassigned';
+  const evidence = stage.gate_evidence || 'No evidence';
+  const diagnostics = stage.diagnostics?.length ? stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n') : 'No diagnostics';
   return (
-    <div className="min-w-0">
-      <div
-        id={id}
-        className={`${expanded ? 'max-h-24 overflow-y-auto' : collapsible ? 'max-h-8 overflow-hidden' : ''} min-w-0 whitespace-pre-wrap break-words ${className}`}
-        title={text || undefined}
+    <div className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm" data-testid={`${prefix}-audit-details-${stage.id}`}>
+      <dl className="grid gap-3">
+        <StageAuditDetailRow label="Evaluator" testId={`${prefix}-evaluator-${stage.id}`}>
+          {spec?.evaluator_kind || 'Missing evaluator'} · <ActivityRefText text={owner} />
+        </StageAuditDetailRow>
+        <StageAuditDetailRow label="Routes" testId={`${prefix}-routes-${stage.id}`}>
+          {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
+        </StageAuditDetailRow>
+        <StageAuditDetailRow label="Acceptance contract" testId={`${prefix}-contract-${stage.id}`} strong>
+          <ActivityRefText text={spec?.acceptance_contract || 'Missing acceptance contract'} />
+        </StageAuditDetailRow>
+        <StageAuditDetailRow label="Evidence" testId={`${prefix}-evidence-${stage.id}`}>
+          <div className="mb-1 flex min-w-0 flex-wrap gap-x-3 text-xs">
+            <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
+            <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
+          </div>
+          <div className="whitespace-pre-wrap break-words" data-testid={`${prefix}-evidence-text-${stage.id}`}>
+            <ActivityRefText text={evidence} />
+          </div>
+        </StageAuditDetailRow>
+        <StageAuditDetailRow label="Diagnostics" testId={`${prefix}-diagnostics-${stage.id}`} danger={Boolean(stage.diagnostics?.length)}>
+          <ActivityRefText text={diagnostics} />
+        </StageAuditDetailRow>
+      </dl>
+    </div>
+  );
+}
+
+function StageAuditDetailRow({
+  label,
+  testId,
+  children,
+  strong = false,
+  danger = false,
+}: {
+  label: string;
+  testId: string;
+  children: React.ReactNode;
+  strong?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div className="grid gap-1">
+      <dt className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd
+        className={`${strong ? 'text-text-primary' : danger ? 'text-danger' : 'text-text-secondary'} min-w-0 whitespace-pre-wrap break-words`}
         data-testid={testId}
       >
-        <ActivityRefText text={text} />
-      </div>
-      {collapsible && (
-        <button
-          type="button"
-          className="mt-0.5 rounded text-[0.5625rem] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-expanded={expanded}
-          aria-controls={id}
-          data-testid={`${testId}-toggle`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((v) => !v);
-          }}
-        >
-          {expanded ? showLessLabel : showMoreLabel}
-        </button>
-      )}
+        {children}
+      </dd>
     </div>
+  );
+}
+
+function StageInfoIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+      <circle cx="10" cy="10" r="7" />
+      <path strokeLinecap="round" d="M10 9.25v4" />
+      <path strokeLinecap="round" d="M10 6.5h.01" />
+    </svg>
   );
 }
 
