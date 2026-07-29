@@ -1,11 +1,11 @@
 package sqlite_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
@@ -106,6 +106,68 @@ func TestProfileRejectsDisabledCatalogEntries(t *testing.T) {
 	var runtimeErr *airuntime.Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonProfileDisabled {
 		t.Fatalf("disabled model profile error = %v", err)
+	}
+}
+
+func TestExecutionSnapshotIsByteStableAcrossCatalogChangeAndRetry(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/runtime.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	next := 0
+	repo := airuntimesql.NewRepository(db)
+	svc := airuntime.NewService(repo, func() string {
+		next++
+		return fmt.Sprintf("freeze-%d", next)
+	})
+	resolver := airuntime.NewRuntimeResolver(repo)
+	ctx := context.Background()
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", 0, airuntime.ModelDefinition{
+		Key: "gpt", ModelKey: "gpt-5", CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{"effort": "medium"}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, rev, err := svc.CreateProfile(ctx, "org", "user:a", rev, airuntime.RuntimeProfile{
+		Key: "coding", Name: "Coding", CLIKey: "codex", ModelKey: model.Key,
+		Parameters: map[string]any{"effort": "high"}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev, err = svc.SetDefaultProfile(ctx, "org", "user:a", profile.ID, rev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, created, err := resolver.ResolveExecution(ctx, "org", "execution-1", airuntime.RuntimeSelection{Mode: airuntime.SelectionInherit})
+	if err != nil || !created {
+		t.Fatalf("first freeze: created=%v err=%v", created, err)
+	}
+	firstBytes, _ := airuntime.CanonicalJSON(first)
+
+	profile.Parameters["effort"] = "low"
+	if _, _, err := svc.UpdateProfile(ctx, "org", "user:a", rev, profile); err != nil {
+		t.Fatal(err)
+	}
+	retry, created, err := resolver.ResolveExecution(ctx, "org", "execution-1", airuntime.RuntimeSelection{Mode: airuntime.SelectionOverride, CLIID: "missing", ModelID: "missing"})
+	if err != nil || created {
+		t.Fatalf("retry existing snapshot: created=%v err=%v", created, err)
+	}
+	retryBytes, _ := airuntime.CanonicalJSON(retry)
+	if string(firstBytes) != string(retryBytes) {
+		t.Fatalf("snapshot changed across retry/catalog mutation:\n%s\n%s", firstBytes, retryBytes)
+	}
+	fresh, created, err := resolver.ResolveExecution(ctx, "org", "execution-2", airuntime.RuntimeSelection{Mode: airuntime.SelectionInherit})
+	if err != nil || !created {
+		t.Fatalf("new execution: created=%v err=%v", created, err)
+	}
+	if fresh.Parameters["effort"] != "low" || fresh.ProfileVersion == first.ProfileVersion {
+		t.Fatalf("new execution did not observe new profile version: first=%+v fresh=%+v", first, fresh)
 	}
 }
 
@@ -384,11 +446,11 @@ func TestCatalogUpdateValidationFailuresDoNotPersistOrAudit(t *testing.T) {
 }
 
 func equalJSON(left, right []byte) bool {
-	var compactLeft, compactRight bytes.Buffer
-	if json.Compact(&compactLeft, left) != nil || json.Compact(&compactRight, right) != nil {
+	var leftValue, rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
 		return false
 	}
-	return bytes.Equal(compactLeft.Bytes(), compactRight.Bytes())
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func TestProfileRejectsIncompatibleModel(t *testing.T) {

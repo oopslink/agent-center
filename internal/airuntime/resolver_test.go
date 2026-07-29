@@ -32,10 +32,19 @@ func (*resolveRepo) UpdateProfile(context.Context, RuntimeProfile, int64, AuditE
 func (*resolveRepo) SetDefaultProfile(context.Context, string, string, int64, AuditEvent) (int64, error) {
 	return 0, errors.New("unused")
 }
+func (*resolveRepo) ApplyCatalog(context.Context, Catalog, int64, AuditEvent) (int64, error) {
+	return 0, errors.New("unused")
+}
+func (r *resolveRepo) FreezeExecutionSnapshot(_ context.Context, _, _ string, snapshot RuntimeSnapshot) (RuntimeSnapshot, bool, error) {
+	return snapshot, true, nil
+}
+func (*resolveRepo) GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error) {
+	return RuntimeSnapshot{}, false, nil
+}
 
 func resolverFixture() (*RuntimeResolver, *resolveRepo) {
 	repo := &resolveRepo{catalog: Catalog{
-		OrgID: "org-1", DefaultProfileID: "profile-default",
+		OrgID: "org-1", Revision: 7, DefaultProfileID: "profile-default",
 		CLIs: []CLIDefinition{{
 			ID: "cli-codex", Key: "codex", Executable: "codex", Enabled: true,
 			RequiredFeatures: []string{"json"}, ParameterSchema: json.RawMessage(`{
@@ -49,7 +58,7 @@ func resolverFixture() (*RuntimeResolver, *resolveRepo) {
 		}},
 		Profiles: []RuntimeProfile{{
 			ID: "profile-default", Key: "default", CLIKey: "codex", ModelKey: "gpt",
-			Enabled: true, Parameters: map[string]any{"effort": "high"},
+			Enabled: true, Version: 3, Parameters: map[string]any{"effort": "high"},
 		}},
 	}}
 	resolver := NewRuntimeResolver(repo)
@@ -65,6 +74,9 @@ func TestRuntimeResolverPrecedenceAndSnapshotImmutability(t *testing.T) {
 	}
 	if snapshot.Source != "org_default" || snapshot.ProfileID != "profile-default" || snapshot.ModelKey != "gpt-5" {
 		t.Fatalf("snapshot provenance = %+v", snapshot)
+	}
+	if snapshot.CatalogRevision != 7 || snapshot.ProfileKey != "default" || snapshot.ProfileVersion != 3 || snapshot.ParametersDigest == "" {
+		t.Fatalf("snapshot version provenance = %+v", snapshot)
 	}
 	if snapshot.Parameters["temperature"] != 0.2 || snapshot.Parameters["effort"] != "high" {
 		t.Fatalf("merged parameters = %#v", snapshot.Parameters)

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -62,4 +64,83 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 		t.Fatalf("member write status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+func TestAIRuntimeImportExportHTTPFlowAndPermissions(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	n := 0
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("bundle-%d", n)
+	})
+	owner := setupTestSession(t, db, deps)
+	member := memberSessionInOrg(t, db, owner.OrgID, owner.OrgSlug)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	exportURL := orgScopedURL(server.URL+"/api/ai-runtime/export?format=json", owner.OrgSlug)
+	resp := authenticatedRequest(t, http.MethodGet, exportURL, nil, owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("owner export status=%d", resp.StatusCode)
+	}
+	bundle, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(bundle, []byte(`"schema_version": 1`)) {
+		t.Fatalf("export payload = %s", bundle)
+	}
+
+	memberExportURL := orgScopedURL(server.URL+"/api/ai-runtime/export", member.OrgSlug)
+	resp = authenticatedRequest(t, http.MethodGet, memberExportURL, nil, member)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member export status=%d want 403", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	previewURL := orgScopedURL(server.URL+"/api/ai-runtime/import/preview?mode=merge", owner.OrgSlug)
+	resp = authenticatedRequest(t, http.MethodPost, previewURL, bytes.NewReader(bundle), owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview status=%d", resp.StatusCode)
+	}
+	var preview airuntime.ImportPreview
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if preview.ValidationToken == "" {
+		t.Fatal("preview did not return a validation token")
+	}
+
+	applyURL := orgScopedURL(server.URL+"/api/ai-runtime/import/apply?mode=merge", owner.OrgSlug)
+	req, err := http.NewRequest(http.MethodPost, applyURL, bytes.NewReader(bundle))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(owner.Cookie)
+	req.Header.Set("X-AI-Runtime-Validation-Token", preview.ValidationToken)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("apply status=%d body=%s", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+}
+
+func authenticatedRequest(t *testing.T, method, url string, body io.Reader, session testSession) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(session.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
 }
