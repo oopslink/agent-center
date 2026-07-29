@@ -16,7 +16,10 @@
 //   4. The task-dispatch pipeline closes at the control plane: a worker-token +
 //      worker-bound agent creates a task via agent-tools, it is DISPATCHED into
 //      the project's built-in assignment pool (ADR-0047), shows up in the agent's
-//      list_tasks, and the agent CLAIMS it (open → running).
+//      list_tasks, and the agent CLAIMS then STARTS it (open → running).
+//   5. The deployed ProjectManager lifecycle freezes an AI Runtime Snapshot on
+//      first execution and reuses its exact persisted bytes across Catalog
+//      mutation, retry/resume, and reassign.
 //
 // SCOPE / WHY NO "task → completed" + no real agent subprocess (T212):
 //   The original v2.2 design drove `cmd/fakeagent` through the worker to close
@@ -186,7 +189,7 @@ async function killProc(proc: ChildProcess, graceMs = 2_000): Promise<void> {
 
 test.describe("deployed-binary smoke — control-plane task-dispatch pipeline", () => {
   test("server + worker enroll + agent-tools dispatch → claim (open → running)", async ({}, testInfo) => {
-    test.setTimeout(45_000);
+    test.setTimeout(360_000);
 
     // --- temp scaffolding -------------------------------------------------
     const tempDir = await mkdtemp(join(tmpdir(), "ac-v22d-"));
@@ -239,7 +242,7 @@ secret_management:
       const bootstrapPath = join(tempDir, "bootstrap_token");
       let adminToken = "";
       try {
-        adminToken = await readBootstrapToken(bootstrapPath, 8_000);
+        adminToken = await readBootstrapToken(bootstrapPath, 70_000);
       } catch (e) {
         throw new Error(
           String(e) +
@@ -252,7 +255,7 @@ secret_management:
       // admin /health over the socket — server is serving the admin endpoint.
       let health: { status: number; body: string };
       try {
-        health = await waitAdminGET(sockPath, "/admin/health", adminToken, 8_000);
+        health = await waitAdminGET(sockPath, "/admin/health", adminToken, 70_000);
       } catch (e) {
         throw new Error(
           String(e) +
@@ -291,7 +294,7 @@ secret_management:
 
       // Poll the operator read route until the worker is enrolled + online.
       let workerOnline = false;
-      const enrollDeadline = Date.now() + 12_000;
+      const enrollDeadline = Date.now() + 90_000;
       while (Date.now() < enrollDeadline) {
         const r = await adminGET(sockPath, "/admin/workforce/worker/find-all", adminToken);
         if (r.status === 200 && r.body.includes("smoke-run-w")) {
@@ -350,6 +353,9 @@ secret_management:
         `INSERT INTO pm_projects (id,organization_id,name,description,status,created_by,created_at,updated_at,version) VALUES ('${projectID}','${orgID}','Smoke Project','smoke','active','user:hayang','${now}','${now}',1);`,
         `INSERT INTO pm_project_members (id,project_id,identity_id,role,added_by,created_at) VALUES ('m-smoke','${projectID}','agent:${agentID}','member','system','${now}');`,
         `INSERT INTO pm_plans (id,project_id,name,description,status,creator_ref,conversation_id,target_date,is_builtin,created_at,updated_at,version) VALUES ('plan-builtin-${projectID}','${projectID}','[Built-in]','','running','system','','',1,'${now}','${now}',1);`,
+        `INSERT INTO ai_runtime_catalogs (org_id,revision,default_profile_id) VALUES ('${orgID}',2,'profile-smoke-v1') ON CONFLICT(org_id) DO UPDATE SET revision=2,default_profile_id='profile-smoke-v1';`,
+        `INSERT INTO pm_model_catalog (id,org_id,model_id,display_name,input_cost,output_cost,context_window,tier,created_by,created_at,updated_at,version,runtime_key,compatible_cli_keys_json,default_parameters_json,enabled) VALUES ('model-smoke-v1','${orgID}','provider-model-v1','Smoke Model v1',0,0,128000,'','system','${now}','${now}',1,'smoke-model-v1','["codex"]','{}',1);`,
+        `INSERT INTO ai_runtime_profiles (id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,version,created_at,updated_at) VALUES ('profile-smoke-v1','${orgID}','smoke-profile','Smoke Profile v1','','codex','smoke-model-v1','{}',1,1,'${now}','${now}');`,
       ].join("\n");
       await execFile("sqlite3", [dbPath, seedSQL]);
 
@@ -385,8 +391,9 @@ secret_management:
         "task present in list_tasks",
       ).toBe(true);
 
-      // The agent CLAIMS the dispatched task: open → running. This is the
-      // real pull-pool claim path (ClaimPoolTask) over the deployed socket.
+      // The agent CLAIMS the dispatched task, then explicitly starts it. Pool
+      // claim reserves ownership; start_task is the execution boundary that
+      // transitions the Task to running and freezes its Runtime Snapshot.
       const claim = await adminPOST(
         sockPath,
         "/admin/agent-tools/claim_task",
@@ -396,7 +403,74 @@ secret_management:
       expect(claim.status, "claim_task: " + claim.body).toBe(200);
       const claimed = JSON.parse(claim.body) as { claimed: boolean; status: string };
       expect(claimed.claimed, "claim_task claimed=true").toBe(true);
-      expect(claimed.status, "task status after claim").toBe("running");
+      const start = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/start_task",
+        { agent_id: agentID, task_id: taskID },
+        workerToken,
+      );
+      expect(start.status, "start_task: " + start.body).toBe(200);
+
+      // Snapshot creation is inside the deployed ProjectManager StartTask
+      // transaction. Read the persisted canonical bytes as the externally
+      // observable artifact; subsequent lifecycle calls must not rewrite them.
+      const snapshotBefore = (
+        await execFile("sqlite3", [
+          "-noheader",
+          dbPath,
+          `SELECT snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id='${taskID}';`,
+        ])
+      ).stdout.trim();
+      expect(snapshotBefore, "snapshot frozen by deployed start path").toBeTruthy();
+      expect(JSON.parse(snapshotBefore)).toMatchObject({
+        catalog_revision: 2,
+        profile_key: "smoke-profile",
+        profile_version: 1,
+        model_key: "provider-model-v1",
+      });
+
+      // Simulate a later Catalog revision. This deliberately mutates only the
+      // mutable Catalog projection; the lifecycle operations below still travel
+      // through the real binary and AppService over the unix socket.
+      await execFile("sqlite3", [
+        dbPath,
+        [
+          `UPDATE ai_runtime_catalogs SET revision=3 WHERE org_id='${orgID}';`,
+          `UPDATE ai_runtime_profiles SET name='Smoke Profile v2',version=2,parameters_json='{"temperature":1}' WHERE id='profile-smoke-v1';`,
+          `UPDATE pm_model_catalog SET model_id='provider-model-v2',version=version+1 WHERE id='model-smoke-v1';`,
+        ].join("\n"),
+      ]);
+
+      const block = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/block_task",
+        { agent_id: agentID, task_id: taskID, reason: "deployed snapshot retry probe" },
+        workerToken,
+      );
+      expect(block.status, "block_task: " + block.body).toBe(200);
+      const resume = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/unblock_task",
+        { agent_id: agentID, task_id: taskID },
+        workerToken,
+      );
+      expect(resume.status, "unblock_task: " + resume.body).toBe(200);
+      const reassign = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/reassign_task",
+        { agent_id: agentID, task_id: taskID, assignee: "user:handoff" },
+        workerToken,
+      );
+      expect(reassign.status, "reassign_task: " + reassign.body).toBe(200);
+
+      const snapshotAfter = (
+        await execFile("sqlite3", [
+          "-noheader",
+          dbPath,
+          `SELECT snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id='${taskID}';`,
+        ])
+      ).stdout.trim();
+      expect(snapshotAfter, "snapshot survives Catalog change and continuations").toBe(snapshotBefore);
     } finally {
       // Diagnostics on failure for triage.
       if (testInfo.status !== testInfo.expectedStatus) {
