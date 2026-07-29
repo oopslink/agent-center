@@ -5,9 +5,11 @@ import (
 	"errors"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 )
@@ -110,6 +112,8 @@ type fakeClient struct {
 	err      error
 	probeID  string
 	probeErr error
+	snap     concurrency.AgentSnapshot
+	snapErr  error
 }
 
 func (c *fakeClient) Deliver(_ context.Context, cmd agentcontrol.Command) error {
@@ -125,6 +129,11 @@ func (c *fakeClient) Probe(context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.probeID, c.probeErr
+}
+func (c *fakeClient) SnapshotConcurrency(context.Context) (concurrency.AgentSnapshot, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.snap, c.snapErr
 }
 
 func newTestController(t *testing.T, l agentlauncher.AgentLauncher) *Controller {
@@ -212,6 +221,33 @@ func TestDeliver_MissingAgentID(t *testing.T) {
 	c, _ := New(Config{Launcher: newFakeLauncher(), SockDir: "/tmp/acs", NewClient: func(string) controlClient { return &fakeClient{} }})
 	if err := c.Deliver(context.Background(), agentcontrol.Command{Type: "work"}); err == nil {
 		t.Error("a command with no agent_id must error")
+	}
+}
+
+func TestSnapshotConcurrency_AggregatesRunningAgents(t *testing.T) {
+	l := newFakeLauncher()
+	clients := map[string]*fakeClient{
+		"a": {snap: concurrency.AgentSnapshot{Active: 1, Executors: []concurrency.ExecutorSnapshot{{TaskID: "t-a", State: concurrency.StateRunning}}}},
+		"b": {snapErr: errors.New("agent down")},
+	}
+	c, err := New(Config{
+		Launcher: l,
+		SockDir:  "/tmp/acs",
+		NewClient: func(sock string) controlClient {
+			if strings.Contains(sock, agentcontrol.SocketName("a")) {
+				return clients["a"]
+			}
+			return clients["b"]
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.Reconcile([]string{"a", "b"})
+
+	got := c.SnapshotConcurrency(context.Background())
+	if len(got) != 1 || got["a"].Active != 1 || got["a"].Executors[0].TaskID != "t-a" {
+		t.Fatalf("SnapshotConcurrency = %+v, want only agent a snapshot", got)
 	}
 }
 

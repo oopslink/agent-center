@@ -31,17 +31,22 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
-// controlPath is the command-ingress HTTP route the server exposes.
-const controlPath = "/control"
-
-// healthPath is the liveness/identity route (T860 gap5): a worker restart probes it to
-// decide adopt-vs-respawn. It returns the agent id the process is serving, which is the
-// AUTHORITATIVE survivor signal — a bare "socket accepts a connection" is not enough
-// (a recycled pid / stale socket could answer), so the worker re-adopts a surviving
-// agent process ONLY when this route echoes back the expected agent id.
-const healthPath = "/health"
+const (
+	// controlPath is the command-ingress HTTP route the server exposes.
+	controlPath = "/control"
+	// healthPath is the liveness/identity route (T860 gap5): a worker restart probes it to
+	// decide adopt-vs-respawn. It returns the agent id the process is serving, which is the
+	// AUTHORITATIVE survivor signal — a bare "socket accepts a connection" is not enough
+	// (a recycled pid / stale socket could answer), so the worker re-adopts a surviving
+	// agent process ONLY when this route echoes back the expected agent id.
+	healthPath = "/health"
+	// concurrencyPath exposes the runtime's live executor snapshot to the worker heartbeat.
+	concurrencyPath = "/concurrency"
+)
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
 type HealthResponse struct {
@@ -75,6 +80,12 @@ type Command struct {
 // command (matching the center's at-least-once contract).
 type Handler interface {
 	Handle(ctx context.Context, cmd Command) error
+}
+
+// Snapshotter is the optional extension a Handler may implement to expose live executor
+// state. A handler without it is treated as active=0.
+type Snapshotter interface {
+	SnapshotConcurrency() []concurrency.ExecutorSnapshot
 }
 
 // HandlerFunc adapts a function to Handler.
@@ -120,6 +131,7 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	mux := http.NewServeMux()
 	mux.HandleFunc(controlPath, s.serveControl)
 	mux.HandleFunc(healthPath, s.serveHealth)
+	mux.HandleFunc(concurrencyPath, s.serveConcurrency)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
 }
@@ -132,6 +144,22 @@ func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(HealthResponse{AgentID: s.agentID})
+}
+
+func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var execs []concurrency.ExecutorSnapshot
+	if snapper, ok := s.handler.(Snapshotter); ok {
+		execs = snapper.SnapshotConcurrency()
+	}
+	if execs == nil {
+		execs = []concurrency.ExecutorSnapshot{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(concurrency.AgentSnapshot{Active: len(execs), Executors: execs})
 }
 
 func (s *Server) serveControl(w http.ResponseWriter, r *http.Request) {
@@ -243,6 +271,27 @@ func (c *Client) Probe(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("agentcontrol: probe: decode: %w", err)
 	}
 	return hr.AgentID, nil
+}
+
+// SnapshotConcurrency returns the agent runtime's live executor snapshot.
+func (c *Client) SnapshotConcurrency(ctx context.Context) (concurrency.AgentSnapshot, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+concurrencyPath, nil)
+	if err != nil {
+		return concurrency.AgentSnapshot{}, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return concurrency.AgentSnapshot{}, fmt.Errorf("agentcontrol: concurrency: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return concurrency.AgentSnapshot{}, fmt.Errorf("agentcontrol: concurrency: agent returned %s", resp.Status)
+	}
+	var snap concurrency.AgentSnapshot
+	if err := json.NewDecoder(resp.Body).Decode(&snap); err != nil {
+		return concurrency.AgentSnapshot{}, fmt.Errorf("agentcontrol: concurrency: decode: %w", err)
+	}
+	return snap, nil
 }
 
 // removeSocket unlinks a unix socket path, ignoring a missing file.

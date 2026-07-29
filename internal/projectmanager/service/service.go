@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -295,6 +296,9 @@ type Service struct {
 	// (cli app.go) wires the production HumanDecisionTimeoutSink via SetTimeoutSink
 	// AFTER construction (its reminder adapter depends on this Service — a build cycle).
 	timeoutSink TimeoutSink
+	// liveExecutors is OPTIONAL (nil-safe). When wired, the lease checker can compare
+	// DB-running executor-fork tasks with the worker heartbeat's live executor snapshot.
+	liveExecutors concurrency.LiveStateStore
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -400,6 +404,10 @@ type Deps struct {
 	// set here in production (the sink needs the reminder AppService, which depends on
 	// this Service): the composition root wires it post-construction via SetTimeoutSink.
 	TimeoutSink TimeoutSink
+	// LiveExecutors is OPTIONAL: a transient per-agent live executor snapshot store written
+	// by worker heartbeats. It lets the stuck-node reconciler detect DB-running executor
+	// tasks whose owner is alive/idle but has no live executor for the task.
+	LiveExecutors concurrency.LiveStateStore
 }
 
 // New constructs the Service.
@@ -433,6 +441,7 @@ func New(d Deps) *Service {
 		stages:             d.Stages,
 		deadlinePolicy:     d.DeadlinePolicy,
 		timeoutSink:        d.TimeoutSink,
+		liveExecutors:      d.LiveExecutors,
 	}
 }
 

@@ -427,6 +427,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:  gen,
 		Clock:  clk,
 	})
+	liveState := concurrency.NewInMemoryStore()
 
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:               db,
@@ -465,6 +466,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// auto-assign is live.
 		AutoAssignDir:      pmservice.NewAgentAutoAssignDirectory(agentRepo, wr),
 		AutoAssignSettings: settingssql.NewStore(db, clk),
+		LiveExecutors:      liveState,
 		OrgSeq:             pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
 		// via MessageWriter (the wake+mention path #220 wakes an agent assignee). The
@@ -546,7 +548,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		PMService:           pmSvc,
 		CodeRepoService:     codeRepoSvc,
 		OrchService:         orchSvc,
-		LiveState:           concurrency.NewInMemoryStore(),
+		LiveState:           liveState,
 		AgentService:        agentSvc,
 		AgentRepo:           agentRepo,
 		AgentActivityRepo:   agentActivityRepo,

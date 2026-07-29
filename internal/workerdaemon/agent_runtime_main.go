@@ -31,6 +31,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
 	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
@@ -505,6 +506,13 @@ func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, boo
 type agentControlHandler struct {
 	rt  *agentruntime.LocalRuntime
 	log func(string)
+}
+
+func (h agentControlHandler) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
+	if h.rt == nil {
+		return nil
+	}
+	return h.rt.SnapshotConcurrency()
 }
 
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied

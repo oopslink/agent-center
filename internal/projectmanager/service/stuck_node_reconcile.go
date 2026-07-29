@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -114,6 +115,12 @@ const (
 	// the SAME node, so a freshly re-dispatched executor gets time to pick the node up
 	// before the next verdict.
 	StuckNodeReopenCooldown = 10 * time.Minute
+
+	// StuckNodeLiveSnapshotFreshFor bounds how old a worker heartbeat executor snapshot
+	// may be before the stuck reconciler treats it as unknown. Idle worker heartbeats are
+	// 30s by default; 2m tolerates brief heartbeat jitter without turning stale state into
+	// a false death signal.
+	StuckNodeLiveSnapshotFreshFor = 2 * time.Minute
 )
 
 // auditPlanNodeAutoReconciled is the change-ledger type for an automatic stuck-node
@@ -212,7 +219,7 @@ const (
 // persistedReopens is the DURABLE Task.FruitlessReopens tally (issue-f30b7e7b D2) — the
 // authoritative reopen count the R_max circuit breaker reads, so it survives a center
 // restart. The in-memory tracker only carries transient strikes/cooldown state.
-func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, persistedReopens int, expBefore *time.Time, updatedAt time.Time, now time.Time) stuckAction {
+func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, persistedReopens int, expBefore *time.Time, updatedAt time.Time, liveKnown, liveMissing bool, now time.Time) stuckAction {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 
@@ -234,7 +241,7 @@ func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, persiste
 		// been frozen ≥ T_stale (issue-0186f85e ③ — the fast path that no longer waits out
 		// the 5h lease TTL). A live node (lease in the future AND still progressing) trips
 		// neither, so a healthy plan carries no trackers.
-		if !leaseLapsed(expBefore, now) && !progressStale(updatedAt, now) {
+		if !leaseLapsed(expBefore, now) && !progressStale(updatedAt, now) && !liveMissing {
 			return stuckActionNone
 		}
 		tr = s.stuckTrackerFor(taskID, now)
@@ -253,7 +260,8 @@ func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, persiste
 	// still registers as activity.
 	leaseAdvanced := expBefore != nil && tr.lastExp != nil && expBefore.After(*tr.lastExp)
 	progressAdvanced := updatedAt.After(tr.lastUpdatedAt)
-	if leaseAdvanced || progressAdvanced {
+	liveExecutorPresent := liveKnown && !liveMissing
+	if liveExecutorPresent || (!liveMissing && (leaseAdvanced || progressAdvanced)) {
 		tr.strikes = 0
 		tr.lastActivityAt = now
 		tr.lastExp = copyTimePtr(expBefore)
@@ -369,6 +377,31 @@ func (s *Service) isStuckReconcilable(txCtx context.Context, t *pm.Task) (bool, 
 	return n.Status() == orch.NodeRunning, nil
 }
 
+// liveExecutorState reports whether a fresh worker heartbeat snapshot proves the owner
+// has no live executor for this DB-running executor-fork task. Missing/stale snapshots
+// are "unknown" and never count as death proof. Supervisor-inline tasks are intentionally
+// excluded: they run in the resident session and should not have a forked executor.
+func (s *Service) liveExecutorState(t *pm.Task, now time.Time) (known bool, missing bool) {
+	if s.liveExecutors == nil || t.DispatchMode().RoutesInline() {
+		return false, false
+	}
+	assignee := string(t.Assignee())
+	if !strings.HasPrefix(assignee, "agent:") {
+		return false, false
+	}
+	agentID := strings.TrimPrefix(assignee, "agent:")
+	snap, age, ok := s.liveExecutors.Get(agentID, now)
+	if !ok || age > StuckNodeLiveSnapshotFreshFor {
+		return false, false
+	}
+	for _, ex := range snap.Executors {
+		if ex.TaskID == string(t.ID()) {
+			return true, false
+		}
+	}
+	return true, true
+}
+
 // reconcileStuckNode folds one sweep's observation of a running task into its
 // confirmed-dead tracker and enacts the verdict (issue-6ff12523). Returns acted=true when
 // this sweep reopened the node or blocked it for triage (so the caller skips the T456
@@ -384,14 +417,15 @@ func (s *Service) reconcileStuckNode(ctx context.Context, t *pm.Task, expBefore 
 	// Cheap gate: skip the plan+node reads unless a death signal is possible — the lease has
 	// lapsed, OR updated_at has been frozen ≥ T_stale (issue-0186f85e ③), OR the node is
 	// already tracked. A healthy running node (lease live AND progressing) never gets here.
-	if !leaseLapsed(expBefore, now) && !progressStale(t.UpdatedAt(), now) && !s.isStuckTracked(t.ID()) {
+	liveKnown, liveMissing := s.liveExecutorState(t, now)
+	if !leaseLapsed(expBefore, now) && !progressStale(t.UpdatedAt(), now) && !liveMissing && !s.isStuckTracked(t.ID()) {
 		return false, nil
 	}
 	reconcilable, err := s.isStuckReconcilable(ctx, t)
 	if err != nil {
 		return false, err
 	}
-	switch s.accountStuckNode(reconcilable, t.ID(), t.FruitlessReopens(), expBefore, t.UpdatedAt(), now) {
+	switch s.accountStuckNode(reconcilable, t.ID(), t.FruitlessReopens(), expBefore, t.UpdatedAt(), liveKnown, liveMissing, now) {
 	case stuckActionReopen:
 		if rerr := s.autoReopenStuckNode(ctx, t.ID(), now); rerr != nil {
 			return false, rerr

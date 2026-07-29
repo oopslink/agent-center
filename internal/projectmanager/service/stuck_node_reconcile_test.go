@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/concurrency"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
@@ -249,6 +250,38 @@ func TestStuckNode_SlowButAlive_NotReopened(t *testing.T) {
 	}
 	if tk := f.task(t); tk.Status() != pm.TaskRunning || tk.BlockedReason() != "" {
 		t.Fatalf("slow-but-alive task disturbed: status=%q blocked=%q", tk.Status(), tk.BlockedReason())
+	}
+}
+
+func TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal(t *testing.T) {
+	f := setupStuckNode(t, "agent:idle")
+	store := concurrency.NewInMemoryStore()
+	f.h.svc.liveExecutors = store
+	clk := f.h.clk
+
+	store.Put("idle", concurrency.AgentSnapshot{Active: 0, Executors: nil}, clk.Now())
+	f.sweep(t) // fresh snapshot says the owner is idle/no executor → begin tracking.
+
+	reopened := false
+	for i := 0; i < 4; i++ {
+		clk.Advance(4 * time.Minute)
+		// The supervisor process may still renew the DB-running task, but the live
+		// executor snapshot remains empty. That renewal must not mask the stranded task.
+		if revoked, _, err := f.h.svc.WorkerRenewLease(f.h.ctx, f.tid, f.assignee); err != nil || revoked {
+			t.Fatalf("WorkerRenewLease: revoked=%v err=%v (want a live renew)", revoked, err)
+		}
+		store.Put("idle", concurrency.AgentSnapshot{Active: 0, Executors: nil}, clk.Now())
+		f.sweep(t)
+		if f.nodeStatus(t) != orch.NodeRunning {
+			reopened = true
+			break
+		}
+	}
+	if !reopened {
+		t.Fatal("node still NodeRunning — live idle/no-executor signal was masked by lease renewal")
+	}
+	if got := f.nodeStatus(t); got != orch.NodeReopen {
+		t.Fatalf("node = %q after auto-reconcile, want reopen", got)
 	}
 }
 

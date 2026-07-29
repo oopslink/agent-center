@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 )
@@ -30,6 +31,7 @@ type controlClient interface {
 	// error means no live matching process. Used at boot to confirm a survivor before
 	// re-adopting it.
 	Probe(ctx context.Context) (string, error)
+	SnapshotConcurrency(ctx context.Context) (concurrency.AgentSnapshot, error)
 }
 
 // clientFactory builds a control client for an agent's socket (seam for tests;
@@ -260,6 +262,21 @@ func (c *Controller) Running() []string {
 	ids := c.launcher.Running()
 	sort.Strings(ids)
 	return ids
+}
+
+// SnapshotConcurrency gathers fresh live-executor state from each launched agent process.
+func (c *Controller) SnapshotConcurrency(ctx context.Context) map[string]concurrency.AgentSnapshot {
+	ids := c.Running()
+	out := make(map[string]concurrency.AgentSnapshot, len(ids))
+	for _, id := range ids {
+		snap, err := c.clientFor(id).SnapshotConcurrency(ctx)
+		if err != nil {
+			c.log("workercontroller: concurrency snapshot agent=%s: %v", id, err)
+			continue
+		}
+		out[id] = snap
+	}
+	return out
 }
 
 // Shutdown stops all agent processes (worker drain).

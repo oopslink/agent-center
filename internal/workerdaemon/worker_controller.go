@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
@@ -114,6 +115,15 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		Seq:     cmd.Offset,
 		Payload: json.RawMessage(cmd.Payload),
 	})
+}
+
+func (h controllerHandler) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {
+	if h.ctrl == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return h.ctrl.SnapshotConcurrency(ctx)
 }
 
 func isStopDesiredLifecycle(lc string) bool {
