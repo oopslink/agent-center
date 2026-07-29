@@ -97,10 +97,11 @@ export function withOrgSlug(path: string): string {
 }
 
 export async function request<T>(path: string, init: RequestInitWithTimeout = {}): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, ...rest } = init;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, credentials, ...rest } = init;
   const finalPath = withOrgSlug(path);
   const fetchPromise = fetch(`/api${finalPath}`, {
     ...rest,
+    credentials: credentials ?? 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(headers ?? {}) },
   }).then(async (resp) => {
     if (!resp.ok) {
@@ -148,12 +149,22 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
 // v2.7 #145: decide the unauthenticated first screen via the public bootstrap
 // probe — /signup when the system has no users yet (fresh install), /signin
 // otherwise. Guarded so concurrent 401s don't double-navigate.
+//
+// A 401 can come from a request started before a successful signin. Before
+// navigating away, re-check the current session with credentials; if the browser
+// has since accepted the signin cookie, keep the user on the authenticated app
+// instead of letting a stale 401 bounce them back to /signin.
 let redirectingUnauthenticated = false;
 async function redirectUnauthenticated(): Promise<void> {
   if (redirectingUnauthenticated) return;
   redirectingUnauthenticated = true;
   let target = '/signin';
   try {
+    const session = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (session.ok) {
+      redirectingUnauthenticated = false;
+      return;
+    }
     const res = await fetch('/api/auth/bootstrap', { credentials: 'same-origin' });
     if (res.ok) {
       const body = (await res.json()) as { initialized?: boolean };

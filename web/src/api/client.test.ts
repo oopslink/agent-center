@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
+import { waitFor } from '@testing-library/react';
 import { ApiError, api, request, withOrgSlug } from './client';
 import { server } from '../test/mswServer';
 
@@ -21,6 +22,18 @@ describe('api client', () => {
     );
     const body = await api.post<{ doubled: number }>('/echo', { x: 7 });
     expect(body.doubled).toBe(14);
+  });
+
+  it('sends same-origin credentials on API requests', async () => {
+    let seenCredentials: RequestCredentials | undefined;
+    server.use(
+      http.get('/api/credentials', ({ request: r }) => {
+        seenCredentials = r.credentials;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    await api.get('/credentials');
+    expect(seenCredentials).toBe('same-origin');
   });
 
   it('DELETEs and tolerates 204 No Content', async () => {
@@ -88,6 +101,29 @@ describe('api client', () => {
       // MSW surfaces this as a fetch failure; client maps to network_error.
       expect(['network_error', 'http_error']).toContain(err.code);
     }
+  });
+
+  it('does not redirect a stale 401 when the session is now valid', async () => {
+    let bootstrapCalls = 0;
+    let sessionProbeCalls = 0;
+    server.use(
+      http.get('/api/stale', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'old request' }, { status: 401 }),
+      ),
+      http.get('/api/auth/me', () => {
+        sessionProbeCalls += 1;
+        return HttpResponse.json({ identity_id: 'user-1' });
+      }),
+      http.get('/api/auth/bootstrap', () => {
+        bootstrapCalls += 1;
+        return HttpResponse.json({ initialized: true });
+      }),
+    );
+
+    await expect(api.get('/stale')).rejects.toBeInstanceOf(ApiError);
+    await waitFor(() => expect(sessionProbeCalls).toBe(1));
+    expect(bootstrapCalls).toBe(0);
+    expect(window.location.pathname).toBe('/');
   });
 });
 
