@@ -2688,13 +2688,18 @@ function StageAuditText({
   showLessLabel: string;
 }) {
   const id = React.useId();
-  const collapsible = text.length > 96 || text.split(/\r?\n/).length > 2;
+  // DAG stage boxes are narrow; text that is only a few dozen characters can
+  // still wrap into multiple visual rows. Keep the audit surface compact by
+  // offering collapse for any real multi-token audit note, not only long blobs.
+  const trimmed = text.trim();
+  const collapsible =
+    (trimmed.length > 36 && /\s/.test(trimmed)) || text.split(/\r?\n/).length > 1;
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="min-w-0">
       <div
         id={id}
-        className={`${expanded ? 'max-h-20 overflow-y-auto' : collapsible ? 'max-h-12 overflow-hidden' : ''} min-w-0 whitespace-pre-wrap break-words ${className}`}
+        className={`${expanded ? 'max-h-24 overflow-y-auto' : collapsible ? 'max-h-8 overflow-hidden' : ''} min-w-0 whitespace-pre-wrap break-words ${className}`}
         title={text || undefined}
         data-testid={testId}
       >
