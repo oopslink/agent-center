@@ -73,7 +73,7 @@ func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Cata
 		c.Models = append(c.Models, x)
 	}
 	rows.Close()
-	rows, err = exec.QueryContext(ctx, `SELECT id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at FROM ai_runtime_profiles WHERE org_id=? ORDER BY key`, org)
+	rows, err = exec.QueryContext(ctx, `SELECT id,key,name,description,cli_key,model_key,parameters_json,enabled,version,created_at,updated_at FROM ai_runtime_profiles WHERE org_id=? ORDER BY key`, org)
 	if err != nil {
 		return c, err
 	}
@@ -81,7 +81,7 @@ func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Cata
 		var x airuntime.RuntimeProfile
 		var params, created, updated string
 		var enabled int
-		if err := rows.Scan(&x.ID, &x.Key, &x.Name, &x.Description, &x.CLIKey, &x.ModelKey, &params, &enabled, &created, &updated); err != nil {
+		if err := rows.Scan(&x.ID, &x.Key, &x.Name, &x.Description, &x.CLIKey, &x.ModelKey, &params, &enabled, &x.Version, &created, &updated); err != nil {
 			rows.Close()
 			return c, err
 		}
@@ -141,14 +141,14 @@ func (r *Repository) UpdateModel(ctx context.Context, x airuntime.ModelDefinitio
 func (r *Repository) CreateProfile(ctx context.Context, x airuntime.RuntimeProfile, expected int64, a airuntime.AuditEvent) (int64, error) {
 	return r.write(ctx, x.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
 		params, _ := json.Marshal(x.Parameters)
-		_, err := exec.ExecContext(ctx, `INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, x.ID, x.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+		_, err := exec.ExecContext(ctx, `INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, x.ID, x.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), 1, stamp(x.CreatedAt), stamp(x.UpdatedAt))
 		return err
 	})
 }
 func (r *Repository) UpdateProfile(ctx context.Context, x airuntime.RuntimeProfile, expected int64, a airuntime.AuditEvent) (int64, error) {
 	return r.write(ctx, x.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
 		params, _ := json.Marshal(x.Parameters)
-		res, err := exec.ExecContext(ctx, `UPDATE ai_runtime_profiles SET name=?,description=?,cli_key=?,model_key=?,parameters_json=?,enabled=?,updated_at=? WHERE id=? AND org_id=?`, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), stamp(x.UpdatedAt), x.ID, x.OrgID)
+		res, err := exec.ExecContext(ctx, `UPDATE ai_runtime_profiles SET name=?,description=?,cli_key=?,model_key=?,parameters_json=?,enabled=?,version=version+1,updated_at=? WHERE id=? AND org_id=?`, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), stamp(x.UpdatedAt), x.ID, x.OrgID)
 		if err == nil {
 			n, _ := res.RowsAffected()
 			if n == 0 {
@@ -163,6 +163,104 @@ func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expe
 		_, err := exec.ExecContext(ctx, `UPDATE ai_runtime_catalogs SET default_profile_id=? WHERE org_id=?`, id, org)
 		return err
 	})
+}
+
+func (r *Repository) ApplyCatalog(ctx context.Context, catalog airuntime.Catalog, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, catalog.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
+		for _, x := range catalog.CLIs {
+			features, _ := json.Marshal(x.RequiredFeatures)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_clis(id,org_id,key,display_name,executable,version_constraint,required_features_json,parameter_schema_json,enabled,system,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET display_name=excluded.display_name,executable=excluded.executable,
+				version_constraint=excluded.version_constraint,required_features_json=excluded.required_features_json,
+				parameter_schema_json=excluded.parameter_schema_json,enabled=excluded.enabled,updated_at=excluded.updated_at
+			`, x.ID, catalog.OrgID, x.Key, x.DisplayName, x.Executable, x.VersionConstraint, string(features), string(x.ParameterSchema), boolInt(x.Enabled), boolInt(x.System), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return err
+			}
+		}
+		for _, x := range catalog.Models {
+			clis, _ := json.Marshal(x.CompatibleCLIKeys)
+			params, _ := json.Marshal(x.DefaultParameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO pm_model_catalog(id,org_id,model_id,display_name,input_cost,output_cost,context_window,tier,created_by,created_at,updated_at,version,runtime_key,compatible_cli_keys_json,default_parameters_json,enabled)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,runtime_key) DO UPDATE SET model_id=excluded.model_id,display_name=excluded.display_name,
+				input_cost=excluded.input_cost,output_cost=excluded.output_cost,context_window=excluded.context_window,tier=excluded.tier,
+				updated_at=excluded.updated_at,version=pm_model_catalog.version+1,compatible_cli_keys_json=excluded.compatible_cli_keys_json,
+				default_parameters_json=excluded.default_parameters_json,enabled=excluded.enabled
+			`, x.ID, catalog.OrgID, x.ModelKey, x.DisplayName, x.InputCost, x.OutputCost, x.ContextWindow, x.Tier, a.Actor, stamp(x.CreatedAt), stamp(x.UpdatedAt), 1, x.Key, string(clis), string(params), boolInt(x.Enabled))
+			if err != nil {
+				return err
+			}
+		}
+		for _, x := range catalog.Profiles {
+			params, _ := json.Marshal(x.Parameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,version,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET name=excluded.name,description=excluded.description,cli_key=excluded.cli_key,
+				model_key=excluded.model_key,parameters_json=excluded.parameters_json,enabled=excluded.enabled,
+				version=excluded.version,updated_at=excluded.updated_at
+			`, x.ID, catalog.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), x.Version, stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return err
+			}
+		}
+		_, err := exec.ExecContext(ctx, `UPDATE ai_runtime_catalogs SET default_profile_id=? WHERE org_id=?`, catalog.DefaultProfileID, catalog.OrgID)
+		return err
+	})
+}
+
+func (r *Repository) FreezeExecutionSnapshot(ctx context.Context, orgID, executionID string, snapshot airuntime.RuntimeSnapshot) (airuntime.RuntimeSnapshot, bool, error) {
+	data, err := airuntime.CanonicalJSON(snapshot)
+	if err != nil {
+		return airuntime.RuntimeSnapshot{}, false, err
+	}
+	var stored airuntime.RuntimeSnapshot
+	created := false
+	err = persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {
+		exec, _ := persistence.ExecutorFromCtx(txctx, r.db)
+		res, err := exec.ExecContext(txctx, `
+			INSERT OR IGNORE INTO ai_runtime_execution_snapshots(execution_id,org_id,snapshot_json,created_at)
+			VALUES(?,?,?,?)
+		`, executionID, orgID, string(data), stamp(snapshot.ResolvedAt))
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		created = n == 1
+		var raw, storedOrg string
+		if err := exec.QueryRowContext(txctx, `SELECT org_id,snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id=?`, executionID).Scan(&storedOrg, &raw); err != nil {
+			return err
+		}
+		if storedOrg != orgID {
+			return fmt.Errorf("execution snapshot belongs to another organization")
+		}
+		return json.Unmarshal([]byte(raw), &stored)
+	})
+	return stored, created, err
+}
+
+func (r *Repository) GetExecutionSnapshot(ctx context.Context, orgID, executionID string) (airuntime.RuntimeSnapshot, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var storedOrg, raw string
+	err := exec.QueryRowContext(ctx, `SELECT org_id,snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id=?`, executionID).Scan(&storedOrg, &raw)
+	if err == sql.ErrNoRows {
+		return airuntime.RuntimeSnapshot{}, false, nil
+	}
+	if err != nil {
+		return airuntime.RuntimeSnapshot{}, false, err
+	}
+	if storedOrg != orgID {
+		return airuntime.RuntimeSnapshot{}, false, fmt.Errorf("execution snapshot belongs to another organization")
+	}
+	var snapshot airuntime.RuntimeSnapshot
+	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
+		return airuntime.RuntimeSnapshot{}, false, err
+	}
+	return snapshot, true, nil
 }
 
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {

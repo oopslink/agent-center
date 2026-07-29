@@ -91,3 +91,27 @@ func TestValidateSchemaRejectsInvalidKeywordSemantics(t *testing.T) {
 		}
 	}
 }
+
+func TestSchemaSubsetFailsClosedAndSecretRequiresReference(t *testing.T) {
+	for _, schema := range []json.RawMessage{
+		json.RawMessage(`{"type":"object","oneOf":[{"type":"object"}]}`),
+		json.RawMessage(`{"type":"object","properties":{"x":{"type":"object","additionalProperties":{"type":"string"}}}}`),
+		json.RawMessage(`{"type":"object","properties":{"credential":{"type":"string","x-secret":true}}}`),
+	} {
+		if err := validateSchema(schema); err == nil {
+			t.Fatalf("unsupported schema accepted: %s", schema)
+		}
+	}
+	secretSchema := json.RawMessage(`{
+		"type":"object",
+		"properties":{"credential":{"type":"object","x-secret":true}},
+		"required":["credential"],
+		"additionalProperties":false
+	}`)
+	if err := validateParameters(secretSchema, map[string]any{"credential": "plaintext"}); err == nil {
+		t.Fatal("plaintext secret accepted")
+	}
+	if err := validateParameters(secretSchema, map[string]any{"credential": map[string]any{"secret_ref": "secret://org/key"}}); err != nil {
+		t.Fatalf("secret reference rejected: %v", err)
+	}
+}

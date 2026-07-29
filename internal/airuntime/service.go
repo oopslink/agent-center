@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -13,13 +14,14 @@ var ErrNotFound = errors.New("ai runtime entity not found")
 type IDGenerator func() string
 
 type Service struct {
-	repo Repository
-	id   IDGenerator
-	now  func() time.Time
+	repo     Repository
+	id       IDGenerator
+	now      func() time.Time
+	tokenKey []byte
 }
 
 func NewService(repo Repository, id IDGenerator) *Service {
-	return &Service{repo: repo, id: id, now: func() time.Time { return time.Now().UTC() }}
+	return &Service{repo: repo, id: id, now: func() time.Time { return time.Now().UTC() }, tokenKey: newTokenKey()}
 }
 
 func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {
@@ -196,6 +198,7 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 
 func (s *Service) CreateProfile(ctx context.Context, orgID, actor string, expected int64, in RuntimeProfile) (RuntimeProfile, int64, error) {
 	in.ID, in.OrgID, in.Key = s.id(), orgID, strings.TrimSpace(in.Key)
+	in.Version = 1
 	if err := validateKey("key", in.Key); err != nil {
 		return in, 0, err
 	}
@@ -236,6 +239,7 @@ func (s *Service) UpdateProfile(ctx context.Context, orgID, actor string, expect
 		return in, 0, errors.New("profile key is immutable")
 	}
 	in.OrgID, in.Key, in.CreatedAt, in.UpdatedAt = orgID, old.Key, old.CreatedAt, s.now()
+	in.Version = old.Version + 1
 	if strings.TrimSpace(in.Name) == "" {
 		return in, 0, errors.New("name is required")
 	}
@@ -340,6 +344,16 @@ func validateParameters(raw json.RawMessage, params map[string]any) error {
 	if err := json.Unmarshal(raw, &document); err != nil {
 		return parameterError("", err.Error())
 	}
+	root, ok := document.(map[string]any)
+	if !ok {
+		return parameterError("", "parameter schema root must be an object")
+	}
+	if err := validateSupportedSchema(root, "$"); err != nil {
+		return err
+	}
+	if err := validateSecretParameters(root, params, "$"); err != nil {
+		return err
+	}
 	schema, err := compileSchema(document)
 	if err != nil {
 		return parameterError("", err.Error())
@@ -350,12 +364,54 @@ func validateParameters(raw json.RawMessage, params map[string]any) error {
 	return nil
 }
 
+func validateSecretParameters(schema map[string]any, value any, path string) error {
+	if secret, _ := schema["x-secret"].(bool); secret {
+		if secretReference(value) == "" {
+			return &Error{Reason: ReasonSecretInvalid, Message: "secret parameters must contain only a secret_ref", Details: map[string]any{"path": path}}
+		}
+		return nil
+	}
+	switch typ, _ := schema["type"].(string); typ {
+	case "object":
+		object, _ := value.(map[string]any)
+		properties, _ := schema["properties"].(map[string]any)
+		for key := range object {
+			lower := strings.ToLower(key)
+			if strings.Contains(lower, "secret") || strings.Contains(lower, "password") ||
+				strings.Contains(lower, "token") || strings.Contains(lower, "api_key") {
+				childSchema, declared := properties[key].(map[string]any)
+				marked, _ := childSchema["x-secret"].(bool)
+				if !declared || !marked {
+					return &Error{Reason: ReasonSecretInvalid, Message: "secret-looking parameters must be explicitly declared as secret references", Details: map[string]any{"path": path + "." + key}}
+				}
+			}
+		}
+		for key, rawChild := range properties {
+			childSchema, _ := rawChild.(map[string]any)
+			if child, exists := object[key]; exists {
+				if err := validateSecretParameters(childSchema, child, path+"."+key); err != nil {
+					return err
+				}
+			}
+		}
+	case "array":
+		items, _ := schema["items"].(map[string]any)
+		array, _ := value.([]any)
+		for i := range array {
+			if err := validateSecretParameters(items, array[i], fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func parameterError(field, msg string) error {
 	return &Error{Reason: ReasonParametersInvalid, Message: "runtime parameters are invalid", Details: map[string]any{"field": field, "error": msg}}
 }
 
 func (s *Service) audit(org, actor, entityType, entityKey, action string, before, after any) AuditEvent {
-	b, _ := json.Marshal(before)
-	a, _ := json.Marshal(after)
+	b, _ := json.Marshal(RedactValue(deepCopy(before)))
+	a, _ := json.Marshal(RedactValue(deepCopy(after)))
 	return AuditEvent{ID: s.id(), OrgID: org, Actor: actor, EntityType: entityType, EntityKey: entityKey, Action: action, Before: b, After: a, OccurredAt: s.now()}
 }

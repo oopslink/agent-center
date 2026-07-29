@@ -11,4 +11,7 @@ type Repository interface {
 	CreateProfile(context.Context, RuntimeProfile, int64, AuditEvent) (int64, error)
 	UpdateProfile(context.Context, RuntimeProfile, int64, AuditEvent) (int64, error)
 	SetDefaultProfile(context.Context, string, string, int64, AuditEvent) (int64, error)
+	ApplyCatalog(context.Context, Catalog, int64, AuditEvent) (int64, error)
+	FreezeExecutionSnapshot(context.Context, string, string, RuntimeSnapshot) (RuntimeSnapshot, bool, error)
+	GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error)
 }

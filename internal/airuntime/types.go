@@ -1,10 +1,12 @@
 package airuntime
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,6 +28,10 @@ const (
 	ReasonProfileNotFound   Reason = "runtime_profile_not_found"
 	ReasonSelectionInvalid  Reason = "runtime_selection_invalid"
 	ReasonLegacyUnmapped    Reason = "runtime_legacy_unmapped"
+	ReasonSchemaUnsupported Reason = "runtime_schema_unsupported"
+	ReasonSecretInvalid     Reason = "runtime_secret_reference_invalid"
+	ReasonImportUnsupported Reason = "runtime_import_schema_unsupported"
+	ReasonImportInvalid     Reason = "runtime_import_validation_failed"
 )
 
 type Error struct {
@@ -85,6 +91,7 @@ type RuntimeProfile struct {
 	ModelKey    string         `json:"model_key"`
 	Parameters  map[string]any `json:"parameters"`
 	Enabled     bool           `json:"enabled"`
+	Version     int64          `json:"version"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
@@ -105,14 +112,18 @@ const (
 
 type RuntimeSnapshot struct {
 	SchemaVersion        int            `json:"schema_version"`
+	CatalogRevision      int64          `json:"catalog_revision"`
 	CLIKey               string         `json:"cli_key"`
 	CLIExecutable        string         `json:"cli_executable"`
 	CLIVersionConstraint string         `json:"cli_version_constraint,omitempty"`
 	RequiredFeatures     []string       `json:"required_features"`
 	ModelKey             string         `json:"model_key"`
 	Parameters           map[string]any `json:"parameters"`
+	ParametersDigest     string         `json:"parameters_digest"`
 	Source               string         `json:"source"`
 	ProfileID            string         `json:"profile_id,omitempty"`
+	ProfileKey           string         `json:"profile_key,omitempty"`
+	ProfileVersion       int64          `json:"profile_version,omitempty"`
 	ResolvedAt           time.Time      `json:"resolved_at"`
 }
 
@@ -170,11 +181,132 @@ func validateSchema(raw json.RawMessage) error {
 	if typ, ok := root["type"].(string); ok && typ != "object" {
 		return errors.New("parameter_schema root type must be object")
 	}
+	if err := validateSupportedSchema(root, "$"); err != nil {
+		return err
+	}
 	_, err := compileSchema(document)
 	if err != nil {
 		return fmt.Errorf("parameter_schema: %w", err)
 	}
 	return nil
+}
+
+var supportedSchemaKeywords = map[string]bool{
+	"type": true, "properties": true, "required": true, "enum": true, "const": true,
+	"minimum": true, "maximum": true, "exclusiveMinimum": true, "exclusiveMaximum": true,
+	"multipleOf": true, "minLength": true, "maxLength": true, "pattern": true,
+	"items": true, "minItems": true, "maxItems": true, "uniqueItems": true,
+	"additionalProperties": true, "default": true, "description": true, "title": true,
+	"x-secret": true,
+}
+
+func validateSupportedSchema(schema map[string]any, path string) error {
+	for keyword := range schema {
+		if !supportedSchemaKeywords[keyword] {
+			return &Error{Reason: ReasonSchemaUnsupported, Message: "parameter schema uses an unsupported keyword", Details: map[string]any{"path": path, "keyword": keyword}}
+		}
+	}
+	if secret, ok := schema["x-secret"]; ok {
+		flag, valid := secret.(bool)
+		if !valid || !flag {
+			return fmt.Errorf("%s.x-secret must be true when present", path)
+		}
+		if typ, _ := schema["type"].(string); typ != "object" {
+			return fmt.Errorf("%s secret parameter must have type object", path)
+		}
+	}
+	if properties, ok := schema["properties"].(map[string]any); ok {
+		keys := make([]string, 0, len(properties))
+		for key := range properties {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child, ok := properties[key].(map[string]any)
+			if !ok {
+				return fmt.Errorf("%s.properties.%s must be an object schema", path, key)
+			}
+			if err := validateSupportedSchema(child, path+"."+key); err != nil {
+				return err
+			}
+		}
+	}
+	if item, ok := schema["items"]; ok {
+		child, ok := item.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s.items must be an object schema", path)
+		}
+		if err := validateSupportedSchema(child, path+"[]"); err != nil {
+			return err
+		}
+	}
+	if additional, ok := schema["additionalProperties"]; ok {
+		if _, valid := additional.(bool); !valid {
+			return &Error{Reason: ReasonSchemaUnsupported, Message: "schema-valued additionalProperties is unsupported", Details: map[string]any{"path": path, "keyword": "additionalProperties"}}
+		}
+	}
+	return nil
+}
+
+// CanonicalJSON returns the stable JSON representation used by snapshots,
+// digests, import tokens and round-trip comparison. encoding/json sorts map
+// keys; the explicit deep copy also detaches the returned bytes from callers.
+func CanonicalJSON(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func parametersDigest(parameters map[string]any) (string, error) {
+	redacted := RedactValue(parameters)
+	data, err := CanonicalJSON(redacted)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("sha256:%x", sha256.Sum256(data)), nil
+}
+
+// RedactValue deep-copies arbitrary JSON-shaped data and removes likely
+// plaintext credentials. Secret references remain useful but never expose a
+// resolved value.
+func RedactValue(v any) any {
+	switch value := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(value))
+		for key, child := range value {
+			lower := strings.ToLower(key)
+			if lower == "secret_ref" {
+				out[key] = child
+				continue
+			}
+			if strings.Contains(lower, "secret") || strings.Contains(lower, "password") ||
+				strings.Contains(lower, "token") || strings.Contains(lower, "api_key") {
+				if ref := secretReference(child); ref != "" {
+					out[key] = map[string]any{"secret_ref": ref}
+				} else {
+					out[key] = "[REDACTED]"
+				}
+				continue
+			}
+			out[key] = RedactValue(child)
+		}
+		return out
+	case []any:
+		out := make([]any, len(value))
+		for i := range value {
+			out[i] = RedactValue(value[i])
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func secretReference(v any) string {
+	obj, ok := v.(map[string]any)
+	if !ok || len(obj) != 1 {
+		return ""
+	}
+	ref, _ := obj["secret_ref"].(string)
+	return strings.TrimSpace(ref)
 }
 
 func compileSchema(document any) (*jsonschema.Schema, error) {

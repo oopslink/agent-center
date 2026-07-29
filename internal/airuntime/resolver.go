@@ -24,6 +24,26 @@ func (r *RuntimeResolver) Resolve(ctx context.Context, orgID string, selection R
 	return r.ResolveCatalog(catalog, selection)
 }
 
+// ResolveExecution freezes the first resolution for an execution identifier.
+// Retry, resume and semantic-preserving reassign call the same method and
+// receive the byte-identical stored snapshot without consulting mutable
+// Catalog state after the first successful insert.
+func (r *RuntimeResolver) ResolveExecution(ctx context.Context, orgID, executionID string, selection RuntimeSelection) (RuntimeSnapshot, bool, error) {
+	if strings.TrimSpace(executionID) == "" {
+		return RuntimeSnapshot{}, false, runtimeError(ReasonSelectionInvalid, "execution_id is required", nil)
+	}
+	if frozen, ok, err := r.repo.GetExecutionSnapshot(ctx, orgID, executionID); err != nil {
+		return RuntimeSnapshot{}, false, err
+	} else if ok {
+		return frozen, false, nil
+	}
+	candidate, err := r.Resolve(ctx, orgID, selection)
+	if err != nil {
+		return RuntimeSnapshot{}, false, err
+	}
+	return r.repo.FreezeExecutionSnapshot(ctx, orgID, executionID, candidate)
+}
+
 func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelection) (RuntimeSnapshot, error) {
 	mode := strings.TrimSpace(selection.Mode)
 	if mode == "" {
@@ -89,11 +109,21 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 	if err := validateParameters(cli.ParameterSchema, merged); err != nil {
 		return RuntimeSnapshot{}, err
 	}
+	digest, err := parametersDigest(merged)
+	if err != nil {
+		return RuntimeSnapshot{}, parameterError("", err.Error())
+	}
+	var profileKey string
+	var profileVersion int64
+	if profileID != "" {
+		profile := findProfile(catalog.Profiles, profileID)
+		profileKey, profileVersion = profile.Key, profile.Version
+	}
 	return RuntimeSnapshot{
-		SchemaVersion: 1, CLIKey: cli.Key, CLIExecutable: cli.Executable,
+		SchemaVersion: 1, CatalogRevision: catalog.Revision, CLIKey: cli.Key, CLIExecutable: cli.Executable,
 		CLIVersionConstraint: cli.VersionConstraint, RequiredFeatures: append([]string(nil), cli.RequiredFeatures...),
-		ModelKey: model.ModelKey, Parameters: cloneMap(merged), Source: source,
-		ProfileID: profileID, ResolvedAt: r.now().UTC(),
+		ModelKey: model.ModelKey, Parameters: cloneMap(merged), ParametersDigest: digest, Source: source,
+		ProfileID: profileID, ProfileKey: profileKey, ProfileVersion: profileVersion, ResolvedAt: r.now().UTC(),
 	}, nil
 }
 

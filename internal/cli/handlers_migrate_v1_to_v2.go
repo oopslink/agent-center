@@ -175,8 +175,9 @@ func MigrateV1ToV2Command() *Command {
 // and rebuild active-task indexes without delivered).
 // 0115 added first-class stage gates; 0116 added the AI runtime catalog.
 // 0117 added messages.reply_to_message_id for primary-reply binding.
-// 0118 added pm_stage_gate_reopen_requests.
-const targetSchemaVersion = 118
+// 0118 added pm_stage_gate_reopen_requests; 0119 added immutable runtime-profile
+// version provenance for AI Runtime snapshots.
+const targetSchemaVersion = 119
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -2,11 +2,14 @@ package api
 
 import (
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 )
+
+const maxRuntimeBundleBytes = 4 << 20
 
 type runtimeWrite[T any] struct {
 	ExpectedRevision int64 `json:"expected_revision"`
@@ -220,4 +223,75 @@ func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID})
+}
+
+func (s *Server) exportRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request) {
+	// Export and import expose the same organization-wide configuration
+	// boundary, so both require the catalog write/admin permission.
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	format := r.URL.Query().Get("format")
+	data, err := d.RuntimeCatalog.Export(r.Context(), org, format)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	if format == "yaml" || format == "yml" {
+		w.Header().Set("Content-Type", "application/yaml")
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="ai-runtime-catalog.`+map[bool]string{true: "yaml", false: "json"}[format == "yaml" || format == "yml"]+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func readRuntimeBundle(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, maxRuntimeBundleBytes+1))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_bundle", err.Error())
+		return nil, false
+	}
+	if len(data) > maxRuntimeBundleBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "bundle_too_large", "AI Runtime bundle exceeds 4 MiB")
+		return nil, false
+	}
+	return data, true
+}
+
+func (s *Server) previewRuntimeImportHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	data, ok := readRuntimeBundle(w, r)
+	if !ok {
+		return
+	}
+	preview, err := d.RuntimeCatalog.PreviewImport(r.Context(), org, r.URL.Query().Get("mode"), data)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, preview)
+}
+
+func (s *Server) applyRuntimeImportHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	data, ok := readRuntimeBundle(w, r)
+	if !ok {
+		return
+	}
+	token := r.Header.Get("X-AI-Runtime-Validation-Token")
+	catalog, err := d.RuntimeCatalog.ApplyImport(r.Context(), org, "user:"+id.ID(), r.URL.Query().Get("mode"), data, token)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, catalog)
 }

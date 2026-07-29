@@ -274,6 +274,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/profiles", s.createRuntimeProfileHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/profiles/{id}", s.updateRuntimeProfileHandler)
 	s.mux.HandleFunc("PUT /api/orgs/{slug}/ai-runtime/default-profile", s.setRuntimeDefaultProfileHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/export", s.exportRuntimeCatalogHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/import/preview", s.previewRuntimeImportHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/import/apply", s.applyRuntimeImportHandler)
 
 	// Team WebUI facade (plan-32dd9107, P1: teams CRUD + members + projects).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams", s.listTeamsHandler)
