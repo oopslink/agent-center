@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
@@ -114,6 +115,7 @@ type fakeClient struct {
 	probeErr error
 	snap     concurrency.AgentSnapshot
 	snapErr  error
+	snapWait time.Duration
 }
 
 func (c *fakeClient) Deliver(_ context.Context, cmd agentcontrol.Command) error {
@@ -130,7 +132,16 @@ func (c *fakeClient) Probe(context.Context) (string, error) {
 	defer c.mu.Unlock()
 	return c.probeID, c.probeErr
 }
-func (c *fakeClient) SnapshotConcurrency(context.Context) (concurrency.AgentSnapshot, error) {
+func (c *fakeClient) SnapshotConcurrency(ctx context.Context) (concurrency.AgentSnapshot, error) {
+	if c.snapWait > 0 {
+		timer := time.NewTimer(c.snapWait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return concurrency.AgentSnapshot{}, ctx.Err()
+		case <-timer.C:
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.snap, c.snapErr
@@ -248,6 +259,45 @@ func TestSnapshotConcurrency_AggregatesRunningAgents(t *testing.T) {
 	got := c.SnapshotConcurrency(context.Background())
 	if len(got) != 1 || got["a"].Active != 1 || got["a"].Executors[0].TaskID != "t-a" {
 		t.Fatalf("SnapshotConcurrency = %+v, want only agent a snapshot", got)
+	}
+}
+
+func TestSnapshotConcurrency_SlowAgentDoesNotStarveOthers(t *testing.T) {
+	l := newFakeLauncher()
+	clients := map[string]*fakeClient{
+		"a": {
+			snap:     concurrency.AgentSnapshot{Active: 1, Executors: []concurrency.ExecutorSnapshot{{TaskID: "t-a", State: concurrency.StateRunning}}},
+			snapWait: snapshotPerAgentTimeout * 2,
+		},
+		"b": {snap: concurrency.AgentSnapshot{Active: 1, Executors: []concurrency.ExecutorSnapshot{{TaskID: "t-b", State: concurrency.StateRunning}}}},
+	}
+	c, err := New(Config{
+		Launcher: l,
+		SockDir:  "/tmp/acs",
+		NewClient: func(sock string) controlClient {
+			if strings.Contains(sock, agentcontrol.SocketName("a")) {
+				return clients["a"]
+			}
+			return clients["b"]
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.Reconcile([]string{"a", "b"})
+
+	start := time.Now()
+	got := c.SnapshotConcurrency(context.Background())
+	elapsed := time.Since(start)
+
+	if _, ok := got["a"]; ok {
+		t.Fatalf("SnapshotConcurrency = %+v, want slow agent omitted after timeout", got)
+	}
+	if len(got) != 1 || got["b"].Executors[0].TaskID != "t-b" {
+		t.Fatalf("SnapshotConcurrency = %+v, want fast agent b snapshot", got)
+	}
+	if elapsed >= snapshotPerAgentTimeout*2 {
+		t.Fatalf("SnapshotConcurrency took %s, want bounded near one per-agent timeout", elapsed)
 	}
 }
 

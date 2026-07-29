@@ -23,6 +23,8 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 )
 
+const snapshotPerAgentTimeout = 750 * time.Millisecond
+
 // controlClient is the subset of agentcontrol.Client the controller uses (seam for
 // tests).
 type controlClient interface {
@@ -268,14 +270,26 @@ func (c *Controller) Running() []string {
 func (c *Controller) SnapshotConcurrency(ctx context.Context) map[string]concurrency.AgentSnapshot {
 	ids := c.Running()
 	out := make(map[string]concurrency.AgentSnapshot, len(ids))
+	var outMu sync.Mutex
+	var wg sync.WaitGroup
 	for _, id := range ids {
-		snap, err := c.clientFor(id).SnapshotConcurrency(ctx)
-		if err != nil {
-			c.log("workercontroller: concurrency snapshot agent=%s: %v", id, err)
-			continue
-		}
-		out[id] = snap
+		id := id
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reqCtx, cancel := context.WithTimeout(ctx, snapshotPerAgentTimeout)
+			defer cancel()
+			snap, err := c.clientFor(id).SnapshotConcurrency(reqCtx)
+			if err != nil {
+				c.log("workercontroller: concurrency snapshot agent=%s: %v", id, err)
+				return
+			}
+			outMu.Lock()
+			out[id] = snap
+			outMu.Unlock()
+		}()
 	}
+	wg.Wait()
 	return out
 }
 

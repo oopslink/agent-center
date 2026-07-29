@@ -265,7 +265,7 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	_ = envVars
 	_ = wasConcurrent
 	st.LifecycleOnce.Do(func() {
-		if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "crashed", msg, time.Now()); err != nil {
+		if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
 			r.log("agent=%s report crashed: %v", agentID, err)
 		}
 	})

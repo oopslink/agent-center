@@ -232,8 +232,8 @@ func TestOnExit_CodexCrashReportsCrashedAndFiresFatal(t *testing.T) {
 	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
-	if len(got) != 1 || !strings.HasPrefix(got[0], "crashed|") {
-		t.Fatalf("codex crash must report crashed once, got %v", got)
+	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
+		t.Fatalf("codex crash must report lifecycle error once, got %v", got)
 	}
 	if !*fatal {
 		t.Fatal("codex crash must fire OnFatal (→ process exit → launcher rebuild)")
@@ -275,7 +275,7 @@ func TestOnEvent_CodexCleanTurnCountTriggersRecycle(t *testing.T) {
 }
 
 // TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal is the T860 gap4 guard: a claude
-// unexpected crash reports "crashed" once and fires OnFatal (→ the agent-runtime process
+// unexpected crash reports lifecycle error once and fires OnFatal (→ the agent-runtime process
 // exits → the worker launcher rebuilds it with bounded backoff). No in-process self-heal.
 func TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal(t *testing.T) {
 	rt, rep, fatal := fullRuntime(t)
@@ -286,8 +286,8 @@ func TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal(t *testing.T) {
 	})
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
-	if len(got) != 1 || !strings.HasPrefix(got[0], "crashed|") {
-		t.Fatalf("claude crash must report 'crashed' once, got %v", got)
+	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
+		t.Fatalf("claude crash must report lifecycle error once, got %v", got)
 	}
 	if !*fatal {
 		t.Fatal("claude crash must fire OnFatal (→ process exit → launcher rebuild)")
