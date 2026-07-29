@@ -1,10 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { waitFor } from '@testing-library/react';
 import { ApiError, api, request, withOrgSlug } from './client';
 import { server } from '../test/mswServer';
 
+const mocks = vi.hoisted(() => ({
+  redirectAfterAuthLoss: vi.fn(),
+}));
+
+vi.mock('./authRedirect', () => ({
+  redirectAfterAuthLoss: mocks.redirectAfterAuthLoss,
+}));
+
 describe('api client', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+    mocks.redirectAfterAuthLoss.mockReset();
+  });
+
   it('GETs JSON and returns the parsed body', async () => {
     server.use(
       http.get('/api/ping', () => HttpResponse.json({ pong: true })),
@@ -123,6 +136,79 @@ describe('api client', () => {
     await expect(api.get('/stale')).rejects.toBeInstanceOf(ApiError);
     await waitFor(() => expect(sessionProbeCalls).toBe(1));
     expect(bootstrapCalls).toBe(0);
+    expect(mocks.redirectAfterAuthLoss).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('redirects to signin only after auth/me confirms unauthenticated and bootstrap is reachable', async () => {
+    server.use(
+      http.get('/api/private', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/me', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/bootstrap', () => HttpResponse.json({ initialized: true })),
+    );
+
+    await expect(api.get('/private')).rejects.toBeInstanceOf(ApiError);
+    await waitFor(() => expect(mocks.redirectAfterAuthLoss).toHaveBeenCalledWith('/signin'));
+  });
+
+  it('redirects to signup when auth/me confirms unauthenticated on a fresh install', async () => {
+    server.use(
+      http.get('/api/private', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/me', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/bootstrap', () => HttpResponse.json({ initialized: false })),
+    );
+
+    await expect(api.get('/private')).rejects.toBeInstanceOf(ApiError);
+    await waitFor(() => expect(mocks.redirectAfterAuthLoss).toHaveBeenCalledWith('/signup'));
+  });
+
+  it('does not redirect during a deploy window when the auth/me probe is unavailable', async () => {
+    let bootstrapCalls = 0;
+    server.use(
+      http.get('/api/private', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'transient' }, { status: 401 }),
+      ),
+      http.get('/api/auth/me', () =>
+        HttpResponse.json({ error: 'server_starting', message: 'try again' }, { status: 503 }),
+      ),
+      http.get('/api/auth/bootstrap', () => {
+        bootstrapCalls += 1;
+        return HttpResponse.json({ initialized: true });
+      }),
+    );
+
+    await expect(api.get('/private')).rejects.toBeInstanceOf(ApiError);
+    await waitFor(() => expect(bootstrapCalls).toBe(0));
+    expect(mocks.redirectAfterAuthLoss).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('does not redirect during a deploy window when bootstrap cannot be reached', async () => {
+    let bootstrapCalls = 0;
+    server.use(
+      http.get('/api/private', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/me', () =>
+        HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
+      ),
+      http.get('/api/auth/bootstrap', () => {
+        bootstrapCalls += 1;
+        return HttpResponse.error();
+      }),
+    );
+
+    await expect(api.get('/private')).rejects.toBeInstanceOf(ApiError);
+    await waitFor(() => expect(bootstrapCalls).toBe(1));
+    expect(mocks.redirectAfterAuthLoss).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe('/');
   });
 });

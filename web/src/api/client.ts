@@ -11,6 +11,8 @@
 //     `instanceof` check inside MSW v2 — Promise.race side-steps the
 //     polyfill mismatch and is sufficient for a UI client.)
 
+import { redirectAfterAuthLoss } from './authRedirect';
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -154,27 +156,39 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
 // navigating away, re-check the current session with credentials; if the browser
 // has since accepted the signin cookie, keep the user on the authenticated app
 // instead of letting a stale 401 bounce them back to /signin.
+//
+// Deploy/restart windows are not auth failures. If either auth probe is a
+// network error or 5xx, leave the current page alone and let react-query retry
+// normal data fetches rather than manufacturing a logout.
 let redirectingUnauthenticated = false;
 async function redirectUnauthenticated(): Promise<void> {
   if (redirectingUnauthenticated) return;
   redirectingUnauthenticated = true;
-  let target = '/signin';
+  let target: '/signin' | '/signup' = '/signin';
   try {
     const session = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (session.ok) {
       redirectingUnauthenticated = false;
       return;
     }
-    const res = await fetch('/api/auth/bootstrap', { credentials: 'same-origin' });
-    if (res.ok) {
-      const body = (await res.json()) as { initialized?: boolean };
-      if (body.initialized === false) target = '/signup';
+    if (session.status !== 401) {
+      redirectingUnauthenticated = false;
+      return;
     }
+    const res = await fetch('/api/auth/bootstrap', { credentials: 'same-origin' });
+    if (!res.ok) {
+      redirectingUnauthenticated = false;
+      return;
+    }
+    const body = (await res.json()) as { initialized?: boolean };
+    if (body.initialized === false) target = '/signup';
   } catch {
-    // Network error → fall back to /signin.
+    redirectingUnauthenticated = false;
+    return;
   }
   if (window.location.pathname !== target) {
-    window.location.href = target;
+    redirectAfterAuthLoss(target);
+    redirectingUnauthenticated = false;
   } else {
     redirectingUnauthenticated = false;
   }
