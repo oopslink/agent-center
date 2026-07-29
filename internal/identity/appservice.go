@@ -221,17 +221,18 @@ func NewSigninServiceWithSink(identities IdentityRepository, signingKey []byte, 
 // Returns ErrPasscodeInvalid on any auth failure (no enumeration leakage).
 func (s *SigninService) Execute(ctx context.Context, login, passcodePlain string) (*SigninResult, error) {
 	login = strings.TrimSpace(login)
+	loginKind := signinLoginKind(login)
 	identity, err := s.lookupLogin(ctx, login)
 	if err != nil || identity == nil {
-		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{}, observability.Actor("system"), map[string]any{"reason": "not_found", "message": "identity not found"})
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{}, observability.Actor("system"), map[string]any{"reason": "not_found", "message": "identity not found", "login_kind": loginKind})
 		return nil, ErrPasscodeInvalid
 	}
 	if identity.AccountStatus() == AccountDisabled {
-		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "disabled", "message": "account disabled"})
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "disabled", "message": "account disabled", "login_kind": loginKind})
 		return nil, ErrPasscodeInvalid
 	}
 	if !VerifyPasscode(identity.PasscodeHash(), passcodePlain) {
-		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "bad_passcode", "message": "passcode mismatch"})
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "bad_passcode", "message": "passcode mismatch", "login_kind": loginKind})
 		return nil, ErrPasscodeInvalid
 	}
 	token, err := MintJWT(identity.ID(), s.signingKey)
@@ -260,6 +261,16 @@ func (s *SigninService) lookupLogin(ctx context.Context, login string) (*Identit
 		}
 	}
 	return s.identities.GetByDisplayName(ctx, login)
+}
+
+func signinLoginKind(login string) string {
+	if strings.Contains(login, "@") {
+		return "email"
+	}
+	if login == "" {
+		return "empty"
+	}
+	return "display_name"
 }
 
 // ============================================================

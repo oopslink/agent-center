@@ -98,6 +98,26 @@ func TestEventEmission_Signin(t *testing.T) {
 	// Failed signin — bad passcode.
 	_, _ = svc.Execute(ctx, "Bob", "wrong!")
 	s.assertEventType(ctx, t, EvtAuthSigninFailed)
+	events, err := s.eventRepo.Find(ctx, observability.EventQueryFilter{EventType: ptrEventType(EvtAuthSigninFailed)})
+	if err != nil {
+		t.Fatalf("Find signin_failed: %v", err)
+	}
+	if got := events[len(events)-1].Payload()["login_kind"]; got != "display_name" {
+		t.Fatalf("signin_failed login_kind = %v, want display_name", got)
+	}
+
+	_, _ = svc.Execute(ctx, "bob@example.com", "wrong!")
+	events, err = s.eventRepo.Find(ctx, observability.EventQueryFilter{EventType: ptrEventType(EvtAuthSigninFailed)})
+	if err != nil {
+		t.Fatalf("Find signin_failed: %v", err)
+	}
+	if got := events[len(events)-1].Payload()["login_kind"]; got != "email" {
+		t.Fatalf("signin_failed login_kind = %v, want email", got)
+	}
+}
+
+func ptrEventType(t observability.EventType) *observability.EventType {
+	return &t
 }
 
 // TestEventEmission_Signout verifies auth.signed_out is emitted.
