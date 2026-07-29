@@ -1963,6 +1963,11 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
   it('legacy DAG groups tasks into stage boxes with status/progress/retry', async () => {
     mockPlan();
     server.use(
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-reviewer', organization_id: 'org-test', identity_id: 'agent:agent-b5036ea8', display_name: 'agent-center-reviewer', kind: 'agent', role: 'member', status: 'joined', joined_at: 'x' },
+        ]),
+      ),
       http.get('/api/projects/proj-a/plans/PL-1/stages', () =>
         HttpResponse.json({
           stages: [
@@ -1978,11 +1983,12 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
               id: 'st-b', name: 'Frontend', status: 'reopen', rounds: 1, max_rounds: 3,
               depends_on_stages: ['st-a'], gate_node_id: 'gate-b', gate_task_id: 'gate-task-b',
               gate_spec: {
-                evaluator_kind: 'human', assignee_ref: 'agent:reviewer',
+                evaluator_kind: 'human', assignee_ref: 'agent:agent-b5036ea8',
                 acceptance_contract: 'Verify responsive UI and attach browser evidence.',
                 pass_route: 'downstream', reject_route: 'reopen_stage', exhausted_route: 'escalate',
               },
-              gate_outcome: 'reject', gate_evidence: 'Mobile overlap remains',
+              gate_outcome: 'reject',
+              gate_evidence: 'Mobile overlap remains for agent:agent-b5036ea8 during retry/resume/reassign after the Runtime owner paused; keep the full rejection note available for review.',
               gate_reviewed_sha: '0123456789abcdef',
               diagnostics: [{ code: 'missing_browser_evidence', message: 'Attach a mobile screenshot' }],
               members: [
@@ -2009,13 +2015,23 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-status-st-b')).toHaveTextContent('reopen');
     expect(screen.getByTestId('plan-stage-progress-st-b')).toHaveTextContent('0/2');
     expect(screen.getByTestId('plan-stage-rounds-st-b')).toHaveTextContent('1/3');
-    expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:reviewer');
+    expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
+    const evaluatorLink = await within(screen.getByTestId('plan-stage-gate-evaluator-st-b')).findByTestId('activity-agent-ref-link');
+    expect(evaluatorLink).toHaveTextContent('agent-b5036ea8');
+    expect(evaluatorLink).toHaveAttribute('href', '/agents/agent-b5036ea8');
     expect(screen.getByTestId('plan-stage-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
     expect(screen.getByTestId('plan-stage-gate-routes-st-b')).toHaveTextContent('downstream / reopen_stage / escalate');
     expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('reject');
     expect(screen.getByTestId('plan-stage-gate-evidence-st-b')).toHaveTextContent('0123456789ab');
+    const evidenceText = screen.getByTestId('plan-stage-gate-evidence-text-st-b');
+    expect(evidenceText).toHaveTextContent('agent:agent-b5036ea8');
+    expect(within(evidenceText).getByTestId('activity-agent-ref-link')).toHaveAttribute('href', '/agents/agent-b5036ea8');
+    const evidenceToggle = screen.getByTestId('plan-stage-gate-evidence-text-st-b-toggle');
+    expect(evidenceToggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(evidenceToggle);
+    expect(evidenceToggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('plan-stage-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
-    expect(screen.getByTestId('plan-stage-mobile-gate-evaluator-st-b')).toHaveTextContent('human · agent:reviewer');
+    expect(screen.getByTestId('plan-stage-mobile-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
     expect(screen.getByTestId('plan-stage-mobile-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
     expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('Mobile overlap remains');
     expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('0123456789ab');

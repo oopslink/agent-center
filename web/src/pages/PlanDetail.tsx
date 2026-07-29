@@ -57,6 +57,7 @@ import type { Participant } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
+import { ActivityRefText } from '@/components/ActivityRefText';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
@@ -2627,32 +2628,93 @@ const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
 };
 
 function StageGateAudit({ stage, surface = 'desktop' }: { stage: PlanStage; surface?: 'desktop' | 'mobile' }) {
+  const { t } = useTranslation();
   const spec = stage.gate_spec;
   const prefix = surface === 'mobile' ? 'plan-stage-mobile-gate' : 'plan-stage-gate';
   const owner = spec?.assignee_ref || spec?.role_ref || 'Unassigned';
+  const evidence = stage.gate_evidence || 'No evidence';
+  const diagnostics = stage.diagnostics?.length ? stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n') : 'No diagnostics';
   return (
     <div className="mt-2 grid min-h-[7rem] gap-1 border-t border-border-base pt-1.5 text-[0.625rem] leading-4 text-text-secondary" data-testid={`${prefix}-audit-${stage.id}`}>
       <div className="flex min-w-0 flex-wrap gap-x-3">
-        <span data-testid={`${prefix}-evaluator-${stage.id}`}>{spec?.evaluator_kind || 'Missing evaluator'} · {owner}</span>
+        <span data-testid={`${prefix}-evaluator-${stage.id}`}>
+          {spec?.evaluator_kind || 'Missing evaluator'} · <ActivityRefText text={owner} />
+        </span>
         <span data-testid={`${prefix}-routes-${stage.id}`}>
           {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
         </span>
       </div>
-      <div className="line-clamp-2 break-words text-text-primary" title={spec?.acceptance_contract} data-testid={`${prefix}-contract-${stage.id}`}>
-        {spec?.acceptance_contract || 'Missing acceptance contract'}
+      <StageAuditText
+        text={spec?.acceptance_contract || 'Missing acceptance contract'}
+        testId={`${prefix}-contract-${stage.id}`}
+        className="text-text-primary"
+        showMoreLabel={t('widgets.collapsible.showMore')}
+        showLessLabel={t('widgets.collapsible.showLess')}
+      />
+      <div className="grid min-w-0 gap-0.5" data-testid={`${prefix}-evidence-${stage.id}`}>
+        <div className="flex min-w-0 flex-wrap gap-x-3">
+          <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
+          <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
+        </div>
+        <StageAuditText
+          text={evidence}
+          testId={`${prefix}-evidence-text-${stage.id}`}
+          showMoreLabel={t('widgets.collapsible.showMore')}
+          showLessLabel={t('widgets.collapsible.showLess')}
+        />
       </div>
-      <div className="flex min-w-0 flex-wrap gap-x-3" data-testid={`${prefix}-evidence-${stage.id}`}>
-        <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
-        <span className="max-w-[18rem] truncate" title={stage.gate_evidence || undefined}>{stage.gate_evidence || 'No evidence'}</span>
-        <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
-      </div>
+      <StageAuditText
+        text={diagnostics}
+        testId={`${prefix}-diagnostics-${stage.id}`}
+        className={stage.diagnostics?.length ? 'text-danger' : 'text-text-muted'}
+        showMoreLabel={t('widgets.collapsible.showMore')}
+        showLessLabel={t('widgets.collapsible.showLess')}
+      />
+    </div>
+  );
+}
+
+function StageAuditText({
+  text,
+  testId,
+  className = 'text-text-muted',
+  showMoreLabel,
+  showLessLabel,
+}: {
+  text: string;
+  testId: string;
+  className?: string;
+  showMoreLabel: string;
+  showLessLabel: string;
+}) {
+  const id = React.useId();
+  const collapsible = text.length > 96 || text.split(/\r?\n/).length > 2;
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="min-w-0">
       <div
-        className={stage.diagnostics?.length ? 'truncate text-danger' : 'truncate text-text-muted'}
-        title={stage.diagnostics?.map((d) => `${d.code}: ${d.message}`).join('\n')}
-        data-testid={`${prefix}-diagnostics-${stage.id}`}
+        id={id}
+        className={`${expanded ? 'max-h-20 overflow-y-auto' : collapsible ? 'max-h-12 overflow-hidden' : ''} min-w-0 whitespace-pre-wrap break-words ${className}`}
+        title={text || undefined}
+        data-testid={testId}
       >
-        {stage.diagnostics?.length ? stage.diagnostics.map((d) => d.code).join(', ') : 'No diagnostics'}
+        <ActivityRefText text={text} />
       </div>
+      {collapsible && (
+        <button
+          type="button"
+          className="mt-0.5 rounded text-[0.5625rem] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          aria-expanded={expanded}
+          aria-controls={id}
+          data-testid={`${testId}-toggle`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+        >
+          {expanded ? showLessLabel : showMoreLabel}
+        </button>
+      )}
     </div>
   );
 }
