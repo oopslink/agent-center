@@ -46,6 +46,11 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		// assign. So a directly-assigned backlog task can sit assigned but cannot run
 		// until it is added to a real plan or dispatched into the Assignment Pool.
 		prev := t.Assignee()
+		if prev != "" && prev != assignee {
+			if err := s.ensureRuntimeExecution(txCtx, t); err != nil {
+				return err
+			}
+		}
 		if err := t.Assign(assignee, now); err != nil {
 			return err
 		}
@@ -159,6 +164,9 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		}
 		// #297: reject start on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		if err := s.ensureRuntimeExecution(txCtx, t); err != nil {
 			return err
 		}
 		prevStatus := t.Status()
@@ -635,6 +643,9 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		}
 		if strings.TrimSpace(t.BlockedReason()) == "" {
 			return nil // not stuck → nothing to recover (idempotent, no double-dispatch)
+		}
+		if err := s.ensureRuntimeExecution(txCtx, t); err != nil {
+			return err
 		}
 		// F6 §4: capture the block's reasonType BEFORE Unblock clears it — it decides
 		// whether a Conversation input_reply must follow (input_required) or not (obstacle).

@@ -8,9 +8,19 @@ import (
 	"time"
 )
 
-type resolveRepo struct{ catalog Catalog }
+type resolveRepo struct {
+	catalog       Catalog
+	catalogErr    error
+	frozen        RuntimeSnapshot
+	frozenOK      bool
+	catalogReads  int
+	snapshotReads int
+}
 
-func (r *resolveRepo) GetCatalog(context.Context, string) (Catalog, error) { return r.catalog, nil }
+func (r *resolveRepo) GetCatalog(context.Context, string) (Catalog, error) {
+	r.catalogReads++
+	return r.catalog, r.catalogErr
+}
 func (*resolveRepo) CreateCLI(context.Context, CLIDefinition, int64, AuditEvent) (int64, error) {
 	return 0, errors.New("unused")
 }
@@ -38,8 +48,9 @@ func (*resolveRepo) ApplyCatalog(context.Context, Catalog, int64, AuditEvent) (i
 func (r *resolveRepo) FreezeExecutionSnapshot(_ context.Context, _, _ string, snapshot RuntimeSnapshot) (RuntimeSnapshot, bool, error) {
 	return snapshot, true, nil
 }
-func (*resolveRepo) GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error) {
-	return RuntimeSnapshot{}, false, nil
+func (r *resolveRepo) GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error) {
+	r.snapshotReads++
+	return r.frozen, r.frozenOK, nil
 }
 
 func resolverFixture() (*RuntimeResolver, *resolveRepo) {
@@ -64,6 +75,21 @@ func resolverFixture() (*RuntimeResolver, *resolveRepo) {
 	resolver := NewRuntimeResolver(repo)
 	resolver.now = func() time.Time { return time.Unix(100, 0).UTC() }
 	return resolver, repo
+}
+
+func TestExecutionFreezerReadsFrozenSnapshotBeforeMutableCatalog(t *testing.T) {
+	want := RuntimeSnapshot{SchemaVersion: 1, CatalogRevision: 7, ModelKey: "gpt-5"}
+	repo := &resolveRepo{
+		catalogErr: errors.New("mutable catalog unavailable"),
+		frozen:     want,
+		frozenOK:   true,
+	}
+	if err := NewExecutionFreezer(repo).EnsureExecution(context.Background(), "org-1", "execution-1"); err != nil {
+		t.Fatalf("continuation consulted mutable catalog: %v", err)
+	}
+	if repo.snapshotReads != 1 || repo.catalogReads != 0 {
+		t.Fatalf("reads snapshot=%d catalog=%d, want 1/0", repo.snapshotReads, repo.catalogReads)
+	}
 }
 
 func TestRuntimeResolverPrecedenceAndSnapshotImmutability(t *testing.T) {
