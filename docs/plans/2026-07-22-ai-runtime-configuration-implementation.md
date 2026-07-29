@@ -2,505 +2,333 @@
 
 > 设计文档：[AI Runtime 统一配置技术方案](../design/features/ai-runtime-configuration.md)
 >
-> 日期：2026-07-22
+> 初稿：2026-07-22；重新基线：2026-07-29
 >
-> 目标：将 CLI、Model、Runtime Profile 和组织默认值收敛到 AI Runtime 单一入口；业务对象统一引用配置；调度时匹配 Worker 能力；支持完整批量导入导出，并通过迁移与端到端验收。
+> 跟踪 issue：`issue-0c155dbd`
 
-## 1. 交付原则
+## 1. 目标与当前判断
 
-- 按依赖顺序执行，上一阶段出口未通过不得进入下一阶段。
-- 新旧路径采用兼容迁移，不做一次性破坏性切换。
-- Catalog 定义不依赖 Worker；Worker capability 只在 coverage 和调度时使用。
-- 所有业务入口经同一个 RuntimeResolver，不允许复制解析逻辑。
-- 每个实现任务必须包含单元测试；共享契约变更必须包含集成测试。
-- 最终验收必须覆盖空 Worker、Worker 上线恢复、历史数据迁移和跨环境导入导出。
-- 每个交付分支从当时最新 `origin/main` 创建；合入前核验 merge-base、测试和迁移可逆性。
-
-## 2. 阶段与依赖
+目标不是先完成一个配置页面，而是可靠闭合：
 
 ```text
-P0 Contract baseline
-  -> P1 Runtime Catalog domain + persistence
-  -> P2 Resolver + legacy adapter
-  -> P3 Import / Export
-  -> P4 AI Runtime Web
-  -> P5 Agent / Executor / Team Role integration
-  -> P6 Worker capability + Scheduler matching
-  -> P7 Migration + cleanup
-  -> P8 Acceptance + release gate
+Agent Runtime Selection
+  -> immutable TaskExecution Runtime Snapshot
+  -> effective capability matching
+  -> waiting / exactly-once re-drive
+  -> supervisor / executor 使用冻结参数启动
 ```
 
-P3 可在 P2 完成后与 P4 的静态页面骨架并行；P5、P6、P7 必须按顺序执行。P8 是独立验收关卡，不与功能实现合并。
+main 已有部分 Catalog、Resolver、Import / Export、审计和管理面实现，但这条运行链尚未完整闭合。
+旧计划按 Catalog、Import / Export、Web、全部业务入口、Scheduler 横向铺开，会扩大“能配置但不能可靠执行”的表面积。
+本计划改为纵向薄切：先补契约并硬化基础层，只打通 Agent，再完成能力等待闭环，最后才扩 UI 和其它入口。
 
-## 3. P0：契约基线与特性开关
+在阶段 0–3 通过前：
 
-### Task P0.1：现状基线与字段清单
+- 暂停继续扩 AI Runtime UI、Team Role 和 Executor candidate；
+- Import / Export 只补正确性、安全和回滚，不继续优先扩功能；
+- 不删除 legacy 字段、API 或 modelrouter；
+- 不在 prod 试错；所有真跑使用隔离全真实例。
 
-产出：
+## 2. 全局不变量
 
-- 记录现有 Model Catalog schema、API、MCP tools 和 import 行为；
-- 记录 Agent、Executor candidate、Team Role、Task model 的所有读写点；
-- 记录 Worker CLI scan payload 与 Scheduler 当前筛选条件；
-- 建立旧值映射清单，包括 `opus-4.8` 与 `claude-opus-4-8` 等别名。
+1. Runtime Snapshot 在 TaskExecution 首次创建时原子冻结。
+2. retry、resume、保留同一 execution 语义的 reassign 复用同一 Snapshot。
+3. Catalog、Profile 和 Organization default 的变化不修改历史 execution。
+4. 第一条链的优先级仅为：Agent override > Agent Profile > Organization default。
+5. `task.model` / F3 modelrouter 在切新 Resolver 前必须形成明确 ADR。
+6. Secret 只以 reference 存储；DB 导出、API、审计、日志均无明文。
+7. CLI 启动只能经过受控 adapter registry；禁止任意 executable、shell 拼接和未知参数透传。
+8. 无匹配 Worker 时 executor 数为 0；能力恢复后同一 execution 最多启动 1 个。
+9. Basic Capability Coverage 不等于 Effective Schedulability。
+10. 每个阶段的“完成”由可观察结果决定，不由任务状态或代码存在决定。
 
-验收：
-
-- [ ] 清单覆盖后端 domain / persistence / API / MCP、前端和迁移；
-- [ ] 每个旧字段均标出 owner、读路径、写路径和退场阶段；
-- [ ] 至少采集一份生产或等价测试数据的去敏样本验证映射。
-
-### Task P0.2：共享契约与 feature flag
-
-产出：
-
-- 定义 CLI Definition、Model Definition、Runtime Profile、Runtime Selection、Runtime Snapshot DTO；
-- 定义统一 reason codes；
-- 增加 `ai_runtime_catalog_v2` 和 `ai_runtime_scheduler_matching` 开关；
-- 确定 Catalog revision / optimistic concurrency 契约。
-
-测试：
-
-- DTO JSON round-trip；
-- reason code 稳定性；
-- feature flag 默认关闭时旧行为不变。
-
-出口：
-
-- [ ] OpenAPI / Go / TypeScript 契约命名一致；
-- [ ] 不引入第二套 `model_key` 语义；
-- [ ] 设计文档中的所有核心类型都有明确代码 owner。
-
-## 4. P1：Runtime Catalog Domain 与持久化
-
-### Task P1.1：CLI Definition
-
-实现：
-
-- CLI Definition aggregate、repository、application service；
-- 稳定 `key`、display name、executable、version constraint、required features、parameter schema、enabled；
-- 系统预置 CLI seed；
-- Organization 隔离与权限校验。
-
-测试：
-
-- key 唯一、不可修改；
-- schema 合法 / 非法；
-- 启停与组织隔离；
-- 当前无 Worker 时仍可创建和启用。
-
-### Task P1.2：扩展 Model Catalog
-
-实现：
-
-- 增加稳定 `key`、`compatible_cli_keys`、`default_parameters`、`enabled`；
-- 保留现有成本、上下文和 tier 字段；
-- 旧 `model_id` 明确迁移为运行时 `model_key`，禁止展示别名替代真实值；
-- 现有 CRUD / MCP tools 转接新 application service。
-
-测试：
-
-- Model 至少兼容一个存在的 CLI；
-- 多 CLI 兼容；
-- 默认参数 schema 校验；
-- 旧 API 请求与响应兼容。
-
-### Task P1.3：Runtime Profile 与默认值
-
-实现：
-
-- Runtime Profile aggregate、repository、CRUD；
-- Organization `default_runtime_profile_id`；
-- CLI / Model 兼容与参数校验；
-- 被引用项停用 / 删除保护；
-- Catalog revision 与审计事件。
-
-测试：
-
-- Organization 恰有一个有效默认 Profile；
-- 默认值原子切换；
-- 不兼容 CLI / Model 拒绝；
-- 被引用 Profile / Model / CLI 不可硬删除；
-- 并发 revision 冲突不覆盖新数据。
-
-P1 出口：
-
-- [ ] Catalog API 在无 Worker 环境可完成 CLI、Model、Profile 和默认值全流程；
-- [ ] 所有写操作有权限校验和审计；
-- [ ] migration up / down 在空库和带旧数据数据库均通过；
-- [ ] `go test ./...` 通过，新 domain / service 代码行覆盖率不低于 90%。
-
-## 5. P2：RuntimeResolver、Snapshot 与兼容层
-
-### Task P2.1：RuntimeResolver
-
-实现单一解析链：
+## 3. 阶段依赖
 
 ```text
-Selection -> default/profile/override
- -> CLI + Model enablement
- -> compatibility
- -> CLI defaults < Model defaults < Profile/override
- -> JSON Schema validation
- -> immutable RuntimeSnapshot
+S0 重新基线与契约
+  -> S1 硬化基础层
+  -> S2 Agent 单入口纵向链
+  -> S3 能力匹配与等待恢复闭环
+  -> S4 管理 UI 与其它入口
+  -> S5 迁移与切换
+  -> S6 清理
 ```
 
-测试矩阵：
+每阶段采用 Dev -> Review -> Decision -> Integrate -> Gate -> Accept 的独立裁决流。
+Accept 必须在隔离安装实例真跑，结论落为 `pass` / `reject`；没有验收 outcome 不得进入下一阶段。
 
-- inherit / profile / override 三种来源；
-- 各层参数覆盖；
-- disabled、not found、incompatible、invalid parameters；
-- Snapshot source 与 profile provenance；
-- Catalog 后续修改不改变已保存 Snapshot。
+## 4. S0：重新基线与契约收口
 
-### Task P2.2：LegacyAdapter
+### 4.1 当前实现矩阵
+
+从最新 `origin/main` 盘点并记录：
+
+| 面 | 必查项 | 输出 |
+|---|---|---|
+| Catalog | CLI、Model、Profile、default、revision、权限、审计 | implemented / partial / missing |
+| Resolver | selection 来源、参数合并、schema、legacy fallback | 真实调用链与生产者 |
+| Snapshot | 创建时点、存储位置、retry / resume / reassign 行为 | 生命周期时序图 |
+| Import / Export | preview、apply、revision、Secret、权限、回滚 | 契约差异 |
+| Worker | capability 身份、TTL、version、features、health | 上报与过期规则 |
+| Scheduler | matcher、现有 project / team / workspace / concurrency 约束 | 完整调用链 |
+| UI | 已有页面和真实 API，是否仍使用 fixture / 常量 | 可达性矩阵 |
+
+盘点必须追到生产调用链，不以相似函数、测试 helper 或文档声明代替。
 
-实现：
+### 4.2 必须形成的契约
 
-- 旧 `cli/model` 到 Catalog / Profile 的解析；
-- 无法精确映射时生成结构化迁移问题，不静默替换；
-- `runtime_selection` 优先、legacy fallback 次之、组织默认最终兜底；
-- legacy fallback 指标。
+- Snapshot 创建时点与原子写入边界；
+- selection 优先级与 provenance；
+- `task.model` / F3 modelrouter ADR；
+- stable key、runtime model identifier 与展示名的边界；
+- Secret reference、解析责任和脱敏边界；
+- `CliAdapterRegistry`、允许的 schema 子集和 fail-closed 行为；
+- `waiting_for_capability` 状态机；
+- Worker capability 身份、TTL、版本解析和健康窗口；
+- Basic Capability Coverage / Effective Schedulability 命名与 API；
+- feature flags、shadow compare、catalog revision 和事件 / 指标。
 
-测试：
+### 4.3 S0 放行条件
 
-- 已知别名精确映射；
-- 未知模型保留原始值并报告；
-- 新旧字段同时存在时新字段胜出；
-- feature flag 关闭时旧路径完全兼容。
+- [ ] 上述矩阵对应最新 main，且每项有代码路径证据；
+- [ ] Snapshot、优先级、`task.model`、Secret、adapter、等待状态机无未决语义；
+- [ ] 需要多选一的架构决定已有 ADR；
+- [ ] 设计文档、Go / API / TypeScript 命名一致；
+- [ ] 每个后续阶段有独立回滚开关和可观察出口。
 
-P2 出口：
+## 5. S1：硬化已落地基础层
 
-- [ ] 所有新执行可生成完整 Snapshot；
-- [ ] Resolver 不读取 Worker 状态；
-- [ ] LegacyAdapter 覆盖现有数据样本；
-- [ ] 错误均含 reason、message 和 details。
+### 5.1 Snapshot 与 Resolver
 
-## 6. P3：批量导入与导出
+- Snapshot 增加 `schema_version`、`catalog_revision`、`profile_key/version`、source provenance 和脱敏参数摘要；
+- canonical、确定性参数编码；
+- execution 与 Snapshot 同事务创建；
+- retry / resume / reassign 只读已保存 Snapshot；
+- JSON Schema 明确支持子集，未知关键字 fail closed；
+- legacy 与新 Resolver shadow compare，记录结构化差异。
 
-### Task P3.1：Versioned Bundle 与导出
+### 5.2 审计与 Secret
 
-实现：
+- before / after 深拷贝，禁止共享可变 map / slice；
+- Web API、CLI、agent tool 写入复用同一 AppService、权限和审计；
+- Secret 参数只保存 reference；
+- API、DB 导出、审计、日志和错误 details 统一脱敏；
+- Profile / default 修改和停用返回引用计数、影响预览。
 
-- `agent-center-ai-runtime` schema v1；
-- YAML 默认、JSON 可选；
-- all / CLI / Model / Profile / selected scopes；
-- 部分导出默认包含依赖；
-- 只使用稳定 key 引用；
-- 排除 Secret、DB ID、Worker capability、路径和健康状态。
+### 5.3 Import / Export
 
-测试：
+- validation token 绑定 org、bundle digest、mode 和 catalog revision；
+- preview 与 apply 复用同一 validator；
+- apply 单事务，revision 改变后 token 失效；
+- deterministic YAML / JSON round-trip；
+- import/export 权限对称；
+- 不支持 schema version 和关键字段 fail closed；
+- rollback 保留 Snapshot、审计和 legacy 读路径。
 
-- YAML / JSON 确定性输出；
-- 完整与部分依赖闭包；
-- 导出内容无敏感字段；
-- export -> import -> export 语义等价。
+### 5.4 自动化与放行
 
-### Task P3.2：Preview 与 Atomic Apply
+- [ ] Catalog 改动后，已创建 execution 的 Snapshot 字节级不变；
+- [ ] retry / resume / reassign 后 Snapshot 字节级不变；
+- [ ] CLI / Model / Profile 审计 before / after 正确且无 Secret；
+- [ ] schema 未支持关键字被拒绝，不是静默忽略；
+- [ ] import 并发冲突不覆盖新 revision；
+- [ ] export -> import -> export 语义等价且无 Secret；
+- [ ] migration 在空库、旧库和重复执行下通过；
+- [ ] `go test ./...`、`go vet ./...` 全绿；迁移版本断言全仓核对。
 
-实现：
+回滚：关闭 catalog v2 / resolver shadow flag，继续读 legacy；additive schema 不删除。
 
-- preview diff：create / update / unchanged / conflict / invalid / disable；
-- merge / create_only / replace；
-- replace 只停用缺失项，不硬删除；
-- validation token 绑定 org、文件摘要、mode、Catalog revision；
-- apply 单事务；
-- 导入审计。
+## 6. S2：Agent 单入口纵向链
 
-测试：
+### 6.1 范围
 
-- 任一非法条目导致整批不落库；
-- preview 后 revision 变化使 token 失效；
-- 默认 Profile 变化被单独标记；
-- 更高 schema version 拒绝；
-- v1 未知可忽略字段 warning；
-- 无 Worker 不阻止 apply。
+只接 Agent。Team Role 与 Executor candidate 保持旧路径，避免一次引入三个选择来源和多个优先级。
 
-### Task P3.3：旧 Model Catalog Import 兼容
+### 6.2 实现
 
-实现：
+1. Agent create / update 保存 `RuntimeSelection`，默认 `inherit`。
+2. `RuntimeResolver` 在 TaskExecution 创建事务内解析并冻结 Snapshot。
+3. scheduler 只读取 Snapshot，不再读取可变 Profile。
+4. supervisor 与 executor adapter 从 Snapshot 获得 `cli_key`、真实 model identifier 和 parameters。
+5. 新路径位于 feature flag 后；关闭 flag 时旧 Agent 执行路径逐行为可用。
+6. shadow mode 同时计算新旧 resolve 结果，只记录差异，不双写两套独立语义。
 
-- 接受现有 JSON array upsert / replace；
-- 转换为 v1 bundle 后走同一 validator / transaction；
-- 返回 deprecated warning 和迁移提示。
+### 6.3 测试与真验
 
-P3 出口：
+- inherit / Profile / override 三态；
+- Organization default 改变只影响新 execution；
+- disabled / missing / incompatible / invalid 参数 fail closed；
+- adapter 使用结构化 argv，不执行 Catalog 任意路径；
+- 真创建 Agent、派发任务、启动 supervisor / executor，并在进程侧核冻结的 CLI / model / parameters；
+- retry、resume、reassign 后核同一 Snapshot；
+- 关闭 flag 后旧路径仍可执行。
 
-- [ ] 跨两个 Organization 的导出导入成功且不依赖 DB ID；
-- [ ] preview 与 apply 使用同一校验结果；
-- [ ] replace 不导致引用悬空；
-- [ ] 导入失败后数据库逐表一致性校验通过。
+### 6.4 S2 放行条件
 
-## 7. P4：AI Runtime Web Console
+- [ ] flag ON 的真实 Agent 任务端到端完成；
+- [ ] 进程参数来自保存的 Snapshot，不是可变 Profile；
+- [ ] shadow diff 可查询且无 Secret；
+- [ ] flag OFF 的旧路径真跑通过；
+- [ ] Team Role / Executor candidate 没有被部分接入。
 
-### Task P4.1：页面与导航
+## 7. S3：能力匹配与等待恢复闭环
 
-实现 `Organization Settings > AI Runtime`：
+### 7.1 Capability 契约
 
-- Profiles 默认 Tab；
-- Models Tab 升级现有 Model Catalog；
-- CLIs Tab；
-- 管理员编辑、普通成员只读；
-- coverage 摘要与无 Worker warning。
+- Worker 上报绑定已认证 Worker identity；
+- Center 规范化 semver，拒绝不可解析版本；
+- capability 含 `scanned_at`、`expires_at`、features 和 health；
+- TTL 与健康窗口外的记录不参与匹配；
+- Worker 只更新自身 projection，不能写 Catalog；
+- 重复、乱序和跨 Worker 上报有回归测试。
 
-### Task P4.2：Profile 与 schema-driven 参数编辑
+### 7.2 Matcher
 
-实现：
+先匹配基础 CLI / version / features / health，再叠加：
 
-- CLI -> compatible Model 联动；
-- CLI schema 驱动参数输入控件；
-- 设置默认值；
-- CLI 改变后清理不兼容 Model 并要求确认；
-- 禁用项和引用保护提示。
+- project 与 team 归属；
+- workspace / repo 可达性；
+- 权限与 Secret 可用性；
+- worker / agent / executor 并发约束；
+- 现有调度和亲和性约束。
 
-### Task P4.3：Import / Export UX
+配置页展示 Basic Capability Coverage；execution 详情展示 Effective Schedulability 和完整 reason。
 
-实现：
+### 7.3 `waiting_for_capability` 状态机
 
-- 文件上传与 YAML / JSON parse error；
-- diff 预览、策略选择、默认值变化二次确认；
-- validation token apply；
-- 完整 / 分类 / 多选导出。
+| 场景 | 必须行为 |
+|---|---|
+| 首次无匹配 Worker | 持久化等待状态与 reason，executor=0 |
+| capability 恢复 | 幂等重驱动，同一 execution 最多创建 1 个 executor |
+| 重复 / 抖动上报 | 合并信号，不重复 dispatch |
+| Center / Worker 重启 | 自动恢复等待订阅和重驱动 |
+| Task 取消 / 终态 | 后续 capability 信号不得复活 |
+| reassign | 复用 Snapshot，重算 schedulability，不重复 executor |
+| 等待超时 | 结构化升级人工处理，不记 executor failure |
 
-测试：
+executor 创建使用 durable idempotency key，并由原子状态转换守门。
 
-- React component / API integration tests；
-- loading、empty、error、permission denied、revision conflict；
-- 键盘操作和表单可访问性；
-- desktop 1440x900、mobile 390x844 截图检查；
-- 长 CLI / Model / Profile 名称不溢出、不重叠。
+### 7.4 独立全真验收
 
-P4 出口：
+在隔离实例：
 
-- [ ] 用户可只在 AI Runtime 完成所有定义和默认值操作；
-- [ ] 当前无 Worker 时可保存，warning 明确但不阻断；
-- [ ] 导入不会上传即覆盖，必须经过 preview / confirm；
-- [ ] `pnpm test`、typecheck、production build 通过。
+1. 创建需要目标 CLI 的 Agent 与 TaskExecution；
+2. 保持无匹配 Worker，断言 `waiting_for_capability` 且 executor=0；
+3. 启动匹配 Worker，断言无需人工改配置即可 executor=1；
+4. 重复上报 capability，断言仍为 1；
+5. 重启 Center / Worker，断言不重复执行；
+6. 分别验证 cancel、reassign、版本不符、feature 缺失、TTL 过期和能力抖动；
+7. 对每种情况核 activity、domain event、指标、reason 和进程事实。
 
-## 8. P5：业务入口统一
+S3 通过后，核心运行闭环才算完成。
 
-### Task P5.1：共享 RuntimeProfileSelector
+## 8. S4：管理 UI 与其它业务入口
 
-实现：
+顺序固定：
 
-- inherit / profile / override 三态；
-- 默认 Profile 摘要；
-- Profile 显示 name、CLI、Model；
-- override 位于高级设置；
-- disabled / historical reference 和 coverage warning。
+1. AI Runtime 管理 UI 对齐已跑通的 Catalog、Snapshot、coverage 和审计；
+2. Team Role 接入；
+3. Executor candidate 接入。
 
-### Task P5.2：Agent 接入
+每个入口分别定义 inherit / Profile / override 语义、与 Agent 的优先级、历史引用和停用行为，并单独完成真验。
 
-- Agent create / edit 使用共享 Selector；
-- 主 runtime 配置改存 Runtime Selection；
-- 旧值通过 LegacyAdapter 展示和迁移；
-- 移除 Agent 页面 `KNOWN_MODELS` / 本地 CLI 列表依赖。
+UI 约束：
 
-### Task P5.3：Executor candidate 接入
+- Coverage 明确标为“基础能力覆盖”，不得承诺某任务可调度；
+- execution 页面展示 Effective Schedulability；
+- Profile / default 修改前展示引用计数、影响预览和审计；
+- 无 Worker 允许保存配置，但 warning 不可省略；
+- 不恢复自由文本 CLI / Model；
+- desktop、mobile、键盘、权限、长文本和错误态均验收。
 
-- candidate 配置改存 Runtime Selection；
-- 每个 candidate 可继承、选 Profile 或 override；
-- 保持并发、候选排序和 fallback 的现有业务语义；
-- 移除按 CLI 的本地模型建议映射。
+## 9. S5：迁移与切换
 
-### Task P5.4：Team Role 接入
+### 9.1 Dry-run 分类
 
-- Role 定义使用共享 Selector；
-- 从 Role 创建 Agent 时保留 selection 语义；
-- Role 编辑 / 删除与 Runtime Profile 引用保护一致；
-- 移除 Team Role 硬编码 CLI / Model 常量。
+对生产等价数据输出：
 
-P5 集成验收：
+1. 精确映射到现有 Profile；
+2. 多对象内容相同，按 canonical 内容哈希复用 Profile；
+3. 仅该对象使用，保留对象 override；
+4. 无法映射，保留 legacy 并列为人工处理。
 
-- [ ] 三个入口组件和 API 均使用同一 Runtime Selection 契约；
-- [ ] 新对象默认保存 inherit，不复制当时默认值；
-- [ ] 修改组织默认值后，inherit 对象的新 execution 使用新配置；
-- [ ] 显式 Profile / override 不受组织默认切换影响；
-- [ ] 前端源码不再存在业务 CLI / Model 候选硬编码；
-- [ ] 旧数据仍可查看、编辑和执行。
+禁止为每个无法精确映射对象批量创建一次性 `migrated-*` Profile。
 
-## 9. P6：Worker Capability 与 Scheduler
+### 9.2 切换顺序
 
-### Task P6.1：Capability Scan 契约
+1. additive schema 和 flags 上线，旧路径不变；
+2. shadow resolve 并持续比较；
+3. 小范围 Agent 切新 Resolver；
+4. 扩大 Agent 范围；
+5. 切 Team Role、Executor candidate；
+6. 最后切 Organization default；
+7. 每一步核指标、审计和真执行，并可独立关 flag 回旧读路径。
 
-实现：
+`task.model` / modelrouter 按 S0 ADR 执行，不留到 cleanup 临时决定。
 
-- Worker 上报 `cli_key`、executable path、version、features、health、scanned_at；
-- Center 保存 capability projection；
-- CLI 未入 Catalog 时仍可保留 scan 事实，但不自动创建 Catalog。
+### 9.3 S5 放行条件
 
-### Task P6.2：Coverage Projection
+- [ ] dry-run 无未解释 unknown；
+- [ ] Profile 去重率和对象 override 数量可审阅；
+- [ ] shadow diff 在约定窗口内归零或全部有解释；
+- [ ] 每个切换点完成回退演练；
+- [ ] Catalog / default 变更不修改历史 execution；
+- [ ] 迁移两次结果幂等。
 
-实现：
+## 10. S6：清理
 
-- Profile eligible Worker 统计；
-- available / degraded / unavailable；
-- missing_cli / version_mismatch / missing_feature reasons；
-- capability 或 Worker health 变化时刷新。
+只有同时满足以下条件才开始：
 
-### Task P6.3：Scheduler Matching
+- legacy fallback 指标连续一个发布窗口为 0；
+- 迁移报告无未决项；
+- 新路径在隔离实例和灰度范围均完成 retry / resume / reassign / cancel 真验；
+- 旧路径回退窗口结束并由 owner 确认。
 
-实现：
+清理内容：
 
-- 读取 Runtime Snapshot，不读取可变 Profile；
-- 匹配健康、CLI、版本、features，再叠加现有 team / project / workspace / concurrency 条件；
-- 无匹配 Worker 进入 `waiting_for_capability`；
-- capability 更新触发重试；
-- 禁止隐式切换 CLI / Model。
+- 旧字段和兼容写入；
+- 旧 API adapter；
+- 前端 CLI / Model 常量和自由输入；
+- 已被 ADR 取代的 modelrouter 路径；
+- 无生产调用的临时 shadow 代码。
 
-测试：
+清理提交仍需独立部署级验收，确认历史 execution 可读、Snapshot 可解释、retry / resume 正常。
 
-- 精确匹配、多 Worker、版本边界、feature 子集；
-- 无 CLI / 版本不符 / feature 缺失 reason；
-- 等待时不创建 executor；
-- Worker 上线后自动恢复；
-- Worker 再次离线时不破坏 Catalog；
-- 原有调度约束回归。
+## 11. 可观测性与验收证据
 
-P6 出口：
+至少提供：
 
-- [ ] 配置期与 Worker 状态完全解耦；
-- [ ] coverage 与 Scheduler 使用同一 capability matcher；
-- [ ] waiting 状态可观测、可恢复、不计 executor failure；
-- [ ] Scheduler 并发与重复调度测试通过。
+- `runtime_resolution_total{source,result}`;
+- `runtime_shadow_diff_total{object_type,diff}`;
+- `runtime_legacy_fallback_total{object_type}`;
+- `runtime_waiting_for_capability{reason,cli_key}`;
+- `runtime_capability_redrive_total{result}`;
+- `runtime_executor_dedup_total{result}`;
+- `runtime_catalog_revision_conflict_total`;
+- `runtime_profile_eligible_workers{profile_key}`。
 
-## 10. P7：数据迁移与旧路径清理
+每个阶段的独立验收报告必须包含：
 
-### Task P7.1：迁移工具
+- 被验收的 main SHA；
+- 设计文档与本 Plan 的 commit；
+- 自动化命令和原始结果；
+- 隔离实例配置、feature flag 与进程指纹；
+- API / DB / activity / domain event 关键断言；
+- executor 全量枚举，而非只列预期对象；
+- 回滚动作和回滚后真执行结果；
+- verdict：`pass` 或 `reject`。
 
-实现 dry-run 和 apply：
+## 12. 总体完成定义
 
-- 扫描旧 Agent / candidate / Role / Task 模型字段；
-- 生成 alias mapping、Profile / override 建议；
-- 输出 mapped / ambiguous / unknown / invalid 报告；
-- apply 可重复执行且幂等；
-- 保存迁移批次与回滚数据。
-
-### Task P7.2：灰度与双读退出
-
-步骤：
-
-1. 开启 Catalog v2，保留旧执行路径；
-2. 导入 seed 和运行 dry-run；
-3. apply 数据迁移；
-4. 开启新 Resolver / Selector；
-5. 观察 legacy fallback 指标；
-6. fallback 归零后停止双写；
-7. 删除旧 API adapter、字段和硬编码。
-
-### Task P7.3：Task model routing 决策
-
-既有 `task.model` 与 modelrouter 不得顺手删除。单独完成：
-
-- 确认 Task override 是否保留；
-- 若保留，改为引用 Runtime Profile 或 Model Definition，并定义优先级；
-- 若推迟，旧字段只读兼容并记录退场条件；
-- 补齐对 F3 路由用例的回归测试。
-
-P7 出口：
-
-- [ ] 生产等价数据 dry-run 无未解释 unknown；
-- [ ] apply 两次结果一致；
-- [ ] rollback 演练可恢复旧读路径；
-- [ ] legacy fallback 连续观察窗口为零；
-- [ ] 全仓检索确认硬编码和旧写路径已清除或有明确保留说明。
-
-## 11. P8：独立验收流程
-
-P8 由未参与主要实现的 reviewer / QA 执行。功能实现完成标记 completed；是否通过由本阶段 Review 节点与 Decision/loopback 机制决定。
-
-### Gate A：代码与迁移审查
-
-- [ ] 每个交付 commit 均基于预期 `main` baseline；
-- [ ] schema migration 可在空库、旧库执行，down / rollback 策略已验证；
-- [ ] Catalog、Resolver、Importer、Matcher 没有重复业务规则；
-- [ ] 权限、审计、reason + message、Secret 边界符合规约；
-- [ ] Go / Web 新代码测试覆盖达到项目标准。
-
-### Gate B：自动化测试
-
-必须记录命令、版本、结果和日志位置：
-
-```bash
-go test ./...
-go vet ./...
-cd web && pnpm test
-cd web && pnpm typecheck
-cd web && pnpm build
-```
-
-另运行：
-
-- migration integration suite；
-- import/export round-trip suite；
-- scheduler capability matching suite；
-- legacy compatibility suite；
-- API authorization suite。
-
-全部必须 0 failure；禁止以“非本次变更”忽略失败，需先归因并记录处理决定。
-
-### Gate C：端到端业务验收
-
-准备 Organization A / B、管理员 / 普通成员、至少两个 Worker：
-
-1. **空 Worker 配置**：无在线 Worker 时创建 CLI、Model、Profile 并设默认值，保存成功且显示 unavailable warning。
-2. **默认继承**：创建 Team Role 和 Agent，不显式选 runtime；确认保存 inherit。
-3. **等待能力**：触发任务；确认 execution 为 `waiting_for_capability`，reason 准确且未创建 executor。
-4. **自动恢复**：启动支持目标 CLI 的 Worker；确认无需人工改配置即可自动调度。
-5. **Snapshot 冻结**：execution 创建后修改默认 Profile；旧 execution 保持原 Snapshot，新 execution 使用新默认值。
-6. **显式覆盖**：Agent、Executor candidate、Team Role 分别选择 Profile 和 override，确认解析来源正确。
-7. **兼容校验**：选择不兼容 CLI / Model、非法参数，前后端均拒绝并返回相同 reason。
-8. **跨环境迁移**：A 导出 YAML，B preview 后 merge 导入；确认稳定 key 引用、默认值和语义一致。
-9. **原子失败**：在 bundle 中加入一个非法条目，确认整批无任何落库。
-10. **replace 保护**：replace 缺少被引用 Profile，确认只停用并明确展示 diff，不产生悬空引用。
-11. **权限**：普通成员可按策略查看 / 选择，不可修改 Catalog 或导入。
-12. **历史兼容**：加载迁移前 Agent / Role / Task，确认可解释、可执行，无模型静默替换。
-
-每个场景保存：输入配置、API / DB 关键断言、execution activity、桌面截图；涉及响应式页面的场景另存 mobile 截图。
-
-### Gate D：非功能验收
-
-- [ ] 1,000 Models、300 Profiles 下列表和 Selector 可用，无明显输入延迟；
-- [ ] 1,000 条 bundle preview / apply 在约定超时内完成；
-- [ ] 并发修改时 importer 返回 revision conflict，不覆盖他人修改；
-- [ ] Worker capability 高频更新不写 Catalog、不造成调度风暴；
-- [ ] 日志、导出、审计中不出现 Secret；
-- [ ] 长名称、空状态、错误状态在 desktop / mobile 无溢出或重叠。
-
-### Gate E：发布与回滚演练
-
-- [ ] 在 staging 按 P7 顺序执行一次完整升级；
-- [ ] 关闭新 flag 可恢复旧读路径；
-- [ ] migration apply 前后数据数量与引用完整性对账；
-- [ ] 回滚不会删除 Runtime Snapshot 或审计记录；
-- [ ] 发布 runbook 包含开关顺序、监控指标、告警阈值和负责人。
-
-### 验收结论
-
-Reviewer 输出独立验收报告，至少包含：
-
-- 被验收的 `main` commit SHA；
-- 设计文档与 Plan 版本；
-- Gate A-E 逐项 pass / fail；
-- 自动化命令结果；
-- E2E 证据链接；
-- 遗留风险和是否阻断；
-- 最终 verdict：`pass` 或 `reject`。
-
-只有 `pass` 且阻断项为零时，Plan 才可完成。`reject` 必须创建 rework task，修复后从受影响 Gate 起重新验收。
-
-## 12. 完成定义
-
-Plan 完成必须同时满足：
-
-- [ ] AI Runtime 是用户定义 CLI、Model、Profile 和默认值的唯一入口；
-- [ ] Agent、Executor candidate、Team Role 复用统一 Selector 和数据源；
-- [ ] Organization 默认值和对象级覆盖语义稳定；
-- [ ] Catalog 定义不依赖 Worker，Scheduler 运行时匹配能力；
-- [ ] 无能力 execution 可等待并自动恢复；
-- [ ] 完整配置支持 versioned YAML / JSON 批量导入导出；
-- [ ] 历史数据完成迁移，无静默模型替换；
-- [ ] 旧硬编码和旧写路径已清理；
-- [ ] 自动化测试全绿；
-- [ ] 独立验收 Gate A-E 全部通过；
-- [ ] 所有提交已合入并推送远程 `main`；
-- [ ] staging 部署验证与回滚演练完成。
+- [ ] Agent selection -> Snapshot -> capability -> executor 真实闭环通过；
+- [ ] retry / resume / reassign 后 Snapshot 字节级不变；
+- [ ] 无能力时 executor=0，能力恢复后 executor=1；
+- [ ] 重启、取消、reassign、重复上报和能力抖动不重复执行；
+- [ ] Catalog / default 变更不修改历史 execution；
+- [ ] Secret 在 DB 导出、API、审计和日志中均无明文；
+- [ ] Team Role 与 Executor candidate 已按独立语义接入并真验；
+- [ ] dry-run、shadow compare、灰度切换和 flag 回退完成；
+- [ ] legacy fallback 连续一个发布窗口为 0；
+- [ ] 清理后历史 execution 可读，retry / resume 可用；
+- [ ] 所有提交已合入并推送远程 main；
+- [ ] 全部部署级真跑在隔离实例完成，未在 prod 试错。

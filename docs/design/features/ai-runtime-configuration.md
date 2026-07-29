@@ -2,8 +2,8 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Proposed |
-| 日期 | 2026-07-22 |
+| 状态 | Proposed（2026-07-29 重新基线） |
+| 日期 | 2026-07-22；2026-07-29 更新 |
 | 范围 | Organization CLI Catalog、Model Catalog、Runtime Profile、默认值、Worker 能力匹配、批量导入导出 |
 
 ## 1. 背景
@@ -19,6 +19,21 @@
 这会造成同一模型存在不同标识、无效 CLI / Model 组合无法统一校验、默认值重复维护、配置无法可靠跨环境迁移等问题。
 
 本方案将用户可配置的 AI runtime 收敛到一个入口，同时将长期配置与 Worker 的瞬时状态解耦。
+
+### 1.1 当前实现基线与实施方向修正
+
+截至 2026-07-29，main 已有部分 Catalog、Resolver、Import / Export、审计和管理面实现，但
+`selection -> snapshot -> capability -> executor` 运行链尚未形成完整、可恢复、可回滚的闭环。
+因此本文不再按 Catalog、Import / Export、Web、全部业务入口、Scheduler 横向铺开，而改为纵向薄切：
+
+1. 先冻结运行契约和当前实现矩阵；
+2. 硬化已落地的 Catalog、Snapshot、审计和 Import / Export；
+3. 只接 Agent 一条真实运行链；
+4. 完成 capability matching 和等待恢复状态机；
+5. 运行闭环通过独立真验后，才扩 Team Role、Executor candidate 和完整管理 UI；
+6. 最后迁移、切换并清理 legacy。
+
+在第 1–4 步完成前，暂停继续扩大管理面和业务入口。配置面可见不等于执行链可用，实施优先级必须由真实运行闭环决定。
 
 ## 2. 目标与非目标
 
@@ -36,7 +51,7 @@
 
 - 不由 Worker 自动创建或修改 Organization Catalog。
 - 不让调度器静默替换用户选择的 CLI、模型或参数。
-- 第一阶段不新增 Task 级 runtime 选择器；Task 继承最终执行 Agent 的配置。
+- Task 级 runtime 选择器是否保留不在本设计中预设；既有 `task.model` / F3 modelrouter 的语义和优先级必须在新 Resolver 切流前单独定案。
 - 不在 Runtime Catalog 中保存 API key、Token、Worker 本地路径等 Secret 或环境数据。
 - 不要求 Worker 枚举云端模型清单；模型通常是传给 CLI 的参数。
 
@@ -69,7 +84,8 @@ Catalog（期望状态） + Worker Scan（实际能力） -> Scheduler（运行�
 | Runtime Selection | Agent、Executor 或 Team Role 对继承、Profile 引用或 override 的选择 |
 | Runtime Snapshot | 一次执行实际采用的不可变 CLI、Model 和 Parameters 快照 |
 | Worker CLI Capability | Worker 扫描上报的 CLI 安装、版本和 feature |
-| Coverage | 当前 Worker 集合对某个 Runtime Profile 的可执行覆盖情况 |
+| Basic Capability Coverage | 仅按 CLI、version、features 和健康窗口计算的基础能力覆盖，不代表某个 execution 一定可调度 |
+| Effective Schedulability | 在基础能力之外叠加 project、team、workspace、权限、并发和其它运行约束后的特定 execution 可调度性 |
 
 ## 5. 领域模型
 
@@ -184,19 +200,28 @@ type RuntimeSelection =
 ```ts
 type RuntimeSnapshot = {
   schema_version: 1
+  catalog_revision: number
   cli_key: string
   cli_executable: string
   cli_version_constraint?: string
   required_features: string[]
   model_key: string              // 传给 CLI 的真实值
   parameters: Record<string, unknown>
+  parameters_digest: string      // canonical parameters 的摘要，不含 Secret 明文
   source: "org_default" | "profile" | "override"
   profile_id?: string
+  profile_key?: string
+  profile_version?: number
   resolved_at: string
 }
 ```
 
-Snapshot 写入 execution record。Catalog、Profile 或默认值后续变化只影响新 execution，不修改已创建 execution 的语义和审计结果。
+Snapshot 在 **TaskExecution 首次创建时**与 execution record 原子写入。Catalog、Profile 或默认值后续变化只影响新 execution，
+不修改已创建 execution 的语义和审计结果。retry、resume 和保留同一 execution 语义的 reassign 必须复用已保存 Snapshot，
+不得重新读取可变 Profile 或 Organization default；只有创建新的 TaskExecution 才重新解析。
+
+Snapshot 中的参数必须是 canonical、确定性编码。Secret 参数只保存 Secret reference，摘要基于脱敏后的 canonical representation
+计算；DB 导出、API、审计和日志均不得出现 Secret 明文。
 
 ## 6. 配置解析
 
@@ -212,12 +237,35 @@ RuntimeSelection
   -> 生成 RuntimeSnapshot
 ```
 
-配置来源优先级只有两层：
+第一条纵向链只接 Agent，配置来源优先级固定为：
 
-1. Organization default；
-2. Agent / Executor / Team Role 显式选择。
+1. Agent 对象级 override；
+2. Agent 显式 Profile；
+3. Organization default。
 
-第一阶段 Task 不增加第三层 override。既有 `task.model` 在迁移期继续兼容，但新 UI 不再写入；移除前需要单独确认既有 F3 模型路由语义如何映射到 Profile。
+Team Role 和 Executor candidate 不在第一条链中隐式加入优先级；它们必须在后续各自接入时单独定义继承与覆盖语义。
+既有 `task.model` / F3 modelrouter 在迁移期继续兼容，但新 Resolver 切流前必须明确选择以下之一并形成 ADR：
+
+- 保留 Task override，并定义它相对 Agent selection 的优先级及 Snapshot provenance；
+- 映射为 Model Definition / Runtime Profile 引用；
+- 只读兼容并明确退场条件。
+
+在该决定落地前，不删除旧字段，不让新旧路由同时静默生效。
+
+### 6.1 CLI Adapter 与参数安全边界
+
+CLI Definition 是 Catalog 配置，不是任意进程启动能力。运行时必须通过受控 `CliAdapterRegistry` 按 `cli_key`
+选择代码内注册的 adapter；不得把用户输入的 `executable` 当任意二进制路径执行，也不得把未知参数直接拼入 argv 或 shell。
+
+- `executable` 只用于 adapter 允许的逻辑命令和 capability 对账；
+- 参数必须先通过已声明的 JSON Schema 支持子集，再由 adapter 显式映射到 argv / env / config；
+- 未支持的关键 schema keyword、未知参数、冲突参数一律 fail closed；
+- 禁止 shell 字符串拼接；进程启动使用结构化 argv；
+- adapter 负责标记 Secret reference 的解析位置，解析后的 Secret 不进入 Snapshot、日志或审计。
+
+JSON Schema v1 至少明确支持：`type`、`properties`、`required`、`enum`、`const`、数值和字符串边界、
+数组 item 校验及 `additionalProperties: false`。其它会改变校验语义的 keyword 未实现时必须拒绝 schema，
+不能静默忽略。
 
 ## 7. Worker 能力与调度
 
@@ -232,11 +280,14 @@ type WorkerCliCapability = {
   version: string
   features: string[]
   scanned_at: string
+  expires_at: string
   healthy: boolean
 }
 ```
 
 Worker 上报只更新 Worker 自身 capability projection，不创建、覆盖或删除 Organization Catalog。
+上报必须绑定已认证 Worker 身份并拒绝跨 Worker 写入；Center 负责解析和规范化版本，使用 TTL 与健康窗口判断新鲜度。
+过期、身份不匹配、版本不可解析或健康探测失败的 capability 不得参与匹配。
 
 ### 7.2 匹配规则
 
@@ -261,9 +312,23 @@ Scheduler 使用 Runtime Snapshot 匹配 Worker：
 - 不创建一个随后立即失败的 executor；
 - 不静默降级到其他 CLI、模型或 Profile。
 
+`waiting_for_capability` 是 TaskExecution 的持久化状态，不是临时队列标签。状态机必须定义：
+
+| 触发 | 行为 |
+|---|---|
+| 首次无匹配 Worker | 原子保存 Snapshot、reason 和等待状态；executor 数保持 0 |
+| capability 新增或恢复 | 在同一 execution 上以幂等键重新驱动；最多创建一个 executor |
+| capability 抖动或重复上报 | 合并重复信号，不重复 dispatch |
+| Center / Worker 重启 | 从持久化等待状态恢复订阅和重驱动能力 |
+| Task 取消或进入终态 | 退出等待并禁止后续 capability 信号复活 |
+| reassign | 重算 effective schedulability，但复用原 Snapshot；不重复创建 executor |
+| 等待超时 | 保持可解释的结构化 reason，按策略升级人工处理，不伪装为 executor failure |
+
+重新驱动必须使用 durable idempotency key（至少包含 execution id 与 snapshot identity），并在 executor 创建前以原子状态转换守门。
+
 ### 7.4 Coverage
 
-Coverage 是动态只读 projection：
+Basic Capability Coverage 是动态只读 projection：
 
 ```ts
 type RuntimeCoverage = {
@@ -276,7 +341,9 @@ type RuntimeCoverage = {
 }
 ```
 
-Coverage 用于配置页提示和调度诊断，不参与 Catalog 的保存准入。
+Basic Capability Coverage 用于配置页提示和调度诊断，不参与 Catalog 的保存准入。它只回答 Worker 是否具备基础 CLI 能力，
+不能承诺某个 execution 可调度。面向具体 execution 的页面和 API 必须使用 Effective Schedulability，
+叠加 team、project、workspace、权限、并发量和其它现有调度约束，并明确展示阻断 reason。
 
 ## 8. Web Console 设计
 
@@ -447,8 +514,12 @@ POST /api/orgs/{org_id}/ai-runtime/import/apply
 - 设置默认 Profile 与清除旧默认值在同一事务完成。
 - Import Apply 锁定或 CAS Catalog revision，避免 lost update。
 - Profile、Model、CLI 停用是软状态变化；历史 Snapshot 永不被反向修改。
-- 配置变更产生审计事件，至少包含 actor、organization、entity key、before / after 摘要和时间。
+- 配置变更产生审计事件，至少包含 actor、organization、entity key、before / after 深拷贝摘要和时间；
+  `before` 与 `after` 不得共享可变 map / slice，也不得因写后修改互相覆盖。
 - 参数中标记为 secret 的字段不进入 Catalog；应保存 Secret reference，并由执行环境解析。
+- 修改 Organization default、Profile、Model 或 CLI 前返回引用数量和影响预览；批量切换支持灰度范围与审计。
+- 停用 Profile、Model 或 CLI 时，已冻结 Snapshot 可继续按原语义重试 / resume；尚未创建 execution 的排队工作按新 Catalog
+  重新解析并在不可用时 fail closed，不得一部分读旧值、一部分读新值。
 
 ## 12. 错误模型
 
@@ -498,27 +569,35 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 2. 实现 Profile、默认值、coverage、导入预览和完整导出。
 3. 现有 JSON Model import 迁移到 versioned bundle；继续接受旧数组格式并显示 deprecated warning。
 
-### Phase 3：业务接入
+### Phase 3：Agent 单入口纵向接入
 
-1. Agent、Executor candidate、Team Role 增加 `runtime_selection`。
-2. 接入共享 `RuntimeProfileSelector`。
-3. 迁移旧 `cli/model`：可精确映射时引用 Profile，否则创建命名为 `migrated-*` 的 Profile 或 override。
-4. 无法映射的值必须显式列入迁移报告，禁止静默替换。
+1. 只为 Agent 增加 `runtime_selection` 并接入共享 `RuntimeProfileSelector`。
+2. 在 feature flag 下完成 Agent selection 到 TaskExecution Snapshot，再到 scheduler 和 supervisor / executor 启动参数的真实链路。
+3. legacy 路径继续可用，同时 shadow resolve 新旧结果并记录差异；不双写两套独立语义。
+4. Team Role 与 Executor candidate 留到运行闭环通过后分别接入。
 
 ### Phase 4：调度闭环
 
-1. 执行创建时生成 Runtime Snapshot。
+1. TaskExecution 创建时原子生成 Runtime Snapshot。
 2. Worker scan 按 `cli_key` 上报 capability。
 3. Scheduler 实现 capability matching 和 `waiting_for_capability`。
-4. capability 更新触发等待任务重新调度。
+4. capability 更新触发等待 execution exactly-once 重新调度。
+5. 隔离实例验证无能力时 executor=0，能力恢复后 executor=1，重启、取消、reassign 和能力抖动不重复执行。
 
-### Phase 5：清理
+### Phase 5：扩入口、迁移与切换
 
-1. 停止旧字段双写；
+1. 运行闭环通过后，先接 Team Role，再接 Executor candidate；每个入口单独真验。
+2. 对生产等价数据 dry-run：精确映射、按内容哈希去重 Profile、对象 override、无法映射四类报告。
+3. 先 shadow compare，再小范围切新 Resolver，最后切 Organization default；每一步均可通过 flag 回旧读路径。
+4. 既有 `task.model` / modelrouter 按已确认 ADR 迁移。
+
+### Phase 6：清理
+
+1. legacy fallback 指标连续一个发布窗口为 0，且迁移报告无未决项后停止兼容写入；
 2. 移除前端 `CLI_OPTIONS`、`KNOWN_MODELS` 和 Team Role 本地常量；
-3. 移除旧 API 适配器；
-4. 评审并迁移既有 `task.model` / modelrouter 逻辑；
-5. 发布迁移报告和回滚说明。
+3. 移除旧 API adapter 和旧字段；
+4. 发布迁移报告和回滚说明；
+5. 清理提交独立部署级验收，确认 retry / resume 和历史 execution 仍可读。
 
 ## 15. 向后兼容策略
 
@@ -595,9 +674,12 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 | Catalog 标注兼容但 CLI 实际不支持模型 | adapter 返回结构化启动错误；管理员修正 Catalog，不自动换模型 |
 | Profile 修改影响运行中任务 | execution 创建时冻结 Snapshot |
 | replace 导入误删配置 | 缺失项仅停用；Preview 单列；原子提交和审计 |
-| 历史模型字符串无法映射 | 生成迁移报告和显式 override，不静默替换 |
+| 历史模型字符串无法映射 | 生成迁移报告和对象显式 override；Profile 按内容哈希去重，不批量制造一次性 `migrated-*` Profile |
 | 参数 schema 演进 | schema version + Profile 重新校验；旧 Snapshot 保持原样 |
-| Worker 状态抖动 | Catalog 不受影响；Scheduler 基于健康窗口和现有重试策略处理 |
+| Worker 状态抖动 | Catalog 不受影响；Scheduler 基于 TTL、健康窗口、幂等重驱动和原子 executor 创建处理 |
+| 任意 CLI / 参数注入 | 受控 adapter registry + 结构化 argv + schema 支持子集 fail closed |
+| Profile / 默认值变更影响过大 | 保存前影响预览、引用计数、审计和可选灰度；历史 Snapshot 不变 |
+| Coverage 数字被误读为可调度承诺 | 文案区分 Basic Capability Coverage 与 Effective Schedulability |
 
 ## 19. 关键决策摘要
 
@@ -608,16 +690,21 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 5. **执行必须冻结 Snapshot。** 保证可审计与可复现。
 6. **导入先预检后原子应用。** 跨环境配置使用稳定 key，不使用数据库 ID。
 7. **无匹配 Worker 是可恢复调度状态。** 不属于 executor 执行失败，也不触发静默降级。
+8. **CLI 启动经受控 adapter。** Catalog 不授予任意进程或参数执行能力。
+9. **Coverage 不等于可调度。** 组织级基础能力数字不能替代 execution 级完整约束判断。
+10. **先闭合运行链，再扩管理面。** 实施按纵向薄切推进，不按页面或实体横向铺开。
 
 ## 20. 实施拆分
 
-| 工作包 | 内容 | 前置 |
+| 阶段 | 内容 | 放行结果 |
 |---|---|---|
-| A. Runtime Catalog backend | CLI、Model 扩展、Profile、默认值、Resolver、审计 | 无 |
-| B. Import / Export backend | versioned bundle、Preview、Apply、revision CAS | A |
-| C. AI Runtime Web | 三 Tab、共享表单、coverage、导入导出 | A、B |
-| D. Business integration | Agent、Executor、Team Role 统一 Selection / Selector | A、C |
-| E. Scheduler matching | Snapshot、capability matching、等待与自动恢复 | A、D |
-| F. Migration cleanup | 数据迁移、移除硬编码、旧 API / 字段退场 | D、E |
+| 0. 重新基线与契约 | 现状矩阵；Snapshot、优先级、`task.model`、Secret、adapter、等待状态机契约 | 无关键语义待定 |
+| 1. 硬化基础层 | Snapshot provenance；审计深拷贝与脱敏；schema fail closed；Import / Export 并发与回滚 | 历史 execution 不漂移 |
+| 2. Agent 纵向链 | Agent selection -> Snapshot -> scheduler -> supervisor / executor 参数 | flag ON 真执行，flag OFF 可回旧路径 |
+| 3. 能力与等待闭环 | capability 身份 / TTL；matching；`waiting_for_capability`；exactly-once re-drive | executor 0 -> 1，重启 / 抖动不重复 |
+| 4. UI 与其它入口 | AI Runtime 管理面；Team Role；Executor candidate；影响预览 | 每扩一个入口单独真验 |
+| 5. 迁移与切换 | dry-run、Profile 去重、shadow compare、灰度切读源 | 可回退且无静默替换 |
+| 6. 清理 | fallback 归零后删旧字段、API、常量和 adapter | 历史 execution 与恢复路径仍可用 |
 
-实施顺序为 A -> B -> C -> D -> E -> F。每个工作包独立具备迁移开关和回滚路径，不做一次性破坏性切换。
+详细任务、依赖、测试和回滚门见
+[AI Runtime 统一配置实施 Plan](../../plans/2026-07-22-ai-runtime-configuration-implementation.md)。
