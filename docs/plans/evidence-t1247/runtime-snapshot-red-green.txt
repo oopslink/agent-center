@@ -1,0 +1,42 @@
+T1247 runtime snapshot production-lifecycle evidence
+Date: 2026-07-29
+Command:
+  go test ./internal/projectmanager/service -run '^TestRuntimeSnapshotProductionLifecycleIsByteStable$' -count=1 -v -timeout=2m
+
+PRE-FIX RED
+The identical full-real SQLite lifecycle test was run with the production
+RuntimeExecutions composition connection removed:
+
+=== RUN   TestRuntimeSnapshotProductionLifecycleIsByteStable
+    runtime_execution_integration_test.go:76: sql: no rows in result set
+--- FAIL: TestRuntimeSnapshotProductionLifecycleIsByteStable (5.96s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/projectmanager/service	8.497s
+FAIL
+
+POST-FIX GREEN
+The same test was run with RuntimeExecutions wired to the real SQLite AI Runtime
+repository. It creates a project/task, starts the task, changes the organization
+default profile, performs block→unblock (retry/resume), then reassigns the running
+task and compares snapshot_json bytes:
+
+=== RUN   TestRuntimeSnapshotProductionLifecycleIsByteStable
+--- PASS: TestRuntimeSnapshotProductionLifecycleIsByteStable (3.20s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	5.009s
+
+FOLLOW-UP INVARIANT
+The production freezer now checks the immutable execution snapshot before
+consulting mutable Catalog state. A unit test makes GetCatalog fail and proves an
+existing execution succeeds with exactly one snapshot read and zero Catalog reads:
+
+  TestExecutionFreezerReadsFrozenSnapshotBeforeMutableCatalog
+
+Final focused race command:
+  go test -race ./internal/airuntime ./internal/projectmanager/service \
+    -run 'TestExecutionFreezerReadsFrozenSnapshotBeforeMutableCatalog|TestRuntimeSnapshotProductionLifecycleIsByteStable' \
+    -count=1 -timeout=5m
+
+Result:
+  ok github.com/oopslink/agent-center/internal/airuntime
+  ok github.com/oopslink/agent-center/internal/projectmanager/service

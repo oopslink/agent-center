@@ -200,6 +200,13 @@ type NodeResumer interface {
 }
 
 // Service is the ProjectManager AppService facade.
+// RuntimeExecutionFreezer is the AI Runtime boundary owned by the execution
+// lifecycle. EnsureExecution must atomically create the first snapshot or return the
+// already-frozen one; callers intentionally invoke it again on retry/resume/reassign.
+type RuntimeExecutionFreezer interface {
+	EnsureExecution(context.Context, string, string) error
+}
+
 type Service struct {
 	db           *sql.DB
 	projects     pm.ProjectRepository
@@ -268,6 +275,7 @@ type Service struct {
 	// store backing the per-project auto_assign master switch (autoassign.Enabled). nil
 	// ⇒ the switch reads its default (ON) for every project.
 	autoAssignSettings settings.Store
+	runtimeExecutions  RuntimeExecutionFreezer
 	// orch is OPTIONAL (nil-safe, T768). The orchestration engine application service.
 	// When wired, StartPlan builds a graph mirroring the plan DAG (business node per
 	// task + condition node per decision) and dispatch/advance switch to the graph as
@@ -385,6 +393,12 @@ type Deps struct {
 	// AutoAssignSettings is OPTIONAL (v2.18.3 BE-2): the center settings store backing
 	// the per-project auto_assign master switch. nil ⇒ the switch is its default (ON).
 	AutoAssignSettings settings.Store
+	// RuntimeExecutions is OPTIONAL during the additive AI Runtime rollout. When
+	// present, every transition that creates or continues a logical task execution
+	// asks it to resolve-or-load the immutable runtime snapshot. Implementations must
+	// be idempotent: retry, resume and reassign keep the snapshot first frozen for
+	// the task execution.
+	RuntimeExecutions RuntimeExecutionFreezer
 	// Orch is OPTIONAL (T768): the orchestration engine application service. When set,
 	// StartPlan builds a graph for the plan and dispatch/advance use it as the
 	// ready-source (via plan.GraphID). nil ⇒ every plan stays on the legacy plan-DAG
@@ -437,6 +451,7 @@ func New(d Deps) *Service {
 		audit:              d.Audit,
 		autoAssignDir:      d.AutoAssignDir,
 		autoAssignSettings: d.AutoAssignSettings,
+		runtimeExecutions:  d.RuntimeExecutions,
 		orch:               orchSvc,
 		stages:             d.Stages,
 		deadlinePolicy:     d.DeadlinePolicy,

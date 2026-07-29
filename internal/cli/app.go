@@ -14,6 +14,8 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/airuntime"
+	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
@@ -430,19 +432,20 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	liveState := concurrency.NewInMemoryStore()
 
 	pmSvc := pmservice.New(pmservice.Deps{
-		DB:               db,
-		Orch:             orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
-		Projects:         pmsql.NewProjectRepo(db),
-		Members:          pmsql.NewProjectMemberRepo(db),
-		Issues:           pmsql.NewIssueRepo(db),
-		Tasks:            pmsql.NewTaskRepo(db),
-		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs:     codeRepoRefRepo,
-		CodeRepoResolver: codeRepoSvc,
-		Plans:            pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
-		Stages:           pmsql.NewStageRepo(db),       // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
-		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
+		DB:                db,
+		Orch:              orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
+		Projects:          pmsql.NewProjectRepo(db),
+		Members:           pmsql.NewProjectMemberRepo(db),
+		Issues:            pmsql.NewIssueRepo(db),
+		Tasks:             pmsql.NewTaskRepo(db),
+		TaskSubs:          pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:         pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs:      codeRepoRefRepo,
+		CodeRepoResolver:  codeRepoSvc,
+		RuntimeExecutions: airuntime.NewExecutionFreezer(airuntimesql.NewRepository(db)),
+		Plans:             pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
+		Stages:            pmsql.NewStageRepo(db),       // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
+		Findings:          pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		// I103 §2: turn the deadline engine ON in production — the reconcile materialize
 		// assigns each BlockedOn node its per-wait_type deadline + on_timeout action, and
 		// the router (routeTimeouts) acts when a deadline elapses. The paired production
