@@ -18,7 +18,8 @@
 | 4 | integration | task lifecycle | 首次 start 冻结；retry/resume/reassign 字节不变 |
 | 5 | integration | worker fork | admission 后重读，WorkItem 取冻结 CLI/model/parameters |
 | 6 | regression | flag OFF / F3 | 无 Snapshot 时旧 modelrouter 可执行；`task.model` 仍硬覆盖 |
-| 7 | gate | build/vet/test/race | 全部通过，race 无报告 |
+| 7 | unit/integration | supervisor_inline Runtime 一致性 | 一致放行；CLI/model 不一致在状态迁移和注入前 fail closed |
+| 8 | gate | build/vet/test/race | 全部通过，race 无报告 |
 
 ## 出口标准
 

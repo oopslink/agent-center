@@ -437,6 +437,8 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	agentID := req.AgentID
 	r.mu.Lock()
 	sess := r.state.Session
+	sessionCLI := r.state.CLI
+	sessionModel := r.state.Model
 	ee := r.exec
 	r.mu.Unlock()
 	if sess == nil {
@@ -468,6 +470,13 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 			agentID, req.TaskID)
 		r.createTaskDir(agentID, req.TaskID)
 		return r.workViaExecutor(ctx, req, ee)
+	}
+	if routesSupervisorInline(req.DispatchMode) {
+		if err := requireInlineRuntimeMatch(sessionCLI, sessionModel, req.RuntimeCLI, req.RuntimeModel); err != nil {
+			r.log("DISPATCH-REJECTED route=NotifyWork(agent.work) dispatch_mode=supervisor-inline agent_namespace=%s task_id=%s: %v",
+				agentID, req.TaskID, err)
+			return err
+		}
 	}
 	// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to an INJECT
 	// here — either single-active (concurrency OFF, ee == nil) or, since I105, an explicit
@@ -512,6 +521,30 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	}
 	r.mu.Unlock()
 	return nil
+}
+
+func requireInlineRuntimeMatch(sessionCLI, sessionModel, snapshotCLI, snapshotModel string) error {
+	type mismatch struct {
+		field string
+		have  string
+		want  string
+	}
+	var mismatches []mismatch
+	if want := strings.TrimSpace(snapshotCLI); want != "" && !strings.EqualFold(strings.TrimSpace(sessionCLI), want) {
+		mismatches = append(mismatches, mismatch{field: "cli", have: strings.TrimSpace(sessionCLI), want: want})
+	}
+	if want := strings.TrimSpace(snapshotModel); want != "" && strings.TrimSpace(sessionModel) != want {
+		mismatches = append(mismatches, mismatch{field: "model", have: strings.TrimSpace(sessionModel), want: want})
+	}
+	if len(mismatches) == 0 {
+		return nil
+	}
+	parts := make([]string, 0, len(mismatches))
+	for _, mm := range mismatches {
+		parts = append(parts, fmt.Sprintf("%s resident=%q snapshot=%q", mm.field, mm.have, mm.want))
+	}
+	return fmt.Errorf("agentruntime: supervisor_inline runtime mismatch (%s); use executor_fork or select a Profile matching the resident supervisor session",
+		strings.Join(parts, ", "))
 }
 
 // NotifyWake injects a posted task message into the resident session (dedup +

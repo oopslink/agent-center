@@ -22,6 +22,26 @@ func (s *Service) ensureRuntimeExecution(ctx context.Context, task *pm.Task) err
 	return s.runtimeExecutions.EnsureExecution(ctx, project.OrganizationID(), string(task.ID()), agentID)
 }
 
+type inlineRuntimeCompatibility interface {
+	EnsureInlineCompatible(context.Context, string, string, string) error
+}
+
+func (s *Service) ensureInlineRuntimeCompatible(ctx context.Context, task *pm.Task) error {
+	if task.DispatchMode() != pm.DispatchSupervisorInline || s.runtimeExecutions == nil {
+		return nil
+	}
+	checker, ok := s.runtimeExecutions.(inlineRuntimeCompatibility)
+	if !ok {
+		return nil
+	}
+	project, err := s.projects.FindByID(ctx, task.ProjectID())
+	if err != nil {
+		return err
+	}
+	agentID := strings.TrimPrefix(string(task.Assignee()), "agent:")
+	return checker.EnsureInlineCompatible(ctx, project.OrganizationID(), string(task.ID()), agentID)
+}
+
 func (s *Service) RuntimeExecution(ctx context.Context, task *pm.Task) (any, bool, error) {
 	if s.runtimeExecutions == nil {
 		return nil, false, nil

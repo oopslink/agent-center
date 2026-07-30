@@ -221,6 +221,71 @@ func TestNotifyWork_SupervisorInline_InjectsDespiteConcurrency(t *testing.T) {
 	}
 }
 
+func TestNotifyWork_SupervisorInline_RuntimeSnapshotGate(t *testing.T) {
+	tests := []struct {
+		name          string
+		sessionCLI    string
+		sessionModel  string
+		snapshotCLI   string
+		snapshotModel string
+		wantErr       string
+	}{
+		{
+			name:       "matching runtime is admitted",
+			sessionCLI: "codex", sessionModel: "gpt-5.6",
+			snapshotCLI: "codex", snapshotModel: "gpt-5.6",
+		},
+		{
+			name:       "cli mismatch is rejected",
+			sessionCLI: "claude-code", sessionModel: "claude-sonnet",
+			snapshotCLI: "codex", snapshotModel: "claude-sonnet",
+			wantErr: "cli resident=\"claude-code\" snapshot=\"codex\"",
+		},
+		{
+			name:       "model mismatch is rejected",
+			sessionCLI: "codex", sessionModel: "gpt-5.5",
+			snapshotCLI: "codex", snapshotModel: "gpt-5.6",
+			wantErr: "model resident=\"gpt-5.5\" snapshot=\"gpt-5.6\"",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rt, ee, _ := engineForAgent(t, "agent-inline-runtime")
+			attach(rt, ee)
+			fs := &fakeSession{}
+			rt.withState(func(s *SessionState) {
+				s.Session = fs
+				s.CLI = tc.sessionCLI
+				s.Model = tc.sessionModel
+			})
+
+			err := rt.NotifyWork(context.Background(), WorkRequest{
+				AgentID: "agent-inline-runtime", TaskID: "task-inline-runtime",
+				Brief: "execute inline", DispatchMode: "supervisor_inline",
+				RuntimeCLI: tc.snapshotCLI, RuntimeModel: tc.snapshotModel,
+			})
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("NotifyWork matching runtime: %v", err)
+				}
+				if got := fs.msgs(); len(got) != 1 || got[0] != "execute inline" {
+					t.Fatalf("matching runtime injections = %v, want one", got)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("NotifyWork mismatch error = %v, want containing %q", err, tc.wantErr)
+			}
+			if got := fs.msgs(); len(got) != 0 {
+				t.Fatalf("mismatched runtime must not inject actual execution, got %v", got)
+			}
+			if got := rt.CurrentTaskID(); got != "" {
+				t.Fatalf("mismatched runtime claimed task %q, want empty", got)
+			}
+		})
+	}
+}
+
 // TestNotifyWork_DispatchModeDefaults_StillFork is the NotifyWork half of red line #1:
 // absent / empty / unknown ⇒ the legacy executor branch still wins whenever
 // concurrency is on, and the brief is NOT injected into the resident session.

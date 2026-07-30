@@ -10,7 +10,8 @@
 | 4 | task lifecycle byte stability | PASS | `TestRuntimeSnapshotProductionLifecycleIsByteStable` |
 | 5 | worker fork consumes frozen Snapshot | PASS | `TestBuildWorkItem/frozen_runtime_snapshot...`；admission/fork tests |
 | 6 | legacy / F3 compatibility | PASS | Snapshot 缺失仍走原 router；ADR-0056 与既有 task override tests |
-| 7 | build / vet / test / race | 有环境保留 | build、vet PASS；目标单元/集成 PASS；全量与 race 在宿主机的 git/SQLite 子进程上触发 10m timeout，未出现 DATA RACE |
+| 7 | supervisor_inline Runtime 一致性 | PASS | `TestExecutionFreezerInlineCompatibility`；`TestNotifyWork_SupervisorInline_RuntimeSnapshotGate` |
+| 8 | build / vet / test / race | 有环境保留 | build、vet PASS；目标单元/集成 PASS；全量与 race 在宿主机的 git/SQLite 子进程上触发 10m timeout，未出现 DATA RACE |
 
 ## 关键原始结果
 
@@ -30,6 +31,18 @@
   `internal/agentruntime` 达到 10m package timeout；相关改动测试单独通过。
 - `make test-race`：未报告 DATA RACE；真实 git unreachable/push/cache 测试
   在同一宿主机达到 10m timeout。
+
+## Gate loopback（2026-07-30）
+
+- 采用 Gate 裁定 A：常驻 supervisor 不做逐 task 重启；`supervisor_inline` 的冻结
+  CLI/model 必须与 Agent 当前 selection 和 resident session 实际 CLI/model 一致。
+- 中心 `StartTask` 在 Snapshot 冻结后、Task 状态迁移前执行 selection 兼容性门；
+  runtime `NotifyWork` 在创建 task dir / 注入 resident session 前执行实际 session 兼容性门。
+- CLI/model 不一致会逐字段报告 `resident`/`snapshot`，建议改用 `executor_fork`
+  或选择匹配常驻 supervisor 的 Profile；拒绝测试同时断言零注入、零任务占用。
+- 受影响四包 `go vet` PASS；`airuntime` 与 `agentruntime` 全包 PASS；
+  `projectmanager/service` 全包在高负载宿主运行 377s 后人工中止，随后本改动
+  真入口集成用例独立 PASS。未把这条记录冒充全仓门禁已绿。
 
 ## 结论
 

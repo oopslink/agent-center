@@ -169,6 +169,12 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := s.ensureRuntimeExecution(txCtx, t); err != nil {
 			return err
 		}
+		// A supervisor_inline task runs inside the already-resident per-agent
+		// supervisor session. Its frozen execution may start only when that
+		// session's Agent selection resolves to the same CLI/model.
+		if err := s.ensureInlineRuntimeCompatible(txCtx, t); err != nil {
+			return err
+		}
 		prevStatus := t.Status()
 		if err := t.Start(now); err != nil {
 			return err

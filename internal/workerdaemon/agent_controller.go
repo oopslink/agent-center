@@ -98,6 +98,11 @@ type workPayload struct {
 	TaskID  string `json:"task_id"`
 	TaskRef string `json:"task_ref"`
 	Brief   string `json:"brief"`
+	// RuntimeCLI/RuntimeModel are copied from the task's frozen Runtime Snapshot.
+	// The runtime compares them with the resident supervisor session before any
+	// supervisor_inline work is injected.
+	RuntimeCLI   string `json:"runtime_cli,omitempty"`
+	RuntimeModel string `json:"runtime_model,omitempty"`
 	// DispatchMode is the optional per-node fork override (I105 Phase 1). Absent on
 	// every pre-I105 producer, which decodes to "" = executor_fork = today's routing.
 	DispatchMode string `json:"dispatch_mode"`

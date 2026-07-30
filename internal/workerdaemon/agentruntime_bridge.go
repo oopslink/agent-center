@@ -63,7 +63,10 @@ func buildConverseBrief(pl conversePayload) string {
 // --- Payload → runtime request converters (byte-identical field mapping). ---
 
 func workRequestOf(pl workPayload) agentruntime.WorkRequest {
-	return agentruntime.WorkRequest{AgentID: pl.AgentID, TaskID: pl.TaskID, TaskRef: pl.TaskRef, Brief: pl.Brief, DispatchMode: pl.DispatchMode}
+	return agentruntime.WorkRequest{
+		AgentID: pl.AgentID, TaskID: pl.TaskID, TaskRef: pl.TaskRef, Brief: pl.Brief,
+		RuntimeCLI: pl.RuntimeCLI, RuntimeModel: pl.RuntimeModel, DispatchMode: pl.DispatchMode,
+	}
 }
 
 func wakeRequestOf(pl wakePayload) agentruntime.WakeRequest {

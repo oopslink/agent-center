@@ -96,6 +96,12 @@ type WorkRequest struct {
 	TaskID  string
 	TaskRef string
 	Brief   string
+	// RuntimeCLI/RuntimeModel are the immutable execution Snapshot values carried
+	// by the center for supervisor_inline admission. They are deliberately
+	// separate from the mutable agent configuration: the resident session may
+	// execute the task only when its actual spawn CLI/model match these values.
+	RuntimeCLI   string
+	RuntimeModel string
 	// DispatchMode is the per-node fork override carried from the center (I105
 	// Phase 1): "" (default) | "executor_fork" | "supervisor_inline". Only an explicit
 	// "supervisor_inline" suppresses the fork; see routesSupervisorInline.

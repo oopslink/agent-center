@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -112,6 +113,30 @@ func TestExecutionFreezerUsesPersistedAgentSelection(t *testing.T) {
 	}
 	if repo.snapshotReads != 2 || repo.catalogReads != 2 {
 		t.Fatalf("snapshot/catalog reads = %d/%d, want 2/2", repo.snapshotReads, repo.catalogReads)
+	}
+}
+
+func TestExecutionFreezerInlineCompatibility(t *testing.T) {
+	_, repo := resolverFixture()
+	freezer := NewExecutionFreezer(repo)
+	repo.frozen = RuntimeSnapshot{CLIKey: "codex", ModelKey: "gpt-5"}
+	repo.frozenOK = true
+
+	if err := freezer.EnsureInlineCompatible(context.Background(), "org-1", "execution-1", "agent-1"); err != nil {
+		t.Fatalf("matching inline runtime rejected: %v", err)
+	}
+
+	repo.frozen.CLIKey = "claude-code"
+	if err := freezer.EnsureInlineCompatible(context.Background(), "org-1", "execution-1", "agent-1"); err == nil ||
+		!strings.Contains(err.Error(), `cli resident="codex" snapshot="claude-code"`) {
+		t.Fatalf("CLI mismatch error = %v", err)
+	}
+
+	repo.frozen.CLIKey = "codex"
+	repo.frozen.ModelKey = "gpt-6"
+	if err := freezer.EnsureInlineCompatible(context.Background(), "org-1", "execution-1", "agent-1"); err == nil ||
+		!strings.Contains(err.Error(), `model resident="gpt-5" snapshot="gpt-6"`) {
+		t.Fatalf("model mismatch error = %v", err)
 	}
 }
 
