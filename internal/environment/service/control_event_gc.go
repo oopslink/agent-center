@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 )
 
@@ -102,7 +103,10 @@ func (g *ControlEventGC) Tick(ctx context.Context) (int64, error) {
 // Run executes one GC pass immediately, then on each tick, until ctx is canceled.
 // Blocks; call as `go gc.Run(ctx)`.
 func (g *ControlEventGC) Run(ctx context.Context) {
-	g.runOnce(ctx)
+	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
+		g.runOnce(passCtx)
+		cancel()
+	}
 	t := time.NewTicker(g.interval)
 	defer t.Stop()
 	for {
@@ -110,7 +114,12 @@ func (g *ControlEventGC) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			g.runOnce(ctx)
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return
+			}
+			g.runOnce(passCtx)
+			cancel()
 		}
 	}
 }

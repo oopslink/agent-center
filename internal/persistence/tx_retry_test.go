@@ -190,3 +190,18 @@ func TestIsSQLiteBusy(t *testing.T) {
 		t.Fatalf("isSQLiteBusy(%v) = false, want true (real SQLITE_BUSY)", busyErr)
 	}
 }
+
+func TestIsSQLiteInterrupt(t *testing.T) {
+	if IsSQLiteInterrupt(nil) {
+		t.Fatal("IsSQLiteInterrupt(nil) = true, want false")
+	}
+	if IsSQLiteInterrupt(errors.New("not a sqlite error")) {
+		t.Fatal("IsSQLiteInterrupt(plain error) = true, want false")
+	}
+	if !IsSQLiteInterrupt(errors.New("interrupted (9)")) {
+		t.Fatal("IsSQLiteInterrupt(flattened interrupted error) = false, want true")
+	}
+	if !isSQLiteRetryableTx(errors.New("interrupted (9)")) {
+		t.Fatal("isSQLiteRetryableTx(interrupted) = false, want true")
+	}
+}

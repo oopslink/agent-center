@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -181,11 +182,16 @@ func (c *LeaseChecker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
-			if n, err := c.Tick(ctx); err != nil {
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return ctx.Err()
+			}
+			if n, err := c.Tick(passCtx); err != nil {
 				c.log("lease-checker: tick failed: %v", err)
 			} else if n > 0 {
 				c.log("lease-checker: nudged %d lapsed-lease task(s)", n)
 			}
+			cancel()
 		}
 	}
 }

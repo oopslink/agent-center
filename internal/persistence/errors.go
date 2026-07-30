@@ -36,3 +36,20 @@ func IsUniqueViolation(err error) bool {
 	return strings.Contains(msg, "UNIQUE constraint failed") ||
 		strings.Contains(msg, "constraint failed: UNIQUE")
 }
+
+// IsSQLiteInterrupt reports whether err is SQLITE_INTERRUPT (primary code 9).
+// modernc.org/sqlite raises this when a statement is interrupted, commonly
+// after context cancellation. The string fallback covers flattened driver
+// errors such as "interrupted (9)" that lost their typed *sqlite.Error wrapper.
+func IsSQLiteInterrupt(err error) bool {
+	if err == nil {
+		return false
+	}
+	var se *sqlite.Error
+	if errors.As(err, &se) {
+		return se.Code()&0xff == sqlitelib.SQLITE_INTERRUPT
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "interrupted (9)") ||
+		strings.Contains(msg, "SQLITE_INTERRUPT")
+}

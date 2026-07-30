@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -117,11 +118,16 @@ func (c *ResolvedIssueCloser) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
-			if n, err := c.Tick(ctx); err != nil {
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return ctx.Err()
+			}
+			if n, err := c.Tick(passCtx); err != nil {
 				c.log("resolved-issue-closer: tick failed: %v", err)
 			} else if n > 0 {
 				c.log("resolved-issue-closer: closed %d resolved issue(s)", n)
 			}
+			cancel()
 		}
 	}
 }

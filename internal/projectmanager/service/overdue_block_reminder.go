@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -206,11 +207,16 @@ func (c *OverdueBlockedReminder) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
-			if n, err := c.Tick(ctx); err != nil {
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return ctx.Err()
+			}
+			if n, err := c.Tick(passCtx); err != nil {
 				c.log("overdue-block-reminder: tick failed: %v", err)
 			} else if n > 0 {
 				c.log("overdue-block-reminder: reminded %d overdue-blocked task(s)", n)
 			}
+			cancel()
 		}
 	}
 }

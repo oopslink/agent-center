@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/observability"
 )
 
@@ -46,11 +47,14 @@ func (f *EventFanout) WithErrorHandler(h func(error)) *EventFanout {
 // its id as the cursor; the fanout only fires for events created
 // after Run starts (we do NOT replay historical events to SSE).
 func (f *EventFanout) Run(ctx context.Context) {
-	if err := f.bootstrap(ctx); err != nil {
-		f.onError(err)
-		// Continue with empty cursor — we'll replay every existing
-		// event once (acceptable on first start; small DB at center
-		// startup).
+	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
+		if err := f.bootstrap(passCtx); err != nil {
+			f.onError(err)
+			// Continue with empty cursor — we'll replay every existing
+			// event once (acceptable on first start; small DB at center
+			// startup).
+		}
+		cancel()
 	}
 	ticker := time.NewTicker(f.interval)
 	defer ticker.Stop()
@@ -59,7 +63,12 @@ func (f *EventFanout) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			f.tick(ctx)
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return
+			}
+			f.tick(passCtx)
+			cancel()
 		}
 	}
 }

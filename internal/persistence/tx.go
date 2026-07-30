@@ -168,8 +168,13 @@ func txBackoff(attempt int) time.Duration {
 }
 
 // retryableTxErr reports whether err warrants a whole-tx replay. Overridable
-// in tests; default isSQLiteBusy.
-var retryableTxErr = isSQLiteBusy
+// in tests; default retries transient SQLite write locks and statement
+// interrupts when the caller's context is still alive.
+var retryableTxErr = isSQLiteRetryableTx
+
+func isSQLiteRetryableTx(err error) bool {
+	return isSQLiteBusy(err) || IsSQLiteInterrupt(err)
+}
 
 // isSQLiteBusy reports whether err is a transient SQLite write-lock conflict
 // (SQLITE_BUSY = 5 or SQLITE_BUSY_SNAPSHOT = 517). The primary result code

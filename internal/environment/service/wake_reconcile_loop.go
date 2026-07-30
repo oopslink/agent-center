@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/background"
 )
 
 // WakeReconcileLoop runs WakeProjector.ReconcileOnce as a background job — the
@@ -36,7 +38,10 @@ func NewWakeReconcileLoop(proj *WakeProjector, interval time.Duration, logger fu
 // canceled. Blocks; call as `go loop.Run(ctx)`. Never panics — a sweep error is
 // logged and the loop keeps running (the failed work retries on the next tick).
 func (l *WakeReconcileLoop) Run(ctx context.Context) {
-	l.runOnce(ctx)
+	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
+		l.runOnce(passCtx)
+		cancel()
+	}
 	t := time.NewTicker(l.interval)
 	defer t.Stop()
 	for {
@@ -44,7 +49,12 @@ func (l *WakeReconcileLoop) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			l.runOnce(ctx)
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return
+			}
+			l.runOnce(passCtx)
+			cancel()
 		}
 	}
 }

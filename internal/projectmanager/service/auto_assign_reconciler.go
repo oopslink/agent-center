@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/autoassign"
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -633,11 +634,16 @@ func (r *AutoAssignReconciler) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
-			if n, err := r.Tick(ctx); err != nil {
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return ctx.Err()
+			}
+			if n, err := r.Tick(passCtx); err != nil {
 				r.log("auto-assign: sweep failed: %v", err)
 			} else if n > 0 {
 				r.log("auto-assign: assigned %d pool task(s)", n)
 			}
+			cancel()
 		}
 	}
 }

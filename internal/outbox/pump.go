@@ -3,6 +3,8 @@ package outbox
 import (
 	"context"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/background"
 )
 
 // Pump runs a Relay as a background drainer (v2.7 B3 server-runtime wiring,
@@ -51,7 +53,10 @@ func (p *Pump) WithTickHook(fn func(context.Context)) *Pump {
 // Run drains the backlog immediately, then on each tick, until ctx is canceled.
 // Blocks; call as `go pump.Run(ctx)`.
 func (p *Pump) Run(ctx context.Context) {
-	p.drain(ctx) // clear any backlog on boot
+	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
+		p.drain(passCtx) // clear any backlog on boot
+		cancel()
+	}
 	t := time.NewTicker(p.interval)
 	defer t.Stop()
 	for {
@@ -59,10 +64,15 @@ func (p *Pump) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			for _, hook := range p.tickHooks {
-				hook(ctx)
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return
 			}
-			p.drain(ctx)
+			for _, hook := range p.tickHooks {
+				hook(passCtx)
+			}
+			p.drain(passCtx)
+			cancel()
 		}
 	}
 }

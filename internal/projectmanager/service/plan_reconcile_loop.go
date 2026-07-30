@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -47,7 +48,10 @@ func NewPlanReconcileLoop(svc *Service, interval time.Duration, logger func(stri
 // canceled. Blocks; call as `go loop.Run(ctx)`. Never panics — a sweep / per-plan
 // error is logged and the loop keeps running (the failed work retries next tick).
 func (l *PlanReconcileLoop) Run(ctx context.Context) {
-	l.runOnce(ctx)
+	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
+		l.runOnce(passCtx)
+		cancel()
+	}
 	t := time.NewTicker(l.interval)
 	defer t.Stop()
 	for {
@@ -55,7 +59,12 @@ func (l *PlanReconcileLoop) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			l.runOnce(ctx)
+			passCtx, cancel, ok := background.OperationContext(ctx, 0)
+			if !ok {
+				return
+			}
+			l.runOnce(passCtx)
+			cancel()
 		}
 	}
 }

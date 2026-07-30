@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -152,7 +153,12 @@ func (r *Rollup) Run(ctx context.Context, interval time.Duration, logf func(stri
 		logf = func(string, ...any) {}
 	}
 	pass := func() {
-		stats, err := r.RunIncremental(ctx)
+		passCtx, cancel, ok := background.OperationContext(ctx, 2*time.Minute)
+		if !ok {
+			return
+		}
+		defer cancel()
+		stats, err := r.RunIncremental(passCtx)
 		if err != nil {
 			if ctx.Err() == nil {
 				logf("incremental pass failed: %v", err)
