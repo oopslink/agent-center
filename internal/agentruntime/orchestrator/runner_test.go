@@ -38,6 +38,9 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 	if !strings.Contains(joined, "NO access to the agent-center") {
 		t.Errorf("executor system prompt should forbid center access: %q", joined)
 	}
+	if !strings.Contains(joined, "Never use SQLite") || !strings.Contains(joined, "mcp_config.runtime.json") {
+		t.Errorf("executor system prompt should forbid center bypass fallbacks: %q", joined)
+	}
 	if !strings.Contains(joined, "execution unit of the same Agent") ||
 		!strings.Contains(joined, "not an external agent or separate accountable party") ||
 		!strings.Contains(joined, "Supervisor relays and judges") {
@@ -74,14 +77,20 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 	if strings.Contains(joined, "resume") {
 		t.Errorf("fresh codex run must not carry a resume subcommand: %q", joined)
 	}
-	// No mcp / center access.
-	if strings.Contains(joined, "mcp") {
-		t.Errorf("codex executor runner must not carry mcp config: %q", joined)
+	// No mcp / center access is passed as runner configuration. The prompt itself may
+	// mention mcp_config.runtime.json as something the executor must not read.
+	for _, arg := range argv[:len(argv)-1] {
+		if strings.Contains(arg, "mcp") {
+			t.Errorf("codex executor runner must not carry mcp config args: %q", argv)
+		}
 	}
 	// The prompt argument (last) carries both the executor framing and the goal.
 	last := argv[len(argv)-1]
 	if !strings.Contains(last, "NO access to the agent-center") {
 		t.Errorf("codex prompt should prepend the executor framing: %q", last)
+	}
+	if !strings.Contains(last, "Never use SQLite") || !strings.Contains(last, "mcp_config.runtime.json") {
+		t.Errorf("codex prompt should forbid center bypass fallbacks: %q", last)
 	}
 	if !strings.Contains(last, "execution unit of the same Agent") ||
 		!strings.Contains(last, "not an external agent or separate accountable party") ||

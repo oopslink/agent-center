@@ -154,6 +154,11 @@ type LocalRuntimeConfig struct {
 	// home (home/skills + tasks/.claude/skills = project) and $HOME/.claude (user +
 	// plugins). home is the agent home dir, tasksDir is its project cwd.
 	SkillLayerRoots func(home, tasksDir string) skillscan.LayerRoots
+
+	// MCPPreflight validates that the supervisor's agent-center MCP surface exists
+	// before a Codex session is allowed to start. nil ⇒ production mcphost catalog
+	// preflight. Tests may replace it to force the blocked path.
+	MCPPreflight func(context.Context, mcphost.Config, ...string) error
 }
 
 // LocalRuntime is the in-process Runtime for one agent.
@@ -722,6 +727,9 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	if err != nil {
 		return fmt.Errorf("agent_controller: write mcp-config: %w", err)
 	}
+	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
+		return err
+	}
 
 	epochState, err := supervisormanager.ReadEpoch(home)
 	if err != nil {
@@ -827,6 +835,9 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if w := provisionCodexAuth(codexHome, resolveSourceCodexHome()); w != "" {
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}
+	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
+		return err
+	}
 	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription)
 
 	// Codex resume is health-gated. A captured thread_id is only safe to seed when
@@ -893,6 +904,23 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	r.log("started codex agent=%s version=%d home=%s", agentID, spec.Version, home)
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path).
 	r.kickInstalledSkillsReport()
+	return nil
+}
+
+func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksDir string) error {
+	required := []string{"post_message", "list_my_tasks", "search_tools"}
+	preflight := r.cfg.MCPPreflight
+	if preflight == nil {
+		preflight = mcphost.RequireTools
+	}
+	cfg := mcphost.Config{
+		AgentID:   agentID,
+		AgentRoot: tasksDir,
+		TierTools: true,
+	}
+	if err := preflight(ctx, cfg, required...); err != nil {
+		return fmt.Errorf("agent_controller: supervisor MCP preflight failed for server %q: %w", MCPServerName, err)
+	}
 	return nil
 }
 

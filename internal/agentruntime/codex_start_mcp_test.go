@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
 	"github.com/oopslink/agent-center/internal/cognition/memory"
+	"github.com/oopslink/agent-center/internal/mcphost"
 )
 
 // TestStartCodex_WritesMCPConfigAndCodexHome pins the T972 supervisor-MCP wiring:
@@ -75,6 +77,75 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 	// carries center creds — that is how it authenticates its tool calls).
 	if !strings.Contains(s, "tok-secret") {
 		t.Errorf("config.toml missing per-agent worker token; got:\n%s", s)
+	}
+}
+
+func TestStartCodex_BlocksWhenSupervisorMCPPreflightFails(t *testing.T) {
+	base := t.TempDir()
+	calledStarter := false
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			calledStarter = true
+			return &fakeSession{}, nil
+		},
+		MCPPreflight: func(context.Context, mcphost.Config, ...string) error {
+			return errors.New("missing post_message")
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 1,
+		CLI:     CLICodex,
+	})
+	if err == nil || !strings.Contains(err.Error(), "supervisor MCP preflight failed") || !strings.Contains(err.Error(), "missing post_message") {
+		t.Fatalf("Start(codex) error = %v, want mcp preflight failure", err)
+	}
+	if calledStarter {
+		t.Fatal("CodexStarter was called even though MCP preflight failed")
+	}
+}
+
+func TestStartClaude_BlocksWhenSupervisorMCPPreflightFails(t *testing.T) {
+	base := t.TempDir()
+	calledStarter := false
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		Starter: func(_ context.Context, cfg SupervisorSessionConfig) (Session, error) {
+			calledStarter = true
+			return &fakeSession{}, nil
+		},
+		MCPPreflight: func(context.Context, mcphost.Config, ...string) error {
+			return errors.New("missing post_message")
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "supervisor MCP preflight failed") || !strings.Contains(err.Error(), "missing post_message") {
+		t.Fatalf("Start(claude) error = %v, want mcp preflight failure", err)
+	}
+	if calledStarter {
+		t.Fatal("Starter was called even though MCP preflight failed")
 	}
 }
 

@@ -94,6 +94,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	if err == nil {
 		r.recordTaskEvent(agentID, routeTask, ev, ActivityEventType(ev), string(payload), reportOK)
 	}
+	r.maybeReportCenterBypassAlert(agentID, workItemRef, ev)
 	if clearEventTask {
 		r.mu.Lock()
 		st.LastEventTaskID = st.EventTaskID
@@ -179,6 +180,25 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 			}
 		}
 	}
+}
+
+func (r *LocalRuntime) maybeReportCenterBypassAlert(agentID, workItemRef string, ev claudestream.StreamEvent) {
+	alert, ok := CenterBypassAlertFromEvent(ev)
+	if !ok {
+		return
+	}
+	payload, err := json.Marshal(alert)
+	if err != nil {
+		r.log("security agent=%s marshal center-bypass alert: %v", agentID, err)
+		return
+	}
+	if rerr := r.cfg.Reporter.ReportAgentActivity(
+		context.Background(), agentID, "security_alert", string(payload), workItemRef, "", time.Now(),
+	); rerr != nil {
+		r.log("security agent=%s center-bypass alert report: %v", agentID, rerr)
+		return
+	}
+	r.log("SECURITY agent=%s center-bypass shell access observed reasons=%s", agentID, strings.Join(alert.Reasons, ","))
 }
 
 func (r *LocalRuntime) codexRecycleReasonLocked(ev claudestream.StreamEvent, cleanTurns int) string {

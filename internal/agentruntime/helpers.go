@@ -188,6 +188,125 @@ func StreamActivityPayload(ev claudestream.StreamEvent, toolName string) map[str
 	return p
 }
 
+type CenterBypassAlert struct {
+	Type           string   `json:"type"`
+	ToolName       string   `json:"tool_name"`
+	Reasons        []string `json:"reasons"`
+	CommandSnippet string   `json:"command_snippet,omitempty"`
+}
+
+func CenterBypassAlertFromEvent(ev claudestream.StreamEvent) (CenterBypassAlert, bool) {
+	if ev.Type != "tool_use" || !isShellTool(ev.ToolName) {
+		return CenterBypassAlert{}, false
+	}
+	cmd := shellCommandFromToolInput(ev.ToolInput)
+	reasons := centerBypassReasons(cmd)
+	if len(reasons) == 0 {
+		return CenterBypassAlert{}, false
+	}
+	return CenterBypassAlert{
+		Type:           "agent_center_bypass_shell_access",
+		ToolName:       ev.ToolName,
+		Reasons:        reasons,
+		CommandSnippet: redactCommandSnippet(cmd, 240),
+	}, true
+}
+
+func isShellTool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "bash", "shell":
+		return true
+	default:
+		return false
+	}
+}
+
+func shellCommandFromToolInput(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return ""
+	}
+	for _, key := range []string{"command", "cmd"} {
+		if v, ok := obj[key].(string); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func centerBypassReasons(command string) []string {
+	s := strings.ToLower(command)
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	checks := []struct {
+		reason string
+		need   []string
+	}{
+		{"agent-center-db", []string{"agent-center.db"}},
+		{"sqlite-agent-center", []string{"sqlite", "agent-center"}},
+		{"admin-socket", []string{"admin.sock"}},
+		{"admin-socket", []string{"admin-socket"}},
+		{"admin-socket", []string{"admin socket"}},
+		{"admin-agent-tools", []string{"/admin/agent-tools"}},
+		{"mcp-runtime-config", []string{"mcp_config.runtime.json"}},
+		{"worker-token-env", []string{"ac_mcp_worker_token"}},
+		{"worker-token-config", []string{"worker token"}},
+		{"process-token-scrape", []string{"ps", "token"}},
+	}
+	seen := map[string]struct{}{}
+	var out []string
+	for _, c := range checks {
+		ok := true
+		for _, n := range c.need {
+			if !strings.Contains(s, n) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			if _, exists := seen[c.reason]; !exists {
+				seen[c.reason] = struct{}{}
+				out = append(out, c.reason)
+			}
+		}
+	}
+	return out
+}
+
+func redactCommandSnippet(command string, maxRunes int) string {
+	s := strings.TrimSpace(command)
+	replacements := []struct {
+		prefix string
+		marker string
+	}{
+		{"sk_agent_", "sk_agent_<redacted>"},
+		{"sk_machine_", "sk_machine_<redacted>"},
+		{"acat_", "acat_<redacted>"},
+	}
+	fields := strings.Fields(s)
+	for i, f := range fields {
+		lf := strings.ToLower(f)
+		for _, r := range replacements {
+			if strings.HasPrefix(f, r.prefix) {
+				fields[i] = r.marker
+			}
+		}
+		if strings.HasPrefix(lf, "ac_mcp_worker_token=") {
+			fields[i] = "AC_MCP_WORKER_TOKEN=<redacted>"
+		}
+	}
+	s = strings.Join(fields, " ")
+	r := []rune(s)
+	if maxRunes > 0 && len(r) > maxRunes {
+		return string(r[:maxRunes]) + "..."
+	}
+	return s
+}
+
 // ActivityEventType maps a StreamEvent to the standardized activity event_type.
 func ActivityEventType(ev claudestream.StreamEvent) string {
 	if ev.Type == "system" && ev.Subtype == "init" {
