@@ -17,26 +17,25 @@ import { refLabel } from '@/components/workItemDisplay';
 //
 // Computed contrast (Tailwind v3 default hex, white-vs-black AA formula):
 //   slate-100/slate-800 = 13.35 · sky-100/sky-800 ... we reuse the proven pairs:
-//   draft    → slate-100 / slate-800  (13.35)  — not started, neutral
+//   pending  → slate-100 / slate-800  (13.35)  — not started, neutral
 //   running  → blue-100  / blue-800   (7.15)   — in flight
 //   done     → emerald-100/emerald-800 (6.78)  — complete
-//   archived → stone-100 / stone-800  (13.90)  — terminal / shelved (v2.9 Stage B)
-// ALL ≥ 4.5 → AA in BOTH modes. archived uses a WARM neutral (stone) distinct
-// from draft's COOL neutral (slate) — terminal-neutral, not a live hue; the
-// uppercase "archived" label is the primary distinguisher (never color alone).
+//   discarded → stone-100 / stone-800 (13.90)  — terminal / shelved
+// ALL ≥ 4.5 → AA in BOTH modes.
 
 const PLAN_STATUS_CLS: Record<PlanStatus, string> = {
-  draft: 'bg-status-slate-bg text-status-slate-fg',
+  pending: 'bg-status-slate-bg text-status-slate-fg',
   running: 'bg-status-blue-bg text-status-blue-fg',
+  paused: 'bg-status-amber-bg text-status-amber-fg',
   done: 'bg-status-emerald-bg text-status-emerald-fg',
-  archived: 'bg-status-stone-bg text-status-stone-fg',
+  discarded: 'bg-status-stone-bg text-status-stone-fg',
 };
 
 export function planStatusClass(status: PlanStatus): string {
   return PLAN_STATUS_CLS[status] ?? 'bg-status-slate-bg text-status-slate-fg';
 }
 
-// PlanStatusChip — the draft/running/done pill. Same shape/size idiom as the
+// PlanStatusChip — the lifecycle pill. Same shape/size idiom as the
 // work-items StatusChip (rounded uppercase mini-pill) for visual consistency.
 export function PlanStatusChip({ status }: { status: PlanStatus }): React.ReactElement {
   const { t } = useTranslation('work');
@@ -47,6 +46,28 @@ export function PlanStatusChip({ status }: { status: PlanStatus }): React.ReactE
       data-status={status}
     >
       {t(`planStatus.${status}`, { defaultValue: status })}
+    </span>
+  );
+}
+
+// PlanArchivedBadge is deliberately separate from PlanStatusChip: archival is
+// a read-model marker on a terminal Plan, never a lifecycle state. Showing both
+// makes `done + archived` and `discarded + archived` explicit without rewriting
+// historical lifecycle truth.
+export function PlanArchivedBadge({ archivedAt }: { archivedAt?: string | null }): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  if (!archivedAt) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded bg-status-slate-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-slate-fg"
+      data-testid="plan-archived-badge"
+      title={`${t('shared.archivedTitle')} · ${archivedAt}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="4" rx="1" />
+        <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
+      </svg>
+      {t('shared.archived')}
     </span>
   );
 }

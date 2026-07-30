@@ -6,15 +6,13 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// v2.9 P3 Stage B — Plan deletion + archival (with cascade Task archival). Both
-// guard against a RUNNING plan (ErrPlanRunning — stop it first) and run their
+// Plan deletion and archival run their
 // PM-state writes + the cross-BC conversation-cleanup event in ONE local tx
 // (OQ1): the conversation hard-delete (DeletePlan) / archive (ArchivePlan) is an
 // idempotent projection on EvtPlanDeleted / EvtPlanArchived (PlanParticipantProjector),
 // NEVER inline — PM stays decoupled from Conversation.
 
-// DeletePlan HARD-deletes a non-running Plan (design §; "删会话"). It is rejected
-// for a RUNNING plan (ErrPlanRunning — stop it first). In one tx it:
+// DeletePlan HARD-deletes a never-started pending Plan. In one tx it:
 //
 //	(a) UNLOADs every task in the plan back to the backlog (task.plan_id="") — tasks
 //	    are NOT deleted, they return to the project backlog (reuses the
@@ -50,9 +48,10 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 		if p.IsBuiltin() {
 			return pm.ErrBuiltinPlanImmutable
 		}
-		// Guard: a running plan cannot be deleted — stop it first.
-		if p.Status() == pm.PlanRunning {
-			return pm.ErrPlanRunning
+		// Hard deletion is only for never-started authoring mistakes. Once a Plan
+		// has executed, discard/archive preserve its immutable history instead.
+		if p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		// (a) UNLOAD the plan's tasks back to the backlog (plan_id="").
 		tasks, err := s.tasks.ListByPlan(txCtx, planID)
@@ -95,19 +94,8 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 	})
 }
 
-// ArchivePlan archives a non-running Plan AND CASCADE-archives its tasks (v2.9
-// P3, irreversible). It is rejected for a RUNNING plan (ErrPlanRunning) and for an
-// already-archived plan (ErrPlanArchived, mirroring Conversation.Archive). In one
-// tx it:
-//
-//	(a) plan.Archive(now) → plans.Update (draft/done → archived, terminal);
-//	(b) CASCADE: each task in the plan → task.Archive(now, actor) → tasks.Update.
-//	    Archival is ORTHOGONAL — the task's status is preserved (a verified task
-//	    stays verified, etc.). A task already archived is left as-is (idempotent skip);
-//	(c) emits pm.plan.archived so the projector archives the plan's 1:1 Conversation
-//	    for consistency.
-//
-// The actor must be a project member; actor is recorded as archived_by on each task.
+// ArchivePlan sets an orthogonal marker on a terminal Plan. It never rewrites Plan
+// lifecycle or Task lifecycle; done/discarded remains the durable outcome.
 func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -121,7 +109,7 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err != nil {
 			return err
 		}
-		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
 			return err
 		}
 		// #297: reject plan archive on an archived (read-only) project.
@@ -135,54 +123,62 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if p.IsBuiltin() {
 			return pm.ErrBuiltinPlanImmutable
 		}
-		// v2.9 #299 (@oopslink): reject archiving a plan that still has any member
-		// task in the RUNNING state — after stop, a draft plan may still carry an
-		// in-flight running task, and archiving would orphan it. (Distinct from
-		// p.Archive's ErrPlanRunning, which guards the PLAN's own running status.)
-		tasks, err := s.tasks.ListByPlan(txCtx, planID)
-		if err != nil {
-			return err
-		}
-		for _, t := range tasks {
-			if t.Status() == pm.TaskRunning {
-				return pm.ErrPlanHasRunningTasks
-			}
-		}
-		// (a) archive the plan (rejects running → ErrPlanRunning, already-archived →
-		// ErrPlanArchived).
-		if err := p.Archive(now); err != nil {
+		if err := p.Archive(now, actor); err != nil {
 			return err
 		}
 		if err := s.plans.Update(txCtx, p); err != nil {
 			return err
 		}
-		// (b) CASCADE: archive every (not-yet-archived) task in the plan. Archive is
-		// orthogonal (status preserved), so FIRST finalize any NON-terminal task to
-		// discarded (T339): a skipped/abandoned escape node stays `open`, and archiving
-		// it orthogonally would leave an open+archived task that leaks into the board /
-		// list_tasks(open) yet is locked against any later transition. Finalizing before
-		// Archive() closes that hole; a completed/discarded task keeps its real outcome.
-		// (Reuses the list fetched for the running-task check.)
-		for _, t := range tasks {
-			if t.IsArchived() {
-				continue // idempotent: already archived
-			}
-			if err := t.FinalizeForArchive(now); err != nil {
-				return err
-			}
-			if err := t.Archive(now, actor); err != nil {
-				return err
-			}
-			if err := s.tasks.Update(txCtx, t); err != nil {
-				return err
-			}
-		}
-		// (c) emit pm.plan.archived → projector archives the plan conversation.
+		// Emit the compatibility event so the conversation projection is archived.
 		return s.emit(txCtx, EvtPlanArchived,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
 			planEventPayload{
 				PlanID: string(p.ID()), ProjectID: string(p.ProjectID()),
 				OwnerRef: "pm://plans/" + string(p.ID()),
 			})
+	})
+}
+
+// DiscardPlan permanently abandons a pending/running/paused Plan. Remaining
+// non-terminal member Tasks are finalized to discarded in the same transaction;
+// terminal Task history is preserved.
+func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
+			return err
+		}
+		tasks, err := s.tasks.ListByPlan(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := p.Discard(now); err != nil {
+			return err
+		}
+		for _, task := range tasks {
+			if pm.TaskIsDone(task.Status()) {
+				continue
+			}
+			prev := task.Status()
+			if err := task.Discard(now); err != nil {
+				return err
+			}
+			if err := s.tasks.Update(txCtx, task); err != nil {
+				return err
+			}
+			s.auditTaskStatusChange(txCtx, task, prev, actor)
+		}
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status()), "discarded": true})
+		return s.emitPlanLifecycle(txCtx, p, EvtPlanStopped)
 	})
 }

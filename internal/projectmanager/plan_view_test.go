@@ -41,7 +41,6 @@ func TestDeriveNodeStatus_FiveStates(t *testing.T) {
 		{"blocked-even-if-dispatched-flag", TaskOpen, false, true, false, NodeBlocked},
 		{"ready-all-upstream-done-not-dispatched", TaskOpen, true, false, false, NodeReady},
 		{"dispatched-all-upstream-done-dispatched", TaskOpen, true, true, false, NodeDispatched},
-		{"reopened-upstream-not-done-blocked", TaskReopened, false, false, false, NodeBlocked},
 		// done/failed take precedence over upstream gating.
 		{"done-precedence-over-blocked", TaskCompleted, false, false, false, NodeDone},
 		{"failed-precedence-over-blocked", TaskDiscarded, false, false, false, NodeFailed},

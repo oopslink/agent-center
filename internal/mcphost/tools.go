@@ -786,7 +786,7 @@ func makeUpdateReminder(cfg Config) mcp.ToolHandlerFor[updateReminderArgs, any] 
 //   - remove_task_from_plan : {plan_id, task_id}
 //   - add_plan_dependency    : {plan_id, from_task_id, to_task_id}
 //   - remove_plan_dependency : {plan_id, from_task_id, to_task_id}
-//   - start_plan / stop_plan : {plan_id}
+//   - start_plan / pause_plan / resume_plan / discard_plan : {plan_id}
 //   - delete_plan / archive_plan : {plan_id}
 //   - get_plan               : {project_id, plan_id}
 //   - list_plans             : {project_id}
@@ -818,7 +818,7 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 // --- add_task_to_plan / remove_task_from_plan --------------------------------
 
 type planTaskArgs struct {
-	PlanID string `json:"plan_id" jsonschema:"the draft plan to modify"`
+	PlanID string `json:"plan_id" jsonschema:"the pending plan to modify"`
 	TaskID string `json:"task_id" jsonschema:"the task to add to / remove from the plan"`
 	// Stage (add_task_to_plan only, optional) puts the task into a Plan Stage — a
 	// barrier-bounded batch created with create_stage. Omit for a plain (stageless)
@@ -845,7 +845,7 @@ func makePlanTask(cfg Config, tool string) mcp.ToolHandlerFor[planTaskArgs, any]
 // --- add_plan_dependency / remove_plan_dependency ----------------------------
 
 type planDepArgs struct {
-	PlanID     string `json:"plan_id" jsonschema:"the draft plan whose dependency DAG to modify"`
+	PlanID     string `json:"plan_id" jsonschema:"the pending plan whose dependency DAG to modify"`
 	FromTaskID string `json:"from_task_id" jsonschema:"the dependent task (it depends_on to_task_id)"`
 	ToTaskID   string `json:"to_task_id" jsonschema:"the prerequisite task that must finish first"`
 }
@@ -869,7 +869,7 @@ func makePlanDep(cfg Config, tool string) mcp.ToolHandlerFor[planDepArgs, any] {
 // create_plan + add_task_to_plan this lets an agent author a Decision/loopback
 // cycle plan with no scaffold tool.
 type addPlanDepArgs struct {
-	PlanID     string `json:"plan_id" jsonschema:"the draft plan whose dependency DAG to modify"`
+	PlanID     string `json:"plan_id" jsonschema:"the pending plan whose dependency DAG to modify"`
 	FromTaskID string `json:"from_task_id" jsonschema:"the dependent task (for seq/conditional it runs after to_task_id; for a loopback it is the decision node the back-edge starts from)"`
 	ToTaskID   string `json:"to_task_id" jsonschema:"the prerequisite task (for seq/conditional it must finish first; for a loopback it is the forward ancestor to re-activate, e.g. the Dev node)"`
 	Kind       string `json:"kind,omitempty" jsonschema:"edge kind: seq (default hard depends_on) | conditional (active only when to_task_id's decision outcome == when) | loopback (bounded back-edge: when from_task_id's decision outcome == when, re-run the to_task_id subgraph up to max_rounds)"`
@@ -936,10 +936,10 @@ func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, a
 	}
 }
 
-// --- create_stage / get_stage / reopen_exhausted_stage ----------------------
+// --- create_stage / get_stage ------------------------------------------------
 
 type createStageArgs struct {
-	PlanID             string   `json:"plan_id" jsonschema:"the draft plan to add the stage to"`
+	PlanID             string   `json:"plan_id" jsonschema:"the pending plan to add the stage to"`
 	Name               string   `json:"name" jsonschema:"the stage's display name (its addressable label)"`
 	DependsOnStages    []string `json:"depends_on_stages,omitempty" jsonschema:"stage_ids this stage barriers on — it starts only once every upstream stage is fully done AND its gate passes; omit for a root stage"`
 	MaxRounds          int      `json:"max_rounds,omitempty" jsonschema:"stage-local retry cap: how many times a gate reject may re-run this stage before it escalates to a human (default 3)"`
@@ -948,7 +948,7 @@ type createStageArgs struct {
 	RoleRef            string   `json:"role_ref,omitempty" jsonschema:"optional team role responsible for the human gate"`
 	AcceptanceContract string   `json:"acceptance_contract" jsonschema:"required acceptance criteria the evaluator must verify"`
 	PassRoute          string   `json:"pass_route,omitempty" jsonschema:"pass route; supported value downstream"`
-	RejectRoute        string   `json:"reject_route,omitempty" jsonschema:"reject route; supported value reopen_stage"`
+	RejectRoute        string   `json:"reject_route,omitempty" jsonschema:"reject route; supported value append_remediation"`
 	ExhaustedRoute     string   `json:"exhausted_route,omitempty" jsonschema:"exhausted route; supported value escalate"`
 }
 
@@ -985,34 +985,14 @@ func makeGetStage(cfg Config) mcp.ToolHandlerFor[getStageArgs, any] {
 	}
 }
 
-type reopenExhaustedStageArgs struct {
-	PlanID         string `json:"plan_id" jsonschema:"the running plan containing the exhausted stage"`
-	StageID        string `json:"stage_id" jsonschema:"the stage whose acceptance gate is currently exhausted/escalated"`
-	Reason         string `json:"reason" jsonschema:"required audit reason explaining why one extra rework round is authorized"`
-	IdempotencyKey string `json:"idempotency_key" jsonschema:"required stable retry key; repeat the same key for a retry of the same request"`
-}
-
-func makeReopenExhaustedStage(cfg Config) mcp.ToolHandlerFor[reopenExhaustedStageArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args reopenExhaustedStageArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":        cfg.AgentID,
-			"plan_id":         args.PlanID,
-			"stage_id":        args.StageID,
-			"reason":          args.Reason,
-			"idempotency_key": args.IdempotencyKey,
-		}
-		return callAdmin(ctx, cfg, "reopen_exhausted_stage", body)
-	}
-}
-
-// --- start_plan / stop_plan / delete_plan / archive_plan ---------------------
+// --- Plan lifecycle controls -------------------------------------------------
 
 type planIDArgs struct {
 	PlanID string `json:"plan_id" jsonschema:"the plan to operate on"`
 }
 
-// makePlanID backs the single-plan-id tools (start_plan, stop_plan,
-// delete_plan, archive_plan). The tool string MUST equal the admin route
+// makePlanID backs the single-plan-id lifecycle/archive tools. The tool string
+// MUST equal the admin route
 // segment, so it is supplied explicitly.
 func makePlanID(cfg Config, tool string) mcp.ToolHandlerFor[planIDArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args planIDArgs) (*mcp.CallToolResult, any, error) {

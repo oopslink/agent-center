@@ -18,17 +18,10 @@ import type { Issue, Task, TaskStatus } from './types';
 // Contract types
 // ---------------------------------------------------------------------------
 
-// Plan lifecycle (§2 / §9.1). draft = DAG editable; running = orchestrating;
-// done ⟺ every node done. A failed node keeps the Plan `running` and surfaces
-// as the derived `has_failed` flag — the Plan never auto-enters a terminal
-// failed in v1.
-//
-// archived (v2.9 Stage B / #290) is a TERMINAL state reached via the explicit
-// ArchivePlan action (POST .../archive, non-running only). It is IRREVERSIBLE:
-// archiving cascades plan→archived + ALL plan tasks→archived (task.status is
-// preserved — orthogonal). An archived plan is still GET-able (read-only); a
-// re-archive → 409 ErrPlanArchived.
-export type PlanStatus = 'draft' | 'running' | 'done' | 'archived';
+// Plan lifecycle (ADR-0055): pending → running ↔ paused → done/discarded.
+// Completed/discarded history is immutable. Archive is an orthogonal retention
+// marker on a terminal plan; it never replaces the lifecycle status.
+export type PlanStatus = 'pending' | 'running' | 'paused' | 'done' | 'discarded';
 
 // Plan-node status (§9.2) — DERIVED by the orchestrator, never stored as a
 // competing field. blocked (some upstream not done) → ready (all upstream done,
@@ -132,18 +125,70 @@ export interface Plan {
   // Optional — only an archived plan carries them.
   archived_at?: string | null;
   archived_by?: string | null;
-  // ADR-0047: exactly one plan per project is the BUILT-IN assignment pool
-  // (name "[Built-in]"). Flat (no DAG edges), always running, "pull, no-wake":
-  // its assigned+dispatched nodes are CLAIMABLE. The Work Board renders the
-  // is_builtin plan as a DISTINCT segment, NOT a generic structured-plan column.
-  // Optional so a legacy / pre-ADR-0047 payload (no flag) treats every plan as
-  // structured.
+  // Read-only migration marker for legacy rows. New AssignmentPools use their
+  // own endpoint and never appear in the Plans collection.
   is_builtin?: boolean;
   // detail read (GET /{id}) — full DAG.
   nodes?: PlanNode[];
   // list read (GET /) — capped preview + total count (enriched PR #272).
   nodes_preview?: PlanNode[];
   node_count?: number;
+  gate_verdicts?: GateVerdict[];
+  continuations?: PlanContinuation[];
+}
+
+export interface GateVerdict {
+  id: string;
+  project_id: string;
+  plan_id: string;
+  stage_id: string;
+  gate_task_id: string;
+  outcome: 'pass' | 'reject';
+  evidence: string;
+  reviewed_sha: string;
+  actor_ref: string;
+  idempotency_key: string;
+  created_at: string;
+}
+
+export type ContinuationStatus = 'awaiting_remediation' | 'executing' | 'budget_exhausted' | 'closed';
+
+export interface PlanContinuation {
+  id: string;
+  project_id: string;
+  plan_id: string;
+  root_stage_id: string;
+  current_stage_id: string;
+  trigger_verdict_id: string;
+  status: ContinuationStatus;
+  generation: number;
+  remaining_budget: number;
+  boundary_fingerprint: string;
+  pending_proposal_id?: string;
+  closed_by_verdict_id?: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface AssignmentPoolTask extends Task {
+  priority: number;
+  claimable: boolean;
+  starved?: boolean;
+  archived?: boolean;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  claimed_by?: string;
+  claim_expires_at?: string;
+}
+
+export interface AssignmentPool {
+  id: string;
+  project_id: string;
+  scheduling_class: 'background' | string;
+  auto_assign_enabled: boolean;
+  holding_cap: number;
+  tasks: AssignmentPoolTask[];
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +200,7 @@ export interface Plan {
 // the ACTUAL graph — real control nodes (Start/End/Condition) and edges tagged by
 // kind (seq/conditional/loopback).
 //
-// NON-BREAKING: a plan with NO graph (pre-T768 / draft / never-started, or the
+// NON-BREAKING: a plan with NO graph (pre-T768 / pending / never-started, or the
 // engine unwired) returns { has_graph: false } and the DAG falls back to the
 // legacy PlanNode/depends_on rendering — zero regression.
 // ---------------------------------------------------------------------------
@@ -311,6 +356,14 @@ export function useUnplannedTasks(projectId: string | undefined) {
   });
 }
 
+export function useAssignmentPool(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.assignmentPoolByProject(projectId ?? ''),
+    queryFn: () => api.get<AssignmentPool>(`/projects/${projectId}/assignment-pool`),
+    enabled: !!projectId,
+  });
+}
+
 // GET /{id} — a single Plan with its derived nodes + DAG.
 export function usePlan(projectId: string | undefined, planId: string | undefined) {
   return useQuery({
@@ -336,9 +389,9 @@ export function usePlanGraph(projectId: string | undefined, planId: string | und
 // A Plan may be organized as a DAG of Stages (Spark-style), each stage being a
 // sub-DAG of nodes closed by a barrier + optional gate. Stage status is a DERIVED
 // projection (never stored): open → nothing started; running → a member runs or the
-// gate is pending; reopen → a gate reject reopened the sub-DAG for another bounded
-// round; done → all members done + gate passed.
-export type PlanStageStatus = 'open' | 'running' | 'reopen' | 'done';
+// gate is pending; legacy reopen is read-only migration evidence; done means all
+// members done and the gate passed.
+export type PlanStageStatus = 'open' | 'running' | 'done' | 'reopen'; // reopen: legacy read only
 
 // One member node of a stage — the bound task's identity + its live status (the raw
 // task status, open|running|completed|discarded|reopened). The FE groups the plan's
@@ -372,6 +425,11 @@ export interface PlanStage {
   gate_outcome?: 'pass' | 'reject';
   gate_evidence?: string;
   gate_reviewed_sha?: string;
+  origin_verdict_id?: string;
+  continuation_id?: string;
+  generation?: number;
+  acceptance_contract?: string;
+  topology_fingerprint?: string;
   diagnostics?: Array<{ node_id?: string; code: string; message: string; hint?: string }>;
   members: PlanStageMember[];
 }
@@ -451,7 +509,7 @@ export function useCreatePlan(projectId: string) {
   });
 }
 
-// PATCH /{id} — edit name / goal / target_date. draft-only (the backend rejects
+// PATCH /{id} — edit name / goal / target_date. pending-only (the backend rejects
 // edits to a running Plan, §9.4); send only the changed fields.
 export interface PatchPlanInput {
   name?: string;
@@ -485,6 +543,40 @@ function invalidatePlanWrite(
   void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
   // v2.9 #291: add/remove-task changes the Backlog (unplanned) set too.
   void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+  void qc.invalidateQueries({ queryKey: qk.assignmentPoolByProject(projectId) });
+}
+
+function invalidateAssignmentPoolWrite(
+  qc: ReturnType<typeof useQueryClient>,
+  projectId: string,
+) {
+  void qc.invalidateQueries({ queryKey: qk.assignmentPoolByProject(projectId) });
+  void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+  void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+  void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+}
+
+export function useAddTaskToAssignmentPool(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, priority = 0 }: { taskId: string; priority?: number }) =>
+      api.post<{ ok: boolean }>(`/projects/${projectId}/assignment-pool/tasks`, {
+        task_id: taskId,
+        priority,
+      }),
+    onSuccess: () => invalidateAssignmentPoolWrite(qc, projectId),
+  });
+}
+
+export function useRemoveTaskFromAssignmentPool(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      api.del<{ ok: boolean }>(
+        `/projects/${projectId}/assignment-pool/tasks/${encodeURIComponent(taskId)}`,
+      ),
+    onSuccess: () => invalidateAssignmentPoolWrite(qc, projectId),
+  });
 }
 
 function usePlanWrite<TVars, TResult>(
@@ -514,7 +606,7 @@ export function useRemoveTaskFromPlan(projectId: string, planId: string) {
 }
 
 // A7 (Work Board cross-column task drag): the SAME select/remove ops, but the
-// target/source plan is only known at DROP time (any draft plan, or the source
+// target/source plan is only known at DROP time (any pending plan, or the source
 // plan a card was dragged out of). React forbids calling a per-plan hook
 // conditionally per drop, so these variants take the planId as a MUTATION
 // VARIABLE rather than a closure — one stable hook drives drops to/from any
@@ -563,17 +655,31 @@ export function useRemoveDependency(projectId: string, planId: string) {
   );
 }
 
-// Lifecycle (§9.4): start (draft→running), stop (running→draft), advance
-// (manual orchestrator tick in P1, no auto-orchestrator).
+// ADR-0055 lifecycle: pending→running↔paused; done/discarded are terminal.
 export function useStartPlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/start`),
   );
 }
 
-export function useStopPlan(projectId: string, planId: string) {
+export function usePausePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
-    api.post<Plan>(`${plansBase(projectId)}/${planId}/stop`),
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/pause`),
+  );
+}
+
+/** @deprecated usePausePlan; retained for source compatibility. */
+export const useStopPlan = usePausePlan;
+
+export function useResumePlan(projectId: string, planId: string) {
+  return usePlanWrite<void, Plan>(projectId, planId, () =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/resume`),
+  );
+}
+
+export function useDiscardPlan(projectId: string, planId: string) {
+  return usePlanWrite<void, Plan>(projectId, planId, () =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/discard`),
   );
 }
 
@@ -595,19 +701,19 @@ export function useResumePausedNode(projectId: string, planId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// v2.9 Stage B (#280/#283/#290) — DESTRUCTIVE plan lifecycle: Delete + Archive.
-// Both are non-running-only (the backend rejects a running plan with 409
-// plan_conflict) and IRREVERSIBLE. Each goes through usePlanWrite so it shares
+// Destructive Plan controls. Delete is only for never-started pending Plans;
+// archive is an orthogonal marker allowed only on done/discarded Plans. Each
+// goes through usePlanWrite so it shares
 // the plan / plansByProject / tasks / unplanned invalidation:
 //   • Delete unloads ALL the plan's tasks back to the Backlog (→ tasks +
 //     unplanned must refetch) + cascade-deletes the conversation + deletes the
 //     plan. The plan itself is GONE, so the caller navigates away on success.
-//   • Archive flips the plan + ALL its tasks to archived (→ plan + list refetch
-//     so the archived chip/badge show); the plan stays GET-able (read-only).
+//   • Archive marks the terminal Plan + its tasks archived without changing its
+//     done/discarded lifecycle truth; the Plan stays GET-able (read-only).
 // ---------------------------------------------------------------------------
 
-// DELETE /{id} → { deleted: true }. IRREVERSIBLE. Only a NON-running plan
-// (running → 409 plan_conflict). On success the plan no longer exists — the
+// DELETE /{id} → { deleted: true }. IRREVERSIBLE. Only a never-started pending
+// Plan may be deleted. On success the Plan no longer exists — the
 // caller must navigate away (the detail route would 404).
 export function useDeletePlan(projectId: string, planId: string) {
   return usePlanWrite<void, { deleted: boolean }>(projectId, planId, () =>
@@ -615,10 +721,8 @@ export function useDeletePlan(projectId: string, planId: string) {
   );
 }
 
-// POST /{id}/archive → the archived plan detail. IRREVERSIBLE (archived is
-// terminal; re-archive → 409 ErrPlanArchived). Only a NON-running plan
-// (running → 409). Cascade: plan→archived + ALL plan tasks→archived (task.status
-// preserved). The plan stays readable, so the caller can stay/refresh.
+// POST /{id}/archive → terminal Plan detail with archived_at. Re-archive returns
+// 409; lifecycle remains done/discarded and task.status is preserved.
 export function useArchivePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`),
@@ -637,10 +741,10 @@ export function friendlyDestructivePlanError(error: unknown): string {
   // bare "running", so this match MUST come FIRST or it would mis-label as the
   // plan-is-running message.
   if (lower.includes('running task')) {
-    return 'This plan has running tasks — wait for them to finish or stop the plan first.';
+    return 'This plan still has running tasks. Finish them or discard the plan before archiving.';
   }
   if (lower.includes('running')) {
-    return 'This plan is running. Stop it first, then try again.';
+    return 'This plan has already started. Its history cannot be deleted; discard it to stop.';
   }
   if (lower.includes('archiv')) {
     return 'This plan is already archived.';

@@ -94,13 +94,18 @@ func newPersistentTestRuntime(t *testing.T, base string, rep Reporter) *LocalRun
 	if rep == nil {
 		rep = &nopReporter{}
 	}
-	return NewLocalRuntime(LocalRuntimeConfig{
+	rt := NewLocalRuntime(LocalRuntimeConfig{
 		AgentID:       "agent-x",
 		AgentHomeBase: base,
 		WorkerID:      "worker-test",
 		Reporter:      rep,
 		Log:           func(string, ...any) {},
 	}, &SessionState{})
+	// Clean-turn handling persists session checkpoints in a tracked background
+	// goroutine. Drain it before t.TempDir removes the runtime home, otherwise the
+	// writer can recreate agents/agent-x while RemoveAll is walking the directory.
+	t.Cleanup(rt.WaitBG)
+	return rt
 }
 
 // TestNotifyWork_InjectsAndSetsState pins the wired NotifyWork inject path: with a

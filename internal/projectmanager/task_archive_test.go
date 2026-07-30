@@ -106,7 +106,6 @@ func TestTask_Archived_RejectsMutations(t *testing.T) {
 		"SetTags":        func(tk *Task) error { return tk.SetTags([]string{"x"}, at) },
 		"SetPlan":        func(tk *Task) error { return tk.SetPlan("PL1", at) },
 		"ClearPlan":      func(tk *Task) error { return tk.ClearPlan(at) },
-		"Reopen":         func(tk *Task) error { return tk.Reopen(at) },
 	}
 	for name, mut := range mutators {
 		tk := newTask(t)
@@ -121,6 +120,13 @@ func TestTask_Archived_RejectsMutations(t *testing.T) {
 		if tk.Version() != vAfterArchive {
 			t.Fatalf("%s bumped version on an archived task (%d→%d)", name, vAfterArchive, tk.Version())
 		}
+	}
+	tk := newTask(t)
+	if err := tk.Archive(at, "user:admin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tk.Reopen(at); err != ErrTaskReopenRetired {
+		t.Fatalf("retired Reopen on archived task = %v want ErrTaskReopenRetired", err)
 	}
 }
 
@@ -140,27 +146,21 @@ func TestTask_FinalizeForArchive_Open(t *testing.T) {
 	}
 }
 
-// TestTask_FinalizeForArchive_Reopened: a reopened task (which Discard() rejects as a
-// non-adjacent transition) still finalizes — an archive abandons whatever is in
-// flight regardless of the exact non-terminal state.
-func TestTask_FinalizeForArchive_Reopened(t *testing.T) {
+// A blocked task is non-terminal but parked; finalization still abandons it.
+func TestTask_FinalizeForArchive_Blocked(t *testing.T) {
 	tk := newTask(t)
 	at := t0.Add(time.Hour)
+	if err := tk.Assign("user:a", at); err != nil {
+		t.Fatal(err)
+	}
 	if err := tk.Start(at); err != nil {
 		t.Fatal(err)
 	}
-	if err := tk.Complete("user:a", at); err != nil {
+	if err := tk.Block("waiting", BlockReasonObstacle, "user:a", at); err != nil {
 		t.Fatal(err)
 	}
-	if err := tk.Reopen(at); err != nil {
-		t.Fatal(err)
-	}
-	if tk.Status() != TaskReopened {
-		t.Fatalf("precondition: status = %q want reopened", tk.Status())
-	}
-	// Discard() would reject reopened (non-adjacent); FinalizeForArchive must not.
-	if err := tk.Discard(at); err != ErrIllegalTransition {
-		t.Fatalf("precondition: Discard(reopened) = %v want ErrIllegalTransition", err)
+	if tk.Status() != TaskBlocked {
+		t.Fatalf("precondition: status = %q want blocked", tk.Status())
 	}
 	if err := tk.FinalizeForArchive(at); err != nil {
 		t.Fatalf("FinalizeForArchive(reopened): %v", err)

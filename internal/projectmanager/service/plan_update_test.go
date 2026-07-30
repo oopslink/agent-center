@@ -112,8 +112,8 @@ func TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected(t *testing.T) {
 
 	// target_date on a RUNNING plan → still rejected (draft-only, §9.4).
 	d := svc.clock.Now()
-	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, TargetDateSet: true, TargetDate: &d, Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotDraft) {
-		t.Fatalf("UpdatePlan(target_date) on running plan = %v, want ErrPlanNotDraft", err)
+	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, TargetDateSet: true, TargetDate: &d, Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("UpdatePlan(target_date) on running plan = %v, want ErrPlanNotPending", err)
 	}
 }
 
@@ -124,6 +124,9 @@ func TestUpdatePlan_RejectsArchived(t *testing.T) {
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
 	p, _ := plans.FindByID(ctx, planID)
+	if err := p.Discard(svc.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
 	if err := p.Archive(svc.clock.Now()); err != nil {
 		t.Fatal(err)
 	}

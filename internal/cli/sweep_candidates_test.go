@@ -75,10 +75,6 @@ func openTask(t *testing.T, id string) *pm.Task {
 	return taskWithStatus(t, id, pm.TaskOpen)
 }
 
-func reopenedTask(t *testing.T, id string) *pm.Task {
-	return taskWithStatus(t, id, pm.TaskReopened)
-}
-
 // registers an agent under BOTH its identity-member ref and entity id so the
 // builder's resolveSweepAgent finds it regardless of which the assignee ref carries.
 func (f fakeAgentReads) put(a *agent.Agent) {
@@ -116,27 +112,6 @@ func TestBuildSweepCandidates_DownQueued_Included(t *testing.T) {
 	c := got[0]
 	if c.AgentID != "entity-1" || c.WorkerID != "W1" || c.TaskID != "T1" {
 		t.Fatalf("candidate = %+v, want entity-1/W1/T1", c)
-	}
-}
-
-// A reopened task is queued/startable work too; the sweep must not silently skip
-// an idle agent just because the next task came from a reopen/reconcile path.
-func TestBuildSweepCandidates_ReopenedQueued_Included(t *testing.T) {
-	ref := pm.IdentityRef("agent:member-1")
-	ag := mustAgent(t, "entity-1", "member-1", "W1", agent.LifecycleRunning)
-	ars := newAgentReads()
-	ars.put(ag)
-	pmr := fakePMReads{
-		loads:    map[pm.IdentityRef]pm.AgentTaskLoad{ref: {Running: 0, Pending: 1}},
-		runnable: map[pm.IdentityRef][]*pm.Task{ref: {reopenedTask(t, "T-reopen")}},
-	}
-
-	got, err := buildSweepCandidates(pmr, ars)(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0].TaskID != "T-reopen" {
-		t.Fatalf("want reopened task candidate T-reopen, got %+v", got)
 	}
 }
 

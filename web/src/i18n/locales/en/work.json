@@ -66,10 +66,11 @@
     "failed": "failed"
   },
   "planStatus": {
-    "draft": "draft",
+    "pending": "pending",
     "running": "running",
+    "paused": "paused",
     "done": "done",
-    "archived": "archived"
+    "discarded": "discarded"
   },
   "type": {
     "issue": "Issue",
@@ -221,14 +222,15 @@
         "addDependencyTitle": "Add a dependency from {{title}} (pick the task it depends on)",
         "makeDependOn": "Make {{from}} depend on {{to}}",
         "noteDerived": "Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.",
-        "noteDraft": "This plan is a draft, so its dependencies are editable right on the graph — use a node's \"+ Dep\" button to add an edge, or an edge's \"×\" to remove one.",
-        "noteDisplayOnly": "Display-only graph: a running plan auto-advances (the system dispatches ready nodes as upstream tasks complete) and \"Advance now\" is a manual override. Dependencies can only be edited while the plan is a draft."
+        "notePending": "This plan is pending, so its dependencies are editable right on the graph — use a node's \"+ Dep\" button to add an edge, or an edge's \"×\" to remove one.",
+        "noteDisplayOnly": "Display-only graph: a running plan auto-advances as upstream tasks complete. Dependencies can only be edited while the plan is pending."
       },
       "actions": {
         "menu": "Actions",
         "hideGoal": "Hide goal",
         "showGoal": "Show goal",
-        "stop": "Stop",
+        "pause": "Pause",
+        "discard": "Discard",
         "edit": "Edit",
         "start": "Start",
         "archive": "Archive",
@@ -237,8 +239,9 @@
         "deleteTitle": "Delete this plan (unloads its tasks to the Backlog, cannot be undone)"
       },
       "lifecycle": {
-        "stop": "■ Stop (→ draft)",
-        "start": "▸ Start"
+        "pause": "Pause",
+        "resume": "Resume",
+        "start": "Start"
       },
       "meta": {
         "progress": "Progress",
@@ -269,9 +272,15 @@
       },
       "archiveModal": {
         "title": "Archive this plan?",
-        "body": "This archives the plan and all its tasks (a terminal state). This cannot be undone.",
+        "body": "This hides the terminal plan from active views while preserving its done/discarded lifecycle truth and execution history.",
         "confirm": "Archive plan",
         "pending": "Archiving…"
+      },
+      "discardModal": {
+        "title": "Discard this plan?",
+        "body": "This permanently abandons the plan and discards its unfinished tasks. Completed tasks and stage history remain immutable.",
+        "confirm": "Discard plan",
+        "pending": "Discarding…"
       },
       "editModal": {
         "aria": "Edit plan",
@@ -282,13 +291,13 @@
         "save": "Save changes",
         "saving": "Saving…",
         "errorArchived": "This plan is archived and can no longer be edited.",
-        "errorDraft": "The target date can only be changed while the plan is a draft.",
+        "errorPending": "The target date can only be changed while the plan is pending.",
         "errorGeneric": "Couldn't save your changes. Please try again."
       },
       "depError": {
         "self": "A task can't depend on itself.",
         "cycle": "That would create a cycle in the plan.",
-        "draft": "Dependencies can only be edited while the plan is a draft.",
+        "pending": "Dependencies can only be edited while the plan is pending.",
         "generic": "Couldn't update the plan's dependencies. Please try again."
       },
       "resumeError": {
@@ -398,15 +407,15 @@
         "empty": "No unplanned tasks. Every task is in a plan."
       },
       "addMenu": {
-        "empty": "No draft plan or pool. Create a plan to schedule this task."
+        "empty": "No pending plan or pool. Create a plan to schedule this task."
       },
       "pool": {
-        "subtitle": "Built-in · always running · claimable",
+        "subtitle": "Background priority · available to claim anytime",
         "empty": "No claimable tasks yet."
       },
       "claimable": {
         "label": "Claimable",
-        "title": "Claimable now — assigned & dispatched (pull, no-wake)."
+        "title": "Claimable now — open, unassigned background work."
       },
       "starved": {
         "label": "Waiting for agent",
@@ -420,7 +429,8 @@
         "empty": "No tasks yet."
       },
       "lock": {
-        "running": "This plan is running — its tasks can't be moved to or from another plan. Stop the plan to re-plan.",
+        "running": "This plan is running — its executed topology and task membership are frozen.",
+        "paused": "This plan is paused — pause stops dispatch but does not reopen topology authoring.",
         "done": "This plan is completed — its task assignments are locked.",
         "archived": "This plan is archived — its task assignments are locked.",
         "default": "This plan’s task assignments are locked."
@@ -635,10 +645,10 @@
       "descriptionPlaceholder": "Optional. Context, acceptance criteria, links…",
       "capabilitiesLabel": "Required capabilities",
       "destinationLabel": "Destination",
-      "destinationHint": "Where the task starts. Only draft plans can accept a new task.",
+      "destinationHint": "Where the task starts. Only pending plans can accept a new task.",
       "destinationBacklog": "Backlog (unscheduled)",
       "destinationPool": "Assignment Pool (claimable)",
-      "destinationPlansGroup": "Plans (draft)",
+      "destinationPlansGroup": "Plans (pending)",
       "cancel": "Cancel",
       "submit": "Create Task",
       "submitting": "Creating…"

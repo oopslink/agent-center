@@ -192,6 +192,9 @@ func TestListPlanSummaries_ExcludesArchived(t *testing.T) {
 	h.drain(t)
 	gone, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "gone", CreatedBy: "user:a"})
 	h.drain(t)
+	if err := h.svc.DiscardPlan(h.ctx, gone, "user:a"); err != nil {
+		t.Fatalf("DiscardPlan: %v", err)
+	}
 	if err := h.svc.ArchivePlan(h.ctx, gone, "user:a"); err != nil {
 		t.Fatalf("ArchivePlan: %v", err)
 	}
@@ -205,7 +208,7 @@ func TestListPlanSummaries_ExcludesArchived(t *testing.T) {
 		if d.Plan.ID() == gone {
 			t.Fatalf("archived plan %s leaked into the Work Board list", gone)
 		}
-		if d.Plan.Status() == pm.PlanArchived {
+		if d.Plan.IsArchived() {
 			t.Fatalf("archived plan %s (status=%s) leaked into summaries", d.Plan.ID(), d.Plan.Status())
 		}
 	}
@@ -641,8 +644,8 @@ func TestStopPlan_AndAdvanceGuards(t *testing.T) {
 		t.Fatalf("StopPlan: %v", err)
 	}
 	p, _ := h.plans.FindByID(h.ctx, planID)
-	if p.Status() != pm.PlanDraft {
-		t.Fatalf("after stop = %s, want draft", p.Status())
+	if p.Status() != pm.PlanPaused {
+		t.Fatalf("after stop = %s, want paused", p.Status())
 	}
 }
 

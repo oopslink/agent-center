@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -39,6 +41,9 @@ import (
 // EvtTaskAssigned is emitted, so no WorkItem/wake is minted — the pull-pool stays
 // pull (ADR-0047), the agent is already actively claiming.
 func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	if s.pools != nil {
+		return s.claimAssignmentPoolTask(ctx, taskID, actor)
+	}
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
@@ -114,6 +119,115 @@ func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.
 	})
 }
 
+func (s *Service) claimAssignmentPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		member, ok, err := s.pools.FindTask(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return pm.ErrTaskNotClaimable
+		}
+		task, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		pool, err := s.pools.FindByProject(txCtx, task.ProjectID())
+		if err != nil {
+			return err
+		}
+		if pool.ID() != member.PoolID {
+			return pm.ErrTaskNotClaimable
+		}
+		if err := s.requireProjectMember(txCtx, task.ProjectID(), actor); err != nil {
+			return err
+		}
+		if task.IsArchived() || task.Status() != pm.TaskOpen || task.Assignee() != "" || member.ClaimedBy != "" {
+			if task.Assignee() != "" || member.ClaimedBy != "" {
+				return pm.ErrTaskAlreadyClaimed
+			}
+			return pm.ErrTaskNotClaimable
+		}
+		held, err := s.pools.ListHeldByActor(txCtx, actor)
+		if err != nil {
+			return err
+		}
+		limit := pool.HoldingCap()
+		if configured := s.poolLimit(); configured > 0 && configured < limit {
+			limit = configured
+		}
+		if len(held) >= limit {
+			return pm.ErrPoolClaimLimitReached
+		}
+		prev := task.Status()
+		if err := task.Assign(actor, now); err != nil {
+			return err
+		}
+		wonTask, err := s.tasks.ClaimIfUnassigned(txCtx, task)
+		if err != nil {
+			return err
+		}
+		if !wonTask {
+			return pm.ErrTaskAlreadyClaimed
+		}
+		wonMember, err := s.pools.Claim(txCtx, pool.ID(), taskID, member.Version, actor, now, time.Time{})
+		if err != nil {
+			return err
+		}
+		if !wonMember {
+			return pm.ErrTaskAlreadyClaimed
+		}
+		if err := s.emitTaskStateChanged(txCtx, task, prev, ""); err != nil {
+			return err
+		}
+		s.auditTaskAssign(txCtx, task, pm.AuditTaskClaimed, "", actor)
+		return nil
+	})
+}
+
+// ReleasePoolTask returns a claimed-open task to the ownerless pool. Terminal or
+// running work is never silently reclaimed through this command.
+func (s *Service) ReleasePoolTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	if s.pools == nil {
+		return pm.ErrTaskNotClaimable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		member, ok, err := s.pools.FindTask(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if !ok || member.ClaimedBy != actor {
+			return pm.ErrTaskNotClaimable
+		}
+		task, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if task.Status() != pm.TaskOpen || task.Assignee() != actor {
+			return pm.ErrTaskNotClaimable
+		}
+		if err := task.Unassign(now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, task); err != nil {
+			return err
+		}
+		won, err := s.pools.Release(txCtx, member.PoolID, taskID, member.Version, actor)
+		if err != nil {
+			return err
+		}
+		if !won {
+			return pm.ErrTaskAlreadyClaimed
+		}
+		return nil
+	})
+}
+
 // planNodeStatus derives a task's DERIVED node status within its (already-loaded)
 // plan — generic over builtin pools and structured plans (used by the claim guard,
 // the runnable gate, and the T329 dispatch gate). A task not found in the view
@@ -155,6 +269,23 @@ func (s *Service) countHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) 
 // plan. Structured-plan work is NOT included (it has a WorkItem and already shows in
 // get_my_work).
 func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.pools != nil {
+		members, err := s.pools.ListHeldByActor(ctx, actor)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]ClaimableTask, 0, len(members))
+		for _, member := range members {
+			task, err := s.tasks.FindByID(ctx, member.TaskID)
+			if err != nil {
+				return nil, err
+			}
+			if task.Status() == pm.TaskOpen || task.Status() == pm.TaskRunning {
+				out = append(out, ClaimableTask{Task: task, NodeStatus: pm.NodeDispatched})
+			}
+		}
+		return out, nil
+	}
 	tasks, err := s.tasks.ListByAssignee(ctx, actor)
 	if err != nil {
 		return nil, err
@@ -194,6 +325,9 @@ func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) (
 // not-yet-taken pool. Fail-closed: nil agentDir / non-agent actor / unresolvable
 // agent / non-member project → nothing.
 func (s *Service) ListClaimablePool(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.pools != nil {
+		return s.listClaimableAssignmentPool(ctx, actor)
+	}
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable
 	}
@@ -237,6 +371,53 @@ func (s *Service) ListClaimablePool(ctx context.Context, actor pm.IdentityRef) (
 			ns := nodeStatus[t.ID()]
 			if pm.ClaimableInPool(t.IsArchived(), t.Status(), t.PlanID(), ns) {
 				out = append(out, ClaimableTask{Task: t, NodeStatus: ns})
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) listClaimableAssignmentPool(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.agentDir == nil || !strings.HasPrefix(string(actor), "agent:") {
+		return nil, nil
+	}
+	org, err := s.agentDir.OrgOfAgent(ctx, strings.TrimPrefix(string(actor), "agent:"))
+	if err != nil || org == "" {
+		return nil, nil
+	}
+	projects, err := s.projects.ListByOrg(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	var out []ClaimableTask
+	for _, project := range projects {
+		if project.Status() != pm.ProjectActive {
+			continue
+		}
+		if _, err := s.members.FindByProjectAndIdentity(ctx, project.ID(), actor); err != nil {
+			continue
+		}
+		pool, err := s.pools.FindByProject(ctx, project.ID())
+		if errors.Is(err, pm.ErrAssignmentPoolNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		members, err := s.pools.ListTasks(ctx, pool.ID())
+		if err != nil {
+			return nil, err
+		}
+		for _, member := range members {
+			if member.ClaimedBy != "" {
+				continue
+			}
+			task, err := s.tasks.FindByID(ctx, member.TaskID)
+			if err != nil {
+				return nil, err
+			}
+			if !task.IsArchived() && task.Status() == pm.TaskOpen && task.Assignee() == "" {
+				out = append(out, ClaimableTask{Task: task, NodeStatus: pm.NodeDispatched})
 			}
 		}
 	}

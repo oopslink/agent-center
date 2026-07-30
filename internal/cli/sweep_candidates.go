@@ -108,7 +108,7 @@ func resolveSweepAgent(ctx context.Context, ar sweepAgentReads, id string) *agen
 // anchored to genuinely-queued work.
 func firstQueuedTaskID(tasks []*pm.Task) string {
 	for _, t := range tasks {
-		if t.Status() == pm.TaskOpen || t.Status() == pm.TaskReopened {
+		if t.Status() == pm.TaskOpen {
 			return string(t.ID())
 		}
 	}

@@ -37,7 +37,7 @@ func mapPMError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrProjectNotFound), errors.Is(err, pm.ErrIssueNotFound),
 		errors.Is(err, pm.ErrTaskNotFound), errors.Is(err, pm.ErrMemberNotFound),
-		errors.Is(err, pm.ErrCodeRepoRefNotFound):
+		errors.Is(err, pm.ErrCodeRepoRefNotFound), errors.Is(err, pm.ErrAssignmentPoolNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pmservice.ErrNotMember), errors.Is(err, pmservice.ErrNotOwner):
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
@@ -62,6 +62,8 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// the editor believing it landed). 409, not the opaque default 500: the request
 		// is well-formed, the task's state just cannot honor it.
 		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
+	case errors.Is(err, pm.ErrTaskReopenRetired):
+		writeError(w, http.StatusConflict, "task_reopen_retired", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),

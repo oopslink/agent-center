@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -232,11 +234,12 @@ func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d Handl
 	if err != nil {
 		return false // not-found / load error → let the caller's normal gate surface it
 	}
-	if !pm.IsBacklogInert(task.PlanID()) {
+	inert, ierr := d.PMService.IsTaskBacklogInert(r.Context(), pm.TaskID(taskID))
+	if ierr != nil || !inert {
 		return false // in a real plan or dispatched into the pool → actionable
 	}
 	switch task.Status() {
-	case pm.TaskOpen, pm.TaskReopened:
+	case pm.TaskOpen:
 		writeBacklogNotActionable(w, action)
 		return true
 	default:
@@ -959,17 +962,21 @@ type completeTaskReq struct {
 	// blocking objection (forces auto-reject even with verdict=pass); ReviewReason is
 	// a short rationale; ReviewSHA is the reviewed commit. B3 reads the CURRENT-round
 	// verdict to auto-decide the downstream Decision.
-	ReviewVerdict  string                   `json:"review_verdict"`
-	ReviewBlocking bool                     `json:"review_blocking"`
-	ReviewReason   string                   `json:"review_reason"`
-	ReviewSHA      string                   `json:"review_sha"`
-	Delivery       *completeTaskDeliveryReq `json:"delivery"`
+	ReviewVerdict  string                         `json:"review_verdict"`
+	ReviewBlocking bool                           `json:"review_blocking"`
+	ReviewReason   string                         `json:"review_reason"`
+	ReviewSHA      string                         `json:"review_sha"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Remediation    *pm.RemediationProposalPayload `json:"remediation,omitempty"`
+	Delivery       *completeTaskDeliveryReq       `json:"delivery"`
 }
 
 type completeTaskDeliveryReq struct {
-	Summary string                `json:"summary"`
-	Outcome string                `json:"outcome"`
-	Review  completeTaskReviewReq `json:"review"`
+	Summary        string                         `json:"summary"`
+	Outcome        string                         `json:"outcome"`
+	Review         completeTaskReviewReq          `json:"review"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Remediation    *pm.RemediationProposalPayload `json:"remediation,omitempty"`
 }
 
 type completeTaskReviewReq struct {
@@ -1007,6 +1014,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	reviewBlocking := req.ReviewBlocking
 	reviewReason := req.ReviewReason
 	reviewSHA := req.ReviewSHA
+	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
+	remediation := req.Remediation
 	if req.Delivery != nil {
 		if strings.TrimSpace(req.Delivery.Summary) != "" {
 			deliverySummary = req.Delivery.Summary
@@ -1019,6 +1028,12 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			reviewBlocking = req.Delivery.Review.Blocking
 			reviewReason = req.Delivery.Review.Reason
 			reviewSHA = req.Delivery.Review.SHA
+		}
+		if strings.TrimSpace(req.Delivery.IdempotencyKey) != "" {
+			idempotencyKey = strings.TrimSpace(req.Delivery.IdempotencyKey)
+		}
+		if req.Delivery.Remediation != nil {
+			remediation = req.Delivery.Remediation
 		}
 	}
 	// T190: a backlog (inert) task cannot be completed — unified guidance before the
@@ -1059,48 +1074,34 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		reviewVerdict = manualOutcome
 		reviewBlocking = manualOutcome == pm.ReviewReject
 		reviewReason = deliverySummary
+		if idempotencyKey == "" {
+			sum := sha256.Sum256([]byte(req.TaskID + "\n" + manualOutcome + "\n" + strings.TrimSpace(reviewSHA) + "\n" + strings.TrimSpace(deliverySummary)))
+			idempotencyKey = "gate:" + hex.EncodeToString(sum[:])
+		}
 		gateTask, terr := d.PMService.GetTask(r.Context(), pm.TaskID(req.TaskID))
 		if terr != nil {
 			mapDomainError(w, terr)
 			return
 		}
+		if gateTask.Status() == pm.TaskCompleted {
+			_, err := d.PMService.RecordStageGateVerdict(r.Context(), pmservice.RecordStageGateVerdictCommand{
+				GateTaskID: pm.TaskID(req.TaskID), Outcome: pm.GateVerdictOutcome(manualOutcome), Evidence: deliverySummary,
+				ReviewedSHA: reviewSHA, IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
+			})
+			if err != nil {
+				mapDomainError(w, err)
+				return
+			}
+			if _, err := d.PMService.AdvancePlan(r.Context(), stageGatePlanID, pm.IdentityRef(agentActor(a))); err != nil {
+				mapDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+			return
+		}
 		if gateTask.Status() != pm.TaskRunning {
-			// A bounded reject reopens the evaluator task along with its stage
-			// subgraph. An HTTP retry can therefore arrive while the task is Reopened,
-			// not Completed. Match the durable verdict ledger before the run-state
-			// guard so an identical retry is a no-op, while a new verdict must wait for
-			// the members to finish and the evaluator to be started in the new round.
-			verdicts, verr := d.PMService.ListReviewVerdicts(r.Context(), stageGatePlanID,
-				pm.IdentityRef(agentActor(a)))
-			if verr != nil {
-				mapDomainError(w, verr)
-				return
-			}
-			matchesPriorVerdict := false
-			for _, verdict := range verdicts {
-				if verdict.TaskID == pm.TaskID(req.TaskID) &&
-					verdict.Verdict == manualOutcome &&
-					verdict.SHA == strings.TrimSpace(reviewSHA) &&
-					verdict.Reason == strings.TrimSpace(deliverySummary) {
-					matchesPriorVerdict = true
-					break
-				}
-			}
-			if matchesPriorVerdict && !pm.TaskIsDone(gateTask.Status()) {
-				// The reject already projected and reopened the next round.
-				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
-				return
-			}
-			if matchesPriorVerdict {
-				// A terminal gate with a matching durable verdict may be a pre-fix
-				// partial commit: completion/verdict/outcome landed, but loopback did
-				// not. Fall through to the terminal recovery path below, which
-				// re-records the outcome and advances the plan idempotently.
-			} else {
-				writeError(w, http.StatusConflict, "stage_gate_not_running",
-					"stage gate must wait for reopened members and be started before recording a new verdict")
-				return
-			}
+			writeError(w, http.StatusConflict, "stage_gate_not_running", "stage gate must be running before recording its immutable verdict")
+			return
 		}
 	}
 	// issue-74df441a deferred-decision recovery: a DECISION node can end up
@@ -1109,7 +1110,7 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// (route its conditional/loopback edges) WITHOUT re-completing the terminal task —
 	// re-completing would 409 illegal_transition, the bug that stranded the cycle at the
 	// decision node. For a still-running decision the normal atomic path below applies.
-	if manualOutcome != "" {
+	if manualOutcome != "" && !stageGate {
 		if t, terr := d.PMService.GetTask(r.Context(), pm.TaskID(req.TaskID)); terr == nil && pm.TaskIsDone(t.Status()) && t.PlanID() != "" {
 			if err := d.PMService.RecordDecisionOutcome(r.Context(), pm.TaskID(req.TaskID),
 				manualOutcome, pm.IdentityRef(agentActor(a))); err != nil {
@@ -1143,13 +1144,13 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			if terr != nil {
 				return terr
 			}
-			if t.Status() != pm.TaskOpen && t.Status() != pm.TaskReopened {
+			if t.Status() != pm.TaskOpen {
 				return err
 			}
 			// The web task status menu intentionally allows any valid status as a
 			// manual progress override. complete_task keeps the typed transition for
 			// running tasks, but accepts the same owner override for an assigned
-			// open/reopened task so MCP and UI do not disagree.
+			// open task so MCP and UI do not disagree.
 			if err := d.PMService.SetTaskStatus(txCtx, pm.TaskID(req.TaskID), pm.TaskCompleted,
 				pm.IdentityRef(agentActor(a))); err != nil {
 				return err
@@ -1169,17 +1170,18 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		// auto-advance (driveGraphDecisions) routes its conditional/loopback edges.
 		// No-op for an ordinary task / a decision left undecided (deferred to a human).
 		if manualOutcome != "" {
-			if err := d.PMService.RecordDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
-				manualOutcome, pm.IdentityRef(agentActor(a))); err != nil {
+			if stageGate {
+				if _, err := d.PMService.RecordStageGateVerdict(txCtx, pmservice.RecordStageGateVerdictCommand{
+					GateTaskID: pm.TaskID(req.TaskID), Outcome: pm.GateVerdictOutcome(manualOutcome), Evidence: deliverySummary,
+					ReviewedSHA: reviewSHA, IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
+				}); err != nil {
+					return err
+				}
+				_, err := d.PMService.AdvancePlan(txCtx, stageGatePlanID, pm.IdentityRef(agentActor(a)))
 				return err
 			}
-			if stageGate {
-				// A stage-gate verdict owns its round/loopback projection. Drive it
-				// before committing the completion transaction so completed gate +
-				// verdict + round bump + reopened members + dispatch records cannot
-				// be split by a crash or delayed projector sweep.
-				_, err := d.PMService.AdvancePlan(txCtx, stageGatePlanID,
-					pm.IdentityRef(agentActor(a)))
+			if err := d.PMService.RecordDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
+				manualOutcome, pm.IdentityRef(agentActor(a))); err != nil {
 				return err
 			}
 		}

@@ -879,13 +879,10 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 	})
 }
 
-// ReopenTask moves a completed/verified Task back to open in one step (internally
-// completed/verified→reopened→open), clearing assignment + completion truth so a
-// subsequent assign starts a fresh work segment. Per OQ13 the prior assignee +
-// completer are RETAINED as sticky manual subscribers (they did the work → stay
-// informed after reopen). No live WorkItem to cancel (the Task was done).
+// ReopenTask is a compatibility guard for retired transports. ADR-0055 makes
+// completed/discarded Task facts permanent; follow-up work is represented by a
+// new Task (or a remediation Stage), never by rewriting this Task in place.
 func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		t, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
@@ -894,33 +891,10 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
-		// #297: reject reopen on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
-		prevStatus := t.Status() // before the reopen chain (completed/verified).
-		prevAssignee, prevCompleter := t.Assignee(), t.CompletedBy()
-		if err := t.Reopen(now); err != nil {
-			return err
-		}
-		if err := t.ToOpenFromReopened(now); err != nil {
-			return err
-		}
-		if err := s.retainAsTaskSubscriber(txCtx, t, prevAssignee, now); err != nil {
-			return err
-		}
-		if err := s.retainAsTaskSubscriber(txCtx, t, prevCompleter, now); err != nil {
-			return err
-		}
-		if err := s.tasks.Update(txCtx, t); err != nil {
-			return err
-		}
-		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
-			return err
-		}
-		// audit §5: ReopenTask has its own tx (not taskStateOp) — record the reopen.
-		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
-		return nil
+		return pm.ErrTaskReopenRetired
 	})
 }
 

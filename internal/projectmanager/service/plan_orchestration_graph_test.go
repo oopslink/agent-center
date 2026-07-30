@@ -63,7 +63,8 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
 		Orch:           orchSvc,                // T768: graph-backed dispatch
 		Stages:         pmsql.NewStageRepo(db), // 2026-07-03 plan-stage-model: Stage落图/driver
-		Audit:          auditRepo,              // v2.29: change-ledger (decision_outcome/loopback write-points)
+		Remediation:    pmsql.NewRemediationRepo(db),
+		Audit:          auditRepo, // v2.29: change-ledger (decision_outcome/loopback write-points)
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
@@ -344,7 +345,7 @@ func TestGraphCycle_Loopback_RejectCreatesNextRound(t *testing.T) {
 	// No historical task receives a completed→reopened audit row.
 	taskAudit := auditOf(t, h.svc, ctx, pm.AuditObjectTask, string(dec))
 	for _, e := range taskAudit {
-		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == string(pm.TaskReopened) && e.ActorRef == pm.SystemActor("plan-engine") {
+		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == string(pm.TaskStatus("reopened")) && e.ActorRef == pm.SystemActor("plan-engine") {
 			t.Fatal("historical decision was reopened by loopback")
 		}
 	}

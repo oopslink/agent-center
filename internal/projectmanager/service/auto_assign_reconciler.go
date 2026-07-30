@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sort"
 	"time"
@@ -122,7 +123,7 @@ func (s *Service) TriggerAutoAssignForProject(ctx context.Context, projectID pm.
 // builtin-pool dispatched, ownerless tasks whose project switch is ON, and assigns each
 // to its least-busy eligible agent.
 func (s *Service) autoAssignSweep(ctx context.Context, scope pm.ProjectID) (int, error) {
-	if s.autoAssignDir == nil || s.plans == nil {
+	if s.autoAssignDir == nil || (s.plans == nil && s.pools == nil) {
 		return 0, nil // not wired ⇒ pool stays claim-only (pre-BE-2)
 	}
 	var tasks []*pm.Task
@@ -131,13 +132,31 @@ func (s *Service) autoAssignSweep(ctx context.Context, scope pm.ProjectID) (int,
 		// Periodic backstop: the system-wide open set (the matcher filters to pool tasks).
 		tasks, err = s.tasks.ListByStatuses(ctx, []pm.TaskStatus{pm.TaskOpen})
 	} else {
-		// Event fast path: only THIS project's builtin pool, so a per-event trigger never
-		// pays for a global scan. No pool / no project switch handled downstream.
-		pool := s.builtinPoolOf(ctx, scope)
-		if pool == nil {
-			return 0, nil
+		if s.pools != nil {
+			pool, perr := s.pools.FindByProject(ctx, scope)
+			if perr != nil {
+				return 0, nil
+			}
+			members, merr := s.pools.ListTasks(ctx, pool.ID())
+			if merr != nil {
+				return 0, merr
+			}
+			for _, member := range members {
+				task, terr := s.tasks.FindByID(ctx, member.TaskID)
+				if terr != nil {
+					return 0, terr
+				}
+				tasks = append(tasks, task)
+			}
+		} else {
+			// Event fast path: only THIS project's builtin pool, so a per-event trigger never
+			// pays for a global scan. No pool / no project switch handled downstream.
+			pool := s.builtinPoolOf(ctx, scope)
+			if pool == nil {
+				return 0, nil
+			}
+			tasks, err = s.tasks.ListByPlan(ctx, pool.ID())
 		}
-		tasks, err = s.tasks.ListByPlan(ctx, pool.ID())
 	}
 	if err != nil {
 		return 0, err
@@ -171,17 +190,24 @@ func (s *Service) autoAssignSweep(ctx context.Context, scope pm.ProjectID) (int,
 func (s *Service) autoAssignOne(ctx context.Context, sw *autoAssignSweepCtx, t *pm.Task) (bool, error) {
 	planID := t.PlanID()
 	if planID == "" {
-		return false, nil // backlog — not in a pool
-	}
-	p, ns, err := sw.planNode(ctx, s, planID, t.ID())
-	if err != nil {
-		return false, err
-	}
-	if p == nil || !p.IsBuiltin() {
-		return false, nil // structured-plan node: assignee-gated, not auto-claimable
-	}
-	if !pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns) {
-		return false, nil // not dispatched / not claimable
+		if s.pools == nil {
+			return false, nil
+		}
+		member, ok, err := s.pools.FindTask(ctx, t.ID())
+		if err != nil || !ok || member.ClaimedBy != "" {
+			return false, err
+		}
+	} else {
+		p, ns, err := sw.planNode(ctx, s, planID, t.ID())
+		if err != nil {
+			return false, err
+		}
+		if p == nil || !p.IsBuiltin() {
+			return false, nil // structured-plan node: assignee-gated, not auto-claimable
+		}
+		if !pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns) {
+			return false, nil // not dispatched / not claimable
+		}
 	}
 	projectID := t.ProjectID()
 	enabled, err := sw.projectEnabled(ctx, s, projectID)
@@ -316,6 +342,18 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 			won = false
 			return nil
 		}
+		var poolMember pm.AssignmentPoolTask
+		var hasPoolMember bool
+		if s.pools != nil {
+			poolMember, hasPoolMember, ferr = s.pools.FindTask(txCtx, taskID)
+			if ferr != nil {
+				return ferr
+			}
+			if t.PlanID() == "" && (!hasPoolMember || poolMember.ClaimedBy != "") {
+				won = false
+				return nil
+			}
+		}
 		if aerr := t.Assign(agentRef, now); aerr != nil {
 			return aerr
 		}
@@ -326,6 +364,15 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 		if !ok {
 			won = false // a concurrent claim took it first (converges with claim_task)
 			return nil
+		}
+		if hasPoolMember {
+			memberWon, merr := s.pools.Claim(txCtx, poolMember.PoolID, taskID, poolMember.Version, agentRef, now, time.Time{})
+			if merr != nil {
+				return merr
+			}
+			if !memberWon {
+				return pm.ErrTaskAlreadyClaimed
+			}
 		}
 		won = true
 		matched = matchedCaps
@@ -367,6 +414,9 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 		})
 		return nil
 	})
+	if errors.Is(err, pm.ErrTaskAlreadyClaimed) {
+		return false, nil, nil
+	}
 	return won, matched, err
 }
 

@@ -100,9 +100,9 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			return pm.ErrBuiltinPlanNoEdges
 		}
 		switch p.Status() {
-		case pm.PlanDraft, pm.PlanRunning:
+		case pm.PlanPending, pm.PlanRunning:
 			// editable
-		case pm.PlanArchived:
+		case pm.PlanDiscarded:
 			return pm.ErrPlanArchived
 		default: // done
 			return pm.ErrPlanNotRunning

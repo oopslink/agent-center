@@ -22,13 +22,10 @@ import { useCreatorLabel } from '@/api/members';
 // Board (T5), so this global list is read+navigate (status filtering + search).
 
 // Status chips offered by the filter bar, in lifecycle order. The chips drive
-// the explicit status filter (`?status=`). `archived` is terminal and EXCLUDED
-// from the backend default (no chip on) — it surfaces only when its chip is
-// toggled on (T98: let the global list view archived plans, which otherwise
-// disappear). Archived plans open as read-only detail (PlanDetail offers no
-// Start/Advance/Stop/destroy for a terminal plan); archive is irreversible by
-// domain design, so there is no unarchive action here.
-const PLAN_STATUS_OPTIONS = ['draft', 'running', 'done', 'archived'] as const;
+// the explicit status filter (`?status=`). done/discarded are terminal and
+// excluded from the backend default; explicit chips surface them. Archive is an
+// orthogonal marker rather than a lifecycle status.
+const PLAN_STATUS_OPTIONS = ['pending', 'running', 'paused', 'done', 'discarded'] as const;
 
 // A small done/total progress bar (mockup `.pgmini`). Tokens only.
 function ProgressMini({ done, total }: { done: number; total: number }): React.ReactElement {

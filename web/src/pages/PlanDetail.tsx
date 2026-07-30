@@ -10,7 +10,9 @@ import {
   usePlanGraph,
   usePlanStages,
   useStartPlan,
-  useStopPlan,
+  usePausePlan,
+  useResumePlan,
+  useDiscardPlan,
   useAddDependency,
   useRemoveDependency,
   useRemoveTaskFromPlan,
@@ -27,6 +29,7 @@ import {
   type PlanGraphEdgeKind,
   type PatchPlanInput,
   type PlanStage,
+  type PlanContinuation,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -46,7 +49,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 import { StatusChip, refLabel, fullDateTime } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
+import { PlanStatusChip, PlanArchivedBadge, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
 import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
@@ -73,12 +76,12 @@ import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 // or edit it. This view renders the derived DAG + header lifecycle controls
 // (Start / Stop / Advance, each once).
 //
-// v2.9 Stage A1 (#287 fast-follow): a DRAFT plan's DAG is now EDITABLE here — a
-// draft-only dependency-edge editor (add via labeled selects, remove via a list
+// v2.9 Stage A1 (#287 fast-follow): a PENDING plan's DAG is now EDITABLE here — a
+// pending-only dependency-edge editor (add via labeled selects, remove via a list
 // of edges) sits below the graph. The backend AddPlanDependency/RemovePlanDependency
-// are draft-gated (§9.4: running/done → ErrPlanNotDraft), cycle-guarded
+// are pending-gated (§9.4: running/done → plan-not-pending), cycle-guarded
 // (ErrPlanCycle) and self-edge-rejected (ErrSelfDependency); the editor is gated
-// to draft to match, and a running/done plan stays DISPLAY-ONLY.
+// to pending to match, and a running/done plan stays DISPLAY-ONLY.
 
 // v2.9.1 UX point 4: chat / DAG / Task list as three independent tabs (default
 // chat). Replaces the prior DAG|Task two-tab + resizable chat side-splitter.
@@ -185,6 +188,7 @@ export default function PlanDetail(): React.ReactElement {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
+          <PlanContinuationBanner continuations={p.continuations ?? []} />
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -256,10 +260,10 @@ export default function PlanDetail(): React.ReactElement {
 
         {/* Single tabbed content area (point 4: chat is now a tab, not a side
             splitter). Chat stays mounted-but-hidden across tabs so its SSE
-            subscription + scroll/composer-draft survive; DAG/Task mount lazily
+            subscription + scroll/composer-pending survive; DAG/Task mount lazily
             when their tab is active. */}
         <div className="flex min-h-0 flex-1 flex-col p-0" data-testid="plan-detail-content">
-          {/* Chat stays mounted-but-hidden across tabs (SSE/scroll/draft survive).
+          {/* Chat stays mounted-but-hidden across tabs (SSE/scroll/pending survive).
               When active it must FILL the card height so the message stream scrolls
               INSIDE the viewport instead of growing the page (T180). The flex
               classes are applied only when active — a `display:flex` utility would
@@ -358,9 +362,11 @@ function PlanDetailHeader({
   const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
-  const stop = useStopPlan(projectId, plan.id);
+  const pause = usePausePlan(projectId, plan.id);
+  const resume = useResumePlan(projectId, plan.id);
+  const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
+  const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const goalLong = plan.description.trim().length > 80 || plan.description.includes('\n');
@@ -378,7 +384,9 @@ function PlanDetailHeader({
   // simply HIDE the entries rather than offer an action that can't succeed. An
   // archived plan is TERMINAL (re-archive/delete-after-archive aren't part of the
   // flow) so it shows read-only: no Delete / Archive.
-  const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
+  const canDelete = plan.status === 'pending' && !plan.archived_at;
+  const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
+  const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
 
   return (
     <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:px-6 md:py-3" data-testid="plan-detail-header">
@@ -391,6 +399,7 @@ function PlanDetailHeader({
         {isMobile && (
           <span className="ml-auto flex items-center gap-1.5 text-xs text-text-muted">
             <PlanStatusChip status={plan.status} />
+            <PlanArchivedBadge archivedAt={plan.archived_at} />
             <PlanFailedIndicator hasFailed={plan.has_failed} />
             <span data-testid="plan-progress">{planProgressLabel(plan.progress)}</span>
             <span title={plan.creator_ref}>@{creatorLabel}</span>
@@ -413,19 +422,25 @@ function PlanDetailHeader({
                     </button>
                   )}
                   {plan.status === 'running' && (
-                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.stop')}</button>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); pause.mutate(); }} disabled={pause.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.pause')}</button>
                   )}
-                  {plan.status !== 'archived' && (
+                  {plan.status === 'paused' && (
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); resume.mutate(); }} disabled={resume.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.lifecycle.resume')}</button>
+                  )}
+                  {!plan.archived_at && plan.status !== 'done' && plan.status !== 'discarded' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.edit')}</button>
                   )}
-                  {plan.status === 'draft' && (
+                  {plan.status === 'pending' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); start.mutate(); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.start')}</button>
                   )}
-                  {canDestroy && (
-                    <>
+                  {canDiscard && (
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('discard'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">{t('plan.detail.actions.discard')}</button>
+                  )}
+                  {canArchive && (
                       <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('archive'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.archive')}</button>
+                  )}
+                  {canDelete && (
                       <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('delete'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">{t('plan.detail.actions.delete')}</button>
-                    </>
                   )}
                 </div>
               )}
@@ -438,6 +453,7 @@ function PlanDetailHeader({
           so the header stays to 3 rows and the chat gets the height back. */}
       <div className={`${isMobile ? 'hidden' : 'flex'} flex-wrap items-center gap-x-3 gap-y-2`}>
         <PlanStatusChip status={plan.status} />
+        <PlanArchivedBadge archivedAt={plan.archived_at} />
         {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
         <PlanFailedIndicator hasFailed={plan.has_failed} />
         <dl className="flex items-center gap-x-3 text-xs text-text-muted" data-testid="plan-detail-meta">
@@ -474,26 +490,37 @@ function PlanDetailHeader({
             className={`${actionsOpen ? 'flex' : 'hidden'} absolute right-0 top-full z-20 mt-1 w-44 flex-col rounded-lg border border-border-base bg-bg-elevated p-1 shadow-2 md:relative md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
           >
         {/* Lifecycle (§9.4 / §9.6): running → Advance (dispatch ready) + Stop
-            (→ draft); draft → Start. Each control is rendered exactly ONCE here
+            (→ pending); pending → Start. Each control is rendered exactly ONCE here
             (the DAG footer keeps the legend only). */}
         {plan.status === 'running' && (
           // §9.6: a running plan auto-advances; the manual "Advance now" override
-          // was removed (@oopslink) — Stop (→ draft) is the only running control.
+          // was removed (@oopslink) — Stop (→ pending) is the only running control.
           <button
             type="button"
-            data-testid="plan-stop-btn"
-            disabled={stop.isPending}
-            onClick={() => { setActionsOpen(false); stop.mutate(); }}
+            data-testid="plan-pause-btn"
+            disabled={pause.isPending}
+            onClick={() => { setActionsOpen(false); pause.mutate(); }}
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
           >
-            {t('plan.detail.lifecycle.stop')}
+            {t('plan.detail.lifecycle.pause')}
+          </button>
+        )}
+        {plan.status === 'paused' && (
+          <button
+            type="button"
+            data-testid="plan-resume-btn"
+            disabled={resume.isPending}
+            onClick={() => { setActionsOpen(false); resume.mutate(); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white"
+          >
+            {t('plan.detail.lifecycle.resume')}
           </button>
         )}
         {/* T238: name + goal are DESCRIPTIVE metadata — editable in any
-            non-archived status (draft/running/done). target_date stays draft-only
-            (the modal hides it off-draft, and the backend rejects it). An archived
+            non-archived status (pending/running/done). target_date stays pending-only
+            (the modal hides it off-pending, and the backend rejects it). An archived
             plan is terminal/read-only, so no Edit. */}
-        {plan.status !== 'archived' && (
+        {!plan.archived_at && plan.status !== 'done' && plan.status !== 'discarded' && (
           <button
             type="button"
             data-testid="plan-edit-btn"
@@ -503,7 +530,7 @@ function PlanDetailHeader({
             {t('plan.detail.actions.edit')}
           </button>
         )}
-        {plan.status === 'draft' && (
+        {plan.status === 'pending' && (
           <button
             type="button"
             data-testid="plan-start-btn"
@@ -519,8 +546,17 @@ function PlanDetailHeader({
             CONSEQUENCE-explaining confirm modal — never acts on a single click.
             The real block on a running plan is the backend 409; hiding here is
             the UX gate. */}
-        {canDestroy && (
-          <>
+        {canDiscard && (
+            <button
+              type="button"
+              data-testid="plan-discard-btn"
+              onClick={() => { setActionsOpen(false); setConfirming('discard'); }}
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-danger md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold"
+            >
+              {t('plan.detail.actions.discard')}
+            </button>
+        )}
+        {canArchive && (
             <button
               type="button"
               data-testid="plan-archive-btn"
@@ -530,6 +566,8 @@ function PlanDetailHeader({
             >
               {t('plan.detail.actions.archive')}
             </button>
+        )}
+        {canDelete && (
             <button
               type="button"
               data-testid="plan-delete-btn"
@@ -539,7 +577,6 @@ function PlanDetailHeader({
             >
               {t('plan.detail.actions.delete')}
             </button>
-          </>
         )}
           </div>
         </div>
@@ -582,9 +619,9 @@ function PlanDetailHeader({
           )}
         </div>
       )}
-      {(start.isError || stop.isError) && (
+      {(start.isError || pause.isError || resume.isError || discard.isError) && (
         <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
-          {((start.error ?? stop.error) as Error).message}
+          {((start.error ?? pause.error ?? resume.error ?? discard.error) as Error).message}
         </p>
       )}
       {editing && (
@@ -595,6 +632,9 @@ function PlanDetailHeader({
       )}
       {confirming === 'archive' && (
         <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
+      )}
+      {confirming === 'discard' && (
+        <PlanDiscardModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
       )}
     </header>
   );
@@ -617,6 +657,30 @@ function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
       >
         {plan.name}
       </h1>
+    </div>
+  );
+}
+
+function PlanContinuationBanner({ continuations }: { continuations: PlanContinuation[] }): React.ReactElement | null {
+  const active = continuations.filter((continuation) => continuation.status !== 'closed');
+  if (active.length === 0) return null;
+  const latest = active.slice().sort((a, b) => b.generation - a.generation)[0];
+  const exhausted = latest.status === 'budget_exhausted';
+  return (
+    <div
+      className={`mx-3 mb-1 rounded-lg border px-3 py-2 text-xs md:mx-5 ${
+        exhausted
+          ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
+          : 'border-status-blue-border bg-status-blue-bg text-status-blue-fg'
+      }`}
+      role="status"
+      aria-live="polite"
+      data-testid="plan-continuation-banner"
+    >
+      <span className="font-semibold">Remediation continuation</span>
+      <span className="ml-2 font-mono uppercase">{latest.status.replaceAll('_', ' ')}</span>
+      <span className="ml-2">generation {latest.generation}</span>
+      <span className="ml-2">budget {latest.remaining_budget}</span>
     </div>
   );
 }
@@ -678,9 +742,11 @@ function PlanInfoRail({
   const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
-  const stop = useStopPlan(projectId, plan.id);
+  const pause = usePausePlan(projectId, plan.id);
+  const resume = useResumePlan(projectId, plan.id);
+  const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
+  const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   // @oopslink: Up next is collapsible (mirrors the unmerged-branch panel). Default
   // open so the queue stays visible; the header chevron toggles it.
@@ -691,7 +757,9 @@ function PlanInfoRail({
   const [agentRef, setAgentRef] = useState<string | null>(null);
 
   const goalLong = plan.description.trim().length > 80 || plan.description.includes('\n');
-  const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
+  const canDelete = plan.status === 'pending' && !plan.archived_at;
+  const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
+  const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -721,6 +789,7 @@ function PlanInfoRail({
       <div className="space-y-3 border-b border-border-base p-5" data-testid="plan-detail-meta">
         <div className="flex flex-wrap items-center gap-2">
           <PlanStatusChip status={plan.status} />
+          <PlanArchivedBadge archivedAt={plan.archived_at} />
           {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
           <PlanFailedIndicator hasFailed={plan.has_failed} />
           <span className="ml-auto text-xs text-text-muted">{t('plan.detail.rail.nodesDone')}</span>
@@ -735,20 +804,31 @@ function PlanInfoRail({
         {/* T570: all lifecycle + edit + destructive actions sit on ONE compact row
             (was two stacked rows). flex-wrap keeps them on a single line when they
             fit (Edit · Archive · Delete in the 360px rail) and only wraps if the
-            running/draft Start/Stop button is also present. */}
+            running/pending Start/Stop button is also present. */}
         <div className="flex flex-wrap gap-2">
           {plan.status === 'running' && (
             <button
               type="button"
-              data-testid="plan-stop-btn"
-              disabled={stop.isPending}
-              onClick={() => stop.mutate()}
+              data-testid="plan-pause-btn"
+              disabled={pause.isPending}
+              onClick={() => pause.mutate()}
               className={`${railBtn} text-danger hover:text-danger`}
             >
-              {t('plan.detail.lifecycle.stop')}
+              {t('plan.detail.lifecycle.pause')}
             </button>
           )}
-          {plan.status === 'draft' && (
+          {plan.status === 'paused' && (
+            <button
+              type="button"
+              data-testid="plan-resume-btn"
+              disabled={resume.isPending}
+              onClick={() => resume.mutate()}
+              className="flex-1 rounded-lg border-0 bg-accent px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {t('plan.detail.lifecycle.resume')}
+            </button>
+          )}
+          {plan.status === 'pending' && (
             <button
               type="button"
               data-testid="plan-start-btn"
@@ -759,16 +839,22 @@ function PlanInfoRail({
               {t('plan.detail.lifecycle.start')}
             </button>
           )}
-          {plan.status !== 'archived' && (
+          {!plan.archived_at && plan.status !== 'done' && plan.status !== 'discarded' && (
             <button type="button" data-testid="plan-edit-btn" onClick={() => setEditing(true)} className={railBtn}>
               {t('plan.detail.actions.edit')}
             </button>
           )}
-          {canDestroy && (
-            <>
+          {canDiscard && (
+              <button type="button" data-testid="plan-discard-btn" onClick={() => setConfirming('discard')} className={`${railBtn} border-danger text-danger hover:text-danger`}>
+                {t('plan.detail.actions.discard')}
+              </button>
+          )}
+          {canArchive && (
               <button type="button" data-testid="plan-archive-btn" onClick={() => setConfirming('archive')} className={railBtn}>
                 {t('plan.detail.actions.archive')}
               </button>
+          )}
+          {canDelete && (
               <button
                 type="button"
                 data-testid="plan-delete-btn"
@@ -777,12 +863,11 @@ function PlanInfoRail({
               >
                 {t('plan.detail.actions.delete')}
               </button>
-            </>
           )}
         </div>
-        {(start.isError || stop.isError) && (
+        {(start.isError || pause.isError || resume.isError || discard.isError) && (
           <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
-            {((start.error ?? stop.error) as Error).message}
+            {((start.error ?? pause.error ?? resume.error ?? discard.error) as Error).message}
           </p>
         )}
       </div>
@@ -920,6 +1005,7 @@ function PlanInfoRail({
       {editing && <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />}
       {confirming === 'delete' && <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'archive' && <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
+      {confirming === 'discard' && <PlanDiscardModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
     </aside>
   );
 }
@@ -972,6 +1058,44 @@ function PlanDeleteModal({
       errorTestId="plan-delete-error"
       cancelTestId="plan-delete-cancel"
       confirmTestId="plan-delete-confirm"
+      onCancel={onClose}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+function PlanDiscardModal({
+  projectId,
+  plan,
+  onClose,
+}: {
+  projectId: string;
+  plan: Plan;
+  onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const discard = useDiscardPlan(projectId, plan.id);
+  const onConfirm = async () => {
+    try {
+      await discard.mutateAsync();
+      onClose();
+    } catch {
+      // Keep the modal open and surface the lifecycle conflict inline.
+    }
+  };
+  return (
+    <DestructiveConfirmModal
+      testId="plan-discard-modal"
+      title={t('plan.detail.discardModal.title')}
+      planName={plan.name}
+      body={t('plan.detail.discardModal.body')}
+      confirmLabel={t('plan.detail.discardModal.confirm')}
+      pendingLabel={t('plan.detail.discardModal.pending')}
+      pending={discard.isPending}
+      error={discard.isError ? friendlyDestructivePlanError(discard.error) : null}
+      errorTestId="plan-discard-error"
+      cancelTestId="plan-discard-cancel"
+      confirmTestId="plan-discard-confirm"
       onCancel={onClose}
       onConfirm={onConfirm}
     />
@@ -1101,9 +1225,9 @@ function DestructiveConfirmModal({
 // ── Plan-edit modal (v2.9 Stage A3) ──────────────────────────────────────────
 // Edits name / goal (= the `description` DTO field — the contract names it
 // `description`, NOT `goal`; verified vs PatchPlanInput in api/plans.ts) /
-// target_date via usePatchPlan (PATCH /{id}). draft-only — opened only from the
-// header's draft-gated Edit button (§9.4: running/done is immutable, the backend
-// rejects with ErrPlanNotDraft). Mirrors PlanCreateModal's structure + styling
+// target_date via usePatchPlan (PATCH /{id}). pending-only — opened only from the
+// header's pending-gated Edit button (§9.4: running/done is immutable, the backend
+// rejects with plan-not-pending). Mirrors PlanCreateModal's structure + styling
 // (bg-black/50 scrim + bg-bg-elevated surface = the sanctioned both-mode-AA modal
 // pattern). #218: a patch failure surfaces a FRIENDLY inline message, never the
 // raw API error.
@@ -1136,9 +1260,9 @@ function friendlyPatchError(error: unknown, t: TFunction): string {
   if (lower.includes('archived')) {
     return t('plan.detail.editModal.errorArchived');
   }
-  if (lower.includes('draft')) {
-    // T238: name/goal edit any time; only the target date is draft-only.
-    return t('plan.detail.editModal.errorDraft');
+  if (lower.includes('pending')) {
+    // T238: name/goal edit any time; only the target date is pending-only.
+    return t('plan.detail.editModal.errorPending');
   }
   return t('plan.detail.editModal.errorGeneric');
 }
@@ -1158,8 +1282,8 @@ function PlanEditModal({
   const [targetDate, setTargetDate] = useState(() => instantToDateInput(plan.target_date));
   const patch = usePatchPlan(projectId, plan.id);
   // T238: name + goal are editable in any non-archived status; target_date
-  // (scheduling) stays draft-only, so the field only shows for a draft plan.
-  const isDraft = plan.status === 'draft';
+  // (scheduling) stays pending-only, so the field only shows for a pending plan.
+  const isPending = plan.status === 'pending';
 
   // The picker value the field STARTED at — used to detect "cleared" vs "changed"
   // vs "unchanged" without re-parsing the stored instant on every render.
@@ -1174,8 +1298,8 @@ function PlanEditModal({
     if (name.trim() !== plan.name) input.name = name.trim();
     // goal (= description) — send only when changed (cleared → '').
     if (description.trim() !== (plan.description ?? '')) input.description = description.trim();
-    // target_date — draft-only (§9.4); distinguish cleared / changed / unchanged.
-    if (isDraft && targetDate !== originalTargetDate) {
+    // target_date — pending-only (§9.4); distinguish cleared / changed / unchanged.
+    if (isPending && targetDate !== originalTargetDate) {
       if (targetDate === '') {
         // cleared → '' (the backend's TargetDateSet="" path CLEARS it).
         input.target_date = '';
@@ -1227,7 +1351,7 @@ function PlanEditModal({
           className={PLAN_EDIT_MODAL_INPUT}
           data-testid="plan-edit-description"
         />
-        {isDraft && (
+        {isPending && (
           <>
             <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-target-date">
               {t('plan.detail.editModal.targetDate')}
@@ -2508,6 +2632,11 @@ function PlanGraphDag({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${b.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
                       <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${b.stage.id}`}>{display.name}</span>
+                      {(b.stage.generation ?? 0) > 0 && (
+                        <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg" data-testid={`plan-stage-remediation-${b.stage.id}`}>
+                          remediation · g{b.stage.generation}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-2.5">
                       <span
@@ -2614,7 +2743,7 @@ function PlanGraphDag({
 
 // T769: when the plan carries a real orchestration graph (built by T768 on
 // start), render THAT graph — control nodes (Start/End/Condition) + edges by
-// kind — so the DAG reflects the engine. A plan with NO graph (draft /
+// kind — so the DAG reflects the engine. A plan with NO graph (pending /
 // never-started / engine unwired) returns has_graph:false and falls through to
 // the legacy depends_on renderer (NON-BREAKING, zero regression).
 //
@@ -2726,6 +2855,14 @@ function StageAuditDetails({ stage, prefix }: { stage: PlanStage; prefix: string
         <StageAuditDetailRow label="Routes" testId={`${prefix}-routes-${stage.id}`}>
           {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
         </StageAuditDetailRow>
+        <StageAuditDetailRow label="Lineage" testId={`${prefix}-lineage-${stage.id}`}>
+          {stage.origin_verdict_id
+            ? `generation ${stage.generation ?? 0} · verdict ${stage.origin_verdict_id} · continuation ${stage.continuation_id ?? 'unknown'}`
+            : 'Base stage'}
+        </StageAuditDetailRow>
+        <StageAuditDetailRow label="Topology fingerprint" testId={`${prefix}-fingerprint-${stage.id}`}>
+          <span className="font-mono text-xs">{stage.topology_fingerprint || 'Not recorded'}</span>
+        </StageAuditDetailRow>
         <StageAuditDetailRow label="Acceptance contract" testId={`${prefix}-contract-${stage.id}`} strong>
           <ActivityRefText text={spec?.acceptance_contract || 'Missing acceptance contract'} />
         </StageAuditDetailRow>
@@ -2799,7 +2936,7 @@ function MobileStageGateAudits({ stages, error }: { stages: PlanStage[]; error: 
         <section key={stage.id} className="rounded-lg border border-border-strong bg-bg-surface p-3" data-testid={`plan-stage-mobile-audit-${stage.id}`}>
           <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
             <span>{stage.name}</span>
-            <span>{stage.status} · {stage.rounds}/{stage.max_rounds}</span>
+            <span>{stage.status}{(stage.generation ?? 0) > 0 ? ` · remediation g${stage.generation}` : ''}</span>
           </div>
           <StageGateAudit stage={stage} surface="mobile" />
         </section>
@@ -2861,15 +2998,15 @@ function LegacyPlanDag({
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
   const stageDisplay = useMemo(() => stageDisplayMeta(stages), [stages]);
-  const isDraft = plan.status === 'draft';
+  const isPending = plan.status === 'pending';
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
   // / wide plan fits in view without endless horizontal scrolling. CSS transform
   // (content scales cleanly); the scroll area is sized to the scaled extent.
   const scale = compact ? 0.7 : 1;
 
-  // v2.9.1 point 3: IN-GRAPH dependency editing (draft-only). The dependency
+  // v2.9.1 point 3: IN-GRAPH dependency editing (pending-only). The dependency
   // STRUCTURE is edited directly on the graph — no separate dropdown box (§21
-  // single entry). Each draft node has a focusable "connect" control that enters
+  // single entry). Each pending node has a focusable "connect" control that enters
   // CONNECT MODE with that node as the source; valid targets (validDropTargets,
   // = excludes self/exists/cycle — cycle/self blocked at the UI layer) light up
   // as activatable targets. Each existing edge has a focusable delete control.
@@ -2877,7 +3014,7 @@ function LegacyPlanDag({
   const addDep = useAddDependency(projectId, plan.id);
   const removeDep = useRemoveDependency(projectId, plan.id);
   // connectFrom = the SOURCE task_id of the in-progress connection (null = not in
-  // connect mode). Only meaningful while draft.
+  // connect mode). Only meaningful while pending.
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const titleOf = useCallback(
     (taskId: string) => {
@@ -2900,10 +3037,10 @@ function LegacyPlanDag({
     return () => window.removeEventListener('keydown', onKey);
   }, [connectFrom, exitConnect]);
 
-  // Leaving draft (e.g. plan starts) must drop any in-progress connect mode.
+  // Leaving pending (e.g. plan starts) must drop any in-progress connect mode.
   useEffect(() => {
-    if (!isDraft) setConnectFrom(null);
-  }, [isDraft]);
+    if (!isPending) setConnectFrom(null);
+  }, [isPending]);
 
   // The legal targets for the active source (self/exists/cycle excluded). Only
   // these become activatable target controls; everything else is inert.
@@ -2945,7 +3082,7 @@ function LegacyPlanDag({
     // Each real edge: dep (upstream `to`) → node (downstream `from`). The plan
     // node `p` lists `depId` in depends_on, i.e. "p depends on depId" ⟺
     // AddPlanDependency(from=p, to=depId). `from`/`to` are kept on the edge so a
-    // draft delete control can call RemoveDependency with the exact ids; `mx/my`
+    // pending delete control can call RemoveDependency with the exact ids; `mx/my`
     // is the curve midpoint where the delete control is anchored.
     const out: { key: string; d: string; from: string; to: string; mx: number; my: number }[] = [];
     for (const p of positioned) {
@@ -3017,8 +3154,8 @@ function LegacyPlanDag({
         <MobileStageGateAudits stages={stages} error={stagesQuery.isError} />
         <PlanStepper positioned={positioned} projectId={projectId} />
         {/* T348: the Compact toggle moved to the tab row (icon). The connect-mode
-            banner (point 3, draft-only) stays here, shown only while connecting. */}
-        {isDraft && connectFrom != null && (
+            banner (point 3, pending-only) stays here, shown only while connecting. */}
+        {isPending && connectFrom != null && (
           <div className="mb-2 hidden items-center gap-2 md:flex">
             <div
               className="flex flex-1 items-center gap-2 rounded border border-accent bg-bg-elevated px-2 py-1 text-[0.6875rem] text-text-secondary"
@@ -3157,10 +3294,10 @@ function LegacyPlanDag({
                 ))}
               </g>
             </svg>
-            {/* Draft-only IN-GRAPH edge delete controls (z-10, anchored at each
+            {/* Pending-only IN-GRAPH edge delete controls (z-10, anchored at each
                 edge's curve midpoint). A real <button> (keyboard-focusable) →
                 useRemoveDependency.mutate({from, to}). Running/done = none. */}
-            {isDraft &&
+            {isPending &&
               edges.map((e) => (
                 <button
                   key={`del-${e.from}->${e.to}`}
@@ -3223,10 +3360,10 @@ function LegacyPlanDag({
                     <span className="inline-flex shrink-0 items-center gap-1">
                       <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                       <NodeStateChip status={p.node.node_status} />
-                      {/* Draft connect control (point 3): a real keyboard-focusable
+                      {/* Pending connect control (point 3): a real keyboard-focusable
                           button. Activating enters connect mode with this node as
                           the source. Hidden once running/done (display-only). */}
-                      {isDraft && !inConnect && (
+                      {isPending && !inConnect && (
                         <button
                           type="button"
                           data-testid="plan-node-connect"
@@ -3281,19 +3418,19 @@ function LegacyPlanDag({
         </>
       )}
 
-      {/* node_status is DERIVED (§9.2) and shown, not edited. In DRAFT the
+      {/* node_status is DERIVED (§9.2) and shown, not edited. In PENDING the
           dependency STRUCTURE is editable IN-GRAPH (point 3): each node has a
           "+ Dep" connect control, and each edge has an "×" delete control. Once
           running/done the graph is DISPLAY-ONLY (backend rejects with
-          ErrPlanNotDraft). */}
+          plan-not-pending). */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
         {t('plan.detail.dag.noteDerived')}{' '}
-        {isDraft ? t('plan.detail.dag.noteDraft') : t('plan.detail.dag.noteDisplayOnly')}
+        {isPending ? t('plan.detail.dag.notePending') : t('plan.detail.dag.noteDisplayOnly')}
       </p>
 
       {/* #218 friendly add/remove error (never the raw API message). The
           single in-graph entry point (§21) — no separate editor box. */}
-      {isDraft && mutationError && (
+      {isPending && mutationError && (
         <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
           {friendlyDependencyError(mutationError, t)}
         </p>
@@ -3303,7 +3440,7 @@ function LegacyPlanDag({
   );
 }
 
-// ── Draft-only dependency-edge editor (v2.9 Stage A1) ────────────────────────
+// ── Pending-only dependency-edge editor (v2.9 Stage A1) ────────────────────────
 // from/to semantics (verified against the backend, plan_view.go + plan_flow.go):
 // a node's `depends_on` lists `edge.ToTaskID` where `edge.FromTaskID == node`,
 // i.e. AddPlanDependency(from, to) means **from depends_on to** (`to` is the
@@ -3322,14 +3459,14 @@ function friendlyDependencyError(error: unknown, t: TFunction): string {
   if (lower.includes('cycle')) {
     return t('plan.detail.depError.cycle');
   }
-  if (lower.includes('draft')) {
-    return t('plan.detail.depError.draft');
+  if (lower.includes('pending')) {
+    return t('plan.detail.depError.pending');
   }
   return t('plan.detail.depError.generic');
 }
 
 // ── Task list tab ────────────────────────────────────────────────────────────
-// §9.4: removing a task from a Plan is a PLANNING action — only a DRAFT plan
+// §9.4: removing a task from a Plan is a PLANNING action — only a PENDING plan
 // exposes a per-row "Remove" control (consistent with add-to-plan / the A1 edge
 // editor). A running/done plan renders the rows read-only (no Remove column).
 // memberRef — build the prefixed identity ref ("agent:<id>"/"user:<id>") for an
@@ -3348,7 +3485,7 @@ function memberRef(m: MemberResult): string {
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
-  const canRemove = plan.status === 'draft';
+  const canRemove = plan.status === 'pending';
   const members = useMembers();
   const [query, setQuery] = useState('');
 
@@ -3456,7 +3593,7 @@ function resumeNodeErrorMessage(error: unknown, t: TFunction): string {
   }
 }
 
-// PlanTaskRow — one task-list row. When the plan is draft, the trailing cell
+// PlanTaskRow — one task-list row. When the plan is pending, the trailing cell
 // holds a "Remove" button → useRemoveTaskFromPlan(task_id) (task returns to the
 // Backlog on success via query invalidation). #218: a remove failure surfaces a
 // friendly inline message in the row, never a raw API error.
@@ -3503,7 +3640,7 @@ function PlanTaskRow({
   useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
   // T53: operator resume of a paused node (its agent set the work item aside).
   const resume = useResumePausedNode(projectId, planId);
-  // T41 inline 分派: reassigning is NOT draft-gated (allowed regardless of plan
+  // T41 inline 分派: reassigning is NOT pending-gated (allowed regardless of plan
   // status). assign("") would set an empty assignee; the dedicated unassign
   // endpoint is the established "clear assignee" path, so route "" → unassign.
   const assign = useAssignTask(projectId, node.task_id);

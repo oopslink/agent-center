@@ -14,7 +14,7 @@ func TestPMPlanMap_T99_OrgRef(t *testing.T) {
 	now := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 
 	plan, err := pm.RehydratePlan(pm.RehydratePlanInput{
-		ID: "plan-abc", ProjectID: "proj-1", Name: "P", Status: pm.PlanDraft,
+		ID: "plan-abc", ProjectID: "proj-1", Name: "P", Status: pm.PlanPending,
 		CreatorRef: "user:a", CreatedAt: now, UpdatedAt: now, Version: 1, OrgNumber: 42,
 	})
 	if err != nil {
@@ -26,7 +26,7 @@ func TestPMPlanMap_T99_OrgRef(t *testing.T) {
 
 	// org_number 0 → org_ref omitted (graceful fallback to hash handle in the UI).
 	unNumbered, err := pm.RehydratePlan(pm.RehydratePlanInput{
-		ID: "plan-x", ProjectID: "proj-1", Name: "P", Status: pm.PlanDraft,
+		ID: "plan-x", ProjectID: "proj-1", Name: "P", Status: pm.PlanPending,
 		CreatorRef: "user:a", CreatedAt: now, UpdatedAt: now, Version: 1, OrgNumber: 0,
 	})
 	if err != nil {

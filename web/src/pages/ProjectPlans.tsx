@@ -3,18 +3,23 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useBoardTouchDrag } from './useBoardTouchDrag';
-import { decideDrop, type DropTarget } from './boardDrop';
+import { type DropTarget } from './boardDrop';
 import { useProject } from '@/api/projects';
 import {
   usePlans,
+  useAssignmentPool,
   useCreatePlan,
   useUnplannedTasks,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
   useAddTaskToAnyPlan,
   useRemoveTaskFromAnyPlan,
+  useAddTaskToAssignmentPool,
+  useRemoveTaskFromAssignmentPool,
   type Plan,
   type PlanNode,
+  type AssignmentPool,
+  type AssignmentPoolTask,
   type CreatePlanInput,
 } from '@/api/plans';
 import { refKind, useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
@@ -99,7 +104,7 @@ function RotateForBoardHint(): React.ReactElement | null {
 // Plan-Orchestration PLANNING view). A horizontal kanban: a first Backlog
 // column (the project's UNPLANNED tasks) + one column per Plan + a trailing
 // "New Plan" column. Planning = drag (or use the keyboard add-button on) a
-// Backlog task into a DRAFT Plan column (§9.4 draft-only select-into-plan).
+// Backlog task into a PENDING Plan column (§9.4 pending-only select-into-plan).
 // Reached via the project detail Plans link (§4.2); each Plan column's
 // "Open ▸" reaches the Plan detail (#287 DAG, the EXECUTION view).
 //
@@ -109,13 +114,14 @@ export default function ProjectPlans(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const project = useProject(id);
   const plans = usePlans(id);
+  const assignmentPool = useAssignmentPool(id);
   const backlog = useUnplannedTasks(id);
   const [createOpen, setCreateOpen] = useState(false);
   // T231: the header "+ New Task" modal — creates a task with a chosen
-  // destination (Backlog / Assignment Pool / a draft Plan).
+  // destination (Backlog / Assignment Pool / a pending Plan).
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   // The task currently being dragged (HTML5 DnD) + WHERE it came from. Held in
-  // state so a draft Plan column can light up its drop-zone + reject running
+  // state so a pending Plan column can light up its drop-zone + reject running
   // columns, AND so a drop knows the source (Backlog vs another Plan) to pick
   // SELECT (backlog→plan) vs MOVE (plan→plan) vs REMOVE (plan→backlog). A7:
   // fromPlanId === null ⟺ dragged from the Backlog; non-null ⟺ from that Plan.
@@ -150,7 +156,7 @@ export default function ProjectPlans(): React.ReactElement {
         </div>
         <div className="flex items-center gap-2">
           {/* T231: create a task straight from the board, choosing its
-              destination (Backlog / Assignment Pool / a draft Plan). */}
+              destination (Backlog / Assignment Pool / a pending Plan). */}
           <button
             type="button"
             className="rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand/10"
@@ -175,6 +181,7 @@ export default function ProjectPlans(): React.ReactElement {
         <BoardTaskCreateModal
           projectId={id}
           plans={plans.data}
+          assignmentPool={assignmentPool.data}
           onClose={() => setTaskCreateOpen(false)}
         />
       )}
@@ -185,6 +192,7 @@ export default function ProjectPlans(): React.ReactElement {
       <Board
         projectId={id}
         plans={plans}
+        assignmentPool={assignmentPool}
         backlog={backlog}
         dragSource={dragSource}
         setDragSource={setDragSource}
@@ -251,17 +259,28 @@ interface TasksQuery {
   isError: boolean;
   error: unknown;
 }
+interface AssignmentPoolQuery {
+  data?: AssignmentPool;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}
+
+const POOL_SOURCE_PREFIX = 'pool:';
+const poolSource = (poolId: string): string => `${POOL_SOURCE_PREFIX}${poolId}`;
+const isPoolSource = (source: string | null): boolean => source?.startsWith(POOL_SOURCE_PREFIX) ?? false;
 
 // Board — the horizontal scrolling kanban (.board: flex, gap, overflow-x-auto).
 // ADR-0047 THREE-segment Work Board, left→right:
 //   1. Backlog        — unscheduled tasks (plan_id == ""), NOT claimable, flat.
-//   2. Assignment Pool — the is_builtin plan (exactly one): a FLAT list whose
-//                        assigned+dispatched nodes are CLAIMABLE. No DAG edges.
-//   3. Structured Plans — every non-builtin plan, the existing DAG columns.
+//   2. Assignment Pool — an independent Project child: a FLAT low-priority pull
+//                        queue whose eligible tasks are CLAIMABLE. No DAG edges.
+//   3. Structured Plans — every Plan, rendered as an existing DAG column.
 // Then the trailing New-Plan column (creates a structured plan).
 function Board({
   projectId,
   plans,
+  assignmentPool,
   backlog,
   dragSource,
   setDragSource,
@@ -269,6 +288,7 @@ function Board({
 }: {
   projectId: string;
   plans: PlansQuery;
+  assignmentPool: AssignmentPoolQuery;
   backlog: TasksQuery;
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
@@ -281,20 +301,26 @@ function Board({
   // the hit-test) matches mouse DnD exactly. Hooks run before the early returns.
   const addAny = useAddTaskToAnyPlan(projectId);
   const removeAny = useRemoveTaskFromAnyPlan(projectId);
+  const addPool = useAddTaskToAssignmentPool(projectId);
+  const removePool = useRemoveTaskFromAssignmentPool(projectId);
   const onTouchDrop = (taskId: string, fromPlanId: string | null, target: DropTarget): void => {
-    const d = decideDrop(fromPlanId, target);
-    if (d.op === 'remove') {
-      removeAny.mutate({ planId: d.fromPlanId, taskId });
-    } else if (d.op === 'select') {
-      addAny.mutate({ planId: d.toPlanId, taskId });
-    } else if (d.op === 'move') {
-      removeAny
-        .mutateAsync({ planId: d.fromPlanId, taskId })
-        .then(() => addAny.mutate({ planId: d.toPlanId, taskId }))
-        .catch(() => {
-          /* surfaced by the board re-fetch */
-        });
+    const sourceIsPool = isPoolSource(fromPlanId);
+    const removeSource = async (): Promise<void> => {
+      if (fromPlanId === null) return;
+      if (sourceIsPool) await removePool.mutateAsync(taskId);
+      else await removeAny.mutateAsync({ planId: fromPlanId, taskId });
+    };
+    if (target.kind === 'backlog') {
+      void removeSource();
+      return;
     }
+    if (target.kind === 'pool') {
+      if (sourceIsPool) return;
+      void removeSource().then(() => addPool.mutate({ taskId }));
+      return;
+    }
+    if (fromPlanId === target.planId) return;
+    void removeSource().then(() => addAny.mutate({ planId: target.planId, taskId }));
   };
   const { preview, startLongPress } = useBoardTouchDrag({
     onStart: (taskId, fromPlanId) => setDragSource({ taskId, fromPlanId }),
@@ -304,12 +330,12 @@ function Board({
 
   // A board-level load is only "failed" if the Plans list (the columns) fails —
   // surface the #218 friendly ErrorState. The Backlog has its own inline state.
-  if (plans.isError) {
+  if (plans.isError || assignmentPool.isError) {
     return (
-      <ErrorState message={t('plan.board.loadError')} error={plans.error} testId="board-error" />
+      <ErrorState message={t('plan.board.loadError')} error={plans.error ?? assignmentPool.error} testId="board-error" />
     );
   }
-  if (plans.isLoading) {
+  if (plans.isLoading || assignmentPool.isLoading) {
     return (
       <div className="flex gap-3" data-testid="board-loading">
         <Skeleton height="12rem" width="14.75rem" />
@@ -322,17 +348,14 @@ function Board({
   // archive — archived work leaves the active board). The backend list already
   // default-excludes them (ListPlanSummaries); this FE filter is the belt-and-
   // braces guard so a degraded/stale payload never leaks an archived plan column.
-  const planList = (plans.data ?? []).filter((p) => p.status !== 'archived');
-
-  // ADR-0047 partition: the BUILT-IN assignment pool (exactly one is_builtin
-  // plan) is its own segment; every other plan is a STRUCTURED plan column.
-  const builtinPool = planList.find((p) => p.is_builtin === true) ?? null;
+  const planList = (plans.data ?? []).filter((p) => !p.archived_at);
   const structuredPlans = planList.filter((p) => p.is_builtin !== true);
+  const pool = assignmentPool.data ?? null;
 
-  // The draft STRUCTURED Plans are the only valid add/drop targets (§9.4
-  // select-into-plan is draft-only); shared by every Backlog card's add-menu.
-  // The built-in pool is offered separately (it is always-running, never draft).
-  const draftPlans = structuredPlans.filter((p) => p.status === 'draft');
+  // The pending STRUCTURED Plans are the only valid add/drop targets (§9.4
+  // select-into-plan is pending-only); shared by every Backlog card's add-menu.
+  // The independent pool is offered separately and has no Plan lifecycle.
+  const pendingPlans = structuredPlans.filter((p) => p.status === 'pending');
 
   return (
     <BoardTouchDragContext.Provider value={startLongPress}>
@@ -346,15 +369,15 @@ function Board({
         <BacklogColumn
           projectId={projectId}
           backlog={backlog}
-          draftPlans={draftPlans}
-          builtinPool={builtinPool}
+          pendingPlans={pendingPlans}
+          assignmentPool={pool}
           dragSource={dragSource}
           setDragSource={setDragSource}
         />
-        {builtinPool && (
-          <BuiltinPoolColumn
+        {pool && (
+          <AssignmentPoolColumn
             projectId={projectId}
-            plan={builtinPool}
+            pool={pool}
             dragSource={dragSource}
             setDragSource={setDragSource}
           />
@@ -396,17 +419,20 @@ function isLiveTaskStatus(status: string | undefined): boolean {
 
 // planLockReason — T121: the human reason a plan's task assignments are frozen, so
 // the Work Board can explain (tooltip + in-drag banner) why a running / terminal
-// plan can't be dragged out of or dropped into. Only a DRAFT plan's task-set is
+// plan can't be dragged out of or dropped into. Only a PENDING plan's task-set is
 // editable; the always-running built-in pool is the deliberate exception and never
 // renders as a locked column. Archived plans are excluded from the board entirely.
 function planLockReason(status: string, t: (key: string) => string): string {
   if (status === 'running') {
     return t('plan.board.lock.running');
   }
+  if (status === 'paused') {
+    return t('plan.board.lock.paused');
+  }
   if (status === 'done') {
     return t('plan.board.lock.done');
   }
-  if (status === 'archived') {
+  if (status === 'discarded') {
     return t('plan.board.lock.archived');
   }
   return t('plan.board.lock.default');
@@ -420,19 +446,19 @@ const columnBase =
 
 // BacklogColumn — first column (distinct .col.backlog bg). Lists the project's
 // UNPLANNED tasks; each card has the keyboard-accessible "Add to plan" menu and
-// is HTML5-draggable into a draft Plan column.
+// is HTML5-draggable into a pending Plan column.
 function BacklogColumn({
   projectId,
   backlog,
-  draftPlans,
-  builtinPool,
+  pendingPlans,
+  assignmentPool,
   dragSource,
   setDragSource,
 }: {
   projectId: string;
   backlog: TasksQuery;
-  draftPlans: Plan[];
-  builtinPool: Plan | null;
+  pendingPlans: Plan[];
+  assignmentPool: AssignmentPool | null;
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
@@ -442,11 +468,12 @@ function BacklogColumn({
   // belt-and-braces guard so a degraded payload never leaks terminal work.
   const tasks = (backlog.data ?? []).filter((t) => isLiveTaskStatus(t.status));
   const remove = useRemoveTaskFromAnyPlan(projectId);
+  const removePool = useRemoveTaskFromAssignmentPool(projectId);
   const [dropActive, setDropActive] = useState(false);
   // A7: the Backlog accepts a drop only when a PLAN-task is being dragged
   // (fromPlanId != null) → REMOVE = back to backlog. A backlog card dropped on
-  // the backlog is a no-op (fromPlanId == null). The source plan was draft (only
-  // draft cards are draggable), so RemoveTaskFromPlan is allowed (§9.4).
+  // the backlog is a no-op (fromPlanId == null). The source plan was pending (only
+  // pending cards are draggable), so RemoveTaskFromPlan is allowed (§9.4).
   const canDrop = dragSource !== null && dragSource.fromPlanId !== null;
 
   // A7 race-proof acceptance: the Backlog is a valid drop target whenever the
@@ -466,7 +493,8 @@ function BacklogColumn({
     // state update hadn't committed when the native drop landed.
     const src = readDragSource(e, dragSource);
     if (!src || src.fromPlanId === null) return; // backlog→backlog no-op.
-    remove.mutate({ planId: src.fromPlanId, taskId: src.taskId });
+    if (isPoolSource(src.fromPlanId)) removePool.mutate(src.taskId);
+    else remove.mutate({ planId: src.fromPlanId, taskId: src.taskId });
   };
 
   return (
@@ -518,8 +546,8 @@ function BacklogColumn({
             key={task.id}
             projectId={projectId}
             task={task}
-            draftPlans={draftPlans}
-            builtinPool={builtinPool}
+            pendingPlans={pendingPlans}
+            assignmentPool={assignmentPool}
             setDragSource={setDragSource}
           />
         ))
@@ -530,18 +558,18 @@ function BacklogColumn({
 
 // BacklogCard — a draggable task card with the keyboard-accessible "Add to
 // plan ▾" menu. Both the menu (a11y PRIMARY) + drag-drop fire the SAME
-// select-into-plan (useAddTaskToPlan), draft-only.
+// select-into-plan (useAddTaskToPlan), pending-only.
 function BacklogCard({
   projectId,
   task,
-  draftPlans,
-  builtinPool,
+  pendingPlans,
+  assignmentPool,
   setDragSource,
 }: {
   projectId: string;
   task: Task;
-  draftPlans: Plan[];
-  builtinPool: Plan | null;
+  pendingPlans: Plan[];
+  assignmentPool: AssignmentPool | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
@@ -556,7 +584,7 @@ function BacklogCard({
       draggable
       onPointerDown={(e) => startLongPress?.(e, task.id, null, task.title)}
       onDragStart={(e) => {
-        // A7: from the Backlog → fromPlanId null (SELECT into a draft plan).
+        // A7: from the Backlog → fromPlanId null (SELECT into a pending plan).
         setDragSource({ taskId: task.id, fromPlanId: null });
         e.dataTransfer.setData('text/plain', task.id);
         e.dataTransfer.effectAllowed = 'move';
@@ -591,8 +619,8 @@ function BacklogCard({
           <AddToPlanMenu
             projectId={projectId}
             taskId={task.id}
-            draftPlans={draftPlans}
-            builtinPool={builtinPool}
+            pendingPlans={pendingPlans}
+            assignmentPool={assignmentPool}
             onClose={() => setMenuOpen(false)}
           />
         )}
@@ -601,24 +629,24 @@ function BacklogCard({
   );
 }
 
-// AddToPlanMenu — the draft-Plan picker. §9.4: only DRAFT Plans are listed (a
+// AddToPlanMenu — the pending-Plan picker. §9.4: only PENDING Plans are listed (a
 // running Plan is never a select-into-plan target). Each item calls
 // useAddTaskToPlan. Keyboard-operable (real <button>s, focusable).
 function AddToPlanMenu({
   projectId,
   taskId,
-  draftPlans,
-  builtinPool,
+  pendingPlans,
+  assignmentPool,
   onClose,
 }: {
   projectId: string;
   taskId: string;
-  draftPlans: Plan[];
-  builtinPool: Plan | null;
+  pendingPlans: Plan[];
+  assignmentPool: AssignmentPool | null;
   onClose: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
-  const noTargets = draftPlans.length === 0 && !builtinPool;
+  const noTargets = pendingPlans.length === 0 && !assignmentPool;
   return (
     <div
       className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-border-base bg-bg-elevated p-1 shadow-1"
@@ -636,16 +664,14 @@ function AddToPlanMenu({
         <>
           {/* ADR-0047: the built-in Assignment Pool is a select target (BE permits
               moving a backlog task into the pool → it becomes claimable). */}
-          {builtinPool && (
-            <AddToPlanItem
+          {assignmentPool && (
+            <AddToPoolItem
               projectId={projectId}
-              planId={builtinPool.id}
-              planName={t('plan.board.assignmentPool')}
               taskId={taskId}
               onDone={onClose}
             />
           )}
-          {draftPlans.map((plan) => (
+          {pendingPlans.map((plan) => (
             <AddToPlanItem
               key={plan.id}
               projectId={projectId}
@@ -658,6 +684,38 @@ function AddToPlanMenu({
         </>
       )}
     </div>
+  );
+}
+
+function AddToPoolItem({
+  projectId,
+  taskId,
+  onDone,
+}: {
+  projectId: string;
+  taskId: string;
+  onDone: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const add = useAddTaskToAssignmentPool(projectId);
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-text-primary hover:bg-bg-subtle disabled:opacity-60"
+      disabled={add.isPending}
+      data-testid={`add-to-pool-${taskId}`}
+      onClick={async () => {
+        try {
+          await add.mutateAsync({ taskId });
+          onDone();
+        } catch {
+          // Mutation error remains visible through the refreshed board state.
+        }
+      }}
+    >
+      {t('plan.board.assignmentPool')}
+    </button>
   );
 }
 
@@ -758,47 +816,32 @@ function StarvedBadge({
   );
 }
 
-// BuiltinPoolColumn — ADR-0047 segment 2: the is_builtin assignment pool, a
-// DISTINCT segment (not a generic plan column). A FLAT list of its nodes (no
-// DAG / edge editing). completed/discarded nodes are HIDDEN by default. A
-// claimable node shows the ClaimableChip.
-// T121: the pool's task-set is FREELY editable (its tasks are not bound to an
-// executing DAG), so it is a full drag participant — it accepts a task dragged in
-// from the Backlog (SELECT) OR from another draft plan (MOVE-in), and its own
-// cards can be dragged out to the Backlog / another draft plan (the backend now
-// exempts the always-running pool from the draft-only remove gate, symmetric with
-// the add side). Only a drag of its OWN card onto itself is a no-op.
-function BuiltinPoolColumn({
+// AssignmentPoolColumn is the first-class low-priority pull queue. It is a flat
+// Project child, not a Plan and therefore has no lifecycle/DAG/progress state.
+function AssignmentPoolColumn({
   projectId,
-  plan,
+  pool,
   dragSource,
   setDragSource,
 }: {
   projectId: string;
-  plan: Plan;
+  pool: AssignmentPool;
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
-  const add = useAddTaskToPlan(projectId, plan.id);
-  // T121: a MOVE-in (another draft plan → pool) removes from the source plan then
-  // adds to the pool; the source plan is only known at drop time → any-plan hooks.
-  const addAny = useAddTaskToAnyPlan(projectId);
+  const add = useAddTaskToAssignmentPool(projectId);
   const removeAny = useRemoveTaskFromAnyPlan(projectId);
   const [dropActive, setDropActive] = useState(false);
   // Defensive reads (mirror PlanColumn) — degrade to an empty pool, never crash.
-  const preview = plan.nodes_preview ?? [];
-  const nodeCount = plan.node_count ?? 0;
-  // ADR-0047: hide completed/discarded in the pool (live capacity only).
-  const shown = preview.filter((n) => isLiveTaskStatus(n.task_status));
-  // Overflow uses the LIVE count when known; fall back to node_count − shown.
-  const overflow = nodeCount - preview.length > 0 ? nodeCount - preview.length : 0;
+  const shown = (pool.tasks ?? []).filter((task) => isLiveTaskStatus(task.status));
 
   // T121: the pool accepts ANY in-flight task drag that is not its own card —
   // a Backlog task (SELECT) or a task from another plan (MOVE-in). A drag of one
   // of the pool's OWN cards back onto the pool is the no-op self case.
   const dragTaskId = dragSource?.taskId ?? null;
-  const canDrop = dragTaskId !== null && dragSource?.fromPlanId !== plan.id;
+  const ownSource = poolSource(pool.id);
+  const canDrop = dragTaskId !== null && dragSource?.fromPlanId !== ownSource;
 
   // Race-proof acceptance (mirror the Backlog): accept on the state-derived
   // canDrop OR the dataTransfer plan-task marker (readable on every dragover
@@ -814,15 +857,15 @@ function BuiltinPoolColumn({
     const taskId = src?.taskId ?? null;
     if (!taskId) return;
     const fromPlanId = src?.fromPlanId ?? null;
-    if (fromPlanId === plan.id) return; // dropped onto its own pool → no-op.
+    if (fromPlanId === ownSource) return;
     try {
       if (fromPlanId === null) {
-        // From the Backlog → SELECT into the pool (it becomes claimable).
-        await add.mutateAsync({ task_id: taskId });
+        await add.mutateAsync({ taskId });
+      } else if (isPoolSource(fromPlanId)) {
+        return;
       } else {
-        // From another (draft) plan → MOVE-in: remove from source THEN add here.
         await removeAny.mutateAsync({ planId: fromPlanId, taskId });
-        await addAny.mutateAsync({ planId: plan.id, taskId });
+        await add.mutateAsync({ taskId });
       }
     } catch {
       // surfaced by the board re-fetch.
@@ -835,7 +878,7 @@ function BuiltinPoolColumn({
         dropActive && canDrop ? 'border-accent ring-2 ring-accent' : 'border-status-emerald-border'
       }`}
       data-testid="builtin-pool-column"
-      data-plan-id={plan.id}
+      data-plan-id={pool.id}
       data-builtin="true"
       data-droppable={canDrop ? 'true' : 'false'}
       role="listitem"
@@ -861,6 +904,9 @@ function BuiltinPoolColumn({
         <p className="mt-0.5 text-[0.625rem] leading-tight text-text-muted" data-testid="builtin-pool-subtitle">
           {t('plan.board.pool.subtitle')}
         </p>
+        <p className="mt-1 font-mono text-[0.5625rem] uppercase tracking-wide text-text-muted">
+          {pool.scheduling_class} · cap {pool.holding_cap}
+        </p>
       </div>
       {shown.length === 0 ? (
         <p className="py-3 text-center text-[0.6875rem] text-text-muted" data-testid="builtin-pool-empty">
@@ -868,22 +914,17 @@ function BuiltinPoolColumn({
         </p>
       ) : (
         // task-0543ece9: all live pool nodes in a bounded scroll area (no cap).
-        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`pool-cards-${plan.id}`}>
-          {shown.map((node) => (
+        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`pool-cards-${pool.id}`}>
+          {shown.map((task) => (
             <PoolTaskCard
-              key={node.task_id}
+              key={task.id}
               projectId={projectId}
-              planId={plan.id}
-              node={node}
+              poolId={pool.id}
+              task={task}
               setDragSource={setDragSource}
             />
           ))}
         </div>
-      )}
-      {overflow > 0 && (
-        <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`pool-overflow-${plan.id}`}>
-          {t('plan.board.overflow', { count: overflow })}
-        </p>
       )}
     </div>
   );
@@ -892,19 +933,19 @@ function BuiltinPoolColumn({
 // PoolTaskCard — a single built-in-pool task card. Shows the ClaimableChip when
 // the node is claimable, alongside the task status chip + archive badge.
 // T121: the card is DRAGGABLE — the pool's task-set is freely editable, so a pool
-// task can be dragged out to the Backlog (REMOVE) or to another draft plan
+// task can be dragged out to the Backlog (REMOVE) or to another pending plan
 // (MOVE). It stamps its SOURCE plan (the pool id) into dataTransfer exactly like a
 // PlanTaskCard so the drop targets pick SELECT/MOVE/REMOVE correctly. The pool is
 // flat (no DAG), so there is no per-card remove button — drag is the affordance.
 function PoolTaskCard({
   projectId,
-  planId,
-  node,
+  poolId,
+  task,
   setDragSource,
 }: {
   projectId: string;
-  planId: string;
-  node: PlanNode;
+  poolId: string;
+  task: AssignmentPoolTask;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   // v2.10.1 [M5]: touch long-press drag (mouse keeps native HTML5 DnD).
@@ -913,33 +954,32 @@ function PoolTaskCard({
     <div
       className="mb-1.5 cursor-grab rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1 active:cursor-grabbing"
       data-testid="pool-task-card"
-      data-task-id={node.task_id}
+      data-task-id={task.id}
       data-draggable="true"
       draggable
-      onPointerDown={(e) => startLongPress?.(e, node.task_id, planId, node.title)}
+      onPointerDown={(e) => startLongPress?.(e, task.id, poolSource(poolId), task.title)}
       onDragStart={(e) => {
-        // Carry the task AND its SOURCE plan (the pool id) so a drop can MOVE /
-        // REMOVE — same race-proof dataTransfer stamps a PlanTaskCard uses.
-        setDragSource({ taskId: node.task_id, fromPlanId: planId });
-        e.dataTransfer.setData('text/plain', node.task_id);
-        e.dataTransfer.setData(FROM_PLAN_MIME, planId);
+        const source = poolSource(poolId);
+        setDragSource({ taskId: task.id, fromPlanId: source });
+        e.dataTransfer.setData('text/plain', task.id);
+        e.dataTransfer.setData(FROM_PLAN_MIME, source);
         e.dataTransfer.effectAllowed = 'move';
       }}
       onDragEnd={() => setDragSource(null)}
     >
       <div className="mb-1 flex items-center gap-1">
-        <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
+        <TaskIdTag taskId={task.id} orgRef={task.org_ref} />
       </div>
       <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
-        <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
+        <TaskTitleLink projectId={projectId} taskId={task.id} title={task.title} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <AssigneeBadge assignee={node.assignee_ref} />
+        <AssigneeBadge assignee={task.assignee} />
         <span className="inline-flex items-center gap-1">
-          <StarvedBadge starved={node.starved} taskId={node.task_id} />
-          <ClaimableChip claimable={node.claimable} taskId={node.task_id} />
-          <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
-          <StatusChip status={node.task_status} />
+          <ClaimableChip claimable={task.claimable} taskId={task.id} />
+          <StarvedBadge starved={task.starved} taskId={task.id} />
+          <TaskArchivedBadge archived={task.archived} taskId={task.id} />
+          <StatusChip status={task.status} />
         </span>
       </div>
     </div>
@@ -968,7 +1008,7 @@ function TaskIdTag({ taskId, orgRef }: { taskId: string; orgRef?: string }): Rea
 // PlanColumn — one column per Plan. Header = name + status chip + Open ▸ link;
 // sub-header = progress + has_failed. Cards = the Plan's nodes_preview (capped 4
 // by the backend, no add-button), with an "…and M more" overflow from node_count.
-// A DRAFT column is a valid HTML5 drop target (select-into-plan); a running/done
+// A PENDING column is a valid HTML5 drop target (select-into-plan); a running/done
 // column is NOT (§9.4) — it rejects the drop + never highlights.
 //
 // DEFENSIVE DEFAULTS (resilience): every enriched field is read through a guard
@@ -997,8 +1037,9 @@ function PlanColumn({
   // plan; the source plan is only known at drop time → the any-plan variants.
   const addAny = useAddTaskToAnyPlan(projectId);
   const removeAny = useRemoveTaskFromAnyPlan(projectId);
+  const removePool = useRemoveTaskFromAssignmentPool(projectId);
   const [dropActive, setDropActive] = useState(false);
-  const isDraft = plan.status === 'draft';
+  const isPending = plan.status === 'pending';
   const dragTaskId = dragSource?.taskId ?? null;
   // Defensive reads — see the DEFENSIVE DEFAULTS note above.
   const progress = plan.progress ?? { done: 0, total: 0 };
@@ -1009,19 +1050,19 @@ function PlanColumn({
   const shown = preview;
   const overflow = nodeCount - shown.length > 0 ? nodeCount - shown.length : 0;
 
-  // A drop is valid only on a draft column while a task is being dragged.
-  const canDrop = isDraft && dragTaskId !== null;
+  // A drop is valid only on a pending column while a task is being dragged.
+  const canDrop = isPending && dragTaskId !== null;
   // T121 locked state: a running / done (terminal) plan's task-set is frozen — its
   // cards can't be dragged out and it can't be a drop target. `dropBlocked` is the
   // in-drag feedback: a drag is in flight but THIS column rejects it (so we show a
   // no-drop affordance + the reason instead of silently doing nothing).
-  const locked = !isDraft;
+  const locked = !isPending;
   const dropBlocked = locked && dragTaskId !== null;
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDropActive(false);
-    if (!isDraft) return; // running/done columns reject the drop (§9.4).
+    if (!isPending) return;
     // Read the source race-proof from dataTransfer (set on dragStart), state as
     // fallback — same source-of-truth the Backlog REMOVE uses, so MOVE/REMOVE
     // are consistent and neither waits on a state commit.
@@ -1031,14 +1072,17 @@ function PlanColumn({
     const fromPlanId = src?.fromPlanId ?? null;
     try {
       if (fromPlanId === null) {
-        // From the Backlog → SELECT into this draft plan (EXISTING behavior).
+        // From the Backlog → SELECT into this pending plan (EXISTING behavior).
         await add.mutateAsync({ task_id: taskId });
       } else if (fromPlanId === plan.id) {
         // Dropped back onto its own plan → no-op (don't fire mutations).
         return;
+      } else if (isPoolSource(fromPlanId)) {
+        await removePool.mutateAsync(taskId);
+        await addAny.mutateAsync({ planId: plan.id, taskId });
       } else {
-        // From ANOTHER draft plan → MOVE = remove from source THEN add to this
-        // plan. Remove first (the source was draft, so it's allowed §9.4), then
+        // From ANOTHER pending plan → MOVE = remove from source THEN add to this
+        // plan. Remove first (the source was pending, so it's allowed §9.4), then
         // add to the target. Both invalidate; the task ends in this plan. The
         // backend ops are idempotent + INSERT-OR-IGNORE — we fire each once.
         await removeAny.mutateAsync({ planId: fromPlanId, taskId });
@@ -1061,7 +1105,7 @@ function PlanColumn({
       data-testid="plan-column"
       data-plan-id={plan.id}
       data-status={plan.status}
-      data-droppable={isDraft ? 'true' : 'false'}
+      data-droppable={isPending ? 'true' : 'false'}
       data-locked={locked ? 'true' : 'false'}
       // T121: hovering a locked column (always) / dragging over it explains why it
       // won't accept tasks — the reason tooltip the owner asked for.
@@ -1118,7 +1162,7 @@ function PlanColumn({
       </div>
       <div className="flex items-center gap-1.5 px-0.5 pb-2 pt-0.5">
         <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="plan-progress">
-          {plan.status === 'draft' ? t('plan.board.phase.planning') : t('plan.board.phase.inProgress')} · {planProgressLabel(progress)}
+          {plan.status === 'pending' ? t('plan.board.phase.planning') : t('plan.board.phase.inProgress')} · {planProgressLabel(progress)}
         </span>
         {/* P2-4: a running plan self-progresses (auto-advance). Compact suffix. */}
         {plan.status === 'running' && <AutoAdvancingIndicator variant="column" />}
@@ -1141,11 +1185,11 @@ function PlanColumn({
               planId={plan.id}
               node={node}
               // §9.4: removing a task from a Plan is a PLANNING action — only a
-              // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
+              // PENDING Plan exposes the remove affordance (mirrors add-to-plan /
               // the A1 edge editor). running/done columns render NO remove control.
-              // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
-              // are draggable (the source must be draft so MOVE/REMOVE is allowed).
-              canRemove={isDraft}
+              // A7: canRemove (= isPending) ALSO gates drag — only pending-plan cards
+              // are draggable (the source must be pending so MOVE/REMOVE is allowed).
+              canRemove={isPending}
               lockReason={locked ? planLockReason(plan.status, t) : undefined}
               setDragSource={setDragSource}
             />
@@ -1164,7 +1208,7 @@ function PlanColumn({
   );
 }
 
-// PlanTaskCard — a single Plan-column task card (from nodes_preview). A DRAFT
+// PlanTaskCard — a single Plan-column task card (from nodes_preview). A PENDING
 // Plan exposes a keyboard-accessible "Remove from plan" affordance per card
 // (§9.4 planning-only); on success the task returns to the Backlog (the board's
 // query invalidation refetches both the Plan list + the unplanned set). A
@@ -1184,17 +1228,17 @@ function PlanTaskCard({
   canRemove: boolean;
   // T121: when the plan is locked (running / terminal) this is the human reason its
   // tasks can't be moved — shown as the card's locked-state tooltip. undefined ⟺
-  // a draft (editable) plan, where the card is draggable + shows the remove button.
+  // a pending (editable) plan, where the card is draggable + shows the remove button.
   lockReason?: string;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const remove = useRemoveTaskFromPlan(projectId, planId);
-  // A7: a Plan-task card is draggable ONLY when its plan is draft (canRemove ==
-  // isDraft) — moving it out runs RemoveTaskFromPlan on the source, which the
-  // backend allows only for a draft plan (§9.4). running/done cards: no drag.
+  // A7: a Plan-task card is draggable ONLY when its plan is pending (canRemove ==
+  // isPending) — moving it out runs RemoveTaskFromPlan on the source, which the
+  // backend allows only for a pending plan (§9.4). running/done cards: no drag.
   const draggable = canRemove;
-  // v2.10.1 [M5]: touch long-press drag (draft cards only; mouse keeps HTML5 DnD).
+  // v2.10.1 [M5]: touch long-press drag (pending cards only; mouse keeps HTML5 DnD).
   const startLongPress = useContext(BoardTouchDragContext);
   return (
     <div

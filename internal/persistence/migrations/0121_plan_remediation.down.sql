@@ -1,0 +1,14 @@
+ALTER TABLE pm_tasks DROP COLUMN origin_verdict_id;
+ALTER TABLE pm_tasks DROP COLUMN follows_task_id;
+ALTER TABLE pm_stages DROP COLUMN topology_fingerprint;
+ALTER TABLE pm_stages DROP COLUMN acceptance_contract;
+ALTER TABLE pm_stages DROP COLUMN generation;
+ALTER TABLE pm_stages DROP COLUMN continuation_id;
+ALTER TABLE pm_stages DROP COLUMN origin_verdict_id;
+DROP TABLE IF EXISTS pm_plan_topology_outbox;
+DROP INDEX IF EXISTS idx_pm_remediation_proposals_continuation;
+DROP TABLE IF EXISTS pm_remediation_proposals;
+DROP INDEX IF EXISTS idx_pm_plan_continuations_plan;
+DROP TABLE IF EXISTS pm_plan_continuations;
+DROP INDEX IF EXISTS idx_pm_gate_verdicts_plan;
+DROP TABLE IF EXISTS pm_gate_verdicts;

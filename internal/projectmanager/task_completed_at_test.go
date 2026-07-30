@@ -6,10 +6,8 @@ import (
 )
 
 // T570 follow-up: completed_at is the authoritative completion timestamp — set
-// when a task ENTERS completed, CLEARED on any transition out of it (reopen), and
-// re-stamped on a later re-complete. Distinct from status_changed_at (which moves
-// on every status change).
-func TestTask_CompletedAt_SetOnComplete_ClearedOnReopen(t *testing.T) {
+// when a task ENTERS completed and remains stable because completion is immutable.
+func TestTask_CompletedAt_SetOnComplete_PreservedByRejectedReopen(t *testing.T) {
 	tk := newTask(t) // open; never completed
 	if !tk.CompletedAt().IsZero() {
 		t.Fatalf("new task completed_at = %v, want zero", tk.CompletedAt())
@@ -32,21 +30,14 @@ func TestTask_CompletedAt_SetOnComplete_ClearedOnReopen(t *testing.T) {
 		t.Fatalf("completed_at = %v, want %v", tk.CompletedAt(), completeAt.UTC())
 	}
 
-	// completed → reopened: RESET (a reopened task no longer advertises completion).
-	if err := tk.SetStatus(TaskReopened, t0.Add(3*time.Hour)); err != nil {
-		t.Fatal(err)
+	// completed cannot be rewritten to reopened; timestamp and status stay intact.
+	if err := tk.SetStatus(TaskStatus("reopened"), t0.Add(3*time.Hour)); err != nil {
+		if err != ErrTaskReopenRetired {
+			t.Fatalf("SetStatus(reopened) = %v want ErrTaskReopenRetired", err)
+		}
 	}
-	if !tk.CompletedAt().IsZero() {
-		t.Fatalf("after reopen completed_at = %v, want zero (reset)", tk.CompletedAt())
-	}
-
-	// re-complete: a fresh timestamp, not the old one.
-	completeAt2 := t0.Add(5 * time.Hour)
-	if err := tk.SetStatus(TaskCompleted, completeAt2); err != nil {
-		t.Fatal(err)
-	}
-	if !tk.CompletedAt().Equal(completeAt2.UTC()) {
-		t.Fatalf("re-complete completed_at = %v, want %v", tk.CompletedAt(), completeAt2.UTC())
+	if tk.Status() != TaskCompleted || !tk.CompletedAt().Equal(completeAt.UTC()) {
+		t.Fatalf("rejected reopen mutated completion: status=%s completed_at=%v", tk.Status(), tk.CompletedAt())
 	}
 }
 

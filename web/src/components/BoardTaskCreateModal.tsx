@@ -2,16 +2,21 @@
 // destination. Unlike the plain TaskCreateModal (which always lands a task in the
 // Backlog), the Work Board needs to route the new task to one of three places:
 //   • Backlog          — unscheduled, unplanned (the default; useCreateTask only).
-//   • Assignment Pool  — the built-in claimable pool (is_builtin plan).
-//   • a specific Plan  — a DRAFT structured plan (§9.4 select-into-plan is
-//                        draft-only; running/done plans can't accept new tasks).
+//   • Assignment Pool  — the first-class low-priority claimable pool.
+//   • a specific Plan  — a pending structured plan
+//                        pending-only; running/done plans can't accept new tasks).
 // It creates the task (always a backlog task first), then — for a non-Backlog
 // destination — selects it into the target plan via the same add endpoint the
 // board's drag-and-drop uses, so the board refetch converges identically.
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCreateTask } from '@/api/tasks';
-import { useAddTaskToAnyPlan, type Plan } from '@/api/plans';
+import {
+  useAddTaskToAnyPlan,
+  useAddTaskToAssignmentPool,
+  type AssignmentPool,
+  type Plan,
+} from '@/api/plans';
 import { useModalA11y } from './useModalA11y';
 import { CapabilitiesEditor } from './CapabilitiesEditor';
 
@@ -19,6 +24,7 @@ interface Props {
   projectId: string;
   /** The board's plans (from usePlans) — drives the destination options. */
   plans: Plan[] | undefined;
+  assignmentPool?: AssignmentPool;
   onClose: () => void;
   onCreated?: (taskId: string) => void;
 }
@@ -29,6 +35,7 @@ const BACKLOG = 'backlog';
 export function BoardTaskCreateModal({
   projectId,
   plans,
+  assignmentPool,
   onClose,
   onCreated,
 }: Props): React.ReactElement {
@@ -39,22 +46,19 @@ export function BoardTaskCreateModal({
   const [destination, setDestination] = useState<string>(BACKLOG);
   const create = useCreateTask(projectId);
   const addToPlan = useAddTaskToAnyPlan(projectId);
+  const addToPool = useAddTaskToAssignmentPool(projectId);
   // a11y: Escape closes + focus-trap (rendered = open).
   const containerRef = useModalA11y({ open: true, onClose });
 
-  // The built-in Assignment Pool (exactly one is_builtin plan, if present) and
-  // the DRAFT structured plans — the only plans that accept a freshly-created
-  // task (running/done plans reject select-into-plan, §9.4).
-  const pool = useMemo(() => (plans ?? []).find((p) => p.is_builtin === true) ?? null, [plans]);
-  const draftPlans = useMemo(
-    () => (plans ?? []).filter((p) => p.is_builtin !== true && p.status === 'draft'),
+  const pendingPlans = useMemo(
+    () => (plans ?? []).filter((p) => p.is_builtin !== true && p.status === 'pending'),
     [plans],
   );
 
-  const pending = create.isPending || addToPlan.isPending;
+  const pending = create.isPending || addToPlan.isPending || addToPool.isPending;
   const trimmedTitle = title.trim();
   const canSubmit = trimmedTitle.length > 0 && !pending;
-  const error = (create.error ?? addToPlan.error) as Error | null;
+  const error = (create.error ?? addToPlan.error ?? addToPool.error) as Error | null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +71,9 @@ export function BoardTaskCreateModal({
         required_capabilities: requiredCaps.length > 0 ? requiredCaps : undefined,
       });
       // … then route it to the chosen plan/pool when not staying in the Backlog.
-      if (destination !== BACKLOG) {
+      if (destination === 'assignment-pool') {
+        await addToPool.mutateAsync({ taskId: res.id });
+      } else if (destination !== BACKLOG) {
         await addToPlan.mutateAsync({ planId: destination, taskId: res.id });
       }
       onCreated?.(res.id);
@@ -148,14 +154,14 @@ export function BoardTaskCreateModal({
             onChange={(e) => setDestination(e.target.value)}
           >
             <option value={BACKLOG}>{t('task.create.destinationBacklog')}</option>
-            {pool && (
-              <option value={pool.id} data-testid="board-task-create-dest-pool">
+            {assignmentPool && (
+              <option value="assignment-pool" data-testid="board-task-create-dest-pool">
                 {t('task.create.destinationPool')}
               </option>
             )}
-            {draftPlans.length > 0 && (
+            {pendingPlans.length > 0 && (
               <optgroup label={t('task.create.destinationPlansGroup')}>
-                {draftPlans.map((p) => (
+                {pendingPlans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>

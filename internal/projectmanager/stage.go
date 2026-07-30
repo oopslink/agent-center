@@ -41,9 +41,15 @@ type Stage struct {
 	// unlimited is intentionally NOT used — a stage is a CLOSED barrier (§5 卡死升级),
 	// so an unset max_rounds falls back to DefaultStageMaxRounds at build time.
 	maxRounds int
-	createdAt time.Time
-	updatedAt time.Time
-	version   int
+	// Append-only remediation provenance. Base stages leave these empty/zero.
+	originVerdictID     GateVerdictID
+	continuationID      ContinuationID
+	generation          int
+	acceptanceContract  string
+	topologyFingerprint string
+	createdAt           time.Time
+	updatedAt           time.Time
+	version             int
 }
 
 // StageGateReopenRequest is the durable idempotency/audit boundary for the
@@ -85,7 +91,7 @@ func DefaultHumanGateSpec(assignee IdentityRef) GateSpec {
 		AssigneeRef:        assignee,
 		AcceptanceContract: "Review the stage deliverables and record evidence against the acceptance criteria.",
 		PassRoute:          "downstream",
-		RejectRoute:        "reopen_stage",
+		RejectRoute:        "append_remediation",
 		ExhaustedRoute:     "escalate",
 	}
 }
@@ -100,7 +106,7 @@ func (g GateSpec) Validate() error {
 	if strings.TrimSpace(g.AcceptanceContract) == "" {
 		return ErrMissingGateContract
 	}
-	if g.PassRoute != "downstream" || g.RejectRoute != "reopen_stage" || g.ExhaustedRoute != "escalate" {
+	if g.PassRoute != "downstream" || g.RejectRoute != "append_remediation" || g.ExhaustedRoute != "escalate" {
 		return ErrInvalidGateRoute
 	}
 	return nil
@@ -113,14 +119,19 @@ const DefaultStageMaxRounds = 3
 
 // NewStageInput captures constructor args.
 type NewStageInput struct {
-	ID              StageID
-	PlanID          PlanID
-	Name            string
-	DependsOnStages []StageID
-	MaxRounds       int // 0 ⇒ DefaultStageMaxRounds
-	GateTaskID      TaskID
-	GateSpec        GateSpec
-	CreatedAt       time.Time
+	ID                  StageID
+	PlanID              PlanID
+	Name                string
+	DependsOnStages     []StageID
+	MaxRounds           int // 0 ⇒ DefaultStageMaxRounds
+	GateTaskID          TaskID
+	GateSpec            GateSpec
+	OriginVerdictID     GateVerdictID
+	ContinuationID      ContinuationID
+	Generation          int
+	AcceptanceContract  string
+	TopologyFingerprint string
+	CreatedAt           time.Time
 }
 
 // NewStage constructs a fresh Stage. A Stage must belong to a Plan and carry a name
@@ -150,32 +161,42 @@ func NewStage(in NewStageInput) (*Stage, error) {
 		return nil, err
 	}
 	return &Stage{
-		id:              in.ID,
-		planID:          in.PlanID,
-		name:            in.Name,
-		dependsOnStages: deps,
-		maxRounds:       maxRounds,
-		gateTaskID:      in.GateTaskID,
-		gateSpec:        in.GateSpec,
-		createdAt:       at.UTC(),
-		updatedAt:       at.UTC(),
-		version:         1,
+		id:                  in.ID,
+		planID:              in.PlanID,
+		name:                in.Name,
+		dependsOnStages:     deps,
+		maxRounds:           maxRounds,
+		gateTaskID:          in.GateTaskID,
+		gateSpec:            in.GateSpec,
+		originVerdictID:     in.OriginVerdictID,
+		continuationID:      in.ContinuationID,
+		generation:          in.Generation,
+		acceptanceContract:  strings.TrimSpace(in.AcceptanceContract),
+		topologyFingerprint: strings.TrimSpace(in.TopologyFingerprint),
+		createdAt:           at.UTC(),
+		updatedAt:           at.UTC(),
+		version:             1,
 	}, nil
 }
 
 // RehydrateStageInput is for persistence round-trip.
 type RehydrateStageInput struct {
-	ID              StageID
-	PlanID          PlanID
-	Name            string
-	DependsOnStages []StageID
-	GateNodeID      string
-	MaxRounds       int
-	GateTaskID      TaskID
-	GateSpec        GateSpec
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	Version         int
+	ID                  StageID
+	PlanID              PlanID
+	Name                string
+	DependsOnStages     []StageID
+	GateNodeID          string
+	MaxRounds           int
+	GateTaskID          TaskID
+	GateSpec            GateSpec
+	OriginVerdictID     GateVerdictID
+	ContinuationID      ContinuationID
+	Generation          int
+	AcceptanceContract  string
+	TopologyFingerprint string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	Version             int
 }
 
 // RehydrateStage reconstructs a Stage from stored fields without invariant checks
@@ -187,17 +208,22 @@ func RehydrateStage(in RehydrateStageInput) (*Stage, error) {
 	deps := make([]StageID, len(in.DependsOnStages))
 	copy(deps, in.DependsOnStages)
 	return &Stage{
-		id:              in.ID,
-		planID:          in.PlanID,
-		name:            in.Name,
-		dependsOnStages: deps,
-		gateNodeID:      in.GateNodeID,
-		maxRounds:       in.MaxRounds,
-		gateTaskID:      in.GateTaskID,
-		gateSpec:        in.GateSpec,
-		createdAt:       in.CreatedAt.UTC(),
-		updatedAt:       in.UpdatedAt.UTC(),
-		version:         in.Version,
+		id:                  in.ID,
+		planID:              in.PlanID,
+		name:                in.Name,
+		dependsOnStages:     deps,
+		gateNodeID:          in.GateNodeID,
+		maxRounds:           in.MaxRounds,
+		gateTaskID:          in.GateTaskID,
+		gateSpec:            in.GateSpec,
+		originVerdictID:     in.OriginVerdictID,
+		continuationID:      in.ContinuationID,
+		generation:          in.Generation,
+		acceptanceContract:  in.AcceptanceContract,
+		topologyFingerprint: in.TopologyFingerprint,
+		createdAt:           in.CreatedAt.UTC(),
+		updatedAt:           in.UpdatedAt.UTC(),
+		version:             in.Version,
 	}, nil
 }
 
@@ -231,16 +257,21 @@ func normalizeStageDeps(self StageID, deps []StageID) ([]StageID, error) {
 }
 
 // Getters.
-func (s *Stage) ID() StageID          { return s.id }
-func (s *Stage) PlanID() PlanID       { return s.planID }
-func (s *Stage) Name() string         { return s.name }
-func (s *Stage) GateNodeID() string   { return s.gateNodeID }
-func (s *Stage) GateTaskID() TaskID   { return s.gateTaskID }
-func (s *Stage) GateSpec() GateSpec   { return s.gateSpec }
-func (s *Stage) MaxRounds() int       { return s.maxRounds }
-func (s *Stage) CreatedAt() time.Time { return s.createdAt }
-func (s *Stage) UpdatedAt() time.Time { return s.updatedAt }
-func (s *Stage) Version() int         { return s.version }
+func (s *Stage) ID() StageID                    { return s.id }
+func (s *Stage) PlanID() PlanID                 { return s.planID }
+func (s *Stage) Name() string                   { return s.name }
+func (s *Stage) GateNodeID() string             { return s.gateNodeID }
+func (s *Stage) GateTaskID() TaskID             { return s.gateTaskID }
+func (s *Stage) GateSpec() GateSpec             { return s.gateSpec }
+func (s *Stage) MaxRounds() int                 { return s.maxRounds }
+func (s *Stage) CreatedAt() time.Time           { return s.createdAt }
+func (s *Stage) UpdatedAt() time.Time           { return s.updatedAt }
+func (s *Stage) Version() int                   { return s.version }
+func (s *Stage) OriginVerdictID() GateVerdictID { return s.originVerdictID }
+func (s *Stage) ContinuationID() ContinuationID { return s.continuationID }
+func (s *Stage) Generation() int                { return s.generation }
+func (s *Stage) AcceptanceContract() string     { return s.acceptanceContract }
+func (s *Stage) TopologyFingerprint() string    { return s.topologyFingerprint }
 
 // DependsOnStages returns a defensive copy of the outer stage DAG's upstream edges.
 func (s *Stage) DependsOnStages() []StageID {

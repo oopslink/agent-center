@@ -80,7 +80,7 @@ func TestCreatePlan_CreatesConversationAndBinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan should be persisted: %v", err)
 	}
-	if p.Status() != pm.PlanDraft {
+	if p.Status() != pm.PlanPending {
 		t.Fatalf("plan status = %s, want draft", p.Status())
 	}
 
@@ -323,7 +323,7 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 		t.Fatalf("select task in other plan = %v, want ErrTaskInOtherPlan", err)
 	}
 
-	// Plan not draft → ErrPlanNotDraft. Start the plan first (needs a task selected
+	// Plan not draft → ErrPlanNotPending. Start the plan first (needs a task selected
 	// so... Start has no validation here; just transition via the AR through repo).
 	p, _ := plans.FindByID(ctx, planID)
 	if err := p.Start(svc.clock.Now()); err != nil {
@@ -333,8 +333,8 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 		t.Fatal(err)
 	}
 	freshTask, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "fresh", CreatedBy: "user:a"})
-	if err := svc.SelectTaskIntoPlan(ctx, planID, freshTask, "user:a"); !errors.Is(err, pm.ErrPlanNotDraft) {
-		t.Fatalf("select into running plan = %v, want ErrPlanNotDraft", err)
+	if err := svc.SelectTaskIntoPlan(ctx, planID, freshTask, "user:a"); !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("select into running plan = %v, want ErrPlanNotPending", err)
 	}
 }
 
@@ -359,8 +359,8 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	if err := plans.Update(ctx, p); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNotDraft) {
-		t.Fatalf("remove from running plan = %v, want ErrPlanNotDraft", err)
+	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("remove from running plan = %v, want ErrPlanNotPending", err)
 	}
 }
 
@@ -377,7 +377,7 @@ func TestRemoveTaskFromPlan_BuiltinPool_OK(t *testing.T) {
 	if pool == nil {
 		t.Fatal("project should have a built-in pool")
 	}
-	if pool.Status() == pm.PlanDraft {
+	if pool.Status() == pm.PlanPending {
 		t.Fatalf("built-in pool should be always-running, got status %v", pool.Status())
 	}
 	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})

@@ -1,5 +1,7 @@
 # Plan 运行中追加式动态拓扑编辑（Live Topology Edit）
 
+> **Superseded note**：已 dispatch/terminal 边界的编辑语义已由 [ADR-0055](../decisions/0055-monotonic-plan-lifecycle-and-remediation-stages.md) 取代。运行时只能在未 dispatch 的 Continuation boundary 追加，不能改写已发生历史。
+
 - **Status**: Proposed（设计基线）
 - **Issue**: issue-00995bf5
 - **Date**: 2026-07-05

@@ -148,8 +148,8 @@ func TestIssueDerivedDone_NoEmitForUnlinkedTask(t *testing.T) {
 }
 
 // Re-arm: after the set is all-terminal (one emit), a NEW derived task is non-terminal
-// again; concluding it fires a fresh emit. And re-setting an already-terminal task does
-// NOT emit (terminal→terminal is not a fresh conclusion).
+// again; concluding it fires a fresh emit. Rewriting an already-terminal task is
+// rejected and does not emit.
 func TestIssueDerivedDone_ReArmsOnNewTask(t *testing.T) {
 	svc, ob, ctx := idoneSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:owner"})
@@ -163,12 +163,11 @@ func TestIssueDerivedDone_ReArmsOnNewTask(t *testing.T) {
 		t.Fatalf("first fill must emit once, got %d", len(got))
 	}
 
-	// Re-set the already-completed task to discarded (terminal→terminal) → no new emit.
-	if err := svc.SetTaskStatus(ctx, t1, pm.TaskDiscarded, "user:owner"); err != nil {
-		t.Fatal(err)
+	if err := svc.SetTaskStatus(ctx, t1, pm.TaskDiscarded, "user:owner"); err != pm.ErrIllegalTransition {
+		t.Fatalf("completed→discarded = %v want ErrIllegalTransition", err)
 	}
 	if got := derivedDoneEvents(t, ob, ctx); len(got) != 1 {
-		t.Fatalf("a terminal→terminal re-set must not re-emit, got %d", len(got))
+		t.Fatalf("a rejected terminal rewrite must not re-emit, got %d", len(got))
 	}
 
 	// Add a NEW derived task (non-terminal) then conclude it → a fresh emit (re-armed).

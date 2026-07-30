@@ -21,11 +21,15 @@ import (
 
 // Typed identifiers (conventions § 0.3).
 type (
-	ProjectID string
-	IssueID   string
-	TaskID    string
-	MemberID  string
-	PlanID    string
+	ProjectID             string
+	IssueID               string
+	TaskID                string
+	MemberID              string
+	PlanID                string
+	AssignmentPoolID      string
+	GateVerdictID         string
+	ContinuationID        string
+	RemediationProposalID string
 	// StageID identifies a Plan Stage (2026-07-03 plan-stage-model design §4.1): a
 	// lightweight first-class sub-DAG grouping of a plan's nodes with a barrier + an
 	// optional acceptance gate.
@@ -35,13 +39,17 @@ type (
 	IdentityRef string
 )
 
-func (id ProjectID) String() string  { return string(id) }
-func (id IssueID) String() string    { return string(id) }
-func (id TaskID) String() string     { return string(id) }
-func (id MemberID) String() string   { return string(id) }
-func (id PlanID) String() string     { return string(id) }
-func (id StageID) String() string    { return string(id) }
-func (r IdentityRef) String() string { return string(r) }
+func (id ProjectID) String() string             { return string(id) }
+func (id IssueID) String() string               { return string(id) }
+func (id TaskID) String() string                { return string(id) }
+func (id MemberID) String() string              { return string(id) }
+func (id PlanID) String() string                { return string(id) }
+func (id AssignmentPoolID) String() string      { return string(id) }
+func (id GateVerdictID) String() string         { return string(id) }
+func (id ContinuationID) String() string        { return string(id) }
+func (id RemediationProposalID) String() string { return string(id) }
+func (id StageID) String() string               { return string(id) }
+func (r IdentityRef) String() string            { return string(r) }
 
 // Validate enforces the kind-prefixed identity vocabulary (ADR-0033).
 func (r IdentityRef) Validate() error {
@@ -190,7 +198,9 @@ var (
 	ErrInvalidEdgeKind       = errors.New("projectmanager: invalid edge kind (want seq/conditional/loopback)")
 	ErrIllegalPlanTransition = errors.New("projectmanager: illegal plan status transition")
 	ErrInvalidPlanStatus     = errors.New("projectmanager: invalid plan status")
-	ErrPlanNotDraft          = errors.New("projectmanager: plan dependencies/tasks editable only in draft")
+	ErrPlanNotPending        = errors.New("projectmanager: plan dependencies/tasks editable only while pending")
+	ErrPlanNotPaused         = errors.New("projectmanager: plan is not paused")
+	ErrPlanNotTerminal       = errors.New("projectmanager: plan must be done or discarded")
 	ErrPlanNotFound          = errors.New("projectmanager: plan not found")
 	ErrPlanExists            = errors.New("projectmanager: plan already exists")
 	// ErrTaskInOtherPlan rejects selecting a task into a Plan when it already
@@ -205,6 +215,7 @@ var (
 	// ErrTaskAlreadyClaimed — a concurrent claim won the race (the task already has
 	// an assignee). Idempotent-readable, not a hard failure (T83 §3.3).
 	ErrTaskAlreadyClaimed = errors.New("projectmanager: task already claimed by another agent")
+	ErrTaskReopenRetired  = errors.New("projectmanager: reopening terminal tasks is retired; create a follow-up task or remediation stage")
 	// ErrPoolClaimLimitReached — the agent already holds the max concurrent claimed
 	// pool tasks (T83 §3.6, default N=3). Does not affect structured-plan nodes.
 	ErrPoolClaimLimitReached = errors.New("projectmanager: pool claim limit reached")
@@ -282,12 +293,9 @@ var (
 	// class. The Archive operation itself is NOT guarded (it is the transition into
 	// this terminal state).
 	ErrProjectArchived = errors.New("projectmanager: project is archived")
-	// ErrPlanHasRunningTasks rejects archiving a plan that still has a member task
-	// in the running state (v2.9 #299, @oopslink): after stop, a draft plan may
-	// still have an in-flight running task, and archiving would orphan it. Archive
-	// requires no running member task (maps to 409). Distinct from ErrPlanRunning
-	// (which guards the PLAN's own running status).
-	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — complete or stop them before archiving")
+	// Compatibility error for legacy archival paths that encounter an inconsistent
+	// active member. Canonical archive already requires a terminal Plan.
+	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — finish or discard it before archiving")
 	// Plan Shared Findings (v2.10, ADR-0053 — DeLM shared verified context).
 	ErrPlanFindingNotFound = errors.New("projectmanager: plan finding not found")
 	ErrPlanFindingNoPlan   = errors.New("projectmanager: plan finding requires a plan_id")
@@ -352,5 +360,5 @@ var (
 	ErrUnsupportedGateEvaluator = errors.New("unsupported_gate_evaluator: only human stage gates are executable")
 	ErrMissingGateAssignee      = errors.New("missing_gate_assignee: human gate requires assignee_ref or role_ref")
 	ErrMissingGateContract      = errors.New("missing_gate_contract: human gate requires a non-empty acceptance_contract")
-	ErrInvalidGateRoute         = errors.New("invalid_gate_route: supported routes are pass=downstream, reject=reopen_stage, exhausted=escalate")
+	ErrInvalidGateRoute         = errors.New("invalid_gate_route: supported routes are pass=downstream, reject=append_remediation, exhausted=escalate")
 )

@@ -81,6 +81,11 @@ const (
 	EvtPlanCompleted = "pm.plan.completed"
 	EvtPlanStopped   = "pm.plan.stopped"
 	EvtPlanFailed    = "pm.plan.failed"
+	// ADR-0055 append-only remediation facts. Both events are written through the
+	// local outbox in the same transaction as their corresponding ledger/topology
+	// commit so replay can reconcile without process-local callbacks.
+	EvtStageGateVerdictRecorded = "pm.stage_gate.verdict_recorded"
+	EvtRemediationStageAppended = "pm.remediation_stage.appended"
 	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1). Emitted by the
 	// PlanOrchestratorProjector's notifyCreatorOnFailure — IN THE SAME TX as the
 	// failure @mention PostMention — ONLY when the Plan creator is an AGENT
@@ -281,6 +286,14 @@ type Service struct {
 	// create_stage / add_task_to_plan(stage) author stages and buildStages lays them
 	// onto the graph as gate + barrier nodes/edges.
 	stages pm.StageRepository
+	// pools is the ADR-0055 AssignmentPool repository. When wired it is the
+	// authoritative pull-queue membership; nil retains the legacy builtin-Plan
+	// adapter for rolling upgrades and older test constructions.
+	pools pm.AssignmentPoolRepository
+	// remediation is the ADR-0055 immutable verdict/continuation/proposal ledger.
+	// When nil, stage-pass remains available through the legacy driver but reject
+	// cannot create incremental topology.
+	remediation pm.RemediationRepository
 
 	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
 	// on_timeout action assigned during the reconcile materialize and consumed by the
@@ -393,7 +406,9 @@ type Deps struct {
 	// Stages is OPTIONAL (2026-07-03 plan-stage-model): when set, the Stage AppServices
 	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
 	// is inert (pure-node DAG, §8 zero-regression).
-	Stages pm.StageRepository
+	Stages          pm.StageRepository
+	AssignmentPools pm.AssignmentPoolRepository
+	Remediation     pm.RemediationRepository
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
 	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
@@ -439,6 +454,8 @@ func New(d Deps) *Service {
 		autoAssignSettings: d.AutoAssignSettings,
 		orch:               orchSvc,
 		stages:             d.Stages,
+		pools:              d.AssignmentPools,
+		remediation:        d.Remediation,
 		deadlinePolicy:     d.DeadlinePolicy,
 		timeoutSink:        d.TimeoutSink,
 		liveExecutors:      d.LiveExecutors,

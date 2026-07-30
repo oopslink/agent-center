@@ -206,11 +206,9 @@ func TestEnsureTaskRunnable_RunningPoolTask_OK(t *testing.T) {
 	}
 }
 
-// A reopened task is re-dispatchable and must appear in the agent-facing runnable
-// queue. Regression: ListRunnableAgentTasks used an open/running allow-list, so a
-// re-opened task could be startable by state machine but invisible to the agent and
-// to wake-sweep fallback.
-func TestListRunnableAgentTasks_ReopenedPoolTask_Included(t *testing.T) {
+// A completed pool task stays terminal: a retired reopen attempt cannot make it
+// visible in the runnable queue.
+func TestListRunnableAgentTasks_CompletedPoolTaskCannotReopen(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, tid := dispatchedPoolTask(t, h, "org-reopen", "P")
 	const assignee = pm.IdentityRef("agent:m1")
@@ -221,15 +219,15 @@ func TestListRunnableAgentTasks_ReopenedPoolTask_Included(t *testing.T) {
 	if err := h.svc.SetTaskStatus(h.ctx, tid, pm.TaskCompleted, assignee); err != nil {
 		t.Fatalf("SetTaskStatus(completed): %v", err)
 	}
-	if err := h.svc.SetTaskStatus(h.ctx, tid, pm.TaskReopened, "user:a"); err != nil {
-		t.Fatalf("SetTaskStatus(reopened): %v", err)
+	if err := h.svc.SetTaskStatus(h.ctx, tid, pm.TaskStatus("reopened"), "user:a"); err != pm.ErrTaskReopenRetired {
+		t.Fatalf("SetTaskStatus(reopened) = %v want ErrTaskReopenRetired", err)
 	}
 
 	got, err := h.svc.ListRunnableAgentTasks(h.ctx, assignee)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID() != tid || got[0].Status() != pm.TaskReopened {
-		t.Fatalf("ListRunnableAgentTasks = %+v, want reopened %s", got, tid)
+	if len(got) != 0 {
+		t.Fatalf("ListRunnableAgentTasks = %+v, want terminal task excluded", got)
 	}
 }

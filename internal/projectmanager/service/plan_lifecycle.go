@@ -34,7 +34,7 @@ type PlanDispatcher interface {
 	PostMention(ctx context.Context, conversationID, assigneeRef, content string) (messageID string, err error)
 }
 
-// StartPlan validates and moves a Plan draft→running (§9.6). Rejects unless:
+// StartPlan validates and moves a Plan pending→running (§9.6). Rejects unless:
 //
 //	(a) the DAG is acyclic (ValidateNoCycle over the plan's edges);
 //	(b) the Plan has ≥1 selected task;
@@ -121,7 +121,7 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 			}); err != nil {
 			return err
 		}
-		// audit §5: record the draft→running start.
+		// audit §5: record the pending→running start.
 		s.auditPlan(txCtx, p, pm.AuditPlanStarted, actor, map[string]any{"status": string(p.Status())})
 		return nil
 	})
@@ -389,7 +389,22 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		dispatched = append(dispatched, taskID)
 	}
 
-	// §9.1: a Plan is done iff EVERY node is done. Mark it here so a final
+	// An open Continuation is executable plan state even if a stale projection
+	// momentarily reports every task terminal. It must close on a later pass (or be
+	// explicitly discarded) before the Plan can become done.
+	if allDone && s.remediation != nil {
+		continuations, cerr := s.remediation.ListContinuationsByPlan(txCtx, p.ID())
+		if cerr != nil {
+			return nil, cerr
+		}
+		for _, continuation := range continuations {
+			if continuation.Status != pm.ContinuationClosed {
+				allDone = false
+				break
+			}
+		}
+	}
+	// §9.1: a Plan is done iff EVERY node is done and no continuation is open. Mark it here so a final
 	// advance (after the last task completes) transitions running→done.
 	if allDone {
 		if merr := p.MarkDone(now); merr != nil {
@@ -477,9 +492,9 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	return dispatched, nil
 }
 
-// StopPlan moves a running Plan back to draft (§9.4) so its DAG/tasks become
-// editable again. The actor must be a project member.
-func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+// PausePlan closes new dispatch while preserving the immutable execution history.
+// Only the Plan creator or a Project owner may change this control latch.
+func (s *Service) PausePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
@@ -489,20 +504,52 @@ func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.Ident
 		if err != nil {
 			return err
 		}
-		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
 			return err
 		}
-		if err := p.Stop(now); err != nil {
+		if err := p.Pause(now); err != nil {
 			return err
 		}
 		if err := s.plans.Update(txCtx, p); err != nil {
 			return err
 		}
-		// audit §5: record the running→draft stop (显式审计写 — no event on this path).
+		// The legacy stopped event remains a compatibility notification; its payload
+		// carries the new paused wire state.
 		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status())})
-		// reminder-event: emit pm.plan.stopped so on_event reminders watching this
-		// plan (event=stopped) are armed. Additive marker — no other consumer.
 		return s.emitPlanLifecycle(txCtx, p, EvtPlanStopped)
+	})
+}
+
+// StopPlan is the compatibility command name for PausePlan. It never returns the
+// Plan to pending and therefore never reopens topology authoring.
+func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	return s.PausePlan(ctx, planID, actor)
+}
+
+// ResumePlan reopens dispatch from the same frontier. The reconcile sweep (or the
+// caller's next AdvancePlan) performs dispatch, keeping this state change free of
+// cross-BC side effects.
+func (s *Service) ResumePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
+			return err
+		}
+		if err := p.Resume(now); err != nil {
+			return err
+		}
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanStarted, actor, map[string]any{"status": string(p.Status()), "resumed": true})
+		return s.emitPlanLifecycle(txCtx, p, EvtPlanStarted)
 	})
 }
 

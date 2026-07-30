@@ -10,7 +10,7 @@ import PlanDetail from './PlanDetail';
 // PlanDetail — v2.9 #287 EXECUTION view (DAG + chat + task list; NO backlog).
 // The #286 backlog→Plan SELECTION is removed; these tests assert the new
 // header / tabs / DAG (6-state nodes + edges + Advance) / task-list /
-// conversation-side, the lifecycle + draft-gating, and that no backlog UI
+// conversation-side, the lifecycle + pending-gating, and that no backlog UI
 // remains. usePlan + the conversation are mocked via MSW.
 
 beforeAll(() => {
@@ -165,19 +165,19 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-upnext')).toBeInTheDocument();
   });
 
-  it('shows Stop (→ draft) when running and calls useStopPlan', async () => {
-    let stopped = false;
+  it('shows Pause (→ paused) when running and calls usePausePlan', async () => {
+    let paused = false;
     mockPlan();
     server.use(
-      http.post('/api/projects/proj-a/plans/PL-1/stop', () => {
-        stopped = true;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+      http.post('/api/projects/proj-a/plans/PL-1/pause', () => {
+        paused = true;
+        return HttpResponse.json(planWith({ status: 'paused' }));
       }),
     );
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument());
-    await act(async () => fireEvent.click(screen.getByTestId('plan-stop-btn')));
-    await waitFor(() => expect(stopped).toBe(true));
+    await waitFor(() => expect(screen.getByTestId('plan-pause-btn')).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByTestId('plan-pause-btn')));
+    await waitFor(() => expect(paused).toBe(true));
   });
 
   // T53: a paused node gets an operator Resume button (task-list tab); a
@@ -254,9 +254,9 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(err).toHaveTextContent(/no paused work item|already resumed/i);
   });
 
-  it('shows Start when draft (not Stop) and calls useStartPlan', async () => {
+  it('shows Start when pending (not Stop) and calls useStartPlan', async () => {
     let started = false;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/start', () => {
         started = true;
@@ -265,7 +265,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     );
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-start-btn')).toBeInTheDocument());
-    expect(screen.queryByTestId('plan-stop-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-pause-btn')).not.toBeInTheDocument();
     await act(async () => fireEvent.click(screen.getByTestId('plan-start-btn')));
     await waitFor(() => expect(started).toBe(true));
   });
@@ -519,8 +519,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // The manual "Advance now" override was removed; the system auto-advances.
     expect(screen.queryByTestId('plan-advance-btn')).not.toBeInTheDocument();
     expect(screen.queryByText(/advance now/i)).not.toBeInTheDocument();
-    // Stop (→ draft) is still the running control.
-    expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument();
+    // Stop (→ pending) is still the running control.
+    expect(screen.getByTestId('plan-pause-btn')).toBeInTheDocument();
   });
 
   it('DAG is display-only: note never claims an edge editor, and no edge-edit control exists', async () => {
@@ -533,7 +533,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(note).toHaveTextContent('derived');
     expect(note.textContent ?? '').toMatch(/display-only/i);
     // must NOT claim an edge editor lives here (the old over-claim wording)
-    expect(note.textContent ?? '').not.toMatch(/edges are editable|editable in draft|edges are locked/i);
+    expect(note.textContent ?? '').not.toMatch(/edges are editable|editable in pending|edges are locked/i);
     // the over-claiming affordance elements are gone (no editor is here)
     expect(screen.queryByTestId('plan-edge-edit-hint')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-edit-locked')).not.toBeInTheDocument();
@@ -573,8 +573,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // running → Stop once, no Start, no manual Advance (auto-advance only)
     mockPlan();
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument());
-    expect(screen.getAllByTestId('plan-stop-btn')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByTestId('plan-pause-btn')).toBeInTheDocument());
+    expect(screen.getAllByTestId('plan-pause-btn')).toHaveLength(1);
     expect(screen.queryByTestId('plan-advance-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-start-btn')).not.toBeInTheDocument();
     // no duplicated DAG-footer controls
@@ -582,12 +582,12 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-dag-stop-btn')).not.toBeInTheDocument();
     cleanup();
 
-    // draft → Start once, no Stop
-    mockPlan({ status: 'draft', has_failed: false });
+    // pending → Start once, no Stop
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-start-btn')).toBeInTheDocument());
     expect(screen.getAllByTestId('plan-start-btn')).toHaveLength(1);
-    expect(screen.queryByTestId('plan-stop-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-pause-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-advance-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-dag-start-btn')).not.toBeInTheDocument();
   });
@@ -660,15 +660,15 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-title-bar').className).not.toContain('border-b');
   });
 
-  it('T570: Edit / Archive / Delete share one button row', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('T570: Edit / Discard / Delete share one button row for a pending plan', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
     const edit = screen.getByTestId('plan-edit-btn');
-    const archive = screen.getByTestId('plan-archive-btn');
+    const discard = screen.getByTestId('plan-discard-btn');
     const del = screen.getByTestId('plan-delete-btn');
     // all three are direct siblings in the same flex row (one-row layout).
-    expect(archive.parentElement).toBe(edit.parentElement);
+    expect(discard.parentElement).toBe(edit.parentElement);
     expect(del.parentElement).toBe(edit.parentElement);
   });
 
@@ -690,7 +690,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   });
 
   it('NO backlog-select UI remains (the #286 selection is removed)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-task-selection')).not.toBeInTheDocument();
@@ -713,8 +713,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(ind.getAttribute('title') ?? '').toMatch(/dispatches ready nodes automatically/i);
   });
 
-  it('draft plan does NOT show the auto-advancing indicator', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending plan does NOT show the auto-advancing indicator', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
@@ -727,7 +727,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
   });
 
-  // ── v2.9.1 point 3: IN-GRAPH dependency editing (draft-only) ───────────────
+  // ── v2.9.1 point 3: IN-GRAPH dependency editing (pending-only) ───────────────
   // The old PlanDagEditor two-select dropdown box is GONE (§21 single entry).
   // from/to semantics (verified vs backend plan_view.go + plan_flow.go):
   // AddPlanDependency(from, to) ⟺ "from depends_on to"; a node's depends_on
@@ -744,8 +744,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       .querySelector(`[data-testid="plan-dag-node"][data-task-id="${taskId}"]`) as HTMLElement;
   }
 
-  it('draft plan shows in-graph affordances: a connect button per node + a delete control per edge', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending plan shows in-graph affordances: a connect button per node + a delete control per edge', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
@@ -768,8 +768,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(n2n1del!).toHaveAttribute('aria-label', 'Remove dependency: backend api depends on design schema');
   });
 
-  it('draft: clicking a node connect button enters connect mode and lights up valid targets', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending: clicking a node connect button enters connect mode and lights up valid targets', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
@@ -790,13 +790,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-node-connect')).not.toBeInTheDocument();
   });
 
-  it('draft: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)', async () => {
+  it('pending: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)', async () => {
     let body: { from_task_id?: string; to_task_id?: string } | null = null;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', async ({ request }) => {
         body = (await request.json()) as { from_task_id: string; to_task_id: string };
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -812,8 +812,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument());
   });
 
-  it('draft: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block)', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
@@ -831,8 +831,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(dagNode('n6')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
   });
 
-  it('draft: an already-existing edge target is NOT offered again (exists excluded)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending: an already-existing edge target is NOT offered again (exists excluded)', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
@@ -845,13 +845,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(targets.map((t) => t.closest('[data-task-id]')!.getAttribute('data-task-id'))).toEqual(['n7']);
   });
 
-  it('draft: Escape exits connect mode without adding; the Cancel affordance also exits', async () => {
+  it('pending: Escape exits connect mode without adding; the Cancel affordance also exits', async () => {
     let addHit = false;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () => {
         addHit = true;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -873,13 +873,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(addHit).toBe(false);
   });
 
-  it('draft: an edge delete control FIRES the DELETE request with the correct ids (real wiring)', async () => {
+  it('pending: an edge delete control FIRES the DELETE request with the correct ids (real wiring)', async () => {
     // Mock at the api/http (MSW) layer — NOT the useRemoveDependency hook — so the
     // actual button→onClick→mutate→api.del path is exercised end-to-end.
     let delHit = false;
     let addHit = false;
     let params: { from: string | null; to: string | null } = { from: null, to: null };
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1/dependencies', ({ request }) => {
         const url = new URL(request.url);
@@ -890,7 +890,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       // if clicking delete somehow fired an add, this POST would trip.
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () => {
         addHit = true;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -909,7 +909,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('#218: a cycle error from add surfaces the FRIENDLY message (not the raw API error)', async () => {
     // Force a target through despite the UI guard by mocking a 400 cycle response
     // on a LEGAL UI target (n7→n1): the friendly mapping still applies.
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
         HttpResponse.json(
@@ -929,8 +929,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(err.textContent ?? '').not.toMatch(/projectmanager:|invalid_request/);
   });
 
-  it('draft: plan-dag-note states dependencies ARE editable here (in-graph)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('pending: plan-dag-note states dependencies ARE editable here (in-graph)', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag-note')).toBeInTheDocument());
@@ -940,7 +940,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   });
 
   it('error surface + in-graph controls use solid danger/semantic tokens (no raw red, no alpha-tint)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
         HttpResponse.json(
@@ -985,13 +985,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByText('← Back to plans')).toBeInTheDocument();
   });
 
-  // A2 (§9.4 draft-only): a DRAFT plan's task-list rows have a Remove button →
+  // A2 (§9.4 pending-only): a PENDING plan's task-list rows have a Remove button →
   // useRemoveTaskFromPlan(task_id) (task returns to the Backlog). A running/done
   // plan's rows have NO Remove control; a remove failure surfaces a friendly
   // inline message (#218).
-  it('A2 task-list: DRAFT plan rows have a Remove button that DELETEs by task_id', async () => {
+  it('A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id', async () => {
     let deletedTaskId: string | undefined;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1/tasks/:taskId', ({ params }) => {
         deletedTaskId = String(params.taskId);
@@ -1014,7 +1014,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   // each a new-tab link to TaskDetail (/projects/{pid}/tasks/{tid}, org-prefixed
   // by orgPath — unprefixed here as the test renders outside an OrgGuard), with
   // target=_blank + rel noopener. The title link must NOT swallow the A2 remove
-  // control on a draft plan's row.
+  // control on a pending plan's row.
   it('A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)', async () => {
     mockPlan();
     wrap();
@@ -1028,8 +1028,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(link).toHaveTextContent('frontend list');
   });
 
-  it('A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (draft)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (pending)', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
@@ -1046,7 +1046,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(row).getByTestId('plan-task-remove-n3')).toBeInTheDocument();
   });
 
-  it('A2 task-list: running plan rows have NO Remove control (§9.4 draft-only)', async () => {
+  it('A2 task-list: running plan rows have NO Remove control (§9.4 pending-only)', async () => {
     mockPlan({ status: 'running' });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
@@ -1056,7 +1056,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-task-remove-n3')).not.toBeInTheDocument();
   });
 
-  it('A2 task-list: done plan rows have NO Remove control (§9.4 draft-only)', async () => {
+  it('A2 task-list: done plan rows have NO Remove control (§9.4 pending-only)', async () => {
     mockPlan({ status: 'done' });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
@@ -1066,10 +1066,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   });
 
   it('A2 task-list #218: a remove failure shows a friendly inline message (no raw API error)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1/tasks/:taskId', () =>
-        HttpResponse.json({ error: 'conflict', message: 'plan not draft' }, { status: 409 }),
+        HttpResponse.json({ error: 'conflict', message: 'plan not pending' }, { status: 409 }),
       ),
     );
     wrap();
@@ -1081,29 +1081,36 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await act(async () => { fireEvent.click(screen.getByTestId('plan-task-remove-n3')); });
     const err = await screen.findByTestId('plan-task-remove-error-n3');
     expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
-    expect(err).not.toHaveTextContent('plan not draft');
+    expect(err).not.toHaveTextContent('plan not pending');
   });
 
   // ── v2.9 Stage A3 + T238: Plan-edit modal (name / goal / target_date) ───────
   // T238: name + goal are DESCRIPTIVE metadata, editable in any non-archived
-  // status (draft/running/done); target_date stays draft-only and the modal
-  // hides it off-draft. An archived plan is read-only (no Edit). The modal
+  // active status (pending/running/paused); target_date stays pending-only and the modal
+  // hides it off-pending. An archived plan is read-only (no Edit). The modal
   // pre-fills name/goal(description)/target_date and PATCHes via usePatchPlan.
   // PATCH body field names are name/description/target_date (the contract names
   // goal `description`). Cleared target_date → '' (clears); an unchanged field
   // is OMITTED (partial update). #218 friendly errors.
-  it('T238: Edit button shows for draft/running/done; hidden only when archived', async () => {
-    for (const status of ['draft', 'running', 'done'] as const) {
+  it('T238: Edit button shows for active lifecycle states and hides for terminal/archived plans', async () => {
+    for (const status of ['pending', 'running', 'paused'] as const) {
       mockPlan({ status, has_failed: false });
       wrap();
       await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
       expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument();
       cleanup();
     }
-    mockPlan({ status: 'archived', has_failed: false });
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
-    expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
+    for (const overrides of [
+      { status: 'done' },
+      { status: 'discarded' },
+      { status: 'done', archived_at: '2026-07-01T00:00:00Z' },
+    ]) {
+      mockPlan({ ...overrides, has_failed: false });
+      wrap();
+      await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
+      expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
+      cleanup();
+    }
   });
 
   it('T238: running plan opens the edit modal with name/goal but NO target-date field', async () => {
@@ -1114,13 +1121,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-edit-modal')).toBeInTheDocument();
     expect((screen.getByTestId('plan-edit-name') as HTMLInputElement).value).toBe('live plan');
     expect((screen.getByTestId('plan-edit-description') as HTMLTextAreaElement).value).toBe('in progress');
-    // target_date is draft-only → the field must be absent off-draft.
+    // target_date is pending-only → the field must be absent off-pending.
     expect(screen.queryByTestId('plan-edit-target-date')).not.toBeInTheDocument();
   });
 
   it('A3: clicking Edit opens the modal pre-filled with name/goal/target_date', async () => {
     mockPlan({
-      status: 'draft',
+      status: 'pending',
       has_failed: false,
       name: 'v3.0 release plan',
       description: 'ship the orchestrator',
@@ -1144,7 +1151,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A3: editing + submit PATCHes only the CHANGED fields (name/description), absolute target_date', async () => {
     let body: Record<string, unknown> | null = null;
     mockPlan({
-      status: 'draft',
+      status: 'pending',
       has_failed: false,
       name: 'old name',
       description: 'old goal',
@@ -1153,7 +1160,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     server.use(
       http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -1171,7 +1178,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A3: clearing target_date sends target_date: "" (clear); unchanged name/goal omitted', async () => {
     let body: Record<string, unknown> | null = null;
     mockPlan({
-      status: 'draft',
+      status: 'pending',
       has_failed: false,
       name: 'keep name',
       description: 'keep goal',
@@ -1180,7 +1187,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     server.use(
       http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -1194,11 +1201,11 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
 
   it('A3: setting a new target_date sends an absolute RFC3339 instant', async () => {
     let body: Record<string, unknown> | null = null;
-    mockPlan({ status: 'draft', has_failed: false, name: 'p', description: '', target_date: null });
+    mockPlan({ status: 'pending', has_failed: false, name: 'p', description: '', target_date: null });
     server.use(
       http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -1219,11 +1226,11 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
 
   it('A3: Cancel closes the modal WITHOUT a PATCH', async () => {
     let patched = false;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.patch('/api/projects/proj-a/plans/PL-1', () => {
         patched = true;
-        return HttpResponse.json(planWith({ status: 'draft' }));
+        return HttpResponse.json(planWith({ status: 'pending' }));
       }),
     );
     wrap();
@@ -1240,10 +1247,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   });
 
   it('A3 #218: a PATCH failure surfaces a FRIENDLY inline message (no raw API error)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.patch('/api/projects/proj-a/plans/PL-1', () =>
-        HttpResponse.json({ error: 'conflict', message: 'projectmanager: plan is not a draft' }, { status: 409 }),
+        HttpResponse.json({ error: 'conflict', message: 'projectmanager: plan is not pending' }, { status: 409 }),
       ),
     );
     wrap();
@@ -1252,7 +1259,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.change(screen.getByTestId('plan-edit-name'), { target: { value: 'new' } });
     await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
     const err = await screen.findByTestId('plan-edit-error');
-    expect(err).toHaveTextContent('The target date can only be changed while the plan is a draft.');
+    expect(err).toHaveTextContent('The target date can only be changed while the plan is pending.');
     expect(err.textContent ?? '').not.toMatch(/projectmanager:|conflict/);
     // danger token, not raw red; scrim ok but surface no alpha-tint
     expect(err.className).toContain('text-danger');
@@ -1455,44 +1462,48 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     );
   }
 
-  it('shows Delete + Archive entries for a DRAFT plan', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('shows Delete + Discard, but not Archive, for a PENDING plan', async () => {
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-discard-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
   });
 
-  it('shows Delete + Archive entries for a DONE plan', async () => {
+  it('shows Archive only for a DONE plan', async () => {
     mockPlan({ status: 'done', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
-    expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-discard-btn')).not.toBeInTheDocument();
     expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
   });
 
-  it('HIDES Delete + Archive for a RUNNING plan (entry gate; real block is the 409)', async () => {
+  it('offers Pause + Discard, but not Delete/Archive, for a RUNNING plan', async () => {
     mockPlan({ status: 'running' });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-pause-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-discard-btn')).toBeInTheDocument();
   });
 
   it('an ARCHIVED plan is terminal: NO Delete / Archive entries (read-only)', async () => {
-    mockPlan({ status: 'archived', has_failed: false });
+    mockPlan({ status: 'done', archived_at: '2026-07-01T00:00:00Z', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
-    // the archived plan still shows its status chip (read-only).
+    // Archive does not replace lifecycle truth.
     expect(within(screen.getByTestId('plan-info-rail')).getByTestId('plan-status-chip')).toHaveTextContent(
-      'archived',
+      'done',
     );
   });
 
   it('clicking Delete opens a CONSEQUENCE-explaining modal (not just "are you sure?")', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-delete-btn'));
@@ -1506,7 +1517,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('Delete confirm DELETEs /{id} and navigates AWAY to the plans board', async () => {
     let method = '';
     let url = '';
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1', ({ request }) => {
         method = request.method;
@@ -1525,7 +1536,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 
   it('Delete Cancel closes the modal WITHOUT a DELETE', async () => {
     let deleted = false;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1', () => {
         deleted = true;
@@ -1542,7 +1553,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   });
 
   it('Delete #218: a 409 surfaces a FRIENDLY message and the modal STAYS OPEN', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'pending', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1', () =>
         HttpResponse.json({ error: 'plan_conflict', message: 'projectmanager: plan is running' }, { status: 409 }),
@@ -1553,7 +1564,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     fireEvent.click(screen.getByTestId('plan-delete-btn'));
     await act(async () => fireEvent.click(screen.getByTestId('plan-delete-confirm')));
     const err = await screen.findByTestId('plan-delete-error');
-    expect(err).toHaveTextContent(/This plan is running\. Stop it first/i);
+    expect(err).toHaveTextContent(/already started.*history cannot be deleted/i);
     expect(err.textContent ?? '').not.toMatch(/projectmanager:|plan_conflict/);
     expect(err.className).toContain('text-danger');
     expect(err.className).not.toMatch(/text-red-|bg-red-/);
@@ -1561,25 +1572,24 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   });
 
   it('clicking Archive opens a CONSEQUENCE-explaining modal (terminal, cannot be undone)', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'done', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-archive-btn'));
     const modal = screen.getByTestId('plan-archive-modal');
-    expect(modal).toHaveTextContent(/archives the plan and all its tasks/i);
-    expect(modal).toHaveTextContent(/terminal state/i);
-    expect(modal).toHaveTextContent(/cannot be undone/i);
+    expect(modal).toHaveTextContent(/hides the terminal plan from active views/i);
+    expect(modal).toHaveTextContent(/preserving its done\/discarded lifecycle truth/i);
   });
 
   it('Archive confirm POSTs /{id}/archive (and stays on the detail view)', async () => {
     let method = '';
     let url = '';
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'done', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/archive', ({ request }) => {
         method = request.method;
         url = new URL(request.url).pathname;
-        return HttpResponse.json(planWith({ status: 'archived' }));
+        return HttpResponse.json(planWith({ status: 'done', archived_at: '2026-07-01T00:00:00Z' }));
       }),
     );
     wrap();
@@ -1595,11 +1605,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 
   it('Archive Cancel closes the modal WITHOUT an archive POST', async () => {
     let archived = false;
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'done', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/archive', () => {
         archived = true;
-        return HttpResponse.json(planWith({ status: 'archived' }));
+        return HttpResponse.json(planWith({ status: 'done', archived_at: '2026-07-01T00:00:00Z' }));
       }),
     );
     wrap();
@@ -1612,7 +1622,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   });
 
   it('Archive #218: a 409 already-archived surfaces a FRIENDLY message, modal stays open', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+    mockPlan({ status: 'done', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/archive', () =>
         HttpResponse.json({ error: 'plan_conflict', message: 'projectmanager: plan already archived' }, { status: 409 }),
@@ -1630,7 +1640,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 
   it('task-list row shows the Archived badge when task.archived (coexists with status chips)', async () => {
     mockPlan({
-      status: 'archived',
+      status: 'done',
       has_failed: false,
       nodes: [
         {
@@ -1665,7 +1675,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 
   it('archive badge uses a curated SOLID amber pair (no alpha-tint, no raw red, no emoji)', async () => {
     mockPlan({
-      status: 'archived',
+      status: 'done',
       has_failed: false,
       nodes: [
         { task_id: 'na', title: 't', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [], archived: true },
@@ -1683,17 +1693,20 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(badge.textContent ?? '').not.toMatch(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   });
 
-  it('PlanStatusChip renders the archived status with a curated SOLID stone pair', async () => {
-    mockPlan({ status: 'archived', has_failed: false });
+  it('PlanStatusChip preserves discarded lifecycle color after archival', async () => {
+    mockPlan({ status: 'discarded', archived_at: '2026-07-01T00:00:00Z', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     const chip = within(screen.getByTestId('plan-info-rail')).getByTestId('plan-status-chip');
-    expect(chip).toHaveTextContent('archived');
-    expect(chip).toHaveAttribute('data-status', 'archived');
+    expect(chip).toHaveTextContent('discarded');
+    expect(chip).toHaveAttribute('data-status', 'discarded');
     expect(chip.className).toContain('bg-status-stone-bg');
     expect(chip.className).toContain('text-status-stone-fg');
     expect(chip.className).not.toMatch(/\/\d+/);
     expect(chip.className).not.toMatch(/text-red-|bg-red-/);
+    const archived = within(screen.getByTestId('plan-info-rail')).getByTestId('plan-archived-badge');
+    expect(archived).toHaveTextContent('Archived');
+    expect(archived).toHaveAttribute('title', expect.stringContaining('2026-07-01'));
   });
 
   // ── T41 (v2.9.1 #291): big-plan Task-list = searchable + scrollable + inline

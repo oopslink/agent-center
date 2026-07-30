@@ -1,31 +1,43 @@
 // T231 — Work Board "+ New Task": create a task with a chosen destination
-// (Backlog / Assignment Pool / a draft Plan).
+// (Backlog / Assignment Pool / a pending Plan).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { BoardTaskCreateModal } from './BoardTaskCreateModal';
-import type { Plan } from '@/api/plans';
+import type { AssignmentPool, Plan } from '@/api/plans';
 
 function plan(over: Partial<Plan>): Plan {
   return {
-    id: 'PL-x', project_id: 'proj-1', name: 'Plan X', description: '', status: 'draft',
+    id: 'PL-x', project_id: 'proj-1', name: 'Plan X', description: '', status: 'pending',
     creator_ref: 'user:o', conversation_id: '', has_failed: false,
     progress: { done: 0, total: 0 }, created_at: '2026-06-01T00:00:00Z',
     ...over,
   };
 }
 
-const POOL = plan({ id: 'PL-pool', name: '[Built-in]', is_builtin: true, status: 'running' });
-const DRAFT = plan({ id: 'PL-draft', name: 'Sprint 1', status: 'draft' });
+const POOL: AssignmentPool = {
+  id: 'POOL-1', project_id: 'proj-1', scheduling_class: 'background',
+  auto_assign_enabled: true, holding_cap: 100, tasks: [],
+};
+const PENDING = plan({ id: 'PL-pending', name: 'Sprint 1', status: 'pending' });
 const RUNNING = plan({ id: 'PL-run', name: 'Running plan', status: 'running' });
 
-function renderModal(plans: Plan[] | undefined, onClose = () => {}) {
+function renderModal(
+  plans: Plan[] | undefined,
+  onClose = () => {},
+  assignmentPool: AssignmentPool | null = POOL,
+) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <BoardTaskCreateModal projectId="proj-1" plans={plans} onClose={onClose} />
+      <BoardTaskCreateModal
+        projectId="proj-1"
+        plans={plans}
+        assignmentPool={assignmentPool ?? undefined}
+        onClose={onClose}
+      />
     </QueryClientProvider>,
   );
 }
@@ -33,12 +45,12 @@ function renderModal(plans: Plan[] | undefined, onClose = () => {}) {
 afterEach(() => cleanup());
 
 describe('BoardTaskCreateModal (T231)', () => {
-  it('offers Backlog + Assignment Pool + draft plans; excludes the builtin/running plans from the plan list', () => {
-    renderModal([POOL, DRAFT, RUNNING]);
+  it('offers Backlog + Assignment Pool + pending plans; excludes running plans', () => {
+    renderModal([PENDING, RUNNING]);
     const select = screen.getByTestId('board-task-create-destination');
     // Backlog default
     expect((select as HTMLSelectElement).value).toBe('backlog');
-    // Pool offered (its own option), draft plan offered by name, running plan NOT.
+    // Pool offered as a first-class destination, pending plan offered, running plan not.
     expect(screen.getByTestId('board-task-create-dest-pool')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Sprint 1' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Running plan' })).toBeNull();
@@ -58,7 +70,7 @@ describe('BoardTaskCreateModal (T231)', () => {
       }),
     );
     const onClose = vi.fn();
-    renderModal([POOL, DRAFT], onClose);
+    renderModal([PENDING], onClose);
     fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'do it' } });
     fireEvent.click(screen.getByTestId('board-task-create-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -75,7 +87,7 @@ describe('BoardTaskCreateModal (T231)', () => {
       }),
     );
     const onClose = vi.fn();
-    renderModal([POOL, DRAFT], onClose);
+    renderModal([PENDING], onClose);
     fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'caps' } });
     const caps = screen.getByTestId('board-task-create-caps-input');
     fireEvent.change(caps, { target: { value: 'GO' } });
@@ -85,28 +97,28 @@ describe('BoardTaskCreateModal (T231)', () => {
     expect(taskBody).toMatchObject({ title: 'caps', required_capabilities: ['go'] });
   });
 
-  it('Assignment Pool destination: creates the task THEN selects it into the builtin pool', async () => {
-    let selectPlanId: string | undefined;
+  it('Assignment Pool destination: creates the task THEN adds it to the first-class pool', async () => {
+    let poolCalled = false;
     let selectBody: Record<string, unknown> | undefined;
     server.use(
       http.post('/api/projects/proj-1/tasks', () => HttpResponse.json({ id: 'TS-9', title: 'claim me' })),
-      http.post('/api/projects/proj-1/plans/:planId/tasks', async ({ request, params }) => {
-        selectPlanId = String(params.planId);
+      http.post('/api/projects/proj-1/assignment-pool/tasks', async ({ request }) => {
+        poolCalled = true;
         selectBody = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({});
       }),
     );
     const onClose = vi.fn();
-    renderModal([POOL, DRAFT], onClose);
+    renderModal([PENDING], onClose);
     fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'claim me' } });
-    fireEvent.change(screen.getByTestId('board-task-create-destination'), { target: { value: POOL.id } });
+    fireEvent.change(screen.getByTestId('board-task-create-destination'), { target: { value: 'assignment-pool' } });
     fireEvent.click(screen.getByTestId('board-task-create-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(selectPlanId).toBe('PL-pool');
-    expect(selectBody).toEqual({ task_id: 'TS-9' });
+    expect(poolCalled).toBe(true);
+    expect(selectBody).toEqual({ task_id: 'TS-9', priority: 0 });
   });
 
-  it('Plan destination: selects the new task into the chosen draft plan', async () => {
+  it('Plan destination: selects the new task into the chosen pending plan', async () => {
     let selectPlanId: string | undefined;
     server.use(
       http.post('/api/projects/proj-1/tasks', () => HttpResponse.json({ id: 'TS-7' })),
@@ -115,22 +127,22 @@ describe('BoardTaskCreateModal (T231)', () => {
         return HttpResponse.json({});
       }),
     );
-    renderModal([POOL, DRAFT]);
+    renderModal([PENDING]);
     fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'planned work' } });
-    fireEvent.change(screen.getByTestId('board-task-create-destination'), { target: { value: DRAFT.id } });
+    fireEvent.change(screen.getByTestId('board-task-create-destination'), { target: { value: PENDING.id } });
     fireEvent.click(screen.getByTestId('board-task-create-submit'));
-    await waitFor(() => expect(selectPlanId).toBe('PL-draft'));
+    await waitFor(() => expect(selectPlanId).toBe('PL-pending'));
   });
 
   it('disables submit until a title is entered', () => {
-    renderModal([POOL, DRAFT]);
+    renderModal([PENDING]);
     expect(screen.getByTestId('board-task-create-submit')).toBeDisabled();
     fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'x' } });
     expect(screen.getByTestId('board-task-create-submit')).not.toBeDisabled();
   });
 
   it('with no plans loaded yet, still offers Backlog (no pool/plan options)', () => {
-    renderModal(undefined);
+    renderModal(undefined, () => {}, null);
     expect(screen.getByTestId('board-task-create-destination')).toBeInTheDocument();
     expect(screen.queryByTestId('board-task-create-dest-pool')).toBeNull();
   });

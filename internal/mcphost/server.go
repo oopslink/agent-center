@@ -386,22 +386,22 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeUpdateReminder(cfg))
 
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
-	// A PM-agent programmatically builds and runs plans: create a draft plan,
+	// A PM-agent programmatically builds and runs plans: create a pending Plan,
 	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start
 	// it (the center dispatches ready nodes as their dependencies complete).
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_plan",
-		Description: "Create a new draft plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
+		Description: "Create a new pending plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
-		Description: "DEPRECATED — prefer edit_plan_topology (which also works on RUNNING plans and batches multiple changes atomically). Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist. Optional `stage` (a stage_id from create_stage) groups the task under a Plan Stage — a barrier-bounded batch with an acceptance gate.",
+		Description: "DEPRECATED — prefer edit_plan_topology. Add an existing backlog task to a pending plan as a node. Once execution starts, completed history is immutable. Optional stage groups the task under a Plan Stage.",
 	}, makePlanTask(cfg, "add_task_to_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_task_from_plan",
-		Description: "DEPRECATED — prefer edit_plan_topology (remove_node), which also works on RUNNING plans. Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft — except the always-running built-in assignment pool, whose task-set is freely editable.",
+		Description: "DEPRECATED — prefer edit_plan_topology (remove_node). Remove a task node from a pending plan and return it to the backlog. AssignmentPool is independent from Plan.",
 	}, makePlanTask(cfg, "remove_task_from_plan"))
 
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read. A Stage groups a batch of
@@ -409,7 +409,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// stages themselves form a DAG (depends_on_stages) so batches can run in parallel.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_stage",
-		Description: "Create a Stage in a draft plan — a barrier-bounded batch of tasks (like a Spark stage). Add tasks to it with add_task_to_plan(stage=<stage_id>). A downstream stage started only once every stage in depends_on_stages is fully done and its acceptance gate passes (a gate reject re-runs the stage, bounded by max_rounds, then escalates to a human). Stages form a DAG, so independent stages run in parallel. Returns stage_id.",
+		Description: "Create a Stage in a pending plan. Pass releases downstream; reject records evidence and appends an incremental remediation Stage without reopening completed work. Returns stage_id.",
 	}, makeCreateStage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -418,34 +418,39 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeGetStage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "reopen_exhausted_stage",
-		Description: "Owner/plan-creator recovery for an exhausted Stage acceptance gate. Requires plan_id, stage_id, reason, and idempotency_key. Grants exactly one extra rework round, reopens the existing Stage member/evaluator tasks, dispatches the ready reopened node, preserves historical rejects, and does NOT release downstream stages.",
-	}, makeReopenExhaustedStage(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_plan_dependency",
-		Description: "DEPRECATED — prefer edit_plan_topology (add_edge), which also works on RUNNING plans and batches with node changes atomically. Add an edge to a draft plan's DAG. Default (kind=seq, or omitted) is a hard depends_on: from_task_id runs after to_task_id. For control flow, set kind: 'conditional' routes a branch only when to_task_id (a decision node) completes with outcome==when; 'loopback' is a bounded back-edge — when from_task_id (a decision) completes with outcome==when, the to_task_id subgraph (a forward ancestor, e.g. Dev) re-runs, up to max_rounds. Conditional and loopback REQUIRE when; loopback also requires max_rounds>=1 and its to_task_id must be a forward ancestor. With create_plan + add_task_to_plan this authors a full Decision/loopback cycle plan. Both tasks must already be nodes in the plan; self-edges and forward cycles are rejected.",
+		Description: "DEPRECATED — prefer edit_plan_topology (add_edge). Add an edge to a pending Plan DAG. Both tasks must already be nodes in the Plan; self-edges and cycles are rejected.",
 	}, makeAddPlanDep(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_plan_dependency",
-		Description: "DEPRECATED — prefer edit_plan_topology (remove_edge), which also works on RUNNING plans. Remove a depends_on edge (from_task_id depends_on to_task_id) from a draft plan's DAG. Idempotent — removing a missing edge is a no-op.",
+		Description: "DEPRECATED — prefer edit_plan_topology (remove_edge). Remove a depends_on edge from a pending Plan DAG. Idempotent when the edge is absent.",
 	}, makePlanDep(cfg, "remove_plan_dependency"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "edit_plan_topology",
-		Description: "Atomically edit a plan's DAG with a batch of ops — the SINGLE topology-edit entrypoint, for DRAFT and RUNNING plans alike. Pass base_version (read from get_plan) for optimistic concurrency: if another edit landed first you get a version conflict — re-read and retry. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated (a reorder may pass through a transient cycle), so it must be acyclic and, when running, every node must have a resolvable assignee. On a RUNNING plan you may only restructure a node that has not started (blocked/ready): editing the in-edges of, or removing, a dispatched/running/completed node is rejected (reopen/loopback to undo executed work). Newly-ready nodes are dispatched immediately. Prefer this over add_task_to_plan/add_plan_dependency (draft-only, deprecated).",
+		Description: "Atomically edit a plan's DAG with a batch of ops — the SINGLE topology-edit entrypoint, for PENDING and RUNNING plans alike. Pass base_version (read from get_plan) for optimistic concurrency: if another edit landed first you get a version conflict — re-read and retry. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated (a reorder may pass through a transient cycle), so it must be acyclic and, when running, every node must have a resolvable assignee. On a RUNNING plan you may only restructure a node that has not started (blocked/ready): editing the in-edges of, or removing, a dispatched/running/completed node is rejected. Newly-ready nodes are dispatched immediately. Prefer this over add_task_to_plan/add_plan_dependency (pending-only, deprecated).",
 	}, makeEditPlanTopology(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",
-		Description: "Validate and start a draft plan (move it to running). The center then dispatches each node once its dependencies complete. Fails if the plan has no tasks, has a cycle, or has unassigned/unresolvable-assignee tasks — fix those first.",
+		Description: "Validate and start a pending plan (move it to running). The center dispatches each node once its dependencies complete.",
 	}, makePlanID(cfg, "start_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "stop_plan",
-		Description: "Stop a running plan and move it back to draft so you can edit it (add/remove tasks or dependencies). Resume by calling start_plan again.",
-	}, makePlanID(cfg, "stop_plan"))
+		Name:        "pause_plan",
+		Description: "Pause new dispatch while preserving the current frontier and immutable execution history.",
+	}, makePlanID(cfg, "pause_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resume_plan",
+		Description: "Resume a paused plan from the same frontier.",
+	}, makePlanID(cfg, "resume_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "discard_plan",
+		Description: "Permanently abandon a pending, running, or paused plan. Non-terminal member tasks become discarded; completed history remains immutable.",
+	}, makePlanID(cfg, "discard_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_plan",
@@ -459,12 +464,12 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "delete_plan",
-		Description: "Hard-delete a non-running plan: its tasks return to the backlog and its dependencies/dispatch records are removed. Stop the plan first if it is running (a running plan is rejected). Irreversible.",
+		Description: "Hard-delete a never-started pending plan. Once a plan starts, preserve history and use discard_plan instead. Irreversible.",
 	}, makePlanID(cfg, "delete_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "archive_plan",
-		Description: "Archive a non-running plan and cascade-archive its tasks (irreversible). Stop the plan first if it is running. Returns the archived plan detail.",
+		Description: "Archive a done or discarded plan without changing that lifecycle outcome. Returns the terminal plan detail with archived_at.",
 	}, makePlanID(cfg, "archive_plan"))
 
 	// --- plan shared findings (v2.10, ADR-0053 — DeLM shared context) --------

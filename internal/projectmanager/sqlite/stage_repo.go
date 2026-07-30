@@ -19,15 +19,19 @@ type StageRepo struct{ db *sql.DB }
 // NewStageRepo constructs the repo.
 func NewStageRepo(db *sql.DB) *StageRepo { return &StageRepo{db: db} }
 
-const stageSelect = `SELECT id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec, created_at, updated_at, version FROM pm_stages`
+const stageSelect = `SELECT id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec,
+	origin_verdict_id, continuation_id, generation, acceptance_contract, topology_fingerprint,
+	created_at, updated_at, version FROM pm_stages`
 
 func (r *StageRepo) Save(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_stages (id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_stages (id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec,
+		 origin_verdict_id, continuation_id, generation, acceptance_contract, topology_fingerprint, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(s.ID()), string(s.PlanID()), s.Name(), marshalStageDeps(s.DependsOnStages()),
 		s.GateNodeID(), s.MaxRounds(), string(s.GateTaskID()), marshalGateSpec(s.GateSpec()),
+		string(s.OriginVerdictID()), string(s.ContinuationID()), s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(),
 		ts(s.CreatedAt()), ts(s.UpdatedAt()), s.Version())
 	if isUnique(err) {
 		return pm.ErrStageExists
@@ -38,9 +42,11 @@ func (r *StageRepo) Save(ctx context.Context, s *pm.Stage) error {
 func (r *StageRepo) Update(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_stages SET name=?, depends_on_stages=?, gate_node_id=?, max_rounds=?, gate_task_id=?, gate_spec=?, updated_at=?, version=? WHERE id=?`,
+		`UPDATE pm_stages SET name=?, depends_on_stages=?, gate_node_id=?, max_rounds=?, gate_task_id=?, gate_spec=?,
+		 origin_verdict_id=?, continuation_id=?, generation=?, acceptance_contract=?, topology_fingerprint=?, updated_at=?, version=? WHERE id=?`,
 		s.Name(), marshalStageDeps(s.DependsOnStages()), s.GateNodeID(), s.MaxRounds(),
-		string(s.GateTaskID()), marshalGateSpec(s.GateSpec()), ts(s.UpdatedAt()), s.Version(), string(s.ID()))
+		string(s.GateTaskID()), marshalGateSpec(s.GateSpec()), string(s.OriginVerdictID()), string(s.ContinuationID()),
+		s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(), ts(s.UpdatedAt()), s.Version(), string(s.ID()))
 	if err != nil {
 		return err
 	}
@@ -91,23 +97,29 @@ func (r *StageRepo) DeleteByPlan(ctx context.Context, planID pm.PlanID) error {
 }
 
 func scanStage(scan func(...any) error) (*pm.Stage, error) {
-	var id, planID, name, dependsJSON, gateNodeID, gateTaskID, gateSpecJSON, createdAt, updatedAt string
-	var maxRounds, version int
-	if err := scan(&id, &planID, &name, &dependsJSON, &gateNodeID, &maxRounds, &gateTaskID, &gateSpecJSON, &createdAt, &updatedAt, &version); err != nil {
+	var id, planID, name, dependsJSON, gateNodeID, gateTaskID, gateSpecJSON, originVerdictID, continuationID, acceptanceContract, topologyFingerprint, createdAt, updatedAt string
+	var maxRounds, generation, version int
+	if err := scan(&id, &planID, &name, &dependsJSON, &gateNodeID, &maxRounds, &gateTaskID, &gateSpecJSON,
+		&originVerdictID, &continuationID, &generation, &acceptanceContract, &topologyFingerprint, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateStage(pm.RehydrateStageInput{
-		ID:              pm.StageID(id),
-		PlanID:          pm.PlanID(planID),
-		Name:            name,
-		DependsOnStages: unmarshalStageDeps(dependsJSON),
-		GateNodeID:      gateNodeID,
-		MaxRounds:       maxRounds,
-		GateTaskID:      pm.TaskID(gateTaskID),
-		GateSpec:        unmarshalGateSpec(gateSpecJSON),
-		CreatedAt:       parseTime(createdAt),
-		UpdatedAt:       parseTime(updatedAt),
-		Version:         version,
+		ID:                  pm.StageID(id),
+		PlanID:              pm.PlanID(planID),
+		Name:                name,
+		DependsOnStages:     unmarshalStageDeps(dependsJSON),
+		GateNodeID:          gateNodeID,
+		MaxRounds:           maxRounds,
+		GateTaskID:          pm.TaskID(gateTaskID),
+		GateSpec:            unmarshalGateSpec(gateSpecJSON),
+		OriginVerdictID:     pm.GateVerdictID(originVerdictID),
+		ContinuationID:      pm.ContinuationID(continuationID),
+		Generation:          generation,
+		AcceptanceContract:  acceptanceContract,
+		TopologyFingerprint: topologyFingerprint,
+		CreatedAt:           parseTime(createdAt),
+		UpdatedAt:           parseTime(updatedAt),
+		Version:             version,
 	})
 }
 

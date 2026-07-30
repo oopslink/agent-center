@@ -220,7 +220,7 @@ func TestTaskRepo_ListByStatuses(t *testing.T) {
 		t.Fatalf("ListByStatuses(completed) = %+v", l)
 	}
 	// multi status (the non-terminal active set excludes the completed task)
-	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskReopened}
+	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskBlocked}
 	if l, _ := tr.ListByStatuses(ctx, active); len(l) != 1 || l[0].ID() != "T-open" {
 		t.Fatalf("ListByStatuses(active) = %+v", l)
 	}
@@ -312,13 +312,13 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, t0)
 	save("T2", "PB", pm.TaskRunning, late)
 	save("T3", "PA", pm.TaskCompleted, late)
-	save("T4", "PC", pm.TaskReopened, t0)
+	save("T4", "PC", pm.TaskBlocked, t0)
 
 	got, err := tr.CountByStatus(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskReopened: 1}
+	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskBlocked: 1}
 	if len(got) != len(want) {
 		t.Fatalf("status classes mismatch: got %v want %v", got, want)
 	}
@@ -336,8 +336,8 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	if got2[pm.TaskRunning] != 1 || got2[pm.TaskCompleted] != 1 {
 		t.Fatalf("since-filtered counts wrong: got %v", got2)
 	}
-	if got2[pm.TaskReopened] != 0 {
-		t.Fatalf("since must exclude the early reopened task: got %v", got2)
+	if got2[pm.TaskBlocked] != 0 {
+		t.Fatalf("since must exclude the early blocked task: got %v", got2)
 	}
 }
 
@@ -418,7 +418,7 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, a1)   // a1 doing
 	save("T2", "PB", pm.TaskOpen, a1)      // a1 pending (other project)
 	save("T3", "PA", pm.TaskOpen, a1)      // a1 pending
-	save("T7", "PA", pm.TaskReopened, a1)  // a1 pending (re-dispatchable)
+	save("T7", "PA", pm.TaskBlocked, a1)   // a1 pending (re-dispatchable)
 	save("T4", "PA", pm.TaskRunning, a2)   // a2 doing
 	save("T5", "PA", pm.TaskCompleted, a1) // terminal — excluded
 	save("T6", "PA", pm.TaskOpen, "")      // unassigned — excluded
@@ -441,7 +441,7 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 // TestIssueRepo_FindByStatuses_GlobalNonTerminal pins the additive global
 // issue-by-status scan (v2.7 #107 #119 fleet issues-repoint): the fleet
 // pending-issues segment's global-admin path needs all non-terminal issues
-// {open,in_progress,reopened} across ALL projects, mirroring the retired
+// {open,in_progress,blocked} across ALL projects, mirroring the retired
 // discussion FindByStatus full scan. Terminal {resolved,closed,withdrawn}
 // must be excluded.
 func TestIssueRepo_FindByStatuses_GlobalNonTerminal(t *testing.T) {
@@ -480,7 +480,7 @@ func TestIssueRepo_FindByStatuses_GlobalNonTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != 3 {
-		t.Fatalf("want 3 non-terminal across projects (open/in_progress/reopened), got %d", len(got))
+		t.Fatalf("want 3 non-terminal across projects (open/in_progress/blocked), got %d", len(got))
 	}
 	for _, i := range got {
 		if i.Status() == pm.IssueResolved || i.Status() == pm.IssueClosed || i.Status() == pm.IssueDiscarded {

@@ -76,7 +76,7 @@ func TestPlanRepo_RoundTrip(t *testing.T) {
 		t.Fatalf("dup save = %v, want ErrPlanExists", err)
 	}
 	got, err := pr.FindByID(ctx, "PL-1")
-	if err != nil || got.Name() != "v3.0" || got.ProjectID() != "P-1" || got.Status() != pm.PlanDraft {
+	if err != nil || got.Name() != "v3.0" || got.ProjectID() != "P-1" || got.Status() != pm.PlanPending {
 		t.Fatalf("FindByID = %+v, %v", got, err)
 	}
 	if got.ConversationID() != "" || got.TargetDate() != nil {
@@ -369,16 +369,16 @@ func TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks(t *testing.T) 
 		}
 	}
 	const ag = "agent:agent-b5036ea8"
-	mkPlan("PL-ARCH", pm.PlanArchived)
+	mkPlan("PL-ARCH", pm.PlanDiscarded)
 	mkPlan("PL-DONE", pm.PlanDone)
 	mkPlan("PL-RUN", pm.PlanRunning)
-	mkTask("TA1", "PL-ARCH", pm.TaskOpen)    // archived plan → excluded
-	mkTask("TA2", "PL-ARCH", pm.TaskOpen)    // archived plan → excluded
-	mkTask("TD1", "PL-DONE", pm.TaskOpen)    // done plan → excluded
-	mkTask("TR1", "PL-RUN", pm.TaskOpen)     // running plan → counted
-	mkTask("TRr", "PL-RUN", pm.TaskRunning)  // running plan, doing → counted
-	mkTask("TRo", "PL-RUN", pm.TaskReopened) // running plan, queued → counted
-	mkTask("TB1", "", pm.TaskOpen)           // no plan (backlog) → counted
+	mkTask("TA1", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
+	mkTask("TA2", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
+	mkTask("TD1", "PL-DONE", pm.TaskOpen)   // done plan → excluded
+	mkTask("TR1", "PL-RUN", pm.TaskOpen)    // running plan → counted
+	mkTask("TRr", "PL-RUN", pm.TaskRunning) // running plan, doing → counted
+	mkTask("TRo", "PL-RUN", pm.TaskBlocked) // running plan, queued → counted
+	mkTask("TB1", "", pm.TaskOpen)          // no plan (backlog) → counted
 
 	got, err := tr.CountActiveByAssignee(ctx)
 	if err != nil {
@@ -424,11 +424,11 @@ func TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount(t *testing.T) {
 	}
 	const ag = "agent:agent-b5036ea8"
 	const other = "agent:agent-cccc3333"
-	mkPlan("PL-ARCH", pm.PlanArchived)
+	mkPlan("PL-ARCH", pm.PlanDiscarded)
 	mkPlan("PL-RUN", pm.PlanRunning)
 	mkTask("TR1", "PL-RUN", pm.TaskOpen, ag)      // running plan, open → listed
 	mkTask("TRr", "PL-RUN", pm.TaskRunning, ag)   // running plan, doing → listed
-	mkTask("TRo", "PL-RUN", pm.TaskReopened, ag)  // running plan, reopened → listed
+	mkTask("TRo", "PL-RUN", pm.TaskBlocked, ag)   // running plan, blocked → listed
 	mkTask("TB1", "", pm.TaskOpen, ag)            // no plan (backlog) → listed
 	mkTask("TA1", "PL-ARCH", pm.TaskOpen, ag)     // archived plan → excluded
 	mkTask("TC1", "PL-RUN", pm.TaskCompleted, ag) // terminal task → excluded

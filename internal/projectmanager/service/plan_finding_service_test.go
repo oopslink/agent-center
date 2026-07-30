@@ -328,12 +328,28 @@ func TestRetractFinding_ByAuthor(t *testing.T) {
 
 func TestDeletePlan_CascadesFindings(t *testing.T) {
 	h := findingSetup(t)
-	_, planID, taskID := h.seedPlanWithAssignedTask(t)
-	if _, err := h.svc.RecordFinding(h.ctx, RecordFindingCommand{PlanID: planID, TaskID: taskID, AuthorRef: "agent:ag1", Kind: pm.FindingFact, Content: "x"}); err != nil {
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	// stop the plan (running → draft) so it can be deleted.
-	if err := h.svc.StopPlan(h.ctx, planID, "user:a"); err != nil {
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:ag1", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "investigate", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AssignTask(h.ctx, taskID, "agent:ag1", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.RecordFinding(h.ctx, RecordFindingCommand{PlanID: planID, TaskID: taskID, AuthorRef: "agent:ag1", Kind: pm.FindingFact, Content: "x"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.svc.DeletePlan(h.ctx, planID, "user:a"); err != nil {

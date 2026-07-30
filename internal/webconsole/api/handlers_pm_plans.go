@@ -37,6 +37,10 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
 	}
+	if at := p.ArchivedAt(); at != nil {
+		m["archived_at"] = at.Format(time.RFC3339Nano)
+		m["archived_by"] = string(p.ArchivedBy())
+	}
 	return m
 }
 
@@ -172,6 +176,12 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	if len(detail.GateVerdicts) > 0 {
+		m["gate_verdicts"] = detail.GateVerdicts
+	}
+	if len(detail.Continuations) > 0 {
+		m["continuations"] = detail.Continuations
+	}
 	return m
 }
 
@@ -213,7 +223,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
-		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanHasRunningTasks):
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
@@ -223,6 +234,16 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		// member task is still running. All → 409, consistent across
 		// webconsole + MCP. Validation-class (cycle/self/no-tasks) stays 400.
 		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
+	case errors.Is(err, pm.ErrGateAlreadyVerdicted):
+		writeError(w, http.StatusConflict, "gate_already_verdicted", err.Error())
+	case errors.Is(err, pm.ErrRemediationBudgetExhausted):
+		writeError(w, http.StatusConflict, "remediation_budget_exhausted", err.Error())
+	case errors.Is(err, pm.ErrRemediationProposalStale):
+		writeError(w, http.StatusConflict, "remediation_proposal_stale", err.Error())
+	case errors.Is(err, pm.ErrRemediationUnavailable):
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
+	case errors.Is(err, pm.ErrRemediationProposalInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_remediation_proposal", err.Error())
 	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
@@ -470,20 +491,25 @@ func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
 		})
 	}
 	return map[string]any{
-		"id":                string(st.ID()),
-		"name":              st.Name(),
-		"status":            string(det.Status),
-		"rounds":            det.Rounds,
-		"max_rounds":        st.MaxRounds(),
-		"depends_on_stages": deps,
-		"gate_node_id":      st.GateNodeID(),
-		"gate_task_id":      string(st.GateTaskID()),
-		"gate_spec":         st.GateSpec(),
-		"gate_outcome":      det.GateOutcome,
-		"gate_evidence":     det.GateEvidence,
-		"gate_reviewed_sha": det.GateReviewedSHA,
-		"diagnostics":       det.Diagnostics,
-		"members":           members,
+		"id":                   string(st.ID()),
+		"name":                 st.Name(),
+		"status":               string(det.Status),
+		"rounds":               det.Rounds,
+		"max_rounds":           st.MaxRounds(),
+		"depends_on_stages":    deps,
+		"gate_node_id":         st.GateNodeID(),
+		"gate_task_id":         string(st.GateTaskID()),
+		"gate_spec":            st.GateSpec(),
+		"gate_outcome":         det.GateOutcome,
+		"gate_evidence":        det.GateEvidence,
+		"gate_reviewed_sha":    det.GateReviewedSHA,
+		"origin_verdict_id":    string(st.OriginVerdictID()),
+		"continuation_id":      string(st.ContinuationID()),
+		"generation":           st.Generation(),
+		"acceptance_contract":  st.AcceptanceContract(),
+		"topology_fingerprint": st.TopologyFingerprint(),
+		"diagnostics":          det.Diagnostics,
+		"members":              members,
 	}
 }
 
@@ -691,6 +717,40 @@ func (s *Server) pmStopPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := d.PM.StopPlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+// pmPausePlanHandler is the canonical running→paused lifecycle action. The
+// legacy /stop endpoint delegates to the same command during migration.
+func (s *Server) pmPausePlanHandler(w http.ResponseWriter, r *http.Request) {
+	s.pmStopPlanHandler(w, r)
+}
+
+func (s *Server) pmResumePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.ResumePlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmDiscardPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.DiscardPlan(r.Context(), pl.ID(), caller); err != nil {
 		mapPlanError(w, err)
 		return
 	}

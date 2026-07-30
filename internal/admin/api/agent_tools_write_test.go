@@ -134,6 +134,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		CodeRepoResolver: codeRepoSvc,
 		Plans:            plans,
 		Stages:           pmsql.NewStageRepo(db),
+		Remediation:      pmsql.NewRemediationRepo(db),
 		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: shared findings
 		Outbox:           outboxsql.NewOutboxRepo(db),
 		IDGen:            gen,

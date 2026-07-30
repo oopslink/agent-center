@@ -21,6 +21,9 @@ func TestListPlanSummaries_ArchivedInclusion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := h.svc.DiscardPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("DiscardPlan: %v", err)
+	}
 	if err := h.svc.ArchivePlan(h.ctx, planID, "user:a"); err != nil {
 		t.Fatalf("ArchivePlan: %v", err)
 	}

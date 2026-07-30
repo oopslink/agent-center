@@ -103,16 +103,15 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     await waitFor(() => expect(gotQuery).toContain('status=done'));
   });
 
-  it('archived chip sends status=archived and renders archived plans (T98)', async () => {
+  it('discarded chip sends status=discarded and renders discarded plans', async () => {
     let gotQuery = '';
     server.use(
       http.get('/api/plans', ({ request }) => {
         gotQuery = new URL(request.url).search;
-        // Backend only returns archived plans once explicitly filtered.
-        const wantArchived = gotQuery.includes('status=archived');
+        const wantDiscarded = gotQuery.includes('status=discarded');
         return HttpResponse.json({
-          items: wantArchived
-            ? [planRow({ id: 'plan-arch', name: '已归档计划', status: 'archived' })]
+          items: wantDiscarded
+            ? [planRow({ id: 'plan-discarded', name: '已丢弃计划', status: 'discarded' })]
             : [planRow()],
           total: 1,
         });
@@ -120,17 +119,15 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     );
     wrap();
     await waitFor(() => expect(screen.getByTestId('org-plan-row')).toBeInTheDocument());
-    // default view excludes archived → no status param, running row shown.
+    // default view excludes terminal states → no status param, running row shown.
     expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25');
     expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'running');
-    // the archived chip exists in the filter bar...
-    fireEvent.click(screen.getByTestId('org-plan-status-archived'));
-    await waitFor(() => expect(gotQuery).toContain('status=archived'));
-    // ...and the now-archived row surfaces.
+    fireEvent.click(screen.getByTestId('org-plan-status-discarded'));
+    await waitFor(() => expect(gotQuery).toContain('status=discarded'));
     await waitFor(() =>
-      expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'archived'),
+      expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'discarded'),
     );
-    expect(screen.getByTestId('org-plan-name')).toHaveTextContent('已归档计划');
+    expect(screen.getByTestId('org-plan-name')).toHaveTextContent('已丢弃计划');
   });
 
   it('search is sent SERVER-side as ?q= (so it spans all pages, not just the loaded one)', async () => {

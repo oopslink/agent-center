@@ -54,7 +54,7 @@ func TestNewPlan_Validation(t *testing.T) {
 
 func TestNewPlan_DefaultsDraft(t *testing.T) {
 	p := newPlan(t)
-	if p.Status() != PlanDraft {
+	if p.Status() != PlanPending {
 		t.Fatalf("new plan status = %q, want draft", p.Status())
 	}
 	if p.Version() != 1 {
@@ -85,23 +85,20 @@ func TestPlan_Lifecycle(t *testing.T) {
 		t.Fatalf("Start while running = %v, want ErrIllegalPlanTransition", err)
 	}
 
-	// running → draft (stop §9.4)
+	// running → paused; Stop is a compatibility alias for Pause.
 	if err := p.Stop(at); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	if p.Status() != PlanDraft {
-		t.Fatalf("after Stop status = %q, want draft", p.Status())
+	if p.Status() != PlanPaused {
+		t.Fatalf("after Stop status = %q, want paused", p.Status())
 	}
 
-	// draft can't MarkDone
-	if err := p.MarkDone(at); err != ErrIllegalPlanTransition {
-		t.Fatalf("MarkDone from draft = %v, want ErrIllegalPlanTransition", err)
+	// paused can settle, but this path resumes to exercise paused→running.
+	if err := p.Resume(at); err != nil {
+		t.Fatalf("Resume: %v", err)
 	}
 
-	// draft → running → done
-	if err := p.Start(at); err != nil {
-		t.Fatalf("re-Start: %v", err)
-	}
+	// running → done
 	if err := p.MarkDone(at); err != nil {
 		t.Fatalf("MarkDone: %v", err)
 	}
@@ -119,30 +116,25 @@ func TestPlan_Lifecycle(t *testing.T) {
 }
 
 func TestPlanStatus_TransitionMap(t *testing.T) {
-	if !PlanDraft.CanTransitionTo(PlanRunning) {
-		t.Fatal("draft→running must be allowed")
+	if !PlanPending.CanTransitionTo(PlanRunning) {
+		t.Fatal("pending→running must be allowed")
 	}
-	if PlanDraft.CanTransitionTo(PlanDone) {
-		t.Fatal("draft→done must NOT be allowed")
+	if PlanPending.CanTransitionTo(PlanDone) {
+		t.Fatal("pending→done must NOT be allowed")
 	}
-	if !PlanRunning.CanTransitionTo(PlanDraft) || !PlanRunning.CanTransitionTo(PlanDone) {
-		t.Fatal("running→{draft,done} must be allowed")
+	if !PlanRunning.CanTransitionTo(PlanPaused) || !PlanRunning.CanTransitionTo(PlanDone) {
+		t.Fatal("running→{paused,done} must be allowed")
 	}
-	// v2.9 P3: draft + done can archive (both non-running); running can NOT (stop
-	// first); archived is terminal + irreversible.
-	if !PlanDraft.CanTransitionTo(PlanArchived) {
-		t.Fatal("draft→archived must be allowed")
+	if !PlanPaused.CanTransitionTo(PlanRunning) || !PlanPaused.CanTransitionTo(PlanDone) {
+		t.Fatal("paused→{running,done} must be allowed")
 	}
-	if !PlanDone.CanTransitionTo(PlanArchived) {
-		t.Fatal("done→archived must be allowed")
+	if !PlanPending.CanTransitionTo(PlanDiscarded) || !PlanRunning.CanTransitionTo(PlanDiscarded) || !PlanPaused.CanTransitionTo(PlanDiscarded) {
+		t.Fatal("active states must allow discarded")
 	}
-	if PlanRunning.CanTransitionTo(PlanArchived) {
-		t.Fatal("running→archived must NOT be allowed (stop/finish first)")
+	if len(planTransitions[PlanDone]) != 0 || len(planTransitions[PlanDiscarded]) != 0 {
+		t.Fatal("done/discarded must be terminal")
 	}
-	if len(planTransitions[PlanArchived]) != 0 {
-		t.Fatal("archived must be terminal (irreversible)")
-	}
-	for _, s := range []PlanStatus{PlanDraft, PlanRunning, PlanDone, PlanArchived} {
+	for _, s := range []PlanStatus{PlanPending, PlanRunning, PlanPaused, PlanDone, PlanDiscarded} {
 		if !s.IsValid() {
 			t.Fatalf("%q must be IsValid", s)
 		}
@@ -208,7 +200,7 @@ func TestRehydratePlan(t *testing.T) {
 	if _, err := RehydratePlan(RehydratePlanInput{Status: "bogus", Version: 1}); err != ErrInvalidPlanStatus {
 		t.Fatalf("bad status = %v, want ErrInvalidPlanStatus", err)
 	}
-	if _, err := RehydratePlan(RehydratePlanInput{Status: PlanDraft, Version: 0}); err == nil {
+	if _, err := RehydratePlan(RehydratePlanInput{Status: PlanPending, Version: 0}); err == nil {
 		t.Fatal("version 0 must error")
 	}
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // T570 follow-up: the persisted completed_at column round-trips — set on complete,
-// NULL (zero) after reopen.
+// preserved when a reopen rewrite is rejected.
 func TestTaskRepo_CompletedAt_RoundTrip(t *testing.T) {
 	ctx, _, _, _, tr, _, _, _ := setup(t)
 	tk, err := pm.NewTask(pm.NewTaskInput{ID: "T1", ProjectID: "P1", Title: "do", CreatedBy: "user:a", CreatedAt: t0})
@@ -40,15 +40,14 @@ func TestTaskRepo_CompletedAt_RoundTrip(t *testing.T) {
 		t.Fatalf("completed_at round-trip = %v, want %v", re.CompletedAt(), completeAt)
 	}
 
-	// reopen clears it → persists as NULL (zero).
-	if err := re.SetStatus(pm.TaskReopened, t0.Add(3*time.Hour)); err != nil {
-		t.Fatal(err)
+	if err := re.SetStatus(pm.TaskStatus("reopened"), t0.Add(3*time.Hour)); err != pm.ErrTaskReopenRetired {
+		t.Fatalf("SetStatus(reopened) = %v want ErrTaskReopenRetired", err)
 	}
 	if err := tr.Update(ctx, re); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := tr.FindByID(ctx, "T1")
-	if !after.CompletedAt().IsZero() {
-		t.Fatalf("after reopen completed_at = %v, want zero", after.CompletedAt())
+	if after.Status() != pm.TaskCompleted || !after.CompletedAt().Equal(completeAt) {
+		t.Fatalf("rejected reopen mutated persisted completion: status=%s completed_at=%v", after.Status(), after.CompletedAt())
 	}
 }

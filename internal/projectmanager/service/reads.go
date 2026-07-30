@@ -266,7 +266,29 @@ func (s *Service) ListProjectTasksForMember(ctx context.Context, projectID pm.Pr
 // selected into any Plan (empty plan_id). It is the complement of the Plan's
 // task list, for the Work Board's Backlog column.
 func (s *Service) ListUnplannedTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
-	return s.tasks.ListUnplannedByProject(ctx, projectID)
+	tasks, err := s.tasks.ListUnplannedByProject(ctx, projectID)
+	if err != nil || s.pools == nil {
+		return tasks, err
+	}
+	pool, err := s.pools.FindByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	members, err := s.pools.ListTasks(ctx, pool.ID())
+	if err != nil {
+		return nil, err
+	}
+	inPool := make(map[pm.TaskID]bool, len(members))
+	for _, member := range members {
+		inPool[member.TaskID] = true
+	}
+	out := make([]*pm.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if !inPool[task.ID()] {
+			out = append(out, task)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) GetTask(ctx context.Context, id pm.TaskID) (*pm.Task, error) {
@@ -379,7 +401,14 @@ func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRe
 	for _, t := range tasks {
 		planID := t.PlanID()
 		if planID == "" {
-			continue // backlog tasks are never claimable
+			if s.pools != nil {
+				if member, ok, err := s.pools.FindTask(ctx, t.ID()); err != nil {
+					return nil, err
+				} else if ok && member.ClaimedBy == assignee && !t.IsArchived() && t.Status() == pm.TaskOpen {
+					out = append(out, ClaimableTask{Task: t, NodeStatus: pm.NodeDispatched})
+				}
+			}
+			continue
 		}
 		statuses, err := planView(planID)
 		if err != nil {
@@ -487,6 +516,13 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 		return false, err
 	}
 	planID := t.PlanID()
+	if planID == "" && s.pools != nil {
+		member, ok, err := s.pools.FindTask(ctx, taskID)
+		if err != nil {
+			return false, err
+		}
+		return ok && member.ClaimedBy == "" && !t.IsArchived() && t.Status() == pm.TaskOpen && t.Assignee() == "", nil
+	}
 	if planID == "" || s.plans == nil {
 		return false, nil
 	}
@@ -522,6 +558,23 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+// IsTaskBacklogInert distinguishes a true backlog Task from an independent
+// AssignmentPool member, whose task.plan_id is intentionally empty.
+func (s *Service) IsTaskBacklogInert(ctx context.Context, taskID pm.TaskID) (bool, error) {
+	task, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return false, err
+	}
+	if task.PlanID() != "" {
+		return false, nil
+	}
+	if s.pools == nil {
+		return true, nil
+	}
+	_, ok, err := s.pools.FindTask(ctx, taskID)
+	return !ok, err
 }
 
 // --- Plan reads (v2.9 #285) -------------------------------------------------
@@ -571,6 +624,9 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.enrichStageView(ctx, detail); err != nil {
 		return nil, err
 	}
+	if err := s.enrichRemediationView(ctx, detail); err != nil {
+		return nil, err
+	}
 	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
 	// decision queue). Pure read — re-reads the materialized store, changes no gating.
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
@@ -600,6 +656,10 @@ type PlanDetail struct {
 	// have the orch graph); nil on the internal planDetail path. Nil for a plan with no
 	// stages / no graph (§8 zero-regression).
 	Gates []StageGateView
+	// Immutable stage verdicts and cross-generation continuations make reject
+	// history visible without reconstructing it from mutable task state.
+	GateVerdicts  []pm.GateVerdict
+	Continuations []*pm.PlanContinuation
 	// BlockedOn (I103 §2) carries the plan's 旁路 OBSERVATIONAL blocked_on snapshots —
 	// one per non-terminal node the reconcile sweep classified as un-advancing (why it
 	// waits, on whom, since when). PURE READ: it is the materialized store re-read, never
@@ -645,12 +705,32 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	if err := s.enrichStageView(ctx, detail); err != nil {
 		return nil, err
 	}
+	if err := s.enrichRemediationView(ctx, detail); err != nil {
+		return nil, err
+	}
 	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
 	// decision queue). Pure read — re-reads the materialized store, changes no gating.
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
 	return detail, nil
+}
+
+func (s *Service) enrichRemediationView(ctx context.Context, detail *PlanDetail) error {
+	if s.remediation == nil || detail == nil || detail.Plan == nil {
+		return nil
+	}
+	verdicts, err := s.remediation.ListVerdictsByPlan(ctx, detail.Plan.ID())
+	if err != nil {
+		return err
+	}
+	continuations, err := s.remediation.ListContinuationsByPlan(ctx, detail.Plan.ID())
+	if err != nil {
+		return err
+	}
+	detail.GateVerdicts = verdicts
+	detail.Continuations = continuations
+	return nil
 }
 
 // planDetail loads one Plan's tasks + edges + dispatch records and derives the
@@ -828,6 +908,17 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	if err != nil {
 		return nil, 0, err
 	}
+	// Once the first-class AssignmentPool repository is wired, legacy builtin
+	// Plan rows are migration shadows only and must never re-enter Plan reads.
+	if s.pools != nil {
+		structured := plans[:0]
+		for _, plan := range plans {
+			if !plan.IsBuiltin() {
+				structured = append(structured, plan)
+			}
+		}
+		plans = structured
+	}
 	// v2.9.2 (task-1099941e): the Work Board EXCLUDES archived plans by default —
 	// an archived plan leaves the active board, mirroring project (#310) / channel
 	// archive semantics. Filtered here (the single shared read both list mirrors —
@@ -838,7 +929,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	if !includeArchived {
 		active := plans[:0]
 		for _, p := range plans {
-			if p.Status() == pm.PlanArchived {
+			if p.IsArchived() {
 				continue
 			}
 			active = append(active, p)

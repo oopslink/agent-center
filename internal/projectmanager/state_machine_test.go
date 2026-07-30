@@ -10,7 +10,7 @@ var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 // TestTaskStatus_IsTerminal_Partition pins the terminal/active partition that
 // the observability default task-query relies on (v2.7 #107 proj-B). ADR-0054
 // terminal = {completed, discarded}; active (non-terminal) =
-// {open, running, blocked, reopened}. "verified" stays deleted. v2.8.1: no
+// {open, running, blocked}. "verified" and "reopened" stay retired. v2.8.1: no
 // "assigned" state (assignee is metadata). Iterating every enum value guards against a
 // new status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson) —
 // which is why AllTaskStatuses is the single source it iterates, rather than a list
@@ -25,7 +25,7 @@ func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 			t.Fatalf("IsTerminal(%s) = %v, want %v", s, got, terminal[s])
 		}
 	}
-	// Exactly 2 terminal, 5 active.
+	// Exactly 2 terminal, 3 active.
 	var nTerminal int
 	for _, s := range AllTaskStatuses() {
 		if s.IsTerminal() {
@@ -35,8 +35,8 @@ func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 	if nTerminal != 2 {
 		t.Fatalf("expected 2 terminal statuses, got %d", nTerminal)
 	}
-	if n := len(AllTaskStatuses()); n != 6 {
-		t.Fatalf("expected 6 statuses, got %d — update this partition deliberately, never incidentally", n)
+	if n := len(AllTaskStatuses()); n != 5 {
+		t.Fatalf("expected 5 statuses, got %d — update this partition deliberately, never incidentally", n)
 	}
 }
 
@@ -168,9 +168,9 @@ func TestTaskUnassignAndIllegal(t *testing.T) {
 	}
 }
 
-// --- Task: discard terminal + reopen chain ---
+// --- Task: terminal history is immutable ---
 
-func TestTaskDiscardAndReopen(t *testing.T) {
+func TestTaskTerminalStatusesCannotReopen(t *testing.T) {
 	tk := newTask(t)
 	_ = tk.Assign("agent:c", t0)
 	_ = tk.Start(t0)
@@ -181,56 +181,28 @@ func TestTaskDiscardAndReopen(t *testing.T) {
 		t.Fatalf("discarded is terminal, got %v", err)
 	}
 
-	// reopen chain (ADR-0046, no verified): completed→reopened→open
+	// Completed is equally terminal: remediation is represented by a new task.
 	tk2 := newTask(t)
 	_ = tk2.Assign("agent:c", t0)
 	_ = tk2.Start(t0)
 	_ = tk2.Complete("agent:c", t0)
-	if err := tk2.Reopen(t0); err != nil {
-		t.Fatal(err)
+	if err := tk2.Reopen(t0); err != ErrTaskReopenRetired {
+		t.Fatalf("Reopen(completed) = %v want ErrTaskReopenRetired", err)
 	}
-	if err := tk2.ToOpenFromReopened(t0); err != nil {
-		t.Fatal(err)
+	if err := tk2.ToOpenFromReopened(t0); err != ErrTaskReopenRetired {
+		t.Fatalf("ToOpenFromReopened = %v want ErrTaskReopenRetired", err)
 	}
-	if tk2.Status() != TaskOpen || tk2.Assignee() != "" || tk2.CompletedBy() != "" {
-		t.Fatalf("reopened task should reset to a fresh open: %s/%s/%s", tk2.Status(), tk2.Assignee(), tk2.CompletedBy())
+	if tk2.Status() != TaskCompleted || tk2.Assignee() != "agent:c" || tk2.CompletedBy() != "agent:c" {
+		t.Fatalf("retired reopen mutated terminal task: %s/%s/%s", tk2.Status(), tk2.Assignee(), tk2.CompletedBy())
 	}
 }
 
-// TestTaskReopenedIsStartable pins the T477 fix: `reopened` is a re-dispatchable
-// state, so an agent can Start it directly (reopened→running) without a separate
-// open hop — and then Complete it (running→completed). Previously taskTransitions
-// only allowed reopened→open, so Start on a reopened task returned
-// ErrIllegalTransition (the bug the owner hit: start_task/complete_task both failed
-// on a reopened task).
-func TestTaskReopenedIsStartable(t *testing.T) {
-	tk := newTask(t)
-	_ = tk.Assign("agent:c", t0)
-	_ = tk.Start(t0)
-	_ = tk.Complete("agent:c", t0)
-	if err := tk.Reopen(t0); err != nil {
-		t.Fatal(err)
+func TestTaskReopenedIsRetired(t *testing.T) {
+	if TaskStatus("reopened").IsValid() {
+		t.Fatal("reopened must not be a valid writable/persisted Task status")
 	}
-	if tk.Status() != TaskReopened {
-		t.Fatalf("want reopened, got %s", tk.Status())
-	}
-	// reopened → running directly (the re-dispatch pick-up path).
-	if err := tk.Start(t0); err != nil {
-		t.Fatalf("reopened→running (Start) should be legal, got %v", err)
-	}
-	if tk.Status() != TaskRunning {
-		t.Fatalf("want running after Start, got %s", tk.Status())
-	}
-	// running → completed completes the re-run.
-	if err := tk.Complete("agent:c", t0); err != nil {
-		t.Fatalf("running→completed should be legal, got %v", err)
-	}
-	if tk.Status() != TaskCompleted {
-		t.Fatalf("want completed, got %s", tk.Status())
-	}
-	// Adjacency table reflects both forward exits from reopened.
-	if !TaskReopened.CanTransitionTo(TaskRunning) || !TaskReopened.CanTransitionTo(TaskOpen) {
-		t.Fatal("reopened must be able to transition to both running and open")
+	if TaskStatus("reopened").IsDispatchable() || TaskStatus("reopened").CanTransitionTo(TaskOpen) || TaskStatus("reopened").CanTransitionTo(TaskRunning) {
+		t.Fatal("retired reopened status must not be dispatchable or have exits")
 	}
 }
 
@@ -264,18 +236,23 @@ func TestProject_LifecycleAndRehydrate(t *testing.T) {
 	}
 }
 
-// TestTaskSetStatus_FreeAnyValid — v2.8.1 @oopslink: SetStatus is FREE (any valid
-// target, no adjacency). Validates only enum membership; idempotent on no-op.
-func TestTaskSetStatus_FreeAnyValid(t *testing.T) {
+// SetStatus permits non-terminal operator corrections, but terminal facts never
+// become active again and `reopened` cannot be written.
+func TestTaskSetStatus_TerminalMonotonic(t *testing.T) {
 	tk := newTask(t) // open
-	// Any valid target reachable from any state, regardless of the adjacency graph.
-	for _, target := range []TaskStatus{TaskCompleted, TaskOpen, TaskDiscarded, TaskRunning, TaskReopened} {
+	for _, target := range []TaskStatus{TaskRunning, TaskBlocked, TaskOpen, TaskCompleted} {
 		if err := tk.SetStatus(target, t0); err != nil {
-			t.Fatalf("SetStatus(%s) free transition failed: %v", target, err)
+			t.Fatalf("SetStatus(%s) non-terminal correction failed: %v", target, err)
 		}
 		if tk.Status() != target {
 			t.Fatalf("status=%s want %s", tk.Status(), target)
 		}
+	}
+	if err := tk.SetStatus(TaskOpen, t0); err != ErrIllegalTransition {
+		t.Fatalf("completed→open = %v want ErrIllegalTransition", err)
+	}
+	if err := tk.SetStatus(TaskStatus("reopened"), t0); err != ErrTaskReopenRetired {
+		t.Fatalf("completed→reopened = %v want ErrTaskReopenRetired", err)
 	}
 	// Invalid enum value rejected.
 	if err := tk.SetStatus(TaskStatus("bogus"), t0); err != ErrInvalidStatus {

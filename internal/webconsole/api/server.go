@@ -350,6 +350,9 @@ func (s *Server) routes() {
 	// DERIVED in the GET DTO (§9.2). Edits (select/deps/patch) are draft-only (§9.4);
 	// start (§9.6 validation) / stop (§9.4) / advance (§9.3 idempotent dispatch).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans", s.pmListPlansHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/assignment-pool", s.pmGetAssignmentPoolHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/assignment-pool/tasks", s.pmAddAssignmentPoolTaskHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/assignment-pool/tasks/{task_id}", s.pmRemoveAssignmentPoolTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
 	// T769 — plan-detail DAG reads the orchestration-engine graph (control nodes +
@@ -374,6 +377,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmAddDependencyHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmRemoveDependencyHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/pause", s.pmPausePlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/resume", s.pmResumePlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/discard", s.pmDiscardPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/advance", s.pmAdvancePlanHandler)
 	// T53: operator resume of a paused plan node (un-stick a set-aside node).

@@ -403,7 +403,7 @@ function mockOrgPlans() {
           {
             // a plan WITHOUT an org_ref → label falls back to the FULL id (T126).
             id: 'plan-noref', project: { id: 'proj-x', name: 'Project X' },
-            name: 'No ref plan', status: 'draft', has_failed: false,
+            name: 'No ref plan', status: 'pending', has_failed: false,
             progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x',
           },
         ],

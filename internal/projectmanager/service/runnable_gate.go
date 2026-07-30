@@ -101,6 +101,13 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	}
 	planID := t.PlanID()
 	if planID == "" {
+		if s.pools != nil {
+			if _, ok, err := s.pools.FindTask(ctx, taskID); err != nil {
+				return err
+			} else if ok {
+				return nil // flat pool membership is the runnability boundary
+			}
+		}
 		return pm.ErrTaskNotRunnable // pure backlog — no plan, no deps placed
 	}
 	p, err := s.plans.FindByID(ctx, planID)
@@ -150,7 +157,7 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	}
 	// T329 (issue-9d4b3895 §13.A): a structured plan node is runnable ONLY when its
 	// plan is RUNNING — a draft/stopped plan's nodes must not start (being a plan
-	// member is not enough). Without this a node of a draft plan can derive a
+	// member is not enough). Without this a node of a pending Plan can derive a
 	// ready/dispatched status and wrongly start (抢跑 of a not-yet-launched plan).
 	if p.Status() != pm.PlanRunning {
 		return pm.ErrTaskNotRunnable

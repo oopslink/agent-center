@@ -248,7 +248,7 @@ func TestUnassignTask_ClearsAssignee(t *testing.T) {
 	}
 }
 
-func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
+func TestReopenTask_RetiredAndLeavesCompletionImmutable(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
@@ -257,23 +257,18 @@ func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
 	if err := svc.CompleteTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	// Reopen a completed Task → straight back to open, assignment + completion cleared.
-	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
-		t.Fatal(err)
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskReopenRetired {
+		t.Fatalf("ReopenTask = %v want ErrTaskReopenRetired", err)
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskOpen || tk.Assignee() != "" || tk.CompletedBy() != "" {
-		t.Fatalf("after reopen: want open + cleared assignee/completer, got %s / %q / %q",
+	if tk.Status() != pm.TaskCompleted || tk.Assignee() != "user:a" || tk.CompletedBy() != "user:a" {
+		t.Fatalf("retired reopen mutated completion, got %s / %q / %q",
 			tk.Status(), tk.Assignee(), tk.CompletedBy())
-	}
-	// Reopen from a non-completed/verified state is illegal.
-	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
-		t.Fatalf("reopen from open should be ErrIllegalTransition, got %v", err)
 	}
 }
 
 // TestOffboardedAssignee_RetainedAsSubscriber is the #98 OQ13 semantics: anyone
-// taken off a Task (unassign / reassign-away / reopen) is RETAINED as a sticky
+// taken off a Task (unassign / reassign-away) is RETAINED as a sticky
 // manual subscriber — they stay in the task Conversation, downgraded to
 // subscriber, until an explicit Unsubscribe removes them. Conversation
 // membership is monotonic; task state reset does not evict.
@@ -369,8 +364,8 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 		t.Fatal("after unsubscribe: AG2 should remain a subscriber")
 	}
 
-	// Reopen path: assign AG3, run, complete via a NON-creator member, reopen →
-	// BOTH the prior assignee (AG3) and the completer (user:b) are retained.
+	// Completion keeps both the prior assignee (AG3) and completer (user:b)
+	// subscribed. A retired reopen attempt must not disturb that history.
 	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}
@@ -379,15 +374,12 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
-		t.Fatal(err)
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskReopenRetired {
+		t.Fatalf("ReopenTask = %v want ErrTaskReopenRetired", err)
 	}
 	drain()
 	if !hasParticipant(tid, "agent:AG3") {
-		t.Fatal("after reopen: prior assignee AG3 should be retained as subscriber")
-	}
-	if !hasParticipant(tid, "user:b") {
-		t.Fatal("after reopen: completer user:b should be retained as subscriber")
+		t.Fatal("after rejected reopen: prior assignee AG3 should remain a subscriber")
 	}
 }
 

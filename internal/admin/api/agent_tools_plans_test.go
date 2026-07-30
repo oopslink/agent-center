@@ -85,7 +85,7 @@ func TestCreatePlan_AsMember_OK(t *testing.T) {
 	if got := string(p.CreatorRef()); got != "agent:"+atAgent1 {
 		t.Fatalf("creator_ref = %q, want agent:%s", got, atAgent1)
 	}
-	if p.Status() != pm.PlanDraft {
+	if p.Status() != pm.PlanPending {
 		t.Fatalf("status = %s, want draft", p.Status())
 	}
 }
@@ -264,7 +264,7 @@ func TestRemovePlanDependency_AsMember_OK(t *testing.T) {
 	}
 }
 
-// --- start_plan / stop_plan --------------------------------------------------
+// --- start_plan / pause_plan / resume_plan / discard_plan -------------------
 
 func TestStartPlan_AsMember_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
@@ -299,7 +299,7 @@ func TestStartPlan_NoTasks_Surfaced(t *testing.T) {
 	}
 }
 
-func TestStopPlan_AsMember_OK(t *testing.T) {
+func TestPauseResumeDiscardPlan_AsMember_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	pid, planID := f.seedPlanMember(t)
@@ -309,14 +309,30 @@ func TestStopPlan_AsMember_OK(t *testing.T) {
 	}
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/stop_plan", "acat_w1",
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/pause_plan", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "plan_id": planID})
-	if status != http.StatusOK || body["ok"] != true {
-		t.Fatalf("status = %d body=%v, want 200 ok=true", status, body)
+	if status != http.StatusOK || body["ok"] != true || body["status"] != "paused" {
+		t.Fatalf("pause status = %d body=%v", status, body)
 	}
 	p, _ := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
-	if p.Status() != pm.PlanDraft {
-		t.Fatalf("status = %s, want draft after stop", p.Status())
+	if p.Status() != pm.PlanPaused {
+		t.Fatalf("status = %s, want paused", p.Status())
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/resume_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusOK || body["status"] != "running" {
+		t.Fatalf("resume status = %d body=%v", status, body)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/discard_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusOK || body["status"] != "discarded" {
+		t.Fatalf("discard status = %d body=%v", status, body)
+	}
+	p, _ = f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if p.Status() != pm.PlanDiscarded {
+		t.Fatalf("status = %s, want discarded", p.Status())
 	}
 }
 
@@ -398,6 +414,9 @@ func TestArchivePlan_AsMember_OK(t *testing.T) {
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	pid, planID := f.seedPlanMember(t)
 	tid := f.seedPlanTask(t, pid, planID)
+	if err := f.pmSvc.DiscardPlan(context.Background(), pm.PlanID(planID), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/archive_plan", "acat_w1",
@@ -406,20 +425,20 @@ func TestArchivePlan_AsMember_OK(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
 	// Returns the archived Plan detail (same shape get_plan emits).
-	if body["id"] != planID || body["status"] != string(pm.PlanArchived) {
-		t.Fatalf("archive body id/status = %v/%v, want %s/archived", body["id"], body["status"], planID)
+	if body["id"] != planID || body["status"] != string(pm.PlanDiscarded) || body["archived_at"] == nil {
+		t.Fatalf("archive body id/status/archived_at = %v/%v/%v", body["id"], body["status"], body["archived_at"])
 	}
 	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Status() != pm.PlanArchived {
-		t.Fatalf("plan status = %s, want archived", p.Status())
+	if p.Status() != pm.PlanDiscarded || !p.IsArchived() {
+		t.Fatalf("plan status = %s archived=%v", p.Status(), p.IsArchived())
 	}
-	// CASCADE: the plan's task is archived too.
+	// Plan archive is orthogonal and does not cascade Task archive markers.
 	tk, _ := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
-	if !tk.IsArchived() {
-		t.Fatalf("task not archived after plan archive")
+	if tk.IsArchived() || tk.Status() != pm.TaskDiscarded {
+		t.Fatalf("task archive/status = %v/%s", tk.IsArchived(), tk.Status())
 	}
 }
 
@@ -438,7 +457,7 @@ func TestArchivePlan_Running_Surfaced(t *testing.T) {
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/archive_plan", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "plan_id": planID})
 	if status != http.StatusConflict || body["error"] != "plan_conflict" {
-		t.Fatalf("status = %d err=%v, want 409 plan_conflict (ErrPlanRunning)", status, body["error"])
+		t.Fatalf("status = %d err=%v, want 409 plan_conflict (ErrPlanNotTerminal)", status, body["error"])
 	}
 }
 

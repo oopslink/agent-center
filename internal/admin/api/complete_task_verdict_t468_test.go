@@ -121,7 +121,7 @@ func TestCompleteTask_InvalidReviewVerdict_Rejected_T468(t *testing.T) {
 	}
 }
 
-func TestCompleteTask_StageGateRejectAtomicallyReopensMembersAndReplayIsIdempotent(t *testing.T) {
+func TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	srv := f.server(t)
@@ -187,26 +187,42 @@ func TestCompleteTask_StageGateRejectAtomicallyReopensMembersAndReplayIsIdempote
 	if err != nil {
 		t.Fatal(err)
 	}
-	if member.Status() != pm.TaskReopened {
-		t.Fatalf("member status after reject = %s, want reopened", member.Status())
+	if member.Status() != pm.TaskCompleted {
+		t.Fatalf("member status after reject = %s, want immutable completed", member.Status())
 	}
 	stage, err = f.pmSvc.GetStage(ctx, stageID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stage.Rounds != 1 {
-		t.Fatalf("rounds after reject = %d, want 1", stage.Rounds)
+	if stage.Rounds != 0 {
+		t.Fatalf("historical stage rounds changed after reject: %d", stage.Rounds)
+	}
+	stages, err := f.pmSvc.ListStagesForPlan(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stages) != 2 {
+		t.Fatalf("stages after reject = %d, want original + one remediation", len(stages))
+	}
+	var remediation *pmservice.StageDetail
+	for _, candidate := range stages {
+		if candidate.Stage.Generation() == 1 {
+			remediation = candidate
+		}
+	}
+	if remediation == nil || remediation.Stage.OriginVerdictID() == "" || len(remediation.Members) == 0 {
+		t.Fatalf("missing lineage-bearing remediation stage: %+v", remediation)
 	}
 
 	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1", payload)
 	if status != http.StatusOK {
 		t.Fatalf("idempotent replay status=%d body=%v", status, body)
 	}
-	stage, err = f.pmSvc.GetStage(ctx, stageID)
+	stages, err = f.pmSvc.ListStagesForPlan(ctx, planID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stage.Rounds != 1 {
-		t.Fatalf("rounds after identical replay = %d, want 1", stage.Rounds)
+	if len(stages) != 2 {
+		t.Fatalf("identical replay appended duplicate remediation stages: %d", len(stages))
 	}
 }

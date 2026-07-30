@@ -5,6 +5,7 @@ import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
 import {
   usePlans,
+  useAssignmentPool,
   usePlan,
   useCreatePlan,
   usePatchPlan,
@@ -24,18 +25,25 @@ describe('plans hooks', () => {
   it('usePlans unwraps the wrapped parallel list under a project', async () => {
     const { result } = renderHook(() => usePlans('proj-a'), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    // ADR-0047: the list now ships the built-in assignment pool + structured plans.
-    expect(result.current.data).toHaveLength(3);
+    // AssignmentPool is fetched from its own endpoint, so Plans contains only Plans.
+    expect(result.current.data).toHaveLength(2);
     const pl1 = result.current.data?.find((p) => p.id === 'PL-1');
     // derived fields present per contract
     expect(pl1?.status).toBe('running');
     expect(pl1?.has_failed).toBe(true);
     expect(pl1?.progress).toEqual({ done: 2, total: 5 });
-    // ADR-0047: exactly one built-in pool (is_builtin) — the others are structured.
+    // AssignmentPool is not encoded as a special Plan row.
     const builtins = result.current.data?.filter((p) => p.is_builtin === true) ?? [];
-    expect(builtins).toHaveLength(1);
-    expect(builtins[0].id).toBe('PL-BUILTIN');
+    expect(builtins).toHaveLength(0);
     expect(result.current.data?.find((p) => p.id === 'PL-1')?.is_builtin).toBe(false);
+  });
+
+  it('useAssignmentPool reads the independent low-priority pull queue', async () => {
+    const { result } = renderHook(() => useAssignmentPool('proj-a'), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.id).toBe('POOL-proj-a');
+    expect(result.current.data?.scheduling_class).toBe('background');
+    expect(result.current.data?.tasks.map((task) => task.id)).toContain('TS-CLAIM');
   });
 
   it('usePlans stays idle when projectId is undefined', () => {
@@ -98,7 +106,7 @@ describe('plans hooks', () => {
           id: 'PL-1',
           project_id: 'proj-a',
           name: 'x',
-          status: 'draft',
+          status: 'pending',
           has_failed: false,
           progress: { done: 0, total: 1 },
           nodes: [{ task_id: 'TS-9', title: 't', assignee_ref: '', task_status: 'open', node_status: 'ready', depends_on: [] }],
@@ -158,7 +166,7 @@ describe('plans hooks', () => {
       http.post('/api/projects/proj-a/plans/PL-1/archive', ({ request }) => {
         method = request.method;
         url = new URL(request.url).pathname;
-        return HttpResponse.json({ id: 'PL-1', status: 'archived' });
+        return HttpResponse.json({ id: 'PL-1', status: 'done', archived_at: '2026-07-01T00:00:00Z' });
       }),
     );
     const { result } = renderHook(() => useArchivePlan('proj-a', 'PL-1'), { wrapper: makeWrapper() });
@@ -172,7 +180,7 @@ describe('plans hooks', () => {
 
   it('friendlyDestructivePlanError maps 409s by message substring (status-agnostic, no raw error)', () => {
     expect(friendlyDestructivePlanError(new Error('[409 plan_conflict] projectmanager: plan is running'))).toMatch(
-      /Stop it first/i,
+      /already started/i,
     );
     expect(friendlyDestructivePlanError(new Error('[409 plan_conflict] plan already archived'))).toMatch(
       /already archived/i,
@@ -193,13 +201,13 @@ describe('plans hooks', () => {
       ),
     );
     expect(hasRunningTasks).toMatch(/has running tasks/i);
-    expect(hasRunningTasks).not.toMatch(/Stop it first/i);
+    expect(hasRunningTasks).not.toMatch(/already started/i);
 
     // ErrPlanRunning (plan-state) still maps to the plan-is-running text.
     const planRunning = friendlyDestructivePlanError(
       new Error('[409 plan_conflict] projectmanager: plan is running'),
     );
-    expect(planRunning).toMatch(/Stop it first/i);
+    expect(planRunning).toMatch(/already started/i);
     expect(planRunning).not.toMatch(/has running tasks/i);
 
     // already-archived fallback still works.

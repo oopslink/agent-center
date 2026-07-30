@@ -289,6 +289,38 @@ type StageRepository interface {
 	DeleteByPlan(ctx context.Context, planID PlanID) error
 }
 
+// AssignmentPoolRepository persists the per-Project pull queue independently of
+// Plan/graph storage. Claim and Release are membership CAS operations; callers
+// mutate the Task assignee in the same transaction.
+type AssignmentPoolRepository interface {
+	Save(ctx context.Context, pool *AssignmentPool) error
+	FindByProject(ctx context.Context, projectID ProjectID) (*AssignmentPool, error)
+	AddTask(ctx context.Context, member AssignmentPoolTask) error
+	RemoveTask(ctx context.Context, poolID AssignmentPoolID, taskID TaskID) error
+	FindTask(ctx context.Context, taskID TaskID) (AssignmentPoolTask, bool, error)
+	ListTasks(ctx context.Context, poolID AssignmentPoolID) ([]AssignmentPoolTask, error)
+	ListHeldByActor(ctx context.Context, actor IdentityRef) ([]AssignmentPoolTask, error)
+	Claim(ctx context.Context, poolID AssignmentPoolID, taskID TaskID, expectedVersion int,
+		actor IdentityRef, at, expiresAt time.Time) (bool, error)
+	Release(ctx context.Context, poolID AssignmentPoolID, taskID TaskID, expectedVersion int,
+		actor IdentityRef) (bool, error)
+}
+
+type RemediationRepository interface {
+	SaveVerdict(ctx context.Context, verdict GateVerdict) error
+	FindVerdictByGate(ctx context.Context, gateTaskID TaskID) (GateVerdict, bool, error)
+	FindVerdictByKey(ctx context.Context, key string) (GateVerdict, bool, error)
+	ListVerdictsByPlan(ctx context.Context, planID PlanID) ([]GateVerdict, error)
+	SaveContinuation(ctx context.Context, continuation *PlanContinuation) error
+	UpdateContinuation(ctx context.Context, continuation *PlanContinuation, expectedVersion int) (bool, error)
+	FindContinuation(ctx context.Context, id ContinuationID) (*PlanContinuation, error)
+	FindOpenContinuationByStage(ctx context.Context, stageID StageID) (*PlanContinuation, bool, error)
+	ListContinuationsByPlan(ctx context.Context, planID PlanID) ([]*PlanContinuation, error)
+	SaveProposal(ctx context.Context, proposal RemediationProposal) error
+	UpdateProposalStatus(ctx context.Context, id RemediationProposalID, status string, diagnostics []string, committedAt time.Time) error
+	FindProposalByKey(ctx context.Context, key string) (RemediationProposal, bool, error)
+}
+
 // PlanFindingRepository persists PlanFinding ARs (v2.10, ADR-0053 — the DeLM
 // plan-scoped shared-findings store). Findings are IMMUTABLE: there is Save (once)
 // + reads + Delete (retract / cascade), but no Update. ListByPlan backs both the

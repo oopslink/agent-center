@@ -7,20 +7,14 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine. ADR-0046 simplified 7→5 states:
+// TaskStatus enum + state machine. ADR-0055 makes terminal facts immutable:
 //
 //	open → running → completed
 //	running → blocked → running
 //	open/running/blocked → discarded (terminal)
-//	completed → reopened → open | running
 //
-// `reopened` is a RE-DISPATCHABLE non-terminal state (plan_view treats it as
-// re-runnable; reopenLoopSubgraph rests a loopback node there for re-dispatch). It
-// has two forward exits: → open completes the manual ReopenTask chain
-// (completed→reopened→open, a fresh segment), and → running lets an agent pick the
-// re-dispatched node up directly via Start without a separate open hop. The latter
-// edge fixes T477: start_task on a reopened task previously hit ErrIllegalTransition
-// because `running` was unreachable from `reopened`.
+// Migration 0120 converts legacy `reopened` rows to open. `reopened` is not a
+// valid persisted or writable Task status anymore.
 //
 // `blocked` (I107 ②) is a REAL state again, not the annotation ADR-0046 made it. The
 // annotation could not stop dispatch: block_task wrote `blocked_reason` but left
@@ -48,13 +42,12 @@ const (
 	TaskBlocked   TaskStatus = "blocked"
 	TaskCompleted TaskStatus = "completed"
 	TaskDiscarded TaskStatus = "discarded" // was "canceled" (v2.8.1 rename)
-	TaskReopened  TaskStatus = "reopened"
 )
 
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened:
+	case TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded:
 		return true
 	}
 	return false
@@ -68,7 +61,7 @@ func (s TaskStatus) IsValid() bool {
 // IsTerminal, and no such test existed — so two new non-terminal statuses broke nothing and
 // were silently excluded from every active view.)
 func AllTaskStatuses() []TaskStatus {
-	return []TaskStatus{TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded, TaskReopened}
+	return []TaskStatus{TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded}
 }
 
 // taskTransitions is the allowed-transition adjacency. Start moves open→running
@@ -82,11 +75,8 @@ var taskTransitions = map[TaskStatus][]TaskStatus{
 	// owner conclude a parked task without an unblock hop (preserves the pre-ADR-0054
 	// "complete a blocked task" path), → discarded retires it.
 	TaskBlocked:   {TaskRunning, TaskCompleted, TaskDiscarded},
-	TaskCompleted: {TaskReopened},
+	TaskCompleted: {}, // terminal: follow-up work is a new Task/Remediation Stage
 	TaskDiscarded: {}, // terminal
-	// reopened is re-dispatchable: → open finishes the manual ReopenTask chain,
-	// → running lets an agent Start a re-dispatched/reopened node directly (T477).
-	TaskReopened: {TaskOpen, TaskRunning},
 }
 
 // CanTransitionTo reports whether from→to is a legal Task transition.
@@ -100,9 +90,8 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is done
-// (completed) or abandoned (discarded). A Reopen can re-activate a completed task, but
-// in any concluded state the task is not "active work in flight". The complement (the
-// active / non-terminal set) is exactly {open, running, blocked, reopened}.
+// (completed) or abandoned (discarded). Terminal tasks never become active again.
+// The active / non-terminal set is exactly {open, running, blocked}.
 // v2.7 #107 Phase-2 (proj-B): the observability default task-query set is the
 // non-terminal set.
 //
@@ -140,7 +129,7 @@ func (s TaskStatus) IsParked() bool {
 // relaunched for it: it must be neither concluded (terminal) nor parked. This is the
 // positive form of the ADR-0054 "park really stops dispatch" rule.
 func (s TaskStatus) IsDispatchable() bool {
-	return !s.IsTerminal() && !s.IsParked()
+	return s.IsValid() && !s.IsTerminal() && !s.IsParked()
 }
 
 // BlockReasonType classifies WHY a running Task is blocked (issue I14 §2.4). It
@@ -318,6 +307,9 @@ type Task struct {
 	// add_task_to_plan(stage=…)); buildPlanGraph propagates it onto the graph node when
 	// the plan starts. A pure metadata edit (SetStage) — not a status change.
 	stageID StageID
+	// Remediation tasks point forward from immutable historical work.
+	followsTaskID   TaskID
+	originVerdictID GateVerdictID
 	// archivedAt/archivedBy hold the ORTHOGONAL archived state (v2.9 P3). Archival
 	// does NOT change task.status — a task can be archived in ANY status, and its
 	// status is preserved through archive (so a verified/discarded/running task
@@ -398,7 +390,9 @@ type NewTaskInput struct {
 	NodeID string
 	// StageID is the Plan Stage this task belongs to (2026-07-03 plan-stage-model
 	// design §4.1); "" when the task is in no stage.
-	StageID StageID
+	StageID         StageID
+	FollowsTaskID   TaskID
+	OriginVerdictID GateVerdictID
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -438,6 +432,8 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:               in.NodeID,
 		stageID:              in.StageID,
+		followsTaskID:        in.FollowsTaskID,
+		originVerdictID:      in.OriginVerdictID,
 	}, nil
 }
 
@@ -491,7 +487,9 @@ type RehydrateTaskInput struct {
 	FruitlessReopens int
 	// StageID is the persisted Plan Stage membership (2026-07-03 design §4.1,
 	// migration 0106); "" for rows predating the column / tasks in no stage.
-	StageID StageID
+	StageID         StageID
+	FollowsTaskID   TaskID
+	OriginVerdictID GateVerdictID
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -538,6 +536,8 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:                  in.NodeID,
 		stageID:                 in.StageID,
+		followsTaskID:           in.FollowsTaskID,
+		originVerdictID:         in.OriginVerdictID,
 		recoveryResetCount:      in.RecoveryResetCount,
 		delivery:                in.Delivery,
 		fruitlessReopens:        in.FruitlessReopens,
@@ -579,12 +579,14 @@ func (t *Task) Tags() []string                     { return t.tags }
 func (t *Task) StatusChangedAt() time.Time         { return t.statusChangedAt }
 
 // CompletedAt is the authoritative completion timestamp (T570 follow-up); zero
-// when the task is not currently completed (never completed, or reopened since).
-func (t *Task) CompletedAt() time.Time  { return t.completedAt }
-func (t *Task) PlanID() PlanID          { return t.planID }
-func (t *Task) NodeID() string          { return t.nodeID }
-func (t *Task) ArchivedAt() *time.Time  { return t.archivedAt }
-func (t *Task) ArchivedBy() IdentityRef { return t.archivedBy }
+// when the task has not completed.
+func (t *Task) CompletedAt() time.Time         { return t.completedAt }
+func (t *Task) PlanID() PlanID                 { return t.planID }
+func (t *Task) NodeID() string                 { return t.nodeID }
+func (t *Task) ArchivedAt() *time.Time         { return t.archivedAt }
+func (t *Task) ArchivedBy() IdentityRef        { return t.archivedBy }
+func (t *Task) FollowsTaskID() TaskID          { return t.followsTaskID }
+func (t *Task) OriginVerdictID() GateVerdictID { return t.originVerdictID }
 
 // ExecutionLeaseExpiresAt returns a COPY of the running agent's lease deadline
 // (nil = no live lease), so callers cannot mutate the aggregate's pointer (v2.14.0
@@ -684,7 +686,7 @@ func (t *Task) Archive(at time.Time, by IdentityRef) error {
 // (ErrTaskArchived) so no normal transition can ever finalize it. Calling this in the
 // archive cascade BEFORE Archive() closes that hole.
 //
-// Unlike Discard() it accepts ANY non-terminal status (open/running/reopened) without
+// Unlike Discard() it accepts ANY non-terminal status (open/running/blocked) without
 // the adjacency check, because an archive abandons whatever was in flight — there is
 // no "illegal" non-terminal→discarded here. It MUST run before Archive() (the
 // IsArchived guard rejects it afterward — that lock is exactly why this exists). A
@@ -922,10 +924,8 @@ func (t *Task) Unassign(at time.Time) error {
 	return nil
 }
 
-// Start moves open→running, or reopened→running (the agent picked up the work, or
-// re-picked-up a reopened/loopback node; assignment is metadata, not a precondition
-// state). It clears any stale blocked_reason — the agent is back, so it is no longer
-// stuck.
+// Start moves open→running. Assignment is metadata, not a precondition state. It
+// clears any stale blocked_reason — the agent is back, so it is no longer stuck.
 //
 // ADR-0054: a PARKED task is rejected outright rather than silently re-activated. The
 // `blocked` adjacency does carry a → running edge (that is Unblock's exit, and the
@@ -1291,16 +1291,15 @@ func (t *Task) Discard(at time.Time) error {
 	return nil
 }
 
-// SetStatus sets the status to any VALID target with NO adjacency enforcement
-// (v2.8.1 @oopslink: "task state = agent's self-reported progress, the center does
-// not enforce workflow rules"). The only check is enum validity; any valid state
-// is reachable from any state (the Change-status menu offers the full enum). The
-// typed transitions (Start/Block/Complete/Discard/Reopen) remain for the agent's
-// structured self-reports + the system projector, which carry their own
-// side-effects (blocked reason, completedBy); SetStatus is the free user override.
+// SetStatus is the compatibility manual-progress override, bounded by ADR-0055:
+// terminal facts never become non-terminal and no caller may create a new
+// `reopened` row. Non-terminal corrections remain available during migration.
 func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
+	}
+	if target == TaskStatus("reopened") {
+		return ErrTaskReopenRetired
 	}
 	if !target.IsValid() {
 		return ErrInvalidStatus
@@ -1308,11 +1307,13 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	if target == t.status {
 		return nil // no-op (idempotent); avoids a spurious version bump
 	}
+	if t.status.IsTerminal() {
+		return ErrIllegalTransition
+	}
 	t.status = target
 	t.statusChangedAt = at.UTC()
 	// T570 follow-up: maintain the authoritative completed_at. Entering completed
-	// stamps it; any other transition (reopen → reopened/open, discard) clears it
-	// so a reopened task no longer advertises a stale completion time.
+	// stamps it; every other non-terminal/terminal correction clears it.
 	if target == TaskCompleted {
 		t.completedAt = at.UTC()
 	} else {
@@ -1322,20 +1323,12 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	return nil
 }
 
-// Reopen moves completed→reopened.
-func (t *Task) Reopen(at time.Time) error { return t.simpleTransition(TaskReopened, at) }
+// Reopen is retained only as a source-compatibility guard. Terminal history is
+// immutable; callers must append a new Task/Remediation Stage.
+func (t *Task) Reopen(time.Time) error { return ErrTaskReopenRetired }
 
-// ToOpenFromReopened moves reopened→open (completing the reopen chain).
-func (t *Task) ToOpenFromReopened(at time.Time) error {
-	if err := t.simpleTransition(TaskOpen, at); err != nil {
-		return err
-	}
-	// A reopened task starts fresh: clear assignment + completion truth.
-	t.assignee = ""
-	t.completedBy = ""
-	t.blockedReason = ""
-	return nil
-}
+// ToOpenFromReopened is a retired compatibility entrypoint.
+func (t *Task) ToOpenFromReopened(time.Time) error { return ErrTaskReopenRetired }
 
 // simpleTransition applies a status-only move guarded by the state machine.
 func (t *Task) simpleTransition(to TaskStatus, at time.Time) error {

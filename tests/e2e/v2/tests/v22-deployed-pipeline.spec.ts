@@ -15,7 +15,7 @@
 //      so a future rewrite can't silently regress onto stale endpoints.
 //   4. The task-dispatch pipeline closes at the control plane: a worker-token +
 //      worker-bound agent creates a task via agent-tools, it is DISPATCHED into
-//      the project's built-in assignment pool (ADR-0047), shows up in the agent's
+//      the project's AssignmentPool (ADR-0055), shows up in the agent's
 //      list_tasks, and the agent CLAIMS it (open → running).
 //
 // SCOPE / WHY NO "task → completed" + no real agent subprocess (T212):
@@ -33,11 +33,11 @@
 //   agent CLAIMING dispatched work (open → running); the agent's own subprocess
 //   execution is out of scope here.
 //
-// Seeding note: the v2.7 Agent BC, the project, its members and the built-in
+// Seeding note: the v2.7 Agent BC, the project, its members and the AssignmentPool
 // assignment pool are seeded by direct sqlite INSERT (the established e2e
 // shortcut — see cold-start.spec.ts). There is no admin route to create a v2.7
 // Agent (only /api/members/agent on the web console, which needs a JWT session),
-// and a raw `pm_projects` INSERT lacks the ADR-0047 built-in pool, so the pool
+// and a raw `pm_projects` INSERT bypasses CreateProject, so the AssignmentPool
 // row is seeded too. The DISPATCH + CLAIM themselves go over the REAL routes.
 
 import { test, expect } from "@playwright/test";
@@ -339,7 +339,8 @@ secret_management:
       expect(workerToken, "minted worker token").toBeTruthy();
 
       // Seed (sqlite): org + Agent (bound to smoke-ctl-w) + project + membership
-      // + the project's built-in assignment pool plan (ADR-0047).
+      // + the project's first-class AssignmentPool (ADR-0055). This fixture uses
+      // raw SQL after migrations, so it must mirror CreateProject's pool row.
       const now = new Date().toISOString();
       const orgID = "organization-smoke01";
       const agentID = "smoke-agent-0001"; // raw Agent BC id (identity = agent:<id>)
@@ -349,12 +350,12 @@ secret_management:
         `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${agentID}','${orgID}','smoke-agent','','','fakeagent','smoke-ctl-w','running','user:hayang','${now}','${now}');`,
         `INSERT INTO pm_projects (id,organization_id,name,description,status,created_by,created_at,updated_at,version) VALUES ('${projectID}','${orgID}','Smoke Project','smoke','active','user:hayang','${now}','${now}',1);`,
         `INSERT INTO pm_project_members (id,project_id,identity_id,role,added_by,created_at) VALUES ('m-smoke','${projectID}','agent:${agentID}','member','system','${now}');`,
-        `INSERT INTO pm_plans (id,project_id,name,description,status,creator_ref,conversation_id,target_date,is_builtin,created_at,updated_at,version) VALUES ('plan-builtin-${projectID}','${projectID}','[Built-in]','','running','system','','',1,'${now}','${now}',1);`,
+        `INSERT INTO pm_assignment_pools (id,project_id,scheduling_class,auto_assign_enabled,holding_cap,created_at,updated_at,version) VALUES ('pool-${projectID}','${projectID}','background',1,3,'${now}','${now}',1);`,
       ].join("\n");
       await execFile("sqlite3", [dbPath, seedSQL]);
 
       // create_task over the REAL agent-tools route (worker token + bound agent),
-      // dispatched (unassigned) into the built-in pull pool.
+      // dispatched (unassigned) into the background AssignmentPool.
       const create = await adminPOST(
         sockPath,
         "/admin/agent-tools/create_task",

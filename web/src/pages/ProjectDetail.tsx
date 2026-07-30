@@ -415,7 +415,7 @@ function TabButton({
 // Plan lifecycle statuses, in order — drive the PlanFilterBar chips. Kept local
 // (the WorkItemFilterBar STATUS_OPTIONS covers only issue/task; plans have their
 // own draft/running/done/archived set and no assignee/date filter).
-const PLAN_FILTER_STATUSES: PlanStatus[] = ['draft', 'running', 'done', 'archived'];
+const PLAN_FILTER_STATUSES: PlanStatus[] = ['pending', 'running', 'paused', 'done', 'discarded'];
 
 // PlanFilterBar — status toggle chips + a name/ref search box for PlansPanel
 // (owner ask 2026-07-03). Mirrors WorkItemFilterBar's chip idiom (solid status

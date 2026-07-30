@@ -108,8 +108,8 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 // SelectTaskIntoPlan selects a backlog task into a draft Plan (design §2/§9.6d).
 // Guards (Task ↔ Plan = 0..1, same project, draft-only):
 //   - the actor must be a project member;
-//   - the Plan must be in draft (ErrPlanNotDraft — the DAG/task set is editable
-//     only in draft, §9.4);
+//   - the Plan must be pending (ErrPlanNotPending — the DAG/task set is editable
+//     only before execution starts);
 //   - the task's project must equal the Plan's project (ErrPlanProjectMismatch);
 //   - if the task already belongs to a DIFFERENT plan → ErrTaskInOtherPlan;
 //     re-selecting into the SAME plan is a no-op.
@@ -143,8 +143,8 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 		// (that is how a task enters the claimable pool — selecting it makes it
 		// dispatchable/claimable). A structured plan is still draft-only (§9.4): its
 		// task-set/DAG is editable only while stopped.
-		if !p.IsBuiltin() && p.Status() != pm.PlanDraft {
-			return pm.ErrPlanNotDraft
+		if !p.IsBuiltin() && p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		if t.ProjectID() != p.ProjectID() {
 			return pm.ErrPlanProjectMismatch
@@ -207,7 +207,7 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		// §9.4: a structured plan's task-set + DAG are editable only in draft. Removing
+		// §9.4: a structured Plan's task-set + DAG are editable only while pending. Removing
 		// a node from a running/done plan would break the executing DAG — mirror the
 		// gate on SelectTaskIntoPlan / Add+RemovePlanDependency (add/remove symmetry).
 		// T121: the built-in assignment pool is EXEMPT — it is always-running yet a
@@ -215,8 +215,8 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		// as SelectTaskIntoPlan exempts it for the add side. Without this, a Work Board
 		// drag of a pool task (out to the backlog, or as the remove-half of a move)
 		// reports plan_conflict. A structured running/terminal plan stays locked.
-		if !p.IsBuiltin() && p.Status() != pm.PlanDraft {
-			return pm.ErrPlanNotDraft
+		if !p.IsBuiltin() && p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		t, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
@@ -262,7 +262,7 @@ type UpdatePlanCommand struct {
 }
 
 // UpdatePlan applies a dirty-only patch to a draft Plan (§9.4). The actor must be
-// a project member; a non-draft Plan is rejected (ErrPlanNotDraft).
+// a project member; a non-draft Plan is rejected (ErrPlanNotPending).
 func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -285,11 +285,11 @@ func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 		// title/goal can be fixed. STRUCTURAL/scheduling edits stay draft-only
 		// (§9.4): target_date here, DAG task/dependency edits in their own flows.
 		// An archived plan is terminal & read-only.
-		if p.Status() == pm.PlanArchived {
+		if p.IsArchived() {
 			return pm.ErrPlanArchived
 		}
-		if cmd.TargetDateSet && p.Status() != pm.PlanDraft {
-			return pm.ErrPlanNotDraft
+		if cmd.TargetDateSet && p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		if cmd.Name != nil {
 			if err := p.Rename(*cmd.Name, now); err != nil {
@@ -307,7 +307,7 @@ func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 }
 
 // AddPlanDependency adds a depends_on edge (from_task depends_on to_task) to a
-// DRAFT Plan's DAG (§9.4 — edits only in draft). The repo's AddDependency
+// PENDING Plan's DAG (§9.4 — edits only before execution). The repo's AddDependency
 // rejects self-edges + cycles (acyclic invariant, §9.6a) before persisting. Both
 // tasks must already be selected into the Plan. The actor must be a project member.
 func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromTaskID, toTaskID pm.TaskID, actor pm.IdentityRef) error {
@@ -358,8 +358,8 @@ func (s *Service) addPlanEdge(ctx context.Context, planID pm.PlanID, dep pm.Depe
 		if p.IsBuiltin() {
 			return pm.ErrBuiltinPlanNoEdges
 		}
-		if p.Status() != pm.PlanDraft {
-			return pm.ErrPlanNotDraft
+		if p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		// Both endpoints must be tasks selected into THIS plan (§9.8 scoping).
 		for _, id := range []pm.TaskID{dep.FromTaskID, dep.ToTaskID} {
@@ -403,8 +403,8 @@ func (s *Service) RemovePlanDependency(ctx context.Context, planID pm.PlanID, fr
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		if p.Status() != pm.PlanDraft {
-			return pm.ErrPlanNotDraft
+		if p.Status() != pm.PlanPending {
+			return pm.ErrPlanNotPending
 		}
 		// Detect whether the edge actually exists BEFORE the (idempotent) delete so a
 		// no-op removal (missing/empty from→to) produces NO ledger row (只读不产/no-op

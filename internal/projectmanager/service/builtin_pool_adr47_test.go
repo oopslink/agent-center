@@ -115,7 +115,7 @@ func TestBuiltinPool_GuardsReject(t *testing.T) {
 
 // TestBuiltinPool_SelectTaskAllowedWhileRunning proves SelectTaskIntoPlan works on
 // the (running) built-in pool — that is how a task ENTERS the claimable pool — even
-// though SelectTaskIntoPlan otherwise requires a draft plan (ErrPlanNotDraft).
+// though SelectTaskIntoPlan otherwise requires a draft plan (ErrPlanNotPending).
 func TestBuiltinPool_SelectTaskAllowedWhileRunning(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -132,7 +132,7 @@ func TestBuiltinPool_SelectTaskAllowedWhileRunning(t *testing.T) {
 	if err := h.svc.BatchUpdateTask(h.ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	// Selecting into the RUNNING builtin pool must be allowed (no ErrPlanNotDraft).
+	// Selecting into the RUNNING builtin pool must be allowed (no ErrPlanNotPending).
 	if err := h.svc.SelectTaskIntoPlan(h.ctx, pool.ID(), tid, "user:a"); err != nil {
 		t.Fatalf("SelectTaskIntoPlan into running builtin pool = %v, want nil", err)
 	}
@@ -290,7 +290,7 @@ func TestADR47_ArchiveProject_CascadeArchivesBuiltinPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pool.Status() != pm.PlanArchived {
+	if pool.Status() != pm.PlanDiscarded {
 		t.Fatalf("builtin pool status=%s, want archived after project archive", pool.Status())
 	}
 }

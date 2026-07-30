@@ -30,7 +30,7 @@ import (
 //     write-gate: an agent member of the plan's project passes; a foreign project
 //     yields ErrNotMember (→403). No extra membership layer is added on top.
 //
-// Plan domain errors the AppServices already enforce (ErrPlanNotDraft,
+// Plan domain errors the AppServices already enforce (ErrPlanNotPending,
 // ErrPlanNotRunning, ErrPlanCycle, ErrSelfDependency, ErrPlanNoTasks, …) are
 // surfaced as tool errors via mapPlanToolError (the admin mirror of webconsole's
 // mapPlanError).
@@ -39,10 +39,8 @@ import (
 // (→ pm.AssignTask). A plan node's assignee is just the underlying Task's assignee,
 // so there is NO plan-specific assign tool here — the existing assign_task suffices.
 //
-// NOTE on delete/archive: delete_plan / archive_plan are thin wrappers over the pm
-// DeletePlan / ArchivePlan AppServices (Stage B), which guard a RUNNING plan with
-// ErrPlanRunning (stop it first) and re-archival with ErrPlanArchived — both
-// surfaced via mapPlanToolError as 409 plan_conflict (mirroring webconsole).
+// NOTE on delete/archive: delete_plan is pending-only; archive_plan is terminal-only.
+// Re-archival remains a 409 plan_conflict.
 // =============================================================================
 
 // mapPlanToolError translates Plan-specific sentinel errors to the tool-error
@@ -61,7 +59,8 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pmservice.ErrStageGateNotExhausted):
 		writeError(w, http.StatusConflict, "stage_gate_not_exhausted", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
-		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
 		errors.Is(err, pm.ErrPlanHasRunningTasks):
@@ -71,7 +70,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		// v2.9 #297: a plan op on an ARCHIVED PARENT PROJECT also conflicts → 409.
 		// v2.9 #299: archive rejected while a member task is still running → 409.
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op → 409
-		// plan_conflict, CONSISTENT with webconsole mapPlanError (ErrPlanNotDraft was
+		// plan_conflict, CONSISTENT with webconsole mapPlanError (ErrPlanNotPending was
 		// 422 here / 400 there; unified to 409 = same domain-error-class same code
 		// cross-surface). Validation-class (cycle/self/no-tasks) stays 422 below.
 		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
@@ -167,7 +166,7 @@ type planTaskReq struct {
 
 // addTaskToPlanHandler selects a backlog task into a draft Plan via
 // pm.SelectTaskIntoPlan (actor=agent). Draft-gating + project-scope guards
-// (ErrPlanNotDraft / ErrPlanProjectMismatch / ErrTaskInOtherPlan) are enforced by
+// (ErrPlanNotPending / ErrPlanProjectMismatch / ErrTaskInOtherPlan) are enforced by
 // the AppService and surfaced as tool errors.
 func (s *Server) addTaskToPlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -181,7 +180,7 @@ func (s *Server) addTaskToPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 2026-07-03 plan-stage-model §6: an optional `stage` groups the task under a Plan
-	// Stage in the same authoring step (AssignTaskToStage — draft-only, same-plan gate).
+	// Stage in the same authoring step (AssignTaskToStage — pending-only, same-plan gate).
 	if strings.TrimSpace(req.Stage) != "" {
 		if err := d.PMService.AssignTaskToStage(r.Context(), pm.PlanID(req.PlanID),
 			pm.TaskID(req.TaskID), pm.StageID(strings.TrimSpace(req.Stage)), pm.IdentityRef(agentActor(a))); err != nil {
@@ -353,14 +352,14 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out})
 }
 
-// --- start_plan / stop_plan --------------------------------------------------
+// --- start_plan / pause_plan / resume_plan / discard_plan -------------------
 
 type planIDReq struct {
 	AgentID string `json:"agent_id"`
 	PlanID  string `json:"plan_id"`
 }
 
-// startPlanHandler validates + moves a draft Plan to running via pm.StartPlan
+// startPlanHandler validates + moves a pending Plan to running via pm.StartPlan
 // (actor=agent). Start-validation guards (ErrPlanNoTasks, ErrPlanCycle,
 // ErrPlanUnassignedTask, ErrPlanUnresolvableAssignee, …) are enforced by the
 // AppService and surfaced as tool errors.
@@ -377,18 +376,49 @@ func (s *Server) startPlanHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// stopPlanHandler moves a running Plan back to draft via pm.StopPlan (actor=agent).
-func (s *Server) stopPlanHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) pausePlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	a, req, ok := s.decodePlanID(w, r, d)
 	if !ok {
 		return
 	}
-	if err := d.PMService.StopPlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+	if err := d.PMService.PausePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
 		mapPlanToolError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "paused"})
+}
+
+// stopPlanHandler is an unadvertised compatibility alias. It pauses; it never
+// returns the Plan to pending authoring.
+func (s *Server) stopPlanHandler(w http.ResponseWriter, r *http.Request) {
+	s.pausePlanHandler(w, r)
+}
+
+func (s *Server) resumePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.ResumePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
+func (s *Server) discardPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.DiscardPlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "discarded"})
 }
 
 // --- delete_plan / archive_plan ----------------------------------------------
@@ -450,7 +480,7 @@ type createStageReq struct {
 	ExhaustedRoute     string   `json:"exhausted_route"`
 }
 
-// createStageHandler authors a Stage in a draft plan via pm.CreateStage (actor=agent).
+// createStageHandler authors a Stage in a pending Plan via pm.CreateStage (actor=agent).
 // depends_on_stages wires the outer stage DAG; the AppService validates draft-state +
 // same-plan + acyclic and surfaces the guards via mapPlanToolError. Returns the new
 // stage_id.
@@ -632,21 +662,26 @@ func stageDetailMap(detail *pmservice.StageDetail) map[string]any {
 		})
 	}
 	return map[string]any{
-		"id":                string(st.ID()),
-		"plan_id":           string(st.PlanID()),
-		"name":              st.Name(),
-		"depends_on_stages": deps,
-		"gate_node_id":      st.GateNodeID(),
-		"gate_task_id":      string(st.GateTaskID()),
-		"gate_spec":         st.GateSpec(),
-		"max_rounds":        st.MaxRounds(),
-		"status":            string(detail.Status),
-		"rounds":            detail.Rounds,
-		"gate_outcome":      detail.GateOutcome,
-		"gate_evidence":     detail.GateEvidence,
-		"gate_reviewed_sha": detail.GateReviewedSHA,
-		"diagnostics":       detail.Diagnostics,
-		"members":           members,
+		"id":                   string(st.ID()),
+		"plan_id":              string(st.PlanID()),
+		"name":                 st.Name(),
+		"depends_on_stages":    deps,
+		"gate_node_id":         st.GateNodeID(),
+		"gate_task_id":         string(st.GateTaskID()),
+		"gate_spec":            st.GateSpec(),
+		"max_rounds":           st.MaxRounds(),
+		"status":               string(detail.Status),
+		"rounds":               detail.Rounds,
+		"gate_outcome":         detail.GateOutcome,
+		"gate_evidence":        detail.GateEvidence,
+		"gate_reviewed_sha":    detail.GateReviewedSHA,
+		"origin_verdict_id":    string(st.OriginVerdictID()),
+		"continuation_id":      string(st.ContinuationID()),
+		"generation":           st.Generation(),
+		"acceptance_contract":  st.AcceptanceContract(),
+		"topology_fingerprint": st.TopologyFingerprint(),
+		"diagnostics":          detail.Diagnostics,
+		"members":              members,
 	}
 }
 
@@ -869,6 +904,10 @@ func planMap(p *pm.Plan) map[string]any {
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
 	}
+	if at := p.ArchivedAt(); at != nil {
+		m["archived_at"] = at.Format(time.RFC3339Nano)
+		m["archived_by"] = string(p.ArchivedBy())
+	}
 	return m
 }
 
@@ -1000,6 +1039,12 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	if len(detail.GateVerdicts) > 0 {
+		m["gate_verdicts"] = detail.GateVerdicts
+	}
+	if len(detail.Continuations) > 0 {
+		m["continuations"] = detail.Continuations
+	}
 	// issue-77d9beff ②: surface the stage GATE condition nodes so the plan owner/PD
 	// sees which gate to resolve (get_plan otherwise exposes only business task nodes).
 	if len(detail.Gates) > 0 {

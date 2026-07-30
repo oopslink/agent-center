@@ -105,14 +105,14 @@ func TestDerivePlanView_RunningEscape_NotSkipped_T467(t *testing.T) {
 	}
 }
 
-// During a bounded loopback that has NOT yet resolved, the decision is re-opened
-// (not done) so the escape node is NOT prematurely skipped — it stays blocked/pending.
+// A fresh decision task in an incremental follow-up is not done, so the escape
+// node is not prematurely skipped.
 func TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskRunning), // re-activated by a reject loopback round
 		newTaskWithStatus(t, "Review", TaskOpen),
-		newTaskWithStatus(t, "Dec", TaskReopened), // re-decided this round → not done
+		newTaskWithStatus(t, "Dec", TaskOpen), // fresh follow-up decision → not done
 		newTaskWithStatus(t, "Integ", TaskOpen),
 		newTaskWithStatus(t, "Esc", TaskOpen),
 	}

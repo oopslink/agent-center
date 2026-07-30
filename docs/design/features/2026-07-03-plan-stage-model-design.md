@@ -1,5 +1,7 @@
 # Plan Stage 模型设计（Spark 式 stage + task）
 
+> **Superseded note**：reject/retry 语义已由 [ADR-0055](../decisions/0055-monotonic-plan-lifecycle-and-remediation-stages.md) 取代。Stage 分组与 barrier 仍是历史上下文；实现必须新增 Remediation Stage，不得 reopen 已 accepted/rejected Stage。
+
 > **状态**：设计已确认（oopslink，2026-07-03；2026-07-12 又经 3 轮 grill 复审并确认「按推荐来」），待实现。本文档是唯一设计记录，已合并 2026-07-12 讨论的细化。
 > **硬前置**：阶段二（issue-6a253094 / v2.32.0）ship —— orchestration graph 成为唯一权威控制流模型 + 统一建图工具（`add_plan_dependency` kind/when/max_rounds）+ ③ 的引擎有界 reopen（`ResolveCondition`/`ApplyConditionResult`/`countReopens`）。Stage 直接复用这三样。
 > **来源**：issue-d07007e5 讨论。

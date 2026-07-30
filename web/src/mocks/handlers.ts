@@ -82,14 +82,13 @@ function planHandlers() {
     project_id: pid,
     name: 'Sample plan',
     description: '',
-    status: 'draft',
+    status: 'pending',
     creator_ref: 'user:owner',
     conversation_id: 'conv-plan-1',
     target_date: null,
     has_failed: false,
     progress: { done: 0, total: 0 },
-    // ADR-0047: structured plans by default; the built-in pool row overrides
-    // is_builtin:true (exactly one per project).
+    // Compatibility field: first-class AssignmentPool rows are no longer Plans.
     is_builtin: false,
     created_at: '2026-06-01T01:00:00Z',
     // NB: no `nodes` / `nodes_preview` here — the LIST rows add the enriched
@@ -108,23 +107,6 @@ function planHandlers() {
     http.get('/api/projects/:pid/plans', ({ params }) =>
       ok({
         plans: [
-          // ADR-0047 segment 2: the BUILT-IN assignment pool (exactly one per
-          // project, name "[Built-in]"). Flat, always running, is_builtin:true.
-          // Claimable nodes carry `claimable:true`; a completed + a discarded
-          // node are present to prove the FE HIDES terminal work in the pool.
-          basePlan(String(params.pid), 'PL-BUILTIN', {
-            name: '[Built-in]',
-            status: 'running',
-            is_builtin: true,
-            progress: { done: 1, total: 4 },
-            node_count: 4,
-            nodes_preview: [
-              baseNode('TS-CLAIM', { title: 'Claimable pool task', task_status: 'open', node_status: 'dispatched', claimable: true, assignee_ref: 'agent:builder' }),
-              baseNode('TS-POOL2', { title: 'Pending pool task', task_status: 'open', node_status: 'ready', claimable: false }),
-              baseNode('TS-DONE', { title: 'Done pool task', task_status: 'completed', node_status: 'done' }),
-              baseNode('TS-DISC', { title: 'Discarded pool task', task_status: 'discarded', node_status: 'done' }),
-            ],
-          }),
           basePlan(String(params.pid), 'PL-1', {
             name: 'Onboarding flow',
             status: 'running',
@@ -145,7 +127,7 @@ function planHandlers() {
           }),
           basePlan(String(params.pid), 'PL-2', {
             name: 'Billing rework',
-            status: 'draft',
+            status: 'pending',
             progress: { done: 0, total: 0 },
             node_count: 0,
             nodes_preview: [],
@@ -153,6 +135,44 @@ function planHandlers() {
         ],
       }),
     ),
+    // AssignmentPool is a first-class Project child, not a synthetic Plan.
+    http.get('/api/projects/:pid/assignment-pool', ({ params }) =>
+      ok({
+        id: `POOL-${String(params.pid)}`,
+        project_id: String(params.pid),
+        scheduling_class: 'background',
+        auto_assign_enabled: true,
+        holding_cap: 100,
+        tasks: [
+          {
+            id: 'TS-CLAIM', project_id: String(params.pid), title: 'Claimable pool task',
+            description: '', status: 'open', assignee: 'agent:builder', org_ref: 'T701',
+            priority: 0, claimable: true, version: 1,
+            created_at: '2026-06-01T02:00:00Z', updated_at: '2026-06-01T02:00:00Z',
+          },
+          {
+            id: 'TS-POOL2', project_id: String(params.pid), title: 'Pending pool task',
+            description: '', status: 'open', org_ref: 'T702', priority: -10,
+            claimable: false, version: 1,
+            created_at: '2026-06-01T02:00:00Z', updated_at: '2026-06-01T02:00:00Z',
+          },
+          {
+            id: 'TS-DONE', project_id: String(params.pid), title: 'Done pool task',
+            description: '', status: 'completed', org_ref: 'T703', priority: 0,
+            claimable: false, version: 1,
+            created_at: '2026-06-01T02:00:00Z', updated_at: '2026-06-01T02:00:00Z',
+          },
+          {
+            id: 'TS-DISC', project_id: String(params.pid), title: 'Discarded pool task',
+            description: '', status: 'discarded', org_ref: 'T704', priority: 0,
+            claimable: false, version: 1,
+            created_at: '2026-06-01T02:00:00Z', updated_at: '2026-06-01T02:00:00Z',
+          },
+        ],
+      }),
+    ),
+    http.post('/api/projects/:pid/assignment-pool/tasks', () => ok({ ok: true })),
+    http.delete('/api/projects/:pid/assignment-pool/tasks/:taskId', () => ok({ ok: true })),
     // POST / — create empty Plan.
     http.post('/api/projects/:pid/plans', async ({ params, request }) => {
       const body = (await request.json()) as {
@@ -209,8 +229,14 @@ function planHandlers() {
     http.post('/api/projects/:pid/plans/:id/start', ({ params }) =>
       ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
     ),
-    http.post('/api/projects/:pid/plans/:id/stop', ({ params }) =>
-      ok(basePlan(String(params.pid), String(params.id), { status: 'draft', nodes: [] })),
+    http.post('/api/projects/:pid/plans/:id/pause', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'paused', nodes: [] })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/resume', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/discard', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'discarded', nodes: [] })),
     ),
     http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
       ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
@@ -226,7 +252,7 @@ function planHandlers() {
     http.post('/api/projects/:pid/plans/:id/archive', ({ params }) =>
       ok(
         basePlan(String(params.pid), String(params.id), {
-          status: 'archived',
+          status: 'done',
           archived_at: '2026-06-11T00:00:00Z',
           archived_by: 'user:owner',
           nodes: [

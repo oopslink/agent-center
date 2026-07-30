@@ -51,7 +51,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(within(backlog).getByText('unplanned backlog task')).toBeInTheDocument();
     expect(within(backlog).getByTestId('backlog-count')).toHaveTextContent('1');
 
-    // One column per Plan (from usePlans): PL-1 running + has_failed, PL-2 draft.
+    // One column per Plan (from usePlans): PL-1 running + has_failed, PL-2 pending.
     const cols = screen.getAllByTestId('plan-column');
     expect(cols).toHaveLength(2);
     const running = screen.getByText('Onboarding flow').closest('[data-testid="plan-column"]')!;
@@ -75,12 +75,12 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     // No silent truncation: node_count == preview length → no overflow hint.
     expect(within(running as HTMLElement).queryByTestId('plan-overflow-PL-1')).not.toBeInTheDocument();
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    expect(within(draft as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('draft');
-    expect(within(draft as HTMLElement).queryByTestId('plan-failed-indicator')).not.toBeInTheDocument();
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    expect(within(pending as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('pending');
+    expect(within(pending as HTMLElement).queryByTestId('plan-failed-indicator')).not.toBeInTheDocument();
     // node_count 0 → no overflow hint, empty-state instead.
-    expect(within(draft as HTMLElement).queryByTestId('plan-overflow-PL-2')).not.toBeInTheDocument();
-    expect(within(draft as HTMLElement).getByTestId('plan-empty')).toBeInTheDocument();
+    expect(within(pending as HTMLElement).queryByTestId('plan-overflow-PL-2')).not.toBeInTheDocument();
+    expect(within(pending as HTMLElement).getByTestId('plan-empty')).toBeInTheDocument();
 
     // Trailing new-Plan column.
     expect(screen.getByTestId('new-plan-column')).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
             },
             {
               id: 'PL-ARCH', project_id: String(params.pid), name: 'Archived plan',
-              description: '', status: 'archived', creator_ref: 'user:owner',
+              description: '', status: 'discarded', archived_at: '2026-05-21T01:00:00Z', creator_ref: 'user:owner',
               conversation_id: 'c2', is_builtin: false, version: 2,
               created_at: '2026-05-20T01:00:00Z', updated_at: '2026-05-21T01:00:00Z',
               has_failed: false, progress: { done: 0, total: 0 }, node_count: 0, nodes_preview: [],
@@ -202,8 +202,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
   });
 
   // P2-4: a running Plan column communicates it self-progresses (auto-advance);
-  // a draft column does not (draft is not being orchestrated).
-  it('a running Plan column shows the auto-advancing indicator; a draft column does not', async () => {
+  // a pending column does not (pending is not being orchestrated).
+  it('a running Plan column shows the auto-advancing indicator; a pending column does not', async () => {
     server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -215,8 +215,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(ind.className).toContain('text-text-secondary');
     expect(ind.className).not.toMatch(/\/\d+/);
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    expect(within(draft as HTMLElement).queryByTestId('plan-col-auto-advancing')).not.toBeInTheDocument();
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    expect(within(pending as HTMLElement).queryByTestId('plan-col-auto-advancing')).not.toBeInTheDocument();
   });
 
   // DEFENSIVE regression guard for the run-real white-screen (PR #272 context):
@@ -236,7 +236,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
               project_id: 'proj-a',
               name: 'Bare legacy plan',
               description: '',
-              status: 'draft',
+              status: 'pending',
               creator_ref: 'user:owner',
               conversation_id: 'c1',
               target_date: null,
@@ -261,7 +261,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(within(col as HTMLElement).queryByTestId('plan-overflow-PL-BARE')).not.toBeInTheDocument();
   });
 
-  it('the "Add to plan" button adds a Backlog task into a DRAFT plan (useAddTaskToPlan)', async () => {
+  it('the "Add to plan" button adds a Backlog task into a PENDING plan (useAddTaskToPlan)', async () => {
     let posted: Record<string, unknown> | undefined;
     let postedTo: string | undefined;
     server.use(
@@ -269,7 +269,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
         postedTo = String(params.planId);
         posted = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'draft', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'pending', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
       }),
     );
     wrap('/projects/proj-a/plans');
@@ -277,24 +277,24 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     // open the add-menu on the backlog card.
     fireEvent.click(screen.getByTestId('backlog-add-TS-BL1'));
     const menu = screen.getByTestId('add-menu-TS-BL1');
-    // ONLY the draft plan (PL-2) is offered — the running plan (PL-1) is NOT.
+    // ONLY the pending plan (PL-2) is offered — the running plan (PL-1) is NOT.
     expect(within(menu).getByTestId('add-to-plan-TS-BL1-PL-2')).toBeInTheDocument();
     expect(within(menu).queryByTestId('add-to-plan-TS-BL1-PL-1')).not.toBeInTheDocument();
     await act(async () => {
       fireEvent.click(within(menu).getByTestId('add-to-plan-TS-BL1-PL-2'));
     });
     await waitFor(() => expect(posted).toEqual({ task_id: 'TS-BL1' }));
-    expect(postedTo).toBe('PL-2'); // draft-only select-into-plan.
+    expect(postedTo).toBe('PL-2'); // pending-only select-into-plan.
   });
 
-  it('a running Plan column is NOT a drop target (draft-only §9.4)', async () => {
+  it('a running Plan column is NOT a drop target (pending-only §9.4)', async () => {
     server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
     const running = screen.getByText('Onboarding flow').closest('[data-testid="plan-column"]')!;
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
     expect(running).toHaveAttribute('data-droppable', 'false');
-    expect(draft).toHaveAttribute('data-droppable', 'true');
+    expect(pending).toHaveAttribute('data-droppable', 'true');
   });
 
   it('T144: the Plan NAME links to the Plan detail route (reachability); no separate "Open ▸"', async () => {
@@ -365,7 +365,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
   });
 
   // A2 (#291 inverse of add-to-plan): remove a task from a Plan → back to Backlog.
-  // §9.4 draft-only — a DRAFT Plan column's card exposes the remove affordance;
+  // §9.4 pending-only — a PENDING Plan column's card exposes the remove affordance;
   // a running/done column does NOT.
   const planNode = (taskId: string, title: string) => ({
     task_id: taskId,
@@ -386,14 +386,14 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       },
       {
         id: 'PL-2', project_id: 'proj-a', name: 'Billing rework', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
         has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
-        node_count: 1, nodes_preview: [planNode('TS-DR', 'Draft task')],
+        node_count: 1, nodes_preview: [planNode('TS-DR', 'Pending task')],
       },
     ],
   };
 
-  it('A2 board: a DRAFT Plan column card shows the remove affordance; clicking it DELETEs by task_id (back to backlog)', async () => {
+  it('A2 board: a PENDING Plan column card shows the remove affordance; clicking it DELETEs by task_id (back to backlog)', async () => {
     let deletedTaskId: string | undefined;
     let deletedFromPlan: string | undefined;
     server.use(
@@ -408,9 +408,9 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    const removeBtn = within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR');
-    expect(removeBtn).toHaveAttribute('aria-label', 'Remove Draft task from plan');
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const removeBtn = within(pending as HTMLElement).getByTestId('plan-task-remove-TS-DR');
+    expect(removeBtn).toHaveAttribute('aria-label', 'Remove Pending task from plan');
     await act(async () => {
       fireEvent.click(removeBtn);
     });
@@ -418,7 +418,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(deletedFromPlan).toBe('PL-2');
   });
 
-  it('A2 board: a running Plan column card has NO remove affordance (§9.4 draft-only)', async () => {
+  it('A2 board: a running Plan column card has NO remove affordance (§9.4 pending-only)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
@@ -427,9 +427,9 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
     const running = screen.getByText('Onboarding flow').closest('[data-testid="plan-column"]')!;
     expect(within(running as HTMLElement).queryByTestId('plan-task-remove-TS-RUN')).not.toBeInTheDocument();
-    // the draft column DOES have it (control assertion).
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    expect(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
+    // the pending column DOES have it (control assertion).
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    expect(within(pending as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
   });
 
   it('A2 board #218: a remove failure surfaces a friendly inline message (no raw API error)', async () => {
@@ -437,26 +437,26 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
       http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', () =>
-        HttpResponse.json({ error: 'conflict', message: 'plan not draft' }, { status: 409 }),
+        HttpResponse.json({ error: 'conflict', message: 'plan not pending' }, { status: 409 }),
       ),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
     await act(async () => {
-      fireEvent.click(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR'));
+      fireEvent.click(within(pending as HTMLElement).getByTestId('plan-task-remove-TS-DR'));
     });
-    const err = await within(draft as HTMLElement).findByTestId('plan-task-remove-error-TS-DR');
+    const err = await within(pending as HTMLElement).findByTestId('plan-task-remove-error-TS-DR');
     expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
-    expect(err).not.toHaveTextContent('plan not draft');
+    expect(err).not.toHaveTextContent('plan not pending');
   });
 
   // -------------------------------------------------------------------------
   // A7 — full task drag: move a Plan-task between Plans / back to the Backlog.
   // -------------------------------------------------------------------------
 
-  // Two DRAFT plans (PL-2, PL-3) each holding one node + a running plan (PL-1),
-  // so a cross-plan MOVE has a draft source AND a draft target, and the running
+  // Two PENDING plans (PL-2, PL-3) each holding one node + a running plan (PL-1),
+  // so a cross-plan MOVE has a pending source AND a pending target, and the running
   // column is locked at both ends (no draggable card, not a drop target).
   const twoDraftPlans = {
     plans: [
@@ -468,15 +468,15 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       },
       {
         id: 'PL-2', project_id: 'proj-a', name: 'Billing rework', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
         has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
-        node_count: 1, nodes_preview: [planNode('TS-DR', 'Draft task')],
+        node_count: 1, nodes_preview: [planNode('TS-DR', 'Pending task')],
       },
       {
         id: 'PL-3', project_id: 'proj-a', name: 'Search revamp', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c3', target_date: null,
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'c3', target_date: null,
         has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
-        node_count: 1, nodes_preview: [planNode('TS-DR3', 'Other draft task')],
+        node_count: 1, nodes_preview: [planNode('TS-DR3', 'Other pending task')],
       },
     ],
   };
@@ -500,7 +500,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     } as unknown as DataTransfer;
   }
 
-  it('A7: a DRAFT Plan task card is draggable; a running Plan task card is NOT', async () => {
+  it('A7: a PENDING Plan task card is draggable; a running Plan task card is NOT', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(twoDraftPlans)),
@@ -508,8 +508,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    const draftCard = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const draftCard = within(pending as HTMLElement).getByTestId('plan-task-card');
     expect(draftCard).toHaveAttribute('draggable', 'true');
     expect(draftCard).toHaveAttribute('data-draggable', 'true');
 
@@ -534,8 +534,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const card = within(pending as HTMLElement).getByTestId('plan-task-card');
     const backlog = screen.getByTestId('backlog-column');
     const transfer = dt();
     fireEvent.dragStart(card, { dataTransfer: transfer });
@@ -577,8 +577,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const card = within(pending as HTMLElement).getByTestId('plan-task-card');
     const backlog = screen.getByTestId('backlog-column');
 
     // (1) dragStart must stamp the race-proof source into dataTransfer: the
@@ -611,7 +611,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(deletedFromPlan).toBe('PL-2');
   });
 
-  it('A7: drag a Plan-task onto ANOTHER draft plan → MOVE = DELETE source + POST target', async () => {
+  it('A7: drag a Plan-task onto ANOTHER pending plan → MOVE = DELETE source + POST target', async () => {
     let deletedFromPlan: string | undefined;
     let deletedTaskId: string | undefined;
     let postedTo: string | undefined;
@@ -627,7 +627,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
         postedTo = String(params.planId);
         postedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'draft', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'pending', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
       }),
     );
     wrap('/projects/proj-a/plans');
@@ -720,7 +720,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(twoDraftPlans)),
       http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params }) => {
         postedTo = String(params.planId);
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'draft', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'pending', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
       }),
       http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', () => {
         deleted = true;
@@ -741,12 +741,12 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     });
     expect(deleted).toBe(false); // no remove fired from a backlog→backlog drop.
 
-    // Backlog card → draft plan still SELECTs (the existing #270 behavior).
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    // Backlog card → pending plan still SELECTs (the existing #270 behavior).
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
     fireEvent.dragStart(backlogCard, { dataTransfer: transfer });
-    fireEvent.dragOver(draft, { dataTransfer: transfer });
+    fireEvent.dragOver(pending, { dataTransfer: transfer });
     await act(async () => {
-      fireEvent.drop(draft, { dataTransfer: transfer });
+      fireEvent.drop(pending, { dataTransfer: transfer });
     });
     await waitFor(() => expect(postedTo).toBe('PL-2'));
   });
@@ -783,14 +783,14 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    const link = within(draft as HTMLElement).getByTestId('task-open-link-TS-DR');
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const link = within(pending as HTMLElement).getByTestId('task-open-link-TS-DR');
     expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/TS-DR');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
-    expect(link).toHaveTextContent('Draft task');
+    expect(link).toHaveTextContent('Pending task');
     // Coexistence: the A2 remove button is still present on the SAME card.
-    expect(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
+    expect(within(pending as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
   });
 
   // v2.9 Stage B (#283): a plan task card shows an Archived badge when
@@ -809,8 +809,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
           nodes_preview: [{ ...planNode('TS-AR', 'Archived task'), archived: true }],
         },
         {
-          id: 'PL-D', project_id: 'proj-a', name: 'Live draft', description: '',
-          status: 'draft', creator_ref: 'user:owner', conversation_id: 'cD', target_date: null,
+          id: 'PL-D', project_id: 'proj-a', name: 'Live pending', description: '',
+          status: 'pending', creator_ref: 'user:owner', conversation_id: 'cD', target_date: null,
           has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
           node_count: 1, nodes_preview: [planNode('TS-LV', 'Live task')],
         },
@@ -829,8 +829,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     const arBadge = within(col as HTMLElement).getByTestId('task-archived-badge-TS-AR');
     expect(arBadge).toHaveTextContent('Archived');
     expect(arBadge.className).toContain('bg-status-amber-bg');
-    // non-archived task in the draft column → NO badge.
-    const draftCol = screen.getByText('Live draft').closest('[data-testid="plan-column"]')!;
+    // non-archived task in the pending column → NO badge.
+    const draftCol = screen.getByText('Live pending').closest('[data-testid="plan-column"]')!;
     expect(within(draftCol as HTMLElement).queryByTestId('task-archived-badge-TS-LV')).not.toBeInTheDocument();
   });
 
@@ -855,8 +855,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       wrap('/projects/proj-a/plans');
       await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-      const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-      const badge = within(draft as HTMLElement).getAllByTestId('assignee')[0];
+      const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+      const badge = within(pending as HTMLElement).getAllByTestId('assignee')[0];
       // Resolved → the display name; the raw "agent:builder" ref stays on title only.
       await waitFor(() => expect(badge).toHaveTextContent('Builder Bot'));
       expect(badge).toHaveTextContent('Builder Bot');
@@ -875,8 +875,8 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       wrap('/projects/proj-a/plans');
       await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-      const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-      const badge = within(draft as HTMLElement).getAllByTestId('assignee')[0];
+      const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+      const badge = within(pending as HTMLElement).getAllByTestId('assignee')[0];
       // Unresolved → the clean handle "builder", NEVER the raw "agent:builder".
       expect(badge).toHaveTextContent('builder');
       expect(badge.textContent).not.toContain('agent:builder');
@@ -888,7 +888,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
         plans: [
           {
             id: 'PL-U', project_id: 'proj-a', name: 'No-assignee plan', description: '',
-            status: 'draft', creator_ref: 'user:owner', conversation_id: 'cU', target_date: null,
+            status: 'pending', creator_ref: 'user:owner', conversation_id: 'cU', target_date: null,
             has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
             node_count: 1,
             nodes_preview: [{ ...planNode('TS-NA', 'Unassigned task'), assignee_ref: null }],
@@ -910,12 +910,10 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
 });
 
 // ---------------------------------------------------------------------------
-// ADR-0047 — the THREE-segment Work Board: Backlog (unscheduled, not claimable)
-// + built-in Assignment Pool (flat, claimable) + structured Plans (DAG). These
-// exercise the default mock list (which now includes a PL-BUILTIN is_builtin
-// row) and bespoke fixtures.
+// ADR-0055 — the THREE-segment Work Board: Backlog (unscheduled, not claimable)
+// + independent AssignmentPool (flat, claimable) + structured Plans (DAG).
 // ---------------------------------------------------------------------------
-describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structured plans)', () => {
+describe('ADR-0055 Work Board — 3 segments (backlog / assignment pool / structured plans)', () => {
   afterEach(() => cleanup());
 
   // poolNode — a built-in-pool node fixture (carries the ADR-0047 `claimable`).
@@ -934,23 +932,33 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     ...extra,
   });
 
+  const poolTask = (
+    id: string,
+    title: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    id, project_id: 'proj-a', title, description: '', status: 'open',
+    assignee: 'agent:builder', org_ref: `T-${id}`, priority: 0,
+    claimable: false, version: 1, created_at: '2026-06-01T02:00:00Z',
+    updated_at: '2026-06-01T02:00:00Z', ...extra,
+  });
+
+  const threeSegmentPool = {
+    id: 'POOL-A', project_id: 'proj-a', scheduling_class: 'background',
+    auto_assign_enabled: true, holding_cap: 100,
+    tasks: [
+      poolTask('TS-CLAIM', 'Claimable pool task', { claimable: true }),
+      poolTask('TS-POOL2', 'Pending pool task'),
+      poolTask('TS-DONE', 'Done pool task', { status: 'completed' }),
+      poolTask('TS-DISC', 'Discarded pool task', { status: 'discarded' }),
+    ],
+  };
+
   const threeSegmentPlans = {
     plans: [
       {
-        id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
-        status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
-        has_failed: false, progress: { done: 1, total: 4 }, created_at: '2026-06-01T01:00:00Z',
-        is_builtin: true, node_count: 4,
-        nodes_preview: [
-          poolNode('TS-CLAIM', 'Claimable pool task', { node_status: 'dispatched', claimable: true }),
-          poolNode('TS-POOL2', 'Pending pool task', { claimable: false }),
-          poolNode('TS-DONE', 'Done pool task', { task_status: 'completed', node_status: 'done' }),
-          poolNode('TS-DISC', 'Discarded pool task', { task_status: 'discarded', node_status: 'done' }),
-        ],
-      },
-      {
         id: 'PL-2', project_id: 'proj-a', name: 'Billing rework', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
         has_failed: false, progress: { done: 1, total: 2 }, created_at: '2026-06-01T01:00:00Z',
         is_builtin: false, node_count: 2,
         nodes_preview: [
@@ -961,10 +969,14 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     ],
   };
 
+  const poolHandler = (pool = threeSegmentPool) =>
+    http.get('/api/projects/proj-a/assignment-pool', () => HttpResponse.json(pool));
+
   it('renders all THREE segments DISTINCTLY: backlog-column, builtin-pool-column, and a structured plan-column', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -977,8 +989,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     const pool = screen.getByTestId('builtin-pool-column');
     expect(within(pool).getByText('Assignment Pool')).toBeInTheDocument();
     expect(pool).toHaveAttribute('data-builtin', 'true');
-    // The is_builtin plan is NOT rendered as a generic plan-column.
-    expect(screen.queryByText('[Built-in]')).not.toBeInTheDocument();
+    // AssignmentPool is NOT rendered as a generic Plan column.
 
     // 3. Structured plan — the ONLY plan-column (the built-in is excluded).
     const cols = screen.getAllByTestId('plan-column');
@@ -990,6 +1001,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1006,36 +1018,31 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
   });
 
   it('T566: a starved pool node shows the "waiting for agent" badge; others do not', async () => {
-    const plans = {
-      plans: [
-        {
-          id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
-          status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
-          has_failed: false, progress: { done: 0, total: 2 }, created_at: '2026-06-01T01:00:00Z',
-          is_builtin: true, node_count: 2,
-          nodes_preview: [
-            poolNode('TS-STARVED', 'Starved task', { starved: true }),
-            poolNode('TS-OK', 'Normal pool task', {}),
-          ],
-        },
+    const starvedPool = {
+      ...threeSegmentPool,
+      tasks: [
+        poolTask('TS-STARVED', 'Starved task', { starved: true }),
+        poolTask('TS-OK', 'Normal pool task'),
       ],
     };
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
-      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plans)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json({ plans: [] })),
+      poolHandler(starvedPool),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    const pool = screen.getByTestId('builtin-pool-column');
-    const badge = within(pool).getByTestId('starved-badge-TS-STARVED');
+    const poolColumn = screen.getByTestId('builtin-pool-column');
+    const badge = within(poolColumn).getByTestId('starved-badge-TS-STARVED');
     expect(badge).toHaveTextContent(/waiting for agent/i);
-    expect(within(pool).queryByTestId('starved-badge-TS-OK')).not.toBeInTheDocument();
+    expect(within(poolColumn).queryByTestId('starved-badge-TS-OK')).not.toBeInTheDocument();
   });
 
   it('HIDES completed/discarded in the Backlog (count + cards)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1053,6 +1060,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1071,6 +1079,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1088,6 +1097,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1097,21 +1107,20 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     // Flat: no per-card remove button (the pool has no DAG / edge editor).
     expect(within(pool).queryByTestId('plan-task-remove-TS-CLAIM')).not.toBeInTheDocument();
     // T121: the pool's task-set is freely editable, so a pool card IS draggable
-    // (drag is the affordance to move it out to the Backlog / another draft plan).
+    // (drag is the affordance to move it out to the Backlog / another pending plan).
     expect(card).toHaveAttribute('draggable', 'true');
     expect(card).toHaveAttribute('data-draggable', 'true');
   });
 
-  it('selecting a Backlog task INTO the pool is allowed: the add-menu offers Assignment Pool → POST to the built-in plan', async () => {
-    let postedTo: string | undefined;
+  it('selecting a Backlog task INTO the pool is allowed via the AssignmentPool endpoint', async () => {
     let posted: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
-      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
-        postedTo = String(params.planId);
+      poolHandler(),
+      http.post('/api/projects/proj-a/assignment-pool/tasks', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ ok: true });
       }),
     );
     wrap('/projects/proj-a/plans');
@@ -1119,23 +1128,23 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
 
     fireEvent.click(screen.getByTestId('backlog-add-TS-BL1'));
     const menu = screen.getByTestId('add-menu-TS-BL1');
-    const poolItem = within(menu).getByTestId('add-to-plan-TS-BL1-PL-BUILTIN');
+    const poolItem = within(menu).getByTestId('add-to-pool-TS-BL1');
     expect(poolItem).toHaveTextContent('Assignment Pool');
     await act(async () => {
       fireEvent.click(poolItem);
     });
-    await waitFor(() => expect(posted).toEqual({ task_id: 'TS-BL1' }));
-    expect(postedTo).toBe('PL-BUILTIN');
+    await waitFor(() => expect(posted).toEqual({ task_id: 'TS-BL1', priority: 0 }));
   });
 
-  it('dragging a Backlog task onto the pool selects it in (POST to the built-in plan)', async () => {
-    let postedTo: string | undefined;
+  it('dragging a Backlog task onto the pool selects it through the pool endpoint', async () => {
+    let postedBody: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
-      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params }) => {
-        postedTo = String(params.planId);
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+      poolHandler(),
+      http.post('/api/projects/proj-a/assignment-pool/tasks', async ({ request }) => {
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true });
       }),
     );
     wrap('/projects/proj-a/plans');
@@ -1162,14 +1171,14 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     await act(async () => {
       fireEvent.drop(pool, { dataTransfer: transfer });
     });
-    await waitFor(() => expect(postedTo).toBe('PL-BUILTIN'));
+    await waitFor(() => expect(postedBody).toEqual({ task_id: 'TS-BL1', priority: 0 }));
   });
 
-  it('uses the DEFAULT mock list which already includes a built-in pool segment', async () => {
+  it('uses the DEFAULT mocks with an independent AssignmentPool segment', async () => {
     server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    // The shared handlers.ts mock now ships PL-BUILTIN (is_builtin) + 2 structured.
+    // The shared handlers expose AssignmentPool independently from the 2 Plans.
     expect(screen.getByTestId('builtin-pool-column')).toBeInTheDocument();
     expect(screen.getByTestId('claimable-chip-TS-CLAIM')).toBeInTheDocument();
     expect(screen.getAllByTestId('plan-column')).toHaveLength(2);
@@ -1177,7 +1186,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
 
   // -------------------------------------------------------------------------
   // T121 — drag a task to change its owning plan across Backlog / Assignment
-  // Pool / draft plans. The pool is now a FULL drag participant (its task-set is
+  // Pool / pending plans. The pool is now a FULL drag participant (its task-set is
   // freely editable); running / terminal plans are LOCKED (no drag, no drop).
   // -------------------------------------------------------------------------
   function dtStub(): DataTransfer {
@@ -1194,6 +1203,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -1204,17 +1214,16 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     fireEvent.dragStart(card, { dataTransfer: transfer });
     expect(transfer.getData('text/plain')).toBe('TS-CLAIM');
     expect(transfer.types).toContain('application/x-slock-from-plan');
-    expect(transfer.getData('application/x-slock-from-plan')).toBe('PL-BUILTIN');
+    expect(transfer.getData('application/x-slock-from-plan')).toBe('pool:POOL-A');
   });
 
   it('T121: drag a pool task onto the Backlog → DELETE from the pool (remove)', async () => {
-    let deletedFromPlan: string | undefined;
     let deletedTaskId: string | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
-      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
-        deletedFromPlan = String(params.planId);
+      poolHandler(),
+      http.delete('/api/projects/proj-a/assignment-pool/tasks/:taskId', ({ params }) => {
         deletedTaskId = String(params.taskId);
         return new HttpResponse(null, { status: 204 });
       }),
@@ -1234,24 +1243,24 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
       fireEvent.drop(backlog, { dataTransfer: transfer });
     });
     await waitFor(() => expect(deletedTaskId).toBe('TS-CLAIM'));
-    expect(deletedFromPlan).toBe('PL-BUILTIN');
   });
 
-  it('T121: drag a pool task onto a draft plan → MOVE = DELETE pool + POST draft', async () => {
-    let deletedFromPlan: string | undefined;
+  it('T121: drag a pool task onto a pending plan → MOVE = DELETE pool + POST pending', async () => {
+    let deletedPoolTask: string | undefined;
     let postedTo: string | undefined;
     let postedBody: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
-      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
-        deletedFromPlan = String(params.planId);
+      poolHandler(),
+      http.delete('/api/projects/proj-a/assignment-pool/tasks/:taskId', ({ params }) => {
+        deletedPoolTask = String(params.taskId);
         return new HttpResponse(null, { status: 204 });
       }),
       http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
         postedTo = String(params.planId);
         postedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'draft', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'pending', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
       }),
     );
     wrap('/projects/proj-a/plans');
@@ -1259,41 +1268,40 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
 
     const pool = screen.getByTestId('builtin-pool-column');
     const card = within(pool).getAllByTestId('pool-task-card')[0];
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
     const transfer = dtStub();
     fireEvent.dragStart(card, { dataTransfer: transfer });
-    fireEvent.dragOver(draft as HTMLElement, { dataTransfer: transfer });
+    fireEvent.dragOver(pending as HTMLElement, { dataTransfer: transfer });
     await act(async () => {
-      fireEvent.drop(draft as HTMLElement, { dataTransfer: transfer });
+      fireEvent.drop(pending as HTMLElement, { dataTransfer: transfer });
     });
     await waitFor(() => expect(postedTo).toBe('PL-2'));
     expect(postedBody).toEqual({ task_id: 'TS-CLAIM' });
-    expect(deletedFromPlan).toBe('PL-BUILTIN'); // removed from the pool (source).
+    expect(deletedPoolTask).toBe('TS-CLAIM');
   });
 
-  it('T121: drag a draft-plan task onto the pool → MOVE-in = DELETE draft + POST pool', async () => {
+  it('T121: drag a pending-plan task onto the pool → MOVE-in = DELETE pending + POST pool', async () => {
     let deletedFromPlan: string | undefined;
-    let postedTo: string | undefined;
     let postedBody: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      poolHandler(),
       http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
         deletedFromPlan = String(params.planId);
         return new HttpResponse(null, { status: 204 });
       }),
-      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
-        postedTo = String(params.planId);
+      http.post('/api/projects/proj-a/assignment-pool/tasks', async ({ request }) => {
         postedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+        return HttpResponse.json({ ok: true });
       }),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
-    // The draft plan's open node is draggable (TS-STRUCT-OPEN).
-    const card = within(draft as HTMLElement).getByText('Structured open node').closest('[data-testid="plan-task-card"]')!;
+    const pending = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    // The pending plan's open node is draggable (TS-STRUCT-OPEN).
+    const card = within(pending as HTMLElement).getByText('Structured open node').closest('[data-testid="plan-task-card"]')!;
     const pool = screen.getByTestId('builtin-pool-column');
     const transfer = dtStub();
     fireEvent.dragStart(card as HTMLElement, { dataTransfer: transfer });
@@ -1303,9 +1311,8 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     await act(async () => {
       fireEvent.drop(pool, { dataTransfer: transfer });
     });
-    await waitFor(() => expect(postedTo).toBe('PL-BUILTIN'));
-    expect(postedBody).toEqual({ task_id: 'TS-STRUCT-OPEN' });
-    expect(deletedFromPlan).toBe('PL-2'); // removed from the draft plan (source).
+    await waitFor(() => expect(postedBody).toEqual({ task_id: 'TS-STRUCT-OPEN', priority: 0 }));
+    expect(deletedFromPlan).toBe('PL-2'); // removed from the pending plan (source).
   });
 
   // Fixture with a RUNNING structured plan so the locked-state visuals render.
@@ -1319,11 +1326,11 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
         nodes_preview: [poolNode('TS-LOCKED', 'Locked running task')],
       },
       {
-        id: 'PL-DRAFT', project_id: 'proj-a', name: 'Next sprint', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'cd', target_date: null,
+        id: 'PL-PENDING', project_id: 'proj-a', name: 'Next sprint', description: '',
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'cd', target_date: null,
         has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
         is_builtin: false, node_count: 1,
-        nodes_preview: [poolNode('TS-MOVABLE', 'Draft movable task')],
+        nodes_preview: [poolNode('TS-MOVABLE', 'Pending movable task')],
       },
     ],
   };
@@ -1348,10 +1355,10 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     expect(card).toHaveAttribute('draggable', 'false');
     expect(card).toHaveAttribute('title', expect.stringContaining('running'));
 
-    // The draft plan is NOT locked.
-    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
-    expect(draft).toHaveAttribute('data-locked', 'false');
-    expect(within(draft as HTMLElement).queryByTestId('plan-locked-PL-DRAFT')).not.toBeInTheDocument();
+    // The pending plan is NOT locked.
+    const pending = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    expect(pending).toHaveAttribute('data-locked', 'false');
+    expect(within(pending as HTMLElement).queryByTestId('plan-locked-PL-PENDING')).not.toBeInTheDocument();
   });
 
   it('T121: while a drag is in flight, a running plan column shows the no-drop reason banner', async () => {
@@ -1366,8 +1373,8 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     // No banner before a drag starts.
     expect(within(running as HTMLElement).queryByTestId('plan-drop-blocked-PL-RUN')).not.toBeInTheDocument();
 
-    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
-    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const pending = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    const card = within(pending as HTMLElement).getByTestId('plan-task-card');
     fireEvent.dragStart(card, { dataTransfer: dtStub() });
     // Now the locked column surfaces the reason banner.
     const banner = within(running as HTMLElement).getByTestId('plan-drop-blocked-PL-RUN');
@@ -1385,8 +1392,8 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
-    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const pending = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    const card = within(pending as HTMLElement).getByTestId('plan-task-card');
     const running = screen.getByText('Live sprint').closest('[data-testid="plan-column"]')!;
     const transfer = dtStub();
     fireEvent.dragStart(card, { dataTransfer: transfer });
@@ -1400,7 +1407,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
 
 // ---------------------------------------------------------------------------
 // T231 — Work Board "+ New Task": a header button opens a destination-aware
-// create modal (Backlog / Assignment Pool / a draft Plan).
+// create modal (Backlog / Assignment Pool / a pending Plan).
 // ---------------------------------------------------------------------------
 describe('T231 Work Board — "+ New Task" header button', () => {
   afterEach(() => cleanup());
@@ -1408,21 +1415,15 @@ describe('T231 Work Board — "+ New Task" header button', () => {
   const plansFixture = {
     plans: [
       {
-        id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
-        status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
-        has_failed: false, progress: { done: 0, total: 0 }, created_at: '2026-06-01T01:00:00Z',
-        is_builtin: true, node_count: 0, nodes_preview: [],
-      },
-      {
-        id: 'PL-DRAFT', project_id: 'proj-a', name: 'Billing rework', description: '',
-        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        id: 'PL-PENDING', project_id: 'proj-a', name: 'Billing rework', description: '',
+        status: 'pending', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
         has_failed: false, progress: { done: 0, total: 0 }, created_at: '2026-06-01T01:00:00Z',
         is_builtin: false, node_count: 0, nodes_preview: [],
       },
     ],
   };
 
-  it('opens the modal offering Backlog + Assignment Pool + the draft plan', async () => {
+  it('opens the modal offering Backlog + Assignment Pool + the pending plan', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansFixture)),
@@ -1437,8 +1438,7 @@ describe('T231 Work Board — "+ New Task" header button', () => {
     expect(within(modal).getByTestId('board-task-create-destination')).toBeInTheDocument();
     expect(within(modal).getByRole('option', { name: /Backlog/ })).toBeInTheDocument();
     expect(within(modal).getByTestId('board-task-create-dest-pool')).toBeInTheDocument();
-    // the draft structured plan is offered; (the built-in is offered as the Pool
-    // option, never as a generic plan name).
+    // The pending structured Plan and the independent pool are separate options.
     expect(within(modal).getByRole('option', { name: 'Billing rework' })).toBeInTheDocument();
   });
 });

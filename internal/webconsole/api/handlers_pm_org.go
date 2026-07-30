@@ -48,11 +48,9 @@ var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "dis
 // discarded task wrongly survived the default filter.)
 var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
 
-// planTerminalStatus is the terminal Plan set the default ("all open") global
-// Plan list (v2.10.0 [T6]) excludes. Plan statuses are {draft, running, done,
-// archived}; only `archived` is the dead/hidden state (done plans still show in
-// the list, like the mockup). Mirrors the issue/task default-exclude semantics.
-var planTerminalStatus = map[string]bool{"archived": true}
+// ADR-0055 terminal lifecycle facts. Archive is an orthogonal marker and is not
+// a status value; explicit done/discarded filters still surface terminal plans.
+var planTerminalStatus = map[string]bool{"done": true, "discarded": true}
 
 // orgListQueryBase builds the shared SQL-pagination query (project-id set,
 // status include/exclude, q search, time range, sort + page window) for the org

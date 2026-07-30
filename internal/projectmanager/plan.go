@@ -6,34 +6,22 @@ import (
 	"time"
 )
 
-// PlanStatus is the Plan lifecycle enum (v2.9 plan orchestration, design §2/§3).
-//
-//	draft → running   (Start: orchestrator becomes active, §3.4)
-//	running → draft   (Stop: orchestration halted to edit the DAG, §9.4)
-//	running → done    (MarkDone: every node terminal, §9.1)
-//	done              (terminal)
-//
-// v1 has NO approval gates and NO failed/paused status (design §2: "v1 has no
-// gates — fully autonomous"). A failed node keeps the Plan running (§9.1); the
-// Plan never auto-enters a terminal failed state.
+// PlanStatus is the ADR-0055 monotonic Plan lifecycle. Pause is an execution
+// latch, not a return to authoring; done/discarded are permanent terminal facts.
 type PlanStatus string
 
 const (
-	PlanDraft   PlanStatus = "draft"
-	PlanRunning PlanStatus = "running"
-	PlanDone    PlanStatus = "done"
-	// PlanArchived is the v2.9 P3 terminal, IRREVERSIBLE archive state. A
-	// non-running Plan (draft or done) can be archived; archiving cascade-archives
-	// the Plan's tasks (orthogonal Task.archived, status preserved). A running Plan
-	// can NOT be archived — it must be stopped/finished first (ArchivePlan rejects
-	// running with ErrPlanRunning). Nothing transitions OUT of archived.
-	PlanArchived PlanStatus = "archived"
+	PlanPending   PlanStatus = "pending"
+	PlanRunning   PlanStatus = "running"
+	PlanPaused    PlanStatus = "paused"
+	PlanDone      PlanStatus = "done"
+	PlanDiscarded PlanStatus = "discarded"
 )
 
 // IsValid reports enum membership.
 func (s PlanStatus) IsValid() bool {
 	switch s {
-	case PlanDraft, PlanRunning, PlanDone, PlanArchived:
+	case PlanPending, PlanRunning, PlanPaused, PlanDone, PlanDiscarded:
 		return true
 	}
 	return false
@@ -41,10 +29,11 @@ func (s PlanStatus) IsValid() bool {
 
 // planTransitions is the allowed-transition adjacency.
 var planTransitions = map[PlanStatus][]PlanStatus{
-	PlanDraft:    {PlanRunning, PlanArchived}, // archived = v2.9 P3 archive (draft is non-running)
-	PlanRunning:  {PlanDraft, PlanDone},       // draft = stop (§9.4); done = §9.1; NOT →archived (stop/finish first)
-	PlanDone:     {PlanArchived},              // archived = v2.9 P3 archive (done is non-running)
-	PlanArchived: {},                          // terminal, IRREVERSIBLE
+	PlanPending:   {PlanRunning, PlanDiscarded},
+	PlanRunning:   {PlanPaused, PlanDone, PlanDiscarded},
+	PlanPaused:    {PlanRunning, PlanDone, PlanDiscarded},
+	PlanDone:      {},
+	PlanDiscarded: {},
 }
 
 // CanTransitionTo reports whether from→to is a legal Plan transition.
@@ -83,10 +72,12 @@ type Plan struct {
 	orgNumber int
 	// graphID is the orchestration engine graph ID that this plan maps to (v2.2.8).
 	// "" when not wired to an orchestration graph.
-	graphID   string
-	createdAt time.Time
-	updatedAt time.Time
-	version   int
+	graphID    string
+	archivedAt *time.Time
+	archivedBy IdentityRef
+	createdAt  time.Time
+	updatedAt  time.Time
+	version    int
 }
 
 // NewPlanInput captures constructor args.
@@ -106,7 +97,7 @@ type NewPlanInput struct {
 	CreatedAt time.Time
 }
 
-// NewPlan constructs a fresh draft Plan. A Plan must belong to a Project.
+// NewPlan constructs a fresh pending Plan. A Plan must belong to a Project.
 func NewPlan(in NewPlanInput) (*Plan, error) {
 	if strings.TrimSpace(string(in.ID)) == "" {
 		return nil, errors.New("projectmanager: plan id required")
@@ -129,7 +120,7 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 		projectID:   in.ProjectID,
 		name:        in.Name,
 		description: in.Description,
-		status:      PlanDraft,
+		status:      PlanPending,
 		creatorRef:  in.CreatorRef,
 		targetDate:  normalizeTargetDate(in.TargetDate),
 		builtin:     in.Builtin,
@@ -154,10 +145,12 @@ type RehydratePlanInput struct {
 	Builtin        bool
 	OrgNumber      int
 	// GraphID is the orchestration engine graph ID (v2.2.8); "" when not wired.
-	GraphID   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Version   int
+	GraphID    string
+	ArchivedAt *time.Time
+	ArchivedBy IdentityRef
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Version    int
 }
 
 // RehydratePlan reconstructs without invariant checks (only enum + version).
@@ -180,6 +173,8 @@ func RehydratePlan(in RehydratePlanInput) (*Plan, error) {
 		builtin:        in.Builtin,
 		orgNumber:      in.OrgNumber,
 		graphID:        in.GraphID,
+		archivedAt:     normalizeTargetDate(in.ArchivedAt),
+		archivedBy:     in.ArchivedBy,
 		createdAt:      in.CreatedAt.UTC(),
 		updatedAt:      in.UpdatedAt.UTC(),
 		version:        in.Version,
@@ -210,6 +205,9 @@ func (p *Plan) Version() int            { return p.version }
 func (p *Plan) IsBuiltin() bool         { return p.builtin }
 func (p *Plan) OrgNumber() int          { return p.orgNumber }
 func (p *Plan) GraphID() string         { return p.graphID }
+func (p *Plan) ArchivedAt() *time.Time  { return normalizeTargetDate(p.archivedAt) }
+func (p *Plan) ArchivedBy() IdentityRef { return p.archivedBy }
+func (p *Plan) IsArchived() bool        { return p.archivedAt != nil }
 
 // SetGraphID wires this plan to an orchestration engine graph (v2.2.8).
 func (p *Plan) SetGraphID(id string, at time.Time) {
@@ -261,18 +259,30 @@ func (p *Plan) SetConversationID(id string, at time.Time) {
 	p.touch(at)
 }
 
-// Start moves draft→running (the orchestrator becomes active, §3.4). Start
+// Start moves pending→running. Start
 // VALIDATION (§9.6: acyclic, ≥1 task, resolvable assignees) is enforced by the
 // AppService in #285, not here.
 func (p *Plan) Start(at time.Time) error { return p.transition(PlanRunning, at) }
 
-// Stop moves running→draft (§9.4: halt orchestration to edit the DAG). ADR-0047:
-// the built-in pool is ALWAYS started — it cannot be stopped.
-func (p *Plan) Stop(at time.Time) error {
+// Pause closes new dispatch without making executed topology editable.
+func (p *Plan) Pause(at time.Time) error {
 	if p.builtin {
 		return ErrBuiltinPlanImmutable
 	}
-	return p.transition(PlanDraft, at)
+	return p.transition(PlanPaused, at)
+}
+
+// Resume reopens dispatch from the same immutable history/frontier.
+func (p *Plan) Resume(at time.Time) error {
+	if p.builtin {
+		return ErrBuiltinPlanImmutable
+	}
+	return p.transition(PlanRunning, at)
+}
+
+// Stop is the compatibility name for Pause; it never returns a Plan to pending.
+func (p *Plan) Stop(at time.Time) error {
+	return p.Pause(at)
 }
 
 // MarkDone moves running→done (§9.1: every node terminal/done). ADR-0047: the
@@ -284,19 +294,34 @@ func (p *Plan) MarkDone(at time.Time) error {
 	return p.transition(PlanDone, at)
 }
 
-// Archive moves a NON-running Plan (draft or done) → archived (v2.9 P3): a
-// terminal, IRREVERSIBLE state. A running Plan is rejected with ErrPlanRunning
-// (it must be stopped/finished first); an already-archived Plan is rejected with
-// ErrPlanArchived (mirrors Conversation.Archive idempotency). The service
-// cascade-archives the Plan's tasks (orthogonal Task.archived) around this call.
-func (p *Plan) Archive(at time.Time) error {
-	switch p.status {
-	case PlanArchived:
-		return ErrPlanArchived
-	case PlanRunning:
-		return ErrPlanRunning
+// Discard explicitly abandons a pending/running/paused Plan. It is permanent.
+func (p *Plan) Discard(at time.Time) error {
+	if p.builtin {
+		return ErrBuiltinPlanImmutable
 	}
-	return p.transition(PlanArchived, at)
+	return p.transition(PlanDiscarded, at)
+}
+
+// Archive is an orthogonal terminal-only marker; it never changes lifecycle.
+func (p *Plan) Archive(at time.Time, actors ...IdentityRef) error {
+	if p.IsArchived() {
+		return ErrPlanArchived
+	}
+	if p.status != PlanDone && p.status != PlanDiscarded {
+		return ErrPlanNotTerminal
+	}
+	actor := IdentityRef("system")
+	if len(actors) > 0 {
+		actor = actors[0]
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	u := at.UTC()
+	p.archivedAt = &u
+	p.archivedBy = actor
+	p.touch(at)
+	return nil
 }
 
 // ArchiveWithProject archives a Plan as part of its PROJECT being archived
@@ -305,10 +330,15 @@ func (p *Plan) Archive(at time.Time) error {
 // one legitimate path that retires the resident built-in pool. Idempotent:
 // re-archiving returns ErrPlanArchived. Used ONLY by the project-archive cascade.
 func (p *Plan) ArchiveWithProject(at time.Time) error {
-	if p.status == PlanArchived {
+	if p.IsArchived() {
 		return ErrPlanArchived
 	}
-	p.status = PlanArchived
+	if p.status != PlanDone && p.status != PlanDiscarded {
+		p.status = PlanDiscarded
+	}
+	u := at.UTC()
+	p.archivedAt = &u
+	p.archivedBy = IdentityRef("system")
 	p.touch(at)
 	return nil
 }

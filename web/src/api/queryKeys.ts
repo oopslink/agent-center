@@ -148,6 +148,7 @@ export const qk = {
   // v2.9 #286 Plan orchestration: Plans are per-project. The parallel list is
   // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.
   plansByProject: (projectId: string) => o('plansByProject', projectId),
+  assignmentPoolByProject: (projectId: string) => o('assignmentPoolByProject', projectId),
   // v2.9.2 (task-0543ece9): the PREFIX key matching every per-project Work Board
   // list. SSE invalidation can't always know the project id from a task event, so
   // it invalidates this prefix — react-query prefix-matches it against every

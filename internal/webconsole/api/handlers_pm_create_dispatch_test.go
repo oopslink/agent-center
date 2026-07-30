@@ -11,7 +11,7 @@ import (
 
 // TestPMCreateTask_DispatchLandsRunnable covers issue-ca51e07c F2: the webconsole
 // POST /tasks handler accepts a one-step `assignee` + `dispatch:true`, landing the
-// new task in the project's built-in Assignment Pool as a DISPATCHED node — so it
+// new task in the project's first-class AssignmentPool — so it
 // is immediately runnable (EnsureTaskRunnable == nil), no reconcile / manual
 // pool-select. This is exactly what `install test-instance --with-agent` now does
 // so the seeded task the agent is given actually runs (vs an assign-only backlog
@@ -19,7 +19,7 @@ import (
 func TestPMCreateTask_DispatchLandsRunnable(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
-	fx := setupPlanAPI(t, deps) // plan-capable PM → CreateProject auto-creates the built-in pool
+	fx := setupPlanAPI(t, deps)
 	s := newTestServer(t, fx.deps)
 	defer s.Close()
 	ctx := context.Background()
@@ -29,8 +29,7 @@ func TestPMCreateTask_DispatchLandsRunnable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Materialize the auto-created pool's conversation (the create+dispatch path's
-	// assign step joins the assignee to it).
+	// Drain unrelated project/participant events.
 	fx.drain(t)
 
 	// One-step create→assign→dispatch: assignee = the owner (a same-org project
@@ -48,21 +47,25 @@ func TestPMCreateTask_DispatchLandsRunnable(t *testing.T) {
 	if created["assignee"] != "user:"+sess.IdentityID {
 		t.Fatalf("assignee=%v want user:%s", created["assignee"], sess.IdentityID)
 	}
-	// Dispatched tasks carry their owning plan (the built-in pool) — NOT the backlog.
-	planID, _ := created["plan_id"].(string)
-	if planID == "" {
-		t.Fatal("dispatched task must carry plan_id (built-in pool), got backlog (empty)")
+	// Pool membership is independent from Plan ownership.
+	if planID, _ := created["plan_id"].(string); planID != "" {
+		t.Fatalf("assignment-pool task plan_id=%q, want empty", planID)
 	}
 	fx.drain(t)
 
-	// The plan_id is the project's BUILT-IN Assignment Pool (is_builtin=true).
-	presp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+planID, sess)
-	if presp.StatusCode != 200 {
-		t.Fatalf("get plan status=%d", presp.StatusCode)
+	poolResp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/assignment-pool", sess)
+	if poolResp.StatusCode != 200 {
+		t.Fatalf("get assignment pool status=%d", poolResp.StatusCode)
 	}
-	plan := decodeBody(t, presp)
-	if plan["is_builtin"] != true {
-		t.Fatalf("dispatched task's plan is_builtin=%v want true (built-in pool)", plan["is_builtin"])
+	pool := decodeBody(t, poolResp)
+	tasks, _ := pool["tasks"].([]any)
+	if len(tasks) != 1 || tasks[0].(map[string]any)["id"] != taskID {
+		t.Fatalf("assignment pool tasks=%v, want [%s]", tasks, taskID)
+	}
+	plansResp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans", sess)
+	plansBody := decodeBody(t, plansResp)
+	if got := len(plansBody["plans"].([]any)); got != 0 {
+		t.Fatalf("assignment pool leaked into plans list: %d rows", got)
 	}
 
 	// The acceptance bit: the task is RUNNABLE (a dispatched pool member) — start_task

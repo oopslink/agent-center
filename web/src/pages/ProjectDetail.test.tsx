@@ -215,8 +215,9 @@ describe('ProjectDetail page', () => {
     expect(issueChip.className).toContain('bg-status-blue-solid');
     expect(issueChip.className).toContain('text-white');
     // Title links into the issue detail.
-    const issueLink = screen.getByText('login bug').closest('a');
-    expect(issueLink?.getAttribute('href')).toContain('/projects/proj-a/issues/issue-01KT8DABCDEF');
+    const issueLinks = screen.getAllByText('login bug').map((node) => node.closest('a'));
+    expect(issueLinks.length).toBeGreaterThan(0);
+    expect(issueLinks.every((link) => link?.getAttribute('href')?.includes('/projects/proj-a/issues/issue-01KT8DABCDEF'))).toBe(true);
 
     // Tasks tab: id handle + assignee name (raw ref on hover) + priority fallback.
     fireEvent.click(screen.getByTestId('project-tab-tasks'));
@@ -527,7 +528,7 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('project-tab-plans'));
     await waitFor(() => expect(screen.getByTestId('plan-row')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('plan-filter-status-draft'));
+    fireEvent.click(screen.getByTestId('plan-filter-status-pending'));
     await waitFor(() => expect(screen.getByTestId('project-plans-empty')).toBeInTheDocument());
     expect(screen.getByTestId('project-plans-empty')).toHaveTextContent('No plans match the filter');
   });

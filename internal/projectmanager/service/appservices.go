@@ -50,7 +50,11 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 		// one per project, always-started (running), FLAT (no edges), a pull/no-wake
 		// dispatch pool that makes its assigned tasks claimable. Nil-safe: only when a
 		// PlanRepository is wired (matches the other optional-plan paths).
-		if s.plans != nil {
+		if s.pools != nil {
+			if err := s.createAssignmentPool(txCtx, p.ID(), now); err != nil {
+				return err
+			}
+		} else if s.plans != nil {
 			if err := s.createBuiltinPlan(txCtx, p.ID(), p.OrganizationID(), now); err != nil {
 				return err
 			}
@@ -63,6 +67,18 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 		return "", err
 	}
 	return p.ID(), nil
+}
+
+func (s *Service) createAssignmentPool(ctx context.Context, projectID pm.ProjectID, now time.Time) error {
+	pool, err := pm.NewAssignmentPool(pm.NewAssignmentPoolInput{
+		ID: pm.AssignmentPoolID(s.idgen.NewEntityID("pool")), ProjectID: projectID,
+		SchedulingClass: pm.AssignmentPoolBackground, AutoAssignEnabled: true,
+		HoldingCap: s.poolLimit(), CreatedAt: now,
+	})
+	if err != nil {
+		return err
+	}
+	return s.pools.Save(ctx, pool)
 }
 
 // createBuiltinPlan creates the per-project built-in "assignment pool" Plan
@@ -300,6 +316,9 @@ type CreateTaskCommand struct {
 	// RequiredCapabilities is the optional capability set the task demands of an
 	// executor agent (v2.18.3 BE-1); canonicalized by the domain. Empty = unrestricted.
 	RequiredCapabilities []string
+	// Append-only remediation provenance. Ordinary tasks leave both empty.
+	FollowsTaskID   pm.TaskID
+	OriginVerdictID pm.GateVerdictID
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -339,6 +358,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
 			Model: cmd.Model, DispatchMode: cmd.DispatchMode, RequiredCapabilities: cmd.RequiredCapabilities,
+			FollowsTaskID: cmd.FollowsTaskID, OriginVerdictID: cmd.OriginVerdictID,
 		})
 		if terr != nil {
 			return terr
@@ -388,6 +408,17 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 // one-step create+dispatch path (T199/WS3). RecordDispatch is INSERT-OR-IGNORE on
 // the PK, so a later reconcile sweep is a harmless no-op.
 func (s *Service) dispatchIntoBuiltinPool(ctx context.Context, t *pm.Task, now time.Time) error {
+	if s.pools != nil {
+		pool, err := s.pools.FindByProject(ctx, t.ProjectID())
+		if err != nil {
+			return err
+		}
+		member, err := pm.NewAssignmentPoolTask(pool.ID(), t.ID(), 0, t.CreatedBy(), now)
+		if err != nil {
+			return err
+		}
+		return s.pools.AddTask(ctx, member)
+	}
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
@@ -404,6 +435,47 @@ func (s *Service) dispatchIntoBuiltinPool(ctx context.Context, t *pm.Task, now t
 	// PULL dispatch: record-only (no @mention, no work-item, no wake) — exactly
 	// what dispatchBuiltinPool does for a ready pool node.
 	return s.plans.RecordDispatch(ctx, pool.ID(), t.ID(), now, "")
+}
+
+// AddTaskToAssignmentPool is the first-class pool command. It leaves task.plan_id
+// untouched: pool membership is independent from structured Plan membership.
+func (s *Service) AddTaskToAssignmentPool(ctx context.Context, projectID pm.ProjectID, taskID pm.TaskID, priority int, actor pm.IdentityRef) error {
+	if s.pools == nil {
+		return ErrBuiltinPoolMissing
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.requireProjectMember(txCtx, projectID, actor); err != nil {
+			return err
+		}
+		task, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if task.ProjectID() != projectID {
+			return pm.ErrPlanProjectMismatch
+		}
+		if task.PlanID() != "" {
+			return pm.ErrTaskInOtherPlan
+		}
+		pool, err := s.pools.FindByProject(txCtx, projectID)
+		if err != nil {
+			return err
+		}
+		member, err := pm.NewAssignmentPoolTask(pool.ID(), taskID, priority, actor, now)
+		if err != nil {
+			return err
+		}
+		return s.pools.AddTask(txCtx, member)
+	})
+}
+
+func (s *Service) TaskInAssignmentPool(ctx context.Context, taskID pm.TaskID) (bool, error) {
+	if s.pools == nil {
+		return false, nil
+	}
+	_, ok, err := s.pools.FindTask(ctx, taskID)
+	return ok, err
 }
 
 // assignOnCreate assigns t to assignee in the caller's tx — the create-time

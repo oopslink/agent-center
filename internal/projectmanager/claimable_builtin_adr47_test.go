@@ -32,7 +32,7 @@ func TestADR47_Claimable_Predicate(t *testing.T) {
 		{"running (already claimed)", notArch, TaskRunning, "agent:a", "plan-1", NodeRunning},
 		{"completed", notArch, TaskCompleted, "agent:a", "plan-1", NodeDone},
 		{"discarded", notArch, TaskDiscarded, "agent:a", "plan-1", NodeFailed},
-		{"reopened", notArch, TaskReopened, "agent:a", "plan-1", NodeDispatched},
+		{"reopened", notArch, TaskStatus("reopened"), "agent:a", "plan-1", NodeDispatched},
 		{"no assignee", notArch, TaskOpen, "", "plan-1", NodeDispatched},
 		{"backlog (no plan)", notArch, TaskOpen, "agent:a", "", NodeReady},
 		{"in plan but only ready (not dispatched)", notArch, TaskOpen, "agent:a", "plan-1", NodeReady},

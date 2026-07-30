@@ -45,18 +45,19 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 	convRepo := convsqlite.NewConversationRepo(db)
 	plans := pmsql.NewPlanRepo(db)
 	deps.PM = pmservice.New(pmservice.Deps{
-		DB:           db,
-		Projects:     pmsql.NewProjectRepo(db),
-		Members:      pmsql.NewProjectMemberRepo(db),
-		Issues:       pmsql.NewIssueRepo(db),
-		Tasks:        pmsql.NewTaskRepo(db),
-		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
-		Plans:        plans,
-		Outbox:       ob,
-		IDGen:        gen,
-		Clock:        clk,
+		DB:              db,
+		Projects:        pmsql.NewProjectRepo(db),
+		Members:         pmsql.NewProjectMemberRepo(db),
+		Issues:          pmsql.NewIssueRepo(db),
+		Tasks:           pmsql.NewTaskRepo(db),
+		TaskSubs:        pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:       pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs:    pmsql.NewCodeRepoRefRepo(db),
+		Plans:           plans,
+		AssignmentPools: pmsql.NewAssignmentPoolRepo(db),
+		Outbox:          ob,
+		IDGen:           gen,
+		Clock:           clk,
 		// v2.7.1 #245: wire the per-org T<n> allocator so seeded tasks get an
 		// org_ref — the board card / node DTO assertion (task-0543ece9) needs it.
 		OrgSeq:   pmsql.NewOrgSequenceRepo(db),
@@ -133,8 +134,8 @@ func TestPlanAPI_CreateGetStartAdvance(t *testing.T) {
 	}
 	created := decodeBody(t, resp)
 	planID := created["id"].(string)
-	if created["status"] != "draft" {
-		t.Fatalf("new plan status = %v, want draft", created["status"])
+	if created["status"] != "pending" {
+		t.Fatalf("new plan status = %v, want pending", created["status"])
 	}
 	if _, ok := created["nodes"]; !ok {
 		t.Fatal("create response must carry derived nodes")
@@ -290,9 +291,9 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 	}
 	body := decodeBody(t, resp)
 	plans := body["plans"].([]any)
-	// 3 structured plans + the ADR-0047 auto-created built-in pool.
-	if len(plans) != 4 {
-		t.Fatalf("list returned %d plans, want 4", len(plans))
+	// AssignmentPool is a separate Project child and never appears as a Plan row.
+	if len(plans) != 3 {
+		t.Fatalf("list returned %d plans, want 3", len(plans))
 	}
 	byID := map[string]map[string]any{}
 	for _, p := range plans {
@@ -557,7 +558,7 @@ func TestPlanAPI_Delete_RunningRejected_409(t *testing.T) {
 	}
 }
 
-// TestPlanAPI_RemoveTask_NonDraft_409 locks the v2.9 ErrPlanNotDraft→409 unification:
+// TestPlanAPI_RemoveTask_NonDraft_409 locks the v2.9 ErrPlanNotPending→409 unification:
 // editing the task-set of a RUNNING plan is a STATE-conflict (was 400 invalid_request),
 // now 409 plan_conflict — same class + code as ErrPlanRunning/Archived, consistent with MCP.
 func TestPlanAPI_RemoveTask_NonDraft_409(t *testing.T) {
@@ -577,10 +578,10 @@ func TestPlanAPI_RemoveTask_NonDraft_409(t *testing.T) {
 	}
 	fx.drain(t)
 
-	// Remove a task from the RUNNING plan → ErrPlanNotDraft → 409 (was 400).
+	// Remove a task from the RUNNING plan → ErrPlanNotPending → 409 (was 400).
 	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/tasks/"+string(taskA), sess)
 	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("remove task from running plan status=%d want 409 (ErrPlanNotDraft state-conflict)", resp.StatusCode)
+		t.Fatalf("remove task from running plan status=%d want 409 (ErrPlanNotPending state-conflict)", resp.StatusCode)
 	}
 }
 
@@ -600,10 +601,7 @@ func TestPlanAPI_Delete_OrgGate(t *testing.T) {
 	}
 }
 
-// TestPlanAPI_Archive_NonRunning: POST /plans/{id}/archive on a draft plan → 200,
-// plan status archived, its NON-terminal task finalized to discarded then archived
-// (T339: archiving a plan no longer leaves an open+archived dead task — the cascade
-// finalizes a non-terminal task to discarded before archiving it).
+// Archive is an orthogonal marker and terminal-only: discard first, then archive.
 func TestPlanAPI_Archive_NonRunning(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -617,19 +615,23 @@ func TestPlanAPI_Archive_NonRunning(t *testing.T) {
 	planID := fx.createPlan(t, s, sess, pid, "shelf")
 	tid := fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
 
-	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/archive", `{}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/discard", `{}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("discard status=%d want 200", resp.StatusCode)
+	}
+	resp = orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/archive", `{}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("archive status=%d want 200", resp.StatusCode)
 	}
 	body := decodeBody(t, resp)
-	if body["status"] != "archived" {
-		t.Fatalf("archived plan status=%v want archived", body["status"])
+	if body["status"] != "discarded" || body["archived_at"] == "" {
+		t.Fatalf("archived plan projection=%v want discarded + archived_at", body)
 	}
 	fx.drain(t)
 
 	tk, _ := fx.deps.PM.GetTask(ctx, tid)
-	if !tk.IsArchived() {
-		t.Fatal("cascade: task must be archived")
+	if tk.IsArchived() {
+		t.Fatal("Plan archive marker must not cascade to Task archive markers")
 	}
 	if tk.Status() != pm.TaskDiscarded {
 		t.Fatalf("task status=%q want discarded (T339: non-terminal task finalized on plan archive)", tk.Status())
