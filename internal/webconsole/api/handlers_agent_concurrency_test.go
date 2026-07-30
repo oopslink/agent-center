@@ -58,7 +58,11 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	store.Put(arID(t, deps, id), concurrency.AgentSnapshot{
 		Active: 1,
 		Executors: []concurrency.ExecutorSnapshot{
-			{ExecutorID: "e1", TaskID: "t1", CLI: "codex", Model: "gpt-5.5", State: concurrency.StateRunning, PID: 99, StartedAt: time.Now()},
+			{
+				ExecutorID: "e1", TaskID: "t1", CLI: "codex", Model: "gpt-5.5",
+				State: concurrency.StateRunning, PID: 99, StartedAt: time.Now(),
+				CurrentActivity: "running tests for fork executor heartbeat",
+			},
 		},
 	}, time.Now())
 
@@ -92,6 +96,9 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	e0, _ := execs[0].(map[string]any)
 	if e0["executor_id"] != "e1" || e0["cli"] != "codex" || e0["task_id"] != "t1" || e0["state"] != "running" {
 		t.Errorf("executor = %v", e0)
+	}
+	if e0["current_activity"] != "running tests for fork executor heartbeat" {
+		t.Errorf("current_activity = %v", e0["current_activity"])
 	}
 }
 

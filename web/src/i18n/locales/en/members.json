@@ -117,6 +117,7 @@
         "slot": "slot {{slot}}",
         "starting": "starting",
         "heartbeatTitle": "Heartbeat age",
+        "currentActivity": "Doing: {{activity}}",
         "orphan": "orphan · monitored",
         "stale": "overlay stale"
       }

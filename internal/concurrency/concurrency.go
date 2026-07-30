@@ -24,14 +24,15 @@ const (
 
 // ExecutorSnapshot is one live executor's point-in-time view.
 type ExecutorSnapshot struct {
-	ExecutorID     string     `json:"executor_id"`
-	TaskID         string     `json:"task_id,omitempty"`
-	CLI            string     `json:"cli,omitempty"`
-	Model          string     `json:"model,omitempty"`
-	State          string     `json:"state"`
-	StartedAt      time.Time  `json:"started_at,omitempty"`
-	PID            int        `json:"pid,omitempty"`
-	LastProgressAt *time.Time `json:"last_progress_at,omitempty"`
+	ExecutorID      string     `json:"executor_id"`
+	TaskID          string     `json:"task_id,omitempty"`
+	CLI             string     `json:"cli,omitempty"`
+	Model           string     `json:"model,omitempty"`
+	State           string     `json:"state"`
+	StartedAt       time.Time  `json:"started_at,omitempty"`
+	PID             int        `json:"pid,omitempty"`
+	LastProgressAt  *time.Time `json:"last_progress_at,omitempty"`
+	CurrentActivity string     `json:"current_activity,omitempty"`
 }
 
 // AgentSnapshot is one agent's live executor set at heartbeat time. Active is the

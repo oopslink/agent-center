@@ -232,9 +232,10 @@ func (ee *ExecutorEngine) FuseExecutorForTask(ctx context.Context, taskID string
 }
 
 // enrichFromFiles fills task/cli/model from input.json and state/started_at/
-// last_progress_at from status.json. orphan forces State=orphan regardless of
-// status. The state mapping for live executors: no status yet → starting; running
-// → running; terminal (done/failed) but slot not yet freed → finishing.
+// last_progress_at/current_activity from status.json. orphan forces State=orphan
+// regardless of status. The state mapping for live executors: no status yet →
+// starting; running → running; terminal (done/failed) but slot not yet freed →
+// finishing.
 func (ee *ExecutorEngine) enrichFromFiles(snap *concurrency.ExecutorSnapshot, orphan bool) {
 	if ee.fx == nil {
 		if orphan {
@@ -266,6 +267,7 @@ func (ee *ExecutorEngine) enrichFromFiles(snap *concurrency.ExecutorSnapshot, or
 			lp := st.LastProgressAt
 			snap.LastProgressAt = &lp
 		}
+		snap.CurrentActivity = st.Detail
 	}
 }
 

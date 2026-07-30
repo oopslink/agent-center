@@ -91,6 +91,12 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 				if !e.StartedAt.IsZero() {
 					em["started_at"] = e.StartedAt.Format(time.RFC3339Nano)
 				}
+				if e.LastProgressAt != nil && !e.LastProgressAt.IsZero() {
+					em["last_progress_at"] = e.LastProgressAt.Format(time.RFC3339Nano)
+				}
+				if e.CurrentActivity != "" {
+					em["current_activity"] = e.CurrentActivity
+				}
 				executors = append(executors, em)
 			}
 		}

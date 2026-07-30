@@ -234,11 +234,19 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     expect(screen.getByTestId('agent-concurrency-age')).toHaveTextContent(/updated/i);
   });
 
-  it('in-progress row overlays the executor joined by task_id (cli·model / slot / elapsed / heartbeat)', async () => {
+  it('in-progress row overlays the executor joined by task_id (cli·model / slot / elapsed / heartbeat / current activity)', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
       agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: false, snapshot_age_ms: 1000,
-      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
+      executors: [{
+        executor_id: 'e1',
+        task_id: 't1',
+        cli: 'claude-code',
+        model: 'sonnet',
+        state: 'running',
+        started_at: '2026-05-24T01:55:00Z',
+        current_activity: 'editing web/src/components/AgentTasks.tsx',
+      }],
     });
     wrap();
     const overlay = await screen.findByTestId('agent-task-overlay');
@@ -246,6 +254,7 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     expect(within(overlay).getByTestId('agent-task-slot')).toHaveTextContent('slot 1');
     expect(within(overlay).getByTestId('agent-task-elapsed')).toBeInTheDocument();
     expect(within(overlay).getByTestId('agent-task-heartbeat')).toBeInTheDocument();
+    expect(within(overlay).getByTestId('agent-task-current-activity')).toHaveTextContent('Doing: editing web/src/components/AgentTasks.tsx');
   });
 
   it('orphan executor shows the orphan·monitored badge', async () => {

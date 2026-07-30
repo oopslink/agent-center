@@ -46,6 +46,16 @@ func TestSnapshotConcurrency_LiveAndOrphanMerged(t *testing.T) {
 		t.Fatalf("HandleWork: %v", err)
 	}
 	defer func() { _ = launched.Handle.Wait() }()
+	progressAt := time.Unix(1_700_000_100, 0)
+	if err := ee.fx.WriteStatus(executor.Status{
+		ExecutorID:     launched.ExecutorID,
+		State:          executor.StateRunning,
+		StartedAt:      progressAt.Add(-time.Minute),
+		LastProgressAt: progressAt,
+		Detail:         "editing web/src/components/AgentTasks.tsx",
+	}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
 
 	ee.addOrphan("executor-orphan", 4242)
 
@@ -72,6 +82,12 @@ func TestSnapshotConcurrency_LiveAndOrphanMerged(t *testing.T) {
 	}
 	if live.State == concurrency.StateOrphan {
 		t.Error("live executor must not be state=orphan")
+	}
+	if live.LastProgressAt == nil || !live.LastProgressAt.Equal(progressAt) {
+		t.Errorf("live.LastProgressAt = %v, want %v", live.LastProgressAt, progressAt)
+	}
+	if live.CurrentActivity != "editing web/src/components/AgentTasks.tsx" {
+		t.Errorf("live.CurrentActivity = %q", live.CurrentActivity)
 	}
 	orphan, ok := byID["executor-orphan"]
 	if !ok {

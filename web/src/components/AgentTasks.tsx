@@ -423,7 +423,7 @@ function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElem
 }
 
 // ExecutorOverlay — the per-row in-progress overlay: cli·model chip, slot, elapsed
-// (from started_at), heartbeat age, and an orphan badge / stale marker.
+// (from started_at), heartbeat age, current activity, and orphan/stale markers.
 function ExecutorOverlay({
   slot,
   stale,
@@ -468,6 +468,15 @@ function ExecutorOverlay({
       {stale && (
         <span className="font-medium text-status-amber-fg" data-testid="agent-task-overlay-stale">
           {t('agentRuntime.tasks.overlay.stale')}
+        </span>
+      )}
+      {exec.current_activity && (
+        <span
+          className="min-w-0 basis-full truncate text-text-secondary"
+          data-testid="agent-task-current-activity"
+          title={exec.current_activity}
+        >
+          {t('agentRuntime.tasks.overlay.currentActivity', { activity: exec.current_activity })}
         </span>
       )}
     </div>

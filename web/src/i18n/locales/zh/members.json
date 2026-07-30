@@ -117,6 +117,7 @@
         "slot": "槽位 {{slot}}",
         "starting": "启动中",
         "heartbeatTitle": "心跳时长",
+        "currentActivity": "正在做：{{activity}}",
         "orphan": "孤立 · 监控中",
         "stale": "叠加数据已过期"
       }

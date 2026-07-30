@@ -19,6 +19,8 @@ export interface ConcurrencyExecutor {
   state: string;
   started_at: string;
   pid?: number;
+  last_progress_at?: string;
+  current_activity?: string;
 }
 
 export interface AgentConcurrency {
