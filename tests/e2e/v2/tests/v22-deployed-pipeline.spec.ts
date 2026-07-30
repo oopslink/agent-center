@@ -242,7 +242,11 @@ secret_management:
       const bootstrapPath = join(tempDir, "bootstrap_token");
       let adminToken = "";
       try {
-        adminToken = await readBootstrapToken(bootstrapPath, 70_000);
+        // AI Runtime flag-ON startup performs the complete migration/catalog
+        // composition before writing the token. Loaded shared CI hosts have
+        // exceeded the old 70s bound without emitting a server error, so keep
+        // the smoke deterministic while still bounding a genuinely wedged boot.
+        adminToken = await readBootstrapToken(bootstrapPath, 180_000);
       } catch (e) {
         throw new Error(
           String(e) +
@@ -421,13 +425,20 @@ secret_management:
           `SELECT snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id='${taskID}';`,
         ])
       ).stdout.trim();
-      expect(snapshotBefore, "snapshot frozen by deployed start path").toBeTruthy();
-      expect(JSON.parse(snapshotBefore)).toMatchObject({
-        catalog_revision: 2,
-        profile_key: "smoke-profile",
-        profile_version: 1,
-        model_key: "provider-model-v1",
-      });
+      const runtimeFlagOn =
+        process.env.AC_AI_RUNTIME_AGENT_EXECUTION === "1" ||
+        process.env.AC_AI_RUNTIME_AGENT_EXECUTION?.toLowerCase() === "true";
+      if (runtimeFlagOn) {
+        expect(snapshotBefore, "snapshot frozen by deployed start path").toBeTruthy();
+        expect(JSON.parse(snapshotBefore)).toMatchObject({
+          catalog_revision: 2,
+          profile_key: "smoke-profile",
+          profile_version: 1,
+          model_key: "provider-model-v1",
+        });
+      } else {
+        expect(snapshotBefore, "flag OFF preserves the legacy no-snapshot path").toBe("");
+      }
 
       // Simulate a later Catalog revision. This deliberately mutates only the
       // mutable Catalog projection; the lifecycle operations below still travel
@@ -470,7 +481,11 @@ secret_management:
           `SELECT snapshot_json FROM ai_runtime_execution_snapshots WHERE execution_id='${taskID}';`,
         ])
       ).stdout.trim();
-      expect(snapshotAfter, "snapshot survives Catalog change and continuations").toBe(snapshotBefore);
+      if (runtimeFlagOn) {
+        expect(snapshotAfter, "snapshot survives Catalog change and continuations").toBe(snapshotBefore);
+      } else {
+        expect(snapshotAfter, "flag OFF does not write an AI Runtime Snapshot").toBe("");
+      }
     } finally {
       // Diagnostics on failure for triage.
       if (testInfo.status !== testInfo.expectedStatus) {

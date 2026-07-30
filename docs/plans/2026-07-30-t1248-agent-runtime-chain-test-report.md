@@ -43,6 +43,14 @@
 - 受影响四包 `go vet` PASS；`airuntime` 与 `agentruntime` 全包 PASS；
   `projectmanager/service` 全包在高负载宿主运行 377s 后人工中止，随后本改动
   真入口集成用例独立 PASS。未把这条记录冒充全仓门禁已绿。
+- fresh-binary deployed smoke：
+  - flag ON：`AC_AI_RUNTIME_AGENT_EXECUTION=1 ...v22-deployed-pipeline.spec.ts` PASS，
+    真 server/worker/agent-tools 跑完 claim/start/block/unblock/reassign，Snapshot
+    在 Catalog 改动及 continuation 前后字节一致；
+  - flag OFF：相同真实链 PASS，并断言 execution 全程不写 Snapshot；
+  - 首轮未显式开 flag 时暴露 spec 把 OFF 当 ON 的红证据（Snapshot 为空）；
+    spec 现按实际 flag 分支断言。高负载宿主两次未在旧 70s 内写 bootstrap token，
+    stderr 为空；将有界启动等待提高至 180s 后 ON 在 2.1m 内完成，未放宽业务断言。
 
 ## 结论
 
