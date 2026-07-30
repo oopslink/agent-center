@@ -29,6 +29,10 @@
   写事务等待中 10m timeout；同一失败测试单独 `-count=3` 为 3/3 PASS。
 - `go test -p 2 ./...`：宿主机极慢时 `internal/admin/api` 与
   `internal/agentruntime` 达到 10m package timeout；相关改动测试单独通过。
+- loopback 最终树再次运行 `go test ./...`：`internal/admin/api`、
+  `internal/cognition/memory`、`internal/cognition/memory/centergit`、
+  `internal/environment/service` 分别在 HTTP/真实 git/SQLite fixture 上达到
+  package 10m timeout；无 AI Runtime 断言失败。该结果仍不满足“全量绿”，未降格出口。
 - `make test-race`：未报告 DATA RACE；真实 git unreachable/push/cache 测试
   在同一宿主机达到 10m timeout。
 
