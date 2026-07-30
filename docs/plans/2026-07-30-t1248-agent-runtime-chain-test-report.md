@@ -35,6 +35,10 @@
   package 10m timeout；无 AI Runtime 断言失败。该结果仍不满足“全量绿”，未降格出口。
 - `make test-race`：未报告 DATA RACE；真实 git unreachable/push/cache 测试
   在同一宿主机达到 10m timeout。
+- loopback 最终树再次运行 `make test-race`：仍无 DATA RACE 报告；
+  `TestSourceGate_DegradeRefusesAVanishedSource` 与
+  `reporepo.TestRepoCacheManager_ConcurrentEnsureUsesOneValidMirror` 的真实 git
+  子进程在宿主高负载下达到 package 10m timeout，命令 exit 2。该结果不满足 race 门。
 
 ## Gate loopback（2026-07-30）
 
