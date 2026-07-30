@@ -11,6 +11,7 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -721,8 +722,9 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		// T728: per-agent inject-description-into-system-prompt switch. nil (omitted) → preserve.
 		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
 		// T950 ②: per-agent LLM-judge opt-in. nil (field omitted) → preserve.
-		JudgeEnabled        *bool `json:"judge_enabled"`
-		ExecutorGitWorktree *bool `json:"executor_git_worktree"`
+		JudgeEnabled        *bool                       `json:"judge_enabled"`
+		ExecutorGitWorktree *bool                       `json:"executor_git_worktree"`
+		RuntimeSelection    *airuntime.RuntimeSelection `json:"runtime_selection"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -733,18 +735,31 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
-		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
-		EnvVars:           req.EnvVars,
-		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
-		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
-		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
-		Description:                      req.Description,
-		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
-		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve
-		ExecutorGitWorktree:              req.ExecutorGitWorktree,
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if err := d.AgentSvc.UpdateAgentConfig(txCtx, a.ID(), agentsvc.UpdateAgentConfigCommand{
+			Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
+			EnvVars:           req.EnvVars,
+			OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
+			MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
+			AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
+			Description:                      req.Description,
+			IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
+			JudgeEnabled:                     req.JudgeEnabled,
+			ExecutorGitWorktree:              req.ExecutorGitWorktree,
+		}); err != nil {
+			return err
+		}
+		if req.RuntimeSelection != nil && d.RuntimeCatalog != nil {
+			return d.RuntimeCatalog.PutAgentSelection(txCtx, a.OrganizationID(), string(a.ID()), *req.RuntimeSelection)
+		}
+		return nil
 	})
 	if err != nil {
+		var runtimeErr *airuntime.Error
+		if errors.As(err, &runtimeErr) {
+			writeRuntimeError(w, err)
+			return
+		}
 		mapAgentError(w, err)
 		return
 	}

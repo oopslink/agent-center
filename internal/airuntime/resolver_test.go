@@ -15,6 +15,16 @@ type resolveRepo struct {
 	frozenOK      bool
 	catalogReads  int
 	snapshotReads int
+	selection     RuntimeSelection
+	selectionOK   bool
+	freezeCount   int
+}
+
+func (r *resolveRepo) GetAgentSelection(context.Context, string, string) (RuntimeSelection, bool, error) {
+	return r.selection, r.selectionOK, nil
+}
+func (*resolveRepo) PutAgentSelection(context.Context, string, string, RuntimeSelection, time.Time) error {
+	return errors.New("unused")
 }
 
 func (r *resolveRepo) GetCatalog(context.Context, string) (Catalog, error) {
@@ -46,6 +56,7 @@ func (*resolveRepo) ApplyCatalog(context.Context, Catalog, int64, AuditEvent) (i
 	return 0, errors.New("unused")
 }
 func (r *resolveRepo) FreezeExecutionSnapshot(_ context.Context, _, _ string, snapshot RuntimeSnapshot) (RuntimeSnapshot, bool, error) {
+	r.freezeCount++
 	return snapshot, true, nil
 }
 func (r *resolveRepo) GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error) {
@@ -89,6 +100,30 @@ func TestExecutionFreezerReadsFrozenSnapshotBeforeMutableCatalog(t *testing.T) {
 	}
 	if repo.snapshotReads != 1 || repo.catalogReads != 0 {
 		t.Fatalf("reads snapshot=%d catalog=%d, want 1/0", repo.snapshotReads, repo.catalogReads)
+	}
+}
+
+func TestExecutionFreezerUsesPersistedAgentSelection(t *testing.T) {
+	_, repo := resolverFixture()
+	repo.selection = RuntimeSelection{Mode: SelectionOverride, CLIID: "cli-codex", ModelID: "model-gpt", Parameters: map[string]any{"effort": "low"}}
+	repo.selectionOK = true
+	if err := NewExecutionFreezer(repo).EnsureExecution(context.Background(), "org-1", "execution-1", "agent-1"); err != nil {
+		t.Fatal(err)
+	}
+	if repo.snapshotReads != 2 || repo.catalogReads != 2 {
+		t.Fatalf("snapshot/catalog reads = %d/%d, want 2/2", repo.snapshotReads, repo.catalogReads)
+	}
+}
+
+func TestShadowExecutionFreezerDoesNotWriteSnapshot(t *testing.T) {
+	_, repo := resolverFixture()
+	var logs []string
+	shadow := NewShadowExecutionFreezer(repo, func(format string, _ ...any) { logs = append(logs, format) })
+	if err := shadow.EnsureExecution(context.Background(), "org-1", "execution-1", "agent-1"); err != nil {
+		t.Fatal(err)
+	}
+	if repo.freezeCount != 0 || len(logs) != 1 {
+		t.Fatalf("shadow freezeCount=%d logs=%v, want no write and one diff log", repo.freezeCount, logs)
 	}
 }
 

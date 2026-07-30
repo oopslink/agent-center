@@ -7,11 +7,37 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
+func TestAgentRuntimeSelectionRoundTripAndValidation(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/selection.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO agents(id,organization_id,name,worker_id,lifecycle,created_by,created_at,updated_at) VALUES('agent-a','org-a','A','worker-a','stopped','user:x','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	repo := airuntimesql.NewRepository(db)
+	if err := repo.PutAgentSelection(context.Background(), "org-a", "agent-a", airuntime.RuntimeSelection{Mode: airuntime.SelectionInherit}, time.Unix(10, 0)); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := repo.GetAgentSelection(context.Background(), "org-a", "agent-a")
+	if err != nil || !ok || got.Mode != airuntime.SelectionInherit {
+		t.Fatalf("selection = %+v ok=%v err=%v", got, ok, err)
+	}
+	if err := repo.PutAgentSelection(context.Background(), "org-a", "agent-a", airuntime.RuntimeSelection{Mode: airuntime.SelectionProfile, ProfileID: "missing"}, time.Now()); err == nil {
+		t.Fatal("missing explicit profile must fail closed")
+	}
+}
 
 func TestCatalogLifecycleAndRevision(t *testing.T) {
 	db, err := persistence.Open(t.TempDir() + "/runtime.db")

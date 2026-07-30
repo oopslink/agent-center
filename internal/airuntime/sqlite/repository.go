@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
@@ -261,6 +262,45 @@ func (r *Repository) GetExecutionSnapshot(ctx context.Context, orgID, executionI
 		return airuntime.RuntimeSnapshot{}, false, err
 	}
 	return snapshot, true, nil
+}
+
+func (r *Repository) GetAgentSelection(ctx context.Context, orgID, agentID string) (airuntime.RuntimeSelection, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var raw string
+	err := exec.QueryRowContext(ctx, `SELECT selection_json FROM ai_runtime_agent_selections WHERE org_id=? AND agent_id=?`, orgID, agentID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return airuntime.RuntimeSelection{}, false, nil
+	}
+	if err != nil {
+		return airuntime.RuntimeSelection{}, false, err
+	}
+	var selection airuntime.RuntimeSelection
+	if err := json.Unmarshal([]byte(raw), &selection); err != nil {
+		return airuntime.RuntimeSelection{}, false, err
+	}
+	return selection, true, nil
+}
+
+func (r *Repository) PutAgentSelection(ctx context.Context, orgID, agentID string, selection airuntime.RuntimeSelection, at time.Time) error {
+	mode := strings.TrimSpace(selection.Mode)
+	if mode == "" {
+		mode = airuntime.SelectionInherit
+		selection.Mode = mode
+	}
+	if mode != airuntime.SelectionInherit {
+		if _, err := airuntime.NewRuntimeResolver(r).Resolve(ctx, orgID, selection); err != nil {
+			return err
+		}
+	}
+	raw, err := airuntime.CanonicalJSON(selection)
+	if err != nil {
+		return err
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err = exec.ExecContext(ctx, `INSERT INTO ai_runtime_agent_selections(org_id,agent_id,selection_json,updated_at)
+		VALUES(?,?,?,?) ON CONFLICT(agent_id) DO UPDATE SET org_id=excluded.org_id,selection_json=excluded.selection_json,updated_at=excluded.updated_at`,
+		orgID, agentID, string(raw), stamp(at))
+	return err
 }
 
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {

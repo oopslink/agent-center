@@ -8,6 +8,7 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -178,9 +179,10 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		// nil → default (true = inject).
 		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
 		// T950 ②: per-agent LLM-judge opt-in at create. absent → false → OFF.
-		JudgeEnabled bool              `json:"judge_enabled"`
-		WorkerID     string            `json:"worker_id"`
-		EnvVars      map[string]string `json:"env_vars"`
+		JudgeEnabled     bool                        `json:"judge_enabled"`
+		WorkerID         string                      `json:"worker_id"`
+		EnvVars          map[string]string           `json:"env_vars"`
+		RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -280,6 +282,15 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			return aerr
 		}
 		agentID = aid
+		if d.RuntimeCatalog != nil {
+			selection := airuntime.RuntimeSelection{Mode: airuntime.SelectionInherit}
+			if body.RuntimeSelection != nil {
+				selection = *body.RuntimeSelection
+			}
+			if err := d.RuntimeCatalog.PutAgentSelection(txCtx, orgID, string(aid), selection); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if txErr != nil {

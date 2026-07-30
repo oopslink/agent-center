@@ -1,6 +1,9 @@
 package airuntime
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Repository interface {
 	GetCatalog(context.Context, string) (Catalog, error)
@@ -14,4 +17,9 @@ type Repository interface {
 	ApplyCatalog(context.Context, Catalog, int64, AuditEvent) (int64, error)
 	FreezeExecutionSnapshot(context.Context, string, string, RuntimeSnapshot) (RuntimeSnapshot, bool, error)
 	GetExecutionSnapshot(context.Context, string, string) (RuntimeSnapshot, bool, error)
+}
+
+type AgentSelectionRepository interface {
+	GetAgentSelection(context.Context, string, string) (RuntimeSelection, bool, error)
+	PutAgentSelection(context.Context, string, string, RuntimeSelection, time.Time) error
 }

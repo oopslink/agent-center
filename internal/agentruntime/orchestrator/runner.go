@@ -13,6 +13,8 @@ package orchestrator
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +30,11 @@ type RunnerCmdBuilder interface {
 	// §4.3). A builder whose CLI cannot pre-assign a session id (e.g. codex mints its
 	// own thread) ignores it — recovery then degrades that executor to a plain rerun.
 	Build(model, prompt, sessionID string) ([]string, error)
+}
+
+type RuntimeRunnerCmdBuilder interface {
+	RunnerCmdBuilder
+	BuildRuntime(model, prompt, sessionID string, parameters map[string]any) ([]string, error)
 }
 
 // resumeSessionArgv rewrites a persisted fresh-launch argv into its --resume form:
@@ -158,6 +165,24 @@ func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, e
 	return argv, nil
 }
 
+func (b *CodexRunnerBuilder) BuildRuntime(model, prompt, sessionID string, parameters map[string]any) ([]string, error) {
+	argv, err := b.Build(model, prompt, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range parameters {
+		if key != "reasoning_effort" {
+			return nil, fmt.Errorf("orchestrator: unsupported codex runtime parameter %q", key)
+		}
+		effort, ok := value.(string)
+		if !ok || (effort != "minimal" && effort != "low" && effort != "medium" && effort != "high") {
+			return nil, errors.New("orchestrator: invalid codex reasoning_effort")
+		}
+		argv = append(argv[:len(argv)-1], "-c", "model_reasoning_effort="+effort, argv[len(argv)-1])
+	}
+	return argv, nil
+}
+
 // ClaudeRunnerBuilder builds the production executor runner: a ONE-SHOT, no-mcp
 // claude invocation under the F3-selected model (design §4/§5). It mirrors the
 // supervisor's auth/permission flags (claudestream.rewriteForStreamingInput) so
@@ -235,4 +260,22 @@ func (b *ClaudeRunnerBuilder) Build(model, prompt, sessionID string) ([]string, 
 		args = append(args, "--session-id", sid)
 	}
 	return args, nil
+}
+
+func (b *ClaudeRunnerBuilder) BuildRuntime(model, prompt, sessionID string, parameters map[string]any) ([]string, error) {
+	argv, err := b.Build(model, prompt, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range parameters {
+		if key != "max_turns" {
+			return nil, fmt.Errorf("orchestrator: unsupported claude-code runtime parameter %q", key)
+		}
+		number, ok := value.(float64)
+		if !ok || number < 1 || number != float64(int(number)) {
+			return nil, errors.New("orchestrator: invalid claude-code max_turns")
+		}
+		argv = append(argv, "--max-turns", strconv.Itoa(int(number)))
+	}
+	return argv, nil
 }

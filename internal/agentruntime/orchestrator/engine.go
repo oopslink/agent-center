@@ -35,10 +35,12 @@ type WorkItem struct {
 	// ProjectID scopes an I<n> issue-ref lookup during spawn-time inline expansion
 	// (I109 ①). Empty ⇒ only canonical issue-<8hex> refs can be resolved; an I<n> ref
 	// then fails loudly rather than silently staying dead.
-	ProjectID string
-	Goal      executor.Goal
-	TaskModel string // task.model hard override ("" = unset → F3 judges/falls back)
-	Context   string // aggregated context the orchestrator assembled (design §6.E)
+	ProjectID         string
+	Goal              executor.Goal
+	TaskModel         string // task.model hard override ("" = unset → F3 judges/falls back)
+	RuntimeCLI        string // immutable AI Runtime snapshot override; paired with TaskModel
+	RuntimeParameters *map[string]any
+	Context           string // aggregated context the orchestrator assembled (design §6.E)
 	// DispatchMode is the center's per-node routing decision (I105 N2), stamped onto
 	// the executor's input.json so the writeback — which only ever sees input.json —
 	// can tell an ordinary forked Dev node from a supervisor_inline node that should
@@ -223,9 +225,15 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	e.rcfgMu.RLock()
 	rcfg := e.rcfg
 	e.rcfgMu.RUnlock()
-	modelDec, err := e.router.ResolveExecutor(ctx, item.TaskModel, item.Goal, rcfg)
-	if err != nil {
-		return nil, fmt.Errorf("orchestrator: resolve executor: %w", err)
+	var modelDec modelrouter.Decision
+	if strings.TrimSpace(item.RuntimeCLI) != "" && strings.TrimSpace(item.TaskModel) != "" {
+		modelDec = modelrouter.Decision{CLI: strings.TrimSpace(item.RuntimeCLI), Model: strings.TrimSpace(item.TaskModel), Source: modelrouter.SourceRuntimeSnapshot}
+	} else {
+		var err error
+		modelDec, err = e.router.ResolveExecutor(ctx, item.TaskModel, item.Goal, rcfg)
+		if err != nil {
+			return nil, fmt.Errorf("orchestrator: resolve executor: %w", err)
+		}
 	}
 
 	// 3. build the runner argv (per-CLI builder, BE-2) + the F2 input.
@@ -247,7 +255,17 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	if modelDec.CLI != "codex" {
 		sessionID = claudestream.SessionUUID(execID, 0)
 	}
-	runnerCmd, err := runner.Build(modelDec.Model, e.buildPrompt(ctx, item), sessionID)
+	prompt := e.buildPrompt(ctx, item)
+	var runnerCmd []string
+	if item.RuntimeParameters != nil && len(*item.RuntimeParameters) > 0 {
+		parameterized, ok := runner.(RuntimeRunnerCmdBuilder)
+		if !ok {
+			return nil, fmt.Errorf("orchestrator: cli %q does not accept runtime parameters", modelDec.CLI)
+		}
+		runnerCmd, err = parameterized.BuildRuntime(modelDec.Model, prompt, sessionID, *item.RuntimeParameters)
+	} else {
+		runnerCmd, err = runner.Build(modelDec.Model, prompt, sessionID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
 	}

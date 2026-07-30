@@ -221,6 +221,18 @@ func TestBuildWorkItem(t *testing.T) {
 			t.Errorf("Context override = %q, want trimmed context", got.Context)
 		}
 	})
+	t.Run("frozen runtime snapshot supplies cli model and parameters", func(t *testing.T) {
+		got := buildWorkItem("task-10", &centerTaskDetail{
+			Title: "snapshot",
+			RuntimeSnapshot: &centerRuntimeSnapshot{
+				CLIKey: "codex", ModelKey: "gpt-5.6",
+				Parameters: map[string]any{"reasoning_effort": "high"},
+			},
+		}, "", nil, "", "")
+		if got.RuntimeCLI != "codex" || got.TaskModel != "gpt-5.6" || got.RuntimeParameters == nil || (*got.RuntimeParameters)["reasoning_effort"] != "high" {
+			t.Fatalf("buildWorkItem snapshot = %+v", got)
+		}
+	})
 }
 
 // TestBuildExecutorEngine_WiresWriteback covers the W2 branch that builds the center
@@ -445,7 +457,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 3 || seen[1] != "start_task" || seen[2] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_task" || seen[3] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -675,8 +687,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want (nil, nil)", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 3 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task block_task]", seen)
+	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_task" || seen[3] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task start_task get_task block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

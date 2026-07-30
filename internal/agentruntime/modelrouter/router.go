@@ -45,7 +45,8 @@ const (
 	// judge was inconclusive), so a candidate is picked deterministically from the pool
 	// rather than ignoring the configured pool. Distinct provenance so logs show the
 	// pool WAS used (not silently bypassed) pending a real difficulty judge.
-	SourcePoolFallback Source = "pool_fallback"
+	SourcePoolFallback    Source = "pool_fallback"
+	SourceRuntimeSnapshot Source = "runtime_snapshot"
 )
 
 // Sentinel errors (errors.Is-matchable) for the unhappy paths.

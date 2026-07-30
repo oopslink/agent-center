@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -17,5 +18,17 @@ func (s *Service) ensureRuntimeExecution(ctx context.Context, task *pm.Task) err
 	if err != nil {
 		return err
 	}
-	return s.runtimeExecutions.EnsureExecution(ctx, project.OrganizationID(), string(task.ID()))
+	agentID := strings.TrimPrefix(string(task.Assignee()), "agent:")
+	return s.runtimeExecutions.EnsureExecution(ctx, project.OrganizationID(), string(task.ID()), agentID)
+}
+
+func (s *Service) RuntimeExecution(ctx context.Context, task *pm.Task) (any, bool, error) {
+	if s.runtimeExecutions == nil {
+		return nil, false, nil
+	}
+	project, err := s.projects.FindByID(ctx, task.ProjectID())
+	if err != nil {
+		return nil, false, err
+	}
+	return s.runtimeExecutions.GetExecution(ctx, project.OrganizationID(), string(task.ID()))
 }

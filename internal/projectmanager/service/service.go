@@ -204,7 +204,8 @@ type NodeResumer interface {
 // lifecycle. EnsureExecution must atomically create the first snapshot or return the
 // already-frozen one; callers intentionally invoke it again on retry/resume/reassign.
 type RuntimeExecutionFreezer interface {
-	EnsureExecution(context.Context, string, string) error
+	EnsureExecution(context.Context, string, string, ...string) error
+	GetExecution(context.Context, string, string) (any, bool, error)
 }
 
 type Service struct {

@@ -947,6 +947,16 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 				agentID, taskID, err)
 			return nil, nil
 		}
+		// start_task is the atomic snapshot-freeze boundary. Re-read the task after
+		// admission so the executor consumes the stored snapshot rather than the
+		// pre-admission mutable Agent/Profile view.
+		frozen, ferr := r.fetchCenterTask(ctx, agentID, taskID)
+		if ferr != nil {
+			r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, fmt.Errorf("read frozen runtime snapshot: %w", ferr))
+			return nil, nil
+		}
+		task = frozen
 	}
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
@@ -1104,7 +1114,14 @@ type centerTaskDetail struct {
 	// "" = executor_fork = today's routing. An older center never sends it (same zero
 	// value); a newer center sending an unknown value also falls through to the fork
 	// (DispatchMode.RoutesInline is a strict equality test).
-	DispatchMode string `json:"dispatch_mode"`
+	DispatchMode    string                 `json:"dispatch_mode"`
+	RuntimeSnapshot *centerRuntimeSnapshot `json:"runtime_snapshot,omitempty"`
+}
+
+type centerRuntimeSnapshot struct {
+	CLIKey     string         `json:"cli_key"`
+	ModelKey   string         `json:"model_key"`
+	Parameters map[string]any `json:"parameters"`
 }
 
 // centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a
@@ -1159,17 +1176,40 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 			Title:       task.goalTitle(taskID),
 			Description: task.Description,
 		},
-		TaskModel:  firstNonEmpty(modelOverride, task.Model),
-		Context:    strings.TrimSpace(contextOverride),
-		ExecutorID: execID,
-		Prepared:   prepared,
-		Repo:       repo,
+		TaskModel:         firstNonEmpty(modelOverride, task.Model, runtimeSnapshotModel(task)),
+		RuntimeCLI:        runtimeSnapshotCLI(task),
+		RuntimeParameters: runtimeSnapshotParameters(task),
+		Context:           strings.TrimSpace(contextOverride),
+		ExecutorID:        execID,
+		Prepared:          prepared,
+		Repo:              repo,
 		// I105 N2: stamp the center's routing decision onto input.json. On this path it
 		// is normally "" / executor_fork (the gate in SpawnExecutor already diverted a
 		// supervisor_inline node); a supervisor_inline value arriving here means the gate
 		// was bypassed, which is precisely what the N4 writeback net exists to catch.
 		DispatchMode: strings.TrimSpace(task.DispatchMode),
 	}
+}
+
+func runtimeSnapshotModel(task *centerTaskDetail) string {
+	if task != nil && task.RuntimeSnapshot != nil {
+		return task.RuntimeSnapshot.ModelKey
+	}
+	return ""
+}
+
+func runtimeSnapshotCLI(task *centerTaskDetail) string {
+	if task != nil && task.RuntimeSnapshot != nil {
+		return task.RuntimeSnapshot.CLIKey
+	}
+	return ""
+}
+
+func runtimeSnapshotParameters(task *centerTaskDetail) *map[string]any {
+	if task != nil && task.RuntimeSnapshot != nil {
+		return &task.RuntimeSnapshot.Parameters
+	}
+	return nil
 }
 
 func firstNonEmpty(values ...string) string {

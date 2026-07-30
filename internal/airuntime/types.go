@@ -45,6 +45,8 @@ func (e *Error) Error() string { return e.Message }
 type FeatureFlags struct {
 	CatalogV2         bool `json:"ai_runtime_catalog_v2"`
 	SchedulerMatching bool `json:"ai_runtime_scheduler_matching"`
+	AgentExecution    bool `json:"ai_runtime_agent_execution"`
+	ShadowResolve     bool `json:"ai_runtime_shadow_resolve"`
 }
 
 func DefaultFeatureFlags() FeatureFlags { return FeatureFlags{} }
@@ -125,6 +127,12 @@ type RuntimeSnapshot struct {
 	ProfileKey           string         `json:"profile_key,omitempty"`
 	ProfileVersion       int64          `json:"profile_version,omitempty"`
 	ResolvedAt           time.Time      `json:"resolved_at"`
+}
+
+type AgentRuntimeSelection struct {
+	AgentID   string           `json:"agent_id"`
+	Selection RuntimeSelection `json:"selection"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type Catalog struct {

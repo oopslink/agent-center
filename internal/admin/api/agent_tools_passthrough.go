@@ -286,6 +286,9 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable
 	}
+	if snapshot, ok, serr := d.PMService.RuntimeExecution(r.Context(), t); serr == nil && ok {
+		m["runtime_snapshot"] = snapshot
+	}
 	// v2.31.0 (issue-9f749a19 Phase 1): repo hint — attach the project's PRIMARY
 	// repo reference (credential-free, via agentRepoRefMap) plus its default branch
 	// as `base_ref`, so a forked executor knows which repo/branch to work in. Best-

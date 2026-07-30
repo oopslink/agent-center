@@ -1,6 +1,8 @@
 package orchestrator
 
 import (
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -90,6 +92,22 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 	}
 	if !strings.Contains(last, "do the thing") {
 		t.Errorf("codex prompt should contain the goal: %q", last)
+	}
+}
+
+func TestRuntimeRunnerBuilders_MapKnownParametersAndRejectUnknown(t *testing.T) {
+	claude := NewClaudeRunnerBuilder("claude")
+	got, err := claude.BuildRuntime("m", "p", "", map[string]any{"max_turns": float64(7)})
+	if err != nil || !reflect.DeepEqual(got[len(got)-2:], []string{"--max-turns", "7"}) {
+		t.Fatalf("claude runtime argv=%v err=%v", got, err)
+	}
+	if _, err := claude.BuildRuntime("m", "p", "", map[string]any{"shell": "x"}); err == nil {
+		t.Fatal("unknown claude parameter must fail closed")
+	}
+	codex := NewCodexRunnerBuilder("codex")
+	got, err = codex.BuildRuntime("m", "p", "", map[string]any{"reasoning_effort": "high"})
+	if err != nil || !slices.Contains(got, "model_reasoning_effort=high") {
+		t.Fatalf("codex runtime argv=%v err=%v", got, err)
 	}
 }
 

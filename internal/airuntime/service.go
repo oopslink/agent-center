@@ -24,6 +24,17 @@ func NewService(repo Repository, id IDGenerator) *Service {
 	return &Service{repo: repo, id: id, now: func() time.Time { return time.Now().UTC() }, tokenKey: newTokenKey()}
 }
 
+func (s *Service) PutAgentSelection(ctx context.Context, orgID, agentID string, selection RuntimeSelection) error {
+	repo, ok := s.repo.(AgentSelectionRepository)
+	if !ok {
+		return errors.New("ai runtime agent selection repository is not wired")
+	}
+	if strings.TrimSpace(selection.Mode) == "" {
+		selection.Mode = SelectionInherit
+	}
+	return repo.PutAgentSelection(ctx, orgID, agentID, selection, time.Now().UTC())
+}
+
 func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {
 	return s.repo.GetCatalog(ctx, orgID)
 }

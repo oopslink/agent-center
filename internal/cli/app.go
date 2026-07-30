@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -431,6 +433,15 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	})
 	liveState := concurrency.NewInMemoryStore()
 
+	var runtimeExecutions pmservice.RuntimeExecutionFreezer
+	runtimeRepo := airuntimesql.NewRepository(db)
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("AC_AI_RUNTIME_AGENT_EXECUTION")), "true") || strings.TrimSpace(os.Getenv("AC_AI_RUNTIME_AGENT_EXECUTION")) == "1" {
+		runtimeExecutions = airuntime.NewExecutionFreezer(runtimeRepo)
+	} else if strings.EqualFold(strings.TrimSpace(os.Getenv("AC_AI_RUNTIME_SHADOW_RESOLVE")), "true") || strings.TrimSpace(os.Getenv("AC_AI_RUNTIME_SHADOW_RESOLVE")) == "1" {
+		runtimeExecutions = airuntime.NewShadowExecutionFreezer(runtimeRepo, func(format string, args ...any) {
+			slog.Warn(fmt.Sprintf(format, args...))
+		})
+	}
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:                db,
 		Orch:              orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
@@ -442,7 +453,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IssueSubs:         pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs:      codeRepoRefRepo,
 		CodeRepoResolver:  codeRepoSvc,
-		RuntimeExecutions: airuntime.NewExecutionFreezer(airuntimesql.NewRepository(db)),
+		RuntimeExecutions: runtimeExecutions,
 		Plans:             pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Stages:            pmsql.NewStageRepo(db),       // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		Findings:          pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
