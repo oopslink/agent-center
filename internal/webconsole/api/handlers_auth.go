@@ -11,6 +11,11 @@ import (
 )
 
 const jwtCookieName = "ac_session"
+const bootstrapLookupTimeout = 2 * time.Second
+
+type identityBootstrapCounter interface {
+	CountIdentities(ctx context.Context) (int, error)
+}
 
 // bootstrapHandler handles GET /api/auth/bootstrap (PUBLIC — exempt from the
 // auth middleware via the /api/auth/ prefix). v2.7 #145: reports whether the
@@ -22,7 +27,21 @@ func (s *Server) bootstrapHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	initialized := false
 	if d.IdentityRepo != nil {
-		ids, err := d.IdentityRepo.List(r.Context())
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), bootstrapLookupTimeout)
+		defer cancel()
+
+		if counter, ok := d.IdentityRepo.(identityBootstrapCounter); ok {
+			count, err := counter.CountIdentities(ctx)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "bootstrap_failed", err.Error())
+				return
+			}
+			initialized = count > 0
+			writeJSON(w, http.StatusOK, map[string]any{"initialized": initialized})
+			return
+		}
+
+		ids, err := d.IdentityRepo.List(ctx)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "bootstrap_failed", err.Error())
 			return

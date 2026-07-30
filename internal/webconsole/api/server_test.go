@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -623,6 +624,36 @@ func TestAPI_Bootstrap_ReflectsUserExistence(t *testing.T) {
 	setupTestSession(t, db, deps) // provisions a user identity
 	if got := bootstrapInitialized(t, s.URL); !got {
 		t.Errorf("after user provisioned: initialized=false, want true")
+	}
+}
+
+type bootstrapCountingIdentityRepo struct {
+	identity.IdentityRepository
+	countCalls int
+}
+
+func (r *bootstrapCountingIdentityRepo) CountIdentities(ctx context.Context) (int, error) {
+	r.countCalls++
+	return 1, nil
+}
+
+func (r *bootstrapCountingIdentityRepo) List(ctx context.Context) ([]*identity.Identity, error) {
+	return nil, errors.New("bootstrap should not list identities when count is available")
+}
+
+func TestAPI_Bootstrap_UsesIdentityCountWhenAvailable(t *testing.T) {
+	deps, _ := setupAPIWithAuth(t)
+	repo := &bootstrapCountingIdentityRepo{IdentityRepository: deps.IdentityRepo}
+	deps.IdentityRepo = repo
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	if got := bootstrapInitialized(t, s.URL); !got {
+		t.Errorf("initialized=false, want true")
+	}
+	if repo.countCalls != 1 {
+		t.Fatalf("CountIdentities calls=%d, want 1", repo.countCalls)
 	}
 }
 
