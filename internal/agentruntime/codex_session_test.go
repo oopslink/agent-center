@@ -51,6 +51,42 @@ func assertDisableFlag(t *testing.T, argv []string, feature string) {
 	t.Fatalf("missing --disable %s: %v", feature, argv)
 }
 
+func TestMergeEnv_OverridesAndDeduplicates(t *testing.T) {
+	got := mergeEnv([]string{
+		"PATH=/bin",
+		"CODEX_HOME=/Users/oopslink/.codex",
+		"HTTPS_PROXY=http://old-proxy",
+		"CODEX_HOME=/tmp/stale-duplicate",
+		"MALFORMED",
+	}, map[string]string{
+		"CODEX_HOME":  "/agent/codex-home",
+		"HTTPS_PROXY": "http://127.0.0.1:7897",
+		"HTTP_PROXY":  "http://127.0.0.1:7897",
+	})
+	counts := map[string]int{}
+	values := map[string]string{}
+	for _, kv := range got {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		counts[k]++
+		values[k] = v
+	}
+	if counts["CODEX_HOME"] != 1 || values["CODEX_HOME"] != "/agent/codex-home" {
+		t.Fatalf("CODEX_HOME merge = count %d value %q env=%v", counts["CODEX_HOME"], values["CODEX_HOME"], got)
+	}
+	if counts["HTTPS_PROXY"] != 1 || values["HTTPS_PROXY"] != "http://127.0.0.1:7897" {
+		t.Fatalf("HTTPS_PROXY merge = count %d value %q env=%v", counts["HTTPS_PROXY"], values["HTTPS_PROXY"], got)
+	}
+	if counts["HTTP_PROXY"] != 1 || values["HTTP_PROXY"] != "http://127.0.0.1:7897" {
+		t.Fatalf("HTTP_PROXY merge = count %d value %q env=%v", counts["HTTP_PROXY"], values["HTTP_PROXY"], got)
+	}
+	if !slices.Contains(got, "MALFORMED") {
+		t.Fatalf("malformed env entry should be preserved: %v", got)
+	}
+}
+
 func TestBuildCodexArgv_Resume(t *testing.T) {
 	argv := buildCodexArgv(codexLaunchSpec{Prompt: "next", ThreadID: "thread-123"})
 	if argv[0] != "codex" || argv[1] != "exec" || argv[2] != "resume" || argv[3] != "thread-123" {

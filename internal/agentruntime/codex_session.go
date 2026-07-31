@@ -124,11 +124,7 @@ func (execCodexLauncher) Launch(ctx context.Context, spec codexLaunchSpec) (code
 	if spec.TasksDir != "" {
 		cmd.Dir = spec.TasksDir
 	}
-	env := os.Environ()
-	for k, v := range spec.Env {
-		env = append(env, k+"="+v)
-	}
-	cmd.Env = env
+	cmd.Env = mergeEnv(os.Environ(), spec.Env)
 	// Codex reads its prompt from argv; an OPEN stdin pipe makes it block on
 	// "Reading additional input from stdin...". Leaving Stdin nil connects the
 	// child to /dev/null → immediate EOF, so it proceeds with the argv prompt.
@@ -154,6 +150,37 @@ func (execCodexLauncher) Launch(ctx context.Context, spec codexLaunchSpec) (code
 		return nil, fmt.Errorf("codex_session: start %s: %w", argv[0], err)
 	}
 	return &execCodexProc{cmd: cmd, stdout: stdout, stderr: &stderr}, nil
+}
+
+func mergeEnv(base []string, overrides map[string]string) []string {
+	if len(overrides) == 0 {
+		return append([]string{}, base...)
+	}
+	out := make([]string, 0, len(base)+len(overrides))
+	pos := make(map[string]int, len(base)+len(overrides))
+	for _, kv := range base {
+		key, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			out = append(out, kv)
+			continue
+		}
+		if i, exists := pos[key]; exists {
+			out[i] = kv
+			continue
+		}
+		pos[key] = len(out)
+		out = append(out, kv)
+	}
+	for k, v := range overrides {
+		kv := k + "=" + v
+		if i, exists := pos[k]; exists {
+			out[i] = kv
+			continue
+		}
+		pos[k] = len(out)
+		out = append(out, kv)
+	}
+	return out
 }
 
 type execCodexProc struct {
