@@ -483,6 +483,26 @@ func TestOnEvent_CodexAssistantTextMissingAgentCenterExactIncidentIsFatalAndClea
 	}
 }
 
+func TestOnEvent_CodexAssistantTextNoAgentCenterMCPIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "本轮工具注册表中没有 agent-center `post_message` MCP，无法按策略回复该私信。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text saying there is no agent-center post_message MCP must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
 func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = "claude" })

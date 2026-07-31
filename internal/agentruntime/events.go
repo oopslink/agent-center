@@ -308,7 +308,7 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 		for _, sig := range []string{
 			"搜索结果为 0", "search results were 0", "0 results",
 			"not provided", "missing", "not found", "could not find", "cannot find",
-			"未提供", "找不到", "未找到", "未发现",
+			"未提供", "找不到", "未找到", "未发现", "没有",
 		} {
 			if strings.Contains(text, sig) {
 				return true
