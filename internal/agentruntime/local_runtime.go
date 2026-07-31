@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -833,10 +834,20 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate codex mcp-config: %w", err)
 	}
+	r.reportCodexMCPDiagnostic(agentID, "mcp_config_generated", map[string]any{
+		"summary": "codex mcp config generated from canonical runtime config",
+		"config":  summarizeRuntimeMCPConfig(mcpBytes),
+	})
 	codexHome, err := WriteCodexMCPConfig(home, mcpBytes)
 	if err != nil {
 		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
 	}
+	r.reportCodexMCPDiagnostic(agentID, "codex_config_written", map[string]any{
+		"summary":            "codex config.toml written under per-agent CODEX_HOME",
+		"codex_home":         codexHome,
+		"config_path":        filepath.Join(codexHome, codexConfigFileName),
+		"config_file_status": fileStatus(filepath.Join(codexHome, codexConfigFileName)),
+	})
 	// T977 fix #1: provision the codex login auth.json into the per-agent CODEX_HOME.
 	// codex reads auth from $CODEX_HOME; the dedicated per-agent home has the generated
 	// config.toml but NOT the login auth (which lives in the worker's real CODEX_HOME /
@@ -849,6 +860,12 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		authStatus = "warning"
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}
+	r.reportCodexMCPDiagnostic(agentID, "codex_auth_preflight", map[string]any{
+		"summary":     "codex auth.json link checked for per-agent CODEX_HOME",
+		"codex_home":  codexHome,
+		"auth_status": authStatus,
+		"auth_file":   fileStatus(filepath.Join(codexHome, codexAuthFileName)),
+	})
 	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
 		return err
 	}
@@ -884,6 +901,17 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if _, lerr := sessioninstance.AcquireInstance(home, resumeThreadID, os.Getpid()); lerr != nil {
 		return fmt.Errorf("agent_controller: acquire codex instance: %w", lerr)
 	}
+	r.reportCodexMCPDiagnostic(agentID, "codex_session_start", map[string]any{
+		"summary":                 "starting logical codex session after config/auth/preflight",
+		"resume_requested":        spec.Resume,
+		"resume_thread_present":   resumeThreadID != "",
+		"prior_generation":        prior.Generation,
+		"prior_completed_turn":    prior.CompletedTurn,
+		"prior_thread_present":    prior.SessionID != "",
+		"prior_cli":               priorCLI,
+		"extra_system_prompt_len": len(extraSystemPrompt),
+		"codex_home":              codexHome,
+	})
 
 	sess, err := r.cfg.CodexStarter(ctx, CodexSpec{
 		AgentID:           agentID,
@@ -1012,6 +1040,13 @@ func pathStatus(path string) string {
 
 func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksDir string) error {
 	required := []string{"post_message", "list_my_tasks", "search_tools"}
+	r.reportCodexMCPDiagnostic(agentID, "mcp_preflight_start", map[string]any{
+		"summary":            "checking worker mcp-host exposes required supervisor tools before codex starts",
+		"required_tools":     required,
+		"tasks_dir":          tasksDir,
+		"tasks_dir_status":   pathStatus(tasksDir),
+		"tier_tools_enabled": true,
+	})
 	preflight := r.cfg.MCPPreflight
 	if preflight == nil {
 		preflight = mcphost.RequireTools
@@ -1022,9 +1057,78 @@ func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksD
 		TierTools: true,
 	}
 	if err := preflight(ctx, cfg, required...); err != nil {
+		r.reportCodexMCPDiagnostic(agentID, "mcp_preflight_failed", map[string]any{
+			"summary":        "worker mcp-host preflight failed before codex session start",
+			"required_tools": required,
+			"error":          err.Error(),
+		})
 		return fmt.Errorf("agent_controller: supervisor MCP preflight failed for server %q: %w", MCPServerName, err)
 	}
+	r.reportCodexMCPDiagnostic(agentID, "mcp_preflight_ok", map[string]any{
+		"summary":        "worker mcp-host preflight succeeded before codex session start",
+		"required_tools": required,
+		"server":         MCPServerName,
+	})
 	return nil
+}
+
+func (r *LocalRuntime) reportCodexMCPDiagnostic(agentID, phase string, fields map[string]any) {
+	if r.cfg.Reporter == nil {
+		return
+	}
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	fields["type"] = "codex_mcp_diagnostic"
+	fields["phase"] = phase
+	payload, err := json.Marshal(fields)
+	if err != nil {
+		r.log("codex agent=%s mcp diagnostic %s marshal: %v", agentID, phase, err)
+		return
+	}
+	if err := r.cfg.Reporter.ReportAgentActivity(
+		context.Background(), agentID, "codex_mcp_diagnostic", string(payload), "", "", time.Now(),
+	); err != nil {
+		r.log("codex agent=%s mcp diagnostic %s report: %v", agentID, phase, err)
+	}
+}
+
+func summarizeRuntimeMCPConfig(raw []byte) map[string]any {
+	var cfg mcphost.MCPConfig
+	out := map[string]any{
+		"bytes": len(raw),
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		out["parse_error"] = err.Error()
+		return out
+	}
+	names := make([]string, 0, len(cfg.MCPServers))
+	for name := range cfg.MCPServers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out["server_count"] = len(names)
+	out["servers"] = names
+	if server, ok := cfg.MCPServers[MCPServerName]; ok {
+		out["agent_center"] = map[string]any{
+			"command":                server.Command,
+			"args":                   server.Args,
+			"env_count":              len(server.Env),
+			"has_agent_id":           strings.TrimSpace(server.Env["AC_MCP_AGENT_ID"]) != "",
+			"has_admin_url":          strings.TrimSpace(server.Env["AC_MCP_ADMIN_URL"]) != "",
+			"has_worker_token":       strings.TrimSpace(server.Env["AC_MCP_WORKER_TOKEN"]) != "",
+			"has_server_fingerprint": strings.TrimSpace(server.Env["AC_MCP_SERVER_FINGERPRINT"]) != "",
+		}
+	}
+	return out
+}
+
+func fileStatus(path string) map[string]any {
+	info, err := os.Stat(path)
+	if err != nil {
+		return map[string]any{"exists": false, "error": err.Error()}
+	}
+	return map[string]any{"exists": true, "size": info.Size(), "mode": info.Mode().Perm().String()}
 }
 
 func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptDescription string) string {

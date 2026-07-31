@@ -448,6 +448,59 @@ func TestCodexSession_SingleTurn_FreshThenResume(t *testing.T) {
 	}
 }
 
+func TestCodexSession_EmitsTurnDiagnostics(t *testing.T) {
+	lr := &fakeCodexLauncher{turns: [][]string{{
+		`{"type":"thread.started","thread_id":"T1"}`,
+		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}`,
+	}}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID:  "agent-1",
+		Launcher: lr,
+		Env: map[string]string{
+			"CODEX_HOME":  "/tmp/codex-home",
+			"HTTPS_PROXY": "http://127.0.0.1:7897",
+		},
+		OnEvent: h.onEvent,
+		OnExit:  h.onExit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "first"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitResult(t)
+	_ = s.Stop(context.Background())
+
+	phases := map[string]map[string]any{}
+	for _, ev := range h.snapshot() {
+		if ev.Type != "codex_turn_diagnostic" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(ev.Raw, &p); err != nil {
+			t.Fatalf("diagnostic raw json: %v", err)
+		}
+		if phase, _ := p["phase"].(string); phase != "" {
+			phases[phase] = p
+		}
+	}
+	for _, want := range []string{"turn_launch", "turn_process_started", "thread_started"} {
+		if _, ok := phases[want]; !ok {
+			t.Fatalf("missing diagnostic phase %q in %#v", want, phases)
+		}
+	}
+	launch := phases["turn_launch"]
+	if launch["mode"] != "fresh" || launch["thread_id_present"] != false {
+		t.Fatalf("launch diagnostic = %#v", launch)
+	}
+	env, _ := launch["env"].(map[string]any)
+	if env["codex_home_present"] != true || env["https_proxy_present"] != true {
+		t.Fatalf("tracked env diagnostic = %#v", env)
+	}
+}
+
 func TestCodexSession_PrependsExtraPromptOnlyForFreshTurn(t *testing.T) {
 	lr := &fakeCodexLauncher{turns: [][]string{
 		{

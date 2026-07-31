@@ -33,6 +33,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -581,6 +582,15 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 	turnCtx, cancelTurn := context.WithCancel(ctx)
 	defer cancelTurn()
 
+	s.emitTurnDiagnostic("turn_launch", map[string]any{
+		"mode":                       codexTurnMode(thread),
+		"thread_id_present":          thread != "",
+		"stale_resume_retry":         staleResumeRetried,
+		"model_present":              strings.TrimSpace(s.cfg.Model) != "",
+		"prompt_bytes":               len(msg),
+		"extra_system_prompt_active": thread == "" && strings.TrimSpace(s.cfg.ExtraSystemPrompt) != "",
+		"env":                        codexTrackedEnvStatus(s.cfg.Env),
+	})
 	proc, err := s.launcher.Launch(turnCtx, codexLaunchSpec{
 		TasksDir: s.cfg.TasksDir,
 		Binary:   s.cfg.Binary,
@@ -590,8 +600,17 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		Env:      s.cfg.Env,
 	})
 	if err != nil {
+		s.emitTurnDiagnostic("turn_launch_failed", map[string]any{
+			"mode":              codexTurnMode(thread),
+			"thread_id_present": thread != "",
+			"error":             err.Error(),
+		})
 		return fmt.Errorf("codex_session: launch turn: %w", err)
 	}
+	s.emitTurnDiagnostic("turn_process_started", map[string]any{
+		"mode":              codexTurnMode(thread),
+		"thread_id_present": thread != "",
+	})
 
 	scanner := bufio.NewScanner(proc.Stdout())
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -616,6 +635,11 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 			s.mu.Lock()
 			s.threadID = tid
 			s.mu.Unlock()
+			s.emitTurnDiagnostic("thread_started", map[string]any{
+				"thread_id_present": true,
+				"thread_id_len":     len(tid),
+				"mode":              codexTurnMode(thread),
+			})
 			// T972 supervisor resume early-persist: the FIRST thread.started yields the
 			// codex thread_id — persist it NOW (via OnThreadID) so a boot-reconcile
 			// relaunch can `codex exec resume <thread_id>`. A long-lived supervisor never
@@ -651,6 +675,12 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 			if timeoutErr != nil {
 				result = timeoutErr.Error()
 			}
+			s.emitTurnDiagnostic("turn_missing_result", map[string]any{
+				"mode":              codexTurnMode(thread),
+				"thread_id_present": thread != "",
+				"wait_error":        fmt.Sprint(waitErr),
+				"timeout":           timeoutErr != nil,
+			})
 			s.cfg.OnEvent(claudestream.StreamEvent{
 				Type:    "result",
 				Subtype: "error",
@@ -663,6 +693,43 @@ func (s *CodexSession) runTurnAttempt(ctx context.Context, msg string, staleResu
 		return timeoutErr
 	}
 	return nil
+}
+
+func (s *CodexSession) emitTurnDiagnostic(phase string, fields map[string]any) {
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	fields["type"] = "codex_turn_diagnostic"
+	fields["phase"] = phase
+	fields["agent_id"] = s.cfg.AgentID
+	if _, ok := fields["tasks_dir_configured"]; !ok {
+		fields["tasks_dir_configured"] = strings.TrimSpace(s.cfg.TasksDir) != ""
+	}
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		s.cfg.Logger(fmt.Sprintf("[worker] codex_session: marshal diagnostic %s: %v", phase, err))
+		return
+	}
+	s.cfg.OnEvent(claudestream.StreamEvent{Type: "codex_turn_diagnostic", Raw: raw})
+}
+
+func codexTurnMode(threadID string) string {
+	if strings.TrimSpace(threadID) == "" {
+		return "fresh"
+	}
+	return "resume"
+}
+
+func codexTrackedEnvStatus(env map[string]string) map[string]any {
+	keys := []string{"CODEX_HOME", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"}
+	sort.Strings(keys)
+	out := make(map[string]any, len(keys)+1)
+	out["override_count"] = len(env)
+	for _, key := range keys {
+		v, ok := env[key]
+		out[strings.ToLower(key)+"_present"] = ok && strings.TrimSpace(v) != ""
+	}
+	return out
 }
 
 func (s *CodexSession) promptForTurn(threadID, msg string) string {
