@@ -2,6 +2,7 @@
   "agentRuntime": {
     "runtime": {
       "filesHeading": "Files",
+      "memoryHeading": "Memory",
       "expandTree": "Expand file tree",
       "expandTitle": "Expand",
       "collapseTree": "Collapse file tree",
@@ -46,6 +47,15 @@
       },
       "unavailableTitle": "Runtime unavailable",
       "unavailableDefault": "The agent is offline / its worker is unreachable — runtime data is read live over the control-channel while the worker is online."
+    },
+    "memoryManager": {
+      "directionLabel": "Optimization direction",
+      "directionPlaceholder": "Optional: focus, project, cleanup rule, or anything the agent should preserve.",
+      "optimize": "Optimize Memory",
+      "sending": "Sending…",
+      "sent": "Memory optimization request sent.",
+      "defaultDirection": "Use the current context and your own judgment.",
+      "optimizeMessage": "Please optimize your agent memory.\n\nGoals:\n- Keep MEMORY.md index-first and concise.\n- Move durable project/task/conversation details into the most specific matching scoped MEMORY.md.\n- Remove stale, duplicate, or overly broad notes.\n- Preserve currently relevant work context and long-lived preferences.\n\nOptimization direction:\n{{direction}}\n\nWhen complete, reply with a short optimization summary and list the memory files you changed."
     },
     "tasks": {
       "heading": "Tasks",
@@ -373,6 +383,7 @@
         "profile": "Profile",
         "activity": "Activity",
         "runtime": "Runtime",
+        "memory": "Memory",
         "tasks": "Tasks",
         "analytics": "Analytics"
       },

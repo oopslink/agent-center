@@ -8,11 +8,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentRuntime } from './AgentRuntime';
 
-function wrap() {
+function wrap(mode: 'runtime' | 'memory' = 'runtime') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <AgentRuntime agentId="A1" />
+      <AgentRuntime agentId="A1" mode={mode} />
     </QueryClientProvider>,
   );
 }
@@ -126,6 +126,32 @@ describe('AgentRuntime (T583)', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
     expect(list).toHaveTextContent('record v2.18.4 shipped');
     expect(list).toHaveTextContent('a1b2c3d'); // short sha
+  });
+
+  it('memory mode starts at the memory root and opens history by default', async () => {
+    server.use(
+      http.get('/api/agents/:id/runtime/list', ({ request }) => {
+        const path = new URL(request.url).searchParams.get('path') ?? '';
+        expect(path).toBe('memory');
+        return HttpResponse.json({
+          path,
+          type: 'directory',
+          truncated: false,
+          entries: [{ name: 'MEMORY.md', path: 'memory/MEMORY.md', type: 'file', size: 120, mtime: 'x' }],
+        });
+      }),
+      http.get('/api/agents/:id/runtime/gitlog', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('path')).toBe('memory');
+        return HttpResponse.json({
+          commits: [{ sha: 'abc123456', message: 'memory: sync', author: 'pd', date: '2026-06-29T08:00:00Z' }],
+          truncated: false,
+        });
+      }),
+    );
+    wrap('memory');
+    expect(await screen.findByTestId('agent-tabpanel-memory')).toBeInTheDocument();
+    expect(await screen.findByTestId('runtime-gitlog-list')).toHaveTextContent('memory: sync');
+    expect(await within(await screen.findByTestId('runtime-tree')).findByText('MEMORY.md')).toBeInTheDocument();
   });
 
   it('renders an image file inline (base64 data URL)', async () => {

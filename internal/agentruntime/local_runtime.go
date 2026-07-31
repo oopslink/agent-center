@@ -1136,10 +1136,21 @@ func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptD
 	var memoryContext string
 	if initErr := memEngine.EnsureRootInit(ctx); initErr != nil {
 		r.log("codex agent=%s: memory init: %v (continuing without memory)", r.cfg.AgentID, initErr)
-	} else if mc, ctxErr := memEngine.HarnessContext(ctx); ctxErr != nil {
+	} else if mc, stats, ctxErr := memEngine.HarnessContextWithOptions(ctx, memory.HarnessDisclosureOptionsFromEnv()); ctxErr != nil {
 		r.log("codex agent=%s: memory load: %v (continuing without memory)", r.cfg.AgentID, ctxErr)
 	} else {
 		memoryContext = mc
+		r.log("codex agent=%s: memory harness included=%d truncated=%d omitted=%d body_bytes=%d omitted_manifest_bytes=%d omitted_clipped=%t budget_bytes=%d per_file_bytes=%d",
+			r.cfg.AgentID,
+			stats.IncludedFiles,
+			stats.TruncatedFiles,
+			stats.OmittedFiles,
+			stats.BodyBytes,
+			stats.OmittedManifestBytes,
+			stats.OmittedManifestClipped,
+			stats.MemoryBudgetBytes,
+			stats.PerFileBytes,
+		)
 	}
 	return claudestream.ComposeExtraSystemPrompt(promptDescription, memoryContext)
 }

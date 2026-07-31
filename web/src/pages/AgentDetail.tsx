@@ -21,6 +21,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { ForceDeleteModal } from '@/components/ForceDeleteModal';
 import { AgentActivityRow, CheckingGroup, ExecutorProgressGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
+import { AgentMemoryManager } from '@/components/AgentMemoryManager';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentRuntime } from '@/components/AgentRuntime';
 import { AgentTasks } from '@/components/AgentTasks';
@@ -39,6 +40,7 @@ const AGENT_TABS = [
   { key: 'activity' },
   // I5 (T583): read-only runtime browser — memory/workspace tree + file preview.
   { key: 'runtime' },
+  { key: 'memory' },
   { key: 'tasks' },
   { key: 'analytics' },
 ] as const;
@@ -367,6 +369,8 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* I5 (T583): read-only runtime browser. */}
       {tab === 'runtime' && <AgentRuntime agentId={id} />}
+
+      {tab === 'memory' && <AgentMemoryManager agentId={id} />}
 
       {/* I28/F7: per-agent analytics dashboard (cards + heatmap + trend + top tasks). */}
       {tab === 'analytics' && (

@@ -442,6 +442,72 @@ func TestAssembleHarnessContext_FiltersDangerousCenterBypassMemory(t *testing.T)
 	}
 }
 
+func TestHarnessDisclosureOptionsFromEnv(t *testing.T) {
+	t.Setenv("AGENT_CENTER_MEMORY_BUDGET_BYTES", "1234")
+	t.Setenv("AGENT_CENTER_MEMORY_PER_FILE_BYTES", "456")
+	t.Setenv("AGENT_CENTER_MEMORY_OMITTED_BYTES", "invalid")
+	t.Setenv("AGENT_CENTER_MEMORY_OMITTED_ENTRIES", "-7")
+
+	got := memory.HarnessDisclosureOptionsFromEnv()
+	if got.MemoryBudgetBytes != 1234 {
+		t.Fatalf("MemoryBudgetBytes = %d, want 1234", got.MemoryBudgetBytes)
+	}
+	if got.PerFileBytes != 456 {
+		t.Fatalf("PerFileBytes = %d, want 456", got.PerFileBytes)
+	}
+	if got.OmittedBytes != 0 {
+		t.Fatalf("invalid OmittedBytes should fall back to zero option, got %d", got.OmittedBytes)
+	}
+	if got.OmittedEntries != 0 {
+		t.Fatalf("non-positive OmittedEntries should fall back to zero option, got %d", got.OmittedEntries)
+	}
+}
+
+func TestAssembleHarnessContextDetailed_StatsAndManifestEntryCap(t *testing.T) {
+	e, _ := newEngine(t)
+	ctx := context.Background()
+	if err := e.EnsureRootInit(ctx); err != nil {
+		t.Fatalf("EnsureRootInit: %v", err)
+	}
+	if err := e.WriteScoped(ctx, memory.MemoryScope{Kind: memory.MemScopeGlobal}, strings.Repeat("GLOBAL-LINE\n", 20), "n", "n@x", "g"); err != nil {
+		t.Fatalf("write global: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		scope := memory.MemoryScope{Kind: memory.MemScopeConversation, Key: "C" + string(rune('A'+i))}
+		if err := e.WriteScoped(ctx, scope, "CONV-NOTE\n", "n", "n@x", "c"); err != nil {
+			t.Fatalf("write conversation %d: %v", i, err)
+		}
+	}
+
+	res, err := e.AssembleHarnessContextDetailed(ctx, memory.HarnessDisclosureOptions{
+		MemoryBudgetBytes: 2048,
+		PerFileBytes:      80,
+		OmittedBytes:      4096,
+		OmittedEntries:    2,
+	})
+	if err != nil {
+		t.Fatalf("AssembleHarnessContextDetailed: %v", err)
+	}
+	if res.Stats.MemoryBudgetBytes != 2048 || res.Stats.PerFileBytes != 80 || res.Stats.OmittedEntries != 2 {
+		t.Fatalf("stats did not preserve effective options: %+v", res.Stats)
+	}
+	if res.Stats.IncludedFiles == 0 || res.Stats.TruncatedFiles == 0 {
+		t.Fatalf("expected included + truncated startup memory, got %+v\n%s", res.Stats, res.Body)
+	}
+	if res.Stats.OmittedFiles < 5 {
+		t.Fatalf("expected discovered scoped files to be omitted, got %+v\n%s", res.Stats, res.OmittedManifest)
+	}
+	if !res.Stats.OmittedManifestClipped {
+		t.Fatalf("expected manifest clipped by entry cap, got %+v\n%s", res.Stats, res.OmittedManifest)
+	}
+	if got := strings.Count(res.OmittedManifest, "\n"); got != 3 {
+		t.Fatalf("entry cap should render 2 paths plus suffix, got %d lines:\n%s", got, res.OmittedManifest)
+	}
+	if !strings.Contains(res.OmittedManifest, "- ...") {
+		t.Fatalf("clipped manifest missing suffix:\n%s", res.OmittedManifest)
+	}
+}
+
 // TestWriteAndCommit_DefaultIdentityFallback exercises the empty-author/message
 // fallbacks in WriteScoped + CommitDirty (system identity, default message).
 func TestWriteAndCommit_DefaultIdentityFallback(t *testing.T) {

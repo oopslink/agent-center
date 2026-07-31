@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
 
 const SIDEBAR_COLLAPSE_KEY = 'agent-runtime-sidebar-collapsed';
+const MEMORY_SIDEBAR_COLLAPSE_KEY = 'agent-memory-sidebar-collapsed';
 
 // The memory/ git repo is the only versioned subtree — a path is "memory-scoped"
 // (gets the Content / History tabs) when it is the repo dir itself or sits under it.
@@ -35,12 +36,24 @@ type Selected =
   | { kind: 'file'; path: string; name: string; sensitive?: boolean }
   | { kind: 'gitlog'; path: string; name: string };
 
-export function AgentRuntime({ agentId }: { agentId: string }): React.ReactElement {
+export function AgentRuntime({
+  agentId,
+  mode = 'runtime',
+}: {
+  agentId: string;
+  mode?: 'runtime' | 'memory';
+}): React.ReactElement {
   const { t } = useTranslation('members');
+  const memoryMode = mode === 'memory';
+  const collapseKey = memoryMode ? MEMORY_SIDEBAR_COLLAPSE_KEY : SIDEBAR_COLLAPSE_KEY;
+  const rootPath = memoryMode ? MEMORY_ROOT : '';
+  const panelTestId = memoryMode ? 'agent-tabpanel-memory' : 'agent-tabpanel-runtime';
   const [collapsed, setCollapsed] = useState(
-    () => readLocalStorage(SIDEBAR_COLLAPSE_KEY) === '1',
+    () => readLocalStorage(collapseKey) === '1',
   );
-  const [selected, setSelected] = useState<Selected | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(
+    memoryMode ? { kind: 'gitlog', path: MEMORY_ROOT, name: MEMORY_ROOT } : null,
+  );
   // Which tab the memory pane shows. Driven by the selection (a file → its Content,
   // the repo folder → History) but user-overridable, so the git log is ALWAYS one
   // click away instead of being replaced when a file is opened.
@@ -54,18 +67,18 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
 
   // The root listing drives the whole-tab availability: worker offline → the root
   // itself is unavailable.
-  const root = useRuntimeList(agentId, '');
+  const root = useRuntimeList(agentId, rootPath);
 
   const toggleCollapsed = () =>
     setCollapsed((c) => {
       const next = !c;
-      writeLocalStorage(SIDEBAR_COLLAPSE_KEY, next ? '1' : '0');
+      writeLocalStorage(collapseKey, next ? '1' : '0');
       return next;
     });
 
   if (root.data && isUnavailable(root.data)) {
     return (
-      <div data-testid="agent-tabpanel-runtime">
+      <div data-testid={panelTestId}>
         <RuntimeUnavailable reason={root.data.reason} />
       </div>
     );
@@ -79,7 +92,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
   return (
     <div
       className="runtime-fill-height flex gap-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated"
-      data-testid="agent-tabpanel-runtime"
+      data-testid={panelTestId}
     >
       {collapsed ? (
         <button
@@ -98,7 +111,9 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
           data-testid="runtime-sidebar"
         >
           <div className="mb-1 flex items-center justify-between px-1">
-            <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('agentRuntime.runtime.filesHeading')}</h3>
+            <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
+              {memoryMode ? t('agentRuntime.runtime.memoryHeading') : t('agentRuntime.runtime.filesHeading')}
+            </h3>
             <button
               type="button"
               onClick={toggleCollapsed}

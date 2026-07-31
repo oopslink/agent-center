@@ -2,6 +2,7 @@
   "agentRuntime": {
     "runtime": {
       "filesHeading": "文件",
+      "memoryHeading": "记忆",
       "expandTree": "展开文件树",
       "expandTitle": "展开",
       "collapseTree": "折叠文件树",
@@ -46,6 +47,15 @@
       },
       "unavailableTitle": "运行时不可用",
       "unavailableDefault": "该智能体已离线 / 其工作节点无法访问——运行时数据在工作节点在线时通过控制通道实时读取。"
+    },
+    "memoryManager": {
+      "directionLabel": "优化方向",
+      "directionPlaceholder": "可选：关注点、项目、清理规则，或需要保留的内容。",
+      "optimize": "优化记忆",
+      "sending": "发送中…",
+      "sent": "记忆优化请求已发送。",
+      "defaultDirection": "按当前上下文和你的判断处理。",
+      "optimizeMessage": "请优化你的 agent memory。\n\n目标：\n- 保持 MEMORY.md 为索引优先且简洁。\n- 把长期有效的项目、任务、会话细节移动到最具体的 scoped MEMORY.md。\n- 清理过时、重复或过宽泛的记录。\n- 保留当前相关工作上下文和长期偏好。\n\n优化方向：\n{{direction}}\n\n完成后请回复一段简短优化摘要，并列出修改过的 memory 文件。"
     },
     "tasks": {
       "heading": "任务",
@@ -373,6 +383,7 @@
         "profile": "资料",
         "activity": "活动",
         "runtime": "运行时",
+        "memory": "记忆",
         "tasks": "任务",
         "analytics": "分析"
       },

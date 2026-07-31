@@ -96,10 +96,20 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	var memoryContext string
 	if initErr := memEngine.EnsureRootInit(ctx); initErr != nil {
 		fmt.Fprintf(errw, "[agent-supervisor] memory init: %v (continuing without memory)\n", initErr)
-	} else if mc, ctxErr := memEngine.HarnessContext(ctx); ctxErr != nil {
+	} else if mc, stats, ctxErr := memEngine.HarnessContextWithOptions(ctx, memory.HarnessDisclosureOptionsFromEnv()); ctxErr != nil {
 		fmt.Fprintf(errw, "[agent-supervisor] memory load: %v (continuing without memory)\n", ctxErr)
 	} else {
 		memoryContext = mc
+		fmt.Fprintf(errw, "[agent-supervisor] memory harness: included=%d truncated=%d omitted=%d body_bytes=%d omitted_manifest_bytes=%d omitted_clipped=%t budget_bytes=%d per_file_bytes=%d\n",
+			stats.IncludedFiles,
+			stats.TruncatedFiles,
+			stats.OmittedFiles,
+			stats.BodyBytes,
+			stats.OmittedManifestBytes,
+			stats.OmittedManifestClipped,
+			stats.MemoryBudgetBytes,
+			stats.PerFileBytes,
+		)
 	}
 
 	// T728: compose the --append-system-prompt extra text = optional persona段 (the

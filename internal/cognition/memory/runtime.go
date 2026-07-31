@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +15,12 @@ const (
 	defaultHarnessMemoryBudgetBytes = 24 * 1024
 	defaultHarnessPerFileBytes      = 8 * 1024
 	defaultHarnessOmittedBytes      = 4 * 1024
+	defaultHarnessOmittedEntries    = 80
+
+	envHarnessMemoryBudgetBytes = "AGENT_CENTER_MEMORY_BUDGET_BYTES"
+	envHarnessPerFileBytes      = "AGENT_CENTER_MEMORY_PER_FILE_BYTES"
+	envHarnessOmittedBytes      = "AGENT_CENTER_MEMORY_OMITTED_BYTES"
+	envHarnessOmittedEntries    = "AGENT_CENTER_MEMORY_OMITTED_ENTRIES"
 )
 
 // Engine is the runtime façade the agent CLI uses to manage its scoped memory:
@@ -148,6 +155,21 @@ func (e *Engine) HarnessContext(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return e.renderHarnessContext(body, omitted), nil
+}
+
+// HarnessContextWithOptions is the observable variant used by runtimes. It keeps
+// HarnessContext's rendered prompt stable while returning budget/manifest stats
+// for diagnostics.
+func (e *Engine) HarnessContextWithOptions(ctx context.Context, opt HarnessDisclosureOptions) (string, HarnessContextStats, error) {
+	res, err := e.AssembleHarnessContextDetailed(ctx, opt)
+	if err != nil {
+		return "", HarnessContextStats{}, err
+	}
+	return e.renderHarnessContext(res.Body, res.OmittedManifest), res.Stats, nil
+}
+
+func (e *Engine) renderHarnessContext(body, omitted string) string {
 	var b strings.Builder
 	b.WriteString("== Your memory ==\n")
 	fmt.Fprintf(&b, "Your persistent memory is a git repo at %s — markdown, organised by scope:\n", e.memoryDir)
@@ -166,7 +188,7 @@ func (e *Engine) HarnessContext(ctx context.Context) (string, error) {
 		b.WriteString("\nMemory available on demand:\n")
 		b.WriteString(omitted)
 	}
-	return b.String(), nil
+	return b.String()
 }
 
 // HarnessDisclosureOptions controls how much memory is disclosed at supervisor
@@ -175,6 +197,42 @@ type HarnessDisclosureOptions struct {
 	MemoryBudgetBytes int
 	PerFileBytes      int
 	OmittedBytes      int
+	OmittedEntries    int
+}
+
+// HarnessDisclosureOptionsFromEnv reads startup-memory budget knobs. Invalid or
+// non-positive values are ignored so a bad environment falls back to safe defaults.
+func HarnessDisclosureOptionsFromEnv() HarnessDisclosureOptions {
+	return HarnessDisclosureOptions{
+		MemoryBudgetBytes: positiveEnvInt(envHarnessMemoryBudgetBytes),
+		PerFileBytes:      positiveEnvInt(envHarnessPerFileBytes),
+		OmittedBytes:      positiveEnvInt(envHarnessOmittedBytes),
+		OmittedEntries:    positiveEnvInt(envHarnessOmittedEntries),
+	}
+}
+
+// HarnessContextResult is the lower-level assembly output before the surrounding
+// "Your memory" guide is rendered.
+type HarnessContextResult struct {
+	Body            string
+	OmittedManifest string
+	Stats           HarnessContextStats
+}
+
+// HarnessContextStats is intentionally content-free: it is safe for runtime
+// diagnostics and lets operators see whether startup memory was clipped without
+// leaking memory text into activity payloads.
+type HarnessContextStats struct {
+	MemoryBudgetBytes      int
+	PerFileBytes           int
+	OmittedBytes           int
+	OmittedEntries         int
+	IncludedFiles          int
+	TruncatedFiles         int
+	OmittedFiles           int
+	BodyBytes              int
+	OmittedManifestBytes   int
+	OmittedManifestClipped bool
 }
 
 // AssembleHarnessContext returns the bounded startup memory excerpt plus an
@@ -182,8 +240,18 @@ type HarnessDisclosureOptions struct {
 // compatibility, but turns those bodies into budgeted excerpts and lists other
 // markdown files for explicit on-demand reads.
 func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosureOptions) (string, string, error) {
-	if err := ctx.Err(); err != nil {
+	res, err := e.AssembleHarnessContextDetailed(ctx, opt)
+	if err != nil {
 		return "", "", err
+	}
+	return res.Body, res.OmittedManifest, nil
+}
+
+// AssembleHarnessContextDetailed returns the bounded startup memory excerpt,
+// omitted-path manifest, and diagnostic stats.
+func (e *Engine) AssembleHarnessContextDetailed(ctx context.Context, opt HarnessDisclosureOptions) (HarnessContextResult, error) {
+	if err := ctx.Err(); err != nil {
+		return HarnessContextResult{}, err
 	}
 	budget := opt.MemoryBudgetBytes
 	if budget <= 0 {
@@ -197,20 +265,25 @@ func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosu
 	if omittedLimit <= 0 {
 		omittedLimit = defaultHarnessOmittedBytes
 	}
+	omittedEntries := opt.OmittedEntries
+	if omittedEntries <= 0 {
+		omittedEntries = defaultHarnessOmittedEntries
+	}
 
 	candidates := []MemoryScope{{Kind: MemScopeGlobal}, {Kind: MemScopeSupervisor}}
 	var body strings.Builder
 	var omitted []string
 	used := 0
 	included := 0
+	truncatedFiles := 0
 	for _, scope := range candidates {
 		rel, err := ScopeToFSPath(scope)
 		if err != nil {
-			return "", "", err
+			return HarnessContextResult{}, err
 		}
 		raw, err := e.readScope(scope)
 		if err != nil {
-			return "", "", err
+			return HarnessContextResult{}, err
 		}
 		text := strings.TrimSpace(sanitizeHarnessMemory(raw))
 		if text == "" {
@@ -230,6 +303,7 @@ func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosu
 		included++
 		if truncated {
 			omitted = append(omitted, rel+" (excerpt truncated)")
+			truncatedFiles++
 		}
 	}
 	if included > 0 {
@@ -238,7 +312,7 @@ func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosu
 
 	discovered, err := e.discoverMarkdownMemoryFiles(ctx)
 	if err != nil {
-		return "", "", err
+		return HarnessContextResult{}, err
 	}
 	seen := map[string]struct{}{
 		"MEMORY.md":     {},
@@ -250,7 +324,32 @@ func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosu
 		}
 		omitted = append(omitted, rel)
 	}
-	return body.String(), formatOmittedMemory(omitted, omittedLimit), nil
+	manifest, clipped := formatOmittedMemory(omitted, omittedLimit, omittedEntries)
+	stats := HarnessContextStats{
+		MemoryBudgetBytes:      budget,
+		PerFileBytes:           perFile,
+		OmittedBytes:           omittedLimit,
+		OmittedEntries:         omittedEntries,
+		IncludedFiles:          included,
+		TruncatedFiles:         truncatedFiles,
+		OmittedFiles:           len(omitted),
+		BodyBytes:              body.Len(),
+		OmittedManifestBytes:   len(manifest),
+		OmittedManifestClipped: clipped,
+	}
+	return HarnessContextResult{Body: body.String(), OmittedManifest: manifest, Stats: stats}, nil
+}
+
+func positiveEnvInt(name string) int {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
 
 func sanitizeHarnessMemory(in string) string {
@@ -332,20 +431,37 @@ func (e *Engine) discoverMarkdownMemoryFiles(ctx context.Context) ([]string, err
 	return out, err
 }
 
-func formatOmittedMemory(paths []string, limit int) string {
+func formatOmittedMemory(paths []string, byteLimit, entryLimit int) (string, bool) {
 	if len(paths) == 0 {
-		return ""
+		return "", false
 	}
 	var b strings.Builder
+	clipped := false
+	written := 0
 	for _, p := range paths {
+		if entryLimit > 0 && written >= entryLimit {
+			clipped = true
+			break
+		}
 		line := "- " + p + "\n"
-		if limit > 0 && b.Len()+len(line) > limit {
-			b.WriteString("- ...\n")
+		if byteLimit > 0 && b.Len()+len(line) > byteLimit {
+			clipped = true
 			break
 		}
 		b.WriteString(line)
+		written++
 	}
-	return b.String()
+	if clipped {
+		remaining := len(paths) - written
+		suffix := "- ...\n"
+		if remaining > 0 {
+			suffix = fmt.Sprintf("- ... (%d more)\n", remaining)
+		}
+		if byteLimit <= 0 || b.Len()+len(suffix) <= byteLimit {
+			b.WriteString(suffix)
+		}
+	}
+	return b.String(), clipped
 }
 
 // WriteScoped writes content as the memory file for scope (mkdir -p) and commits
