@@ -547,7 +547,7 @@ func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
 	}
 }
 
-func TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerIsFatal(t *testing.T) {
+func TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerAllowsHTTPSFallback(t *testing.T) {
 	rt, rep, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) {
 		s.CLI = CLICodex
@@ -557,13 +557,13 @@ func TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerIsFatal(t *testing.T) {
 		Type: "unknown",
 		Raw:  []byte(`{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Falling back from WebSockets to HTTPS transport. stream disconnected before completion: invalid peer certificate: UnknownIssuer"}}`),
 	})
-	if !*fatal {
-		t.Fatal("Codex websocket fallback after UnknownIssuer must mark session fatal before registry is trusted")
+	if *fatal {
+		t.Fatal("Codex websocket fallback after UnknownIssuer must allow HTTPS fallback instead of killing the turn")
 	}
 	rep.mu.Lock()
 	defer rep.mu.Unlock()
-	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "codex_transport_poisoned" {
-		t.Fatalf("activity = %v, want codex_transport_poisoned", rep.activity)
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "codex_transport_transient" {
+		t.Fatalf("activity = %v, want codex_transport_transient", rep.activity)
 	}
 }
 

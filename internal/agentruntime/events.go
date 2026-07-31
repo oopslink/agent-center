@@ -235,17 +235,17 @@ func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef stri
 		return
 	}
 	if codexWebSocketFallbackAfterUnknownIssuer(ev) {
-		reason := "codex websocket fallback after UnknownIssuer"
-		r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_poisoned", map[string]any{
-			"type":          "codex_poisoning_transport_error",
+		// Codex may first try Responses WebSocket without the local proxy path and
+		// then recover by falling back to HTTPS. The fallback event itself is not
+		// evidence that the MCP registry is corrupted; only a terminal turn error or
+		// an actual core-tool missing outcome should rebuild the session.
+		r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_transient", map[string]any{
+			"type":          "codex_poisoning_transport_transient",
 			"error":         "invalid peer certificate: UnknownIssuer",
 			"work_item_ref": workItemRef,
-			"reason":        reason,
+			"action":        "allow_codex_https_fallback",
 		})
-		r.log("codex agent=%s websocket fallback after UnknownIssuer; failing session before registry can be trusted", agentID)
-		if r.cfg.OnFatal != nil {
-			r.cfg.OnFatal(reason)
-		}
+		r.log("codex agent=%s websocket fallback after UnknownIssuer; allowing HTTPS fallback to continue", agentID)
 		return
 	}
 	if codexPoisoningTransportError(ev) && ev.Subtype == "transient" {
