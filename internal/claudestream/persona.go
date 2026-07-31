@@ -6,10 +6,17 @@ import "strings"
 // system prompt. Kept in the same "== … ==" section style as AgentWorkQueueSystemPrompt.
 const personaDescriptionHeading = "== About you =="
 
+// Keep the access policy aligned with mcphost tiering: search_tools only loads
+// deferred tools. Core tools such as post_message are deliberately advertised in
+// the default MCP list, so using search_tools/tool_search to "verify" post_message
+// produces false negatives (search_tools("post_message") can correctly load
+// nothing) and makes Codex report a missing MCP registry even while the server is
+// healthy.
 const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
 	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
-	"On each fresh Codex supervisor session, verify the real model tool registry with tool_search for agent-center post_message before doing center-state work. " +
+	"Core agent-center tools such as get_my_profile, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search or search_tools to verify post_message, because search_tools only loads deferred tools and may correctly return no result for core tools. " +
+	"Use search_tools only for deferred, lower-frequency tools described by the work-queue prompt. " +
 	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
 
 // PersonaDescriptionSection wraps an agent's profile description as a system-prompt

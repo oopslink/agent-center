@@ -69,3 +69,24 @@ func TestComposeExtraSystemPrompt(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentCenterAccessPolicyDoesNotSearchForCorePostMessage(t *testing.T) {
+	got := ComposeExtraSystemPrompt("", "")
+	for _, want := range []string{
+		"post_message are expected to be directly callable",
+		"do not use tool_search or search_tools to verify post_message",
+		"search_tools only loads deferred tools",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("access policy missing %q; got:\n%s", want, got)
+		}
+	}
+	for _, notWant := range []string{
+		"verify the real model tool registry with tool_search for agent-center post_message",
+		"verify post_message with search_tools",
+	} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("access policy contains obsolete post_message discovery instruction %q; got:\n%s", notWant, got)
+		}
+	}
+}
