@@ -75,6 +75,10 @@ func TestAgentCenterAccessPolicyDoesNotSearchForCorePostMessage(t *testing.T) {
 	for _, want := range []string{
 		"post_message are expected to be directly callable",
 		"do not use tool_search or search_tools to verify post_message",
+		"call get_my_profile directly first",
+		"use its my_capabilities as the core-tool inventory",
+		"call post_message directly when replying",
+		"search_tools with an empty query only to load/list deferred tools",
 		"search_tools only loads deferred tools",
 	} {
 		if !strings.Contains(got, want) {

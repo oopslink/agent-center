@@ -16,6 +16,8 @@ const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
 	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
 	"Core agent-center tools such as get_my_profile, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search or search_tools to verify post_message, because search_tools only loads deferred tools and may correctly return no result for core tools. " +
+	"To smoke-test agent-center MCP availability, call get_my_profile directly first; if it succeeds, use its my_capabilities as the core-tool inventory and call post_message directly when replying. " +
+	"When asked to list available agent-center tools, report get_my_profile.my_capabilities for core tools, then use search_tools with an empty query only to load/list deferred tools. " +
 	"Use search_tools only for deferred, lower-frequency tools described by the work-queue prompt. " +
 	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
 

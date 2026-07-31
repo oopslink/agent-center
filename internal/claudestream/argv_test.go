@@ -176,7 +176,9 @@ func TestBuildStreamingArgv_DeferredToolDiscoverabilityGuidance(t *testing.T) {
 	// delivered prompt.
 	want := []string{
 		"search_tools",
-		"before you conclude that you lack a tool",
+		"before you conclude that you lack a deferred tool",
+		"This rule does not verify core tools",
+		"post_message should be called directly",
 		"get_issue",
 		"close_issue",
 		"get_plan",
