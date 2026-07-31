@@ -216,6 +216,12 @@ type SessionState struct {
 	// the turn later ends in error. Guarded by the shared Mu.
 	SawCodexPoisoningTransport bool
 
+	// SawCodexRegistryMissing is set when the assistant text proves the model-side
+	// agent-center MCP registry is absent/broken in THIS turn. Codex can still emit a
+	// final turn.completed success after that text; do not let such a terminal success
+	// count as a clean supervisor turn or preserve the poisoned thread.
+	SawCodexRegistryMissing bool
+
 	// Lifecycle coordination (onExit three-state).
 	ExpectedStop  bool
 	Detaching     bool

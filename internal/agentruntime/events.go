@@ -32,6 +32,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	// `result` branch below can schedule a bounded resume even when is_error=false (T799).
 	var sawIncomplete bool
 	var sawCodexPoisoningTransport bool
+	var sawCodexRegistryMissing bool
 	workItemRef = st.CurrentTaskID
 	switch ev.Type {
 	case "tool_use":
@@ -75,6 +76,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 			st.RLRetryAfterSecs, st.RLResetAtUnix = 0, 0
 			st.SawIncompleteTurn = false // fresh turn → drop a stale truncation marker
 			st.SawCodexPoisoningTransport = false
+			st.SawCodexRegistryMissing = false
 		}
 	case "result":
 		st.ToolNames = nil
@@ -84,6 +86,8 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.SawIncompleteTurn = false // turn ended → consume the truncation marker
 		sawCodexPoisoningTransport = st.SawCodexPoisoningTransport
 		st.SawCodexPoisoningTransport = false
+		sawCodexRegistryMissing = st.SawCodexRegistryMissing
+		st.SawCodexRegistryMissing = false
 	}
 	taskForEvent = st.EventTaskID
 	r.mu.Unlock()
@@ -139,6 +143,10 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		if r.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
 			return
 		}
+	}
+	if ev.Type == "result" && !ev.IsError && sawCodexRegistryMissing {
+		r.log("codex agent=%s turn completed after registry-missing assistant text; skipping clean-turn handling", agentID)
+		return
 	}
 
 	if ev.Type == "result" && !ev.IsError {
@@ -205,6 +213,9 @@ func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workIte
 	if !codexAgentCenterRegistryMissing(ev) {
 		return
 	}
+	r.mu.Lock()
+	r.state.SawCodexRegistryMissing = true
+	r.mu.Unlock()
 	payload, _ := json.Marshal(map[string]any{
 		"type":          "codex_agent_center_mcp_registry_missing",
 		"required":      "mcp__agent_center",
@@ -313,16 +324,14 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 		return !strings.Contains(raw, "mcp__agent_center")
 	case "assistant_text":
 		text := strings.ToLower(ev.Text)
-		if !mentionsAgentCenterPostMessage(text) {
-			return false
-		}
-		if !strings.Contains(text, "mcp") && !strings.Contains(text, "tool registry") && !strings.Contains(text, "工具注册表") {
+		if !mentionsAgentCenterCoreTool(text) {
 			return false
 		}
 		for _, sig := range []string{
 			"搜索结果为 0", "search results were 0", "0 results",
 			"not provided", "missing", "not found", "could not find", "cannot find", "unavailable", "not available",
-			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "不可调用", "没有",
+			"is not a function", "not a function", "direct call failed",
+			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "未挂载", "不可调用", "不可用", "没有", "直接调用失败",
 		} {
 			if strings.Contains(text, sig) {
 				return true
@@ -335,6 +344,18 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 func mentionsAgentCenterPostMessage(s string) bool {
 	return (strings.Contains(s, "agent-center") || strings.Contains(s, "agent_center")) &&
 		strings.Contains(s, "post_message")
+}
+
+func mentionsAgentCenterCoreTool(s string) bool {
+	if !strings.Contains(s, "agent-center") && !strings.Contains(s, "agent_center") {
+		return false
+	}
+	for _, tool := range []string{"get_my_profile", "post_message", "list_my_tasks", "list_messages", "search_tools", "get_plan"} {
+		if strings.Contains(s, tool) {
+			return true
+		}
+	}
+	return false
 }
 
 func codexPoisoningTransportError(ev claudestream.StreamEvent) bool {

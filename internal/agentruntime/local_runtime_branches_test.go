@@ -543,6 +543,50 @@ func TestOnEvent_CodexAssistantTextAgentCenterToolsUnavailableIsFatal(t *testing
 	}
 }
 
+func TestOnEvent_CodexAssistantTextGetMyProfileNotFunctionIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "agent-center 核心工具 `get_my_profile` 当前直接不可调用（运行时返回 “is not a function”）。按访问策略，我不会改走数据库。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text saying get_my_profile is not a function must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
+func TestOnEvent_CodexRegistryMissingThenSuccessDoesNotCountCleanTurn(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "当前 agent-center MCP 核心工具未挂载，`get_my_profile` 直接调用失败，`post_message`、`get_plan` 等也不可用。",
+	})
+	if !*fatal {
+		t.Fatal("registry-missing assistant text must mark Codex session fatal")
+	}
+	rt.onEvent(claudestream.StreamEvent{
+		Type:    "result",
+		Subtype: "success",
+		IsError: false,
+	})
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.state.CodexCleanTurns != 0 {
+		t.Fatalf("CodexCleanTurns = %d, want 0 after poisoned success result", rt.state.CodexCleanTurns)
+	}
+}
+
 func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = "claude" })
