@@ -503,6 +503,26 @@ func TestOnEvent_CodexAssistantTextNoAgentCenterMCPIsFatal(t *testing.T) {
 	}
 }
 
+func TestOnEvent_CodexAssistantTextUnexposedAgentCenterMCPIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "当前运行时未暴露 agent-center MCP 工具，包括必需的 `post_message`，因此无法读取完整工具清单。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text saying agent-center post_message is not exposed must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
 func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = "claude" })
@@ -524,6 +544,26 @@ func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
 	})
 	if *fatal {
 		t.Fatal("mcp__agent_center in tool-search output must not be fatal")
+	}
+}
+
+func TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "unknown",
+		Raw:  []byte(`{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Falling back from WebSockets to HTTPS transport. stream disconnected before completion: invalid peer certificate: UnknownIssuer"}}`),
+	})
+	if !*fatal {
+		t.Fatal("Codex websocket fallback after UnknownIssuer must mark session fatal before registry is trusted")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "codex_transport_poisoned" {
+		t.Fatalf("activity = %v, want codex_transport_poisoned", rep.activity)
 	}
 }
 

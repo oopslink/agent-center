@@ -234,6 +234,20 @@ func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef stri
 	if !r.isCodexRuntime() {
 		return
 	}
+	if codexWebSocketFallbackAfterUnknownIssuer(ev) {
+		reason := "codex websocket fallback after UnknownIssuer"
+		r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_poisoned", map[string]any{
+			"type":          "codex_poisoning_transport_error",
+			"error":         "invalid peer certificate: UnknownIssuer",
+			"work_item_ref": workItemRef,
+			"reason":        reason,
+		})
+		r.log("codex agent=%s websocket fallback after UnknownIssuer; failing session before registry can be trusted", agentID)
+		if r.cfg.OnFatal != nil {
+			r.cfg.OnFatal(reason)
+		}
+		return
+	}
 	if codexPoisoningTransportError(ev) && ev.Subtype == "transient" {
 		// Do not convert Codex's transient reconnect notice into OnFatal. The CLI owns
 		// that retry state and may recover in-band; the runtime's job is only to expose
@@ -308,7 +322,7 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 		for _, sig := range []string{
 			"搜索结果为 0", "search results were 0", "0 results",
 			"not provided", "missing", "not found", "could not find", "cannot find",
-			"未提供", "找不到", "未找到", "未发现", "没有",
+			"未提供", "找不到", "未找到", "未发现", "未暴露", "没有",
 		} {
 			if strings.Contains(text, sig) {
 				return true
@@ -329,6 +343,16 @@ func codexPoisoningTransportError(ev claudestream.StreamEvent) bool {
 	}
 	msg := strings.ToLower(ev.Result)
 	return strings.Contains(msg, "invalid peer certificate") && strings.Contains(msg, "unknownissuer")
+}
+
+func codexWebSocketFallbackAfterUnknownIssuer(ev claudestream.StreamEvent) bool {
+	if ev.Type != "unknown" || len(ev.Raw) == 0 {
+		return false
+	}
+	raw := strings.ToLower(string(ev.Raw))
+	return strings.Contains(raw, "falling back from websockets to https transport") &&
+		strings.Contains(raw, "invalid peer certificate") &&
+		strings.Contains(raw, "unknownissuer")
 }
 
 func (r *LocalRuntime) maybeReportCenterBypassAlert(agentID, workItemRef string, ev claudestream.StreamEvent) {
