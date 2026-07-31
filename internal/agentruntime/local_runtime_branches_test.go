@@ -422,6 +422,38 @@ func TestOnEvent_CodexToolSearchMissingAgentCenterIsFatal(t *testing.T) {
 	}
 }
 
+func TestOnEvent_CodexAssistantTextMissingAgentCenterIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "本轮工具注册表仍未提供 agent-center `post_message` MCP（搜索结果为 0），所以暂时无法回复该私信。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text reporting missing agent-center post_message must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
+func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.CLI = "claude" })
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "本轮工具注册表仍未提供 agent-center `post_message` MCP（搜索结果为 0）。",
+	})
+	if *fatal {
+		t.Fatal("non-Codex assistant text must not trigger Codex registry fatal")
+	}
+}
+
 func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
@@ -431,6 +463,28 @@ func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
 	})
 	if *fatal {
 		t.Fatal("mcp__agent_center in tool-search output must not be fatal")
+	}
+}
+
+func TestOnEvent_CodexUnknownIssuerIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type:    "error",
+		Subtype: "transient",
+		IsError: true,
+		Result:  "Reconnecting... 2/5 (stream disconnected before completion: invalid peer certificate: UnknownIssuer)",
+	})
+	if !*fatal {
+		t.Fatal("UnknownIssuer transport error must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "codex_transport_poisoned" {
+		t.Fatalf("activity = %v, want codex_transport_poisoned", rep.activity)
 	}
 }
 

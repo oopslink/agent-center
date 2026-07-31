@@ -95,6 +95,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		r.recordTaskEvent(agentID, routeTask, ev, ActivityEventType(ev), string(payload), reportOK)
 	}
 	r.maybeReportCenterBypassAlert(agentID, workItemRef, ev)
+	r.maybeFailCodexPoisonedTransport(agentID, workItemRef, ev)
 	r.maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef, ev)
 	if clearEventTask {
 		r.mu.Lock()
@@ -184,6 +185,9 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 }
 
 func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef string, ev claudestream.StreamEvent) {
+	if !r.isCodexRuntime() {
+		return
+	}
 	if !codexAgentCenterRegistryMissing(ev) {
 		return
 	}
@@ -205,19 +209,76 @@ func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workIte
 	}
 }
 
+func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef string, ev claudestream.StreamEvent) {
+	if !r.isCodexRuntime() || !codexPoisoningTransportError(ev) {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"type":          "codex_poisoning_transport_error",
+		"error":         "invalid peer certificate: UnknownIssuer",
+		"work_item_ref": workItemRef,
+	})
+	if r.cfg.Reporter != nil {
+		if err := r.cfg.Reporter.ReportAgentActivity(
+			context.Background(), agentID, "codex_transport_poisoned", string(payload), workItemRef, "", time.Now(),
+		); err != nil {
+			r.log("codex agent=%s transport poison activity report: %v", agentID, err)
+		}
+	}
+	r.log("codex agent=%s transport returned UnknownIssuer; failing session before registry can be trusted", agentID)
+	if r.cfg.OnFatal != nil {
+		r.cfg.OnFatal("codex transport invalid peer certificate: UnknownIssuer")
+	}
+}
+
+func (r *LocalRuntime) isCodexRuntime() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.state.CLI == CLICodex
+}
+
 func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
-	if ev.Type != "unknown" || len(ev.Raw) == 0 {
+	switch ev.Type {
+	case "unknown":
+		if len(ev.Raw) == 0 {
+			return false
+		}
+		raw := strings.ToLower(string(ev.Raw))
+		if !strings.Contains(raw, "tool_search") || !strings.Contains(raw, "output") {
+			return false
+		}
+		if !mentionsAgentCenterPostMessage(raw) {
+			return false
+		}
+		return !strings.Contains(raw, "mcp__agent_center")
+	case "assistant_text":
+		text := strings.ToLower(ev.Text)
+		if !mentionsAgentCenterPostMessage(text) {
+			return false
+		}
+		if !strings.Contains(text, "mcp") && !strings.Contains(text, "tool registry") && !strings.Contains(text, "工具注册表") {
+			return false
+		}
+		for _, sig := range []string{"搜索结果为 0", "search results were 0", "0 results", "not provided", "missing", "未提供", "找不到"} {
+			if strings.Contains(text, sig) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mentionsAgentCenterPostMessage(s string) bool {
+	return (strings.Contains(s, "agent-center") || strings.Contains(s, "agent_center")) &&
+		strings.Contains(s, "post_message")
+}
+
+func codexPoisoningTransportError(ev claudestream.StreamEvent) bool {
+	if ev.Type != "error" {
 		return false
 	}
-	raw := strings.ToLower(string(ev.Raw))
-	if !strings.Contains(raw, "tool_search") || !strings.Contains(raw, "output") {
-		return false
-	}
-	agentCenterQuery := strings.Contains(raw, "agent-center") || strings.Contains(raw, "agent_center") || strings.Contains(raw, "post_message")
-	if !agentCenterQuery {
-		return false
-	}
-	return !strings.Contains(raw, "mcp__agent_center")
+	msg := strings.ToLower(ev.Result)
+	return strings.Contains(msg, "invalid peer certificate") && strings.Contains(msg, "unknownissuer")
 }
 
 func (r *LocalRuntime) maybeReportCenterBypassAlert(agentID, workItemRef string, ev claudestream.StreamEvent) {
