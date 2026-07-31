@@ -203,6 +203,13 @@ func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workIte
 			r.log("codex agent=%s mcp registry missing activity report: %v", agentID, err)
 		}
 	}
+	if home, _, _, err := r.agentPaths(agentID); err == nil {
+		if cerr := sessioninstance.ClearSessionID(home); cerr != nil {
+			r.log("codex agent=%s clear registry-missing thread_id failed: %v", agentID, cerr)
+		}
+	} else {
+		r.log("codex agent=%s locate home for registry-missing thread_id clear failed: %v", agentID, err)
+	}
 	r.log("codex agent=%s real tool registry missing mcp__agent_center; failing session", agentID)
 	if r.cfg.OnFatal != nil {
 		r.cfg.OnFatal("codex real tool registry missing mcp__agent_center")
@@ -259,7 +266,11 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 		if !strings.Contains(text, "mcp") && !strings.Contains(text, "tool registry") && !strings.Contains(text, "工具注册表") {
 			return false
 		}
-		for _, sig := range []string{"搜索结果为 0", "search results were 0", "0 results", "not provided", "missing", "未提供", "找不到"} {
+		for _, sig := range []string{
+			"搜索结果为 0", "search results were 0", "0 results",
+			"not provided", "missing", "not found", "could not find", "cannot find",
+			"未提供", "找不到", "未找到", "未发现",
+		} {
 			if strings.Contains(text, sig) {
 				return true
 			}

@@ -2,11 +2,14 @@ package agentruntime
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 	"github.com/oopslink/agent-center/internal/claudestream"
 )
@@ -434,6 +437,43 @@ func TestOnEvent_CodexAssistantTextMissingAgentCenterIsFatal(t *testing.T) {
 	})
 	if !*fatal {
 		t.Fatal("assistant text reporting missing agent-center post_message must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
+func TestOnEvent_CodexAssistantTextMissingAgentCenterExactIncidentIsFatalAndClearsThread(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	homeBase := t.TempDir()
+	home := filepath.Join(homeBase, "agents", "agent-x")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatalf("mkdir home: %v", err)
+	}
+	if _, err := sessioninstance.AcquireInstance(home, "thread-poisoned", 123); err != nil {
+		t.Fatalf("AcquireInstance: %v", err)
+	}
+	rt.cfg.AgentHomeBase = homeBase
+	rt.cfg.WorkerID = "worker-test"
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "无法调用。已通过 `tool_search` 搜索 `agent-center 的 post_message MCP 工具`，但未发现 agent-center 的 `post_message` MCP 工具；这属于工具注册表缺失。",
+	})
+	if !*fatal {
+		t.Fatal("exact incident text must mark Codex session fatal")
+	}
+	st, err := sessioninstance.ReadInstance(home)
+	if err != nil {
+		t.Fatalf("ReadInstance: %v", err)
+	}
+	if st.SessionID != "" {
+		t.Fatalf("SessionID = %q, want cleared after registry-missing fatal", st.SessionID)
 	}
 	rep.mu.Lock()
 	defer rep.mu.Unlock()
