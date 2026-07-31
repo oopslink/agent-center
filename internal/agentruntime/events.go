@@ -95,6 +95,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		r.recordTaskEvent(agentID, routeTask, ev, ActivityEventType(ev), string(payload), reportOK)
 	}
 	r.maybeReportCenterBypassAlert(agentID, workItemRef, ev)
+	r.maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef, ev)
 	if clearEventTask {
 		r.mu.Lock()
 		st.LastEventTaskID = st.EventTaskID
@@ -180,6 +181,43 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 			}
 		}
 	}
+}
+
+func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef string, ev claudestream.StreamEvent) {
+	if !codexAgentCenterRegistryMissing(ev) {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"type":          "codex_agent_center_mcp_registry_missing",
+		"required":      "mcp__agent_center",
+		"work_item_ref": workItemRef,
+	})
+	if r.cfg.Reporter != nil {
+		if err := r.cfg.Reporter.ReportAgentActivity(
+			context.Background(), agentID, "mcp_registry_missing", string(payload), workItemRef, "", time.Now(),
+		); err != nil {
+			r.log("codex agent=%s mcp registry missing activity report: %v", agentID, err)
+		}
+	}
+	r.log("codex agent=%s real tool registry missing mcp__agent_center; failing session", agentID)
+	if r.cfg.OnFatal != nil {
+		r.cfg.OnFatal("codex real tool registry missing mcp__agent_center")
+	}
+}
+
+func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
+	if ev.Type != "unknown" || len(ev.Raw) == 0 {
+		return false
+	}
+	raw := strings.ToLower(string(ev.Raw))
+	if !strings.Contains(raw, "tool_search") || !strings.Contains(raw, "output") {
+		return false
+	}
+	agentCenterQuery := strings.Contains(raw, "agent-center") || strings.Contains(raw, "agent_center") || strings.Contains(raw, "post_message")
+	if !agentCenterQuery {
+		return false
+	}
+	return !strings.Contains(raw, "mcp__agent_center")
 }
 
 func (r *LocalRuntime) maybeReportCenterBypassAlert(agentID, workItemRef string, ev claudestream.StreamEvent) {

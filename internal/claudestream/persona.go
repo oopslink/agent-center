@@ -9,6 +9,7 @@ const personaDescriptionHeading = "== About you =="
 const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
 	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
+	"On each fresh Codex supervisor session, verify the real model tool registry with tool_search for agent-center post_message before doing center-state work. " +
 	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
 
 // PersonaDescriptionSection wraps an agent's profile description as a system-prompt

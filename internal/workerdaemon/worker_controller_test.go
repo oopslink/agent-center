@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -153,10 +154,21 @@ func TestControllerHandler_ReconcileStoppingTearsDownAndReportsStopped(t *testin
 func TestControllerHandler_ReconcileResettingTearsDownAndReportsStopped(t *testing.T) {
 	r := &fakeLifecycleReporter{}
 	h, l, _ := newTestHandlerWithReporter(t, r)
+	h.homeBase = t.TempDir()
 	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
+	home := filepath.Join(h.homeBase, "agents", "a")
+	for _, rel := range []string{"memory/MEMORY.md", "tasks/t1/task.json", "plans/p1/plan.json", "executors/e1/status"} {
+		path := filepath.Join(home, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
 	err := h.Handle(context.Background(), ControlCommand{
 		CommandType: cmdTypeAgentReconcile,
-		Payload:     `{"agent_id":"a","desired_lifecycle":"resetting"}`,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"resetting","reset_scope":"workspace"}`,
 	})
 	if err != nil {
 		t.Fatalf("reconcile-resetting: %v", err)
@@ -168,6 +180,33 @@ func TestControllerHandler_ReconcileResettingTearsDownAndReportsStopped(t *testi
 	defer r.mu.Unlock()
 	if len(r.got) != 1 || r.got[0].agentID != "a" || r.got[0].state != "stopped" {
 		t.Fatalf("feedback = %+v, want one stopped feedback for a", r.got)
+	}
+	if _, err := os.Stat(filepath.Join(home, "memory", "MEMORY.md")); err != nil {
+		t.Fatalf("memory should survive workspace reset: %v", err)
+	}
+	for _, rel := range []string{"tasks", "plans", "executors"} {
+		if _, err := os.Stat(filepath.Join(home, rel)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s should be removed by workspace reset, stat err=%v", rel, err)
+		}
+	}
+}
+
+func TestControllerHandler_ReconcileResettingRequiresScope(t *testing.T) {
+	r := &fakeLifecycleReporter{}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	h.homeBase = t.TempDir()
+	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeAgentReconcile,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"resetting"}`,
+	})
+	if err == nil || !strings.Contains(err.Error(), "reset_scope required") {
+		t.Fatalf("missing reset_scope should fail, got %v", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.got) != 0 {
+		t.Fatalf("reset failure must not report stopped, got %+v", r.got)
 	}
 }
 

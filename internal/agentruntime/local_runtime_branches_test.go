@@ -402,6 +402,38 @@ func TestMaybeReportUsage_Branches(t *testing.T) {
 	}
 }
 
+func TestOnEvent_CodexToolSearchMissingAgentCenterIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "unknown",
+		Raw:  []byte(`{"type":"response_item","output":{"type":"tool_search_output","query":"agent-center post_message","tools":[{"name":"mcp__codex_apps__foo"}]}}`),
+	})
+	if !*fatal {
+		t.Fatal("missing mcp__agent_center tool-search output must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
+func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) { s.CLI = CLICodex })
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "unknown",
+		Raw:  []byte(`{"type":"response_item","output":{"type":"tool_search_output","query":"agent-center post_message","tools":[{"name":"mcp__agent_center__post_message"}]}}`),
+	})
+	if *fatal {
+		t.Fatal("mcp__agent_center in tool-search output must not be fatal")
+	}
+}
+
 // --- pure policy edge cases ---
 
 func TestDecideRateLimitResume_Clamps(t *testing.T) {

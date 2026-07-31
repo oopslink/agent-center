@@ -73,6 +73,7 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		AgentID             string `json:"agent_id"`
 		DesiredLifecycle    string `json:"desired_lifecycle"`
 		ExecutorGitWorktree bool   `json:"executor_git_worktree"`
+		ResetScope          string `json:"reset_scope"`
 	}
 	_ = json.Unmarshal([]byte(cmd.Payload), &idp)
 	agentID := strings.TrimSpace(idp.AgentID)
@@ -92,6 +93,11 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	if cmd.CommandType == cmdTypeAgentReconcile && isStopDesiredLifecycle(idp.DesiredLifecycle) {
 		if err := h.ctrl.StopAgent(agentID); err != nil {
 			return err
+		}
+		if strings.EqualFold(strings.TrimSpace(idp.DesiredLifecycle), "resetting") {
+			if err := h.resetAgentHome(agentID, idp.ResetScope); err != nil {
+				return err
+			}
 		}
 		if h.reporter != nil {
 			if err := h.reporter.ReportAgentLifecycle(ctx, agentID, "stopped", "", time.Now()); err != nil && !isAlreadySettledStoppedFeedback(err) {
@@ -133,6 +139,62 @@ func isStopDesiredLifecycle(lc string) bool {
 	default:
 		return false
 	}
+}
+
+func (h controllerHandler) resetAgentHome(agentID, scope string) error {
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	if scope == "" {
+		return errors.New("controller: reset_scope required for desired_lifecycle=resetting")
+	}
+	home, err := containedAgentHome(h.homeBase, agentID)
+	if err != nil {
+		return err
+	}
+	var targets []string
+	switch scope {
+	case "memory":
+		targets = []string{filepath.Join(home, "memory")}
+	case "workspace":
+		targets = []string{
+			filepath.Join(home, "tasks"),
+			filepath.Join(home, "plans"),
+			filepath.Join(home, "executors"),
+			filepath.Join(home, "workspace"),
+		}
+	case "all":
+		targets = []string{home}
+	default:
+		return fmt.Errorf("controller: invalid reset_scope %q", scope)
+	}
+	for _, target := range targets {
+		if err := os.RemoveAll(target); err != nil {
+			return fmt.Errorf("controller: reset %s remove %s: %w", scope, target, err)
+		}
+	}
+	h.log(fmt.Sprintf("controller: reset agent=%s scope=%s applied", agentID, scope))
+	return nil
+}
+
+func containedAgentHome(homeBase, agentID string) (string, error) {
+	if strings.TrimSpace(homeBase) == "" {
+		return "", errors.New("controller: home base required for reset")
+	}
+	if strings.TrimSpace(agentID) == "" || strings.ContainsAny(agentID, `/\:`) || strings.Contains(agentID, "..") {
+		return "", fmt.Errorf("controller: invalid agent_id %q for reset", agentID)
+	}
+	base, err := filepath.Abs(homeBase)
+	if err != nil {
+		return "", fmt.Errorf("controller: resolve home base: %w", err)
+	}
+	home := filepath.Join(base, "agents", agentID)
+	rel, err := filepath.Rel(base, home)
+	if err != nil {
+		return "", fmt.Errorf("controller: reset containment: %w", err)
+	}
+	if rel == "." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("controller: reset path escapes home base for agent %q", agentID)
+	}
+	return home, nil
 }
 
 func isAlreadySettledStoppedFeedback(err error) bool {

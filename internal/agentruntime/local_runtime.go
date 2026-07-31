@@ -38,10 +38,11 @@ const (
 	MCPServerName = "agent-center"
 	// WakeDedupCap bounds the per-agent wake/converse dedup set.
 	WakeDedupCap = 256
-	// defaultCodexRecycleInputTokens bounds one long-lived Codex logical session by
-	// successful-turn input size; the agent-runtime exits after the turn so the worker
-	// rebuilds it fresh.
-	defaultCodexRecycleInputTokens = 40_000
+	// defaultCodexRecycleInputTokens is disabled by default. A fixed input-token
+	// threshold caused large-memory agents to rebuild fresh sessions repeatedly,
+	// reopening the MCP tool-index initialization window after every clean turn.
+	// Operators may opt in with CodexRecycleInputTokens > 0 for a specific runtime.
+	defaultCodexRecycleInputTokens = -1
 	// defaultCodexRecycleCleanTurns bounds one long-lived Codex logical session by clean
 	// turn count when usage accounting is unavailable or consistently small.
 	defaultCodexRecycleCleanTurns = 8

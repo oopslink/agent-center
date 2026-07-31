@@ -4,9 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+)
+
+const (
+	defaultHarnessMemoryBudgetBytes = 24 * 1024
+	defaultHarnessPerFileBytes      = 8 * 1024
+	defaultHarnessOmittedBytes      = 4 * 1024
 )
 
 // Engine is the runtime façade the agent CLI uses to manage its scoped memory:
@@ -137,7 +144,7 @@ func (e *Engine) AssembleScoped(ctx context.Context, scope MemoryScope, includeS
 // the agent to just edit the matching file. Never returns an error for a missing
 // file (an empty repo yields the guide with no bodies).
 func (e *Engine) HarnessContext(ctx context.Context) (string, error) {
-	body, err := e.AssembleScoped(ctx, MemoryScope{Kind: MemScopeGlobal}, true)
+	body, omitted, err := e.AssembleHarnessContext(ctx, HarnessDisclosureOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -150,12 +157,195 @@ func (e *Engine) HarnessContext(ctx context.Context) (string, error) {
 	b.WriteString("  projects/<project_id>/tasks/<task_id>/MEMORY.md     task scope\n")
 	b.WriteString("  projects/<project_id>/issues/<issue_id>/MEMORY.md   issue scope\n")
 	b.WriteString("  conversations/<conversation_id>/MEMORY.md           conversation scope\n")
-	b.WriteString("When you start a unit of work, consult the ancestor chain narrow→broad (task → project → global) and let the most specific notes win. Record durable lessons / skills / principles back into the MOST specific scope that fits by editing the matching MEMORY.md with your file tools — the runtime commits your edits automatically. Never write outside this directory.\n")
+	b.WriteString("Startup memory below is intentionally budgeted. Treat MEMORY.md as the index, read omitted paths only when they are relevant, and consult the ancestor chain narrow→broad when a task needs scoped detail. Record durable lessons in the most specific matching MEMORY.md. Never write outside this directory.\n")
 	if body != "" {
-		b.WriteString("\nCurrent global + supervisor memory:\n")
+		b.WriteString("\nProgressive startup memory:\n")
 		b.WriteString(body)
 	}
+	if omitted != "" {
+		b.WriteString("\nMemory available on demand:\n")
+		b.WriteString(omitted)
+	}
 	return b.String(), nil
+}
+
+// HarnessDisclosureOptions controls how much memory is disclosed at supervisor
+// startup. Zero values use conservative defaults; tests may lower them.
+type HarnessDisclosureOptions struct {
+	MemoryBudgetBytes int
+	PerFileBytes      int
+	OmittedBytes      int
+}
+
+// AssembleHarnessContext returns the bounded startup memory excerpt plus an
+// omitted-path manifest. It keeps HarnessContext's historical global+supervisor
+// compatibility, but turns those bodies into budgeted excerpts and lists other
+// markdown files for explicit on-demand reads.
+func (e *Engine) AssembleHarnessContext(ctx context.Context, opt HarnessDisclosureOptions) (string, string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+	budget := opt.MemoryBudgetBytes
+	if budget <= 0 {
+		budget = defaultHarnessMemoryBudgetBytes
+	}
+	perFile := opt.PerFileBytes
+	if perFile <= 0 {
+		perFile = defaultHarnessPerFileBytes
+	}
+	omittedLimit := opt.OmittedBytes
+	if omittedLimit <= 0 {
+		omittedLimit = defaultHarnessOmittedBytes
+	}
+
+	candidates := []MemoryScope{{Kind: MemScopeGlobal}, {Kind: MemScopeSupervisor}}
+	var body strings.Builder
+	var omitted []string
+	used := 0
+	included := 0
+	for _, scope := range candidates {
+		rel, err := ScopeToFSPath(scope)
+		if err != nil {
+			return "", "", err
+		}
+		raw, err := e.readScope(scope)
+		if err != nil {
+			return "", "", err
+		}
+		text := strings.TrimSpace(sanitizeHarnessMemory(raw))
+		if text == "" {
+			continue
+		}
+		excerpt, truncated := boundedText(text, perFile)
+		block := fmt.Sprintf("## %s (%s)\n%s\n\n", scopeLabel(scope), rel, strings.TrimRight(excerpt, "\n"))
+		if used+len(block) > budget {
+			omitted = append(omitted, rel+" (startup budget exhausted)")
+			continue
+		}
+		if included == 0 {
+			body.WriteString("<agent-memory progressive=\"true\">\n")
+		}
+		body.WriteString(block)
+		used += len(block)
+		included++
+		if truncated {
+			omitted = append(omitted, rel+" (excerpt truncated)")
+		}
+	}
+	if included > 0 {
+		body.WriteString("</agent-memory>\n")
+	}
+
+	discovered, err := e.discoverMarkdownMemoryFiles(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	seen := map[string]struct{}{
+		"MEMORY.md":     {},
+		"supervisor.md": {},
+	}
+	for _, rel := range discovered {
+		if _, ok := seen[rel]; ok {
+			continue
+		}
+		omitted = append(omitted, rel)
+	}
+	return body.String(), formatOmittedMemory(omitted, omittedLimit), nil
+}
+
+func sanitizeHarnessMemory(in string) string {
+	var out []string
+	for _, line := range strings.Split(in, "\n") {
+		if isDangerousCenterBypassMemoryLine(line) {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func isDangerousCenterBypassMemoryLine(line string) bool {
+	l := strings.ToLower(line)
+	needles := []string{
+		"admin-socket",
+		"admin socket",
+		"admin http",
+		"admin-tools",
+		"sqlite",
+		"agent-center.db",
+		"worker token",
+		"process args",
+		"mcp_config.runtime.json",
+		"bypass mcp",
+		"mcp fallback",
+		"mcp 兜底",
+		"绕过 mcp",
+	}
+	for _, needle := range needles {
+		if strings.Contains(l, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func boundedText(s string, limit int) (string, bool) {
+	if limit <= 0 || len(s) <= limit {
+		return s, false
+	}
+	cut := strings.LastIndexByte(s[:limit], '\n')
+	if cut < limit/2 {
+		cut = limit
+	}
+	return strings.TrimRight(s[:cut], "\n") + "\n[truncated; read file for full memory]", true
+}
+
+func (e *Engine) discoverMarkdownMemoryFiles(ctx context.Context) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(e.memoryDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(name), ".md") {
+			return nil
+		}
+		rel, err := filepath.Rel(e.memoryDir, path)
+		if err != nil {
+			return err
+		}
+		out = append(out, filepath.ToSlash(rel))
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	return out, err
+}
+
+func formatOmittedMemory(paths []string, limit int) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, p := range paths {
+		line := "- " + p + "\n"
+		if limit > 0 && b.Len()+len(line) > limit {
+			b.WriteString("- ...\n")
+			break
+		}
+		b.WriteString(line)
+	}
+	return b.String()
 }
 
 // WriteScoped writes content as the memory file for scope (mkdir -p) and commits
