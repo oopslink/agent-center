@@ -78,9 +78,11 @@ type codexLauncher interface {
 //
 //   - fresh:  codex exec --json --skip-git-repo-check
 //     --dangerously-bypass-approvals-and-sandbox --disable responses_websockets
+//     --disable responses_websockets_v2
 //     [-m model] <prompt>
 //   - resume: codex exec resume <threadID> --json --skip-git-repo-check
 //     --dangerously-bypass-approvals-and-sandbox --disable responses_websockets
+//     --disable responses_websockets_v2
 //     [-m model] <prompt>
 //
 // The working directory is set via cmd.Dir (codex `exec resume` does not accept
@@ -104,6 +106,7 @@ func buildCodexArgv(spec codexLaunchSpec) []string {
 		// can fail with rustls UnknownIssuer and leave the model-side MCP registry
 		// untrustworthy. HTTPS transport has proven stable and still carries MCP tools.
 		"--disable", "responses_websockets",
+		"--disable", "responses_websockets_v2",
 	)
 	if spec.Model != "" {
 		argv = append(argv, "-m", spec.Model)

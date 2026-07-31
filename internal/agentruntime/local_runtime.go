@@ -12,6 +12,7 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -784,6 +785,16 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	}
 
 	r.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, spec.Version, epochState.Epoch, generation, spec.ForkResume, spec.Resume, home)
+	r.reportControlLoaded(agentID, spec, controlLoadedInfo{
+		Session:   "claude",
+		Home:      home,
+		TasksDir:  tasksDir,
+		MCP:       "preflight_ok",
+		Memory:    "progressive",
+		Executor:  executorStatus(spec.ConcurrencyEnabled),
+		Resume:    resumeFrom != "",
+		SessionID: sessionID,
+	})
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path so a
 	// slow disk scan / center never blocks session start). force=true bypasses the scan
 	// rate-limit so the panel populates on first online.
@@ -833,7 +844,9 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	// (tester3 T977 — the config-source-reaches-process blind spot). Fail-loud (loud
 	// warn, the executor codexAuthPreflight discipline) if it can't be provisioned —
 	// never a silent 401.
+	authStatus := "provisioned"
 	if w := provisionCodexAuth(codexHome, resolveSourceCodexHome()); w != "" {
+		authStatus = "warning"
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}
 	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
@@ -903,9 +916,98 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	r.state.Session = sess
 	r.mu.Unlock()
 	r.log("started codex agent=%s version=%d home=%s", agentID, spec.Version, home)
+	r.reportControlLoaded(agentID, spec, controlLoadedInfo{
+		Session:   "codex",
+		Home:      home,
+		TasksDir:  tasksDir,
+		MCP:       "preflight_ok",
+		CodexHome: codexHome,
+		CodexAuth: authStatus,
+		Memory:    "progressive",
+		Executor:  executorStatus(spec.ConcurrencyEnabled),
+		Resume:    resumeThreadID != "",
+		SessionID: resumeThreadID,
+	})
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path).
 	r.kickInstalledSkillsReport()
 	return nil
+}
+
+type controlLoadedInfo struct {
+	Session   string
+	Home      string
+	TasksDir  string
+	MCP       string
+	CodexHome string
+	CodexAuth string
+	Memory    string
+	Executor  string
+	Resume    bool
+	SessionID string
+}
+
+func executorStatus(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
+}
+
+func (r *LocalRuntime) reportControlLoaded(agentID string, spec StartSpec, info controlLoadedInfo) {
+	if r.cfg.Reporter == nil {
+		return
+	}
+	components := []map[string]any{
+		{"name": "session", "status": info.Session},
+		{"name": "mcp_agent_center", "status": info.MCP},
+		{"name": "memory", "status": info.Memory},
+		{"name": "executor_pool", "status": info.Executor},
+	}
+	if info.Session == CLICodex {
+		components = append(components,
+			map[string]any{"name": "codex_home", "status": pathStatus(info.CodexHome)},
+			map[string]any{"name": "codex_auth", "status": info.CodexAuth},
+			map[string]any{"name": "codex_transport", "status": "https_forced"},
+		)
+	}
+	p := map[string]any{
+		"event":               "control_loaded",
+		"summary":             controlLoadedSummary(spec, info),
+		"cli":                 spec.CLI,
+		"model":               spec.Model,
+		"version":             spec.Version,
+		"components":          components,
+		"home":                pathStatus(info.Home),
+		"tasks_dir":           pathStatus(info.TasksDir),
+		"resume":              info.Resume,
+		"session_id_present":  strings.TrimSpace(info.SessionID) != "",
+		"env_overrides_count": len(spec.EnvVars),
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	if err := r.cfg.Reporter.ReportAgentActivity(
+		context.Background(), agentID, "lifecycle", string(b), "", "", time.Now(),
+	); err != nil {
+		r.log("agent=%s control_loaded report: %v", agentID, err)
+	}
+}
+
+func controlLoadedSummary(spec StartSpec, info controlLoadedInfo) string {
+	transport := ""
+	if info.Session == CLICodex {
+		transport = " transport=https_forced auth=" + info.CodexAuth
+	}
+	return fmt.Sprintf("control loaded: cli=%s model=%s session=%s mcp=%s memory=%s executor_pool=%s resume=%t%s",
+		spec.CLI, spec.Model, info.Session, info.MCP, info.Memory, info.Executor, info.Resume, transport)
+}
+
+func pathStatus(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return "missing"
+	}
+	return "configured"
 }
 
 func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksDir string) error {

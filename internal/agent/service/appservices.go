@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,18 +126,41 @@ func (s *Service) lifecycleOp(ctx context.Context, id agent.AgentID, mutate func
 		// reset) into the agent's append-only activity stream so it shows up in the
 		// AgentDetail Activity timeline (it renders EventTypeLifecycle's {event}).
 		// Best-effort: an observational-log hiccup must not fail the action itself.
-		s.recordLifecycleActivity(txCtx, id, verb, resetScope)
+		s.recordLifecycleActivity(txCtx, a, verb, resetScope)
 		return s.emit(txCtx, EvtAgentLifecycleChanged, a, resetScope)
 	})
 }
 
-// recordLifecycleActivity appends a "lifecycle" activity event ({event:<verb>},
-// plus {scope} for reset) for a user-triggered lifecycle action. Best-effort.
-func (s *Service) recordLifecycleActivity(ctx context.Context, id agent.AgentID, verb, scope string) {
+// recordLifecycleActivity appends a "lifecycle" activity event for a user-triggered
+// control action. The summary is intentionally richer than {event:<verb>} so Activity
+// Diagnostics can show what control intended to load without inspecting DB rows.
+func (s *Service) recordLifecycleActivity(ctx context.Context, a *agent.Agent, verb, scope string) {
 	if verb == "" || s.activity == nil {
 		return
 	}
-	p := map[string]any{"event": verb}
+	id := a.ID()
+	prof := a.Profile()
+	concurrency := "off"
+	if prof.ConcurrencyEnabled() {
+		concurrency = "on"
+	}
+	p := map[string]any{
+		"event":                verb,
+		"summary":              lifecycleControlSummary(verb, prof, a.WorkerID(), concurrency, len(prof.EnvVars)),
+		"cli":                  prof.CLI,
+		"model":                prof.Model,
+		"worker_id":            a.WorkerID(),
+		"concurrency":          concurrency,
+		"max_concurrent_tasks": prof.EffectiveMaxConcurrentTasks(),
+		"env_overrides_count":  len(prof.EnvVars),
+		"components": []map[string]any{
+			{"name": "control_intent", "status": verb},
+			{"name": "runtime_cli", "status": prof.CLI},
+			{"name": "model", "status": prof.Model},
+			{"name": "worker_binding", "status": a.WorkerID()},
+			{"name": "executor_pool", "status": concurrency},
+		},
+	}
 	if verb == "reset" && scope != "" {
 		p["scope"] = scope
 	}
@@ -157,6 +181,15 @@ func (s *Service) recordLifecycleActivity(ctx context.Context, id agent.AgentID,
 	if aerr := s.activity.Append(ctx, ev); aerr != nil {
 		slog.Warn("agent: lifecycle activity append failed", "agent_id", id, "event", verb, "err", aerr)
 	}
+}
+
+func lifecycleControlSummary(verb string, prof agent.Profile, workerID, concurrency string, envCount int) string {
+	action := "control " + verb
+	if verb == "restarted" {
+		action = "control restarted"
+	}
+	return action + ": cli=" + prof.CLI + " model=" + prof.Model + " worker=" + workerID +
+		" executor_pool=" + concurrency + " env_overrides=" + strconv.Itoa(envCount)
 }
 
 // StartAgent moves stopped/error → running (intent; D2 reconciles the process).

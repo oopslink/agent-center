@@ -31,15 +31,24 @@ func TestBuildCodexArgv_Fresh(t *testing.T) {
 			t.Fatalf("missing %q: %v", want, argv)
 		}
 	}
-	if i := slices.Index(argv, "--disable"); i < 0 || argv[i+1] != "responses_websockets" {
-		t.Fatalf("responses websocket disable flag: %v", argv)
-	}
+	assertDisableFlag(t, argv, "responses_websockets")
+	assertDisableFlag(t, argv, "responses_websockets_v2")
 	if i := slices.Index(argv, "-m"); i < 0 || argv[i+1] != "gpt-5" {
 		t.Fatalf("model flag: %v", argv)
 	}
 	if argv[len(argv)-1] != "do it" {
 		t.Fatalf("prompt must be last: %v", argv)
 	}
+}
+
+func assertDisableFlag(t *testing.T, argv []string, feature string) {
+	t.Helper()
+	for i := 0; i < len(argv)-1; i++ {
+		if argv[i] == "--disable" && argv[i+1] == feature {
+			return
+		}
+	}
+	t.Fatalf("missing --disable %s: %v", feature, argv)
 }
 
 func TestBuildCodexArgv_Resume(t *testing.T) {

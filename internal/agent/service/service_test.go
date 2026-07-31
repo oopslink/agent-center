@@ -338,20 +338,43 @@ func TestLifecycle_RecordsActivity(t *testing.T) {
 		t.Fatalf("ListByAgent: %v", err)
 	}
 	got := map[string]bool{}
+	summaries := map[string]string{}
 	for _, e := range events {
 		if e.EventType() != agent.EventTypeLifecycle {
 			continue
 		}
 		var p struct {
-			Event string `json:"event"`
+			Event              string           `json:"event"`
+			Summary            string           `json:"summary"`
+			CLI                string           `json:"cli"`
+			Model              string           `json:"model"`
+			WorkerID           string           `json:"worker_id"`
+			EnvOverridesCount  int              `json:"env_overrides_count"`
+			MaxConcurrentTasks int              `json:"max_concurrent_tasks"`
+			Components         []map[string]any `json:"components"`
 		}
 		_ = json.Unmarshal([]byte(e.Payload()), &p)
 		got[p.Event] = true
+		summaries[p.Event] = p.Summary
+		if p.Event == "restarted" {
+			if p.CLI != "claude-code" || p.Model != "claude" || p.WorkerID != testWorker {
+				t.Fatalf("restarted details lost: %+v", p)
+			}
+			if p.EnvOverridesCount != 0 || p.MaxConcurrentTasks != agent.DefaultMaxConcurrentTasks {
+				t.Fatalf("restarted counters = env %d max %d", p.EnvOverridesCount, p.MaxConcurrentTasks)
+			}
+			if len(p.Components) == 0 {
+				t.Fatalf("restarted components missing: %+v", p)
+			}
+		}
 	}
 	for _, want := range []string{"started", "restarted", "stopped"} {
 		if !got[want] {
 			t.Errorf("missing lifecycle activity event %q (got %v)", want, got)
 		}
+	}
+	if !strings.Contains(summaries["restarted"], "control restarted: cli=claude-code model=claude worker="+testWorker) {
+		t.Fatalf("restarted summary not detailed: %q", summaries["restarted"])
 	}
 }
 

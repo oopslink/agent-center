@@ -45,6 +45,12 @@ func TestActivityPreviewText_NoRawJSONLeak(t *testing.T) {
 			want:      "Done. pwd is /tmp",
 		},
 		{
+			name:      "lifecycle summary wins over terse event",
+			eventType: agentbc.EventTypeLifecycle,
+			payload:   `{"event":"restarted","summary":"control restarted: cli=codex model=gpt-5.6-sol worker=worker-edb09a0c executor_pool=on env_overrides=4"}`,
+			want:      "control restarted: cli=codex model=gpt-5.6-sol worker=worker-edb09a0c executor_pool=on env_overrides=4",
+		},
+		{
 			name:      "non-json payload → empty (never echo raw string)",
 			eventType: "system",
 			payload:   `not-json-at-all {raw blob`,

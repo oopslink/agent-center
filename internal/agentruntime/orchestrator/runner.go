@@ -155,6 +155,7 @@ func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, e
 		// Match the resident session: the production proxy path has shown unstable
 		// Responses WebSocket reconnects, while HTTPS fallback preserves MCP/tools.
 		"--disable", "responses_websockets",
+		"--disable", "responses_websockets_v2",
 		"-m", model,
 		// codex exec has no --append-system-prompt: the executor framing rides in the prompt.
 		executorSystemPrompt+"\n\n"+prompt,

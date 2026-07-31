@@ -63,6 +63,7 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 		"--skip-git-repo-check",
 		"--dangerously-bypass-approvals-and-sandbox",
 		"--disable responses_websockets",
+		"--disable responses_websockets_v2",
 		"-m gpt-5.5",
 	} {
 		if !strings.Contains(joined, want) {

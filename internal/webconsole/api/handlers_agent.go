@@ -348,7 +348,7 @@ func activityPreviewText(e *agentbc.AgentActivityEvent) string {
 	if err := json.Unmarshal([]byte(payload), &fields); err != nil {
 		return "" // not a JSON object → no readable preview (never leak the raw string)
 	}
-	for _, key := range []string{"text", "result", "tool_name", "event"} {
+	for _, key := range []string{"summary", "detail", "text", "result", "tool_name", "event"} {
 		if v, ok := fields[key]; ok {
 			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
 				return s
