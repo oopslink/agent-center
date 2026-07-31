@@ -77,9 +77,11 @@ type codexLauncher interface {
 // buildCodexArgv assembles the argv for a fresh or resumed codex exec turn.
 //
 //   - fresh:  codex exec --json --skip-git-repo-check
-//     --dangerously-bypass-approvals-and-sandbox [-m model] <prompt>
+//     --dangerously-bypass-approvals-and-sandbox --disable responses_websockets
+//     [-m model] <prompt>
 //   - resume: codex exec resume <threadID> --json --skip-git-repo-check
-//     --dangerously-bypass-approvals-and-sandbox [-m model] <prompt>
+//     --dangerously-bypass-approvals-and-sandbox --disable responses_websockets
+//     [-m model] <prompt>
 //
 // The working directory is set via cmd.Dir (codex `exec resume` does not accept
 // -C), and --dangerously-bypass-approvals-and-sandbox is required for autonomous
@@ -98,6 +100,10 @@ func buildCodexArgv(spec codexLaunchSpec) []string {
 		"--json",
 		"--skip-git-repo-check",
 		"--dangerously-bypass-approvals-and-sandbox",
+		// In the production proxy environment, Codex Responses WebSocket reconnects
+		// can fail with rustls UnknownIssuer and leave the model-side MCP registry
+		// untrustworthy. HTTPS transport has proven stable and still carries MCP tools.
+		"--disable", "responses_websockets",
 	)
 	if spec.Model != "" {
 		argv = append(argv, "-m", spec.Model)

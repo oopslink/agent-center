@@ -152,6 +152,9 @@ func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, e
 		// the isolation boundary, not codex's approval prompt or internal sandbox.
 		"--skip-git-repo-check",
 		"--dangerously-bypass-approvals-and-sandbox",
+		// Match the resident session: the production proxy path has shown unstable
+		// Responses WebSocket reconnects, while HTTPS fallback preserves MCP/tools.
+		"--disable", "responses_websockets",
 		"-m", model,
 		// codex exec has no --append-system-prompt: the executor framing rides in the prompt.
 		executorSystemPrompt+"\n\n"+prompt,

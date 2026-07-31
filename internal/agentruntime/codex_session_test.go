@@ -31,6 +31,9 @@ func TestBuildCodexArgv_Fresh(t *testing.T) {
 			t.Fatalf("missing %q: %v", want, argv)
 		}
 	}
+	if i := slices.Index(argv, "--disable"); i < 0 || argv[i+1] != "responses_websockets" {
+		t.Fatalf("responses websocket disable flag: %v", argv)
+	}
 	if i := slices.Index(argv, "-m"); i < 0 || argv[i+1] != "gpt-5" {
 		t.Fatalf("model flag: %v", argv)
 	}

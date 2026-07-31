@@ -62,6 +62,7 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 	for _, want := range []string{
 		"--skip-git-repo-check",
 		"--dangerously-bypass-approvals-and-sandbox",
+		"--disable responses_websockets",
 		"-m gpt-5.5",
 	} {
 		if !strings.Contains(joined, want) {
