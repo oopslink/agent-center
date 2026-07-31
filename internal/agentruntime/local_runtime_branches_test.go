@@ -523,6 +523,26 @@ func TestOnEvent_CodexAssistantTextUnexposedAgentCenterMCPIsFatal(t *testing.T) 
 	}
 }
 
+func TestOnEvent_CodexAssistantTextAgentCenterToolsUnavailableIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "当前 agent-center MCP 工具未加载：`get_plan`、`search_tools`、`post_message` 均不可调用，因此无法读取或推进计划。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text saying agent-center post_message/search_tools are unavailable must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
 func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = "claude" })
