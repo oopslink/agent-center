@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -506,7 +507,7 @@ func TestCodexToolSearchWithAgentCenterIsNotFatal(t *testing.T) {
 	}
 }
 
-func TestOnEvent_CodexUnknownIssuerIsFatal(t *testing.T) {
+func TestOnEvent_CodexTransientUnknownIssuerAllowsReconnect(t *testing.T) {
 	rt, rep, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) {
 		s.CLI = CLICodex
@@ -518,8 +519,59 @@ func TestOnEvent_CodexUnknownIssuerIsFatal(t *testing.T) {
 		IsError: true,
 		Result:  "Reconnecting... 2/5 (stream disconnected before completion: invalid peer certificate: UnknownIssuer)",
 	})
+	if *fatal {
+		t.Fatal("transient UnknownIssuer must allow Codex reconnect instead of killing the turn")
+	}
+	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
+	if *fatal {
+		t.Fatal("successful turn after transient UnknownIssuer must not be fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if !slices.Contains(rep.activity, "codex_transport_transient") {
+		t.Fatalf("activity = %v, want codex_transport_transient", rep.activity)
+	}
+}
+
+func TestOnEvent_CodexTransientUnknownIssuerThenTerminalErrorIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type:    "error",
+		Subtype: "transient",
+		IsError: true,
+		Result:  "Reconnecting... 2/5 (stream disconnected before completion: invalid peer certificate: UnknownIssuer)",
+	})
+	if *fatal {
+		t.Fatal("transient UnknownIssuer must not be fatal before turn terminal state")
+	}
+	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "error", IsError: true, Result: "codex exited without completing the turn"})
 	if !*fatal {
-		t.Fatal("UnknownIssuer transport error must mark Codex session fatal")
+		t.Fatal("terminal error after transient UnknownIssuer must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "codex_transport_poisoned" {
+		t.Fatalf("activity = %v, want codex_transport_poisoned", rep.activity)
+	}
+}
+
+func TestOnEvent_CodexNonTransientUnknownIssuerIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type:    "error",
+		IsError: true,
+		Result:  "stream disconnected before completion: invalid peer certificate: UnknownIssuer",
+	})
+	if !*fatal {
+		t.Fatal("non-transient UnknownIssuer transport error must mark Codex session fatal")
 	}
 	rep.mu.Lock()
 	defer rep.mu.Unlock()

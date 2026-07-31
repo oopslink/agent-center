@@ -209,6 +209,12 @@ type SessionState struct {
 	// otherwise be silently incomplete (快修 T799). Guarded by the shared Mu.
 	SawIncompleteTurn bool
 
+	// SawCodexPoisoningTransport is set when Codex reports a transient TLS transport
+	// error during THIS turn. Codex can recover from transient reconnect errors on its
+	// own, so the runtime only treats this as fatal if the turn later ends in error.
+	// Guarded by the shared Mu.
+	SawCodexPoisoningTransport bool
+
 	// Lifecycle coordination (onExit three-state).
 	ExpectedStop  bool
 	Detaching     bool

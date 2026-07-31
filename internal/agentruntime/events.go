@@ -31,6 +31,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	// assistant_text truncation marker seen earlier this turn), read at turn-end so the
 	// `result` branch below can schedule a bounded resume even when is_error=false (T799).
 	var sawIncomplete bool
+	var sawCodexPoisoningTransport bool
 	workItemRef = st.CurrentTaskID
 	switch ev.Type {
 	case "tool_use":
@@ -58,11 +59,16 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	case "rate_limit":
 		st.RLRetryAfterSecs = ev.RetryAfterSecs
 		st.RLResetAtUnix = ev.ResetAtUnix
+	case "error":
+		if st.CLI == CLICodex && ev.Subtype == "transient" && codexPoisoningTransportError(ev) {
+			st.SawCodexPoisoningTransport = true
+		}
 	case "system":
 		st.ToolNames = nil
 		if ev.Subtype == "init" {
 			st.RLRetryAfterSecs, st.RLResetAtUnix = 0, 0
 			st.SawIncompleteTurn = false // fresh turn → drop a stale truncation marker
+			st.SawCodexPoisoningTransport = false
 		}
 	case "result":
 		st.ToolNames = nil
@@ -70,6 +76,8 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.RLRetryAfterSecs, st.RLResetAtUnix = 0, 0
 		sawIncomplete = st.SawIncompleteTurn
 		st.SawIncompleteTurn = false // turn ended → consume the truncation marker
+		sawCodexPoisoningTransport = st.SawCodexPoisoningTransport
+		st.SawCodexPoisoningTransport = false
 	}
 	taskForEvent = st.EventTaskID
 	r.mu.Unlock()
@@ -95,7 +103,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		r.recordTaskEvent(agentID, routeTask, ev, ActivityEventType(ev), string(payload), reportOK)
 	}
 	r.maybeReportCenterBypassAlert(agentID, workItemRef, ev)
-	r.maybeFailCodexPoisonedTransport(agentID, workItemRef, ev)
+	r.maybeFailCodexPoisonedTransport(agentID, workItemRef, ev, sawCodexPoisoningTransport)
 	r.maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef, ev)
 	if clearEventTask {
 		r.mu.Lock()
@@ -216,25 +224,47 @@ func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workIte
 	}
 }
 
-func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef string, ev claudestream.StreamEvent) {
-	if !r.isCodexRuntime() || !codexPoisoningTransportError(ev) {
+func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef string, ev claudestream.StreamEvent, sawCodexPoisoningTransport bool) {
+	if !r.isCodexRuntime() {
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{
+	if codexPoisoningTransportError(ev) && ev.Subtype == "transient" {
+		r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_transient", map[string]any{
+			"type":          "codex_poisoning_transport_transient",
+			"error":         "invalid peer certificate: UnknownIssuer",
+			"work_item_ref": workItemRef,
+			"action":        "allow_codex_reconnect",
+		})
+		r.log("codex agent=%s transport returned transient UnknownIssuer; allowing Codex reconnect to continue", agentID)
+		return
+	}
+	if !codexPoisoningTransportError(ev) && !(ev.Type == "result" && ev.IsError && sawCodexPoisoningTransport) {
+		return
+	}
+	reason := "codex transport invalid peer certificate: UnknownIssuer"
+	if ev.Type == "result" && ev.IsError && sawCodexPoisoningTransport {
+		reason = "codex turn ended after transient UnknownIssuer"
+	}
+	r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_poisoned", map[string]any{
 		"type":          "codex_poisoning_transport_error",
 		"error":         "invalid peer certificate: UnknownIssuer",
 		"work_item_ref": workItemRef,
+		"reason":        reason,
 	})
-	if r.cfg.Reporter != nil {
-		if err := r.cfg.Reporter.ReportAgentActivity(
-			context.Background(), agentID, "codex_transport_poisoned", string(payload), workItemRef, "", time.Now(),
-		); err != nil {
-			r.log("codex agent=%s transport poison activity report: %v", agentID, err)
-		}
-	}
 	r.log("codex agent=%s transport returned UnknownIssuer; failing session before registry can be trusted", agentID)
 	if r.cfg.OnFatal != nil {
-		r.cfg.OnFatal("codex transport invalid peer certificate: UnknownIssuer")
+		r.cfg.OnFatal(reason)
+	}
+}
+
+func (r *LocalRuntime) reportCodexTransportEvent(agentID, workItemRef, eventType string, body map[string]any) {
+	payload, _ := json.Marshal(body)
+	if r.cfg.Reporter != nil {
+		if err := r.cfg.Reporter.ReportAgentActivity(
+			context.Background(), agentID, eventType, string(payload), workItemRef, "", time.Now(),
+		); err != nil {
+			r.log("codex agent=%s transport activity report: %v", agentID, err)
+		}
 	}
 }
 
