@@ -61,6 +61,12 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.RLResetAtUnix = ev.ResetAtUnix
 	case "error":
 		if st.CLI == CLICodex && ev.Subtype == "transient" && codexPoisoningTransportError(ev) {
+			// Codex emits UnknownIssuer during its own reconnect/fallback path as:
+			//   Reconnecting... N/5 (... invalid peer certificate: UnknownIssuer)
+			// Production incident T1239 showed the CLI can still complete the turn after
+			// this line. Killing the resident session here interrupts Codex before its
+			// built-in retry/fallback can settle, causing repeated fresh sessions and MCP
+			// registry churn. Remember the marker for the terminal result instead.
 			st.SawCodexPoisoningTransport = true
 		}
 	case "system":
@@ -229,6 +235,9 @@ func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef stri
 		return
 	}
 	if codexPoisoningTransportError(ev) && ev.Subtype == "transient" {
+		// Do not convert Codex's transient reconnect notice into OnFatal. The CLI owns
+		// that retry state and may recover in-band; the runtime's job is only to expose
+		// telemetry unless the final result proves the turn actually failed.
 		r.reportCodexTransportEvent(agentID, workItemRef, "codex_transport_transient", map[string]any{
 			"type":          "codex_poisoning_transport_transient",
 			"error":         "invalid peer certificate: UnknownIssuer",
