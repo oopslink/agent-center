@@ -588,6 +588,41 @@ func TestSearchTools_LoadsDeferred(t *testing.T) {
 	}
 }
 
+// TestSearchTools_LoadedPlanToolsAreCallable closes the production blind spot:
+// seeing a deferred tool in tools/list after search_tools is not enough. The
+// next direct CallTool must reach the registered handler on the same session.
+func TestSearchTools_LoadedPlanToolsAreCallable(t *testing.T) {
+	fake := &fakeAdmin{canned: json.RawMessage(`{"ok":true}`)}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Files: &fakeFileMover{}, TierTools: true})
+	ctx := context.Background()
+
+	if _, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "search_tools",
+		Arguments: map[string]any{"query": "plan"},
+	}); err != nil {
+		t.Fatalf("search_tools: %v", err)
+	}
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name: "get_plan",
+		Arguments: map[string]any{
+			"project_id": "proj-1",
+			"plan_id":    "plan-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("direct get_plan after search_tools: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("direct get_plan returned IsError: %v", res.Content)
+	}
+	if fake.gotTool != "get_plan" {
+		t.Fatalf("forwarded tool = %q, want get_plan", fake.gotTool)
+	}
+	if got := fake.gotBody["agent_id"]; got != "agent-1" {
+		t.Fatalf("forwarded agent_id = %v, want agent-1", got)
+	}
+}
+
 // TestSearchTools_LoadsOperationalReadModels reproduces I119's real acceptance
 // query verbatim. Catalog parity alone is insufficient: production enables
 // TierTools, so all four tools must match the deferred search response and then

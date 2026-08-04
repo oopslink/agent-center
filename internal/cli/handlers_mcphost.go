@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,6 +34,8 @@ import (
 //   - AC_MCP_WORKER_TOKEN worker bearer token (owner worker:<id>).
 //   - AC_MCP_SERVER_FINGERPRINT  pinned cert fingerprint, required when
 //     AC_MCP_ADMIN_URL is tcp://...
+//   - AC_MCP_TIER_TOOLS optional bool, default true. Set false only for
+//     clients that already own deferred MCP discovery.
 func MCPHostCommand() *Command {
 	return &Command{
 		Name:    "mcp-host",
@@ -72,6 +75,11 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	// for path containment. Optional: when empty the file tools fail
 	// containment with a clear error (they are not hard-required to start).
 	agentRoot := strings.TrimSpace(os.Getenv("AC_MCP_AGENT_ROOT"))
+	tierTools, err := mcpHostTierToolsFromEnv()
+	if err != nil {
+		fmt.Fprintf(errw, "Error: mcp_host: %v\n", err)
+		return ExitUsage
+	}
 
 	target, err := clienttransport.ParseTarget(adminURL)
 	if err != nil {
@@ -94,8 +102,7 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 		Admin:     adminClient,
 		AgentRoot: agentRoot,
 		Files:     fileClient,
-		// WS5: production agents get the tiered tool set (lean core + search_tools).
-		TierTools: true,
+		TierTools: tierTools,
 	})
 
 	// SIGINT/SIGTERM cancels the run ctx so Server.Run closes the stdio
@@ -121,4 +128,19 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 		return ExitBusinessError
 	}
 	return ExitOK
+}
+
+func mcpHostTierToolsFromEnv() (bool, error) {
+	raw := strings.TrimSpace(os.Getenv("AC_MCP_TIER_TOOLS"))
+	if raw == "" {
+		// WS5 default: production agents get the tiered tool set (lean core +
+		// search_tools). Codex opts out explicitly in its generated config so it
+		// can index the full startup catalog for native tool_search.
+		return true, nil
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("bad AC_MCP_TIER_TOOLS %q (want true/false)", raw)
+	}
+	return v, nil
 }

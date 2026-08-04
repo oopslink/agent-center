@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -63,11 +64,13 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 	}
 	s := string(b)
 	// The agent-center MCP server table is present so the codex supervisor can call
-	// create_task/complete_task/post_message.
+	// create_task/complete_task/post_message. Codex gets the full MCP startup
+	// catalog because its native tool_search indexes only startup-listed MCP tools.
 	for _, want := range []string{
 		"[mcp_servers.agent-center]",
 		`command = "/opt/agent-center-worker"`,
 		`"worker"`, `"mcp-host"`,
+		`AC_MCP_TIER_TOOLS = "false"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("config.toml missing %q; got:\n%s", want, s)
@@ -77,6 +80,51 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 	// carries center creds — that is how it authenticates its tool calls).
 	if !strings.Contains(s, "tok-secret") {
 		t.Errorf("config.toml missing per-agent worker token; got:\n%s", s)
+	}
+}
+
+func TestStartCodex_PreflightsFullCatalogForNativeToolSearch(t *testing.T) {
+	base := t.TempDir()
+	var gotTierTools bool
+	var gotRequired []string
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			return &fakeSession{}, nil
+		},
+		MCPPreflight: func(_ context.Context, cfg mcphost.Config, required ...string) error {
+			gotTierTools = cfg.TierTools
+			gotRequired = append([]string(nil), required...)
+			return nil
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	if err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 1,
+		CLI:     CLICodex,
+	}); err != nil {
+		t.Fatalf("Start(codex): %v", err)
+	}
+
+	if gotTierTools {
+		t.Fatal("codex supervisor preflight must use TierTools=false so every MCP tool is in the startup catalog")
+	}
+	for _, want := range []string{"post_message", "list_my_tasks", "get_my_profile", "get_plan", "list_task_executions"} {
+		if !slices.Contains(gotRequired, want) {
+			t.Fatalf("codex preflight required tools missing %q: %v", want, gotRequired)
+		}
+	}
+	if slices.Contains(gotRequired, "search_tools") {
+		t.Fatalf("codex preflight must not require mcp-host search_tools: %v", gotRequired)
 	}
 }
 
@@ -238,5 +286,9 @@ func TestStartCodex_IncludesMemoryHarnessInFreshPrompt(t *testing.T) {
 		if !strings.Contains(got.ExtraSystemPrompt, want) {
 			t.Fatalf("ExtraSystemPrompt missing %q; got:\n%s", want, got.ExtraSystemPrompt)
 		}
+	}
+	if !strings.Contains(got.ExtraSystemPrompt, "use Codex's native tool_search") ||
+		strings.Contains(got.ExtraSystemPrompt, "search_tools with an empty query") {
+		t.Fatalf("codex prompt must use native tool_search, got:\n%s", got.ExtraSystemPrompt)
 	}
 }

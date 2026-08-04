@@ -21,6 +21,19 @@ const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use search_tools only for deferred, lower-frequency tools described by the work-queue prompt. " +
 	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
 
+// Codex has its own native tool_search and indexes MCP tools only from the
+// server's startup catalog. The Codex path therefore disables mcp-host-side
+// tiering and must not teach agents to rely on the server-local search_tools
+// AddTool/RemoveTools mechanism.
+const codexCenterAccessPolicySection = "== Agent-center access policy ==\n" +
+	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
+	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
+	"Core agent-center tools such as get_my_profile, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search to verify post_message. " +
+	"To smoke-test agent-center MCP availability, call get_my_profile directly first; if it succeeds, use its my_capabilities as the core-tool inventory and call post_message directly when replying. " +
+	"In Codex sessions, use Codex's native tool_search to discover lower-frequency agent-center MCP tools such as get_plan, list_task_executions, plan tools, findings, files, subscriptions, org discovery, and node recovery. " +
+	"Do not use the agent-center MCP search_tools meta-tool in Codex sessions: Codex does not rebuild its callable MCP registry from that server-side list change. " +
+	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
+
 // PersonaDescriptionSection wraps an agent's profile description as a system-prompt
 // persona段 (T728). A blank description yields "" (no section) so an agent without a
 // description — or one that opted the injection out (the caller passes "") — adds
@@ -40,8 +53,19 @@ func PersonaDescriptionSection(description string) string {
 // be empty; present sections are separated by a blank line and the persona段 comes
 // FIRST (who-you-are/persona before working memory). Both empty → "".
 func ComposeExtraSystemPrompt(promptDescription, memoryContext string) string {
+	return composeExtraSystemPrompt(centerAccessPolicySection, promptDescription, memoryContext)
+}
+
+// ComposeCodexExtraSystemPrompt is the Codex-specific variant. It keeps the
+// same persona/memory shape but points deferred-tool discovery at Codex's native
+// tool_search instead of mcp-host's search_tools.
+func ComposeCodexExtraSystemPrompt(promptDescription, memoryContext string) string {
+	return composeExtraSystemPrompt(codexCenterAccessPolicySection, promptDescription, memoryContext)
+}
+
+func composeExtraSystemPrompt(accessPolicy, promptDescription, memoryContext string) string {
 	parts := make([]string, 0, 3)
-	parts = append(parts, centerAccessPolicySection)
+	parts = append(parts, accessPolicy)
 	if s := PersonaDescriptionSection(promptDescription); s != "" {
 		parts = append(parts, s)
 	}

@@ -94,3 +94,27 @@ func TestAgentCenterAccessPolicyDoesNotSearchForCorePostMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestCodexAccessPolicyUsesNativeToolSearch(t *testing.T) {
+	got := ComposeCodexExtraSystemPrompt("", "")
+	for _, want := range []string{
+		"Core agent-center tools such as get_my_profile",
+		"In Codex sessions, use Codex's native tool_search",
+		"get_plan",
+		"list_task_executions",
+		"Do not use the agent-center MCP search_tools meta-tool in Codex sessions",
+		"does not rebuild its callable MCP registry from that server-side list change",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("codex access policy missing %q; got:\n%s", want, got)
+		}
+	}
+	for _, notWant := range []string{
+		"search_tools with an empty query only to load/list deferred tools",
+		"Use search_tools only for deferred",
+	} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("codex access policy contains claude-only search_tools instruction %q; got:\n%s", notWant, got)
+		}
+	}
+}

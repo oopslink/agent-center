@@ -730,7 +730,7 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	if err != nil {
 		return fmt.Errorf("agent_controller: write mcp-config: %w", err)
 	}
-	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
+	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, true, []string{"post_message", "list_my_tasks", "search_tools"}); err != nil {
 		return err
 	}
 
@@ -822,14 +822,15 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	// same center tools (create_task/complete_task/post_message) via config.toml instead
 	// of claude's --mcp-config. CODEX_HOME is exported to the codex process (below).
 	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
-		ServerName:        MCPServerName,
-		Command:           r.cfg.BinaryPath,
-		Args:              []string{"worker", "mcp-host"},
-		AgentID:           agentID,
-		AdminURL:          r.cfg.AdminURL,
-		WorkerToken:       r.cfg.WorkerToken,
-		ServerFingerprint: r.cfg.ServerFingerprint,
-		AgentRoot:         tasksDir,
+		ServerName:         MCPServerName,
+		Command:            r.cfg.BinaryPath,
+		Args:               []string{"worker", "mcp-host"},
+		AgentID:            agentID,
+		AdminURL:           r.cfg.AdminURL,
+		WorkerToken:        r.cfg.WorkerToken,
+		ServerFingerprint:  r.cfg.ServerFingerprint,
+		AgentRoot:          tasksDir,
+		DisableToolTiering: true,
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate codex mcp-config: %w", err)
@@ -866,7 +867,13 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"auth_status": authStatus,
 		"auth_file":   fileStatus(filepath.Join(codexHome, codexAuthFileName)),
 	})
-	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir); err != nil {
+	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, false, []string{
+		"post_message",
+		"list_my_tasks",
+		"get_my_profile",
+		"get_plan",
+		"list_task_executions",
+	}); err != nil {
 		return err
 	}
 	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription)
@@ -1038,14 +1045,13 @@ func pathStatus(path string) string {
 	return "configured"
 }
 
-func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksDir string) error {
-	required := []string{"post_message", "list_my_tasks", "search_tools"}
+func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksDir string, tierTools bool, required []string) error {
 	r.reportCodexMCPDiagnostic(agentID, "mcp_preflight_start", map[string]any{
 		"summary":            "checking worker mcp-host exposes required supervisor tools before codex starts",
 		"required_tools":     required,
 		"tasks_dir":          tasksDir,
 		"tasks_dir_status":   pathStatus(tasksDir),
-		"tier_tools_enabled": true,
+		"tier_tools_enabled": tierTools,
 	})
 	preflight := r.cfg.MCPPreflight
 	if preflight == nil {
@@ -1054,7 +1060,7 @@ func (r *LocalRuntime) requireSupervisorMCP(ctx context.Context, agentID, tasksD
 	cfg := mcphost.Config{
 		AgentID:   agentID,
 		AgentRoot: tasksDir,
-		TierTools: true,
+		TierTools: tierTools,
 	}
 	if err := preflight(ctx, cfg, required...); err != nil {
 		r.reportCodexMCPDiagnostic(agentID, "mcp_preflight_failed", map[string]any{
@@ -1152,7 +1158,7 @@ func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptD
 			stats.PerFileBytes,
 		)
 	}
-	return claudestream.ComposeExtraSystemPrompt(promptDescription, memoryContext)
+	return claudestream.ComposeCodexExtraSystemPrompt(promptDescription, memoryContext)
 }
 
 // rawLogger adapts the prefixed Log back to the func(string) the session configs

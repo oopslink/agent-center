@@ -359,6 +359,26 @@ func TestGenerateMCPConfig(t *testing.T) {
 	}
 }
 
+func TestGenerateMCPConfig_DisableToolTiering(t *testing.T) {
+	raw, err := GenerateMCPConfig(MCPConfigParams{
+		ServerName:         "agent-center",
+		Command:            "/usr/bin/agent-center",
+		Args:               []string{"worker", "mcp-host"},
+		AgentID:            "agent-42",
+		DisableToolTiering: true,
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	var doc MCPConfig
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("produced invalid JSON: %v\n%s", err, raw)
+	}
+	if got := doc.MCPServers["agent-center"].Env["AC_MCP_TIER_TOOLS"]; got != "false" {
+		t.Fatalf("AC_MCP_TIER_TOOLS = %q, want false", got)
+	}
+}
+
 func TestRequireTools_TieredCatalogIncludesSupervisorCore(t *testing.T) {
 	if err := RequireTools(context.Background(), Config{AgentID: "agent-x", TierTools: true}, "post_message", "list_my_tasks", "search_tools"); err != nil {
 		t.Fatalf("RequireTools tiered supervisor core: %v", err)
