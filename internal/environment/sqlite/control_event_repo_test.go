@@ -54,6 +54,55 @@ func TestControlEventRepo_AppendAndMaxOffset(t *testing.T) {
 	}
 }
 
+func TestControlEventRepo_MaxOffsetUsesAckCursorAfterGCFullyPrunesStream(t *testing.T) {
+	ctx, db := newTestDB(t)
+	repo := NewControlEventRepo(db)
+	wrepo := NewWorkerRepo(db)
+
+	saveWorkerAck(t, ctx, wrepo, "w1", 9821)
+
+	// Simulates the production failure mode: every acked control row has been
+	// retention-GCed, but the worker still reconnects with last_acked_offset=9821.
+	off, err := repo.MaxOffset(ctx, "w1")
+	if err != nil {
+		t.Fatalf("MaxOffset: %v", err)
+	}
+	if off != 9821 {
+		t.Fatalf("MaxOffset must preserve worker ack high-water mark: got %d want 9821", off)
+	}
+
+	next := mustEvent(t, "e9822", "w1", off+1, "k9822", "agent.reconcile")
+	if err := repo.Append(ctx, next); err != nil {
+		t.Fatalf("Append after ack-only max: %v", err)
+	}
+	replay, err := repo.ListAfter(ctx, "w1", 9821)
+	if err != nil {
+		t.Fatalf("ListAfter: %v", err)
+	}
+	if len(replay) != 1 || replay[0].Offset() != 9822 {
+		t.Fatalf("new command must be visible after ack cursor: got %+v", replay)
+	}
+}
+
+func TestControlEventRepo_MaxOffsetUsesLargerRemainingStreamOffset(t *testing.T) {
+	ctx, db := newTestDB(t)
+	repo := NewControlEventRepo(db)
+	wrepo := NewWorkerRepo(db)
+
+	saveWorkerAck(t, ctx, wrepo, "w1", 7)
+	if err := repo.Append(ctx, mustEvent(t, "e8", "w1", 8, "k8", "agent.reconcile")); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	off, err := repo.MaxOffset(ctx, "w1")
+	if err != nil {
+		t.Fatalf("MaxOffset: %v", err)
+	}
+	if off != 8 {
+		t.Fatalf("MaxOffset: got %d want remaining stream max 8", off)
+	}
+}
+
 func TestControlEventRepo_FindByIdempotencyKey_Miss(t *testing.T) {
 	ctx, db := newTestDB(t)
 	repo := NewControlEventRepo(db)

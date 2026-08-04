@@ -46,7 +46,19 @@ func (r *ControlEventRepo) MaxOffset(ctx context.Context, workerID env.WorkerID)
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	var maxOff sql.NullInt64
 	err := exec.QueryRowContext(ctx,
-		`SELECT MAX("offset") FROM worker_control_events WHERE worker_id = ?`, string(workerID)).
+		// The command stream is retention-GCed after a worker has acked rows, so the
+		// table max can fall below the durable ack cursor. The next appended offset must
+		// stay above BOTH sources or a reconnecting worker with last_acked_offset=N will
+		// never see newly-written offset 1..N commands.
+		`SELECT MAX(v) FROM (
+			SELECT COALESCE(MAX("offset"), 0) AS v
+			  FROM worker_control_events
+			 WHERE worker_id = ?
+			UNION ALL
+			SELECT COALESCE(last_acked_offset, 0) AS v
+			  FROM env_workers
+			 WHERE id = ?
+		)`, string(workerID), string(workerID)).
 		Scan(&maxOff)
 	if err != nil {
 		return 0, err
