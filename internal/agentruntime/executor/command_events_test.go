@@ -21,6 +21,8 @@ func toolResultID(id, content string, isError bool) string {
 
 func TestRunExecutor_CommandEventsCaptureClaudeExitStatuses(t *testing.T) {
 	lines := []string{
+		asstToolID("toolu-read", "Read", `{"file_path":"README.md"}`),
+		toolResultID("toolu-read", "contents", false),
 		asstToolID("toolu-ok", "Bash", `{"command":"go test ./..."}`),
 		toolResultID("toolu-ok", "ok\n", false),
 		asstToolID("toolu-red", "Bash", `{"command":"go test -race ./..."}`),
@@ -47,7 +49,7 @@ func TestRunExecutor_CommandEventsCaptureClaudeExitStatuses(t *testing.T) {
 		t.Fatalf("commands unavailable: %s events=%+v", reason, events)
 	}
 	if len(commands) != 2 {
-		t.Fatalf("commands=%+v, want 2", commands)
+		t.Fatalf("commands=%+v, want exactly 2 shell commands (non-shell result ignored)", commands)
 	}
 	if commands[0].Command != "go test ./..." || commands[0].ExitStatus != 0 {
 		t.Fatalf("first command = %+v, want go test exit 0", commands[0])

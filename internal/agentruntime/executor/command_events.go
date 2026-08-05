@@ -130,10 +130,13 @@ func (fx *FileExchange) ReadCommandEvents(executorID string) ([]CommandExecution
 type commandStreamRecorder struct {
 	codex bool
 	emit  func(CommandExecutionEvent)
+	// Claude tool_result blocks identify only their tool_use_id, not the tool name.
+	// Remember shell starts so Read/Edit/etc results cannot poison command evidence.
+	shellToolUseIDs map[string]struct{}
 }
 
 func newCommandStreamRecorder(codex bool, emit func(CommandExecutionEvent)) *commandStreamRecorder {
-	return &commandStreamRecorder{codex: codex, emit: emit}
+	return &commandStreamRecorder{codex: codex, emit: emit, shellToolUseIDs: make(map[string]struct{})}
 }
 
 func (r *commandStreamRecorder) ObserveLine(line string) {
@@ -147,6 +150,17 @@ func (r *commandStreamRecorder) ObserveLine(line string) {
 		events = extractClaudeCommandEvents([]byte(line))
 	}
 	for _, ev := range events {
+		if !r.codex {
+			switch ev.Type {
+			case commandEventStarted:
+				r.shellToolUseIDs[ev.ToolUseID] = struct{}{}
+			case commandEventFinished:
+				if _, ok := r.shellToolUseIDs[ev.ToolUseID]; !ok {
+					continue
+				}
+				delete(r.shellToolUseIDs, ev.ToolUseID)
+			}
+		}
 		r.emit(ev)
 	}
 }
