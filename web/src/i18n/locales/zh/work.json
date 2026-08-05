@@ -191,6 +191,7 @@
         "summary": "阶段 {{done}}/{{total}}",
         "memberProgress": "{{done}}/{{total}} 完成",
         "retryRound": "重试 {{round}}/{{max}}",
+        "auditOpenAria": "打开 {{stage}} 的阶段详情",
         "status": {
           "open": "未开始",
           "running": "进行中",

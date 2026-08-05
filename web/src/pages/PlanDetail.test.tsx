@@ -2028,11 +2028,12 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-status-st-b')).toHaveTextContent('reopen');
     expect(screen.getByTestId('plan-stage-progress-st-b')).toHaveTextContent('0/2');
     expect(screen.getByTestId('plan-stage-rounds-st-b')).toHaveTextContent('1/3');
-    expect(screen.getByTestId('plan-stage-gate-audit-st-b')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-stage-gate-audit-info-st-b')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-stage-gate-audit-info-st-b')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-box-st-b')).toHaveAttribute('role', 'button');
+    expect(screen.getByTestId('plan-stage-box-st-b')).toHaveAccessibleName(/Frontend/);
     expect(screen.getByTestId('plan-stage-box-st-b')).not.toHaveTextContent('Verify responsive UI');
     expect(screen.getByTestId('plan-stage-box-st-b')).not.toHaveTextContent('Mobile overlap remains');
-    fireEvent.click(screen.getByTestId('plan-stage-gate-audit-info-st-b'));
+    fireEvent.click(screen.getByTestId('plan-stage-box-st-b'));
     expect(await screen.findByTestId('plan-stage-gate-audit-dialog-st-b')).toBeInTheDocument();
     expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
     const evaluatorLink = await within(screen.getByTestId('plan-stage-gate-evaluator-st-b')).findByTestId('activity-agent-ref-link');
@@ -2048,10 +2049,10 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
     fireEvent.click(screen.getByTestId('plan-stage-gate-audit-dialog-close-st-b'));
     await waitFor(() => expect(screen.queryByTestId('plan-stage-gate-audit-dialog-st-b')).not.toBeInTheDocument());
-    expect(screen.getByTestId('plan-stage-mobile-gate-audit-st-b')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-stage-mobile-gate-audit-info-st-b')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-stage-mobile-gate-audit-info-st-b')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-mobile-audit-st-b')).toHaveAttribute('role', 'button');
     expect(screen.getByTestId('plan-stage-mobile-audit-st-b')).not.toHaveTextContent('Verify responsive UI');
-    fireEvent.click(screen.getByTestId('plan-stage-mobile-gate-audit-info-st-b'));
+    fireEvent.click(screen.getByTestId('plan-stage-mobile-audit-st-b'));
     expect(await screen.findByTestId('plan-stage-mobile-gate-audit-dialog-st-b')).toBeInTheDocument();
     expect(screen.getByTestId('plan-stage-mobile-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
     expect(screen.getByTestId('plan-stage-mobile-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
@@ -2059,7 +2060,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('0123456789ab');
     expect(screen.getByTestId('plan-stage-mobile-gate-diagnostics-st-b')).toHaveTextContent('missing_browser_evidence');
     fireEvent.click(screen.getByTestId('plan-stage-mobile-gate-audit-dialog-close-st-b'));
-    expect(screen.getByTestId('plan-stage-mobile-gate-audit-info-st-a')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-stage-mobile-gate-audit-info-st-a')).not.toBeInTheDocument();
     expect(screen.getByTestId('plan-stage-ref-st-a')).toHaveTextContent('STAGE · S1');
     expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
   });

@@ -2180,9 +2180,9 @@ export function layoutGraph(
 // Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
 // whose graph predates staging for some nodes) is defensively laid out with
 // the plain algorithm in a trailing row so nothing is silently dropped.
-// Stage header carries compact metadata only; gate/audit details live behind the
-// info button so member cards can start closer to the stage title.
-export const STAGE_HEADER_H = 118;
+// Stage header carries compact metadata only; the whole stage box opens
+// gate/audit details so member cards can start closer to the stage title.
+export const STAGE_HEADER_H = 96;
 const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
 const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
 
@@ -2968,10 +2968,11 @@ function PlanGraphDag({
                 const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
                 const display = stageDisplay.byStageId.get(b.stage.id) ?? { ref: b.stage.id, name: b.stage.name };
                 return (
-                <div
+                <StageBoxSurface
                   key={b.stage.id}
                   className="absolute rounded-xl border border-border-strong bg-bg-surface"
                   style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+                  stage={b.stage}
                   data-testid={`plan-stage-box-${b.stage.id}`}
                 >
                   <div className="border-b border-border-base px-3.5 py-2">
@@ -3011,9 +3012,8 @@ function PlanGraphDag({
                         </span>
                       )}
                     </div>
-                    <StageGateAudit stage={b.stage} />
                   </div>
-                </div>
+                </StageBoxSurface>
                 );
               })}
 
@@ -3108,33 +3108,90 @@ const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
   open: 'bg-bg-subtle text-text-muted',
 };
 
-function StageGateAudit({ stage, surface = 'desktop' }: { stage: PlanStage; surface?: 'desktop' | 'mobile' }) {
-  const { t } = useTranslation();
-  const prefix = surface === 'mobile' ? 'plan-stage-mobile-gate' : 'plan-stage-gate';
+function StageBoxSurface({
+  stage,
+  className,
+  style,
+  children,
+  'data-testid': testId,
+}: {
+  stage: PlanStage;
+  className: string;
+  style: React.CSSProperties;
+  children: React.ReactNode;
+  'data-testid': string;
+}) {
+  const { t } = useTranslation('work');
   const [open, setOpen] = useState(false);
   const title = t('plan.detail.stages.auditTitle', { defaultValue: 'Stage gate details' });
+  const label = t('plan.detail.stages.auditOpenAria', {
+    stage: stage.name || stage.id,
+    defaultValue: 'Open stage gate details for {{stage}}',
+  });
   return (
     <>
-      <div className="mt-2 flex justify-end border-t border-border-base pt-1.5" data-testid={`${prefix}-audit-${stage.id}`}>
-        <button
-          type="button"
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-muted hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-label={title}
-          title={title}
-          data-testid={`${prefix}-audit-info-${stage.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(true);
-          }}
-        >
-          <StageInfoIcon />
-        </button>
+      <div
+        className={`${className} cursor-pointer transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+        style={style}
+        role="button"
+        tabIndex={0}
+        aria-label={label}
+        title={title}
+        data-testid={testId}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          setOpen(true);
+        }}
+      >
+        {children}
       </div>
       <StageAuditDialog
         open={open}
         onClose={() => setOpen(false)}
         stage={stage}
-        prefix={prefix}
+        prefix="plan-stage-gate"
+        title={title}
+      />
+    </>
+  );
+}
+
+function MobileStageAuditCard({ stage }: { stage: PlanStage }) {
+  const { t } = useTranslation('work');
+  const [open, setOpen] = useState(false);
+  const title = t('plan.detail.stages.auditTitle', { defaultValue: 'Stage gate details' });
+  const label = t('plan.detail.stages.auditOpenAria', {
+    stage: stage.name || stage.id,
+    defaultValue: 'Open stage gate details for {{stage}}',
+  });
+  return (
+    <>
+      <section
+        className="cursor-pointer rounded-lg border border-border-strong bg-bg-surface p-3 transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        role="button"
+        tabIndex={0}
+        aria-label={label}
+        title={title}
+        data-testid={`plan-stage-mobile-audit-${stage.id}`}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          setOpen(true);
+        }}
+      >
+        <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
+          <span>{stage.name}</span>
+          <span>{stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}</span>
+        </div>
+      </section>
+      <StageAuditDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        stage={stage}
+        prefix="plan-stage-mobile-gate"
         title={title}
       />
     </>
@@ -3259,16 +3316,6 @@ function StageAuditDetailRow({
   );
 }
 
-function StageInfoIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-      <circle cx="10" cy="10" r="7" />
-      <path strokeLinecap="round" d="M10 9.25v4" />
-      <path strokeLinecap="round" d="M10 6.5h.01" />
-    </svg>
-  );
-}
-
 function MobileStageGateAudits({ stages, error }: { stages: PlanStage[]; error: boolean }) {
   return (
     <div className="mb-3 grid gap-2 md:hidden" data-testid="plan-stage-mobile-audits">
@@ -3282,15 +3329,7 @@ function MobileStageGateAudits({ stages, error }: { stages: PlanStage[]; error: 
           No stage gate audit data.
         </div>
       )}
-      {stages.map((stage) => (
-        <section key={stage.id} className="rounded-lg border border-border-strong bg-bg-surface p-3" data-testid={`plan-stage-mobile-audit-${stage.id}`}>
-          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
-            <span>{stage.name}</span>
-            <span>{stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}</span>
-          </div>
-          <StageGateAudit stage={stage} surface="mobile" />
-        </section>
-      ))}
+      {stages.map((stage) => <MobileStageAuditCard key={stage.id} stage={stage} />)}
     </div>
   );
 }
@@ -3590,10 +3629,11 @@ function LegacyPlanDag({
               const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
               const display = stageDisplay.byStageId.get(box.stage.id) ?? { ref: box.stage.id, name: box.stage.name };
               return (
-                <div
+                <StageBoxSurface
                   key={box.stage.id}
                   className="absolute rounded-xl border border-border-strong bg-bg-surface"
                   style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+                  stage={box.stage}
                   data-testid={`plan-stage-box-${box.stage.id}`}
                 >
                   <div className="border-b border-border-base px-3.5 py-2">
@@ -3629,9 +3669,8 @@ function LegacyPlanDag({
                         </span>
                       )}
                     </div>
-                    <StageGateAudit stage={box.stage} />
                   </div>
-                </div>
+                </StageBoxSurface>
               );
             })}
             {/* Edges (z-0, behind nodes). */}

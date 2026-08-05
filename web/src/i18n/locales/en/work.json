@@ -191,6 +191,7 @@
         "summary": "Stage {{done}}/{{total}}",
         "memberProgress": "{{done}}/{{total}} done",
         "retryRound": "retry {{round}}/{{max}}",
+        "auditOpenAria": "Open stage gate details for {{stage}}",
         "status": {
           "open": "open",
           "running": "running",
