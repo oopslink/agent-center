@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -664,8 +665,9 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 // against the executor's spawn-time base ref (from the recovery Record) so the marker —
 // and the gate — can tell whether HEAD actually advanced past base.
 func (m *Monitor) finalizeGitStatus(ctx context.Context, executorID string) *FinalizedGitStatus {
-	ws, err := m.fx.Layout().WorkspaceDir(executorID)
+	ws, err := m.executorWorkspacePath(executorID)
 	if err != nil {
+		m.log("GIT-STATUS FAILED executor=%s: resolve actual workspace: %v", executorID, err)
 		return nil
 	}
 	gs := probeGitStatus(ctx, m.git, ws, m.recordBaseRef(executorID))
@@ -688,6 +690,24 @@ func (m *Monitor) recordBaseRef(executorID string) string {
 		return ""
 	}
 	return strings.TrimSpace(rec.BaseRef)
+}
+
+// executorWorkspacePath resolves the workspace the executor process actually used.
+// RepoCacheManager worktrees live under the shared runtime cache and deliberately differ
+// from the exchange protocol's executors/<id>/workspace directory, so the durable recovery
+// Record is authoritative after spawn. The layout path is only the compatibility fallback
+// for legacy Pool / plain-workspace records which predate WorkspacePath.
+func (m *Monitor) executorWorkspacePath(executorID string) (string, error) {
+	if m.tracker != nil {
+		rec, err := m.tracker.Read(executorID)
+		switch {
+		case err == nil && strings.TrimSpace(rec.WorkspacePath) != "":
+			return strings.TrimSpace(rec.WorkspacePath), nil
+		case err != nil && !errors.Is(err, os.ErrNotExist):
+			return "", fmt.Errorf("read executor workspace record: %w", err)
+		}
+	}
+	return m.fx.Layout().WorkspaceDir(executorID)
 }
 
 // FinalizeFused terminally settles a FUSED executor (FuseKillTask circuit-break) WITHOUT
@@ -786,17 +806,23 @@ func (m *Monitor) cleanupPreparedWorktree(ctx context.Context, executorID string
 		return
 	}
 	rec, err := m.tracker.Read(executorID)
-	if err != nil || strings.TrimSpace(rec.RepoKey) == "" {
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			m.log("WORKTREE-CLEANUP FAILED executor=%s: read durable workspace record: %v", executorID, err)
+		}
 		return
 	}
-	ws := strings.TrimSpace(rec.WorkspacePath)
-	if ws == "" {
-		ws, err = m.fx.Layout().WorkspaceDir(executorID)
-		if err != nil {
-			return
-		}
+	if strings.TrimSpace(rec.RepoKey) == "" {
+		return
 	}
-	_ = m.cleaner.RemoveWorktree(ctx, rec.RepoKey, rec.SourcePath, ws)
+	ws, err := m.executorWorkspacePath(executorID)
+	if err != nil {
+		m.log("WORKTREE-CLEANUP FAILED executor=%s repo_key=%s: resolve actual workspace: %v", executorID, rec.RepoKey, err)
+		return
+	}
+	if err := m.cleaner.RemoveWorktree(ctx, rec.RepoKey, rec.SourcePath, ws); err != nil {
+		m.log("WORKTREE-CLEANUP FAILED executor=%s repo_key=%s workspace=%s: %v", executorID, rec.RepoKey, ws, err)
+	}
 }
 
 // emitStop reports one terminal completion to the activity Observer (best-effort,

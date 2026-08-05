@@ -89,7 +89,7 @@ func (m *Monitor) materializeEvidence(ctx context.Context, c Completion) Complet
 	artifact.Path = filepath.ToSlash(filepath.Join(".agent-center", "evidence", artifact.TaskID, artifact.ExecutionID+".json"))
 	artifact.Branch = c.Git.Branch
 	artifact.Digest = artifactDigest(artifact)
-	ws, err := m.fx.Layout().WorkspaceDir(c.ExecutorID)
+	ws, err := m.executorWorkspacePath(c.ExecutorID)
 	if err != nil {
 		return m.evidenceNonDelivery(c, err.Error())
 	}

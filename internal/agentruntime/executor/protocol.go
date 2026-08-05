@@ -105,12 +105,13 @@ type SourceRefs struct {
 // code executor. The runtime materializes it before forking the model; the model
 // must never guess a repository URL or base.
 type RepoRef struct {
-	RefID    string `json:"ref_id,omitempty"`
-	RepoID   string `json:"repo_id,omitempty"`
-	URL      string `json:"url"`
-	Provider string `json:"provider,omitempty"`
-	BaseRef  string `json:"base_ref"`
-	BaseSHA  string `json:"base_sha"`
+	RefID         string `json:"ref_id,omitempty"`
+	RepoID        string `json:"repo_id,omitempty"`
+	URL           string `json:"url"`
+	Provider      string `json:"provider,omitempty"`
+	DefaultBranch string `json:"default_branch,omitempty"`
+	BaseRef       string `json:"base_ref"`
+	BaseSHA       string `json:"base_sha"`
 }
 
 // Input is input.json — written by the orchestrator, read by the executor

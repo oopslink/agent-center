@@ -869,3 +869,23 @@ func TestReport_EmptyMode_Unchanged(t *testing.T) {
 	}
 	oneInjection(t, fc)
 }
+
+func TestValidCodeDelivery_RejectsProtectedBranch(t *testing.T) {
+	base := &executor.RepoRef{BaseRef: "release/v2", DefaultBranch: "develop", BaseSHA: "base"}
+	for _, branch := range []string{"main", "refs/heads/main", "master", "release/v2", "origin/develop"} {
+		git := &executor.FinalizedGitStatus{
+			Probed: true, Pushed: true, Branch: branch, HeadSHA: "advanced",
+			BaseKnown: true, AheadOfBase: 1,
+		}
+		if validCodeDelivery(git, base) {
+			t.Errorf("protected branch %q must not satisfy code delivery", branch)
+		}
+	}
+	git := &executor.FinalizedGitStatus{
+		Probed: true, Pushed: true, Branch: "hotfix/fix", HeadSHA: "advanced",
+		BaseKnown: true, AheadOfBase: 1,
+	}
+	if !validCodeDelivery(git, base) {
+		t.Fatal("an independently pushed non-base branch should remain valid delivery")
+	}
+}

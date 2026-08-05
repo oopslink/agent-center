@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +13,10 @@ import (
 type fakeProbe struct{ present bool }
 
 func (f fakeProbe) Exists(string) bool { return f.present }
+
+type exactPathProbe struct{ presentPath string }
+
+func (p exactPathProbe) Exists(path string) bool { return path == p.presentPath }
 
 func newPlanner(t *testing.T, present bool) *RecoveryPlanner {
 	t.Helper()
@@ -72,6 +77,49 @@ func TestRecoveryPlanner_Tier2_Rerun_NoSession(t *testing.T) {
 	}
 	if len(plan.RunnerCmd) != 3 || plan.RunnerCmd[0] != "claude" {
 		t.Errorf("tier 2 must rerun the persisted argv verbatim: %q", plan.RunnerCmd)
+	}
+}
+
+func TestRecoveryPlanner_UsesRecordedRuntimeWorkspace(t *testing.T) {
+	root := t.TempDir()
+	layout, err := executor.NewLayout(filepath.Join(root, "agent-home"))
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	actual := filepath.Join(root, "runtime", "worktrees", "e1")
+	p, err := NewRecoveryPlanner(layout, exactPathProbe{presentPath: actual})
+	if err != nil {
+		t.Fatalf("NewRecoveryPlanner: %v", err)
+	}
+	rec := &executor.Record{
+		ExecutorID: "e1", WorkspacePath: actual,
+		RunnerCmd: []string{"codex", "exec", "prompt"},
+	}
+
+	plan := p.Plan("e1", rec)
+	if plan.Action != RecoverRerun || plan.Workspace != actual {
+		t.Fatalf("recorded runtime worktree must be recovered in place: %+v", plan)
+	}
+}
+
+func TestRecoveryPlanner_LegacyRecordFallsBackToLayoutWorkspace(t *testing.T) {
+	root := t.TempDir()
+	layout, err := executor.NewLayout(root)
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	legacy, err := layout.WorkspaceDir("e1")
+	if err != nil {
+		t.Fatalf("WorkspaceDir: %v", err)
+	}
+	p, err := NewRecoveryPlanner(layout, exactPathProbe{presentPath: legacy})
+	if err != nil {
+		t.Fatalf("NewRecoveryPlanner: %v", err)
+	}
+
+	plan := p.Plan("e1", &executor.Record{ExecutorID: "e1", RunnerCmd: []string{"codex", "exec", "prompt"}})
+	if plan.Action != RecoverRerun || plan.Workspace != legacy {
+		t.Fatalf("legacy record must retain layout fallback: %+v", plan)
 	}
 }
 

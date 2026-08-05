@@ -250,6 +250,34 @@ repo metadata 的非敏感摘要用于上下文说明，但不包含 source path
 - 永远不因 executor cleanup 删除 `repos/<repo_key>/source`；
 - reset workspace 只清 `tasks/` 与 `executors/`；清 `repos/` 应是单独的 repo-cache reset。
 
+### 10.1 终态交付寻址与远端证明
+
+executor 启动后，`orchestrator.json.workspace_path` 是该次执行真实 git worktree 的单一事实来源。
+它可以与 exchange 协议目录下的 `executors/<executor_id>/workspace` 不同；后者只在旧版 plain
+workspace / pool 内置 worktree 路径中作为兼容回退。终态 git probe、evidence artifact 写入、
+supervisor eager-push 与 repo worktree cleanup 必须通过同一个 workspace resolver 读取这一字段，
+不得各自从目录布局重新推导。RecoveryPlanner 同样必须优先使用该字段判断 tier-1/tier-2
+原地恢复；否则 runtime 重启会把仍存在的 RepoCache worktree 误判成 RecoverFresh。
+
+“已推送”必须是可独立核验的 `(origin ref, HEAD SHA)` 绑定：
+
+- 对普通 clone，可使用 remote-tracking ref 作为本地快速提示，但仍以 origin 精确校验为准；
+- 对 `git clone --mirror` 共享缓存，远端 heads 落在 `refs/heads/*`，本地 `git branch -r`
+  为空，不能据此判定未推送；
+- runtime 在交付门禁前必须用实际 branch 对 `origin` 做精确 SHA 校验。远端同名 ref 指向其它
+  SHA 不算交付；网络或鉴权失败也不能伪造 `pushed=true`；该网络查询必须有独立超时；
+- 精确 origin ref 只是交付证据，不是分支权限。`main`、`master`、任务 `base_ref` 与仓库
+  `default_branch` 即使精确指向 HEAD 也不得算作 executor delivery；writeback 需要做同样的
+  defense-in-depth 校验；
+- 所有终态都要执行远端证明：成功终态可在守卫内代推，failed/crashed 终态不得产生新 push，
+  但必须发现并报告 executor 已存在的 partial delivery，同时清除 stale remote-tracking hint；
+- executor 若已将实际分支推送到精确 HEAD，runtime 只采信并报告该 ref，不需要、也不得把它
+  改推到预期分支；只有 runtime 自己执行 push 时，仍严格限制为该 executor 唯一的
+  `ac-exec/<task>/<executor>` 分支；
+- RepoCache source 是 `git clone --mirror`，持有 `remote.origin.mirror=true`。runtime 代推必须在
+  单次命令上覆盖为非 mirror push，并使用显式的
+  `refs/heads/<branch>:refs/heads/<branch>` 非 force refspec；绝不能执行 mirror push。
+
 ## 11. Rollout
 
 1. 加 feature flag，例如 `AC_EXECUTOR_GIT_WORKTREE=1`，默认关闭。
@@ -270,6 +298,9 @@ repo metadata 的非敏感摘要用于上下文说明，但不包含 source path
   duplicate executor id 不泄漏 worktree。
 - `get_task` 投影：project primary CodeRepo 解析 repo hint；无 primary 时旧行为兼容。
 - recovery/cleanup：终态后 remove worktree；writeback 失败不删 durable 状态；repo source 不被误删。
+- delivery finalize：用与 exchange workspace 不同的真实 `workspace_path` 覆盖 git probe、
+  evidence artifact 和 eager-push；覆盖 mirror refspec 下 `branch -r` 为空但实际 origin ref 与
+  HEAD 精确匹配的路径，以及远端同名 ref 指向错误 SHA 的失败路径。
 
 ## 13. 待定问题
 

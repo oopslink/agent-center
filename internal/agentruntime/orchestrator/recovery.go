@@ -126,7 +126,18 @@ func (p *RecoveryPlanner) Plan(executorID string, rec *executor.Record) Recovery
 		plan.SourcePath = rec.SourcePath
 	}
 
-	ws, err := p.layout.WorkspaceDir(executorID)
+	// The durable Record names the workspace the process actually used. RepoCacheManager
+	// deliberately places worktrees outside executors/<id>/workspace, so reconstructing the
+	// layout path here would turn a surviving worktree into a false RecoverFresh. Empty is
+	// the compatibility shape for legacy/plain-workspace records.
+	ws := ""
+	if rec != nil {
+		ws = strings.TrimSpace(rec.WorkspacePath)
+	}
+	var err error
+	if ws == "" {
+		ws, err = p.layout.WorkspaceDir(executorID)
+	}
 	wsPresent := err == nil && p.probe.Exists(ws)
 
 	// Tier 3: no durable record, or the workspace/worktree is gone → start over.

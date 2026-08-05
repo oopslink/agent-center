@@ -1142,11 +1142,12 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 	var repo *executor.RepoRef
 	if task.Repo != nil {
 		repo = &executor.RepoRef{
-			RefID:    task.Repo.RefID,
-			RepoID:   task.Repo.RepoID,
-			URL:      task.Repo.URL,
-			Provider: task.Repo.Provider,
-			BaseRef:  task.BaseRef,
+			RefID:         task.Repo.RefID,
+			RepoID:        task.Repo.RepoID,
+			URL:           task.Repo.URL,
+			Provider:      task.Repo.Provider,
+			DefaultBranch: task.Repo.DefaultBranch,
+			BaseRef:       task.BaseRef,
 		}
 		if prepared != nil {
 			repo.BaseSHA = prepared.BaseRef

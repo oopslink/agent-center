@@ -8,6 +8,8 @@ package executor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -185,5 +187,49 @@ func TestMonitor_FinalizeCallsCleanerForWorktreeRecord(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, executorsDirName, plainID)); !os.IsNotExist(err) {
 		t.Fatalf("plainID executor dir should be removed by reap, stat err = %v", err)
+	}
+}
+
+func TestMonitor_WorktreeCleanupFailuresAreObservable(t *testing.T) {
+	root := t.TempDir()
+	layout, _ := NewLayout(root)
+	fx, _ := NewFileExchange(layout, clock.NewFakeClock(time.Unix(1700000000, 0)))
+	tracker, _ := NewTracker(layout)
+	cleaner := &recordingCleaner{err: errors.New("registry locked")}
+	var logs []string
+	mon, err := NewMonitor(MonitorConfig{
+		Exchange: fx, Tracker: tracker, WorktreeCleaner: cleaner,
+		Clock: clock.NewFakeClock(time.Unix(1700000000, 0)),
+		Log:   func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) },
+	})
+	if err != nil {
+		t.Fatalf("NewMonitor: %v", err)
+	}
+
+	corruptID := "exec-cleanup-corrupt"
+	if _, err := fx.Provision(corruptID); err != nil {
+		t.Fatal(err)
+	}
+	recordPath, _ := tracker.path(corruptID)
+	if err := os.WriteFile(recordPath, []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mon.cleanupPreparedWorktree(context.Background(), corruptID)
+
+	failedID := "exec-cleanup-failed"
+	if _, err := fx.Provision(failedID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tracker.Write(Record{
+		ExecutorID: failedID, PID: 42, SpawnedAt: time.Unix(1700000000, 0),
+		RepoKey: "rk", SourcePath: "/source", WorkspacePath: filepath.Join(root, "runtime", failedID),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mon.cleanupPreparedWorktree(context.Background(), failedID)
+
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "read durable workspace record") || !strings.Contains(joined, "registry locked") {
+		t.Fatalf("cleanup record and cleaner failures must both be logged, logs=%v", logs)
 	}
 }

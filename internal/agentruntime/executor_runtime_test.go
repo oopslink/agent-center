@@ -223,6 +223,15 @@ func TestBuildWorkItem(t *testing.T) {
 			t.Errorf("Context override = %q, want trimmed context", got.Context)
 		}
 	})
+	t.Run("repo keeps default branch protection context", func(t *testing.T) {
+		got := buildWorkItem("task-9", &centerTaskDetail{
+			Title: "Fix", BaseRef: "release/v2",
+			Repo: &centerTaskRepo{URL: "git@example/repo.git", DefaultBranch: "develop"},
+		}, "", nil, "", "")
+		if got.Repo == nil || got.Repo.BaseRef != "release/v2" || got.Repo.DefaultBranch != "develop" {
+			t.Fatalf("repo delivery policy context was dropped: %+v", got.Repo)
+		}
+	})
 }
 
 // TestBuildExecutorEngine_WiresWriteback covers the W2 branch that builds the center

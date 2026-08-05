@@ -48,10 +48,11 @@ func TestMonitor_Finalize_CapturesCleanPushedGitStatus(t *testing.T) {
 	id := "e-clean"
 	mustProvision(t, f.fx, id)
 	f.mon.git = scriptedGitRunner{out: map[string]string{
-		"rev-parse HEAD":              "abc1234def\n",
-		"rev-parse --abbrev-ref HEAD": "feat/work\n",
-		"status --porcelain":          "", // clean
-		"branch -r --contains HEAD":   "  origin/feat/work\n",
+		"rev-parse HEAD":                                "abc1234def\n",
+		"rev-parse --abbrev-ref HEAD":                   "feat/work\n",
+		"status --porcelain":                            "", // clean
+		"branch -r --contains HEAD":                     "  origin/feat/work\n",
+		"ls-remote --heads origin refs/heads/feat/work": "abc1234def\trefs/heads/feat/work\n",
 	}}
 	if err := f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded}); err != nil {
 		t.Fatalf("Finalize: %v", err)
@@ -74,7 +75,7 @@ func TestMonitor_Finalize_CapturesCleanPushedGitStatus(t *testing.T) {
 		t.Error("Dirty must be false for a clean worktree")
 	}
 	if !g.Pushed {
-		t.Error("Pushed must be true when HEAD is on a remote-tracking branch")
+		t.Error("Pushed must be true when the exact HEAD is independently verified on origin")
 	}
 }
 

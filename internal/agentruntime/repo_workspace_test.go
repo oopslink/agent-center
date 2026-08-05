@@ -11,9 +11,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +23,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
 	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 // requireGit skips the test when the git binary is unavailable.
@@ -54,6 +57,29 @@ func makeGitRemote(t *testing.T) string {
 	run("add", "-A")
 	run("commit", "-q", "-m", "init")
 	return dir
+}
+
+func repoRunGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e.x",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e.x",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git -C %s %v: %v: %s", dir, args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+type deliveryCaptureWriteback struct{ reports []executor.Completion }
+
+func (w *deliveryCaptureWriteback) Report(_ context.Context, c executor.Completion) error {
+	w.reports = append(w.reports, c)
+	return nil
 }
 
 // callSeq is a shared ordered event log so a test can assert cross-collaborator order
@@ -946,6 +972,122 @@ func TestRecover_Repo_CleansWorktreeSourceSurvives(t *testing.T) {
 	}
 	if _, err := os.Stat(sourceDir); err != nil {
 		t.Fatalf("canonical source must survive recovery cleanup: %v", err)
+	}
+}
+
+// TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize is the
+// exec-a9ae5c15 topology lock. It crosses the production component seam that the prior
+// local fixtures missed: a real RepoCacheManager ignores the exchange workspace request
+// and prepares runtime/worktrees/<id>; Pool persists that actual path; Monitor probes and
+// pushes from the persisted path; origin is then independently bound to the reported SHA.
+func TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize(t *testing.T) {
+	requireGit(t)
+	ctx := context.Background()
+	remote := makeGitRemote(t)
+	cache, err := reporepo.NewRepoCacheManager(t.TempDir(), executor.NewExecGitRunner(), clock.NewFakeClock(time.Unix(1700000000, 0)))
+	if err != nil {
+		t.Fatalf("NewRepoCacheManager: %v", err)
+	}
+	source, err := cache.EnsureSource(ctx, reporepo.RepoTarget{
+		URL: remote, Provider: "git", DefaultBranch: "main", BaseRef: "main",
+	})
+	if err != nil {
+		t.Fatalf("EnsureSource: %v", err)
+	}
+
+	agentHome := t.TempDir()
+	layout, err := executor.NewLayout(agentHome)
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	fx, err := executor.NewFileExchange(layout, clock.NewFakeClock(time.Unix(1700000000, 0)))
+	if err != nil {
+		t.Fatalf("NewFileExchange: %v", err)
+	}
+	tracker, err := executor.NewTracker(layout)
+	if err != nil {
+		t.Fatalf("NewTracker: %v", err)
+	}
+	execID, taskID := "exec-repocache-delivery", "task-repocache-delivery"
+	exchangeWorkspace, _ := layout.WorkspaceDir(execID)
+	branch := "ac-exec/" + taskID + "/" + execID
+	wt, err := cache.PrepareWorktree(ctx, source, reporepo.WorktreeRequest{
+		ExecutorID: execID, TaskID: taskID, BranchName: branch,
+		WorkspacePath: exchangeWorkspace, BaseRef: source.BaseRef,
+	})
+	if err != nil {
+		t.Fatalf("PrepareWorktree: %v", err)
+	}
+	if filepath.Clean(wt.WorkspacePath) == filepath.Clean(exchangeWorkspace) {
+		t.Fatalf("test setup must reproduce split topology, both paths are %s", wt.WorkspacePath)
+	}
+
+	pool, err := executor.NewPool(executor.PoolConfig{
+		Exchange: fx, AgentRoot: agentHome, BinaryPath: lookTrue(t), Tracker: tracker, Max: 1,
+		Clock: clock.NewFakeClock(time.Unix(1700000000, 0)),
+	})
+	if err != nil {
+		t.Fatalf("NewPool: %v", err)
+	}
+	in := executor.Input{
+		ExecutorID: execID, Goal: executor.Goal{Title: "deliver"}, Model: "m",
+		Source: executor.SourceRefs{TaskRef: taskID}, CreatedAt: time.Unix(1700000000, 0),
+		DispatchMode: executor.DispatchModeExecutorFork,
+		Repo: &executor.RepoRef{
+			URL: remote, Provider: "git", DefaultBranch: "main", BaseRef: "main", BaseSHA: wt.BaseRef,
+		},
+	}
+	h, err := pool.Launch(ctx, executor.LaunchSpec{
+		Input: in, RunnerCmd: []string{"unused"},
+		Prepared: &executor.PreparedWorkspace{
+			Path: wt.WorkspacePath, RepoKey: wt.RepoKey, SourcePath: wt.SourcePath,
+			Branch: wt.Branch, BaseRef: wt.BaseRef,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Pool.Launch: %v", err)
+	}
+	if err := h.Wait(); err != nil {
+		t.Fatalf("stand-in executor process: %v", err)
+	}
+	rec, err := tracker.Read(execID)
+	if err != nil {
+		t.Fatalf("Tracker.Read: %v", err)
+	}
+	if rec.WorkspacePath != wt.WorkspacePath {
+		t.Fatalf("Pool record workspace=%q want actual RepoCache path %q", rec.WorkspacePath, wt.WorkspacePath)
+	}
+
+	if err := os.WriteFile(filepath.Join(wt.WorkspacePath, "delivery.txt"), []byte("delivered\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repoRunGit(t, wt.WorkspacePath, "add", "-A")
+	repoRunGit(t, wt.WorkspacePath, "commit", "-q", "-m", "real RepoCache delivery")
+	wantSHA := repoRunGit(t, wt.WorkspacePath, "rev-parse", "HEAD")
+
+	wb := &deliveryCaptureWriteback{}
+	var deliveryLogs []string
+	mon, err := executor.NewMonitor(executor.MonitorConfig{
+		Exchange: fx, Pool: pool, Tracker: tracker, Writeback: wb,
+		GitRunner: executor.NewExecGitRunner(), Clock: clock.NewFakeClock(time.Unix(1700000000, 0)),
+		Log: func(format string, args ...any) {
+			deliveryLogs = append(deliveryLogs, fmt.Sprintf(format, args...))
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewMonitor: %v", err)
+	}
+	if err := mon.Finalize(ctx, executor.Completion{ExecutorID: execID, Kind: executor.OutcomeSucceeded}); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if len(wb.reports) != 1 || wb.reports[0].Kind != executor.OutcomeSucceeded ||
+		wb.reports[0].Git == nil || !wb.reports[0].Git.Pushed ||
+		wb.reports[0].Git.Branch != branch || wb.reports[0].Git.HeadSHA != wantSHA {
+		t.Fatalf("final delivery did not flow from actual RepoCache workspace: report=%+v git=%+v error=%+v logs=%v",
+			wb.reports, wb.reports[0].Git, wb.reports[0].Error, deliveryLogs)
+	}
+	if got := repoRunGit(t, remote, "rev-parse", "refs/heads/"+branch); got != wantSHA {
+		t.Fatalf("origin ref=%s want pushed HEAD %s", got, wantSHA)
 	}
 }
 

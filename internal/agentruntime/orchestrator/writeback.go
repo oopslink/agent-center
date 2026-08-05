@@ -288,6 +288,12 @@ func validCodeDelivery(git *executor.FinalizedGitStatus, repo *executor.RepoRef)
 		strings.TrimSpace(git.Branch) == "" || strings.TrimSpace(git.HeadSHA) == "" {
 		return false
 	}
+	branch := normalizedDeliveryBranch(git.Branch)
+	if branch == "main" || branch == "master" ||
+		(repo != nil && (branch == normalizedDeliveryBranch(repo.BaseRef) ||
+			branch == normalizedDeliveryBranch(repo.DefaultBranch))) {
+		return false
+	}
 	if git.BaseKnown {
 		return git.AheadOfBase > 0
 	}
@@ -298,6 +304,19 @@ func validCodeDelivery(git *executor.FinalizedGitStatus, repo *executor.RepoRef)
 	return repo != nil &&
 		strings.TrimSpace(repo.BaseSHA) != "" &&
 		strings.TrimSpace(git.HeadSHA) != strings.TrimSpace(repo.BaseSHA)
+}
+
+// normalizedDeliveryBranch keeps the writeback as a defense-in-depth consumer of the
+// same policy enforced by executor finalization. A malformed or legacy producer must not
+// be able to complete a code task by labelling a protected base ref as pushed delivery.
+func normalizedDeliveryBranch(ref string) string {
+	ref = strings.TrimSpace(ref)
+	for _, prefix := range []string{"refs/remotes/origin/", "remotes/origin/", "refs/heads/", "origin/"} {
+		if strings.HasPrefix(ref, prefix) {
+			return strings.TrimPrefix(ref, prefix)
+		}
+	}
+	return ref
 }
 
 // recoverInputBaseEvidence closes the T1169 reconnect gap. input.json is durable and

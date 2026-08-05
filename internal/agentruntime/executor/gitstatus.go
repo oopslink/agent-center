@@ -33,9 +33,9 @@ type FinalizedGitStatus struct {
 	// Dirty is true when the worktree has uncommitted changes (staged or unstaged) — the
 	// executor left work it never committed.
 	Dirty bool `json:"dirty"`
-	// Pushed is true when HEAD is already present on a remote-tracking branch — the work
-	// is durably delivered off this machine. false ⇒ HEAD lives only in this (about-to-be
-	// -reaped) worktree, so reaping it without an eager-push would lose the commits.
+	// Pushed is a local remote-tracking hint when set by probeGitStatus. Before the delivery
+	// gate accepts it, eagerSupervisorPush replaces that hint with an independently verified
+	// actual origin ref + exact HEAD SHA (and also covers mirror-backed worktrees).
 	Pushed bool `json:"pushed"`
 	// Probed is true iff the git status was successfully read. false ⇒ the workspace was
 	// not a git repo (plain-dir executor) or git errored, so the other fields are unknown

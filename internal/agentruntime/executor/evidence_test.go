@@ -22,6 +22,10 @@ func evidenceGitOut(t *testing.T, gitBin, dir string, args ...string) string {
 }
 
 func setupEvidenceOnly(t *testing.T, f *finalizeGateFixture, id, task string, failed bool) (string, string) {
+	return setupEvidenceOnlyAt(t, f, id, task, failed, false)
+}
+
+func setupEvidenceOnlyAt(t *testing.T, f *finalizeGateFixture, id, task string, failed, recordedWorkspace bool) (string, string) {
 	t.Helper()
 	bare := t.TempDir()
 	runGitIn(t, f.git, bare, "init", "-q", "--bare")
@@ -30,11 +34,14 @@ func setupEvidenceOnly(t *testing.T, f *finalizeGateFixture, id, task string, fa
 		t.Fatal(err)
 	}
 	ws, _ := f.fx.Layout().WorkspaceDir(id)
+	if recordedWorkspace {
+		ws = filepath.Join(t.TempDir(), "runtime-worktrees", id)
+	}
 	branch := "ac-exec/" + task + "/" + id
 	if err := f.prov.AddNewBranch(context.Background(), ws, branch, "main"); err != nil {
 		t.Fatal(err)
 	}
-	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: "main", RunnerCmd: []string{"codex", "exec", "--json", "run executor"}}))
+	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: "main", RunnerCmd: []string{"codex", "exec", "--json", "run executor"}, WorkspacePath: ws}))
 	in := inputWithTaskRef(id, task)
 	in.DeliveryContract = DeliveryContractEvidenceOnly
 	mustWriteInput(t, f.fx, in)
@@ -51,6 +58,107 @@ func setupEvidenceOnly(t *testing.T, f *finalizeGateFixture, id, task string, fa
 		must(t, f.fx.WriteStatus(*doneStatus(id)))
 	}
 	return ws, bare
+}
+
+func TestEvidenceOnly_UsesRecordedWorkspacePath(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id, task := "exec-evidence-recorded", "task-evidence-recorded"
+	ws, bare := setupEvidenceOnlyAt(t, f, id, task, false, true)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-recorded", "go test ./...", 0)
+	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
+
+	got := f.wb.reports[0]
+	if got.Kind != OutcomeSucceeded || got.Evidence == nil || got.Git == nil || !got.Git.Pushed {
+		t.Fatalf("recorded-workspace evidence delivery=%+v", got)
+	}
+	if _, err := os.Stat(filepath.Join(ws, filepath.FromSlash(got.Evidence.Path))); err != nil {
+		t.Fatalf("evidence artifact not written to recorded workspace: %v", err)
+	}
+	layoutWS, _ := f.fx.Layout().WorkspaceDir(id)
+	if _, err := os.Stat(filepath.Join(layoutWS, filepath.FromSlash(got.Evidence.Path))); !os.IsNotExist(err) {
+		t.Fatalf("evidence must not be written to exchange workspace, stat err=%v", err)
+	}
+	if !gitRefExists(f.git, bare, "refs/heads/ac-exec/"+task+"/"+id) {
+		t.Fatal("recorded-workspace evidence branch not pushed")
+	}
+}
+
+func TestEvidenceOnly_MissingGitAndFailedPersistenceAreExplicit(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id, task := "exec-evidence-no-git", "task-evidence-no-git"
+	if _, err := f.fx.Provision(id); err != nil {
+		t.Fatal(err)
+	}
+	in := inputWithTaskRef(id, task)
+	in.DeliveryContract = DeliveryContractEvidenceOnly
+	mustWriteInput(t, f.fx, in)
+	got := f.mon.materializeEvidence(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded})
+	if got.Kind != OutcomeCrashed || got.Error == nil || got.Error.Kind != "non_delivery" || got.Evidence == nil || got.Evidence.Error == "" {
+		t.Fatalf("missing git evidence result=%+v", got)
+	}
+
+	failed := f.mon.evidenceNonDelivery(Completion{Kind: OutcomeFailed, Evidence: &EvidenceArtifact{}}, "disk full")
+	if failed.Kind != OutcomeFailed || failed.Error == nil || failed.Error.Kind != "evidence_persistence" || failed.Evidence.Error != "disk full" {
+		t.Fatalf("failed verdict without prior error=%+v", failed)
+	}
+	failed = f.mon.evidenceNonDelivery(Completion{Kind: OutcomeFailed, Error: &ErrorDetail{Kind: "test_failed", Message: "red"}}, "push failed")
+	if failed.Error == nil || !strings.Contains(failed.Error.Message, "red — evidence persistence: push failed") {
+		t.Fatalf("failed verdict must retain both errors: %+v", failed)
+	}
+
+	commands, available, reason, path, digest := f.mon.evidenceCommands("exec-without-events")
+	if len(commands) != 0 || available || reason == "" || path == "" || digest == "" {
+		t.Fatalf("missing command evidence must be explicit: commands=%v available=%v reason=%q path=%q digest=%q", commands, available, reason, path, digest)
+	}
+	if commands, available, reason := evidenceCommandsFromEvents(nil); len(commands) != 0 || available || reason == "" {
+		t.Fatalf("empty event stream must be unavailable: commands=%v available=%v reason=%q", commands, available, reason)
+	}
+}
+
+func TestEvidenceCommands_IncompleteCapturesFailClosed(t *testing.T) {
+	zero := 0
+	cases := []struct {
+		name   string
+		events []CommandExecutionEvent
+		want   string
+	}{
+		{
+			name: "finished without command",
+			events: []CommandExecutionEvent{{
+				Type: commandEventFinished, ToolUseID: "cmd-missing", ExitStatus: &zero, ExitStatusAvailable: true,
+			}},
+			want: "missing command",
+		},
+		{
+			name: "finished without exit status",
+			events: []CommandExecutionEvent{{
+				Type: commandEventStarted, ToolUseID: "cmd-no-exit", Command: "go test ./...", Source: commandEventSourceCodex,
+			}, {
+				Type: commandEventFinished, ToolUseID: "cmd-no-exit",
+			}},
+			want: "missing exit_status",
+		},
+		{
+			name: "started without completion",
+			events: []CommandExecutionEvent{{
+				Type: commandEventStarted, ToolUseID: "cmd-open",
+			}},
+			want: "missing completion",
+		},
+		{
+			name:   "no command events",
+			events: []CommandExecutionEvent{{Type: "ignored"}},
+			want:   "no completed command executions",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			commands, available, reason := evidenceCommandsFromEvents(tc.events)
+			if available || len(commands) != 0 || !strings.Contains(reason, tc.want) {
+				t.Fatalf("commands=%v available=%v reason=%q, want %q", commands, available, reason, tc.want)
+			}
+		})
+	}
 }
 
 func writeEvidenceCommandEvent(t *testing.T, fx *FileExchange, id, toolUseID, command string, exitStatus int) {

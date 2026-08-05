@@ -241,16 +241,17 @@ func TestMonitor_Finalize_NonDeliveryGate(t *testing.T) {
 func TestMonitor_Finalize_PushedDeliveryStaysSucceeded(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id := "exec-delivered"
+	bare := t.TempDir()
+	runGitIn(t, f.git, bare, "init", "-q", "--bare")
+	runGitIn(t, f.git, f.repo, "remote", "add", "origin", bare)
 	ws := f.setupExecutorWorktree(t, id)
-	// The executor committed real work AND pushed it: HEAD lands on a remote-tracking branch.
+	// The executor committed real work AND pushed it to an independently queryable origin.
 	if err := os.WriteFile(filepath.Join(ws, "delivered.txt"), []byte("real\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	runGitIn(t, f.git, ws, "add", "-A")
 	runGitIn(t, f.git, ws, "commit", "-q", "-m", "delivered")
-	// Simulate a push: put HEAD on a remote-tracking ref so `branch -r --contains HEAD`
-	// reports it (Pushed=true) without needing a real remote.
-	runGitIn(t, f.git, ws, "update-ref", "refs/remotes/origin/executor/"+id, "HEAD")
+	runGitIn(t, f.git, ws, "push", "-q", "origin", "executor/"+id)
 
 	must(t, f.mon.Finalize(context.Background(), Completion{
 		ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id),
