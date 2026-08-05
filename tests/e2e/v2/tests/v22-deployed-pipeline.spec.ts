@@ -50,17 +50,23 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
+import {
+  collectDeployedBinaryVersionChecks,
+  stageCurrentInstallLayout,
+} from "../helpers/deployed-version.js";
 import { pickFreePort } from "../helpers/ports.js";
 
 const execFile = promisify(execFileCb);
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(__filename, "../../../../..");
-const SERVER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-// v2.7 (b): the worker runs as the unified `agent-center worker run` (the
-// standalone agent-center-worker-daemon is retired).
-const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
+const SOURCE_AGENT_CENTER_BIN = resolve(REPO_ROOT, "bin/agent-center");
+const SOURCE_FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
+
+const workerModes = [
+  { name: "control stream on", suffix: "cs-on", args: [] as string[] },
+  { name: "control stream off", suffix: "cs-off", args: ["--disable-control-stream"] },
+];
 
 // adminPOST issues an HTTP POST over the admin unix socket with a bearer token.
 function adminPOST(
@@ -185,11 +191,24 @@ async function killProc(proc: ChildProcess, graceMs = 2_000): Promise<void> {
 }
 
 test.describe("deployed-binary smoke — control-plane task-dispatch pipeline", () => {
-  test("server + worker enroll + agent-tools dispatch → claim (open → running)", async ({}, testInfo) => {
+  for (const mode of workerModes) {
+    test(`server + worker enroll + agent-tools dispatch -> claim (${mode.name})`, async ({}, testInfo) => {
     test.setTimeout(45_000);
 
     // --- temp scaffolding -------------------------------------------------
     const tempDir = await mkdtemp(join(tmpdir(), "ac-v22d-"));
+    const staged = await stageCurrentInstallLayout(
+      tempDir,
+      SOURCE_AGENT_CENTER_BIN,
+      SOURCE_FAKEAGENT_BIN,
+    );
+    const SERVER_BIN = staged.currentBin;
+    // v2.7 (b): the worker runs as the unified `agent-center worker run` (the
+    // standalone agent-center-worker-daemon is retired).
+    const WORKER_BIN = staged.currentBin;
+    const FAKEAGENT_BIN = staged.currentFakeAgent ?? SOURCE_FAKEAGENT_BIN;
+    const smokeStartedAt = new Date();
+
     const dbPath = join(tempDir, "agent-center.db");
     const sockPath = join(tempDir, "admin.sock");
     const masterKeyPath = join(tempDir, "master.key");
@@ -224,6 +243,11 @@ secret_management:
     const workerStdout: Buffer[] = [];
     const workerStderr: Buffer[] = [];
     let worker: ChildProcess | null = null;
+    const runWorkerID = `smoke-run-w-${mode.suffix}`;
+    const ctlWorkerID = `smoke-ctl-w-${mode.suffix}`;
+    const orgID = `organization-smoke-${mode.suffix}`;
+    const agentID = `smoke-agent-${mode.suffix}`;
+    const projectID = `p-smoke-${mode.suffix}`;
 
     // --- PHASE 1: server boots on the current config schema ----------------
     const server = spawn(SERVER_BIN, ["server", "--config", configPath], {
@@ -271,15 +295,16 @@ secret_management:
           "--config",
           configPath,
           "--worker-id",
-          "smoke-run-w",
+          runWorkerID,
           "--worker-name",
-          "smoke run worker",
+          `smoke run worker ${mode.suffix}`,
           "--admin-target",
           "unix:" + sockPath,
           "--admin-token",
           adminToken,
           "--fake-agent",
           FAKEAGENT_BIN,
+          ...mode.args,
         ],
         {
           stdio: ["ignore", "pipe", "pipe"],
@@ -294,9 +319,9 @@ secret_management:
       const enrollDeadline = Date.now() + 12_000;
       while (Date.now() < enrollDeadline) {
         const r = await adminGET(sockPath, "/admin/workforce/worker/find-all", adminToken);
-        if (r.status === 200 && r.body.includes("smoke-run-w")) {
+        if (r.status === 200 && r.body.includes(runWorkerID)) {
           const list = JSON.parse(r.body) as Array<{ worker_id: string; status: string }>;
-          const w = list.find((x) => x.worker_id === "smoke-run-w");
+          const w = list.find((x) => x.worker_id === runWorkerID);
           if (w && w.status === "online") {
             workerOnline = true;
             break;
@@ -310,6 +335,14 @@ secret_management:
           Buffer.concat(workerStderr).toString("utf8").slice(-1200) +
           ")",
       ).toBe(true);
+
+      await collectDeployedBinaryVersionChecks({
+        expected: staged.expected,
+        currentPrefix: staged.prefix,
+        startedAfter: smokeStartedAt,
+        center: { pid: server.pid ?? 0, webURL: `http://127.0.0.1:${webPort}` },
+        workers: [{ pid: worker.pid ?? 0, workerID: runWorkerID, socketPath: sockPath, adminToken }],
+      });
 
       // The worker's control loop needs an org-install to CONNECT (409
       // worker_not_org_enrolled otherwise); that is out of this smoke's scope —
@@ -331,7 +364,7 @@ secret_management:
       const enroll = await adminPOST(
         sockPath,
         "/admin/workforce/worker/enroll",
-        { worker_id: "smoke-ctl-w", name: "smoke ctl worker", capabilities: ["fakeagent"] },
+        { worker_id: ctlWorkerID, name: `smoke ctl worker ${mode.suffix}`, capabilities: ["fakeagent"] },
         adminToken,
       );
       expect(enroll.status, "worker enroll: " + enroll.body).toBe(200);
@@ -342,12 +375,9 @@ secret_management:
       // + the project's first-class AssignmentPool (ADR-0055). This fixture uses
       // raw SQL after migrations, so it must mirror CreateProject's pool row.
       const now = new Date().toISOString();
-      const orgID = "organization-smoke01";
-      const agentID = "smoke-agent-0001"; // raw Agent BC id (identity = agent:<id>)
-      const projectID = "p-smoke";
       const seedSQL = [
         `INSERT INTO organizations (id,slug,name,description,created_by_identity_id,created_at,updated_at) VALUES ('${orgID}','smoke-org','Smoke Org','','user:hayang','${now}','${now}');`,
-        `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${agentID}','${orgID}','smoke-agent','','','fakeagent','smoke-ctl-w','running','user:hayang','${now}','${now}');`,
+        `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${agentID}','${orgID}','smoke-agent','','','fakeagent','${ctlWorkerID}','running','user:hayang','${now}','${now}');`,
         `INSERT INTO pm_projects (id,organization_id,name,description,status,created_by,created_at,updated_at,version) VALUES ('${projectID}','${orgID}','Smoke Project','smoke','active','user:hayang','${now}','${now}',1);`,
         `INSERT INTO pm_project_members (id,project_id,identity_id,role,added_by,created_at) VALUES ('m-smoke','${projectID}','agent:${agentID}','member','system','${now}');`,
         `INSERT INTO pm_assignment_pools (id,project_id,scheduling_class,auto_assign_enabled,holding_cap,created_at,updated_at,version) VALUES ('pool-${projectID}','${projectID}','background',1,3,'${now}','${now}',1);`,
@@ -425,4 +455,5 @@ secret_management:
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+  }
 });

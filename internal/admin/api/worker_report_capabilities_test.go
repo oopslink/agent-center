@@ -164,3 +164,61 @@ func TestWorkerReportCapabilities_PersistsSystemInfo(t *testing.T) {
 		t.Fatalf("persisted system_info = %+v, want %+v", got, want)
 	}
 }
+
+func TestWorkerFindAll_SurfacesSystemInfo(t *testing.T) {
+	f := newReportCapsFixture(t)
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID:         "W-1",
+		EnrolledAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.ApplySystemInfo(time.Now(), workforce.SystemInfo{
+		Hostname: "dev001.local", OS: "linux", Arch: "amd64",
+		AgentCenterVersion: "v2.10.2", InstallPath: "/usr/local/bin/agent-center",
+		WorkerVersion: "v2.10.2+abc1234",
+	})
+	if err := f.deps.WorkerRepo.Save(context.Background(), w); err != nil {
+		t.Fatal(err)
+	}
+	tok, err := admintoken.New(admintoken.NewAdminTokenInput{
+		ID:        "T-admin",
+		Owner:     "cli:test",
+		Scopes:    []admintoken.Scope{"*"},
+		ValueHash: admintoken.HashPlaintext("acat_admin"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.verifier.tokens["acat_admin"] = tok
+
+	srv := NewServerWithDeps("", ServerDeps{})
+	h := AuthMiddleware(f.verifier)(WithDeps(f.deps)(srv.Handler()))
+	httpsrv := httptest.NewServer(h)
+	defer httpsrv.Close()
+	req, _ := http.NewRequest(http.MethodGet, httpsrv.URL+"/admin/workforce/worker/find-all", nil)
+	req.Header.Set("Authorization", "Bearer acat_admin")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("find-all status = %d", resp.StatusCode)
+	}
+	var rows []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	info, ok := rows[0]["system_info"].(map[string]any)
+	if !ok {
+		t.Fatalf("system_info missing from worker find-all row: %+v", rows[0])
+	}
+	if info["worker_version"] != "v2.10.2+abc1234" || info["agent_center_version"] != "v2.10.2" {
+		t.Fatalf("system_info version fields mismatch: %+v", info)
+	}
+}
