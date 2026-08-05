@@ -46,7 +46,8 @@ type WorkItem struct {
 	//
 	// A supervisor_inline value reaching HERE means the dispatch gate was bypassed
 	// (bootstrap / race / a legacy producer), which is exactly the case N4 catches.
-	DispatchMode string
+	DispatchMode     string
+	DeliveryContract string
 	// ExecutorID, when non-empty, is a pre-minted executor id the caller already used
 	// to materialize a worktree BEFORE HandleWork (P3): HandleWork uses it verbatim so
 	// the launched executor's workspace path matches the prepared worktree. Empty ⇒
@@ -266,8 +267,9 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		Repo: item.Repo,
 		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
 		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
-		DispatchMode: item.DispatchMode,
-		CreatedAt:    e.clk.Now(),
+		DispatchMode:     item.DispatchMode,
+		DeliveryContract: item.DeliveryContract,
+		CreatedAt:        e.clk.Now(),
 	}
 
 	// 4. F1 fork (≤ max; ErrAtCapacity bubbles up unwrapped for the caller to queue).

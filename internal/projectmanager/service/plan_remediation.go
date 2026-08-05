@@ -342,7 +342,7 @@ func (s *Service) appendRemediationStage(
 	for _, spec := range proposal.Payload.Tasks {
 		taskID, err := s.CreateTask(ctx, CreateTaskCommand{
 			ProjectID: plan.ProjectID(), Title: spec.Title, Description: spec.Description,
-			CreatedBy: actor, Assignee: spec.AssigneeRef, DispatchMode: spec.DispatchMode,
+			CreatedBy: actor, Assignee: spec.AssigneeRef, DispatchMode: spec.DispatchMode, DeliveryContract: spec.DeliveryContract,
 			FollowsTaskID: spec.FollowsTaskID, OriginVerdictID: verdict.ID,
 		})
 		if err != nil {

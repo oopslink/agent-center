@@ -182,12 +182,13 @@ func (c *PlanContinuation) Close(verdictID GateVerdictID, at time.Time) error {
 }
 
 type RemediationTaskSpec struct {
-	Ref           string       `json:"ref"`
-	Title         string       `json:"title"`
-	Description   string       `json:"description,omitempty"`
-	AssigneeRef   IdentityRef  `json:"assignee_ref"`
-	DispatchMode  DispatchMode `json:"dispatch_mode,omitempty"`
-	FollowsTaskID TaskID       `json:"follows_task_id,omitempty"`
+	Ref              string           `json:"ref"`
+	Title            string           `json:"title"`
+	Description      string           `json:"description,omitempty"`
+	AssigneeRef      IdentityRef      `json:"assignee_ref"`
+	DispatchMode     DispatchMode     `json:"dispatch_mode,omitempty"`
+	DeliveryContract DeliveryContract `json:"delivery_contract,omitempty"`
+	FollowsTaskID    TaskID           `json:"follows_task_id,omitempty"`
 }
 
 type RemediationEdgeSpec struct {
@@ -255,6 +256,17 @@ func CompileRemediationProposal(payload RemediationProposalPayload, baseContract
 		}
 		if !t.DispatchMode.IsValid() {
 			diagnostics = append(diagnostics, "invalid_dispatch_mode:"+t.Ref)
+		}
+		// Evidence-supplement remediation nodes default to evidence_only; ordinary repair
+		// nodes remain the legacy code_change contract.
+		if t.DeliveryContract == "" {
+			text := strings.ToLower(t.Title + "\n" + t.Description)
+			if strings.Contains(text, "evidence") || strings.Contains(text, "verification") || strings.Contains(text, "验收证据") || strings.Contains(text, "补证据") {
+				t.DeliveryContract = DeliveryEvidenceOnly
+			}
+		}
+		if !t.DeliveryContract.IsValid() {
+			diagnostics = append(diagnostics, "invalid_delivery_contract:"+t.Ref)
 		}
 	}
 	adj, indegree := map[string][]string{}, map[string]int{}

@@ -527,6 +527,9 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// `finalized` marker further down — one probe, reused everywhere (was probed twice
 	// before: once in the gate, once at the marker, and never carried to the center).
 	c.Git = m.finalizeGitStatus(ctx, c.ExecutorID)
+	// evidence_only is a distinct durable-delivery contract: runtime authors and commits
+	// structured proof before any model-reported success reaches judgment.
+	c = m.materializeEvidence(ctx, c)
 	// issue-f30b7e7b PRIMARY fix — eager supervisor-push BEFORE the non-delivery gate: a
 	// forked review-only Dev executor commits its work onto its own ac-exec/<task>/<exec>
 	// branch but never pushes it (it is isolated: no center, no credentials). The agent-
@@ -580,7 +583,7 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// mechanically judge "did this executor really deliver, and was it pushed" WITHOUT the
 	// worktree still present — root-causing T947 (teardown-before-audit lost unpushed work).
 	// Reuse the single probe taken before the writeback (c.Git) rather than re-probing.
-	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), c.Git); err != nil {
+	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), c.Git, c.Evidence); err != nil {
 		// Can't stamp the retain marker → fall back to immediate teardown. Never leak:
 		// a lost retain window is far better than an un-reaped dir/worktree.
 		return m.tearDownExecutor(ctx, c.ExecutorID)
@@ -606,6 +609,12 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	if c.Kind != OutcomeSucceeded {
 		return c
 	}
+	if in, err := m.fx.ReadInput(c.ExecutorID); err == nil && EffectiveDeliveryContract(in.DeliveryContract) == DeliveryContractEvidenceOnly {
+		if c.Evidence != nil && c.Evidence.Pushed {
+			return c
+		}
+		return m.evidenceNonDelivery(c, "artifact missing or not pushed")
+	}
 	// Reuse the single probe taken in Finalize (c.Git) rather than re-probing.
 	gs := c.Git
 	if gs == nil || !gs.Probed {
@@ -616,8 +625,8 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	// commit past base (HasDelivery = ahead||dirty||pushed), which let the review-only bug
 	// slip through: that executor COMMITS (ahead>0) but never PUSHES, so the commit dies with
 	// the reaped worktree — "committed ≠ delivered". Requiring Pushed closes that blind spot.
-	if gs.Pushed {
-		return c // pushed HEAD → work is durably delivered off-machine → genuine success
+	if gs.Pushed && !gs.Dirty && (!gs.BaseKnown || gs.AheadOfBase > 0) {
+		return c // pushed, clean, and (when resolvable) HEAD-advanced → genuine code delivery
 	}
 	// Probed && !Pushed: committed-but-not-pushed, dirty, or nothing produced — no DURABLE
 	// delivery. Any work lives only in this worktree and is lost on reap. Refuse to let the
@@ -627,15 +636,13 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	// An un-fetched remote also reads as not-pushed; that is the delivery-audit SAFE side (the
 	// supervisor judgment still verifies), preferred over trusting a maybe-unpushed run.
 	m.log("NON-DELIVERY executor=%s task=%s: reported SUCCESS but produced NO DURABLE delivery "+
-		"(branch=%s head=%s ahead=%d dirty=%t pushed=false) — HEAD not pushed, work would die with "+
+		"(branch=%s head=%s ahead=%d dirty=%t pushed=%t) — code_change requires pushed + clean + HEAD advancement; "+
 		"the reaped worktree; refusing to complete, downgrading to non_delivery (issue-f30b7e7b N3, "+
 		"extends issue-37015227 ②)",
-		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty)
+		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty, gs.Pushed)
 	c.Kind = OutcomeCrashed
 	c.Retryable = true
-	msg := "executor reported success but produced no durable delivery: HEAD was never " +
-		"pushed (committed-but-unpushed work dies with the reaped worktree) — treated as " +
-		"non-delivery"
+	msg := "executor reported success but did not satisfy code_change delivery: requires pushed + clean + HEAD advancement — treated as non-delivery"
 	// If the eager supervisor-push (issue-f30b7e7b) attempted and failed, surface WHY the
 	// branch could not be delivered (guardrail refusal / auth / non-ff / network) so the
 	// supervisor judgment + audit can act on the real cause and escalate.

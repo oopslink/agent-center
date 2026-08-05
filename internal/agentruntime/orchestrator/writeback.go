@@ -272,7 +272,7 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 		// option b (issue-68ccb310): do NOT auto-complete. Deliver the result to the
 		// Supervisor as a judgment turn; the Supervisor reviews REAL delivery and calls
 		// complete_task/block_task itself.
-		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary, c.Git); err != nil {
+		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary, c.Git, c.Evidence); err != nil {
 			return err
 		}
 		return w.writeMemory(ctx, in, c)
@@ -333,7 +333,7 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 		if c.Kind == executor.OutcomeCrashed {
 			outcome = "crashed"
 		}
-		if err := w.deliverJudgment(ctx, taskRef, outcome, reason, c.Git); err != nil {
+		if err := w.deliverJudgment(ctx, taskRef, outcome, reason, c.Git, c.Evidence); err != nil {
 			return err
 		}
 		return w.writeMemory(ctx, in, c)
@@ -348,11 +348,11 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 // issue-68ccb310): the Supervisor reviews the executor's REAL delivery and calls
 // complete_task/block_task itself. Errors if no injector is wired (no Supervisor to
 // judge) — the task is NEVER silently auto-completed on exit outcome.
-func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string, git *executor.FinalizedGitStatus) error {
+func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string, git *executor.FinalizedGitStatus, evidence ...*executor.EvidenceArtifact) error {
 	if w.inject == nil {
 		return fmt.Errorf("orchestrator: writeback no supervisor injector for task %s (cannot judge — refusing to auto-complete)", taskRef)
 	}
-	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary, git)); err != nil {
+	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary, git, evidence...)); err != nil {
 		return fmt.Errorf("orchestrator: writeback inject judgment for task %s: %w", taskRef, err)
 	}
 	return nil
@@ -361,7 +361,7 @@ func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome,
 // judgmentPrompt renders the Supervisor-facing judgment turn for a finished executor
 // (option b). It instructs the Supervisor to judge REAL delivery — not exit status —
 // before completing or blocking, which is what roots out "complete without delivering".
-func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGitStatus) string {
+func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGitStatus, evidence ...*executor.EvidenceArtifact) string {
 	s := strings.TrimSpace(summary)
 	if len(s) > maxRelayChars {
 		s = s[:maxRelayChars]
@@ -382,13 +382,18 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 				"actual evidence. complete_task is forbidden for this result: process exit zero "+
 				"without a valid pushed delivery cannot complete the task.", taskRef)
 	}
-	return fmt.Sprintf(
+	prompt := fmt.Sprintf(
 		"[executor finished] Your Agent's executor for task %s exited: outcome=%s.\n"+
 			"Identity contract: you are this Agent's Supervisor control plane, and the executor is this same Agent's isolated execution unit. "+
 			"Do not describe it as an external executor, outside agent, or someone else's delivery; final delivery remains YOUR judged responsibility.\n"+
 			"Its self-reported summary/reason:\n%s\n%s\n%s",
 		taskRef, outcome, s, deliveryLine(git), resolution,
 	)
+	if len(evidence) > 0 && evidence[0] != nil {
+		e := evidence[0]
+		prompt += fmt.Sprintf("\nDurable evidence artifact: path=%s digest=%s reviewed_sha=%s base_sha=%s verdict=%s exit_status=%d pushed=%t error=%q.", e.Path, e.Digest, e.ReviewedSHA, e.BaseSHA, e.Verdict, e.ExitStatus, e.Pushed, e.Error)
+	}
+	return prompt
 }
 
 // deliveryLine renders the structured git delivery evidence (issue-f30b7e7b P0-A) so the

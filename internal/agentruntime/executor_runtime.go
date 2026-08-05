@@ -1104,7 +1104,8 @@ type centerTaskDetail struct {
 	// "" = executor_fork = today's routing. An older center never sends it (same zero
 	// value); a newer center sending an unknown value also falls through to the fork
 	// (DispatchMode.RoutesInline is a strict equality test).
-	DispatchMode string `json:"dispatch_mode"`
+	DispatchMode     string `json:"dispatch_mode"`
+	DeliveryContract string `json:"delivery_contract"`
 }
 
 // centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a
@@ -1168,7 +1169,8 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 		// is normally "" / executor_fork (the gate in SpawnExecutor already diverted a
 		// supervisor_inline node); a supervisor_inline value arriving here means the gate
 		// was bypassed, which is precisely what the N4 writeback net exists to catch.
-		DispatchMode: strings.TrimSpace(task.DispatchMode),
+		DispatchMode:     strings.TrimSpace(task.DispatchMode),
+		DeliveryContract: strings.TrimSpace(task.DeliveryContract),
 	}
 }
 

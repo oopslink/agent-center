@@ -292,7 +292,8 @@ type createTaskArgs struct {
 	Assignee string `json:"assignee,omitempty" jsonschema:"optional identity ref to assign on create (e.g. agent:X or user:Y); emits the work item + wakes an agent assignee"`
 	Dispatch bool   `json:"dispatch,omitempty" jsonschema:"when true, also dispatch the task into the project's assignment pool so it is immediately claimable (unassigned) / runnable (assigned) — no separate add_task_to_plan needed"`
 	// I105 Phase 1: per-node fork override. Omit for ordinary code tasks.
-	DispatchMode string `json:"dispatch_mode,omitempty" jsonschema:"optional routing override; omit (default) for a normal code task — it forks this Agent's executor with a git worktree. Set to supervisor_inline ONLY for a task whose deliverable is a CENTER ACTION with no code to write (deploy / synthesis / verdict / roll-up): it is then handled by this Agent's Supervisor control plane instead of forking an executor into an empty workspace. Allowed: executor_fork | supervisor_inline"`
+	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"optional routing override; omit (default) for a normal code task — it forks this Agent's executor with a git worktree. Set to supervisor_inline ONLY for a task whose deliverable is a CENTER ACTION with no code to write (deploy / synthesis / verdict / roll-up): it is then handled by this Agent's Supervisor control plane instead of forking an executor into an empty workspace. Allowed: executor_fork | supervisor_inline"`
+	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"durable delivery required from a forked executor; omit or code_change requires pushed HEAD advancement. Set evidence_only for verification/remediation proposals whose deliverable is acceptance evidence: it permits zero source diff only after runtime-created structured evidence is durably pushed"`
 }
 
 func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
@@ -306,6 +307,7 @@ func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
 			"assignee":           args.Assignee,
 			"dispatch":           args.Dispatch,
 			"dispatch_mode":      args.DispatchMode,
+			"delivery_contract":  args.DeliveryContract,
 		}
 		return callAdmin(ctx, cfg, "create_task", body)
 	}

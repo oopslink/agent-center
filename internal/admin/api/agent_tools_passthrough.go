@@ -56,7 +56,8 @@ type createTaskReq struct {
 	// DispatchMode is the optional per-node fork override (I105 Phase 1):
 	// "executor_fork" (default) | "supervisor_inline". "" = unset → executor_fork.
 	// An unknown value is rejected by the pm service (ErrInvalidDispatchMode → 4xx).
-	DispatchMode string `json:"dispatch_mode"`
+	DispatchMode     string `json:"dispatch_mode"`
+	DeliveryContract string `json:"delivery_contract"`
 }
 
 // createTaskHandler creates a Task via pm.CreateTask with actor=agent. The pm
@@ -104,6 +105,7 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Dispatch:         req.Dispatch,
 		Model:            strings.TrimSpace(req.Model),
 		DispatchMode:     pm.DispatchMode(strings.TrimSpace(req.DispatchMode)),
+		DeliveryContract: pm.DeliveryContract(strings.TrimSpace(req.DeliveryContract)),
 	})
 	if err != nil {
 		// T199/WS3 dispatch/assign error paths — clear codes (acceptance: "错误路径
@@ -282,6 +284,9 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		mode = pm.DispatchExecutorFork
 	}
 	m["dispatch_mode"] = string(mode)
+	// Always project the effective contract: workers must freeze the create-time choice,
+	// while legacy empty rows retain code_change behavior.
+	m["delivery_contract"] = string(t.DeliveryContract().Effective())
 	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable

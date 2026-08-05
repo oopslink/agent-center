@@ -199,6 +199,31 @@ func (d DispatchMode) IsValid() bool {
 // send) answers false and therefore forks, exactly as today.
 func (d DispatchMode) RoutesInline() bool { return d == DispatchSupervisorInline }
 
+// DeliveryContract selects the durable artifact required before an executor result may
+// reach supervisor judgment. Empty is the wire/storage-compatible spelling of code_change.
+type DeliveryContract string
+
+const (
+	DeliveryCodeChange   DeliveryContract = "code_change"
+	DeliveryEvidenceOnly DeliveryContract = "evidence_only"
+)
+
+func (d DeliveryContract) IsValid() bool {
+	switch d {
+	case "", DeliveryCodeChange, DeliveryEvidenceOnly:
+		return true
+	default:
+		return false
+	}
+}
+
+func (d DeliveryContract) Effective() DeliveryContract {
+	if d == "" {
+		return DeliveryCodeChange
+	}
+	return d
+}
+
 // TaskAction names a lifecycle event recorded on a Task's append-only action log
 // (issue I14 §2.4). The TaskActionLog replaces the deleted AgentWorkItem
 // transition history — reassignment, block/unblock, lease expiry, etc. all become
@@ -340,7 +365,8 @@ type Task struct {
 	model string
 	// dispatchMode is the optional per-node fork override (I105 Phase 1). "" =
 	// unset → executor_fork (today's behavior). Set at create time by the caller.
-	dispatchMode DispatchMode
+	dispatchMode     DispatchMode
+	deliveryContract DeliveryContract
 	// requiredCapabilities is the canonical (trimmed, lowercased, deduped) set of
 	// capability labels this task demands of an executor agent (v2.18.3 BE-1,
 	// issue-577a7b0e). nil/empty = unrestricted. The BE-2 auto-assign reconciler
@@ -381,7 +407,8 @@ type NewTaskInput struct {
 	Model string
 	// DispatchMode is the optional per-node fork override (I105); "" = unset →
 	// executor_fork.
-	DispatchMode DispatchMode
+	DispatchMode     DispatchMode
+	DeliveryContract DeliveryContract
 	// RequiredCapabilities is the optional capability set a task demands (v2.18.3
 	// BE-1); canonicalized at construction. nil/empty = unrestricted.
 	RequiredCapabilities []string
@@ -429,6 +456,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		statusChangedAt:      at,
 		model:                in.Model,
 		dispatchMode:         in.DispatchMode,
+		deliveryContract:     in.DeliveryContract,
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:               in.NodeID,
 		stageID:              in.StageID,
@@ -470,7 +498,8 @@ type RehydrateTaskInput struct {
 	Model string
 	// DispatchMode is the persisted per-node fork override (I105). An unknown
 	// persisted value is coerced to "" (fork) on rehydrate — see RehydrateTask.
-	DispatchMode DispatchMode
+	DispatchMode     DispatchMode
+	DeliveryContract DeliveryContract
 	// RequiredCapabilities is the persisted capability set (v2.18.3 BE-1);
 	// re-canonicalized on rehydrate (defensive against hand-edited rows).
 	RequiredCapabilities []string
@@ -533,6 +562,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		actionLogs:              in.ActionLogs,
 		model:                   in.Model,
 		dispatchMode:            coerceDispatchMode(in.DispatchMode),
+		deliveryContract:        in.DeliveryContract,
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:                  in.NodeID,
 		stageID:                 in.StageID,
@@ -614,6 +644,10 @@ func (t *Task) Model() string { return t.model }
 // DispatchMode exposes the per-node fork override (I105 Phase 1). "" = unset →
 // executor_fork (the default).
 func (t *Task) DispatchMode() DispatchMode { return t.dispatchMode }
+
+// DeliveryContract returns the persisted spelling; Effective() maps legacy empty rows to
+// code_change. Unknown persisted values are intentionally preserved so dispatch fails closed.
+func (t *Task) DeliveryContract() DeliveryContract { return t.deliveryContract }
 
 // coerceDispatchMode maps any unrecognized persisted value to "" (= fork). Read
 // paths must be total: a row hand-edited, written by a newer center, or corrupted

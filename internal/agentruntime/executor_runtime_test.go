@@ -189,10 +189,12 @@ func TestBuildWorkItem(t *testing.T) {
 	t.Run("full detail", func(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
+			DeliveryContract: "evidence_only",
 		}, "", nil, "", "")
 		want := orchestrator.WorkItem{
 			TaskID: "task-9", TaskRef: "task-9", TaskModel: "claude-haiku",
-			Goal: executor.Goal{Title: "Fix the bug", Description: "do the fix"},
+			Goal:             executor.Goal{Title: "Fix the bug", Description: "do the fix"},
+			DeliveryContract: "evidence_only",
 		}
 		if got != want {
 			t.Errorf("buildWorkItem = %+v, want %+v", got, want)

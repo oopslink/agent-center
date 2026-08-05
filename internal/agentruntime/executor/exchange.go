@@ -359,6 +359,7 @@ type FinalizedRef struct {
 type finalizedMarker struct {
 	FinalizedAt string              `json:"finalized_at"`
 	Git         *FinalizedGitStatus `json:"git,omitempty"`
+	Evidence    *EvidenceArtifact   `json:"evidence,omitempty"`
 }
 
 // FinalizedPath is <dir>/finalized.
@@ -371,12 +372,16 @@ func (l *Layout) FinalizedPath(executorID string) (string, error) {
 // HEAD sha / dirty / pushed, so a later audit can judge delivery without the worktree).
 // A nil git records a timestamp-only marker (non-git workspace / probe unavailable).
 // Written atomically so a concurrent reaper never reads a torn marker.
-func (fx *FileExchange) MarkFinalized(executorID string, at time.Time, git *FinalizedGitStatus) error {
+func (fx *FileExchange) MarkFinalized(executorID string, at time.Time, git *FinalizedGitStatus, evidence ...*EvidenceArtifact) error {
 	path, err := fx.layout.FinalizedPath(executorID)
 	if err != nil {
 		return err
 	}
-	return writeJSONAtomic(path, finalizedMarker{FinalizedAt: at.UTC().Format(time.RFC3339Nano), Git: git})
+	var ev *EvidenceArtifact
+	if len(evidence) > 0 {
+		ev = evidence[0]
+	}
+	return writeJSONAtomic(path, finalizedMarker{FinalizedAt: at.UTC().Format(time.RFC3339Nano), Git: git, Evidence: ev})
 }
 
 // ListFinalized returns every retained-terminal executor (those carrying a

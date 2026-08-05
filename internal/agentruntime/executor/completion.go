@@ -67,7 +67,8 @@ type Completion struct {
 	// (non-git / unresolvable workspace). The Monitor stamps it; Classify leaves it
 	// nil (pure classification stays orthogonal to the git side-effect probe). It is
 	// the SAME value persisted in the local `finalized` marker — one probe, reused.
-	Git *FinalizedGitStatus
+	Git      *FinalizedGitStatus
+	Evidence *EvidenceArtifact
 }
 
 // CompletionFacts are the raw observations the classifier reasons over. The

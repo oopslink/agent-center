@@ -132,6 +132,21 @@ type Input struct {
 	// should NOT have forked at all. Empty = unstamped / legacy (writeback keeps its prior
 	// behavior). See DispatchMode* consts.
 	DispatchMode string `json:"dispatch_mode,omitempty"`
+	// DeliveryContract is frozen from task creation through materialization. Empty is
+	// legacy code_change; unknown values fail closed in Validate.
+	DeliveryContract string `json:"delivery_contract,omitempty"`
+}
+
+const (
+	DeliveryContractCodeChange   = "code_change"
+	DeliveryContractEvidenceOnly = "evidence_only"
+)
+
+func EffectiveDeliveryContract(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return DeliveryContractCodeChange
+	}
+	return strings.TrimSpace(v)
 }
 
 // DispatchMode values for Input.DispatchMode (issue-f30b7e7b). The center sets one at
@@ -176,6 +191,11 @@ func (in Input) Validate() error {
 		if strings.TrimSpace(in.Repo.BaseSHA) == "" {
 			return errors.New("executor: code input.repo_ref.base_sha required")
 		}
+	}
+	switch EffectiveDeliveryContract(in.DeliveryContract) {
+	case DeliveryContractCodeChange, DeliveryContractEvidenceOnly:
+	default:
+		return fmt.Errorf("executor: unknown delivery_contract %q", in.DeliveryContract)
 	}
 	return nil
 }

@@ -168,3 +168,28 @@ func TestCreateTask_DispatchModeOmitted_DefaultsToFork(t *testing.T) {
 		t.Fatal("an unmarked task must never route inline")
 	}
 }
+
+func TestCreateTaskDeliveryContractRoundTripAndUnknownFailsClosed(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "project_id": string(pid), "title": "verify evidence",
+		"delivery_contract": "evidence_only",
+	})
+	if status != http.StatusOK {
+		t.Fatalf("create status=%d body=%v", status, body)
+	}
+	tid := body["task_id"].(string)
+	status, got := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1", map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK || got["delivery_contract"] != "evidence_only" {
+		t.Fatalf("get status=%d body=%v", status, got)
+	}
+	status, bad := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "project_id": string(pid), "title": "bad", "delivery_contract": "future",
+	})
+	if status != http.StatusBadRequest || bad["error"] != "invalid_input" {
+		t.Fatalf("unknown status=%d body=%v", status, bad)
+	}
+}
