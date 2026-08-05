@@ -2064,6 +2064,87 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
   });
 
+  it('DAG evolution shows revision reasons, filters historical stages, and collapses', async () => {
+    mockPlan({
+      gate_verdicts: [
+        {
+          id: 'verdict-reject-1',
+          project_id: 'proj-a',
+          plan_id: 'PL-1',
+          stage_id: 'st-a',
+          gate_task_id: 'gate-task-a',
+          outcome: 'reject',
+          evidence: 'Reviewer rejected mobile acceptance, so add a focused UI remediation stage.',
+          reviewed_sha: 'abcdef1234567890',
+          actor_ref: 'agent:reviewer',
+          idempotency_key: 'idem-1',
+          created_at: '2026-06-02T01:00:00Z',
+        },
+      ],
+      continuations: [
+        {
+          id: 'cont-1',
+          project_id: 'proj-a',
+          plan_id: 'PL-1',
+          root_stage_id: 'st-a',
+          current_stage_id: 'st-b',
+          trigger_verdict_id: 'verdict-reject-1',
+          status: 'executing',
+          generation: 1,
+          remaining_budget: 2,
+          boundary_fingerprint: 'fp-1',
+          created_at: '2026-06-02T01:00:00Z',
+          updated_at: '2026-06-02T01:00:00Z',
+          version: 1,
+        },
+      ],
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () =>
+        HttpResponse.json({
+          stages: [
+            {
+              id: 'st-a', name: 'Backend', status: 'done', rounds: 0, max_rounds: 3,
+              depends_on_stages: [], gate_node_id: 'gate-a', gate_task_id: 'gate-task-a',
+              members: [
+                { task_id: 'n1', title: 'design schema', task_status: 'completed' },
+                { task_id: 'n2', title: 'backend api', task_status: 'completed' },
+              ],
+            },
+            {
+              id: 'st-b', name: 'UI remediation', status: 'running', rounds: 0, max_rounds: 3,
+              depends_on_stages: ['st-a'], gate_node_id: 'gate-b', gate_task_id: 'gate-task-b',
+              origin_verdict_id: 'verdict-reject-1', continuation_id: 'cont-1', generation: 1,
+              members: [
+                { task_id: 'n3', title: 'frontend list', task_status: 'running' },
+                { task_id: 'n4', title: 'migration', task_status: 'open' },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-dag'));
+
+    const panel = await screen.findByTestId('plan-dag-evolution');
+    expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
+    expect(within(panel).getByTestId('plan-dag-evolution-reason-2')).toHaveTextContent('Reviewer rejected mobile acceptance');
+    expect(screen.getByTestId('plan-stage-revision-st-b')).toHaveTextContent('R2');
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
+    await waitFor(() => expect(screen.queryByTestId('plan-stage-box-st-b')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('plan-stage-mobile-audit-st-b')).not.toBeInTheDocument();
+    expect(within(panel).getByTestId('plan-dag-evolution-current')).not.toBeDisabled();
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-toggle'));
+    expect(panel).toHaveAttribute('data-collapsed', 'true');
+    expect(within(panel).queryByTestId('plan-dag-evolution-revisions')).not.toBeInTheDocument();
+    expect(within(panel).getByTestId('plan-dag-evolution-summary')).toHaveTextContent('Initial DAG');
+  });
+
   it('mobile stage audit exposes a visible API error state', async () => {
     mockPlan();
     server.use(

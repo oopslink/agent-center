@@ -223,7 +223,29 @@
         "makeDependOn": "让 {{from}} 依赖于 {{to}}",
         "noteDerived": "节点状态是推导得出的（= f(任务状态, 所有上游已完成, 派发记录)），仅作展示，不可编辑。",
         "notePending": "此计划处于待执行状态，因此其依赖可直接在图上编辑——使用节点的“+ 依赖”按钮添加一条边，或使用某条边的“×”移除它。",
-        "noteDisplayOnly": "仅展示图：运行中的计划会随着上游任务完成自动推进。依赖只能在计划待执行时编辑。"
+        "noteDisplayOnly": "仅展示图：运行中的计划会随着上游任务完成自动推进。依赖只能在计划待执行时编辑。",
+        "evolution": {
+          "title": "DAG evolution",
+          "collapse": "折叠 DAG evolution",
+          "expand": "展开 DAG evolution",
+          "current": "当前",
+          "play": "播放演进",
+          "pause": "暂停",
+          "progress": "{{current}} / {{latest}}",
+          "reasonLabel": "原因",
+          "initialTitle": "初始 DAG",
+          "initialReason": "计划启动时投影出的初始分阶段 DAG。",
+          "addedOne": "新增 {{stage}}",
+          "addedMany": "新增 {{count}} 个阶段：{{stages}}",
+          "reasonFromVerdict": "由 verdict {{verdict}} 触发新增。",
+          "reasonFromContinuation": "由 continuation {{continuation}} 触发新增。",
+          "reasonUnknown": "未记录本次迭代原因。",
+          "stageTaskCount": "{{stages}} 个阶段 · {{tasks}} 个任务",
+          "verdict": "verdict {{id}}",
+          "verdictWithOutcome": "{{outcome}} {{id}}",
+          "continuation": "continuation {{id}}",
+          "stageRevisionTitle": "{{revision}} 由后续 DAG evolution revision 新增"
+        }
       },
       "actions": {
         "menu": "操作",

@@ -30,6 +30,7 @@ import {
   type PatchPlanInput,
   type PlanStage,
   type PlanContinuation,
+  type GateVerdict,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -2491,6 +2492,315 @@ function ControlNodeMarker({ node, gateStageRef }: { node: PlanGraphNode; gateSt
   );
 }
 
+interface DagEvolutionRevision {
+  generation: number;
+  revision: number;
+  label: string;
+  title: string;
+  reason: string;
+  stageCount: number;
+  taskCount: number;
+  verdictId?: string;
+  verdictOutcome?: GateVerdict['outcome'];
+  continuationId?: string;
+  createdAt?: string;
+}
+
+function stageGeneration(stage: PlanStage): number {
+  const raw = stage.generation ?? (stage.origin_verdict_id ? 1 : 0);
+  return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 0;
+}
+
+function stageRevision(stage: PlanStage): number {
+  return stageGeneration(stage) + 1;
+}
+
+function latestStageGeneration(stages: PlanStage[]): number {
+  return stages.reduce((max, stage) => Math.max(max, stageGeneration(stage)), 0);
+}
+
+function visibleStagesForGeneration(stages: PlanStage[], generation: number): PlanStage[] {
+  return stages.filter((stage) => stageGeneration(stage) <= generation);
+}
+
+function stageTaskIdSet(stages: PlanStage[]): Set<string> {
+  const ids = new Set<string>();
+  for (const stage of stages) {
+    for (const member of stage.members ?? []) ids.add(member.task_id);
+  }
+  return ids;
+}
+
+function shortLineageId(id?: string): string {
+  return id ? id.slice(0, 8) : '';
+}
+
+function buildDagEvolutionRevisions(stages: PlanStage[], plan: Plan, t: TFunction): DagEvolutionRevision[] {
+  if (stages.length === 0) return [];
+  const byGeneration = new Map<number, PlanStage[]>();
+  for (const stage of stages) {
+    const gen = stageGeneration(stage);
+    byGeneration.set(gen, [...(byGeneration.get(gen) ?? []), stage]);
+  }
+  const verdictsById = new Map<string, GateVerdict>();
+  for (const verdict of plan.gate_verdicts ?? []) verdictsById.set(verdict.id, verdict);
+  const continuationsById = new Map<string, PlanContinuation>();
+  for (const continuation of plan.continuations ?? []) continuationsById.set(continuation.id, continuation);
+
+  return [...byGeneration.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([generation, group]) => {
+      const sourceStage = group.find((stage) => stage.origin_verdict_id) ?? group[0];
+      const verdict = sourceStage.origin_verdict_id ? verdictsById.get(sourceStage.origin_verdict_id) : undefined;
+      const continuation = sourceStage.continuation_id ? continuationsById.get(sourceStage.continuation_id) : undefined;
+      const revision = generation + 1;
+      const taskCount = stageTaskIdSet(group).size;
+      const stageNames = group.map((stage) => stage.name || stage.id).slice(0, 2).join(', ');
+      const title = generation === 0
+        ? t('plan.detail.dag.evolution.initialTitle')
+        : group.length === 1
+          ? t('plan.detail.dag.evolution.addedOne', { stage: sourceStage.name || sourceStage.id })
+          : t('plan.detail.dag.evolution.addedMany', { count: group.length, stages: stageNames });
+      const fallbackReason = sourceStage.origin_verdict_id
+        ? t('plan.detail.dag.evolution.reasonFromVerdict', { verdict: shortLineageId(sourceStage.origin_verdict_id) })
+        : continuation
+          ? t('plan.detail.dag.evolution.reasonFromContinuation', { continuation: shortLineageId(continuation.id) })
+          : t('plan.detail.dag.evolution.reasonUnknown');
+      return {
+        generation,
+        revision,
+        label: `R${revision}`,
+        title,
+        reason: generation === 0
+          ? t('plan.detail.dag.evolution.initialReason')
+          : (verdict?.evidence?.trim() || fallbackReason),
+        stageCount: group.length,
+        taskCount,
+        verdictId: verdict?.id ?? sourceStage.origin_verdict_id,
+        verdictOutcome: verdict?.outcome,
+        continuationId: continuation?.id ?? sourceStage.continuation_id,
+        createdAt: verdict?.created_at ?? continuation?.created_at,
+      };
+    });
+}
+
+function DagEvolutionPanel({
+  revisions,
+  selectedGeneration,
+  onSelectGeneration,
+}: {
+  revisions: DagEvolutionRevision[];
+  selectedGeneration: number;
+  onSelectGeneration: (generation: number) => void;
+}): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  const [collapsed, setCollapsed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const panelBodyId = React.useId();
+
+  const selectedIndex = Math.max(0, revisions.findIndex((revision) => revision.generation === selectedGeneration));
+  const selected = revisions[selectedIndex] ?? revisions[revisions.length - 1] ?? null;
+  const latest = revisions[revisions.length - 1] ?? null;
+  const progressPct = revisions.length <= 1 ? 100 : Math.round((selectedIndex / (revisions.length - 1)) * 100);
+  const collapseLabel = collapsed
+    ? t('plan.detail.dag.evolution.expand')
+    : t('plan.detail.dag.evolution.collapse');
+
+  useEffect(() => {
+    if (!playing || revisions.length === 0) return;
+    if (selectedIndex >= revisions.length - 1) {
+      setPlaying(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      onSelectGeneration(revisions[selectedIndex + 1].generation);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [playing, revisions, selectedIndex, onSelectGeneration]);
+
+  if (selected == null || latest == null) return null;
+
+  return (
+    <section
+      className="mb-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1"
+      data-testid="plan-dag-evolution"
+      data-collapsed={collapsed ? 'true' : 'false'}
+    >
+      <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-subtle text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          aria-label={collapseLabel}
+          title={collapseLabel}
+          aria-expanded={!collapsed}
+          aria-controls={panelBodyId}
+          data-testid="plan-dag-evolution-toggle"
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          <DagEvolutionChevron open={!collapsed} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
+            <span
+              className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
+              data-testid="plan-dag-evolution-active-revision"
+            >
+              {selected.label}
+            </span>
+            <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-progress-label">
+              {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
+            </span>
+          </div>
+          <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
+            <span className="font-semibold text-text-primary">{selected.title}</span>
+            <span className="text-text-muted"> · {t('plan.detail.dag.evolution.reasonLabel')}: </span>
+            {selected.reason}
+          </p>
+        </div>
+        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+          <button
+            type="button"
+            className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+            data-testid="plan-dag-evolution-current"
+            disabled={selected.generation === latest.generation}
+            onClick={() => {
+              setPlaying(false);
+              onSelectGeneration(latest.generation);
+            }}
+          >
+            {t('plan.detail.dag.evolution.current')}
+          </button>
+          <button
+            type="button"
+            className="rounded bg-accent px-2.5 py-1 text-xs font-semibold text-white shadow-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+            data-testid="plan-dag-evolution-play"
+            disabled={revisions.length <= 1}
+            onClick={() => {
+              if (playing) {
+                setPlaying(false);
+                return;
+              }
+              if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
+              setPlaying(true);
+            }}
+          >
+            {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
+          </button>
+        </div>
+      </div>
+
+      <div className="h-1 bg-bg-subtle" aria-hidden="true">
+        <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
+      </div>
+
+      {!collapsed && (
+        <div id={panelBodyId} className="grid gap-2 p-3" data-testid="plan-dag-evolution-body">
+          <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]" data-testid="plan-dag-evolution-revisions">
+            {revisions.map((revision) => {
+              const active = revision.generation === selected.generation;
+              return (
+                <button
+                  key={revision.generation}
+                  type="button"
+                  className={`min-w-0 rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    active ? 'border-accent bg-accent/10' : 'border-border-base bg-bg-surface'
+                  }`}
+                  aria-pressed={active}
+                  data-testid={`plan-dag-evolution-revision-${revision.revision}`}
+                  data-active={active ? 'true' : 'false'}
+                  onClick={() => {
+                    setPlaying(false);
+                    onSelectGeneration(revision.generation);
+                  }}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-text-primary">{revision.label}</span>
+                    <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
+                      {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
+                    </span>
+                  </div>
+                  <div className="line-clamp-1 text-xs font-semibold text-text-primary">{revision.title}</div>
+                  <div className="mt-1 line-clamp-2 text-[0.6875rem] leading-4 text-text-secondary" data-testid={`plan-dag-evolution-reason-${revision.revision}`}>
+                    <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
+                    {revision.reason}
+                  </div>
+                  {(revision.verdictId || revision.continuationId || revision.createdAt) && (
+                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.625rem] text-text-muted">
+                      {revision.verdictId && (
+                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
+                          {revision.verdictOutcome
+                            ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: revision.verdictOutcome, id: shortLineageId(revision.verdictId) })
+                            : t('plan.detail.dag.evolution.verdict', { id: shortLineageId(revision.verdictId) })}
+                        </span>
+                      )}
+                      {revision.continuationId && (
+                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
+                          {t('plan.detail.dag.evolution.continuation', { id: shortLineageId(revision.continuationId) })}
+                        </span>
+                      )}
+                      {revision.createdAt && (
+                        <span className="rounded bg-bg-subtle px-1.5 py-0.5">
+                          {formatLocalTime(revision.createdAt)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-1.5 sm:hidden">
+            <button
+              type="button"
+              className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-current-mobile"
+              disabled={selected.generation === latest.generation}
+              onClick={() => {
+                setPlaying(false);
+                onSelectGeneration(latest.generation);
+              }}
+            >
+              {t('plan.detail.dag.evolution.current')}
+            </button>
+            <button
+              type="button"
+              className="flex-1 rounded bg-accent px-2.5 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-play-mobile"
+              disabled={revisions.length <= 1}
+              onClick={() => {
+                if (playing) {
+                  setPlaying(false);
+                  return;
+                }
+                if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
+                setPlaying(true);
+              }}
+            >
+              {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DagEvolutionChevron({ open }: { open: boolean }): React.ReactElement {
+  return (
+    <svg
+      viewBox="0 0 12 12"
+      className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true"
+    >
+      <path d="M4.5 2.25 8.25 6 4.5 9.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PlanGraphDag({
   projectId,
   plan,
@@ -2504,19 +2814,50 @@ function PlanGraphDag({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const scale = compact ? 0.7 : 1;
-  const nodes = graph.nodes;
-  const edges = graph.edges;
+  const graphNodes = graph.nodes;
+  const graphEdges = graph.edges;
 
   // §7: group the canvas by Plan Stage when the plan has any (T981 follow-up —
   // the outer Stage DAG wraps each stage's own inner sub-DAG). Empty for a
   // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t), [plan, stages, t]);
+  const currentGeneration = useMemo(() => latestStageGeneration(stages), [stages]);
+  const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
+  const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
+  const effectiveGeneration = selectedGeneration ?? currentGeneration;
+  useEffect(() => {
+    if (selectedGeneration == null) return;
+    if (!evolutionRevisions.some((revision) => revision.generation === selectedGeneration)) setSelectedGeneration(null);
+  }, [evolutionRevisions, selectedGeneration]);
+  const visibleStages = useMemo(
+    () => visibleStagesForGeneration(stages, effectiveGeneration),
+    [effectiveGeneration, stages],
+  );
+  const { nodes, edges } = useMemo(() => {
+    if (stages.length === 0 || effectiveGeneration >= currentGeneration) {
+      return { nodes: graphNodes, edges: graphEdges };
+    }
+    const taskIds = stageTaskIdSet(visibleStages);
+    if (taskIds.size === 0) return { nodes: graphNodes, edges: graphEdges };
+    const controlIds = new Set(visibleStages.map((stage) => stage.gate_node_id).filter(Boolean));
+    const filteredNodes = graphNodes.filter((node) => {
+      if (node.category === 'business') return node.task_id ? taskIds.has(node.task_id) : false;
+      if (node.control_kind === 'start' || node.control_kind === 'end') return true;
+      return controlIds.has(node.id);
+    });
+    const nodeIds = new Set(filteredNodes.map((node) => node.id));
+    return {
+      nodes: filteredNodes,
+      edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
+    };
+  }, [currentGeneration, effectiveGeneration, graphEdges, graphNodes, stages.length, visibleStages]);
   // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
   // S1/S2 refs, which can be derived from the API's stable stage order without
   // changing the read model. Strip the same prefix from legacy stage names so
   // "S1 Data" renders as "STAGE · S1  Data", not "S1  S1 Data".
-  const stageDisplay = useMemo(() => stageDisplayMeta(stages), [stages]);
+  const stageDisplay = useMemo(() => stageDisplayMeta(visibleStages), [visibleStages]);
 
   // Bound task → derived 6-state node_status (for the business-node chip), taken
   // from the plan detail's PlanNode list so the graph chips match the plan view.
@@ -2527,8 +2868,8 @@ function PlanGraphDag({
   }, [plan.nodes]);
 
   const { positioned, boxes, width, height } = useMemo(
-    () => layoutStagedGraph(nodes, edges, stages),
-    [nodes, edges, stages],
+    () => layoutStagedGraph(nodes, edges, visibleStages),
+    [nodes, edges, visibleStages],
   );
   const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
 
@@ -2563,7 +2904,12 @@ function PlanGraphDag({
   return (
     <SenderSidebarProvider>
       <div data-testid="plan-dag" data-graph="true" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
-        <MobileStageGateAudits stages={stages} error={stagesQuery.isError} />
+        <DagEvolutionPanel
+          revisions={evolutionRevisions}
+          selectedGeneration={effectiveGeneration}
+          onSelectGeneration={selectEvolutionGeneration}
+        />
+        <MobileStageGateAudits stages={visibleStages} error={stagesQuery.isError} />
         {/* Mobile: a simple ordered list of nodes by flow level. */}
         <ol className="mt-1 space-y-1.5 md:hidden" data-testid="plan-graph-stepper">
           {positioned
@@ -2632,9 +2978,13 @@ function PlanGraphDag({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${b.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
                       <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${b.stage.id}`}>{display.name}</span>
-                      {(b.stage.generation ?? 0) > 0 && (
-                        <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg" data-testid={`plan-stage-remediation-${b.stage.id}`}>
-                          remediation · g{b.stage.generation}
+                      {stageGeneration(b.stage) > 0 && (
+                        <span
+                          className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
+                          title={t('plan.detail.dag.evolution.stageRevisionTitle', { revision: `R${stageRevision(b.stage)}` })}
+                          data-testid={`plan-stage-remediation-${b.stage.id}`}
+                        >
+                          <span data-testid={`plan-stage-revision-${b.stage.id}`}>R{stageRevision(b.stage)}</span>
                         </span>
                       )}
                     </div>
@@ -2936,7 +3286,7 @@ function MobileStageGateAudits({ stages, error }: { stages: PlanStage[]; error: 
         <section key={stage.id} className="rounded-lg border border-border-strong bg-bg-surface p-3" data-testid={`plan-stage-mobile-audit-${stage.id}`}>
           <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
             <span>{stage.name}</span>
-            <span>{stage.status}{(stage.generation ?? 0) > 0 ? ` · remediation g${stage.generation}` : ''}</span>
+            <span>{stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}</span>
           </div>
           <StageGateAudit stage={stage} surface="mobile" />
         </section>
@@ -2997,8 +3347,28 @@ function LegacyPlanDag({
   const nodes = plan.nodes ?? [];
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
-  const stageDisplay = useMemo(() => stageDisplayMeta(stages), [stages]);
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t), [plan, stages, t]);
+  const currentGeneration = useMemo(() => latestStageGeneration(stages), [stages]);
+  const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
+  const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
+  const effectiveGeneration = selectedGeneration ?? currentGeneration;
+  useEffect(() => {
+    if (selectedGeneration == null) return;
+    if (!evolutionRevisions.some((revision) => revision.generation === selectedGeneration)) setSelectedGeneration(null);
+  }, [evolutionRevisions, selectedGeneration]);
+  const visibleStages = useMemo(
+    () => visibleStagesForGeneration(stages, effectiveGeneration),
+    [effectiveGeneration, stages],
+  );
+  const visibleNodes = useMemo(() => {
+    if (stages.length === 0 || effectiveGeneration >= currentGeneration) return nodes;
+    const taskIds = stageTaskIdSet(visibleStages);
+    if (taskIds.size === 0) return nodes;
+    return nodes.filter((node) => taskIds.has(node.task_id));
+  }, [currentGeneration, effectiveGeneration, nodes, stages.length, visibleStages]);
+  const stageDisplay = useMemo(() => stageDisplayMeta(visibleStages), [visibleStages]);
   const isPending = plan.status === 'pending';
+  const canEditDependencies = isPending && effectiveGeneration >= currentGeneration;
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
   // / wide plan fits in view without endless horizontal scrolling. CSS transform
   // (content scales cleanly); the scroll area is sized to the scaled extent.
@@ -3037,10 +3407,11 @@ function LegacyPlanDag({
     return () => window.removeEventListener('keydown', onKey);
   }, [connectFrom, exitConnect]);
 
-  // Leaving pending (e.g. plan starts) must drop any in-progress connect mode.
+  // Leaving the editable current DAG (e.g. plan starts or the user views a
+  // historic revision) must drop any in-progress connect mode.
   useEffect(() => {
-    if (!isPending) setConnectFrom(null);
-  }, [isPending]);
+    if (!canEditDependencies) setConnectFrom(null);
+  }, [canEditDependencies]);
 
   // The legal targets for the active source (self/exists/cycle excluded). Only
   // these become activatable target controls; everything else is inert.
@@ -3068,8 +3439,8 @@ function LegacyPlanDag({
   const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
 
   const { positioned, boxes, width, height, start, end } = useMemo(
-    () => layoutLegacyStagedDag(nodes, stages),
-    [nodes, stages],
+    () => layoutLegacyStagedDag(visibleNodes, visibleStages),
+    [visibleNodes, visibleStages],
   );
   const posById = useMemo(
     () => new Map(positioned.map((p) => [p.node.task_id, p])),
@@ -3151,11 +3522,16 @@ function LegacyPlanDag({
         <>
         {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
             stepper. The desktop graph + its controls are md:-only. */}
-        <MobileStageGateAudits stages={stages} error={stagesQuery.isError} />
+        <DagEvolutionPanel
+          revisions={evolutionRevisions}
+          selectedGeneration={effectiveGeneration}
+          onSelectGeneration={selectEvolutionGeneration}
+        />
+        <MobileStageGateAudits stages={visibleStages} error={stagesQuery.isError} />
         <PlanStepper positioned={positioned} projectId={projectId} />
         {/* T348: the Compact toggle moved to the tab row (icon). The connect-mode
             banner (point 3, pending-only) stays here, shown only while connecting. */}
-        {isPending && connectFrom != null && (
+        {canEditDependencies && connectFrom != null && (
           <div className="mb-2 hidden items-center gap-2 md:flex">
             <div
               className="flex flex-1 items-center gap-2 rounded border border-accent bg-bg-elevated px-2 py-1 text-[0.6875rem] text-text-secondary"
@@ -3228,6 +3604,15 @@ function LegacyPlanDag({
                       <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${box.stage.id}`}>
                         {display.name}
                       </span>
+                      {stageGeneration(box.stage) > 0 && (
+                        <span
+                          className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
+                          title={t('plan.detail.dag.evolution.stageRevisionTitle', { revision: `R${stageRevision(box.stage)}` })}
+                          data-testid={`plan-stage-remediation-${box.stage.id}`}
+                        >
+                          <span data-testid={`plan-stage-revision-${box.stage.id}`}>R{stageRevision(box.stage)}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-2.5">
                       <span data-testid={`plan-stage-status-${box.stage.id}`} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[box.stage.status]}`}>
@@ -3297,7 +3682,7 @@ function LegacyPlanDag({
             {/* Pending-only IN-GRAPH edge delete controls (z-10, anchored at each
                 edge's curve midpoint). A real <button> (keyboard-focusable) →
                 useRemoveDependency.mutate({from, to}). Running/done = none. */}
-            {isPending &&
+            {canEditDependencies &&
               edges.map((e) => (
                 <button
                   key={`del-${e.from}->${e.to}`}
@@ -3363,7 +3748,7 @@ function LegacyPlanDag({
                       {/* Pending connect control (point 3): a real keyboard-focusable
                           button. Activating enters connect mode with this node as
                           the source. Hidden once running/done (display-only). */}
-                      {isPending && !inConnect && (
+                      {canEditDependencies && !inConnect && (
                         <button
                           type="button"
                           data-testid="plan-node-connect"
@@ -3425,12 +3810,12 @@ function LegacyPlanDag({
           plan-not-pending). */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
         {t('plan.detail.dag.noteDerived')}{' '}
-        {isPending ? t('plan.detail.dag.notePending') : t('plan.detail.dag.noteDisplayOnly')}
+        {canEditDependencies ? t('plan.detail.dag.notePending') : t('plan.detail.dag.noteDisplayOnly')}
       </p>
 
       {/* #218 friendly add/remove error (never the raw API message). The
           single in-graph entry point (§21) — no separate editor box. */}
-      {isPending && mutationError && (
+      {canEditDependencies && mutationError && (
         <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
           {friendlyDependencyError(mutationError, t)}
         </p>

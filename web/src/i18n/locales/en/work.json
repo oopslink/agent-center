@@ -223,7 +223,29 @@
         "makeDependOn": "Make {{from}} depend on {{to}}",
         "noteDerived": "Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.",
         "notePending": "This plan is pending, so its dependencies are editable right on the graph — use a node's \"+ Dep\" button to add an edge, or an edge's \"×\" to remove one.",
-        "noteDisplayOnly": "Display-only graph: a running plan auto-advances as upstream tasks complete. Dependencies can only be edited while the plan is pending."
+        "noteDisplayOnly": "Display-only graph: a running plan auto-advances as upstream tasks complete. Dependencies can only be edited while the plan is pending.",
+        "evolution": {
+          "title": "DAG evolution",
+          "collapse": "Collapse DAG evolution",
+          "expand": "Expand DAG evolution",
+          "current": "Current",
+          "play": "Play evolution",
+          "pause": "Pause",
+          "progress": "{{current}} / {{latest}}",
+          "reasonLabel": "Reason",
+          "initialTitle": "Initial DAG",
+          "initialReason": "Initial staged DAG projected when the plan started.",
+          "addedOne": "Added {{stage}}",
+          "addedMany": "Added {{count}} stages: {{stages}}",
+          "reasonFromVerdict": "Added after verdict {{verdict}}.",
+          "reasonFromContinuation": "Added by continuation {{continuation}}.",
+          "reasonUnknown": "No iteration reason recorded.",
+          "stageTaskCount": "{{stages}} stages · {{tasks}} tasks",
+          "verdict": "verdict {{id}}",
+          "verdictWithOutcome": "{{outcome}} {{id}}",
+          "continuation": "continuation {{id}}",
+          "stageRevisionTitle": "{{revision}} added by a later DAG evolution revision"
+        }
       },
       "actions": {
         "menu": "Actions",
