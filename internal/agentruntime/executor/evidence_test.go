@@ -34,7 +34,7 @@ func setupEvidenceOnly(t *testing.T, f *finalizeGateFixture, id, task string, fa
 	if err := f.prov.AddNewBranch(context.Background(), ws, branch, "main"); err != nil {
 		t.Fatal(err)
 	}
-	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: "main", RunnerCmd: []string{"go", "test", "./..."}}))
+	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: "main", RunnerCmd: []string{"codex", "exec", "--json", "run executor"}}))
 	in := inputWithTaskRef(id, task)
 	in.DeliveryContract = DeliveryContractEvidenceOnly
 	mustWriteInput(t, f.fx, in)
@@ -53,17 +53,42 @@ func setupEvidenceOnly(t *testing.T, f *finalizeGateFixture, id, task string, fa
 	return ws, bare
 }
 
+func writeEvidenceCommandEvent(t *testing.T, fx *FileExchange, id, toolUseID, command string, exitStatus int) {
+	t.Helper()
+	must(t, fx.AppendCommandEvent(id, CommandExecutionEvent{
+		Type:      commandEventStarted,
+		Source:    commandEventSourceCodex,
+		ToolUseID: toolUseID,
+		ToolName:  "shell",
+		Command:   command,
+	}))
+	status := exitStatus
+	must(t, fx.AppendCommandEvent(id, CommandExecutionEvent{
+		Type:                commandEventFinished,
+		Source:              commandEventSourceCodex,
+		ToolUseID:           toolUseID,
+		ToolName:            "shell",
+		Command:             command,
+		ExitStatus:          &status,
+		ExitStatusAvailable: true,
+	}))
+}
+
 func TestEvidenceOnly_ZeroSourceDiffCreatesDurableArtifact(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, task := "exec-evidence-green", "task-green"
 	ws, bare := setupEvidenceOnly(t, f, id, task, false)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-green", "go test ./...", 0)
 	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
 	if len(f.wb.reports) != 1 || f.wb.reports[0].Kind != OutcomeSucceeded {
 		t.Fatalf("reports=%+v", f.wb.reports)
 	}
 	ev := f.wb.reports[0].Evidence
-	if ev == nil || !ev.Pushed || !strings.HasPrefix(ev.Digest, "sha256:") {
+	if ev == nil || !ev.CommandsAvailable || !strings.HasPrefix(ev.Digest, "sha256:") || !strings.HasPrefix(ev.CommandEventDigest, "sha256:") {
 		t.Fatalf("evidence=%+v", ev)
+	}
+	if f.wb.reports[0].Git == nil || !f.wb.reports[0].Git.Pushed {
+		t.Fatalf("evidence branch push not reflected in git status: %+v", f.wb.reports[0].Git)
 	}
 	if !gitRefExists(f.git, bare, "refs/heads/ac-exec/"+task+"/"+id) {
 		t.Fatal("evidence branch not pushed")
@@ -76,8 +101,18 @@ func TestEvidenceOnly_ZeroSourceDiffCreatesDurableArtifact(t *testing.T) {
 	if err := json.Unmarshal(b, &disk); err != nil {
 		t.Fatal(err)
 	}
-	if disk.ReviewedSHA == "" || disk.BaseSHA != "main" || disk.ExitStatus != 0 || disk.Verdict != "pass" || len(disk.Commands) == 0 {
+	if disk.ReviewedSHA == "" || disk.BaseSHA != "main" || disk.ExitStatus != 0 || disk.Verdict != "pass" || len(disk.Commands) != 1 {
 		t.Fatalf("disk=%+v", disk)
+	}
+	if disk.Commands[0].Command != "go test ./..." || disk.Commands[0].ExitStatus != 0 {
+		t.Fatalf("commands must be real verification events, not RunnerCmd: %+v", disk.Commands)
+	}
+	if strings.Contains(string(b), `"pushed"`) {
+		t.Fatalf("artifact JSON must not persist a self-contradictory pushed field: %s", b)
+	}
+	remote := evidenceGitOut(t, f.git, bare, "show", "refs/heads/ac-exec/"+task+"/"+id+":"+ev.Path)
+	if strings.Contains(remote, `"pushed"`) {
+		t.Fatalf("remote artifact must not claim pushed=false/true inside JSON: %s", remote)
 	}
 }
 
@@ -85,6 +120,7 @@ func TestEvidenceOnly_RedVerdictStillDurable(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, task := "exec-evidence-red", "task-red"
 	_, bare := setupEvidenceOnly(t, f, id, task, true)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-red", "go test -race ./...", 1)
 	err := &ErrorDetail{Kind: "test_failed", Message: "red test"}
 	st := doneStatus(id)
 	st.State = StateFailed
@@ -92,8 +128,14 @@ func TestEvidenceOnly_RedVerdictStillDurable(t *testing.T) {
 	st.Summary = "go test failed"
 	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeFailed, Error: err, Status: st}))
 	got := f.wb.reports[0]
-	if got.Kind != OutcomeFailed || got.Evidence == nil || !got.Evidence.Pushed || got.Evidence.Verdict != "fail" {
+	if got.Kind != OutcomeFailed || got.Evidence == nil || !got.Evidence.CommandsAvailable || got.Evidence.Verdict != "fail" {
 		t.Fatalf("completion=%+v", got)
+	}
+	if got.Git == nil || !got.Git.Pushed {
+		t.Fatalf("red evidence branch push not reflected in git status: %+v", got.Git)
+	}
+	if len(got.Evidence.Commands) != 1 || got.Evidence.Commands[0].ExitStatus != 1 {
+		t.Fatalf("red evidence must carry per-command exit status: %+v", got.Evidence.Commands)
 	}
 	if !gitRefExists(f.git, bare, "refs/heads/ac-exec/"+task+"/"+id) {
 		t.Fatal("red evidence branch not pushed")
@@ -104,6 +146,7 @@ func TestEvidenceOnlyPushFailureIsNonDelivery(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, task := "exec-evidence-refused", "task-refused"
 	ws, _ := setupEvidenceOnly(t, f, id, task, false)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-refused", "go test ./...", 0)
 	// Violate the unique ac-exec branch guardrail: runtime must fail closed.
 	runGitIn(t, f.git, ws, "checkout", "-q", "-b", "unexpected")
 	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
@@ -116,10 +159,40 @@ func TestEvidenceOnlyPushFailureIsNonDelivery(t *testing.T) {
 	}
 }
 
+func TestEvidenceOnlyCommandEventsUnavailableIsExplicitNonDelivery(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id, task := "exec-evidence-unavailable", "task-unavailable"
+	ws, bare := setupEvidenceOnly(t, f, id, task, false)
+	progress := ProgressEntry{At: testNow, Phase: phaseTool, Message: `Bash({"command":"go test ./..."})`, Tools: []string{"Bash", "go", "test"}}
+	must(t, f.fx.AppendProgress(id, progress))
+	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
+	got := f.wb.reports[0]
+	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
+		t.Fatalf("missing command events must be non-delivery, got %+v", got)
+	}
+	if got.Evidence == nil || got.Evidence.CommandsAvailable || got.Evidence.CommandsUnavailableReason == "" || got.Evidence.CommandEventDigest == "" {
+		t.Fatalf("artifact must explicitly mark commands unavailable with digest: %+v", got.Evidence)
+	}
+	if len(got.Evidence.Commands) != 0 {
+		t.Fatalf("must not fall back to RunnerCmd as commands: %+v", got.Evidence.Commands)
+	}
+	b, err := os.ReadFile(filepath.Join(ws, filepath.FromSlash(got.Evidence.Path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "codex exec") || strings.Contains(string(b), `"pushed"`) {
+		t.Fatalf("artifact must not persist runner argv or pushed field: %s", b)
+	}
+	if !gitRefExists(f.git, bare, "refs/heads/ac-exec/"+task+"/"+id) {
+		t.Fatal("unavailable evidence artifact should still be pushed for audit")
+	}
+}
+
 func TestEvidenceOnlyFinalizeRetryDoesNotDuplicateCommit(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, task := "exec-evidence-retry", "task-retry"
 	ws, _ := setupEvidenceOnly(t, f, id, task, false)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-retry", "go test ./...", 0)
 	c := Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}
 	must(t, f.mon.Finalize(context.Background(), c))
 	before := strings.TrimSpace(evidenceGitOut(t, f.git, ws, "rev-list", "--count", "main..HEAD"))

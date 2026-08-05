@@ -12,6 +12,9 @@
 //	  workspace/      # the executor's git worktree (isolation; executor only touches files here)
 //	  progress.jsonl  # executor appends streaming progress (orchestrator relays to chat)
 //	                  # a SAMPLED activity stream, NOT an audit log — see ProgressEntry
+//	  command_events.jsonl
+//	                  # executor appends structured shell-command execution events
+//	                  # parsed from the runner stream; used by evidence_only artifacts
 //	  output.json     # executor writes: final result / error detail
 //	  status          # completion signal + detail (state/model/started_at/last_progress_at/error/summary)
 //

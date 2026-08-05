@@ -391,7 +391,7 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 	)
 	if len(evidence) > 0 && evidence[0] != nil {
 		e := evidence[0]
-		prompt += fmt.Sprintf("\nDurable evidence artifact: path=%s digest=%s reviewed_sha=%s base_sha=%s verdict=%s exit_status=%d pushed=%t error=%q.", e.Path, e.Digest, e.ReviewedSHA, e.BaseSHA, e.Verdict, e.ExitStatus, e.Pushed, e.Error)
+		prompt += fmt.Sprintf("\nDurable evidence artifact: path=%s digest=%s reviewed_sha=%s base_sha=%s verdict=%s exit_status=%d commands_available=%t command_event_digest=%s error=%q.", e.Path, e.Digest, e.ReviewedSHA, e.BaseSHA, e.Verdict, e.ExitStatus, e.CommandsAvailable, e.CommandEventDigest, e.Error)
 	}
 	return prompt
 }

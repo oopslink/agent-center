@@ -75,6 +75,10 @@ type RunContext struct {
 	// is a SEPARATE argument rather than something parsed back out of message because
 	// message is length-clipped — see ProgressEntry.Tools (I109 ②).
 	Progress func(phase, message string, tools ...string)
+	// CommandEvent records structured shell-command executions parsed from the runner
+	// stream. It is the audit source for evidence_only artifacts and deliberately does
+	// not come from RunnerCmd, which is only the model launcher argv.
+	CommandEvent func(CommandExecutionEvent)
 }
 
 // RunResult is the Runner's success payload.
@@ -190,8 +194,11 @@ func RunExecutor(ctx context.Context, cfg RunConfig) error {
 		st.Detail = message
 		_ = fx.WriteStatus(st)
 	}
+	commandEvent := func(ev CommandExecutionEvent) {
+		_ = fx.AppendCommandEvent(in.ExecutorID, ev) // best-effort audit side channel
+	}
 
-	res, runErr := runner.Run(ctx, RunContext{Input: in, WorkspaceDir: wsDir, Progress: progress})
+	res, runErr := runner.Run(ctx, RunContext{Input: in, WorkspaceDir: wsDir, Progress: progress, CommandEvent: commandEvent})
 	if runErr != nil {
 		return recordFailure(fx, in, &st, clk, runErr)
 	}
@@ -336,7 +343,9 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 	//     heartbeat exists in the first place (T880).
 	var lastBeat time.Time
 	var lastActivity string
+	cmdEvents := newCommandStreamRecorder(isCodexRunnerCmd(r.cmd), rc.CommandEvent)
 	onLine := func(line string) {
+		cmdEvents.ObserveLine(line)
 		detail, tools, isTool := streamLineActivity([]byte(line))
 		if detail != "" {
 			lastActivity = detail

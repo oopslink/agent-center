@@ -16,12 +16,13 @@ import (
 // Layout file / dir names — the file-exchange wire contract (design §7). These
 // strings are part of the protocol both processes agree on; do not rename.
 const (
-	executorsDirName = "executors"
-	workspaceDirName = "workspace" // the executor's git worktree (see package doc, conventions §12)
-	inputFileName    = "input.json"
-	outputFileName   = "output.json"
-	statusFileName   = "status"
-	progressFileName = "progress.jsonl"
+	executorsDirName      = "executors"
+	workspaceDirName      = "workspace" // the executor's git worktree (see package doc, conventions §12)
+	inputFileName         = "input.json"
+	outputFileName        = "output.json"
+	statusFileName        = "status"
+	progressFileName      = "progress.jsonl"
+	commandEventsFileName = "command_events.jsonl"
 	// finalizedFileName marks a TERMINAL executor whose teardown is DEFERRED (the
 	// k8s TTL-after-finished analog): Finalize retains the dir/worktree and stamps
 	// this file; the periodic reaper removes it after the TTL / when the retained
@@ -113,6 +114,11 @@ func (l *Layout) StatusPath(executorID string) (string, error) {
 // ProgressPath is <dir>/progress.jsonl.
 func (l *Layout) ProgressPath(executorID string) (string, error) {
 	return l.join(executorID, progressFileName)
+}
+
+// CommandEventsPath is <dir>/command_events.jsonl.
+func (l *Layout) CommandEventsPath(executorID string) (string, error) {
+	return l.join(executorID, commandEventsFileName)
 }
 
 func (l *Layout) join(executorID, leaf string) (string, error) {

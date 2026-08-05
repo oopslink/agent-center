@@ -5,37 +5,53 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+type EvidenceCommand struct {
+	Source     string `json:"source,omitempty"`
+	ToolUseID  string `json:"tool_use_id,omitempty"`
+	Command    string `json:"command"`
+	ExitStatus int    `json:"exit_status"`
+}
+
 // EvidenceArtifact is runtime-authored, durable proof for an evidence_only task.
 // The model cannot forge its digest or forget to commit it: Finalize owns both.
 type EvidenceArtifact struct {
-	TaskID      string   `json:"task_id"`
-	ExecutionID string   `json:"execution_id"`
-	ReviewedSHA string   `json:"reviewed_sha"`
-	BaseSHA     string   `json:"base_sha"`
-	Commands    []string `json:"commands"`
-	ExitStatus  int      `json:"exit_status"`
-	Verdict     string   `json:"verdict"`
-	Summary     string   `json:"summary"`
-	Digest      string   `json:"artifact_digest"`
-	Path        string   `json:"path"`
-	Branch      string   `json:"branch"`
-	Pushed      bool     `json:"pushed"`
-	Error       string   `json:"error,omitempty"`
+	TaskID                    string            `json:"task_id"`
+	ExecutionID               string            `json:"execution_id"`
+	ReviewedSHA               string            `json:"reviewed_sha"`
+	BaseSHA                   string            `json:"base_sha"`
+	Commands                  []EvidenceCommand `json:"commands,omitempty"`
+	CommandsAvailable         bool              `json:"commands_available"`
+	CommandsUnavailableReason string            `json:"commands_unavailable_reason,omitempty"`
+	CommandEventPath          string            `json:"command_event_path,omitempty"`
+	CommandEventDigest        string            `json:"command_event_digest,omitempty"`
+	ExitStatus                int               `json:"exit_status"`
+	Verdict                   string            `json:"verdict"`
+	Summary                   string            `json:"summary"`
+	Digest                    string            `json:"artifact_digest"`
+	Path                      string            `json:"path"`
+	Branch                    string            `json:"branch"`
+	Error                     string            `json:"error,omitempty"`
 }
 
 func artifactDigest(a *EvidenceArtifact) string {
 	unsigned, _ := json.Marshal(struct {
 		TaskID, ExecutionID, ReviewedSHA, BaseSHA string
-		Commands                                  []string
+		Commands                                  []EvidenceCommand
+		CommandsAvailable                         bool
+		CommandsUnavailableReason                 string
+		CommandEventPath, CommandEventDigest      string
 		ExitStatus                                int
-		Verdict, Summary, Path                    string
-	}{a.TaskID, a.ExecutionID, a.ReviewedSHA, a.BaseSHA, a.Commands, a.ExitStatus, a.Verdict, a.Summary, a.Path})
+		Verdict, Summary, Path, Branch            string
+	}{a.TaskID, a.ExecutionID, a.ReviewedSHA, a.BaseSHA, a.Commands, a.CommandsAvailable,
+		a.CommandsUnavailableReason, a.CommandEventPath, a.CommandEventDigest,
+		a.ExitStatus, a.Verdict, a.Summary, a.Path, a.Branch})
 	sum := sha256.Sum256(unsigned)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
@@ -50,15 +66,12 @@ func (m *Monitor) materializeEvidence(ctx context.Context, c Completion) Complet
 	if c.Git == nil || !c.Git.Probed {
 		return m.evidenceNonDelivery(c, "evidence artifact requires a probed git worktree")
 	}
-	if m.tracker == nil {
-		return m.evidenceNonDelivery(c, "executor record tracker unavailable")
+	baseRef := c.Git.BaseRef
+	if baseRef == "" {
+		baseRef = m.recordBaseRef(c.ExecutorID)
 	}
-	rec, err := m.tracker.Read(c.ExecutorID)
-	if err != nil {
-		return m.evidenceNonDelivery(c, "read executor record: "+err.Error())
-	}
-	artifact.ReviewedSHA, artifact.BaseSHA = c.Git.HeadSHA, rec.BaseRef
-	artifact.Commands = append([]string(nil), rec.RunnerCmd...)
+	artifact.ReviewedSHA, artifact.BaseSHA = c.Git.HeadSHA, baseRef
+	artifact.Commands, artifact.CommandsAvailable, artifact.CommandsUnavailableReason, artifact.CommandEventPath, artifact.CommandEventDigest = m.evidenceCommands(c.ExecutorID)
 	artifact.ExitStatus = 1
 	artifact.Verdict = "fail"
 	if c.Kind == OutcomeSucceeded {
@@ -115,7 +128,7 @@ func (m *Monitor) materializeEvidence(ctx context.Context, c Completion) Complet
 		}
 	}
 	// Re-probe after the runtime commit, then use the same guarded unique-branch push.
-	gs := probeGitStatus(ctx, m.git, ws, rec.BaseRef)
+	gs := probeGitStatus(ctx, m.git, ws, baseRef)
 	c.Git = &gs
 	pushed, err := m.eagerSupervisorPush(ctx, c)
 	if err != nil || !pushed {
@@ -125,8 +138,115 @@ func (m *Monitor) materializeEvidence(ctx context.Context, c Completion) Complet
 		artifact.Error = err.Error()
 		return m.evidenceNonDelivery(c, artifact.Error)
 	}
-	c.Git.Pushed, artifact.Pushed = true, true
+	c.Git.Pushed = true
 	return c
+}
+
+func (m *Monitor) evidenceCommands(executorID string) ([]EvidenceCommand, bool, string, string, string) {
+	sourcePath := "executor://" + executorID + "/" + commandEventsFileName
+	events, raw, err := m.fx.ReadCommandEvents(executorID)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if p, digest, ok := m.progressDigest(executorID); ok {
+				return nil, false, commandEventsFileName + " unavailable; attached progress event digest instead", p, digest
+			}
+			return nil, false, commandEventsFileName + " unavailable", sourcePath, bytesDigest(nil)
+		}
+		return nil, false, err.Error(), sourcePath, bytesDigest(raw)
+	}
+	commands, ok, reason := evidenceCommandsFromEvents(events)
+	if !ok {
+		return commands, false, reason, sourcePath, bytesDigest(raw)
+	}
+	return commands, true, "", sourcePath, bytesDigest(raw)
+}
+
+func (m *Monitor) progressDigest(executorID string) (string, string, bool) {
+	p, err := m.fx.Layout().ProgressPath(executorID)
+	if err != nil {
+		return "", "", false
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return "", "", false
+	}
+	return "executor://" + executorID + "/" + progressFileName, bytesDigest(b), true
+}
+
+func evidenceCommandsFromEvents(events []CommandExecutionEvent) ([]EvidenceCommand, bool, string) {
+	if len(events) == 0 {
+		return nil, false, "no command execution events captured"
+	}
+	type startedCommand struct {
+		command string
+		source  string
+	}
+	started := map[string]startedCommand{}
+	finished := map[string]bool{}
+	var commands []EvidenceCommand
+	var incomplete []string
+	for _, ev := range events {
+		id := strings.TrimSpace(ev.ToolUseID)
+		switch ev.Type {
+		case commandEventStarted:
+			if id != "" {
+				started[id] = startedCommand{command: strings.TrimSpace(ev.Command), source: ev.Source}
+			}
+		case commandEventFinished:
+			cmd := strings.TrimSpace(ev.Command)
+			source := ev.Source
+			if st, ok := started[id]; ok {
+				if cmd == "" {
+					cmd = st.command
+				}
+				if source == "" {
+					source = st.source
+				}
+			}
+			if cmd == "" {
+				incomplete = append(incomplete, id+":missing command")
+				if id != "" {
+					finished[id] = true
+				}
+				continue
+			}
+			if !ev.ExitStatusAvailable || ev.ExitStatus == nil {
+				incomplete = append(incomplete, cmd+":missing exit_status")
+				if id != "" {
+					finished[id] = true
+				}
+				continue
+			}
+			commands = append(commands, EvidenceCommand{
+				Source:     source,
+				ToolUseID:  id,
+				Command:    cmd,
+				ExitStatus: *ev.ExitStatus,
+			})
+			finished[id] = true
+		}
+	}
+	for id, st := range started {
+		if !finished[id] {
+			label := st.command
+			if label == "" {
+				label = id
+			}
+			incomplete = append(incomplete, label+":missing completion")
+		}
+	}
+	if len(incomplete) > 0 {
+		return commands, false, "incomplete command event capture: " + strings.Join(incomplete, "; ")
+	}
+	if len(commands) == 0 {
+		return nil, false, "no completed command executions captured"
+	}
+	return commands, true, ""
+}
+
+func bytesDigest(b []byte) string {
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func (m *Monitor) evidenceNonDelivery(c Completion, reason string) Completion {

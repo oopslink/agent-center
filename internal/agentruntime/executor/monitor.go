@@ -610,10 +610,14 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 		return c
 	}
 	if in, err := m.fx.ReadInput(c.ExecutorID); err == nil && EffectiveDeliveryContract(in.DeliveryContract) == DeliveryContractEvidenceOnly {
-		if c.Evidence != nil && c.Evidence.Pushed {
+		if c.Evidence != nil && c.Evidence.CommandsAvailable && c.Git != nil && c.Git.Pushed {
 			return c
 		}
-		return m.evidenceNonDelivery(c, "artifact missing or not pushed")
+		reason := "artifact missing, not pushed, or command capture unavailable"
+		if c.Evidence != nil && !c.Evidence.CommandsAvailable && c.Evidence.CommandsUnavailableReason != "" {
+			reason += ": " + c.Evidence.CommandsUnavailableReason
+		}
+		return m.evidenceNonDelivery(c, reason)
 	}
 	// Reuse the single probe taken in Finalize (c.Git) rather than re-probing.
 	gs := c.Git
