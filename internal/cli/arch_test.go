@@ -20,6 +20,10 @@ import (
 //
 //   - handlers_migrate_v1_to_v2.go — schema migration tool (target
 //     might be empty / un-served DB; can't go through admin).
+//   - handlers_migrate_ai_runtime.go — read-only Stage 5 migration
+//     auditor. It must inspect production-equivalent sqlite before
+//     resolver cutover, including quiesced or not-yet-served DBs, and
+//     it refuses to run without --dry-run.
 //   - handlers_system.go — `agent-center server` boot path (the
 //     process that OWNS the DB and serves the admin endpoint).
 //
@@ -28,8 +32,9 @@ import (
 // rule exists to prevent.
 func TestArch_NoDirectPersistenceOpenInHandlers(t *testing.T) {
 	whitelist := map[string]bool{
-		"handlers_migrate_v1_to_v2.go": true,
-		"handlers_system.go":           true,
+		"handlers_migrate_ai_runtime.go": true,
+		"handlers_migrate_v1_to_v2.go":   true,
+		"handlers_system.go":             true,
 	}
 
 	matches, err := filepath.Glob("handlers_*.go")

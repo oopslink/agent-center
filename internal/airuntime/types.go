@@ -37,11 +37,14 @@ type Error struct {
 func (e *Error) Error() string { return e.Message }
 
 type FeatureFlags struct {
-	CatalogV2         bool `json:"ai_runtime_catalog_v2"`
-	SchedulerMatching bool `json:"ai_runtime_scheduler_matching"`
+	CatalogV2         bool                 `json:"ai_runtime_catalog_v2"`
+	SchedulerMatching bool                 `json:"ai_runtime_scheduler_matching"`
+	ResolverStage     ResolverCutoverStage `json:"ai_runtime_resolver_stage,omitempty"`
 }
 
-func DefaultFeatureFlags() FeatureFlags { return FeatureFlags{} }
+func DefaultFeatureFlags() FeatureFlags {
+	return FeatureFlags{ResolverStage: ResolverStageLegacyRead}
+}
 
 type CLIDefinition struct {
 	ID                string          `json:"id"`
