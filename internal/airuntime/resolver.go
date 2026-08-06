@@ -115,7 +115,7 @@ func findModel(items []ModelDefinition, id string) *ModelDefinition {
 }
 func findProfile(items []RuntimeProfile, id string) *RuntimeProfile {
 	for i := range items {
-		if items[i].ID == id {
+		if items[i].ID == id || items[i].Key == id {
 			return &items[i]
 		}
 	}

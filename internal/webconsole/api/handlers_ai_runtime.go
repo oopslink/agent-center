@@ -42,7 +42,9 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &runtimeErr):
 		status := http.StatusBadRequest
-		if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
+		if runtimeErr.Reason == airuntime.ReasonRevisionConflict ||
+			runtimeErr.Reason == airuntime.ReasonImportConflict ||
+			runtimeErr.Reason == airuntime.ReasonMigrationPlanChanged {
 			status = http.StatusConflict
 		}
 		writeJSON(w, status, runtimeErr)
@@ -137,6 +139,75 @@ func (s *Server) applyRuntimeCatalogImportHandler(w http.ResponseWriter, r *http
 	report, err := d.RuntimeCatalog.ApplyImport(r.Context(), org, "user:"+id.ID(), req)
 	if err != nil {
 		writeRuntimeImportError(w, report, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) dryRunRuntimeMigrationHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	report, err := d.RuntimeCatalog.LegacyMigrationDryRun(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) applyRuntimeMigrationHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ApplyMigrationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.ApplyLegacyMigration(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) shadowCompareRuntimeHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ShadowCompareRequest
+	if r.Body != nil {
+		if err := decodeJSON(r, &req); err != nil && err != io.EOF {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+	}
+	report, err := d.RuntimeCatalog.ShadowCompare(r.Context(), org, req)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) cutoverRuntimeHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.CutoverRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.ApplyCutover(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, report)
