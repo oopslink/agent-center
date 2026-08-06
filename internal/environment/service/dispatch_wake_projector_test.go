@@ -303,3 +303,116 @@ func TestDispatchWake_NilResolvers_NoOp(t *testing.T) {
 		}
 	}
 }
+
+type fakeCapabilityWaitRepo struct {
+	waits []environment.CapabilityWait
+}
+
+func (f *fakeCapabilityWaitRepo) UpsertWaiting(context.Context, environment.CapabilityWait) error {
+	return nil
+}
+func (f *fakeCapabilityWaitRepo) Resolve(_ context.Context, taskID, agentID string, _ time.Time) error {
+	for i := range f.waits {
+		if f.waits[i].TaskID == taskID && f.waits[i].AgentID == agentID && f.waits[i].Status == environment.CapabilityWaitWaiting {
+			f.waits[i].Status = environment.CapabilityWaitResolved
+		}
+	}
+	return nil
+}
+func (f *fakeCapabilityWaitRepo) CancelByTask(_ context.Context, taskID, reason string, _ time.Time) error {
+	for i := range f.waits {
+		if f.waits[i].TaskID == taskID && f.waits[i].Status == environment.CapabilityWaitWaiting {
+			f.waits[i].Status = environment.CapabilityWaitCanceled
+			f.waits[i].Reason = reason
+		}
+	}
+	return nil
+}
+func (f *fakeCapabilityWaitRepo) MarkTimedOut(_ context.Context, taskID, agentID, reason string, _ time.Time) error {
+	for i := range f.waits {
+		if f.waits[i].TaskID == taskID && f.waits[i].AgentID == agentID && f.waits[i].Status == environment.CapabilityWaitWaiting {
+			f.waits[i].Status = environment.CapabilityWaitTimedOut
+			f.waits[i].Reason = reason
+		}
+	}
+	return nil
+}
+func (f *fakeCapabilityWaitRepo) RecordRedrive(_ context.Context, taskID, agentID string, at time.Time) error {
+	for i := range f.waits {
+		if f.waits[i].TaskID == taskID && f.waits[i].AgentID == agentID {
+			f.waits[i].RedriveCount++
+			f.waits[i].LastRedriveAt = at
+		}
+	}
+	return nil
+}
+func (f *fakeCapabilityWaitRepo) ListWaitingByWorker(_ context.Context, workerID string) ([]environment.CapabilityWait, error) {
+	var out []environment.CapabilityWait
+	for _, w := range f.waits {
+		if w.WorkerID == workerID && w.Status == environment.CapabilityWaitWaiting {
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+func (f *fakeCapabilityWaitRepo) ListWaiting(context.Context) ([]environment.CapabilityWait, error) {
+	var out []environment.CapabilityWait
+	for _, w := range f.waits {
+		if w.Status == environment.CapabilityWaitWaiting {
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+func (f *fakeCapabilityWaitRepo) ListExpiredWaiting(context.Context, time.Time, int) ([]environment.CapabilityWait, error) {
+	return nil, nil
+}
+
+func TestDispatchWake_CapabilityReported_RedrivesExactlyOnce(t *testing.T) {
+	h := newDispatchHarness(t)
+	waits := &fakeCapabilityWaitRepo{waits: []environment.CapabilityWait{{
+		TaskID: "T1", AgentID: "A1", AssigneeRef: "agent:A1", WorkerID: "W1",
+		Status: environment.CapabilityWaitWaiting, Reason: "missing_cli",
+	}}}
+	p := NewDispatchWakeProjector(DispatchWakeProjectorDeps{
+		ControlLog:      h.control,
+		CapabilityWaits: waits,
+		RedriveTarget: func(_ context.Context, wait environment.CapabilityWait) (DispatchWakeTarget, bool, error) {
+			return DispatchWakeTarget{WorkerID: wait.WorkerID, AgentID: wait.AgentID, TaskID: wait.TaskID}, true, nil
+		},
+	})
+	pl, _ := json.Marshal(map[string]string{"worker_id": "W1"})
+	ev := outbox.Event{ID: "cap-1", EventType: "workforce.worker.capabilities.reported", Payload: string(pl)}
+	for i := 0; i < 3; i++ {
+		if err := p.Project(h.ctx, ev); err != nil {
+			t.Fatalf("Project #%d: %v", i, err)
+		}
+	}
+	if got := h.commands(t, "W1"); len(got) != 1 {
+		t.Fatalf("capability redrive must fold to 1 wake, got %d", len(got))
+	}
+	if waits.waits[0].Status != environment.CapabilityWaitResolved || waits.waits[0].RedriveCount != 1 {
+		t.Fatalf("wait after redrive=%+v, want resolved once", waits.waits[0])
+	}
+}
+
+func TestDispatchWake_ReassignCancelsExistingCapabilityWait(t *testing.T) {
+	h := newDispatchHarness(t)
+	waits := &fakeCapabilityWaitRepo{waits: []environment.CapabilityWait{{
+		TaskID: "T1", AgentID: "old", AssigneeRef: "agent:old", WorkerID: "W-old",
+		Status: environment.CapabilityWaitWaiting, Reason: "missing_cli",
+	}}}
+	h.proj = NewDispatchWakeProjector(DispatchWakeProjectorDeps{
+		ControlLog:      h.control,
+		CapabilityWaits: waits,
+		AssignTarget: func(context.Context, string, string) (DispatchWakeTarget, bool, error) {
+			return DispatchWakeTarget{}, false, nil
+		},
+	})
+	if err := h.proj.Project(h.ctx, taskEvent("reassign", pmservice.EvtTaskReassigned, "agent:new", "T1", "open", "")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if waits.waits[0].Status != environment.CapabilityWaitCanceled || waits.waits[0].Reason != "reassigned" {
+		t.Fatalf("wait=%+v, want canceled/reassigned", waits.waits[0])
+	}
+}

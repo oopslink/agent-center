@@ -6,7 +6,10 @@
 // Per workforce/00-overview § 1 + § 5.
 package workforce
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 // Typed identifiers (conventions § 0.3: typed alias, never bare string).
 type (
@@ -63,13 +66,18 @@ func (r OfflineReason) IsValid() bool {
 // § 5). All `Supports*` fields default to false (legacy probe path leaves
 // them off until adapter Probe upgrades them).
 type Capability struct {
-	AgentCLI        string `json:"agent_cli"`
-	Detected        bool   `json:"detected"`
-	Enabled         bool   `json:"enabled"`
-	Version         string `json:"version,omitempty"`
-	SupportsMCP     bool   `json:"supports_mcp,omitempty"`
-	SupportsSkills  bool   `json:"supports_skills,omitempty"`
-	SupportsSession bool   `json:"supports_session,omitempty"`
+	AgentCLI        string    `json:"agent_cli"`
+	Detected        bool      `json:"detected"`
+	Enabled         bool      `json:"enabled"`
+	Version         string    `json:"version,omitempty"`
+	ExecutablePath  string    `json:"executable_path,omitempty"`
+	Features        []string  `json:"features,omitempty"`
+	Healthy         bool      `json:"healthy,omitempty"`
+	ScannedAt       time.Time `json:"scanned_at,omitempty,omitzero"`
+	ExpiresAt       time.Time `json:"expires_at,omitempty,omitzero"`
+	SupportsMCP     bool      `json:"supports_mcp,omitempty"`
+	SupportsSkills  bool      `json:"supports_skills,omitempty"`
+	SupportsSession bool      `json:"supports_session,omitempty"`
 }
 
 // WorkerConcurrency captures Worker.concurrency (ADR-0023 § 3).
@@ -108,4 +116,5 @@ var (
 	ErrWorkerVersionConflict    = errors.New("workforce: worker version conflict (optimistic lock)")
 	ErrWorkerInvalidStatus      = errors.New("workforce: invalid worker status")
 	ErrWorkerCapabilityNotFound = errors.New("workforce: worker capability (agent_cli) not found in detected list")
+	ErrWorkerCapabilityVersion  = errors.New("workforce: invalid worker capability version")
 )

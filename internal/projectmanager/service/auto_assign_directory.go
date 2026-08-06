@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -73,7 +74,7 @@ func (d *AgentAutoAssignDirectory) ListAutoAssignCandidates(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	onlineOf := make(map[string]bool, len(agents))
+	workersByID := make(map[string]*workforce.Worker, len(agents))
 	out := make([]AutoAssignCandidate, 0, len(agents))
 	for _, a := range agents {
 		// The assignee identity ref the assign/claim path carries is
@@ -87,11 +88,12 @@ func (d *AgentAutoAssignDirectory) ListAutoAssignCandidates(ctx context.Context,
 		ref := pm.IdentityRef("agent:" + memberID)
 
 		wid := a.WorkerID()
-		online, ok := onlineOf[wid]
+		w, ok := workersByID[wid]
 		if !ok {
-			online = d.workerOnline(ctx, wid)
-			onlineOf[wid] = online
+			w = d.workerForAutoAssign(ctx, wid)
+			workersByID[wid] = w
 		}
+		online := workerCanAutoAssignAgent(w, a, time.Now().UTC())
 
 		out = append(out, AutoAssignCandidate{
 			AgentRef:       ref,
@@ -108,13 +110,36 @@ func (d *AgentAutoAssignDirectory) ListAutoAssignCandidates(ctx context.Context,
 // agent service uses (Worker.Status() == WorkerOnline). An empty worker id or any
 // lookup error reads as OFFLINE (fail-closed: a directory hiccup can only ever make
 // an agent INELIGIBLE, never wrongly auto-assign work to a presumed-online agent).
-func (d *AgentAutoAssignDirectory) workerOnline(ctx context.Context, workerID string) bool {
+func (d *AgentAutoAssignDirectory) workerForAutoAssign(ctx context.Context, workerID string) *workforce.Worker {
 	if strings.TrimSpace(workerID) == "" {
-		return false
+		return nil
 	}
 	w, err := d.workers.FindByID(ctx, workforce.WorkerID(workerID))
 	if err != nil || w == nil {
+		return nil
+	}
+	return w
+}
+
+func workerCanAutoAssignAgent(w *workforce.Worker, a *agentpkg.Agent, now time.Time) bool {
+	if w == nil || a == nil || w.Status() != workforce.WorkerOnline {
 		return false
 	}
-	return w.Status() == workforce.WorkerOnline
+	prof := a.Profile()
+	cli := strings.TrimSpace(prof.CLI)
+	if cli == "" {
+		cli = agentpkg.DefaultExecutorCLI
+	}
+	if match := w.CapabilityMatches(workforce.CapabilityRequirement{AgentCLI: cli}, now); !match.OK {
+		return false
+	}
+	if prof.ConcurrencyEnabled() {
+		for _, ex := range prof.AllowedExecutors {
+			if match := w.CapabilityMatches(workforce.CapabilityRequirement{AgentCLI: ex.CLI}, now); match.OK {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }

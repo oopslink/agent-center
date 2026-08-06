@@ -78,6 +78,10 @@ type HandlerDeps struct {
 	// Workforce BC
 	WorkerRepo workforce.WorkerRepository
 	EnrollSvc  *wfservice.WorkerEnrollService
+	// CapabilityRedrive is an optional post-report hook: after a worker updates
+	// its capability projection, the center re-drives any waiting_for_capability
+	// dispatches for that worker without changing PM task status.
+	CapabilityRedrive func(ctx context.Context, workerID string) error
 	// WorkerConfigSvc backs the operator per-CLI capability toggle
 	// (v2.7 #147 PATCH .../capabilities/{name}/enabled).
 	WorkerConfigSvc *wfservice.WorkerConfigService

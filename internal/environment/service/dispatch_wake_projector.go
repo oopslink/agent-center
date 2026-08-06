@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -52,9 +53,11 @@ import (
 // The 60s sweep is unchanged and remains the down-session fallback (a lost immediate signal
 // or a session that dies right after still gets recovered there); DispatchRecord is untouched.
 type DispatchWakeProjector struct {
-	controlLog   *environment.ControlLog
-	assignTarget func(ctx context.Context, assigneeRef, taskID string) (DispatchWakeTarget, bool, error)
-	repushTarget func(ctx context.Context, assigneeRef, finishedTaskID, status, prevStatus string) (DispatchWakeTarget, bool, error)
+	controlLog      *environment.ControlLog
+	assignTarget    func(ctx context.Context, assigneeRef, taskID string) (DispatchWakeTarget, bool, error)
+	repushTarget    func(ctx context.Context, assigneeRef, finishedTaskID, status, prevStatus string) (DispatchWakeTarget, bool, error)
+	capabilityWaits environment.CapabilityWaitRepository
+	redriveTarget   func(ctx context.Context, wait environment.CapabilityWait) (DispatchWakeTarget, bool, error)
 }
 
 // DispatchWakeTarget is the resolved control-stream destination for a wake signal: the
@@ -80,15 +83,22 @@ type DispatchWakeProjectorDeps struct {
 	// runnable assigned task). status/prevStatus are the event's task status fields, passed
 	// through so the resolver can cheaply skip non-freeing transitions before any read.
 	RepushTarget func(ctx context.Context, assigneeRef, finishedTaskID, status, prevStatus string) (DispatchWakeTarget, bool, error)
+	// CapabilityWaits records and clears waiting_for_capability rows outside the
+	// generic PM task status enum. RedriveTarget re-evaluates an active wait after
+	// a worker capability update or restart recovery.
+	CapabilityWaits environment.CapabilityWaitRepository
+	RedriveTarget   func(ctx context.Context, wait environment.CapabilityWait) (DispatchWakeTarget, bool, error)
 }
 
 // NewDispatchWakeProjector constructs the projector. It is safe to register even with nil
 // resolvers (each trigger no-ops), so the relay wiring never needs a conditional.
 func NewDispatchWakeProjector(deps DispatchWakeProjectorDeps) *DispatchWakeProjector {
 	return &DispatchWakeProjector{
-		controlLog:   deps.ControlLog,
-		assignTarget: deps.AssignTarget,
-		repushTarget: deps.RepushTarget,
+		controlLog:      deps.ControlLog,
+		assignTarget:    deps.AssignTarget,
+		repushTarget:    deps.RepushTarget,
+		capabilityWaits: deps.CapabilityWaits,
+		redriveTarget:   deps.RedriveTarget,
 	}
 }
 
@@ -115,6 +125,8 @@ func (p *DispatchWakeProjector) Project(ctx context.Context, e outbox.Event) err
 		return p.projectAssign(ctx, e)
 	case pmservice.EvtTaskStateChanged:
 		return p.projectStateChanged(ctx, e)
+	case "workforce.worker.capabilities.reported":
+		return p.projectCapabilityReported(ctx, e)
 	default:
 		return nil
 	}
@@ -130,6 +142,11 @@ func (p *DispatchWakeProjector) projectAssign(ctx context.Context, e outbox.Even
 	}
 	if !strings.HasPrefix(pl.Assignee, agentRefPrefix) || pl.TaskID == "" {
 		return nil // human assignee or malformed → no agent wake
+	}
+	if p.capabilityWaits != nil && e.EventType == pmservice.EvtTaskReassigned {
+		if err := p.capabilityWaits.CancelByTask(ctx, pl.TaskID, "reassigned", time.Now().UTC()); err != nil {
+			return err
+		}
 	}
 	tgt, ok, err := p.assignTarget(ctx, pl.Assignee, pl.TaskID)
 	if err != nil || !ok {
@@ -153,6 +170,11 @@ func (p *DispatchWakeProjector) projectStateChanged(ctx context.Context, e outbo
 	if !strings.HasPrefix(pl.Assignee, agentRefPrefix) || pl.TaskID == "" {
 		return nil
 	}
+	if p.capabilityWaits != nil && taskStatusStopsCapabilityWait(pl.Status) {
+		if err := p.capabilityWaits.CancelByTask(ctx, pl.TaskID, "task_"+pl.Status, time.Now().UTC()); err != nil {
+			return err
+		}
+	}
 	tgt, ok, err := p.repushTarget(ctx, pl.Assignee, pl.TaskID, pl.Status, pl.PrevStatus)
 	if err != nil || !ok {
 		return err
@@ -161,6 +183,97 @@ func (p *DispatchWakeProjector) projectStateChanged(ctx context.Context, e outbo
 	// SAME next task fold into one wake; a re-push whose next task differs keys differently and
 	// is emitted (liveness for the genuinely-next task).
 	return p.emit(ctx, tgt, dispatchWakeKey(tgt))
+}
+
+type workerCapabilitiesPayload struct {
+	WorkerID string `json:"worker_id"`
+}
+
+func (p *DispatchWakeProjector) projectCapabilityReported(ctx context.Context, e outbox.Event) error {
+	if p.capabilityWaits == nil || p.redriveTarget == nil {
+		return nil
+	}
+	var pl workerCapabilitiesPayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if strings.TrimSpace(pl.WorkerID) == "" {
+		return nil
+	}
+	return p.RedriveWorkerCapabilities(ctx, pl.WorkerID)
+}
+
+func (p *DispatchWakeProjector) RedriveWorkerCapabilities(ctx context.Context, workerID string) error {
+	if p.capabilityWaits == nil || p.redriveTarget == nil {
+		return nil
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return nil
+	}
+	waits, err := p.capabilityWaits.ListWaitingByWorker(ctx, workerID)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	for _, wait := range waits {
+		tgt, ok, err := p.redriveTarget(ctx, wait)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := p.emit(ctx, tgt, dispatchWakeKey(tgt)); err != nil {
+			return err
+		}
+		if err := p.capabilityWaits.RecordRedrive(ctx, wait.TaskID, wait.AgentID, now); err != nil {
+			return err
+		}
+		if err := p.capabilityWaits.Resolve(ctx, wait.TaskID, wait.AgentID, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *DispatchWakeProjector) RedriveWaitingCapabilities(ctx context.Context) error {
+	if p.capabilityWaits == nil || p.redriveTarget == nil {
+		return nil
+	}
+	waits, err := p.capabilityWaits.ListWaiting(ctx)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	for _, wait := range waits {
+		tgt, ok, err := p.redriveTarget(ctx, wait)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := p.emit(ctx, tgt, dispatchWakeKey(tgt)); err != nil {
+			return err
+		}
+		if err := p.capabilityWaits.RecordRedrive(ctx, wait.TaskID, wait.AgentID, now); err != nil {
+			return err
+		}
+		if err := p.capabilityWaits.Resolve(ctx, wait.TaskID, wait.AgentID, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func taskStatusStopsCapabilityWait(status string) bool {
+	switch status {
+	case "completed", "discarded", "blocked":
+		return true
+	default:
+		return false
+	}
 }
 
 // dispatchWakeKey is the SINGLE idempotency anchor shared by every wake trigger: agent+task+

@@ -13,8 +13,12 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/api"
 	"github.com/oopslink/agent-center/internal/admintoken"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/environment"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
@@ -280,9 +284,10 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		ReplyNudgeSvc: a.ReplyNudgeSvc,
 
 		// Workforce BC
-		WorkerRepo:      a.WorkerRepo,
-		EnrollSvc:       a.EnrollSvc,
-		WorkerConfigSvc: a.WorkerConfigSvc,
+		WorkerRepo:        a.WorkerRepo,
+		EnrollSvc:         a.EnrollSvc,
+		CapabilityRedrive: buildCapabilityRedriveHook(a),
+		WorkerConfigSvc:   a.WorkerConfigSvc,
 
 		// Environment BC (v2.7 D1, ADR-0050, task #102)
 		EnvControlSvc: a.EnvControlSvc,
@@ -392,6 +397,21 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		TeamIdentityProvisionSvc: a.IdentityAgentProvisionSvc,
 		TeamMemberRepo:           a.IdentityMemberRepo,
 	}
+}
+
+func buildCapabilityRedriveHook(a *App) func(context.Context, string) error {
+	if a == nil || a.DB == nil || a.PMService == nil || a.WorkerRepo == nil || a.IDGen == nil {
+		return nil
+	}
+	capWaitRepo := envsql.NewCapabilityWaitRepo(a.DB)
+	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock).
+		WithPublisher(a.ControlStreamBus)
+	proj := envservice.NewDispatchWakeProjector(envservice.DispatchWakeProjectorDeps{
+		ControlLog:      controlLog,
+		CapabilityWaits: capWaitRepo,
+		RedriveTarget:   buildCapabilityRedriveTarget(a.PMService, agentsql.NewAgentRepo(a.DB), a.WorkerRepo),
+	})
+	return proj.RedriveWorkerCapabilities
 }
 
 // buildTeamGitHost constructs the center-hosted git provisioning surface (design

@@ -47,8 +47,11 @@ func ProbeAllAdapters(ctx context.Context, registry *agentadapter.Registry) []wo
 // probeOne runs Probe + SupportedFeatures for one adapter and returns the
 // matching Capability.
 func probeOne(ctx context.Context, adapter agentadapter.Adapter) workforce.Capability {
+	scannedAt := time.Now().UTC()
 	cap := workforce.Capability{
-		AgentCLI: adapter.Name(),
+		AgentCLI:  adapter.Name(),
+		ScannedAt: scannedAt,
+		ExpiresAt: scannedAt.Add(workforce.DefaultCapabilityTTL),
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, DefaultProbeTimeout)
 	defer cancel()
@@ -60,10 +63,12 @@ func probeOne(ctx context.Context, adapter agentadapter.Adapter) workforce.Capab
 	}
 	cap.Detected = avail
 	cap.Enabled = avail // first-probe default; user can disable later
+	cap.Healthy = avail
 	cap.Version = version
 	feat := adapter.SupportedFeatures()
 	cap.SupportsMCP = feat.SupportsMCP
 	cap.SupportsSkills = feat.SupportsSkills
 	cap.SupportsSession = feat.SupportsSession
+	cap.Features = workforce.NormalizeCapabilityFeatures(cap.EffectiveFeatures())
 	return cap
 }

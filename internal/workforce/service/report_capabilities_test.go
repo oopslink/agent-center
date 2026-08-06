@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -88,6 +90,12 @@ func TestWorkerEnrollService_ReportCapabilities_NewDetectedEnabled_NotDetectedSt
 	if oc.Detected || oc.Enabled {
 		t.Fatalf("not-detected opencode must be stored Detected=false Enabled=false, got %+v", oc)
 	}
+	if codex.Version != "0.9.0" {
+		t.Fatalf("codex version normalized=%q, want 0.9.0", codex.Version)
+	}
+	if codex.ScannedAt.IsZero() || codex.ExpiresAt.IsZero() || !codex.Healthy {
+		t.Fatalf("codex health window not stamped: %+v", codex)
+	}
 }
 
 // §-1②: a re-probe MUST preserve a user-disabled toggle (disabled → re-online
@@ -125,5 +133,46 @@ func TestWorkerEnrollService_ReportCapabilities_PreservesUserDisabledToggle(t *t
 	codex, _ := capByCLI(t, s, "W-1", "codex")
 	if codex.Enabled {
 		t.Fatalf("user-disabled codex must stay disabled across re-probe, got %+v", codex)
+	}
+}
+
+func TestWorkerEnrollService_ReportCapabilities_RejectsUnparseableVersion(t *testing.T) {
+	s := setupReportSuite(t)
+	seedReportWorker(t, s, "W-1", nil)
+
+	_, err := s.enroll.ReportCapabilities(context.Background(), ReportCapabilitiesCommand{
+		WorkerID: "W-1",
+		Capabilities: []workforce.Capability{
+			{AgentCLI: "codex", Detected: true, Version: "release latest"},
+		},
+		ActorIdentity: "user:probe",
+	})
+	if !errors.Is(err, workforce.ErrWorkerCapabilityVersion) {
+		t.Fatalf("err=%v, want ErrWorkerCapabilityVersion", err)
+	}
+}
+
+func TestWorkerEnrollService_ReportCapabilities_OutOfOrderDoesNotClobberNewer(t *testing.T) {
+	s := setupReportSuite(t)
+	now := s.clock.Now()
+	seedReportWorker(t, s, "W-1", []workforce.Capability{{
+		AgentCLI: "codex", Detected: true, Enabled: true, Healthy: true,
+		Version: "1.2.0", ScannedAt: now, ExpiresAt: now.Add(time.Hour),
+	}})
+
+	_, err := s.enroll.ReportCapabilities(context.Background(), ReportCapabilitiesCommand{
+		WorkerID: "W-1",
+		Capabilities: []workforce.Capability{{
+			AgentCLI: "codex", Detected: true, Version: "0.9.0",
+			ScannedAt: now.Add(-time.Hour), ExpiresAt: now.Add(time.Hour),
+		}},
+		ActorIdentity: "user:probe",
+	})
+	if err != nil {
+		t.Fatalf("ReportCapabilities: %v", err)
+	}
+	codex, _ := capByCLI(t, s, "W-1", "codex")
+	if codex.Version != "1.2.0" {
+		t.Fatalf("out-of-order report clobbered version: %+v", codex)
 	}
 }

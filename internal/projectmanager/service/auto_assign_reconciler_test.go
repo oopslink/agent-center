@@ -413,7 +413,8 @@ func TestAgentAutoAssignDirectory_NormalisesTagsAndOnline(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0).UTC()
 	w, err := workforce.RehydrateWorker(workforce.RehydrateWorkerInput{
 		ID: "w1", Name: "w", Status: workforce.WorkerOnline, OrganizationID: "org-1",
-		EnrolledAt: now, CreatedAt: now, UpdatedAt: now, Version: 1,
+		CapabilityList: []workforce.Capability{{AgentCLI: agentpkg.DefaultExecutorCLI, Detected: true, Enabled: true}},
+		EnrolledAt:     now, CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 	if err != nil {
 		t.Fatalf("worker: %v", err)
