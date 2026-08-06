@@ -26,6 +26,7 @@ var (
 	binaryOnce sync.Once
 	binaryPath string
 	binaryErr  error
+	binaryID   runtimeBuildIdentity
 )
 
 // ensureBinary builds cmd/agent-center once per test process. Subsequent
@@ -33,22 +34,44 @@ var (
 func ensureBinary(t *testing.T) string {
 	t.Helper()
 	binaryOnce.Do(func() {
+		if envBin := strings.TrimSpace(os.Getenv("AC_E2E_AGENT_CENTER_BIN")); envBin != "" {
+			abs, err := filepath.Abs(envBin)
+			if err != nil {
+				binaryErr = err
+				return
+			}
+			if st, err := os.Stat(abs); err != nil {
+				binaryErr = fmt.Errorf("AC_E2E_AGENT_CENTER_BIN %s: %w", abs, err)
+				return
+			} else if st.IsDir() {
+				binaryErr = fmt.Errorf("AC_E2E_AGENT_CENTER_BIN %s is a directory", abs)
+				return
+			}
+			binaryPath = abs
+			binaryID = runtimeBuildIdentityFromEnv()
+			return
+		}
 		dir, err := os.MkdirTemp("", "agent-center-e2e-*")
 		if err != nil {
 			binaryErr = err
 			return
 		}
 		binaryPath = filepath.Join(dir, "agent-center")
-		cmd := exec.Command("go", "build", "-o", binaryPath, "github.com/oopslink/agent-center/cmd/agent-center")
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			binaryErr = fmt.Errorf("go build: %w", err)
+		binaryID = defaultRuntimeBuildIdentity()
+		if err := buildAgentCenterBinary(binaryPath, binaryID); err != nil {
+			binaryErr = err
 		}
 	})
 	if binaryErr != nil {
 		t.Skipf("go build not available: %v", binaryErr)
 	}
 	return binaryPath
+}
+
+func ensureBinaryIdentity(t *testing.T) runtimeBuildIdentity {
+	t.Helper()
+	_ = ensureBinary(t)
+	return binaryID
 }
 
 type harness struct {

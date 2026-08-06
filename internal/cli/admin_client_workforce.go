@@ -9,7 +9,11 @@
 // endpoint's projection helpers (`workerMap`, `proposalMap`, etc.).
 package cli
 
-import "context"
+import (
+	"context"
+
+	"github.com/oopslink/agent-center/internal/workforce"
+)
 
 // =============================================================================
 // DTOs — JSON shape returned by admin/api/workforce.go projection helpers.
@@ -19,12 +23,13 @@ import "context"
 
 // WorkerDTO mirrors admin api workerMap.
 type WorkerDTO struct {
-	WorkerID        string   `json:"worker_id"`
-	Status          string   `json:"status"`
-	Capabilities    []string `json:"capabilities"`
-	Version         int      `json:"version"`
-	EnrolledAt      string   `json:"enrolled_at"`
-	LastHeartbeatAt string   `json:"last_heartbeat_at,omitempty"`
+	WorkerID        string               `json:"worker_id"`
+	Status          string               `json:"status"`
+	Capabilities    []string             `json:"capabilities"`
+	Version         int                  `json:"version"`
+	EnrolledAt      string               `json:"enrolled_at"`
+	LastHeartbeatAt string               `json:"last_heartbeat_at,omitempty"`
+	SystemInfo      workforce.SystemInfo `json:"system_info,omitempty"`
 }
 
 // ProjectDTO mirrors admin api projectMap. v2.7 #131 PR-3: repointed to the

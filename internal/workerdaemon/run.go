@@ -50,6 +50,9 @@ type RunOptions struct {
 	// unversioned / `go run` builds — the Profile page then omits the field.
 	AgentCenterVersion string
 	WorkerVersion      string
+	BuildCommit        string
+	BuildBranch        string
+	BuildBuiltAt       string
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
@@ -116,7 +119,8 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	// T752: gather the worker host + build identity once at startup; reported
 	// alongside the capability upload below so the Worker Profile page shows
 	// real host facts instead of "Coming in v2.9" placeholders.
-	sysInfo := collectSystemInfo(opts.AgentCenterVersion, opts.WorkerVersion)
+	startedAt := time.Now().UTC()
+	sysInfo := collectSystemInfo(opts.AgentCenterVersion, opts.WorkerVersion, opts.BuildCommit, opts.BuildBranch, opts.BuildBuiltAt, startedAt)
 
 	// Long-term worker token persistence (v2.4-D-X1): load an existing token and
 	// skip enroll, else enroll-with-exchange and persist the minted long-term token.

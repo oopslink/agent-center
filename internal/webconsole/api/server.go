@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/files"
@@ -53,9 +54,10 @@ type Deps struct {
 	// Branch / Commit / BuiltAt are the rest of the build identity
 	// (v2.8.1 version convention ${branch}-${commit}) echoed from
 	// GET /api/system/version for the Settings version panel.
-	Branch  string
-	Commit  string
-	BuiltAt string
+	Branch    string
+	Commit    string
+	BuiltAt   string
+	StartedAt string
 }
 
 // AppFacade narrows the cli.App surface that handlers need (we don't
@@ -533,10 +535,13 @@ func (s *Server) systemVersionHandler(w http.ResponseWriter, r *http.Request) {
 		return v
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":  fallback(s.deps.Version, "dev"),
-		"branch":   fallback(s.deps.Branch, "unknown"),
-		"commit":   fallback(s.deps.Commit, "unknown"),
-		"built_at": fallback(s.deps.BuiltAt, "unknown"),
+		"version":    fallback(s.deps.Version, "dev"),
+		"branch":     fallback(s.deps.Branch, "unknown"),
+		"commit":     fallback(s.deps.Commit, "unknown"),
+		"built_at":   fallback(s.deps.BuiltAt, "unknown"),
+		"pid":        os.Getpid(),
+		"parent_pid": os.Getppid(),
+		"started_at": fallback(s.deps.StartedAt, "unknown"),
 	})
 }
 

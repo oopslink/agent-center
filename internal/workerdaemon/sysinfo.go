@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -16,12 +17,20 @@ import (
 // Every field is best-effort: a probe that fails (e.g. os.Hostname error) is
 // simply left blank so the Profile page falls back to its per-field placeholder
 // rather than showing a fake value.
-func collectSystemInfo(agentCenterVersion, workerVersion string) workforce.SystemInfo {
+func collectSystemInfo(agentCenterVersion, workerVersion, buildCommit, buildBranch, buildBuiltAt string, startedAt time.Time) workforce.SystemInfo {
 	info := workforce.SystemInfo{
 		OS:                 runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		AgentCenterVersion: strings.TrimSpace(agentCenterVersion),
 		WorkerVersion:      strings.TrimSpace(workerVersion),
+		BuildCommit:        strings.TrimSpace(buildCommit),
+		BuildBranch:        strings.TrimSpace(buildBranch),
+		BuildBuiltAt:       strings.TrimSpace(buildBuiltAt),
+		PID:                os.Getpid(),
+		ParentPID:          os.Getppid(),
+	}
+	if !startedAt.IsZero() {
+		info.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
 	}
 	if h, err := os.Hostname(); err == nil {
 		info.Hostname = strings.TrimSpace(h)

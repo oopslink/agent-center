@@ -86,6 +86,9 @@ func WorkerRunCommand() *Command {
 				if bc := installerCommit(); bc != "" && bc != "unknown" {
 					wkVersion = acVersion + "+" + bc
 				}
+				buildCommit := ResolvedBuildCommit()
+				buildBranch := ResolvedBuildBranch()
+				buildBuiltAt := ResolvedBuildBuiltAt()
 				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
 					ConfigPath:           cfgPath,
 					WorkerID:             workerIDv,
@@ -99,6 +102,9 @@ func WorkerRunCommand() *Command {
 					DisableControlStream: *disableControlStream,
 					AgentCenterVersion:   acVersion,
 					WorkerVersion:        wkVersion,
+					BuildCommit:          buildCommit,
+					BuildBranch:          buildBranch,
+					BuildBuiltAt:         buildBuiltAt,
 				}, logf)
 				if err != nil {
 					if workerdaemon.IsShutdownError(err) {
