@@ -285,6 +285,9 @@ func workerMap(w *workforce.Worker) map[string]any {
 	if hb := w.LastHeartbeatAt(); hb != nil {
 		m["last_heartbeat_at"] = hb.Format(time.RFC3339Nano)
 	}
+	if si := w.SystemInfo(); !si.IsZero() {
+		m["system_info"] = si
+	}
 	return m
 }
 

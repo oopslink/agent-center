@@ -134,6 +134,46 @@ func TestProbe_EchoesAgentID(t *testing.T) {
 	}
 }
 
+func TestProbeIdentity_ReturnsDiagnostics(t *testing.T) {
+	sock := filepath.Join(shortSockDir(t), "id.sock")
+	h := HandlerFunc(func(context.Context, Command) error { return nil })
+	s, err := NewServerWithIdentity(sock, "agent-777", RuntimeIdentity{
+		PID:            1234,
+		StartedAt:      "2026-08-06T01:02:03Z",
+		ExecutablePath: "/opt/agent-center/current/bin/agent-center",
+		Version:        "hotfix-abc123+abc123",
+		Commit:         "abc123",
+		Branch:         "hotfix",
+		BuiltAt:        "2026-08-06T01:00:00Z",
+		BuildID:        "buildid-1",
+		CurrentTarget:  "/opt/agent-center/versions/hotfix-abc123",
+	}, h, nil)
+	if err != nil {
+		t.Fatalf("NewServerWithIdentity: %v", err)
+	}
+	go func() { _ = s.Serve() }()
+	defer func() { _ = s.Close(context.Background()) }()
+
+	c := NewClient(sock, time.Second)
+	deadline := time.Now().Add(2 * time.Second)
+	var got HealthResponse
+	for time.Now().Before(deadline) {
+		if got, err = c.ProbeIdentity(context.Background()); err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("ProbeIdentity: %v", err)
+	}
+	if got.AgentID != "agent-777" || got.PID != 1234 || got.ParentPID <= 0 ||
+		got.Version != "hotfix-abc123+abc123" || got.Commit != "abc123" ||
+		got.ExecutablePath != "/opt/agent-center/current/bin/agent-center" ||
+		got.BuildID != "buildid-1" || got.CurrentTarget != "/opt/agent-center/versions/hotfix-abc123" {
+		t.Fatalf("ProbeIdentity diagnostics mismatch: %+v", got)
+	}
+}
+
 // TestProbe_AgentDownIsError pins that probing a socket with no live server errors — the
 // worker treats "no answer" as "no survivor" and respawns.
 func TestProbe_AgentDownIsError(t *testing.T) {

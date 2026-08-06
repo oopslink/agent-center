@@ -57,17 +57,27 @@ func AgentRuntimeCommand() *Command {
 					fmt.Fprintln(errw, "Error: agent-runtime: --sock-dir is required")
 					return ExitUsage
 				}
+				acVersion := installerVersion()
+				rtVersion := acVersion
+				if bc := installerCommit(); bc != "" && bc != "unknown" {
+					rtVersion = acVersion + "+" + bc
+				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[agent-runtime %s] %s\n", *agentID, msg) }
 				err := workerdaemon.RunAgentRuntime(ctx, workerdaemon.AgentRuntimeOptions{
 					AgentID:      *agentID,
 					SockDir:      *sockDir,
 					TickInterval: *tickInterval,
 					Run: workerdaemon.RunOptions{
-						ConfigPath:        cfgPathV,
-						WorkerID:          workerIDv,
-						AdminToken:        firstNonEmptyWorker(coalesceWorkerFlag(*token, *adminToken), cfg.Worker.Token),
-						AdminTarget:       firstNonEmptyWorker(coalesceWorkerFlag(*bootstrap, *adminTarget), cfg.Worker.Bootstrap),
-						ServerFingerprint: firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
+						ConfigPath:         cfgPathV,
+						WorkerID:           workerIDv,
+						AdminToken:         firstNonEmptyWorker(coalesceWorkerFlag(*token, *adminToken), cfg.Worker.Token),
+						AdminTarget:        firstNonEmptyWorker(coalesceWorkerFlag(*bootstrap, *adminTarget), cfg.Worker.Bootstrap),
+						ServerFingerprint:  firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
+						AgentCenterVersion: acVersion,
+						WorkerVersion:      rtVersion,
+						BuildCommit:        ResolvedBuildCommit(),
+						BuildBranch:        ResolvedBuildBranch(),
+						BuildBuiltAt:       ResolvedBuildBuiltAt(),
 					},
 				}, logf)
 				if err != nil {

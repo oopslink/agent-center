@@ -50,7 +50,32 @@ const (
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
 type HealthResponse struct {
-	AgentID string `json:"agent_id"`
+	AgentID        string `json:"agent_id"`
+	PID            int    `json:"pid,omitempty"`
+	ParentPID      int    `json:"parent_pid,omitempty"`
+	StartedAt      string `json:"started_at,omitempty"`
+	ExecutablePath string `json:"executable_path,omitempty"`
+	Version        string `json:"version,omitempty"`
+	Commit         string `json:"commit,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	BuiltAt        string `json:"built_at,omitempty"`
+	BuildID        string `json:"build_id,omitempty"`
+	CurrentTarget  string `json:"current_target,omitempty"`
+}
+
+// RuntimeIdentity is optional runtime-process identity surfaced by GET /health for
+// deployed-binary smoke diagnostics. AgentID remains the only field required by the
+// worker re-adoption path; the other fields are additive and may be empty.
+type RuntimeIdentity struct {
+	PID            int
+	StartedAt      string
+	ExecutablePath string
+	Version        string
+	Commit         string
+	Branch         string
+	BuiltAt        string
+	BuildID        string
+	CurrentTarget  string
 }
 
 // SocketName returns a SHORT, collision-resistant control-socket filename for an
@@ -99,6 +124,7 @@ func (f HandlerFunc) Handle(ctx context.Context, cmd Command) error { return f(c
 type Server struct {
 	sockPath string
 	agentID  string
+	identity RuntimeIdentity
 	handler  Handler
 	log      func(format string, args ...any)
 	srv      *http.Server
@@ -109,6 +135,13 @@ type Server struct {
 // echoed by GET /health so a worker restart can authoritatively identify the surviving
 // agent process on this socket (T860 gap5). Call Serve to run it and Close to stop.
 func NewServer(sockPath, agentID string, h Handler, log func(format string, args ...any)) (*Server, error) {
+	return NewServerWithIdentity(sockPath, agentID, RuntimeIdentity{}, h, log)
+}
+
+// NewServerWithIdentity is NewServer plus optional diagnostic build/process identity
+// emitted from GET /health. It is used by deployed-binary smoke to prove the adopted
+// agent-runtime process is running the same artifact as the worker/center.
+func NewServerWithIdentity(sockPath, agentID string, identity RuntimeIdentity, h Handler, log func(format string, args ...any)) (*Server, error) {
 	if sockPath == "" {
 		return nil, errors.New("agentcontrol: server socket path required")
 	}
@@ -127,7 +160,10 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	if err != nil {
 		return nil, fmt.Errorf("agentcontrol: listen %s: %w", sockPath, err)
 	}
-	s := &Server{sockPath: sockPath, agentID: agentID, handler: h, log: log, ln: ln}
+	if identity.PID == 0 {
+		identity.PID = os.Getpid()
+	}
+	s := &Server{sockPath: sockPath, agentID: agentID, identity: identity, handler: h, log: log, ln: ln}
 	mux := http.NewServeMux()
 	mux.HandleFunc(controlPath, s.serveControl)
 	mux.HandleFunc(healthPath, s.serveHealth)
@@ -142,8 +178,24 @@ func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	id := s.identity
+	if id.PID == 0 {
+		id.PID = os.Getpid()
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(HealthResponse{AgentID: s.agentID})
+	_ = json.NewEncoder(w).Encode(HealthResponse{
+		AgentID:        s.agentID,
+		PID:            id.PID,
+		ParentPID:      os.Getppid(),
+		StartedAt:      id.StartedAt,
+		ExecutablePath: id.ExecutablePath,
+		Version:        id.Version,
+		Commit:         id.Commit,
+		Branch:         id.Branch,
+		BuiltAt:        id.BuiltAt,
+		BuildID:        id.BuildID,
+		CurrentTarget:  id.CurrentTarget,
+	})
 }
 
 func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
@@ -254,23 +306,34 @@ func (c *Client) Deliver(ctx context.Context, cmd Command) error {
 // a surviving agent process only when Probe succeeds AND returns the expected agent id.
 // An error (dial fails / non-2xx / bad body) means "no live matching process" → respawn.
 func (c *Client) Probe(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+healthPath, nil)
+	hr, err := c.ProbeIdentity(ctx)
 	if err != nil {
 		return "", err
 	}
+	return hr.AgentID, nil
+}
+
+// ProbeIdentity GETs /health and returns the full additive identity payload. The
+// worker adoption path continues to use Probe(), while smoke diagnostics use this
+// shape to report version/PID/start-time skew.
+func (c *Client) ProbeIdentity(ctx context.Context) (HealthResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+healthPath, nil)
+	if err != nil {
+		return HealthResponse{}, err
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("agentcontrol: probe: %w", err) // agent down/unreachable
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: %w", err) // agent down/unreachable
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("agentcontrol: probe: agent returned %s", resp.Status)
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: agent returned %s", resp.Status)
 	}
 	var hr HealthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&hr); err != nil {
-		return "", fmt.Errorf("agentcontrol: probe: decode: %w", err)
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: decode: %w", err)
 	}
-	return hr.AgentID, nil
+	return hr, nil
 }
 
 // SnapshotConcurrency returns the agent runtime's live executor snapshot.

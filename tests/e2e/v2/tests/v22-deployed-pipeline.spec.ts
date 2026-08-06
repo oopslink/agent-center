@@ -43,7 +43,7 @@
 import { test, expect } from "@playwright/test";
 import { execFile as execFileCb, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -51,6 +51,16 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { pickFreePort } from "../helpers/ports.js";
+import {
+  agentRuntimeSocketPath,
+  assertRuntimeVersionConsistency,
+  observeAgentRuntimeHealth,
+  observeChildProcess,
+  readArtifactExpectation,
+  readHTTPJSON,
+  waitAgentRuntimeHealth,
+  workerSockDir,
+} from "../helpers/runtime-version.js";
 
 const execFile = promisify(execFileCb);
 
@@ -61,6 +71,7 @@ const SERVER_BIN = resolve(REPO_ROOT, "bin/agent-center");
 // standalone agent-center-worker-daemon is retired).
 const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center");
 const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
+const DISABLE_CONTROL_STREAM = process.env.AC_SMOKE_DISABLE_CONTROL_STREAM === "1";
 
 // adminPOST issues an HTTP POST over the admin unix socket with a bearer token.
 function adminPOST(
@@ -196,6 +207,7 @@ test.describe("deployed-binary smoke — control-plane task-dispatch pipeline", 
     const configPath = join(tempDir, "config.yaml");
     const webPort = await pickFreePort();
     const grpcPort = await pickFreePort();
+    const expectedArtifact = await readArtifactExpectation(SERVER_BIN);
 
     // Master key — the webconsole JWT signing key. The server REFUSES to boot
     // with the webconsole enabled unless secret_management.master_key_file is set.
@@ -262,25 +274,39 @@ secret_management:
       }
       expect(health.status, "admin /health: " + health.body).toBe(200);
 
+      const now = new Date().toISOString();
+      const orgID = "organization-smoke01";
+      const runtimeWorkerID = "smoke-run-w";
+      const runtimeAgentID = "smoke-runtime-0001";
+      await execFile("sqlite3", [
+        dbPath,
+        [
+          `INSERT INTO organizations (id,slug,name,description,created_by_identity_id,created_at,updated_at) VALUES ('${orgID}','smoke-org','Smoke Org','','user:hayang','${now}','${now}');`,
+          `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${runtimeAgentID}','${orgID}','smoke-runtime','','','fakeagent','${runtimeWorkerID}','running','user:hayang','${now}','${now}');`,
+        ].join("\n"),
+      ]);
+
       // --- PHASE 2: the worker BINARY boots + enrolls over the socket -------
+      const workerArgs = [
+        "worker",
+        "run",
+        "--config",
+        configPath,
+        "--worker-id",
+        runtimeWorkerID,
+        "--worker-name",
+        "smoke run worker",
+        "--admin-target",
+        "unix:" + sockPath,
+        "--admin-token",
+        adminToken,
+        "--fake-agent",
+        FAKEAGENT_BIN,
+      ];
+      if (DISABLE_CONTROL_STREAM) workerArgs.push("--disable-control-stream");
       worker = spawn(
         WORKER_BIN,
-        [
-          "worker",
-          "run",
-          "--config",
-          configPath,
-          "--worker-id",
-          "smoke-run-w",
-          "--worker-name",
-          "smoke run worker",
-          "--admin-target",
-          "unix:" + sockPath,
-          "--admin-token",
-          adminToken,
-          "--fake-agent",
-          FAKEAGENT_BIN,
-        ],
+        workerArgs,
         {
           stdio: ["ignore", "pipe", "pipe"],
           env: { ...process.env, AGENT_CENTER_INVOCATION_ID: "" },
@@ -291,14 +317,26 @@ secret_management:
 
       // Poll the operator read route until the worker is enrolled + online.
       let workerOnline = false;
+      let workerRecord:
+        | {
+            worker_id: string;
+            status: string;
+            system_info?: { worker_version?: string; install_path?: string };
+          }
+        | undefined;
       const enrollDeadline = Date.now() + 12_000;
       while (Date.now() < enrollDeadline) {
         const r = await adminGET(sockPath, "/admin/workforce/worker/find-all", adminToken);
-        if (r.status === 200 && r.body.includes("smoke-run-w")) {
-          const list = JSON.parse(r.body) as Array<{ worker_id: string; status: string }>;
-          const w = list.find((x) => x.worker_id === "smoke-run-w");
-          if (w && w.status === "online") {
+        if (r.status === 200 && r.body.includes(runtimeWorkerID)) {
+          const list = JSON.parse(r.body) as Array<{
+            worker_id: string;
+            status: string;
+            system_info?: { worker_version?: string; install_path?: string };
+          }>;
+          const w = list.find((x) => x.worker_id === runtimeWorkerID);
+          if (w && w.status === "online" && w.system_info?.worker_version) {
             workerOnline = true;
+            workerRecord = w;
             break;
           }
         }
@@ -314,6 +352,59 @@ secret_management:
       // The worker's control loop needs an org-install to CONNECT (409
       // worker_not_org_enrolled otherwise); that is out of this smoke's scope —
       // enroll + online over the real socket is the deployed-worker signal.
+
+      const sockDir = workerSockDir(runtimeWorkerID);
+      let runtimeHealth;
+      try {
+        runtimeHealth = await waitAgentRuntimeHealth(
+          agentRuntimeSocketPath(runtimeWorkerID, runtimeAgentID),
+          runtimeAgentID,
+          30_000,
+        );
+      } catch (e) {
+        let sockEntries = "<unreadable>";
+        let pidStore = "<unreadable>";
+        try {
+          sockEntries = (await readdir(sockDir)).join("\n");
+        } catch {}
+        try {
+          pidStore = await readFile(join(sockDir, "agent-pids.json"), "utf8");
+        } catch {}
+        throw new Error(
+          String(e) +
+            "\n--- worker sock dir ---\n" +
+            sockDir +
+            "\n--- sock entries ---\n" +
+            sockEntries +
+            "\n--- agent-pids.json ---\n" +
+            pidStore +
+            "\n--- worker stderr ---\n" +
+            Buffer.concat(workerStderr).toString("utf8").slice(-4000) +
+            "\n--- worker stdout ---\n" +
+            Buffer.concat(workerStdout).toString("utf8").slice(-2000),
+        );
+      }
+      const centerVersion = await readHTTPJSON<{
+        version: string;
+        commit: string;
+      }>(`http://127.0.0.1:${webPort}/api/system/version`);
+      const centerObs = await observeChildProcess("center", server, {
+        version: centerVersion.version,
+        commit: centerVersion.commit,
+        executablePath: SERVER_BIN,
+        buildID: expectedArtifact.buildID,
+      });
+      const workerObs = await observeChildProcess("worker", worker, {
+        version: workerRecord?.system_info?.worker_version,
+        commit: expectedArtifact.commit,
+        executablePath: workerRecord?.system_info?.install_path || WORKER_BIN,
+        buildID: expectedArtifact.buildID,
+      });
+      const runtimeObs = await observeAgentRuntimeHealth(runtimeHealth);
+      assertRuntimeVersionConsistency(expectedArtifact, [centerObs, workerObs, runtimeObs], {
+        workerPid: worker.pid,
+        workerStartedAtMs: workerObs.startedAtMs,
+      });
 
       // --- PHASE 3: current route surface answers; stale routes are gone ----
       for (const stale of [
@@ -341,12 +432,9 @@ secret_management:
       // Seed (sqlite): org + Agent (bound to smoke-ctl-w) + project + membership
       // + the project's first-class AssignmentPool (ADR-0055). This fixture uses
       // raw SQL after migrations, so it must mirror CreateProject's pool row.
-      const now = new Date().toISOString();
-      const orgID = "organization-smoke01";
       const agentID = "smoke-agent-0001"; // raw Agent BC id (identity = agent:<id>)
       const projectID = "p-smoke";
       const seedSQL = [
-        `INSERT INTO organizations (id,slug,name,description,created_by_identity_id,created_at,updated_at) VALUES ('${orgID}','smoke-org','Smoke Org','','user:hayang','${now}','${now}');`,
         `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${agentID}','${orgID}','smoke-agent','','','fakeagent','smoke-ctl-w','running','user:hayang','${now}','${now}');`,
         `INSERT INTO pm_projects (id,organization_id,name,description,status,created_by,created_at,updated_at,version) VALUES ('${projectID}','${orgID}','Smoke Project','smoke','active','user:hayang','${now}','${now}',1);`,
         `INSERT INTO pm_project_members (id,project_id,identity_id,role,added_by,created_at) VALUES ('m-smoke','${projectID}','agent:${agentID}','member','system','${now}');`,

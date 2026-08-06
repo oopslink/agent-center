@@ -50,6 +50,9 @@ type RunOptions struct {
 	// unversioned / `go run` builds — the Profile page then omits the field.
 	AgentCenterVersion string
 	WorkerVersion      string
+	BuildCommit        string
+	BuildBranch        string
+	BuildBuiltAt       string
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/

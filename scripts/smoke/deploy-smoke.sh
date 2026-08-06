@@ -97,10 +97,18 @@ done
 
 # --- run the deployed-pipeline spec ---------------------------------
 # The spec spawns server + worker-daemon as real processes, hits the
-# admin unix socket, and asserts the task reaches `done`. Diagnostics
-# (server / worker stderr) are auto-attached on failure.
-step "spec:v22-deployed-pipeline"
-( cd tests/e2e/v2 && pnpm exec playwright test "$(basename "$SPEC")" )
+# admin unix socket, asserts runtime version identity, and drives the
+# task-dispatch control plane. Run both stream-first (default) and the
+# poll-only escape hatch so deployed-binary coverage includes the key
+# control-stream flag in both positions.
+for mode in stream-on stream-off; do
+  step "spec:v22-deployed-pipeline:${mode}"
+  if [[ "$mode" == "stream-off" ]]; then
+    ( cd tests/e2e/v2 && AC_SMOKE_DISABLE_CONTROL_STREAM=1 pnpm exec playwright test "$(basename "$SPEC")" )
+  else
+    ( cd tests/e2e/v2 && pnpm exec playwright test "$(basename "$SPEC")" )
+  fi
+done
 
 # --- success --------------------------------------------------------
 trap - ERR

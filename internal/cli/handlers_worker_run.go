@@ -99,6 +99,9 @@ func WorkerRunCommand() *Command {
 					DisableControlStream: *disableControlStream,
 					AgentCenterVersion:   acVersion,
 					WorkerVersion:        wkVersion,
+					BuildCommit:          ResolvedBuildCommit(),
+					BuildBranch:          ResolvedBuildBranch(),
+					BuildBuiltAt:         ResolvedBuildBuiltAt(),
 				}, logf)
 				if err != nil {
 					if workerdaemon.IsShutdownError(err) {

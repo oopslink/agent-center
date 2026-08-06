@@ -37,6 +37,8 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 )
 
+var agentRuntimeStartedAt = time.Now().UTC()
+
 // AgentRuntimeOptions parameterises one agent-runtime process.
 type AgentRuntimeOptions struct {
 	// AgentID is the agent this process serves (required).
@@ -135,7 +137,16 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 
 	// 4) control server — opened ONLY after Boot returned.
 	sockPath := filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID))
-	srv, err := agentcontrol.NewServer(sockPath, opts.AgentID, agentControlHandler{rt: rt, log: logf}, func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) })
+	exePath, _ := os.Executable()
+	srv, err := agentcontrol.NewServerWithIdentity(sockPath, opts.AgentID, agentcontrol.RuntimeIdentity{
+		PID:            os.Getpid(),
+		StartedAt:      agentRuntimeStartedAt.Format(time.RFC3339Nano),
+		ExecutablePath: strings.TrimSpace(exePath),
+		Version:        strings.TrimSpace(opts.Run.WorkerVersion),
+		Commit:         strings.TrimSpace(opts.Run.BuildCommit),
+		Branch:         strings.TrimSpace(opts.Run.BuildBranch),
+		BuiltAt:        strings.TrimSpace(opts.Run.BuildBuiltAt),
+	}, agentControlHandler{rt: rt, log: logf}, func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) })
 	if err != nil {
 		return fmt.Errorf("agent-runtime: control server: %w", err)
 	}
