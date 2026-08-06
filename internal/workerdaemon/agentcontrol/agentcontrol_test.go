@@ -134,6 +134,38 @@ func TestProbe_EchoesAgentID(t *testing.T) {
 	}
 }
 
+func TestInfo_ReturnsBuildProcessMetadata(t *testing.T) {
+	sock := filepath.Join(shortSockDir(t), "info.sock")
+	h := HandlerFunc(func(context.Context, Command) error { return nil })
+	started := "2026-08-06T00:00:00Z"
+	s, err := NewServer(sock, "agent-info", h, nil, WithHealthInfo(HealthResponse{
+		Build: BuildInfo{Version: "v-test", Commit: "abc123", Branch: "main", BuiltAt: "2026-08-06T00:00:00Z"},
+		PID:   123, ParentPID: 45, StartedAt: started, ExecutablePath: "/tmp/current/bin/agent-center",
+	}))
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	go func() { _ = s.Serve() }()
+	defer func() { _ = s.Close(context.Background()) }()
+
+	c := NewClient(sock, time.Second)
+	deadline := time.Now().Add(2 * time.Second)
+	var info HealthResponse
+	for time.Now().Before(deadline) {
+		if info, err = c.Info(context.Background()); err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	if info.AgentID != "agent-info" || info.Build.Version != "v-test" || info.Build.Commit != "abc123" ||
+		info.PID != 123 || info.ParentPID != 45 || info.StartedAt != started || info.ExecutablePath == "" {
+		t.Fatalf("Info metadata mismatch: %+v", info)
+	}
+}
+
 // TestProbe_AgentDownIsError pins that probing a socket with no live server errors — the
 // worker treats "no answer" as "no survivor" and respawns.
 func TestProbe_AgentDownIsError(t *testing.T) {

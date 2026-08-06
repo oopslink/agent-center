@@ -85,7 +85,11 @@ fi
 # `make build` already chains build-frontend + build-backend +
 # build-fakeagent (Makefile § build target).
 step "build"
-make build
+SMOKE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+SMOKE_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+SMOKE_BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+SMOKE_VERSION="${VERSION:-${SMOKE_BRANCH}-${SMOKE_COMMIT}}"
+make build VERSION="$SMOKE_VERSION" COMMIT="$SMOKE_COMMIT" BRANCH="$SMOKE_BRANCH" BUILT_AT="$SMOKE_BUILT_AT"
 
 for b in bin/agent-center bin/fakeagent; do
   if [[ ! -x "$b" ]]; then
@@ -101,6 +105,18 @@ done
 # (server / worker stderr) are auto-attached on failure.
 step "spec:v22-deployed-pipeline"
 ( cd tests/e2e/v2 && pnpm exec playwright test "$(basename "$SPEC")" )
+
+# --- run runtime-version deployed-binary assertions -------------------
+# Uses the exact bin/agent-center built above (no hidden rebuild) and drives real
+# center/worker/agent-runtime processes. The Go spec covers control-stream ON/OFF
+# and the worker-restart adopt-skew negative regression.
+step "spec:runtime-version"
+AC_E2E_AGENT_CENTER_BIN="$ROOT/bin/agent-center" \
+AC_E2E_EXPECTED_VERSION="$SMOKE_VERSION" \
+AC_E2E_EXPECTED_COMMIT="$SMOKE_COMMIT" \
+AC_E2E_EXPECTED_BRANCH="$SMOKE_BRANCH" \
+AC_E2E_EXPECTED_BUILT_AT="$SMOKE_BUILT_AT" \
+go test ./tests/e2e -run 'TestRuntimeVersionAssertions|TestDeployedBinaryRuntimeVersion' -count=1
 
 # --- success --------------------------------------------------------
 trap - ERR

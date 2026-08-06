@@ -580,10 +580,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),
-		Version: ResolvedBuildVersion(),
-		Branch:  ResolvedBuildBranch(),
-		Commit:  ResolvedBuildCommit(),
-		BuiltAt: ResolvedBuildBuiltAt(),
+		Version:   ResolvedBuildVersion(),
+		Branch:    ResolvedBuildBranch(),
+		Commit:    ResolvedBuildCommit(),
+		BuiltAt:   ResolvedBuildBuiltAt(),
+		StartedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	})
 	// Wrap the inner mux with deps middleware; install it as the
 	// server's handler so the loopback guard in api.Server.ListenAndServe

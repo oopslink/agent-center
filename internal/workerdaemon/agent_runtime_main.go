@@ -56,6 +56,7 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 	if logf == nil {
 		logf = func(string) {}
 	}
+	startedAt := time.Now().UTC()
 	if strings.TrimSpace(opts.AgentID) == "" {
 		return fmt.Errorf("agent-runtime: agent-id is required")
 	}
@@ -135,7 +136,20 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 
 	// 4) control server — opened ONLY after Boot returned.
 	sockPath := filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID))
-	srv, err := agentcontrol.NewServer(sockPath, opts.AgentID, agentControlHandler{rt: rt, log: logf}, func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) })
+	srv, err := agentcontrol.NewServer(sockPath, opts.AgentID, agentControlHandler{rt: rt, log: logf},
+		func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
+		agentcontrol.WithHealthInfo(agentcontrol.HealthResponse{
+			Build: agentcontrol.BuildInfo{
+				Version: opts.Run.AgentCenterVersion,
+				Commit:  opts.Run.BuildCommit,
+				Branch:  opts.Run.BuildBranch,
+				BuiltAt: opts.Run.BuildBuiltAt,
+			},
+			PID:            os.Getpid(),
+			ParentPID:      os.Getppid(),
+			StartedAt:      startedAt.Format(time.RFC3339Nano),
+			ExecutablePath: agentRuntimeExecutablePath(),
+		}))
 	if err != nil {
 		return fmt.Errorf("agent-runtime: control server: %w", err)
 	}
@@ -181,6 +195,14 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 			rt.RunWatchdog(ctx)
 		}
 	}
+}
+
+func agentRuntimeExecutablePath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return exe
 }
 
 // agentRuntimeClient reproduces RunDaemon's transport bootstrap for the agent process:

@@ -50,7 +50,22 @@ const (
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
 type HealthResponse struct {
-	AgentID string `json:"agent_id"`
+	AgentID        string    `json:"agent_id"`
+	Build          BuildInfo `json:"build,omitempty"`
+	PID            int       `json:"pid,omitempty"`
+	ParentPID      int       `json:"parent_pid,omitempty"`
+	StartedAt      string    `json:"started_at,omitempty"`
+	ExecutablePath string    `json:"executable_path,omitempty"`
+}
+
+// BuildInfo is the build identity reported by a live agent-runtime process.
+// It is intentionally additive on /health: adoption only needs AgentID, while
+// deployed-binary smoke can use the richer fields to detect current/live skew.
+type BuildInfo struct {
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+	BuiltAt string `json:"built_at,omitempty"`
 }
 
 // SocketName returns a SHORT, collision-resistant control-socket filename for an
@@ -99,16 +114,28 @@ func (f HandlerFunc) Handle(ctx context.Context, cmd Command) error { return f(c
 type Server struct {
 	sockPath string
 	agentID  string
+	health   HealthResponse
 	handler  Handler
 	log      func(format string, args ...any)
 	srv      *http.Server
 	ln       net.Listener
 }
 
+// ServerOption customizes additive health metadata.
+type ServerOption func(*Server)
+
+// WithHealthInfo attaches build/process diagnostics to GET /health.
+func WithHealthInfo(info HealthResponse) ServerOption {
+	return func(s *Server) {
+		info.AgentID = s.agentID
+		s.health = info
+	}
+}
+
 // NewServer binds a Server to sockPath (removing a stale socket first). agentID is
 // echoed by GET /health so a worker restart can authoritatively identify the surviving
 // agent process on this socket (T860 gap5). Call Serve to run it and Close to stop.
-func NewServer(sockPath, agentID string, h Handler, log func(format string, args ...any)) (*Server, error) {
+func NewServer(sockPath, agentID string, h Handler, log func(format string, args ...any), opts ...ServerOption) (*Server, error) {
 	if sockPath == "" {
 		return nil, errors.New("agentcontrol: server socket path required")
 	}
@@ -127,7 +154,25 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	if err != nil {
 		return nil, fmt.Errorf("agentcontrol: listen %s: %w", sockPath, err)
 	}
-	s := &Server{sockPath: sockPath, agentID: agentID, handler: h, log: log, ln: ln}
+	s := &Server{
+		sockPath: sockPath,
+		agentID:  agentID,
+		health: HealthResponse{
+			AgentID:        agentID,
+			PID:            os.Getpid(),
+			ParentPID:      os.Getppid(),
+			ExecutablePath: executablePath(),
+		},
+		handler: h,
+		log:     log,
+		ln:      ln,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(s)
+		}
+	}
+	s.health.AgentID = agentID
 	mux := http.NewServeMux()
 	mux.HandleFunc(controlPath, s.serveControl)
 	mux.HandleFunc(healthPath, s.serveHealth)
@@ -143,7 +188,7 @@ func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(HealthResponse{AgentID: s.agentID})
+	_ = json.NewEncoder(w).Encode(s.health)
 }
 
 func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +205,14 @@ func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(concurrency.AgentSnapshot{Active: len(execs), Executors: execs})
+}
+
+func executablePath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return exe
 }
 
 func (s *Server) serveControl(w http.ResponseWriter, r *http.Request) {
@@ -254,23 +307,33 @@ func (c *Client) Deliver(ctx context.Context, cmd Command) error {
 // a surviving agent process only when Probe succeeds AND returns the expected agent id.
 // An error (dial fails / non-2xx / bad body) means "no live matching process" → respawn.
 func (c *Client) Probe(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+healthPath, nil)
+	hr, err := c.Info(ctx)
 	if err != nil {
 		return "", err
 	}
+	return hr.AgentID, nil
+}
+
+// Info GETs /health and returns the full live-runtime health payload. Probe keeps
+// the historical agent-id-only API for the worker adoption path.
+func (c *Client) Info(ctx context.Context) (HealthResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+healthPath, nil)
+	if err != nil {
+		return HealthResponse{}, err
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("agentcontrol: probe: %w", err) // agent down/unreachable
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: %w", err) // agent down/unreachable
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("agentcontrol: probe: agent returned %s", resp.Status)
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: agent returned %s", resp.Status)
 	}
 	var hr HealthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&hr); err != nil {
-		return "", fmt.Errorf("agentcontrol: probe: decode: %w", err)
+		return HealthResponse{}, fmt.Errorf("agentcontrol: probe: decode: %w", err)
 	}
-	return hr.AgentID, nil
+	return hr, nil
 }
 
 // SnapshotConcurrency returns the agent runtime's live executor snapshot.

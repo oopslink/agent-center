@@ -58,16 +58,26 @@ func AgentRuntimeCommand() *Command {
 					return ExitUsage
 				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[agent-runtime %s] %s\n", *agentID, msg) }
+				acVersion := installerVersion()
+				wkVersion := acVersion
+				if bc := installerCommit(); bc != "" && bc != "unknown" {
+					wkVersion = acVersion + "+" + bc
+				}
 				err := workerdaemon.RunAgentRuntime(ctx, workerdaemon.AgentRuntimeOptions{
 					AgentID:      *agentID,
 					SockDir:      *sockDir,
 					TickInterval: *tickInterval,
 					Run: workerdaemon.RunOptions{
-						ConfigPath:        cfgPathV,
-						WorkerID:          workerIDv,
-						AdminToken:        firstNonEmptyWorker(coalesceWorkerFlag(*token, *adminToken), cfg.Worker.Token),
-						AdminTarget:       firstNonEmptyWorker(coalesceWorkerFlag(*bootstrap, *adminTarget), cfg.Worker.Bootstrap),
-						ServerFingerprint: firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
+						ConfigPath:         cfgPathV,
+						WorkerID:           workerIDv,
+						AdminToken:         firstNonEmptyWorker(coalesceWorkerFlag(*token, *adminToken), cfg.Worker.Token),
+						AdminTarget:        firstNonEmptyWorker(coalesceWorkerFlag(*bootstrap, *adminTarget), cfg.Worker.Bootstrap),
+						ServerFingerprint:  firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
+						AgentCenterVersion: acVersion,
+						WorkerVersion:      wkVersion,
+						BuildCommit:        ResolvedBuildCommit(),
+						BuildBranch:        ResolvedBuildBranch(),
+						BuildBuiltAt:       ResolvedBuildBuiltAt(),
 					},
 				}, logf)
 				if err != nil {

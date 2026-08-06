@@ -25,6 +25,12 @@ type SystemInfo struct {
 	// AgentCenterVersion: the same binary can be a specific commit-level build
 	// of a given agent-center release).
 	WorkerVersion string `json:"worker_version,omitempty"`
+	BuildCommit   string `json:"build_commit,omitempty"`
+	BuildBranch   string `json:"build_branch,omitempty"`
+	BuildBuiltAt  string `json:"build_built_at,omitempty"`
+	PID           int    `json:"pid,omitempty"`
+	ParentPID     int    `json:"parent_pid,omitempty"`
+	StartedAt     string `json:"started_at,omitempty"`
 }
 
 // IsZero reports whether no field is set (worker reported nothing).
@@ -34,7 +40,13 @@ func (s SystemInfo) IsZero() bool {
 		strings.TrimSpace(s.Arch) == "" &&
 		strings.TrimSpace(s.AgentCenterVersion) == "" &&
 		strings.TrimSpace(s.InstallPath) == "" &&
-		strings.TrimSpace(s.WorkerVersion) == ""
+		strings.TrimSpace(s.WorkerVersion) == "" &&
+		strings.TrimSpace(s.BuildCommit) == "" &&
+		strings.TrimSpace(s.BuildBranch) == "" &&
+		strings.TrimSpace(s.BuildBuiltAt) == "" &&
+		s.PID == 0 &&
+		s.ParentPID == 0 &&
+		strings.TrimSpace(s.StartedAt) == ""
 }
 
 // systemInfoJSON marshals a SystemInfo for storage. The zero value serialises
