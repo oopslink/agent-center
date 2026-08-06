@@ -95,11 +95,27 @@ type RoleConfig struct {
 	CLI string
 	// Model is the model id this role uses (e.g. "claude-opus-4-8").
 	Model string
+	// RuntimeSelection defines this role's AI runtime inheritance semantics.
+	RuntimeSelection RuntimeSelection
 	// CapabilityTags are free-form capability requirements for the role.
 	CapabilityTags []string
 	// MaxConcurrency caps how many members of this role may run at once.
 	MaxConcurrency int
 }
+
+type RuntimeSelection struct {
+	Mode       string         `json:"mode"`
+	ProfileID  string         `json:"profile_id,omitempty"`
+	CLIID      string         `json:"cli_id,omitempty"`
+	ModelID    string         `json:"model_id,omitempty"`
+	Parameters map[string]any `json:"parameters,omitempty"`
+}
+
+const (
+	RuntimeSelectionInherit  = "inherit"
+	RuntimeSelectionProfile  = "profile"
+	RuntimeSelectionOverride = "override"
+)
 
 // TeamMember is a membership record binding a MemberRef to a team under a role.
 type TeamMember struct {

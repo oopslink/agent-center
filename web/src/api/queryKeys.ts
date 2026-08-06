@@ -109,6 +109,10 @@ export const qk = {
   templates: () => o('templates'),
   template: (id: string) => o('templates', id),
   modelCatalog: () => o('model-catalog'),
+  aiRuntime: () => o('ai-runtime'),
+  aiRuntimeAudit: () => o('ai-runtime', 'audit'),
+  aiRuntimeImpact: (entityType: string, entityId: string, action: string) =>
+    o('ai-runtime', 'impact', entityType, entityId, action),
   workspaceRepos: () => o('workspaceRepos'),
   repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),
   repoBranches: (repoId: string) => o('repoBranches', repoId),

@@ -86,15 +86,65 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 		if mc == 0 {
 			mc = 1 // default one concurrent slot per role
 		}
+		selection, cli, model, err := normalizeRoleRuntimeSelection(rc)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, RoleConfig{
-			Role:           role,
-			CLI:            rc.CLI,
-			Model:          rc.Model,
-			CapabilityTags: append([]string(nil), rc.CapabilityTags...),
-			MaxConcurrency: mc,
+			Role:             role,
+			CLI:              cli,
+			Model:            model,
+			RuntimeSelection: selection,
+			CapabilityTags:   append([]string(nil), rc.CapabilityTags...),
+			MaxConcurrency:   mc,
 		})
 	}
 	return out, nil
+}
+
+func normalizeRoleRuntimeSelection(rc RoleConfig) (RuntimeSelection, string, string, error) {
+	selection := rc.RuntimeSelection
+	selection.Mode = strings.TrimSpace(selection.Mode)
+	selection.ProfileID = strings.TrimSpace(selection.ProfileID)
+	selection.CLIID = strings.TrimSpace(selection.CLIID)
+	selection.ModelID = strings.TrimSpace(selection.ModelID)
+	legacyCLI := strings.TrimSpace(rc.CLI)
+	legacyModel := strings.TrimSpace(rc.Model)
+	if selection.Mode == "" {
+		if legacyCLI != "" || legacyModel != "" {
+			selection.Mode = RuntimeSelectionOverride
+			selection.CLIID = firstNonEmpty(selection.CLIID, legacyCLI)
+			selection.ModelID = firstNonEmpty(selection.ModelID, legacyModel)
+		} else {
+			selection.Mode = RuntimeSelectionInherit
+		}
+	}
+	switch selection.Mode {
+	case RuntimeSelectionInherit:
+		selection.ProfileID, selection.CLIID, selection.ModelID, selection.Parameters = "", "", "", nil
+		return selection, "", "", nil
+	case RuntimeSelectionProfile:
+		if selection.ProfileID == "" {
+			return RuntimeSelection{}, "", "", ErrInvalidRole
+		}
+		selection.CLIID, selection.ModelID = "", ""
+		return selection, legacyCLI, legacyModel, nil
+	case RuntimeSelectionOverride:
+		selection.CLIID = firstNonEmpty(selection.CLIID, legacyCLI)
+		selection.ModelID = firstNonEmpty(selection.ModelID, legacyModel)
+		return selection, selection.CLIID, selection.ModelID, nil
+	default:
+		return RuntimeSelection{}, "", "", ErrInvalidRole
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // Rename updates the team name (validated) and bumps updatedAt.

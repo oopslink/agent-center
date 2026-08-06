@@ -66,7 +66,21 @@ func newService(repo Repository, id IDGenerator, key []byte) *Service {
 }
 
 func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {
-	return s.repo.GetCatalog(ctx, orgID)
+	catalog, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return Catalog{}, err
+	}
+	if s.coverage == nil {
+		catalog.Coverage = []RuntimeCoverage{}
+		return catalog, nil
+	}
+	coverage, err := s.coverage.Coverage(ctx, catalog)
+	if err != nil {
+		catalog.Coverage = []RuntimeCoverage{}
+		return catalog, nil
+	}
+	catalog.Coverage = normalizeCoverageScopes(coverage)
+	return catalog, nil
 }
 
 func (s *Service) CreateCLI(ctx context.Context, orgID, actor string, expected int64, in CLIDefinition) (CLIDefinition, int64, error) {
@@ -314,6 +328,118 @@ func (s *Service) SetDefaultProfile(ctx context.Context, orgID, actor, profileID
 		return 0, &Error{Reason: ReasonProfileDisabled, Message: "default profile must be enabled", Details: map[string]any{"profile_id": profileID}}
 	}
 	return s.repo.SetDefaultProfile(ctx, orgID, profileID, expected, s.audit(orgID, actor, "catalog", orgID, "default_profile_changed", cat.DefaultProfileID, profileID))
+}
+
+func (s *Service) ImpactPreview(ctx context.Context, orgID string, req RuntimeImpactRequest) (RuntimeImpactPreview, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return RuntimeImpactPreview{}, err
+	}
+	req.EntityType = strings.TrimSpace(req.EntityType)
+	req.EntityID = strings.TrimSpace(req.EntityID)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Action == "" {
+		req.Action = "update"
+	}
+	req.Rollout = normalizeRollout(req.Rollout)
+	coverage := []RuntimeCoverage{}
+	if s.coverage != nil {
+		if got, err := s.coverage.Coverage(ctx, cat); err == nil {
+			coverage = normalizeCoverageScopes(got)
+		}
+	}
+	return RuntimeImpactPreview{
+		EntityType:               req.EntityType,
+		EntityID:                 req.EntityID,
+		Action:                   req.Action,
+		ReferenceCounts:          catalogReferenceCounts(cat, req.EntityType, req.EntityID),
+		BasicCapabilityCoverage:  coverage,
+		ExecutionSchedulability:  []RuntimeCoverage{},
+		SnapshotBackMutation:     false,
+		HistoricalSnapshotPolicy: "historical runtime snapshots are append-only and never rewritten by catalog/profile/default changes",
+		Rollout:                  req.Rollout,
+		CalculatedAt:             s.now().UTC(),
+	}, nil
+}
+
+func (s *Service) AuditLog(ctx context.Context, orgID string, limit int) ([]AuditEvent, error) {
+	repo, ok := s.repo.(interface {
+		ListAudit(context.Context, string, int) ([]AuditEvent, error)
+	})
+	if !ok {
+		return []AuditEvent{}, nil
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	return repo.ListAudit(ctx, orgID, limit)
+}
+
+func normalizeRollout(in RuntimeRolloutPlan) RuntimeRolloutPlan {
+	if !in.Enabled {
+		return RuntimeRolloutPlan{}
+	}
+	if in.Percent <= 0 {
+		in.Percent = 10
+	}
+	if in.Percent > 100 {
+		in.Percent = 100
+	}
+	return in
+}
+
+func catalogReferenceCounts(cat Catalog, entityType, entityID string) []RuntimeReferenceCount {
+	counts := []RuntimeReferenceCount{}
+	add := func(source string, count int) {
+		counts = append(counts, RuntimeReferenceCount{
+			Source: source, EntityType: entityType, EntityID: entityID, Count: count, Mutable: true,
+		})
+	}
+	switch entityType {
+	case "profile":
+		n := 0
+		if cat.DefaultProfileID == entityID {
+			n = 1
+		}
+		add(ReferenceSourceCatalogDefault, n)
+	case "cli":
+		n := 0
+		key := catalogCLIKey(cat, entityID)
+		for _, p := range cat.Profiles {
+			if p.CLIKey == key {
+				n++
+			}
+		}
+		add(ReferenceSourceProfile, n)
+	case "model":
+		n := 0
+		key := catalogModelKey(cat, entityID)
+		for _, p := range cat.Profiles {
+			if p.ModelKey == key {
+				n++
+			}
+		}
+		add(ReferenceSourceProfile, n)
+	}
+	return counts
+}
+
+func catalogCLIKey(cat Catalog, id string) string {
+	for _, cli := range cat.CLIs {
+		if cli.ID == id || cli.Key == id {
+			return cli.Key
+		}
+	}
+	return id
+}
+
+func catalogModelKey(cat Catalog, id string) string {
+	for _, model := range cat.Models {
+		if model.ID == id || model.Key == id {
+			return model.Key
+		}
+	}
+	return id
 }
 
 func validateModel(cat Catalog, model ModelDefinition) error {

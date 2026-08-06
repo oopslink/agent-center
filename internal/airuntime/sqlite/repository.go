@@ -256,6 +256,36 @@ func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expe
 	})
 }
 
+func (r *Repository) ListAudit(ctx context.Context, org string, limit int) ([]airuntime.AuditEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT id,org_id,actor,entity_type,entity_key,action,before_json,after_json,revision,occurred_at
+		FROM ai_runtime_audit_log
+		WHERE org_id=?
+		ORDER BY revision DESC, occurred_at DESC
+		LIMIT ?`, org, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []airuntime.AuditEvent{}
+	for rows.Next() {
+		var ev airuntime.AuditEvent
+		var before, after, occurred string
+		if err := rows.Scan(&ev.ID, &ev.OrgID, &ev.Actor, &ev.EntityType, &ev.EntityKey, &ev.Action, &before, &after, &ev.Revision, &occurred); err != nil {
+			return nil, err
+		}
+		ev.Before = json.RawMessage(before)
+		ev.After = json.RawMessage(after)
+		ev.OccurredAt = parse(occurred)
+		out = append(out, ev)
+	}
+	return out, rows.Err()
+}
+
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64
 	err := persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {

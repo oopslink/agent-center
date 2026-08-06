@@ -4,6 +4,8 @@
 //
 // Hand-written per F4 oversight #5 (no openapi-codegen — small project).
 
+import type { RuntimeSelection } from './aiRuntime';
+
 export type ConversationKind = 'channel' | 'dm' | 'issue' | 'task' | 'adhoc' | 'notification';
 export type ConversationStatus = 'active' | 'closed' | 'archived';
 
@@ -307,6 +309,7 @@ export interface Agent {
 export interface ExecutorProfile {
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection;
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is

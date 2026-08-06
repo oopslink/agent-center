@@ -55,6 +55,34 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	resp = orgScopedGet(t, server.URL+"/api/ai-runtime/impact?entity_type=profile&entity_id="+profileResult.Entry.ID+"&action=set_default", owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("impact status=%d", resp.StatusCode)
+	}
+	var impact airuntime.RuntimeImpactPreview
+	if err := json.NewDecoder(resp.Body).Decode(&impact); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if impact.SnapshotBackMutation || impact.HistoricalSnapshotPolicy == "" {
+		t.Fatalf("impact snapshot contract = %+v", impact)
+	}
+
+	resp = orgScopedGet(t, server.URL+"/api/ai-runtime/audit", owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("audit status=%d", resp.StatusCode)
+	}
+	var auditResult struct {
+		Entries []airuntime.AuditEvent `json:"entries"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&auditResult); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(auditResult.Entries) == 0 {
+		t.Fatal("audit endpoint returned no entries")
+	}
+
 	member := memberSessionInOrg(t, db, owner.OrgID, owner.OrgSlug)
 	resp = orgScopedGet(t, server.URL+"/api/ai-runtime", member)
 	if resp.StatusCode != http.StatusOK {

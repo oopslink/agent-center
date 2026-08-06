@@ -91,7 +91,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'Work',
     defaultPath: 'projects',
     Icon: FolderIcon,
-    pathPrefixes: ['projects', 'issues', 'tasks', 'plans', 'repos', 'templates'],
+    pathPrefixes: ['projects', 'issues', 'tasks', 'plans', 'repos', 'templates', 'model-catalog', 'ai-runtime'],
   },
   {
     id: 'conversations',

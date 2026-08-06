@@ -294,6 +294,7 @@
       "repos": "Repos",
       "templates": "Templates",
       "modelCatalog": "Model catalog",
+      "aiRuntime": "AI Runtime",
       "codeRepos": "Code repos",
       "workBoard": "Work Board"
     },

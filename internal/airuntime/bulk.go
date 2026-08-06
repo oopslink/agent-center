@@ -152,6 +152,7 @@ type CoverageReason struct {
 }
 
 type RuntimeCoverage struct {
+	Scope               string           `json:"scope"`
 	ProfileID           string           `json:"profile_id"`
 	OnlineWorkerCount   int              `json:"online_worker_count"`
 	EligibleWorkerCount int              `json:"eligible_worker_count"`
@@ -159,6 +160,8 @@ type RuntimeCoverage struct {
 	Reasons             []CoverageReason `json:"reasons"`
 	CalculatedAt        time.Time        `json:"calculated_at"`
 }
+
+const CoverageScopeBasicCapability = "basic_capability_coverage"
 
 type CoverageProvider interface {
 	Coverage(context.Context, Catalog) ([]RuntimeCoverage, error)
@@ -244,6 +247,7 @@ func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRe
 			coverage = []RuntimeCoverage{}
 		}
 	}
+	coverage = normalizeCoverageScopes(coverage)
 	sort.Slice(coverage, func(i, j int) bool { return coverage[i].ProfileID < coverage[j].ProfileID })
 	digest, err := documentDigest(req.Document)
 	if err != nil {

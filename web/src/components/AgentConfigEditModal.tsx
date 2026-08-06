@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
+import { useRuntimeCatalog, type RuntimeModel, type RuntimeProfile, type RuntimeSelectionMode } from '@/api/aiRuntime';
 import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
@@ -41,18 +42,36 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const [maxConcurrent, setMaxConcurrent] = useState(agent.max_concurrent_tasks ?? 0);
   const [executors, setExecutors] = useState<ExecutorProfile[]>(agent.allowed_executors ?? []);
   // The pending "add a profile" row (committed via the Add button).
+  const runtimeCatalog = useRuntimeCatalog();
+  const [draftMode, setDraftMode] = useState<RuntimeSelectionMode>('override');
+  const [draftProfileId, setDraftProfileId] = useState('');
   const [draftCli, setDraftCli] = useState('claude-code');
   const [draftModel, setDraftModel] = useState('');
+  const catalogCliOptions = runtimeCatalog.data?.clis.filter((c) => c.enabled).map((c) => c.key).filter((c) => CLI_OPTIONS.includes(c)) ?? CLI_OPTIONS;
+  const catalogModelOptions =
+    runtimeCatalog.data?.models
+      .filter((m) => m.enabled && m.compatible_cli_keys.includes(draftCli))
+      .map((m) => m.model_key) ?? MODEL_SUGGESTIONS[draftCli] ?? [];
+  const catalogProfileOptions = runtimeCatalog.data?.profiles.filter((p) => p.enabled) ?? [];
 
   const addExecutor = () => {
-    const m = draftModel.trim();
-    if (!m) return;
+    const resolved = resolveDraftExecutor({
+      mode: draftMode,
+      profileId: draftProfileId,
+      profiles: catalogProfileOptions,
+      models: runtimeCatalog.data?.models ?? [],
+      fallbackCli: cli,
+      fallbackModel: model,
+      overrideCli: draftCli,
+      overrideModel: draftModel,
+    });
+    if (!resolved) return;
     // Skip exact {cli,model} duplicates (the server dedups too).
-    if (executors.some((e) => e.cli === draftCli && e.model === m)) {
+    if (executors.some((e) => e.cli === resolved.cli && e.model === resolved.model)) {
       setDraftModel('');
       return;
     }
-    setExecutors((xs) => [...xs, { cli: draftCli, model: m }]);
+    setExecutors((xs) => [...xs, resolved]);
     setDraftModel('');
   };
   const removeExecutor = (i: number) =>
@@ -319,7 +338,45 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[8rem_9rem_minmax(0,1fr)_auto]">
+                <select
+                  className={`${inputClass} w-auto`}
+                  value={draftMode}
+                  onChange={(e) => setDraftMode(e.target.value as RuntimeSelectionMode)}
+                  data-testid="agent-config-executor-mode"
+                  aria-label={t('agentRuntime.configModal.concurrency.executorMode')}
+                >
+                  <option value="inherit">{t('agentRuntime.configModal.concurrency.modeInherit')}</option>
+                  <option value="profile">{t('agentRuntime.configModal.concurrency.modeProfile')}</option>
+                  <option value="override">{t('agentRuntime.configModal.concurrency.modeOverride')}</option>
+                </select>
+                {draftMode === 'profile' ? (
+                  <select
+                    className={`${inputClass} md:col-span-2`}
+                    value={draftProfileId || catalogProfileOptions[0]?.id || ''}
+                    onChange={(e) => setDraftProfileId(e.target.value)}
+                    data-testid="agent-config-executor-profile"
+                    aria-label={t('agentRuntime.configModal.concurrency.executorProfile')}
+                  >
+                    {catalogProfileOptions.length > 0 ? (
+                      catalogProfileOptions.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name || p.key}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">{t('agentRuntime.configModal.concurrency.noProfiles')}</option>
+                    )}
+                  </select>
+                ) : draftMode === 'inherit' ? (
+                  <div
+                    className="rounded border border-border-base bg-bg-subtle px-2 py-1.5 text-sm text-text-muted md:col-span-2"
+                    data-testid="agent-config-executor-inherit"
+                  >
+                    {cli} / {model || t('agentRuntime.configModal.concurrency.noModel')}
+                  </div>
+                ) : (
+                  <>
                 <select
                   className={`${inputClass} w-auto`}
                   value={draftCli}
@@ -327,7 +384,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                   data-testid="agent-config-executor-cli"
                   aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
                 >
-                  {CLI_OPTIONS.map((c) => (
+                  {catalogCliOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -349,15 +406,17 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                   aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
                 />
                 <datalist id={`executor-models-${draftCli}`}>
-                  {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
+                  {catalogModelOptions.map((m) => (
                     <option key={m} value={m} />
                   ))}
                 </datalist>
+                  </>
+                )}
                 <button
                   type="button"
                   className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"
                   onClick={addExecutor}
-                  disabled={!draftModel.trim()}
+                  disabled={draftMode === 'override' ? !draftModel.trim() : draftMode === 'profile' && catalogProfileOptions.length === 0}
                   data-testid="agent-config-executor-add"
                 >
                   {t('agentRuntime.configModal.concurrency.add')}
@@ -491,6 +550,30 @@ function formatEnvVars(env: Record<string, string>): string {
     .sort()
     .map((k) => `${k}=${env[k] ?? ''}`)
     .join('\n');
+}
+
+function resolveDraftExecutor(input: {
+  mode: RuntimeSelectionMode;
+  profileId: string;
+  profiles: RuntimeProfile[];
+  models: RuntimeModel[];
+  fallbackCli: string;
+  fallbackModel: string;
+  overrideCli: string;
+  overrideModel: string;
+}): ExecutorProfile | null {
+  if (input.mode === 'inherit') {
+    const model = input.fallbackModel.trim();
+    return model ? { cli: input.fallbackCli, model } : null;
+  }
+  if (input.mode === 'profile') {
+    const profile = input.profiles.find((p) => p.id === (input.profileId || input.profiles[0]?.id));
+    if (!profile) return null;
+    const model = input.models.find((m) => m.key === profile.model_key);
+    return { cli: profile.cli_key, model: model?.model_key ?? profile.model_key };
+  }
+  const model = input.overrideModel.trim();
+  return model ? { cli: input.overrideCli, model } : null;
 }
 
 type ParseEnvResult = { ok: true; env: Record<string, string> } | { ok: false; error: string };

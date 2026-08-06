@@ -16,8 +16,9 @@ import (
 )
 
 type runtimeWrite[T any] struct {
-	ExpectedRevision int64 `json:"expected_revision"`
-	Value            T     `json:"value"`
+	ExpectedRevision int64                        `json:"expected_revision"`
+	Value            T                            `json:"value"`
+	Rollout          airuntime.RuntimeRolloutPlan `json:"rollout,omitempty"`
 }
 
 func aiRuntimeDeps(w http.ResponseWriter, r *http.Request, admin bool) (HandlerDeps, *identity.Identity, string, bool) {
@@ -252,6 +253,60 @@ func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, catalog)
 }
 
+func (s *Server) runtimeImpactPreviewHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	percent := 0
+	if raw := query.Get("rollout_percent"); raw != "" {
+		var err error
+		percent, err = strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "rollout_percent must be an integer")
+			return
+		}
+	}
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, airuntime.RuntimeImpactRequest{
+		EntityType: query.Get("entity_type"),
+		EntityID:   query.Get("entity_id"),
+		Action:     query.Get("action"),
+		Rollout: airuntime.RuntimeRolloutPlan{
+			Enabled: query.Get("rollout") == "canary" || query.Get("rollout") == "gray" || query.Get("rollout_enabled") == "true",
+			Percent: percent,
+			Label:   query.Get("rollout"),
+		},
+	})
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
+func (s *Server) runtimeAuditHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be an integer")
+			return
+		}
+		limit = n
+	}
+	events, err := d.RuntimeCatalog.AuditLog(r.Context(), org, limit)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": events})
+}
+
 func (s *Server) listRuntimeCLIsHandler(w http.ResponseWriter, r *http.Request) {
 	d, _, org, ok := aiRuntimeDeps(w, r, false)
 	if !ok {
@@ -387,12 +442,19 @@ func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	req.Value.ID = r.PathValue("id")
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, airuntime.RuntimeImpactRequest{
+		EntityType: "profile", EntityID: req.Value.ID, Action: "update", Rollout: req.Rollout,
+	})
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
 	entry, rev, err := d.RuntimeCatalog.UpdateProfile(r.Context(), org, "user:"+id.ID(), req.ExpectedRevision, req.Value)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry, "impact": impact})
 }
 func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
@@ -400,11 +462,19 @@ func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	var req struct {
-		ExpectedRevision int64  `json:"expected_revision"`
-		ProfileID        string `json:"profile_id"`
+		ExpectedRevision int64                        `json:"expected_revision"`
+		ProfileID        string                       `json:"profile_id"`
+		Rollout          airuntime.RuntimeRolloutPlan `json:"rollout,omitempty"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, airuntime.RuntimeImpactRequest{
+		EntityType: "profile", EntityID: req.ProfileID, Action: "set_default", Rollout: req.Rollout,
+	})
+	if err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
 	rev, err := d.RuntimeCatalog.SetDefaultProfile(r.Context(), org, "user:"+id.ID(), req.ProfileID, req.ExpectedRevision)
@@ -412,5 +482,5 @@ func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID})
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID, "impact": impact, "rollout": impact.Rollout})
 }

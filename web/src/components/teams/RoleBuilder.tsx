@@ -3,6 +3,7 @@
 // team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useRuntimeCatalog, type RuntimeSelection, type RuntimeSelectionMode } from '@/api/aiRuntime';
 import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
@@ -12,6 +13,7 @@ export function newRole(role = ''): RoleInput {
     role,
     cli: 'claude-code',
     model: 'sonnet-5',
+    runtime_selection: { mode: 'inherit' },
     max_concurrency: 1,
     count: 1,
     tags: '',
@@ -55,8 +57,21 @@ export function RoleBuilder({
   idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const catalog = useRuntimeCatalog();
+  const cliOptions = catalog.data?.clis.filter((c) => c.enabled).map((c) => c.key) ?? [...CLIS];
+  const allModelOptions = catalog.data?.models.filter((m) => m.enabled) ?? [];
+  const profileOptions = catalog.data?.profiles.filter((p) => p.enabled) ?? [];
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  };
+  const patchSelection = (i: number, selection: RuntimeSelection) => {
+    const role = roles[i];
+    const next: Partial<RoleInput> = { runtime_selection: selection };
+    if (selection.mode === 'override') {
+      next.cli = selection.cli_id || role.cli;
+      next.model = selection.model_id || role.model;
+    }
+    patch(i, next);
   };
   const remove = (i: number) => onChange(roles.filter((_, j) => j !== i));
   const add = () => onChange([...roles, newRole()]);
@@ -129,15 +144,74 @@ export function RoleBuilder({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[11rem_1fr_1fr_10rem]">
             <div>
-              <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
-              <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
+              <SmallLabel>{t('roleBuilder.runtimeMode')}</SmallLabel>
+              <Select
+                value={(r.runtime_selection?.mode ?? 'inherit') as RuntimeSelectionMode}
+                options={['inherit', 'profile', 'override']}
+                testId={`${idPrefix}-role-${i}-runtime-mode`}
+                onChange={(mode) => {
+                  if (mode === 'profile') {
+                    patchSelection(i, { mode, profile_id: profileOptions[0]?.id ?? r.runtime_selection?.profile_id ?? '' });
+                  } else if (mode === 'override') {
+                    const cliID = cliOptions.includes(r.cli) ? r.cli : cliOptions[0] || r.cli || '';
+                    const modelID = allModelOptions.find((m) => m.compatible_cli_keys.includes(cliID))?.key ?? r.model ?? MODELS[0];
+                    patchSelection(i, { mode, cli_id: cliID, model_id: modelID });
+                  } else {
+                    patchSelection(i, { mode: 'inherit' });
+                  }
+                }}
+              />
             </div>
-            <div>
-              <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
-              <Select value={r.model} options={MODELS} testId={`${idPrefix}-role-${i}-model`} onChange={(v) => patch(i, { model: v })} />
-            </div>
+            {(r.runtime_selection?.mode ?? 'inherit') === 'inherit' ? (
+              <div className="md:col-span-2">
+                <SmallLabel>{t('roleBuilder.inheritedRuntime')}</SmallLabel>
+                <div
+                  className="rounded border border-border-base bg-bg-subtle px-2 py-1.5 text-sm text-text-muted"
+                  data-testid={`${idPrefix}-role-${i}-runtime-inherit`}
+                >
+                  {t('roleBuilder.inheritDefault')}
+                </div>
+              </div>
+            ) : (r.runtime_selection?.mode ?? 'inherit') === 'profile' ? (
+              <div className="md:col-span-2">
+                <SmallLabel>{t('roleBuilder.profileLabel')}</SmallLabel>
+                <Select
+                  value={r.runtime_selection?.profile_id ?? profileOptions[0]?.id ?? ''}
+                  options={profileOptions.length > 0 ? profileOptions.map((p) => p.id) : ['']}
+                  testId={`${idPrefix}-role-${i}-runtime-profile`}
+                  onChange={(v) => patchSelection(i, { mode: 'profile', profile_id: v })}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
+                  <Select
+                    value={r.runtime_selection?.mode === 'override' ? r.runtime_selection.cli_id ?? r.cli : r.cli}
+                    options={cliOptions}
+                    testId={`${idPrefix}-role-${i}-cli`}
+                    onChange={(v) => patchSelection(i, { mode: 'override', cli_id: v, model_id: r.model })}
+                  />
+                </div>
+                <div>
+                  <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
+                  <Select
+                    value={r.runtime_selection?.mode === 'override' ? r.runtime_selection.model_id ?? r.model : r.model}
+                    options={
+                      allModelOptions.length > 0
+                        ? allModelOptions
+                            .filter((m) => m.compatible_cli_keys.includes(r.runtime_selection?.cli_id ?? r.cli))
+                            .map((m) => m.key)
+                        : MODELS
+                    }
+                    testId={`${idPrefix}-role-${i}-model`}
+                    onChange={(v) => patchSelection(i, { mode: 'override', cli_id: r.runtime_selection?.cli_id ?? r.cli, model_id: v })}
+                  />
+                </div>
+              </>
+            )}
             <div>
               <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>
               <input

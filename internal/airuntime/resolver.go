@@ -29,7 +29,7 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 	if mode == "" {
 		mode = SelectionInherit
 	}
-	var cliID, modelID, profileID, source string
+	var cliID, modelID, profileID, profileKey, source string
 	parameters := map[string]any{}
 	switch mode {
 	case SelectionInherit:
@@ -60,7 +60,7 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 		if !profile.Enabled {
 			return RuntimeSnapshot{}, runtimeError(ReasonProfileDisabled, "runtime profile is disabled", map[string]any{"profile_id": profileID})
 		}
-		cliID, modelID = profile.CLIKey, profile.ModelKey
+		cliID, modelID, profileKey = profile.CLIKey, profile.ModelKey, profile.Key
 		parameters = cloneMap(profile.Parameters)
 	}
 	cli := findCLI(catalog.CLIs, cliID)
@@ -90,10 +90,10 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 		return RuntimeSnapshot{}, err
 	}
 	return RuntimeSnapshot{
-		SchemaVersion: 1, CLIKey: cli.Key, CLIExecutable: cli.Executable,
+		SchemaVersion: 1, CatalogRevision: catalog.Revision, CLIKey: cli.Key, CLIExecutable: cli.Executable,
 		CLIVersionConstraint: cli.VersionConstraint, RequiredFeatures: append([]string(nil), cli.RequiredFeatures...),
 		ModelKey: model.ModelKey, Parameters: cloneMap(merged), Source: source,
-		ProfileID: profileID, ResolvedAt: r.now().UTC(),
+		ProfileID: profileID, ProfileKey: profileKey, ResolvedAt: r.now().UTC(),
 	}, nil
 }
 

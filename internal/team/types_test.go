@@ -58,3 +58,41 @@ func TestNewTeam_Validation(t *testing.T) {
 		t.Fatalf("initial version: got %d want 1", tm.Version())
 	}
 }
+
+func TestNewTeam_RoleRuntimeSelectionSemantics(t *testing.T) {
+	now := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	tm, err := NewTeam(NewTeamInput{
+		ID: "t1", Name: "ok", CreatedAt: now,
+		Roles: []RoleConfig{
+			{Role: "inherited"},
+			{Role: "profiled", RuntimeSelection: RuntimeSelection{Mode: RuntimeSelectionProfile, ProfileID: "profile-1"}},
+			{Role: "override", RuntimeSelection: RuntimeSelection{Mode: RuntimeSelectionOverride, CLIID: "codex", ModelID: "gpt"}},
+			{Role: "legacy", CLI: "claude-code", Model: "sonnet"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRole := map[string]RoleConfig{}
+	for _, rc := range tm.Roles() {
+		byRole[rc.Role] = rc
+	}
+	if byRole["inherited"].RuntimeSelection.Mode != RuntimeSelectionInherit || byRole["inherited"].CLI != "" {
+		t.Fatalf("inherit role = %+v", byRole["inherited"])
+	}
+	if got := byRole["profiled"].RuntimeSelection; got.Mode != RuntimeSelectionProfile || got.ProfileID != "profile-1" {
+		t.Fatalf("profile role selection = %+v", got)
+	}
+	if got := byRole["override"]; got.CLI != "codex" || got.Model != "gpt" || got.RuntimeSelection.Mode != RuntimeSelectionOverride {
+		t.Fatalf("override role = %+v", got)
+	}
+	if got := byRole["legacy"]; got.RuntimeSelection.Mode != RuntimeSelectionOverride || got.RuntimeSelection.CLIID != "claude-code" || got.RuntimeSelection.ModelID != "sonnet" {
+		t.Fatalf("legacy role mapping = %+v", got)
+	}
+	if _, err := NewTeam(NewTeamInput{
+		ID: "t2", Name: "bad", CreatedAt: now,
+		Roles: []RoleConfig{{Role: "bad", RuntimeSelection: RuntimeSelection{Mode: RuntimeSelectionProfile}}},
+	}); !errors.Is(err, ErrInvalidRole) {
+		t.Fatalf("profile without id err=%v want ErrInvalidRole", err)
+	}
+}

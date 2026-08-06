@@ -153,6 +153,11 @@ func normalizeSlots(in []RoleSlot) ([]RoleSlot, error) {
 		if cfg.MaxConcurrency == 0 {
 			cfg.MaxConcurrency = 1
 		}
+		selection, cli, model, err := normalizeRoleRuntimeSelection(cfg)
+		if err != nil {
+			return nil, err
+		}
+		cfg.RuntimeSelection, cfg.CLI, cfg.Model = selection, cli, model
 		cfg.CapabilityTags = append([]string(nil), sl.Config.CapabilityTags...)
 		count := sl.Count
 		if count <= 0 {

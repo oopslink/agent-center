@@ -105,6 +105,7 @@ const (
 
 type RuntimeSnapshot struct {
 	SchemaVersion        int            `json:"schema_version"`
+	CatalogRevision      int64          `json:"catalog_revision,omitempty"`
 	CLIKey               string         `json:"cli_key"`
 	CLIExecutable        string         `json:"cli_executable"`
 	CLIVersionConstraint string         `json:"cli_version_constraint,omitempty"`
@@ -113,6 +114,7 @@ type RuntimeSnapshot struct {
 	Parameters           map[string]any `json:"parameters"`
 	Source               string         `json:"source"`
 	ProfileID            string         `json:"profile_id,omitempty"`
+	ProfileKey           string         `json:"profile_key,omitempty"`
 	ResolvedAt           time.Time      `json:"resolved_at"`
 }
 
@@ -123,13 +125,20 @@ type Catalog struct {
 	CLIs             []CLIDefinition   `json:"clis"`
 	Models           []ModelDefinition `json:"models"`
 	Profiles         []RuntimeProfile  `json:"profiles"`
+	Coverage         []RuntimeCoverage `json:"coverage,omitempty"`
 }
 
 type AuditEvent struct {
-	ID, OrgID, Actor, EntityType, EntityKey, Action string
-	Before, After                                   json.RawMessage
-	Revision                                        int64
-	OccurredAt                                      time.Time
+	ID         string          `json:"id"`
+	OrgID      string          `json:"org_id"`
+	Actor      string          `json:"actor"`
+	EntityType string          `json:"entity_type"`
+	EntityKey  string          `json:"entity_key"`
+	Action     string          `json:"action"`
+	Before     json.RawMessage `json:"before,omitempty"`
+	After      json.RawMessage `json:"after,omitempty"`
+	Revision   int64           `json:"revision"`
+	OccurredAt time.Time       `json:"occurred_at"`
 }
 
 var stableKeyRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)

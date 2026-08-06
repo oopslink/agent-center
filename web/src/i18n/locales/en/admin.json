@@ -308,6 +308,39 @@
       "ok": "Imported {{count}} entries."
     }
   },
+  "aiRuntime": {
+    "title": "AI Runtime",
+    "subtitle": "Runtime catalog, exercised basic capability coverage, profile impact preview, and audit history.",
+    "revision": "Revision {{revision}}",
+    "empty": {
+      "title": "No runtime profiles",
+      "body": "Create runtime profiles before assigning them as defaults."
+    },
+    "defaultProfile": "Default profile",
+    "canary": "Canary",
+    "canaryPercent": "Percent",
+    "saving": "Saving...",
+    "saveDefault": "Set default",
+    "profiles": "Profiles",
+    "default": "default",
+    "impact": "Impact preview",
+    "loadingImpact": "Loading impact...",
+    "references": "References",
+    "noReferences": "No references found.",
+    "snapshotPolicy": "Snapshot policy",
+    "basicCoverage": "Basic capability coverage",
+    "noCoverage": "No exercised basic coverage has been reported.",
+    "schedulability": "Execution schedulability",
+    "schedulabilityUnavailable": "No execution schedulability is displayed here until the scheduler closed loop has reported real runnable evidence.",
+    "audit": "Audit",
+    "noAudit": "No audit events yet.",
+    "col": {
+      "profile": "Profile",
+      "cli": "CLI",
+      "model": "Model",
+      "coverage": "Coverage"
+    }
+  },
   "templates": {
     "title": "Templates",
     "subtitle": "Workflow templates define orchestration rules for plans. Agents read these to scaffold graphs.",

@@ -67,7 +67,7 @@ func templateSlotsFromReq(roles []templateRoleReq) []team.RoleSlot {
 		slots = append(slots, team.RoleSlot{
 			Config: team.RoleConfig{
 				Role: rr.Role, CLI: rr.CLI, Model: rr.Model,
-				CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
+				RuntimeSelection: rr.RuntimeSelection, CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
 			},
 			Count: rr.Count,
 		})
@@ -125,12 +125,13 @@ func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 // template RoleSlot, but every field is optional (a cross-org envelope may be
 // partial) — defaults mirror the FE useImportTemplate re-home.
 type importTemplateRoleReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role             string                `json:"role"`
+	CLI              string                `json:"cli"`
+	Model            string                `json:"model"`
+	RuntimeSelection team.RuntimeSelection `json:"runtime_selection"`
+	CapabilityTags   []string              `json:"capability_tags"`
+	MaxConcurrency   int                   `json:"max_concurrency"`
+	Count            int                   `json:"count"`
 }
 
 // importTemplateReq is the exported envelope (exportTemplateEnvelope output). Only
@@ -176,8 +177,12 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 			count = 1
 		}
 		slots = append(slots, team.RoleSlot{
-			Config: team.RoleConfig{Role: role, CLI: cli, Model: model, CapabilityTags: tags, MaxConcurrency: maxConc},
-			Count:  count,
+			Config: team.RoleConfig{
+				Role: role, CLI: cli, Model: model,
+				RuntimeSelection: rr.RuntimeSelection,
+				CapabilityTags:   tags, MaxConcurrency: maxConc,
+			},
+			Count: count,
 		})
 	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{

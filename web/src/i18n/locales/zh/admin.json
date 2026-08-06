@@ -308,6 +308,39 @@
       "ok": "已导入 {{count}} 条。"
     }
   },
+  "aiRuntime": {
+    "title": "AI Runtime",
+    "subtitle": "运行时类目、已真验的基础能力覆盖、Profile 影响预览和审计历史。",
+    "revision": "Revision {{revision}}",
+    "empty": {
+      "title": "暂无 runtime profile",
+      "body": "先创建 runtime profile，再设为默认。"
+    },
+    "defaultProfile": "默认 Profile",
+    "canary": "灰度",
+    "canaryPercent": "比例",
+    "saving": "保存中...",
+    "saveDefault": "设为默认",
+    "profiles": "Profiles",
+    "default": "默认",
+    "impact": "影响预览",
+    "loadingImpact": "加载影响预览...",
+    "references": "引用",
+    "noReferences": "没有发现引用。",
+    "snapshotPolicy": "Snapshot 策略",
+    "basicCoverage": "基础能力覆盖",
+    "noCoverage": "暂无已真验的基础覆盖数据。",
+    "schedulability": "Execution 可调度性",
+    "schedulabilityUnavailable": "调度闭环提供真实可运行证据前，这里不展示 execution 可调度性。",
+    "audit": "审计",
+    "noAudit": "暂无审计事件。",
+    "col": {
+      "profile": "Profile",
+      "cli": "CLI",
+      "model": "Model",
+      "coverage": "Coverage"
+    }
+  },
   "templates": {
     "title": "模板",
     "subtitle": "工作流模板定义了计划的编排规则。Agent 读取模板后构建编排图。",
