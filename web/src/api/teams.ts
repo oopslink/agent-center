@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { currentOrgScope } from './queryKeys';
 import { type TeamProjectLink } from './teamsFixtures';
+import type { RuntimeSelection } from './aiRuntime';
 
 // ---------------------------------------------------------------------------
 // Types (backend-shaped + Phase-1 display extras)
@@ -26,6 +27,7 @@ export interface RoleView {
   role: string;
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection;
   capability_tags: string[];
   max_concurrency: number;
   count?: number;
@@ -164,14 +166,12 @@ export interface RoleInput {
   role: string;
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection;
   max_concurrency: number;
   count: number;
   tags: string;
   description?: string;
 }
-
-export const CLIS = ['claude-code', 'codex', 'gemini-cli'] as const;
-export const MODELS = ['opus-4.8', 'sonnet-5', 'haiku-4.5', 'gpt-5'] as const;
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
 export const ROLE_COLORS: Record<string, string> = {

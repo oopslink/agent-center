@@ -811,6 +811,56 @@ const baseHandlers = [
   // keeps heavy full-tree renders quiet and fast.
   http.get('/api/workers', () => ok({ workers: [] })),
 
+  // AI Runtime catalog. Default catalog is deliberately small but real-shaped:
+  // controls source CLI/model/profile options from this endpoint, not fixtures
+  // embedded in the components.
+  http.get('/api/ai-runtime', () =>
+    ok({
+      org_id: 'org-ooo',
+      revision: 3,
+      default_runtime_profile_id: 'profile-default',
+      clis: [
+        { id: 'cli-claude-code', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', required_features: [], enabled: true, system: true },
+        { id: 'cli-codex', key: 'codex', display_name: 'Codex', executable: 'codex', required_features: [], enabled: true, system: true },
+      ],
+      models: [
+        { id: 'model-opus', key: 'opus-4-8', model_key: 'opus-4-8', display_name: 'Opus 4.8', compatible_cli_keys: ['claude-code'], default_parameters: {}, enabled: true },
+        { id: 'model-sonnet', key: 'sonnet-5', model_key: 'sonnet-5', display_name: 'Sonnet 5', compatible_cli_keys: ['claude-code'], default_parameters: {}, enabled: true },
+        { id: 'model-gpt5', key: 'gpt-5', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], default_parameters: {}, enabled: true },
+      ],
+      profiles: [
+        { id: 'profile-default', key: 'default-coding', name: 'Default coding', cli_key: 'claude-code', model_key: 'sonnet-5', parameters: {}, enabled: true },
+        { id: 'profile-codex', key: 'codex-review', name: 'Codex review', cli_key: 'codex', model_key: 'gpt-5', parameters: {}, enabled: true },
+      ],
+    }),
+  ),
+  http.get('/api/ai-runtime/basic-coverage', () =>
+    ok({
+      basic_capability_coverage: [],
+      diagnostics: [{ code: 'runtime_coverage_unavailable', severity: 'warning', path: 'basic_capability_coverage', message: 'scheduler coverage data is unavailable' }],
+      effective_schedulability_note: 'Basic Capability Coverage only reports worker/runtime capability presence. Effective Schedulability is evaluated per execution by the scheduler.',
+    }),
+  ),
+  http.get('/api/ai-runtime/impact', () =>
+    ok({
+      entity_type: 'profile',
+      reference_count: 0,
+      references: [],
+      basic_capability_coverage: [],
+      diagnostics: [],
+      canary_supported: false,
+      historical_snapshots_immutable: true,
+      effective_schedulability_note: 'Basic Capability Coverage is not Effective Schedulability.',
+      historical_snapshot_immutability: 'Historical runtime snapshots are append-only and are never back-mutated by catalog/profile/default changes.',
+    }),
+  ),
+  http.get('/api/ai-runtime/audit', () => ok({ events: [] })),
+  http.put('/api/ai-runtime/default-profile', async ({ request }) => ok({ revision: 4, ...(await request.json() as Record<string, unknown>) })),
+  http.patch('/api/ai-runtime/profiles/:id', async ({ request }) => {
+    const body = (await request.json()) as { value?: unknown };
+    return ok({ revision: 4, entry: body.value });
+  }),
+
   // System build info (org-agnostic → exempt, bare only).
   http.get('/api/system/version', () => ok({ version: 'test', commit: 'test' })),
   // I7-D3 wake-guardrail thresholds (effective config); PUT echoes the body.

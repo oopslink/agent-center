@@ -21,6 +21,7 @@ export const ORG_SETTINGS_SECTIONS: ReadonlyArray<{ slug: string; label: string;
   { slug: 'profile', label: 'Profile', labelKey: 'shell.orgSettings.profile' },
   { slug: 'humans', label: 'Humans', labelKey: 'shell.orgSettings.humans' },
   { slug: 'agents', label: 'Agents', labelKey: 'shell.orgSettings.agents' },
+  { slug: 'ai-runtime', label: 'AI Runtime', labelKey: 'shell.orgSettings.aiRuntime' },
   { slug: 'invitations', label: 'Invitations', labelKey: 'shell.orgSettings.invitations' },
   { slug: 'danger', label: 'Danger Zone', labelKey: 'shell.orgSettings.danger' },
 ];

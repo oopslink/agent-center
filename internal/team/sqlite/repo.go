@@ -66,10 +66,14 @@ func insertRole(ctx context.Context, exec persistence.SQLExecutor, id team.TeamI
 	if len(rc.CapabilityTags) == 0 {
 		tags = []byte("[]")
 	}
-	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-		VALUES (?,?,?,?,?,?,?)`
+	selection, err := runtimeSelectionJSON(rc)
+	if err != nil {
+		return err
+	}
+	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, runtime_selection_json, capability_tags, max_concurrency, created_at)
+		VALUES (?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
-		id.String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
+		id.String(), rc.Role, rc.CLI, rc.Model, selection, string(tags), rc.MaxConcurrency,
 		now.UTC().Format(tsLayout),
 	)
 	return err
@@ -112,12 +116,16 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 		if err != nil {
 			return fmt.Errorf("marshal capability_tags: %w", err)
 		}
+		selection, err := runtimeSelectionJSON(rc)
+		if err != nil {
+			return err
+		}
 		_, err = exec.ExecContext(ctx, `INSERT INTO team_roles
-			(team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-			VALUES (?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
-			cli=excluded.cli, model=excluded.model, capability_tags=excluded.capability_tags,
+			(team_id, role, cli, model, runtime_selection_json, capability_tags, max_concurrency, created_at)
+			VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
+			cli=excluded.cli, model=excluded.model, runtime_selection_json=excluded.runtime_selection_json, capability_tags=excluded.capability_tags,
 			max_concurrency=excluded.max_concurrency`, t.ID().String(), rc.Role, rc.CLI,
-			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
+			rc.Model, selection, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
 		if err != nil {
 			return err
 		}
@@ -187,7 +195,7 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 
 func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID) ([]team.RoleConfig, error) {
 	rows, err := exec.QueryContext(ctx,
-		`SELECT role, cli, model, capability_tags, max_concurrency FROM team_roles WHERE team_id=? ORDER BY role`,
+		`SELECT role, cli, model, runtime_selection_json, capability_tags, max_concurrency FROM team_roles WHERE team_id=? ORDER BY role`,
 		id.String())
 	if err != nil {
 		return nil, err
@@ -196,10 +204,10 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 	var out []team.RoleConfig
 	for rows.Next() {
 		var (
-			role, cli, model, tagsJSON string
-			maxConc                    int
+			role, cli, model, selectionJSON, tagsJSON string
+			maxConc                                   int
 		)
-		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc); err != nil {
+		if err := rows.Scan(&role, &cli, &model, &selectionJSON, &tagsJSON, &maxConc); err != nil {
 			return nil, err
 		}
 		var tags []string
@@ -208,12 +216,34 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 				return nil, fmt.Errorf("unmarshal capability_tags: %w", err)
 			}
 		}
+		var selection team.RuntimeSelection
+		if strings.TrimSpace(selectionJSON) != "" {
+			if err := json.Unmarshal([]byte(selectionJSON), &selection); err != nil {
+				return nil, fmt.Errorf("unmarshal runtime_selection: %w", err)
+			}
+		}
+		selection, err := team.NormalizeRuntimeSelection(selection, cli, model)
+		if err != nil {
+			return nil, fmt.Errorf("normalize runtime_selection: %w", err)
+		}
 		out = append(out, team.RoleConfig{
-			Role: role, CLI: cli, Model: model,
+			Role: role, CLI: cli, Model: model, RuntimeSelection: selection,
 			CapabilityTags: tags, MaxConcurrency: maxConc,
 		})
 	}
 	return out, rows.Err()
+}
+
+func runtimeSelectionJSON(rc team.RoleConfig) (string, error) {
+	selection, err := team.NormalizeRuntimeSelection(rc.RuntimeSelection, rc.CLI, rc.Model)
+	if err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(selection)
+	if err != nil {
+		return "", fmt.Errorf("marshal runtime_selection: %w", err)
+	}
+	return string(data), nil
 }
 
 // ListTeams returns teams in an org (all orgs when orgID == "").
@@ -352,7 +382,7 @@ func (r *Repo) ListMembers(ctx context.Context, id team.TeamID) ([]*team.TeamMem
 		return nil, err
 	}
 	rows, err := exec.QueryContext(ctx,
-		`SELECT member_ref, member_kind, role, created_at FROM team_members WHERE team_id=? ORDER BY created_at, member_ref`,
+		`SELECT member_ref, member_kind, role, created_at FROM team_members WHERE team_id=? ORDER BY created_at, member_ref, role`,
 		id.String())
 	if err != nil {
 		return nil, err
@@ -395,7 +425,7 @@ func (r *Repo) ListMembersByTeams(ctx context.Context, ids []team.TeamID) ([]*te
 	}
 	rows, err := exec.QueryContext(ctx,
 		`SELECT team_id, member_ref, member_kind, role, created_at FROM team_members
-		 WHERE team_id IN (`+strings.Join(ph, ",")+`) ORDER BY team_id, created_at, member_ref`,
+		 WHERE team_id IN (`+strings.Join(ph, ",")+`) ORDER BY team_id, created_at, member_ref, role`,
 		args...)
 	if err != nil {
 		return nil, err

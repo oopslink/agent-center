@@ -252,6 +252,70 @@ func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, catalog)
 }
 
+func (s *Server) getRuntimeBasicCoverageHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	result, err := d.RuntimeCatalog.BasicCoverage(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) previewRuntimeImpactHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	canaryPercent := 0
+	if raw := strings.TrimSpace(query.Get("canary_percent")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 || n > 100 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "canary_percent must be an integer from 0 to 100")
+			return
+		}
+		canaryPercent = n
+	}
+	result, err := d.RuntimeCatalog.PreviewImpact(r.Context(), org, airuntime.ImpactRequest{
+		EntityType:    query.Get("entity_type"),
+		EntityID:      firstNonEmpty(query.Get("entity_id"), query.Get("profile_id")),
+		EntityKey:     query.Get("entity_key"),
+		Action:        query.Get("action"),
+		CanaryPercent: canaryPercent,
+	})
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) listRuntimeAuditHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be a non-negative integer")
+			return
+		}
+		limit = n
+	}
+	events, err := d.RuntimeCatalog.ListAudit(r.Context(), org, limit)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+}
+
 func (s *Server) listRuntimeCLIsHandler(w http.ResponseWriter, r *http.Request) {
 	d, _, org, ok := aiRuntimeDeps(w, r, false)
 	if !ok {

@@ -8,9 +8,18 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
 import type { Agent, ExecutorProfile } from '@/api/types';
+import {
+  defaultRuntimeSelection,
+  normalizeRuntimeSelection,
+  resolveRuntimeSelection,
+  selectionFromLegacy,
+  useAIRuntimeCatalog,
+  type RuntimeSelection,
+} from '@/api/aiRuntime';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
-import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
+import { RuntimeSelectionControls } from './RuntimeSelectionControls';
+import { executorBadgeClass } from './executorProfiles';
 import { KNOWN_MODELS } from '@/config/agent-defaults';
 import { ToggleSwitch } from './ToggleSwitch';
 
@@ -39,21 +48,30 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
 
   // v2.18.1 concurrency config.
   const [maxConcurrent, setMaxConcurrent] = useState(agent.max_concurrent_tasks ?? 0);
-  const [executors, setExecutors] = useState<ExecutorProfile[]>(agent.allowed_executors ?? []);
-  // The pending "add a profile" row (committed via the Add button).
-  const [draftCli, setDraftCli] = useState('claude-code');
-  const [draftModel, setDraftModel] = useState('');
+  const [executors, setExecutors] = useState<ExecutorProfile[]>(() =>
+    (agent.allowed_executors ?? []).map((executor) => ({
+      ...executor,
+      runtime_selection: executor.runtime_selection ?? selectionFromLegacy(executor.cli, executor.model),
+    })),
+  );
+  const [draftSelection, setDraftSelection] = useState<RuntimeSelection>(defaultRuntimeSelection());
+  const runtimeCatalog = useAIRuntimeCatalog();
+  const resolvedDraft = resolveRuntimeSelection(runtimeCatalog.data, draftSelection);
 
   const addExecutor = () => {
-    const m = draftModel.trim();
-    if (!m) return;
+    if (!resolvedDraft) return;
+    const next = {
+      cli: resolvedDraft.cli.key,
+      model: resolvedDraft.model.model_key,
+      runtime_selection: normalizeRuntimeSelection(draftSelection),
+    };
     // Skip exact {cli,model} duplicates (the server dedups too).
-    if (executors.some((e) => e.cli === draftCli && e.model === m)) {
-      setDraftModel('');
+    if (executors.some((e) => e.cli === next.cli && e.model === next.model)) {
+      setDraftSelection(defaultRuntimeSelection());
       return;
     }
-    setExecutors((xs) => [...xs, { cli: draftCli, model: m }]);
-    setDraftModel('');
+    setExecutors((xs) => [...xs, next]);
+    setDraftSelection(defaultRuntimeSelection());
   };
   const removeExecutor = (i: number) =>
     setExecutors((xs) => xs.filter((_, idx) => idx !== i));
@@ -301,6 +319,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                         {e.cli}
                       </span>
                       <span className="font-mono text-text-primary">{e.model}</span>
+                      <span className="text-text-muted">
+                        {resolveRuntimeSelection(runtimeCatalog.data, e.runtime_selection ?? selectionFromLegacy(e.cli, e.model))?.label ?? 'resolved'}
+                      </span>
                       <button
                         type="button"
                         className="text-text-muted hover:text-danger"
@@ -319,45 +340,20 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="flex gap-2">
-                <select
-                  className={`${inputClass} w-auto`}
-                  value={draftCli}
-                  onChange={(e) => setDraftCli(e.target.value)}
-                  data-testid="agent-config-executor-cli"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
-                >
-                  {CLI_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className={inputClass}
-                  value={draftModel}
-                  onChange={(e) => setDraftModel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addExecutor();
-                    }
-                  }}
-                  list={`executor-models-${draftCli}`}
-                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
-                  data-testid="agent-config-executor-model"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
+              <div className="space-y-2">
+                <RuntimeSelectionControls
+                  catalog={runtimeCatalog.data}
+                  selection={draftSelection}
+                  onChange={setDraftSelection}
+                  idPrefix="agent-config-executor"
+                  label={t('agentRuntime.configModal.concurrency.executorRuntimeLabel', { defaultValue: 'Executor runtime' })}
+                  compact
                 />
-                <datalist id={`executor-models-${draftCli}`}>
-                  {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
                 <button
                   type="button"
                   className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"
                   onClick={addExecutor}
-                  disabled={!draftModel.trim()}
+                  disabled={!resolvedDraft}
                   data-testid="agent-config-executor-add"
                 >
                   {t('agentRuntime.configModal.concurrency.add')}

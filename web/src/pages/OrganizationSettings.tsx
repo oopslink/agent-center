@@ -27,10 +27,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { formatLocalTime } from '@/utils/time';
 import Agents from './Agents';
+import AIRuntimeSettings from './AIRuntimeSettings';
 
-type Section = 'profile' | 'humans' | 'agents' | 'invitations' | 'danger';
+type Section = 'profile' | 'humans' | 'agents' | 'ai-runtime' | 'invitations' | 'danger';
 
-const SECTIONS: ReadonlyArray<Section> = ['profile', 'humans', 'agents', 'invitations', 'danger'];
+const SECTIONS: ReadonlyArray<Section> = ['profile', 'humans', 'agents', 'ai-runtime', 'invitations', 'danger'];
 
 // I41 (T470): the 5 sections now live in the shell's col② secondary nav
 // (OrgSettingsSecondaryNav), reached via routed sub-paths
@@ -55,6 +56,7 @@ export default function OrganizationSettings(): React.ReactElement {
       {section === 'profile' && <ProfileSection />}
       {section === 'humans' && <HumansSection onOpenInvitations={goToInvitations} />}
       {section === 'agents' && <Agents />}
+      {section === 'ai-runtime' && <AIRuntimeSettings />}
       {section === 'invitations' && <InvitationsSection />}
       {section === 'danger' && <DangerSection />}
     </section>

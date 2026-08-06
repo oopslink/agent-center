@@ -225,9 +225,18 @@ type Profile struct {
 // runs with (v2.18.1 BE-1). The CLI is hard-validated against SupportedExecutorCLIs
 // (a closed set the daemon can actually fork); the model is free text (non-empty) —
 // provider model names rotate too often to hard-enumerate without going stale.
+type RuntimeSelection struct {
+	Mode       string         `json:"mode"`
+	ProfileID  string         `json:"profile_id,omitempty"`
+	CLIID      string         `json:"cli_id,omitempty"`
+	ModelID    string         `json:"model_id,omitempty"`
+	Parameters map[string]any `json:"parameters,omitempty"`
+}
+
 type ExecutorProfile struct {
-	CLI   string `json:"cli"`
-	Model string `json:"model"`
+	CLI              string            `json:"cli"`
+	Model            string            `json:"model"`
+	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
 	// Catalog annotations (T950 ②): filled at resume-state build time by joining the
 	// org's model catalog (pm_model_catalog) on Model. DERIVED + TRANSIENT — a stored
 	// profile is only {cli,model}; these are empty until the center join populates them
@@ -268,9 +277,10 @@ func NormalizeAllowedExecutors(in []ExecutorProfile) ([]ExecutorProfile, error) 
 	if len(in) == 0 {
 		return nil, nil
 	}
-	seen := make(map[ExecutorProfile]struct{}, len(in))
+	seen := make(map[string]struct{}, len(in))
 	out := make([]ExecutorProfile, 0, len(in))
 	for _, e := range in {
+		e.CLI = strings.TrimSpace(e.CLI)
 		e.Model = strings.TrimSpace(e.Model)
 		if !IsSupportedExecutorCLI(e.CLI) {
 			return nil, fmt.Errorf("%w: unsupported cli %q", ErrInvalidExecutorProfile, e.CLI)
@@ -278,10 +288,11 @@ func NormalizeAllowedExecutors(in []ExecutorProfile) ([]ExecutorProfile, error) 
 		if e.Model == "" {
 			return nil, fmt.Errorf("%w: empty model for cli %q", ErrInvalidExecutorProfile, e.CLI)
 		}
-		if _, dup := seen[e]; dup {
+		key := e.CLI + "\x00" + e.Model
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[e] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, e)
 	}
 	return out, nil

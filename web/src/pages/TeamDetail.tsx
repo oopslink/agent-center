@@ -199,6 +199,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     role: role.role,
     cli: role.cli,
     model: role.model,
+    runtime_selection: role.runtime_selection,
     max_concurrency: role.max_concurrency,
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),

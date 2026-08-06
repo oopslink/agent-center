@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +71,100 @@ func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {
 	return s.repo.GetCatalog(ctx, orgID)
 }
 
+func (s *Service) BasicCoverage(ctx context.Context, orgID string) (BasicCoverageResponse, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return BasicCoverageResponse{}, err
+	}
+	coverage, diagnostics := s.basicCoverageForCatalog(ctx, cat)
+	return BasicCoverageResponse{
+		BasicCapabilityCoverage:     coverage,
+		Diagnostics:                 diagnostics,
+		EffectiveSchedulabilityNote: "Basic Capability Coverage only reports worker/runtime capability presence. Effective Schedulability is evaluated per execution by the scheduler.",
+	}, nil
+}
+
+func (s *Service) PreviewImpact(ctx context.Context, orgID string, req ImpactRequest) (ImpactPreview, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return ImpactPreview{}, err
+	}
+	req.EntityType = strings.TrimSpace(req.EntityType)
+	req.EntityID = strings.TrimSpace(req.EntityID)
+	req.EntityKey = strings.TrimSpace(req.EntityKey)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.EntityType == "" {
+		return ImpactPreview{}, errors.New("entity_type is required")
+	}
+	if req.EntityKey == "" {
+		req.EntityKey = runtimeEntityKey(cat, req.EntityType, req.EntityID)
+	}
+	if req.EntityID == "" && req.EntityKey == "" && req.EntityType != "default_profile" && req.EntityType != "catalog_default" {
+		return ImpactPreview{}, fmt.Errorf("%s impact preview requires entity_id or entity_key", req.EntityType)
+	}
+	references := []RuntimeReference{}
+	diagnostics := []Diagnostic{}
+	if repo, ok := s.repo.(ReferenceRepository); ok {
+		refs, rerr := repo.ListRuntimeReferences(ctx, orgID, req)
+		if rerr != nil {
+			diagnostics = append(diagnostics, Diagnostic{
+				Code: Reason("runtime_references_unavailable"), Severity: "warning",
+				Path: "references", Message: "runtime reference data is unavailable",
+			})
+		} else {
+			references = refs
+		}
+	} else {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code: Reason("runtime_references_unavailable"), Severity: "warning",
+			Path: "references", Message: "runtime reference data is unavailable",
+		})
+	}
+	coverage, coverageDiagnostics := s.basicCoverageForCatalog(ctx, cat)
+	diagnostics = append(diagnostics, coverageDiagnostics...)
+	if req.CanaryPercent != 0 {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code: Reason("runtime_canary_unavailable"), Severity: "warning",
+			Path: "canary_percent", Message: "runtime catalog canary rollout is not enabled; this preview does not stage a partial rollout",
+		})
+	}
+	sort.Slice(references, func(i, j int) bool {
+		if references[i].EntityType != references[j].EntityType {
+			return references[i].EntityType < references[j].EntityType
+		}
+		if references[i].EntityName != references[j].EntityName {
+			return references[i].EntityName < references[j].EntityName
+		}
+		return references[i].Field < references[j].Field
+	})
+	return ImpactPreview{
+		EntityType:                     req.EntityType,
+		EntityID:                       req.EntityID,
+		EntityKey:                      req.EntityKey,
+		Action:                         req.Action,
+		ReferenceCount:                 len(references),
+		References:                     references,
+		BasicCapabilityCoverage:        coverage,
+		Diagnostics:                    diagnostics,
+		CanaryPercent:                  req.CanaryPercent,
+		CanarySupported:                false,
+		HistoricalSnapshotsImmutable:   true,
+		EffectiveSchedulabilityNote:    "Basic Capability Coverage is not Effective Schedulability; execution schedulability is calculated against the concrete task, worker, and concurrency constraints.",
+		HistoricalSnapshotImmutability: "Historical runtime snapshots are append-only and are never back-mutated by catalog/profile/default changes.",
+	}, nil
+}
+
+func (s *Service) ListAudit(ctx context.Context, orgID string, limit int) ([]AuditEvent, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	repo, ok := s.repo.(AuditRepository)
+	if !ok {
+		return nil, errors.New("AI Runtime repository does not support audit listing")
+	}
+	return repo.ListAudit(ctx, orgID, limit)
+}
+
 func (s *Service) CreateCLI(ctx context.Context, orgID, actor string, expected int64, in CLIDefinition) (CLIDefinition, int64, error) {
 	in.ID, in.OrgID, in.Key = s.id(), orgID, strings.TrimSpace(in.Key)
 	in.DisplayName, in.Executable = strings.TrimSpace(in.DisplayName), strings.TrimSpace(in.Executable)
@@ -92,6 +188,48 @@ func (s *Service) CreateCLI(ctx context.Context, orgID, actor string, expected i
 	in.CreatedAt, in.UpdatedAt = s.now(), s.now()
 	rev, err := s.repo.CreateCLI(ctx, in, expected, s.audit(orgID, actor, "cli", in.Key, "created", nil, in))
 	return in, rev, err
+}
+
+func (s *Service) basicCoverageForCatalog(ctx context.Context, cat Catalog) ([]RuntimeCoverage, []Diagnostic) {
+	if s.coverage == nil {
+		return []RuntimeCoverage{}, []Diagnostic{{
+			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+			Path: "basic_capability_coverage", Message: "scheduler coverage data is unavailable",
+		}}
+	}
+	coverage, err := s.coverage.Coverage(ctx, cat)
+	if err != nil {
+		return []RuntimeCoverage{}, []Diagnostic{{
+			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+			Path: "basic_capability_coverage", Message: "scheduler coverage data is unavailable",
+		}}
+	}
+	sort.Slice(coverage, func(i, j int) bool { return coverage[i].ProfileID < coverage[j].ProfileID })
+	return coverage, nil
+}
+
+func runtimeEntityKey(cat Catalog, entityType, id string) string {
+	switch entityType {
+	case "profile":
+		for _, p := range cat.Profiles {
+			if p.ID == id || p.Key == id {
+				return p.Key
+			}
+		}
+	case "cli":
+		for _, c := range cat.CLIs {
+			if c.ID == id || c.Key == id {
+				return c.Key
+			}
+		}
+	case "model":
+		for _, m := range cat.Models {
+			if m.ID == id || m.Key == id {
+				return m.Key
+			}
+		}
+	}
+	return ""
 }
 
 func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected int64, in CLIDefinition) (CLIDefinition, int64, error) {

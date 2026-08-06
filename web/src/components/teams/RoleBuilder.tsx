@@ -3,42 +3,24 @@
 // team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import { resolveRuntimeSelection, selectionFromLegacy, type RuntimeSelection } from '@/api/aiRuntime';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
+import { RuntimeSelectionControls } from '@/components/RuntimeSelectionControls';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
 
 export function newRole(role = ''): RoleInput {
   return {
     role,
-    cli: 'claude-code',
-    model: 'sonnet-5',
+    cli: '',
+    model: '',
+    runtime_selection: { mode: 'inherit' },
     max_concurrency: 1,
     count: 1,
     tags: '',
     description: role ? ROLE_DESC[role] || '' : '',
   };
-}
-
-function Select({
-  value,
-  options,
-  onChange,
-  testId,
-}: {
-  value: string;
-  options: readonly string[];
-  onChange: (v: string) => void;
-  testId?: string;
-}): React.ReactElement {
-  return (
-    <select className={inputCls} value={value} data-testid={testId} onChange={(e) => onChange(e.target.value)}>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 export function RoleBuilder({
@@ -55,8 +37,17 @@ export function RoleBuilder({
   idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const runtimeCatalog = useAIRuntimeCatalog();
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  };
+  const patchRuntime = (i: number, selection: RuntimeSelection) => {
+    const resolved = resolveRuntimeSelection(runtimeCatalog.data, selection);
+    patch(i, {
+      runtime_selection: selection,
+      cli: resolved?.cli.key ?? '',
+      model: resolved?.model.model_key ?? '',
+    });
   };
   const remove = (i: number) => onChange(roles.filter((_, j) => j !== i));
   const add = () => onChange([...roles, newRole()]);
@@ -129,15 +120,14 @@ export function RoleBuilder({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
-            <div>
-              <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
-              <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
-            </div>
-            <div>
-              <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
-              <Select value={r.model} options={MODELS} testId={`${idPrefix}-role-${i}-model`} onChange={(v) => patch(i, { model: v })} />
-            </div>
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[minmax(0,1fr)_10rem]">
+            <RuntimeSelectionControls
+              catalog={runtimeCatalog.data}
+              selection={r.runtime_selection ?? selectionFromLegacy(r.cli, r.model)}
+              onChange={(selection) => patchRuntime(i, selection)}
+              idPrefix={`${idPrefix}-role-${i}`}
+              label={t('roleBuilder.runtimeLabel', { defaultValue: 'AI Runtime' })}
+            />
             <div>
               <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>
               <input

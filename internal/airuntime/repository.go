@@ -16,3 +16,11 @@ type Repository interface {
 type BulkRepository interface {
 	ApplyBulkImport(context.Context, BulkMutation, int64, AuditEvent) (int64, error)
 }
+
+type AuditRepository interface {
+	ListAudit(context.Context, string, int) ([]AuditEvent, error)
+}
+
+type ReferenceRepository interface {
+	ListRuntimeReferences(context.Context, string, ImpactRequest) ([]RuntimeReference, error)
+}

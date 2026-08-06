@@ -56,11 +56,12 @@ func NewTools(svc *service.Service) *Tools { return &Tools{svc: svc} }
 
 // RoleArg is a role declaration in a create_team call.
 type RoleArg struct {
-	Role           string   `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
-	CLI            string   `json:"cli,omitempty" jsonschema:"agent CLI the role runs on (e.g. claude-code)"`
-	Model          string   `json:"model,omitempty" jsonschema:"model id the role uses"`
-	CapabilityTags []string `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
-	MaxConcurrency int      `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
+	Role             string                `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
+	CLI              string                `json:"cli,omitempty" jsonschema:"resolved compatibility CLI for the role"`
+	Model            string                `json:"model,omitempty" jsonschema:"resolved compatibility model id for the role"`
+	RuntimeSelection team.RuntimeSelection `json:"runtime_selection,omitempty" jsonschema:"independent AI Runtime inherit/profile/override selection"`
+	CapabilityTags   []string              `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
+	MaxConcurrency   int                   `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
 }
 
 // CreateTeamArgs is the create_team payload.
@@ -87,11 +88,12 @@ type AddMemberArgs struct {
 
 // RoleView is a serializable RoleConfig.
 type RoleView struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
+	Role             string                `json:"role"`
+	CLI              string                `json:"cli"`
+	Model            string                `json:"model"`
+	RuntimeSelection team.RuntimeSelection `json:"runtime_selection"`
+	CapabilityTags   []string              `json:"capability_tags"`
+	MaxConcurrency   int                   `json:"max_concurrency"`
 }
 
 // TeamView is a serializable Team.
@@ -198,11 +200,12 @@ func toRoleConfigs(in []RoleArg) []team.RoleConfig {
 	out := make([]team.RoleConfig, 0, len(in))
 	for _, r := range in {
 		out = append(out, team.RoleConfig{
-			Role:           r.Role,
-			CLI:            r.CLI,
-			Model:          r.Model,
-			CapabilityTags: r.CapabilityTags,
-			MaxConcurrency: r.MaxConcurrency,
+			Role:             r.Role,
+			CLI:              r.CLI,
+			Model:            r.Model,
+			RuntimeSelection: r.RuntimeSelection,
+			CapabilityTags:   r.CapabilityTags,
+			MaxConcurrency:   r.MaxConcurrency,
 		})
 	}
 	return out
@@ -216,7 +219,7 @@ func toTeamView(t *team.Team) TeamView {
 			tags = []string{}
 		}
 		roles = append(roles, RoleView{
-			Role: rc.Role, CLI: rc.CLI, Model: rc.Model,
+			Role: rc.Role, CLI: rc.CLI, Model: rc.Model, RuntimeSelection: rc.RuntimeSelection,
 			CapabilityTags: tags, MaxConcurrency: rc.MaxConcurrency,
 		})
 	}

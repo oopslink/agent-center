@@ -132,6 +132,44 @@ type AuditEvent struct {
 	OccurredAt                                      time.Time
 }
 
+type RuntimeReference struct {
+	EntityType string `json:"entity_type"`
+	EntityID   string `json:"entity_id"`
+	EntityName string `json:"entity_name,omitempty"`
+	Field      string `json:"field"`
+	Mode       string `json:"mode,omitempty"`
+}
+
+type ImpactRequest struct {
+	EntityType    string `json:"entity_type"`
+	EntityID      string `json:"entity_id,omitempty"`
+	EntityKey     string `json:"entity_key,omitempty"`
+	Action        string `json:"action,omitempty"`
+	CanaryPercent int    `json:"canary_percent,omitempty"`
+}
+
+type BasicCoverageResponse struct {
+	BasicCapabilityCoverage     []RuntimeCoverage `json:"basic_capability_coverage"`
+	Diagnostics                 []Diagnostic      `json:"diagnostics"`
+	EffectiveSchedulabilityNote string            `json:"effective_schedulability_note"`
+}
+
+type ImpactPreview struct {
+	EntityType                     string             `json:"entity_type"`
+	EntityID                       string             `json:"entity_id,omitempty"`
+	EntityKey                      string             `json:"entity_key,omitempty"`
+	Action                         string             `json:"action,omitempty"`
+	ReferenceCount                 int                `json:"reference_count"`
+	References                     []RuntimeReference `json:"references"`
+	BasicCapabilityCoverage        []RuntimeCoverage  `json:"basic_capability_coverage"`
+	Diagnostics                    []Diagnostic       `json:"diagnostics"`
+	CanaryPercent                  int                `json:"canary_percent,omitempty"`
+	CanarySupported                bool               `json:"canary_supported"`
+	HistoricalSnapshotsImmutable   bool               `json:"historical_snapshots_immutable"`
+	EffectiveSchedulabilityNote    string             `json:"effective_schedulability_note"`
+	HistoricalSnapshotImmutability string             `json:"historical_snapshot_immutability"`
+}
+
 var stableKeyRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 
 func validateKey(field, value string) error {

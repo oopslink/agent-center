@@ -85,6 +85,15 @@ func TestRuntimeResolverPrecedenceAndSnapshotImmutability(t *testing.T) {
 	if override.Source != "override" || override.Parameters["temperature"] != 0.7 || override.Parameters["effort"] != "medium" {
 		t.Fatalf("override = %+v", override)
 	}
+	legacyKeyOverride, err := resolver.Resolve(context.Background(), "org-1", RuntimeSelection{
+		Mode: SelectionOverride, CLIID: "codex", ModelID: "gpt-5",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyKeyOverride.ModelKey != "gpt-5" || legacyKeyOverride.CLIKey != "codex" {
+		t.Fatalf("override by model key = %+v", legacyKeyOverride)
+	}
 }
 
 func TestRuntimeResolverStructuredFailures(t *testing.T) {

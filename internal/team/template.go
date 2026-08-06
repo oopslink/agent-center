@@ -147,9 +147,16 @@ func normalizeSlots(in []RoleSlot) ([]RoleSlot, error) {
 		if sl.Config.MaxConcurrency < 0 {
 			return nil, ErrInvalidRole
 		}
+		selection, err := NormalizeRuntimeSelection(sl.Config.RuntimeSelection, sl.Config.CLI, sl.Config.Model)
+		if err != nil {
+			return nil, err
+		}
 		seen[role] = struct{}{}
 		cfg := sl.Config
 		cfg.Role = role
+		cfg.CLI = strings.TrimSpace(cfg.CLI)
+		cfg.Model = strings.TrimSpace(cfg.Model)
+		cfg.RuntimeSelection = selection
 		if cfg.MaxConcurrency == 0 {
 			cfg.MaxConcurrency = 1
 		}

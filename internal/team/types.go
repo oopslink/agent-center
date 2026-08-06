@@ -33,6 +33,20 @@ const (
 	MemberKindHuman MemberKind = "human"
 )
 
+const (
+	RuntimeSelectionInherit  = "inherit"
+	RuntimeSelectionProfile  = "profile"
+	RuntimeSelectionOverride = "override"
+)
+
+type RuntimeSelection struct {
+	Mode       string         `json:"mode"`
+	ProfileID  string         `json:"profile_id,omitempty"`
+	CLIID      string         `json:"cli_id,omitempty"`
+	ModelID    string         `json:"model_id,omitempty"`
+	Parameters map[string]any `json:"parameters,omitempty"`
+}
+
 // IsValid reports whether k is a known kind.
 func (k MemberKind) IsValid() bool {
 	switch k {
@@ -91,10 +105,13 @@ type RoleConfig struct {
 	// Role is the template-defined role name (e.g. "reviewer", "impl"). Unique
 	// within a team.
 	Role string
-	// CLI is the agent CLI this role runs on (e.g. "claude-code").
+	// CLI is the resolved compatibility field for current execution paths.
 	CLI string
-	// Model is the model id this role uses (e.g. "claude-opus-4-8").
+	// Model is the resolved compatibility field for current execution paths.
 	Model string
+	// RuntimeSelection records this role's independent inherit/profile/override
+	// source. Historical team snapshots keep their stored selection.
+	RuntimeSelection RuntimeSelection
 	// CapabilityTags are free-form capability requirements for the role.
 	CapabilityTags []string
 	// MaxConcurrency caps how many members of this role may run at once.

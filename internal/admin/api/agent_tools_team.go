@@ -356,12 +356,13 @@ func (s *Server) associateProjectHandler(w http.ResponseWriter, r *http.Request)
 
 // roleSlotReq is a template role slot (role config + instance count/配比).
 type roleSlotReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role             string                `json:"role"`
+	CLI              string                `json:"cli"`
+	Model            string                `json:"model"`
+	RuntimeSelection team.RuntimeSelection `json:"runtime_selection"`
+	CapabilityTags   []string              `json:"capability_tags"`
+	MaxConcurrency   int                   `json:"max_concurrency"`
+	Count            int                   `json:"count"`
 }
 
 // experienceReq is a portable experience carried in a template.
@@ -379,11 +380,12 @@ func toRoleSlots(in []roleSlotReq) []team.RoleSlot {
 	for _, r := range in {
 		out = append(out, team.RoleSlot{
 			Config: team.RoleConfig{
-				Role:           r.Role,
-				CLI:            r.CLI,
-				Model:          r.Model,
-				CapabilityTags: r.CapabilityTags,
-				MaxConcurrency: r.MaxConcurrency,
+				Role:             r.Role,
+				CLI:              r.CLI,
+				Model:            r.Model,
+				RuntimeSelection: r.RuntimeSelection,
+				CapabilityTags:   r.CapabilityTags,
+				MaxConcurrency:   r.MaxConcurrency,
 			},
 			Count: r.Count,
 		})

@@ -78,8 +78,13 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Roles != nil {
 		converted := make([]team.RoleConfig, 0, len(*req.Roles))
 		for _, ri := range *req.Roles {
-			converted = append(converted, team.RoleConfig{Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-				CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency})
+			converted = append(converted, roleConfigFromInput(ri))
+		}
+		var err error
+		converted, err = resolveTeamRoleRuntimeSelections(r.Context(), d, orgID, converted)
+		if err != nil {
+			writeRuntimeError(w, err)
+			return
 		}
 		configs = &converted
 	}
@@ -144,8 +149,8 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 			for _, sl := range st.tmpl.Roles {
 				roles = append(roles, roleInputReq{
 					Role: sl.Config.Role, CLI: sl.Config.CLI, Model: sl.Config.Model,
-					MaxConcurrency: sl.Config.MaxConcurrency, Count: sl.Count,
-					Tags: strings.Join(sl.Config.CapabilityTags, ","),
+					RuntimeSelection: sl.Config.RuntimeSelection, MaxConcurrency: sl.Config.MaxConcurrency,
+					Count: sl.Count, Tags: strings.Join(sl.Config.CapabilityTags, ","),
 				})
 			}
 		}
@@ -154,15 +159,18 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	configs := make([]team.RoleConfig, 0, len(roles))
 	countByRole := make(map[string]int, len(roles))
 	for _, ri := range roles {
-		configs = append(configs, team.RoleConfig{
-			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
-		})
+		configs = append(configs, roleConfigFromInput(ri))
 		count := ri.Count
 		if count <= 0 {
 			count = 1
 		}
 		countByRole[ri.Role] = count
+	}
+	var err error
+	configs, err = resolveTeamRoleRuntimeSelections(r.Context(), d, orgID, configs)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
 	}
 
 	name := req.TeamName
@@ -459,12 +467,13 @@ type createTeamTemplateReq struct {
 // config + per-role count. capability_tags is already a []string (unlike the
 // create-team RoleInput's comma-string).
 type templateRoleReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role             string                `json:"role"`
+	CLI              string                `json:"cli"`
+	Model            string                `json:"model"`
+	RuntimeSelection team.RuntimeSelection `json:"runtime_selection"`
+	CapabilityTags   []string              `json:"capability_tags"`
+	MaxConcurrency   int                   `json:"max_concurrency"`
+	Count            int                   `json:"count"`
 }
 
 // listTeamTemplatesHandler serves GET /api/orgs/{slug}/team-templates → TeamTemplate[].
@@ -544,13 +553,19 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	}
 	slots := make([]team.RoleSlot, 0, len(req.Roles))
 	for _, rr := range req.Roles {
-		slots = append(slots, team.RoleSlot{
-			Config: team.RoleConfig{
-				Role: rr.Role, CLI: rr.CLI, Model: rr.Model,
-				CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
-			},
-			Count: rr.Count,
-		})
+		slots = append(slots, team.RoleSlot{Config: roleConfigFromTemplateInput(rr), Count: rr.Count})
+	}
+	configs := make([]team.RoleConfig, 0, len(slots))
+	for _, slot := range slots {
+		configs = append(configs, slot.Config)
+	}
+	resolvedConfigs, rerr := resolveTeamRoleRuntimeSelections(r.Context(), d, orgID, configs)
+	if rerr != nil {
+		writeRuntimeError(w, rerr)
+		return
+	}
+	for i := range slots {
+		slots[i].Config = resolvedConfigs[i]
 	}
 	// Create authors an UN-curated template (curate/export is the /admin cross-org
 	// path, not a Phase-1 UI flow). team.NewTemplate validates + normalizes.
@@ -624,12 +639,13 @@ func templateRoleViews(slots []team.RoleSlot) []map[string]any {
 			tags = []string{}
 		}
 		out = append(out, map[string]any{
-			"role":            sl.Config.Role,
-			"cli":             sl.Config.CLI,
-			"model":           sl.Config.Model,
-			"capability_tags": tags,
-			"max_concurrency": sl.Config.MaxConcurrency,
-			"count":           sl.Count,
+			"role":              sl.Config.Role,
+			"cli":               sl.Config.CLI,
+			"model":             sl.Config.Model,
+			"runtime_selection": teamRuntimeSelectionView(sl.Config.RuntimeSelection),
+			"capability_tags":   tags,
+			"max_concurrency":   sl.Config.MaxConcurrency,
+			"count":             sl.Count,
 		})
 	}
 	return out

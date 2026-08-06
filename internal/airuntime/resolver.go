@@ -107,7 +107,7 @@ func findCLI(items []CLIDefinition, id string) *CLIDefinition {
 }
 func findModel(items []ModelDefinition, id string) *ModelDefinition {
 	for i := range items {
-		if items[i].ID == id || items[i].Key == id {
+		if items[i].ID == id || items[i].Key == id || items[i].ModelKey == id {
 			return &items[i]
 		}
 	}

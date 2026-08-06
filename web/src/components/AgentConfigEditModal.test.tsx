@@ -148,14 +148,15 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(screen.getByTestId('agent-config-executors-empty')).toBeInTheDocument();
   });
 
-  it('concurrency: add then remove an executor profile updates the chips', () => {
+  it('concurrency: add then remove an executor profile updates the chips', async () => {
     wrap(base);
     expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
-    fireEvent.change(screen.getByTestId('agent-config-executor-cli'), { target: { value: 'codex' } });
-    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'gpt-5.5' } });
+    fireEvent.change(await screen.findByTestId('agent-config-executor-runtime-mode'), { target: { value: 'override' } });
+    fireEvent.change(screen.getByTestId('agent-config-executor-runtime-cli'), { target: { value: 'codex' } });
+    fireEvent.change(screen.getByTestId('agent-config-executor-runtime-model'), { target: { value: 'gpt-5' } });
     fireEvent.click(screen.getByTestId('agent-config-executor-add'));
     expect(screen.getAllByTestId('agent-config-executor-chip')).toHaveLength(1);
-    expect(screen.getByTestId('agent-config-executor-chip')).toHaveTextContent('gpt-5.5');
+    expect(screen.getByTestId('agent-config-executor-chip')).toHaveTextContent('gpt-5');
     fireEvent.click(screen.getByTestId('agent-config-executor-remove'));
     expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
   });
@@ -171,14 +172,15 @@ describe('AgentConfigEditModal (T236)', () => {
     );
     wrap(base);
     fireEvent.change(screen.getByTestId('agent-config-max-concurrent'), { target: { value: '4' } });
-    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'opus-4-8' } });
+    fireEvent.change(await screen.findByTestId('agent-config-executor-runtime-mode'), { target: { value: 'override' } });
+    fireEvent.change(screen.getByTestId('agent-config-executor-runtime-model'), { target: { value: 'opus-4-8' } });
     fireEvent.click(screen.getByTestId('agent-config-executor-add'));
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
     fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(patchBody).toBeDefined());
     expect(patchBody).toMatchObject({
       max_concurrent_tasks: 4,
-      allowed_executors: [{ cli: 'claude-code', model: 'opus-4-8' }],
+      allowed_executors: [{ cli: 'claude-code', model: 'opus-4-8', runtime_selection: { mode: 'override', cli_id: 'claude-code', model_id: 'opus-4-8' } }],
     });
   });
 

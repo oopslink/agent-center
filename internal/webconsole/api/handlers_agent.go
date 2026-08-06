@@ -733,12 +733,17 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
+	allowedExecutors, err := resolveExecutorRuntimeSelections(r.Context(), d, a.OrganizationID(), req.AllowedExecutors)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	err = d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		EnvVars:           req.EnvVars,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
-		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
+		AllowedExecutors: allowedExecutors, AutoAssignable: req.AutoAssignable,
 		Description:                      req.Description,
 		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve

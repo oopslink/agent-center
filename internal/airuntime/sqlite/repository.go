@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
@@ -255,6 +256,236 @@ func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expe
 		return err
 	})
 }
+
+func (r *Repository) ListAudit(ctx context.Context, org string, limit int) ([]airuntime.AuditEvent, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT id,org_id,actor,entity_type,entity_key,action,before_json,after_json,revision,occurred_at
+		FROM ai_runtime_audit_log
+		WHERE org_id=?
+		ORDER BY revision DESC, occurred_at DESC, id DESC
+		LIMIT ?`, org, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []airuntime.AuditEvent{}
+	for rows.Next() {
+		var ev airuntime.AuditEvent
+		var before, after, occurred string
+		if err := rows.Scan(&ev.ID, &ev.OrgID, &ev.Actor, &ev.EntityType, &ev.EntityKey, &ev.Action, &before, &after, &ev.Revision, &occurred); err != nil {
+			return nil, err
+		}
+		ev.Before = json.RawMessage(before)
+		ev.After = json.RawMessage(after)
+		ev.OccurredAt = parse(occurred)
+		out = append(out, ev)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ListRuntimeReferences(ctx context.Context, org string, req airuntime.ImpactRequest) ([]airuntime.RuntimeReference, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	out := []airuntime.RuntimeReference{}
+	entityType := strings.TrimSpace(req.EntityType)
+	entityID := strings.TrimSpace(req.EntityID)
+	entityKey := strings.TrimSpace(req.EntityKey)
+
+	if entityType == "profile" {
+		var defaultProfileID string
+		err := exec.QueryRowContext(ctx, `SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, org).Scan(&defaultProfileID)
+		if err != nil && !errorsIsNoRows(err) {
+			return nil, err
+		}
+		if entityID != "" && defaultProfileID == entityID {
+			out = append(out, airuntime.RuntimeReference{
+				EntityType: "catalog", EntityID: org, EntityName: "Organization default",
+				Field: "default_runtime_profile_id", Mode: airuntime.SelectionProfile,
+			})
+		}
+	}
+	if entityType == "cli" || entityType == "model" {
+		refs, err := r.profileRuntimeReferences(ctx, exec, org, entityType, entityKey)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, refs...)
+	}
+	teamRefs, err := r.teamRoleRuntimeReferences(ctx, exec, org, req)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, teamRefs...)
+	agentRefs, err := r.agentExecutorRuntimeReferences(ctx, exec, org, req)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, agentRefs...)
+	return out, nil
+}
+
+func (r *Repository) profileRuntimeReferences(ctx context.Context, exec persistence.SQLExecutor, org, entityType, entityKey string) ([]airuntime.RuntimeReference, error) {
+	field := "cli_key"
+	if entityType == "model" {
+		field = "model_key"
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT id,key,name,cli_key,model_key FROM ai_runtime_profiles WHERE org_id=?`, org)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []airuntime.RuntimeReference{}
+	for rows.Next() {
+		var id, key, name, cliKey, modelKey string
+		if err := rows.Scan(&id, &key, &name, &cliKey, &modelKey); err != nil {
+			return nil, err
+		}
+		if (entityType == "cli" && cliKey == entityKey) || (entityType == "model" && modelKey == entityKey) {
+			out = append(out, airuntime.RuntimeReference{
+				EntityType: "runtime_profile", EntityID: id, EntityName: firstNonEmpty(name, key),
+				Field: field, Mode: airuntime.SelectionProfile,
+			})
+		}
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) teamRoleRuntimeReferences(ctx context.Context, exec persistence.SQLExecutor, org string, req airuntime.ImpactRequest) ([]airuntime.RuntimeReference, error) {
+	rows, err := exec.QueryContext(ctx, `
+		SELECT tr.team_id,t.name,tr.role,tr.runtime_selection_json,tr.cli,tr.model
+		FROM team_roles tr JOIN teams t ON t.id=tr.team_id
+		WHERE t.org_id=?
+		ORDER BY t.name,tr.role`, org)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []airuntime.RuntimeReference{}
+	for rows.Next() {
+		var teamID, teamName, role, rawSelection, cli, model string
+		if err := rows.Scan(&teamID, &teamName, &role, &rawSelection, &cli, &model); err != nil {
+			return nil, err
+		}
+		sel := parseReferenceSelection(rawSelection, cli, model)
+		if runtimeSelectionReferences(req, sel, cli, model) {
+			out = append(out, airuntime.RuntimeReference{
+				EntityType: "team_role", EntityID: teamID, EntityName: teamName + " / " + role,
+				Field: "runtime_selection", Mode: selectionMode(sel),
+			})
+		}
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) agentExecutorRuntimeReferences(ctx context.Context, exec persistence.SQLExecutor, org string, req airuntime.ImpactRequest) ([]airuntime.RuntimeReference, error) {
+	rows, err := exec.QueryContext(ctx, `SELECT identity_member_id,name,allowed_executors FROM agents WHERE organization_id=?`, org)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []airuntime.RuntimeReference{}
+	for rows.Next() {
+		var id, name, raw string
+		if err := rows.Scan(&id, &name, &raw); err != nil {
+			return nil, err
+		}
+		var executors []struct {
+			CLI              string                     `json:"cli"`
+			Model            string                     `json:"model"`
+			RuntimeSelection *referenceRuntimeSelection `json:"runtime_selection"`
+		}
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(raw), &executors); err != nil {
+			return nil, err
+		}
+		for i, executor := range executors {
+			var sel referenceRuntimeSelection
+			if executor.RuntimeSelection != nil {
+				sel = *executor.RuntimeSelection
+			}
+			if sel.Mode == "" {
+				sel = parseReferenceSelection("", executor.CLI, executor.Model)
+			}
+			if runtimeSelectionReferences(req, sel, executor.CLI, executor.Model) {
+				out = append(out, airuntime.RuntimeReference{
+					EntityType: "agent_executor_candidate", EntityID: id, EntityName: fmt.Sprintf("%s candidate %d", name, i+1),
+					Field: "allowed_executors.runtime_selection", Mode: selectionMode(sel),
+				})
+			}
+		}
+	}
+	return out, rows.Err()
+}
+
+type referenceRuntimeSelection struct {
+	Mode      string `json:"mode"`
+	ProfileID string `json:"profile_id"`
+	CLIID     string `json:"cli_id"`
+	ModelID   string `json:"model_id"`
+}
+
+func parseReferenceSelection(raw, cli, model string) referenceRuntimeSelection {
+	var sel referenceRuntimeSelection
+	if strings.TrimSpace(raw) != "" {
+		_ = json.Unmarshal([]byte(raw), &sel)
+	}
+	if sel.Mode == "" && (strings.TrimSpace(cli) != "" || strings.TrimSpace(model) != "") {
+		sel.Mode = airuntime.SelectionOverride
+		sel.CLIID = cli
+		sel.ModelID = model
+	}
+	if sel.Mode == "" {
+		sel.Mode = airuntime.SelectionInherit
+	}
+	return sel
+}
+
+func runtimeSelectionReferences(req airuntime.ImpactRequest, sel referenceRuntimeSelection, legacyCLI, legacyModel string) bool {
+	mode := selectionMode(sel)
+	switch strings.TrimSpace(req.EntityType) {
+	case "default_profile", "catalog_default":
+		return mode == airuntime.SelectionInherit
+	case "profile":
+		return mode == airuntime.SelectionProfile && matchesRuntimeEntity(sel.ProfileID, req.EntityID, req.EntityKey)
+	case "cli":
+		if mode == airuntime.SelectionOverride {
+			return matchesRuntimeEntity(firstNonEmpty(sel.CLIID, legacyCLI), req.EntityID, req.EntityKey)
+		}
+	case "model":
+		if mode == airuntime.SelectionOverride {
+			return matchesRuntimeEntity(firstNonEmpty(sel.ModelID, legacyModel), req.EntityID, req.EntityKey)
+		}
+	}
+	return false
+}
+
+func selectionMode(sel referenceRuntimeSelection) string {
+	if strings.TrimSpace(sel.Mode) == "" {
+		return airuntime.SelectionInherit
+	}
+	return strings.TrimSpace(sel.Mode)
+}
+
+func matchesRuntimeEntity(value, id, key string) bool {
+	value = strings.TrimSpace(value)
+	return value != "" && (value == strings.TrimSpace(id) || value == strings.TrimSpace(key))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func errorsIsNoRows(err error) bool { return err == sql.ErrNoRows }
 
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64

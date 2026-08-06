@@ -307,6 +307,7 @@ export interface Agent {
 export interface ExecutorProfile {
   cli: string;
   model: string;
+  runtime_selection?: import('./aiRuntime').RuntimeSelection;
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is

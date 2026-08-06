@@ -81,18 +81,67 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 		if rc.MaxConcurrency < 0 {
 			return nil, ErrInvalidRole
 		}
+		selection, err := NormalizeRuntimeSelection(rc.RuntimeSelection, rc.CLI, rc.Model)
+		if err != nil {
+			return nil, err
+		}
 		seen[role] = struct{}{}
 		mc := rc.MaxConcurrency
 		if mc == 0 {
 			mc = 1 // default one concurrent slot per role
 		}
 		out = append(out, RoleConfig{
-			Role:           role,
-			CLI:            rc.CLI,
-			Model:          rc.Model,
-			CapabilityTags: append([]string(nil), rc.CapabilityTags...),
-			MaxConcurrency: mc,
+			Role:             role,
+			CLI:              strings.TrimSpace(rc.CLI),
+			Model:            strings.TrimSpace(rc.Model),
+			RuntimeSelection: selection,
+			CapabilityTags:   append([]string(nil), rc.CapabilityTags...),
+			MaxConcurrency:   mc,
 		})
+	}
+	return out, nil
+}
+
+func NormalizeRuntimeSelection(in RuntimeSelection, legacyCLI, legacyModel string) (RuntimeSelection, error) {
+	mode := strings.TrimSpace(in.Mode)
+	legacyCLI = strings.TrimSpace(legacyCLI)
+	legacyModel = strings.TrimSpace(legacyModel)
+	if mode == "" {
+		if legacyCLI != "" && legacyModel != "" {
+			mode = RuntimeSelectionOverride
+			if in.CLIID == "" {
+				in.CLIID = legacyCLI
+			}
+			if in.ModelID == "" {
+				in.ModelID = legacyModel
+			}
+		} else {
+			mode = RuntimeSelectionInherit
+		}
+	}
+	out := RuntimeSelection{
+		Mode:       mode,
+		ProfileID:  strings.TrimSpace(in.ProfileID),
+		CLIID:      strings.TrimSpace(in.CLIID),
+		ModelID:    strings.TrimSpace(in.ModelID),
+		Parameters: in.Parameters,
+	}
+	switch mode {
+	case RuntimeSelectionInherit:
+		out.ProfileID, out.CLIID, out.ModelID = "", "", ""
+		out.Parameters = nil
+	case RuntimeSelectionProfile:
+		if out.ProfileID == "" {
+			return RuntimeSelection{}, ErrInvalidRole
+		}
+		out.CLIID, out.ModelID = "", ""
+		out.Parameters = nil
+	case RuntimeSelectionOverride:
+		if out.CLIID == "" || out.ModelID == "" {
+			return RuntimeSelection{}, ErrInvalidRole
+		}
+	default:
+		return RuntimeSelection{}, ErrInvalidRole
 	}
 	return out, nil
 }

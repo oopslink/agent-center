@@ -31,12 +31,13 @@ type exportEnvelope struct {
 }
 
 type roleSlotWire struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli,omitempty"`
-	Model          string   `json:"model,omitempty"`
-	CapabilityTags []string `json:"capability_tags,omitempty"`
-	MaxConcurrency int      `json:"max_concurrency,omitempty"`
-	Count          int      `json:"count,omitempty"`
+	Role             string           `json:"role"`
+	CLI              string           `json:"cli,omitempty"`
+	Model            string           `json:"model,omitempty"`
+	RuntimeSelection RuntimeSelection `json:"runtime_selection,omitempty"`
+	CapabilityTags   []string         `json:"capability_tags,omitempty"`
+	MaxConcurrency   int              `json:"max_concurrency,omitempty"`
+	Count            int              `json:"count,omitempty"`
 }
 
 type experienceWire struct {
@@ -68,12 +69,13 @@ func ExportTemplate(t *TeamTemplate) ([]byte, error) {
 	}
 	for _, sl := range t.Roles {
 		env.Roles = append(env.Roles, roleSlotWire{
-			Role:           sl.Config.Role,
-			CLI:            sl.Config.CLI,
-			Model:          sl.Config.Model,
-			CapabilityTags: sl.Config.CapabilityTags,
-			MaxConcurrency: sl.Config.MaxConcurrency,
-			Count:          sl.Count,
+			Role:             sl.Config.Role,
+			CLI:              sl.Config.CLI,
+			Model:            sl.Config.Model,
+			RuntimeSelection: sl.Config.RuntimeSelection,
+			CapabilityTags:   sl.Config.CapabilityTags,
+			MaxConcurrency:   sl.Config.MaxConcurrency,
+			Count:            sl.Count,
 		})
 	}
 	for _, e := range t.Experiences {
@@ -114,11 +116,12 @@ func ImportTemplate(data []byte, in ImportTemplateInput) (*TeamTemplate, error) 
 	for _, rw := range env.Roles {
 		roles = append(roles, RoleSlot{
 			Config: RoleConfig{
-				Role:           rw.Role,
-				CLI:            rw.CLI,
-				Model:          rw.Model,
-				CapabilityTags: rw.CapabilityTags,
-				MaxConcurrency: rw.MaxConcurrency,
+				Role:             rw.Role,
+				CLI:              rw.CLI,
+				Model:            rw.Model,
+				RuntimeSelection: rw.RuntimeSelection,
+				CapabilityTags:   rw.CapabilityTags,
+				MaxConcurrency:   rw.MaxConcurrency,
 			},
 			Count: rw.Count,
 		})
