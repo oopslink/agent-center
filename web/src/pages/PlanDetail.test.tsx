@@ -153,6 +153,16 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(list).queryByText('migration')).not.toBeInTheDocument(); // failed
   });
 
+  it('info rail: Up next task titles open TaskDetail in a new tab', async () => {
+    mockPlan();
+    wrap();
+    const list = await screen.findByTestId('plan-upnext');
+    const link = within(list).getByTestId('task-open-link-n3');
+    expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/n3');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
   it('info rail: Up next is collapsible via its header toggle (@oopslink)', async () => {
     mockPlan();
     wrap();

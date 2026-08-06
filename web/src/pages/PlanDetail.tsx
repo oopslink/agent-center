@@ -977,7 +977,12 @@ function PlanInfoRail({
                 className="flex items-center gap-2.5 rounded-lg border border-border-base bg-bg-subtle px-3 py-2 text-sm text-text-secondary"
               >
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: nodeDotColor(n.node_status) }} />
-                <span className="min-w-0 truncate" title={n.title}>{n.title}</span>
+                <TaskTitleLink
+                  projectId={projectId}
+                  taskId={n.task_id}
+                  title={n.title}
+                  className="min-w-0 flex-1"
+                />
                 {n.org_ref && <span className="ml-auto shrink-0 font-mono text-[0.625rem] text-text-muted">{n.org_ref}</span>}
               </li>
             ))}
