@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
@@ -103,6 +105,184 @@ func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutati
 			}
 		}
 		return nil
+	})
+}
+
+func (r *Repository) ListLegacyRuntimeObjects(ctx context.Context, orgID string) ([]airuntime.MigrationObject, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT id, organization_id, cli, model, reasoning, mode, provider
+		FROM agents
+		WHERE organization_id = ?
+		ORDER BY id`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []airuntime.MigrationObject
+	for rows.Next() {
+		var (
+			id, org                               string
+			cli, model, reasoning, mode, provider sql.NullString
+		)
+		if err := rows.Scan(&id, &org, &cli, &model, &reasoning, &mode, &provider); err != nil {
+			return nil, err
+		}
+		params := map[string]any{}
+		if strings.TrimSpace(reasoning.String) != "" {
+			params["reasoning"] = reasoning.String
+		}
+		if strings.TrimSpace(mode.String) != "" {
+			params["mode"] = mode.String
+		}
+		if strings.TrimSpace(provider.String) != "" {
+			params["provider"] = provider.String
+		}
+		out = append(out, airuntime.MigrationObject{
+			OrgID: org, ObjectType: "agent", ObjectID: id,
+			Legacy:     airuntime.LegacyRuntime{CLI: cli.String, Model: model.String},
+			Parameters: params,
+		})
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ListObjectSelections(ctx context.Context, orgID, objectType string) ([]airuntime.ObjectSelection, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT org_id, object_type, object_id, selection_json, selection_source, content_hash, migrated_at, updated_at
+		FROM ai_runtime_object_selections
+		WHERE org_id=? AND object_type=?
+		ORDER BY object_id`, orgID, objectType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []airuntime.ObjectSelection
+	for rows.Next() {
+		var x airuntime.ObjectSelection
+		var selectionJSON, migratedAt, updatedAt string
+		if err := rows.Scan(&x.OrgID, &x.ObjectType, &x.ObjectID, &selectionJSON, &x.SelectionSource, &x.ContentHash, &migratedAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(selectionJSON), &x.Selection); err != nil {
+			return nil, err
+		}
+		x.MigratedAt, x.UpdatedAt = parse(migratedAt), parse(updatedAt)
+		out = append(out, x)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ApplyLegacyMigration(ctx context.Context, m airuntime.MigrationMutation, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, m.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
+		for _, x := range m.Profiles {
+			params, _ := json.Marshal(x.Parameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET
+					name=excluded.name,
+					description=excluded.description,
+					cli_key=excluded.cli_key,
+					model_key=excluded.model_key,
+					parameters_json=excluded.parameters_json,
+					enabled=excluded.enabled,
+					updated_at=excluded.updated_at`,
+				x.ID, m.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey,
+				string(params), boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		for _, x := range m.ObjectSelections {
+			selection, _ := json.Marshal(x.Selection)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_object_selections(org_id,object_type,object_id,selection_json,selection_source,content_hash,migrated_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,object_type,object_id) DO UPDATE SET
+					selection_json=excluded.selection_json,
+					selection_source=excluded.selection_source,
+					content_hash=excluded.content_hash,
+					updated_at=excluded.updated_at`,
+				m.OrgID, x.ObjectType, x.ObjectID, string(selection), x.SelectionSource,
+				x.ContentHash, stamp(x.MigratedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) RecordShadowComparisons(ctx context.Context, m airuntime.ShadowCompareMutation) error {
+	if len(m.Records) == 0 {
+		return nil
+	}
+	return persistence.RunInTx(ctx, r.db, func(txCtx context.Context) error {
+		exec, _ := persistence.ExecutorFromCtx(txCtx, r.db)
+		for _, x := range m.Records {
+			legacyJSON, _ := json.Marshal(x.Difference.Legacy)
+			newJSON, _ := json.Marshal(x.Difference.New)
+			detailsJSON, _ := json.Marshal(x.Difference.Details)
+			_, err := exec.ExecContext(txCtx, `
+				INSERT INTO ai_runtime_shadow_diffs(id,run_id,org_id,object_type,object_id,matched,diff_type,legacy_json,new_json,details_json,compared_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+				x.ID, x.RunID, m.OrgID, x.Difference.ObjectType, x.Difference.ObjectID,
+				boolInt(x.Difference.Matched), x.Difference.DiffType, string(legacyJSON), string(newJSON),
+				string(detailsJSON), stamp(x.ComparedAt))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) GetCutoverSettings(ctx context.Context, orgID string) (map[string]string, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	prefix := "ai_runtime." + orgID + "."
+	rows, err := exec.QueryContext(ctx, `SELECT key, value FROM center_settings WHERE key LIKE ? || '%'`, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ApplyCutover(ctx context.Context, m airuntime.CutoverMutation) error {
+	return persistence.RunInTx(ctx, r.db, func(txCtx context.Context) error {
+		exec, _ := persistence.ExecutorFromCtx(txCtx, r.db)
+		flags := append([]airuntime.CutoverFlagChange(nil), m.Flags...)
+		sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
+		for _, flag := range flags {
+			_, err := exec.ExecContext(txCtx, `
+				INSERT INTO center_settings(key,value,updated_at)
+				VALUES(?,?,?)
+				ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+				flag.Key, flag.After, stamp(m.OccurredAt))
+			if err != nil {
+				return err
+			}
+		}
+		flagsJSON, _ := json.Marshal(flags)
+		rollbackJSON, _ := json.Marshal(m.Rollback)
+		beforeJSON, _ := json.Marshal(m.Before)
+		afterJSON, _ := json.Marshal(m.After)
+		_, err := exec.ExecContext(txCtx, `
+			INSERT INTO ai_runtime_cutover_events(id,org_id,actor,stage,action,flags_json,rollback_json,before_json,after_json,occurred_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?)`,
+			m.ID, m.OrgID, m.Actor, m.Stage, m.Action, string(flagsJSON), string(rollbackJSON),
+			string(beforeJSON), string(afterJSON), stamp(m.OccurredAt))
+		return err
 	})
 }
 
@@ -307,3 +487,5 @@ func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 func parse(v string) time.Time { t, _ := time.Parse(time.RFC3339Nano, v); return t }
 
 var _ airuntime.Repository = (*Repository)(nil)
+var _ airuntime.BulkRepository = (*Repository)(nil)
+var _ airuntime.MigrationRepository = (*Repository)(nil)
