@@ -333,7 +333,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reset_task",
-		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared) so a FRESH executor is auto-assigned and re-dispatched. Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
+		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared). Reset does NOT fork or re-dispatch an executor: after the task is assigned and work_available wakes its supervisor, that supervisor must explicitly call fork_executor for code/tooling work (or handle supervisor_inline/control work itself). Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
 	}, makeResetTask(cfg))
 
 	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the

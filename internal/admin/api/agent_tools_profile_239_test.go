@@ -106,14 +106,16 @@ func TestGetMyProfile_Shape_Degraded(t *testing.T) {
 	if len(caps) == 0 {
 		t.Fatalf("my_capabilities must be non-empty, got %v", body["my_capabilities"])
 	}
-	found := false
+	found := map[string]bool{}
 	for _, c := range caps {
-		if c == "get_my_profile" {
-			found = true
+		if name, ok := c.(string); ok {
+			found[name] = true
 		}
 	}
-	if !found {
-		t.Fatalf("my_capabilities should list get_my_profile, got %v", caps)
+	for _, want := range []string{"get_my_profile", "fork_executor"} {
+		if !found[want] {
+			t.Fatalf("my_capabilities should list %s, got %v", want, caps)
+		}
 	}
 }
 

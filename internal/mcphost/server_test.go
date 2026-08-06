@@ -29,6 +29,29 @@ func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
 	t.Fatal("fork_executor tool missing")
 }
 
+func TestResetTaskTool_StatesSupervisorMustFork(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name != "reset_task" {
+			continue
+		}
+		for _, phrase := range []string{"does NOT fork or re-dispatch", "supervisor must explicitly call fork_executor"} {
+			if !strings.Contains(tool.Description, phrase) {
+				t.Fatalf("reset_task description missing %q: %s", phrase, tool.Description)
+			}
+		}
+		if strings.Contains(tool.Description, "auto-assigned and re-dispatched") {
+			t.Fatalf("reset_task description still promises automatic executor dispatch: %s", tool.Description)
+		}
+		return
+	}
+	t.Fatal("reset_task tool missing")
+}
+
 // fakeAdmin records the last CallAgentTool invocation and returns canned
 // JSON (or a canned error). It stands in for the real AdminClient transport
 // so the tests exercise the real mcp.Server end-to-end over an in-memory
