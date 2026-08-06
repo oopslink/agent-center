@@ -1,67 +1,62 @@
-import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useMemo, useState } from 'react';
 import {
-  useModelCatalog,
-  useCreateModelCatalogEntry,
-  useUpdateModelCatalogEntry,
-  useDeleteModelCatalogEntry,
-  useImportModelCatalog,
-  type ModelCatalogEntry,
-  type ModelCatalogFields,
-} from '@/api/modelCatalog';
+  useAIRuntimeCatalog,
+  useAIRuntimeCoverage,
+  useCreateRuntimeProfile,
+  useSetDefaultRuntimeProfile,
+  useUpdateRuntimeProfile,
+  type RuntimeCatalog,
+  type RuntimeCoverage,
+  type RuntimeImpactPreview,
+  type RuntimeModel,
+  type RuntimeProfile,
+} from '@/api/aiRuntime';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
-import { ConfirmModal } from '@/components/ConfirmModal';
 
-// Org settings "模型类目" panel (issue-93dd8daa ①): the org-level, user-managed
-// model catalog — list + add/edit/delete + JSON bulk import (upsert|replace).
+type EditingProfile = RuntimeProfile | null;
+
 export default function OrgModelCatalog(): React.ReactElement {
-  const { t } = useTranslation('admin');
-  const catalog = useModelCatalog();
-  const del = useDeleteModelCatalogEntry();
+  const catalog = useAIRuntimeCatalog();
+  const coverage = useAIRuntimeCoverage();
+  const setDefault = useSetDefaultRuntimeProfile();
+  const [editing, setEditing] = useState<EditingProfile>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [editing, setEditing] = useState<ModelCatalogEntry | null>(null);
-  const [deleting, setDeleting] = useState<ModelCatalogEntry | null>(null);
+  const [lastImpact, setLastImpact] = useState<RuntimeImpactPreview | null>(null);
 
-  const confirmDelete = async () => {
-    if (!deleting) return;
-    try {
-      await del.mutateAsync(deleting.id);
-      setDeleting(null);
-    } catch {
-      /* surfaced via del.error */
-    }
+  const profiles = catalog.data?.profiles ?? [];
+  const defaultProfile = profiles.find((p) => p.id === catalog.data?.default_runtime_profile_id);
+
+  const makeDefault = async (profileID: string) => {
+    if (!catalog.data) return;
+    const resp = await setDefault.mutateAsync({
+      expected_revision: catalog.data.revision,
+      profile_id: profileID,
+    });
+    setLastImpact(resp.impact_preview ?? null);
   };
 
   return (
-    <section className="space-y-4" data-testid="page-OrgModelCatalog">
-      <header className="flex items-start justify-between">
+    <section className="space-y-5" data-testid="page-OrgModelCatalog">
+      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('modelCatalog.title')}</h1>
-          <p className="text-xs text-text-muted">{t('modelCatalog.subtitle')}</p>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">AI Runtime</h1>
+          <p className="mt-1 text-xs text-text-muted">
+            Default: <span className="font-medium text-text-secondary">{defaultProfile?.name ?? 'Not configured'}</span>
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
-            onClick={() => setImportOpen(true)}
-            data-testid="model-catalog-import-btn"
-          >
-            {t('modelCatalog.import.button')}
-          </button>
-          <button
-            type="button"
-            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-            data-testid="model-catalog-add-btn"
-          >
-            {t('modelCatalog.add')}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="self-start rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
+          onClick={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+          disabled={!catalog.data || catalog.data.clis.length === 0 || catalog.data.models.length === 0}
+          data-testid="model-catalog-add-btn"
+        >
+          New profile
+        </button>
       </header>
 
       {catalog.isLoading && (
@@ -70,236 +65,380 @@ export default function OrgModelCatalog(): React.ReactElement {
           <Skeleton height="3rem" />
         </div>
       )}
+
       {catalog.isError && (
         <p className="text-sm text-danger" data-testid="model-catalog-error">
           {(catalog.error as Error).message}
         </p>
       )}
-      {catalog.isSuccess && catalog.data.length === 0 && (
-        <EmptyState testId="model-catalog-empty" title={t('modelCatalog.empty')} body={t('modelCatalog.emptyDesc')} />
+
+      {catalog.isSuccess && (
+        <>
+          <RuntimeProfiles
+            catalog={catalog.data}
+            busyDefault={setDefault.isPending}
+            onEdit={(profile) => {
+              setEditing(profile);
+              setFormOpen(true);
+            }}
+            onDefault={(profileID) => void makeDefault(profileID)}
+          />
+          <RuntimeCoveragePanel coverage={coverage.data?.coverage ?? []} loading={coverage.isLoading} diagnostics={coverage.data?.diagnostics ?? []} profiles={profiles} />
+          <RuntimeInventory catalog={catalog.data} />
+        </>
       )}
-      {catalog.isSuccess && catalog.data.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-border-base" data-testid="model-catalog-list">
+
+      {lastImpact && <ImpactPreview preview={lastImpact} onDismiss={() => setLastImpact(null)} />}
+
+      {formOpen && catalog.data && (
+        <ProfileFormModal
+          catalog={catalog.data}
+          profile={editing}
+          onImpact={setLastImpact}
+          onClose={() => setFormOpen(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+function RuntimeProfiles({
+  catalog,
+  busyDefault,
+  onEdit,
+  onDefault,
+}: {
+  catalog: RuntimeCatalog;
+  busyDefault: boolean;
+  onEdit: (profile: RuntimeProfile) => void;
+  onDefault: (profileID: string) => void;
+}): React.ReactElement {
+  if (catalog.profiles.length === 0) {
+    return <EmptyState testId="model-catalog-empty" title="No runtime profiles" body="Create a profile after CLIs and models are present." />;
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border-base" data-testid="model-catalog-list">
+      <table className="w-full text-sm">
+        <thead className="bg-bg-subtle text-left text-xs uppercase text-text-muted">
+          <tr>
+            <th className="px-3 py-2">Profile</th>
+            <th className="px-3 py-2">CLI</th>
+            <th className="px-3 py-2">Model</th>
+            <th className="px-3 py-2">State</th>
+            <th className="px-3 py-2" />
+          </tr>
+        </thead>
+        <tbody>
+          {catalog.profiles.map((profile) => {
+            const isDefault = profile.id === catalog.default_runtime_profile_id;
+            return (
+              <tr key={profile.id} className="border-t border-border-base" data-testid="model-catalog-row" data-profile-id={profile.id}>
+                <td className="px-3 py-2">
+                  <div className="font-medium text-text-primary">{profile.name}</div>
+                  <div className="font-mono text-xs text-text-muted">{profile.key}</div>
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{profile.cli_key}</td>
+                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{profile.model_key}</td>
+                <td className="px-3 py-2">
+                  <span className={`rounded px-2 py-1 text-xs ${profile.enabled ? 'bg-status-green-bg text-status-green-fg' : 'bg-bg-subtle text-text-muted'}`}>
+                    {profile.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                  {isDefault && (
+                    <span className="ml-2 rounded bg-brand/10 px-2 py-1 text-xs font-medium text-brand" data-testid="runtime-default-badge">
+                      Default
+                    </span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  <button type="button" className="text-xs text-accent hover:underline" onClick={() => onEdit(profile)} data-testid="model-catalog-edit">
+                    Edit
+                  </button>
+                  {!isDefault && profile.enabled && (
+                    <button
+                      type="button"
+                      className="ml-3 text-xs text-accent hover:underline disabled:text-text-muted"
+                      disabled={busyDefault}
+                      onClick={() => onDefault(profile.id)}
+                      data-testid="runtime-set-default"
+                    >
+                      Make default
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RuntimeCoveragePanel({
+  coverage,
+  loading,
+  diagnostics,
+  profiles,
+}: {
+  coverage: RuntimeCoverage[];
+  loading: boolean;
+  diagnostics: Array<{ message: string; severity?: string }>;
+  profiles: RuntimeProfile[];
+}): React.ReactElement {
+  const profileNames = useMemo(() => new Map(profiles.map((p) => [p.id, p.name])), [profiles]);
+  return (
+    <section className="space-y-2" data-testid="runtime-coverage-panel">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-text-primary">Basic capability coverage</h2>
+        <span className="rounded bg-bg-subtle px-2 py-1 text-xs text-text-muted">Effective schedulability: not inferred</span>
+      </div>
+      {loading ? (
+        <Skeleton height="3rem" />
+      ) : coverage.length > 0 ? (
+        <div className="overflow-x-auto rounded-lg border border-border-base">
           <table className="w-full text-sm">
-            <thead className="bg-bg-subtle text-left text-xs uppercase tracking-wide text-text-muted">
+            <thead className="bg-bg-subtle text-left text-xs uppercase text-text-muted">
               <tr>
-                <th className="px-3 py-2">{t('modelCatalog.col.modelId')}</th>
-                <th className="px-3 py-2">{t('modelCatalog.col.displayName')}</th>
-                <th className="px-3 py-2">{t('modelCatalog.col.inputCost')}</th>
-                <th className="px-3 py-2">{t('modelCatalog.col.outputCost')}</th>
-                <th className="px-3 py-2">{t('modelCatalog.col.contextWindow')}</th>
-                <th className="px-3 py-2">{t('modelCatalog.col.tier')}</th>
-                <th className="px-3 py-2" />
+                <th className="px-3 py-2">Profile</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Eligible</th>
+                <th className="px-3 py-2">Online</th>
               </tr>
             </thead>
             <tbody>
-              {catalog.data.map((e) => (
-                <tr key={e.id} className="border-t border-border-base" data-testid="model-catalog-row" data-model-id={e.model_id}>
-                  <td className="px-3 py-2 font-mono text-xs text-text-primary">{e.model_id}</td>
-                  <td className="px-3 py-2 text-text-secondary">{e.display_name}</td>
-                  <td className="px-3 py-2 text-text-secondary">{e.input_cost}</td>
-                  <td className="px-3 py-2 text-text-secondary">{e.output_cost}</td>
-                  <td className="px-3 py-2 text-text-secondary">{e.context_window}</td>
-                  <td className="max-w-xs truncate px-3 py-2 text-text-muted" title={e.tier}>{e.tier}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button
-                      type="button"
-                      className="text-xs text-accent hover:underline"
-                      onClick={() => {
-                        setEditing(e);
-                        setFormOpen(true);
-                      }}
-                      data-testid="model-catalog-edit"
-                    >
-                      {t('modelCatalog.edit')}
-                    </button>
-                    <button
-                      type="button"
-                      className="ml-3 text-xs text-danger hover:underline"
-                      onClick={() => setDeleting(e)}
-                      data-testid="model-catalog-delete"
-                    >
-                      {t('modelCatalog.delete')}
-                    </button>
-                  </td>
+              {coverage.map((row) => (
+                <tr key={row.profile_id} className="border-t border-border-base" data-testid="runtime-coverage-row">
+                  <td className="px-3 py-2 text-text-primary">{profileNames.get(row.profile_id) ?? row.profile_id}</td>
+                  <td className="px-3 py-2 text-text-secondary">{row.status}</td>
+                  <td className="px-3 py-2 text-text-secondary">{row.eligible_worker_count}</td>
+                  <td className="px-3 py-2 text-text-secondary">{row.online_worker_count}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      ) : (
+        <p className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-muted" data-testid="runtime-coverage-empty">
+          No coverage data returned.
+        </p>
       )}
-
-      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
-
-      {formOpen && <ModelCatalogFormModal entry={editing ?? undefined} onClose={() => setFormOpen(false)} />}
-
-      <ConfirmModal
-        open={!!deleting}
-        title={t('modelCatalog.deleteTitle')}
-        message={deleting ? t('modelCatalog.deleteConfirm', { name: deleting.model_id }) : ''}
-        confirmLabel={t('modelCatalog.delete')}
-        busy={del.isPending}
-        onConfirm={() => void confirmDelete()}
-        onCancel={() => setDeleting(null)}
-      />
+      {diagnostics.map((d) => (
+        <p key={`${d.severity ?? 'info'}:${d.message}`} className="text-xs text-text-muted" data-testid="runtime-coverage-diagnostic">
+          {d.message}
+        </p>
+      ))}
     </section>
   );
 }
 
-const EMPTY: ModelCatalogFields = { model_id: '', display_name: '', input_cost: 0, output_cost: 0, context_window: 0, tier: '' };
-
-function ModelCatalogFormModal({ entry, onClose }: { entry?: ModelCatalogEntry; onClose: () => void }): React.ReactElement {
-  const { t } = useTranslation('admin');
-  const create = useCreateModelCatalogEntry();
-  const update = useUpdateModelCatalogEntry(entry?.id ?? '');
-  const [f, setF] = useState<ModelCatalogFields>(
-    entry
-      ? {
-          model_id: entry.model_id,
-          display_name: entry.display_name,
-          input_cost: entry.input_cost,
-          output_cost: entry.output_cost,
-          context_window: entry.context_window,
-          tier: entry.tier,
-        }
-      : EMPTY,
+function RuntimeInventory({ catalog }: { catalog: RuntimeCatalog }): React.ReactElement {
+  return (
+    <section className="grid gap-3 md:grid-cols-2" data-testid="runtime-inventory">
+      <InventoryList title="CLIs" rows={catalog.clis.map((cli) => ({ key: cli.key, label: cli.display_name, meta: cli.enabled ? cli.executable : 'disabled' }))} />
+      <InventoryList title="Models" rows={catalog.models.map((model) => ({ key: model.key, label: model.display_name, meta: model.enabled ? model.model_key : 'disabled' }))} />
+    </section>
   );
-  const mut = entry ? update : create;
+}
+
+function InventoryList({ title, rows }: { title: string; rows: Array<{ key: string; label: string; meta: string }> }): React.ReactElement {
+  return (
+    <div className="rounded-lg border border-border-base">
+      <div className="border-b border-border-base bg-bg-subtle px-3 py-2 text-xs font-semibold uppercase text-text-muted">{title}</div>
+      <ul className="divide-y divide-border-base">
+        {rows.map((row) => (
+          <li key={row.key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span className="text-text-primary">{row.label}</span>
+            <span className="font-mono text-xs text-text-muted">{row.meta}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ProfileFormModal({
+  catalog,
+  profile,
+  onImpact,
+  onClose,
+}: {
+  catalog: RuntimeCatalog;
+  profile: RuntimeProfile | null;
+  onImpact: (preview: RuntimeImpactPreview | null) => void;
+  onClose: () => void;
+}): React.ReactElement {
+  const enabledCLIs = catalog.clis.filter((cli) => cli.enabled);
+  const firstCLI = enabledCLIs[0]?.key ?? '';
+  const initialCLI = profile?.cli_key || firstCLI;
+  const initialModel = profile?.model_key || firstCompatibleModel(catalog.models, initialCLI)?.key || '';
+  const [key, setKey] = useState(profile?.key ?? '');
+  const [name, setName] = useState(profile?.name ?? '');
+  const [description, setDescription] = useState(profile?.description ?? '');
+  const [cliKey, setCLIKey] = useState(initialCLI);
+  const [modelKey, setModelKey] = useState(initialModel);
+  const [enabled, setEnabled] = useState(profile?.enabled ?? true);
+  const [parametersText, setParametersText] = useState(JSON.stringify(profile?.parameters ?? {}, null, 2));
+  const [parseError, setParseError] = useState<string | null>(null);
+  const create = useCreateRuntimeProfile();
+  const update = useUpdateRuntimeProfile(profile?.id ?? '');
+  const mutation = profile ? update : create;
+  const models = catalog.models.filter((model) => model.enabled && model.compatible_cli_keys.includes(cliKey));
+
   const submit = async () => {
+    let parameters: Record<string, unknown>;
     try {
-      await mut.mutateAsync(f);
+      const parsed = JSON.parse(parametersText || '{}') as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        throw new Error('parameters must be an object');
+      }
+      parameters = parsed as Record<string, unknown>;
+      setParseError(null);
+    } catch (err) {
+      setParseError((err as Error).message);
+      return;
+    }
+    try {
+      const value = {
+        ...(profile ? { id: profile.id } : {}),
+        key: key.trim(),
+        name: name.trim(),
+        description: description.trim(),
+        cli_key: cliKey,
+        model_key: modelKey,
+        parameters,
+        enabled,
+      };
+      const resp = await mutation.mutateAsync({
+        expected_revision: catalog.revision,
+        value: value as RuntimeProfile,
+      });
+      onImpact(resp.impact_preview ?? null);
       onClose();
     } catch {
-      /* surfaced via mut.error */
+      /* surfaced below */
     }
   };
-  const num = (v: string) => (v === '' ? 0 : Number(v));
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" data-testid="model-catalog-form">
-      <div className="w-full max-w-md space-y-3 rounded-lg border border-border-base bg-bg-elevated p-4 shadow-2">
-        <h2 className="text-lg font-semibold text-text-primary">{entry ? t('modelCatalog.editTitle') : t('modelCatalog.addTitle')}</h2>
-        <label className="block text-xs text-text-secondary">
-          {t('modelCatalog.col.modelId')}
-          <input className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.model_id} onChange={(e) => setF({ ...f, model_id: e.target.value })} data-testid="mc-field-model_id" />
-        </label>
-        <label className="block text-xs text-text-secondary">
-          {t('modelCatalog.col.displayName')}
-          <input className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} data-testid="mc-field-display_name" />
-        </label>
-        <div className="flex gap-3">
-          <label className="block flex-1 text-xs text-text-secondary">
-            {t('modelCatalog.col.inputCost')}
-            <input type="number" step="any" min="0" className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.input_cost} onChange={(e) => setF({ ...f, input_cost: num(e.target.value) })} data-testid="mc-field-input_cost" />
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-4 shadow-2">
+        <h2 className="mb-3 text-lg font-semibold text-text-primary">{profile ? 'Edit runtime profile' : 'New runtime profile'}</h2>
+        <div className="grid gap-3">
+          <label className="block text-xs text-text-secondary">
+            Key
+            <input className={inputClass} value={key} disabled={!!profile} onChange={(e) => setKey(e.target.value)} data-testid="runtime-profile-key" />
           </label>
-          <label className="block flex-1 text-xs text-text-secondary">
-            {t('modelCatalog.col.outputCost')}
-            <input type="number" step="any" min="0" className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.output_cost} onChange={(e) => setF({ ...f, output_cost: num(e.target.value) })} data-testid="mc-field-output_cost" />
+          <label className="block text-xs text-text-secondary">
+            Name
+            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} data-testid="runtime-profile-name" />
           </label>
-          <label className="block flex-1 text-xs text-text-secondary">
-            {t('modelCatalog.col.contextWindow')}
-            <input type="number" min="0" className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.context_window} onChange={(e) => setF({ ...f, context_window: num(e.target.value) })} data-testid="mc-field-context_window" />
+          <label className="block text-xs text-text-secondary">
+            Description
+            <input className={inputClass} value={description} onChange={(e) => setDescription(e.target.value)} data-testid="runtime-profile-description" />
           </label>
-        </div>
-        <label className="block text-xs text-text-secondary">
-          {t('modelCatalog.col.tier')}
-          <textarea rows={2} className="mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1 text-sm" value={f.tier} onChange={(e) => setF({ ...f, tier: e.target.value })} data-testid="mc-field-tier" />
-        </label>
-        {mut.isError && <p className="text-xs text-danger" data-testid="mc-form-error">{(mut.error as Error).message}</p>}
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle" onClick={onClose}>{t('modelCatalog.cancel')}</button>
-          <button type="button" className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50" onClick={() => void submit()} disabled={mut.isPending || f.model_id.trim() === ''} data-testid="mc-form-save">{t('modelCatalog.save')}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ImportModal is the standalone "Bulk import (JSON)" dialog opened from the
-// top-right toolbar button. It parses/validates the pasted JSON client-side
-// (a parse failure never hits the server), then reuses useImportModelCatalog —
-// the same batch endpoint the rest of the page writes through. The backend
-// validates the whole batch, so a rejection means 0 imported / all failed.
-function ImportModal({ onClose }: { onClose: () => void }): React.ReactElement {
-  const { t } = useTranslation('admin');
-  const imp = useImportModelCatalog();
-  const [json, setJson] = useState('');
-  const [mode, setMode] = useState<'upsert' | 'replace'>('upsert');
-  const [parseError, setParseError] = useState('');
-  const [total, setTotal] = useState(0);
-
-  const run = async () => {
-    setParseError('');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(json);
-    } catch (err) {
-      setParseError(t('modelCatalog.import.parseError', { detail: (err as Error).message }));
-      return;
-    }
-    if (!Array.isArray(parsed)) {
-      setParseError(t('modelCatalog.import.notArray'));
-      return;
-    }
-    setTotal(parsed.length);
-    try {
-      await imp.mutateAsync({ json, mode });
-    } catch {
-      /* surfaced via imp.error */
-    }
-  };
-
-  const failed = total - (imp.data?.imported ?? 0);
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" data-testid="model-catalog-import">
-      <div className="w-full max-w-lg space-y-3 rounded-lg border border-border-base bg-bg-elevated p-4 shadow-2">
-        <h2 className="text-lg font-semibold text-text-primary">{t('modelCatalog.import.title')}</h2>
-        <p className="text-xs text-text-muted">{t('modelCatalog.import.help')}</p>
-        <textarea
-          rows={8}
-          className="w-full rounded border border-border-base bg-bg-subtle px-2 py-1 font-mono text-xs"
-          placeholder='[{"model_id":"opus","input_cost":15,"output_cost":75,"context_window":200000,"tier":"hardest tasks"}]'
-          value={json}
-          onChange={(e) => setJson(e.target.value)}
-          data-testid="model-catalog-import-json"
-        />
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1 text-xs text-text-secondary">
-            <input type="radio" checked={mode === 'upsert'} onChange={() => setMode('upsert')} data-testid="model-catalog-import-upsert" />
-            {t('modelCatalog.import.upsert')}
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block text-xs text-text-secondary">
+              CLI
+              <select
+                className={inputClass}
+                value={cliKey}
+                onChange={(e) => {
+                  const nextCLI = e.target.value;
+                  const nextModel = firstCompatibleModel(catalog.models, nextCLI)?.key ?? '';
+                  setCLIKey(nextCLI);
+                  setModelKey(nextModel);
+                }}
+                data-testid="runtime-profile-cli"
+              >
+                {enabledCLIs.map((cli) => (
+                  <option key={cli.key} value={cli.key}>
+                    {cli.display_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-text-secondary">
+              Model
+              <select className={inputClass} value={modelKey} onChange={(e) => setModelKey(e.target.value)} data-testid="runtime-profile-model">
+                {models.map((model) => (
+                  <option key={model.key} value={model.key}>
+                    {model.display_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs text-text-secondary">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} data-testid="runtime-profile-enabled" />
+            Enabled
           </label>
-          <label className="flex items-center gap-1 text-xs text-text-secondary">
-            <input type="radio" checked={mode === 'replace'} onChange={() => setMode('replace')} data-testid="model-catalog-import-replace" />
-            {t('modelCatalog.import.replace')}
+          <label className="block text-xs text-text-secondary">
+            Parameters
+            <textarea
+              className={`${inputClass} min-h-28 font-mono text-xs`}
+              value={parametersText}
+              onChange={(e) => setParametersText(e.target.value)}
+              spellCheck={false}
+              data-testid="runtime-profile-parameters"
+            />
           </label>
         </div>
-        {parseError && <p className="text-xs text-danger" data-testid="model-catalog-import-parse-error">{parseError}</p>}
-        {imp.isError && (
-          <p className="text-xs text-danger" data-testid="model-catalog-import-error">
-            {t('modelCatalog.import.failed', { count: total })} {(imp.error as Error).message}
-          </p>
-        )}
-        {imp.isSuccess && (
-          <p className="text-xs text-status-emerald-fg" data-testid="model-catalog-import-ok">
-            {t('modelCatalog.import.result', { imported: imp.data.imported, failed })}
-          </p>
-        )}
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle" onClick={onClose} data-testid="model-catalog-import-close">
-            {t('modelCatalog.import.close')}
+        {parseError && <p className="mt-2 text-xs text-danger" data-testid="runtime-profile-parse-error">{parseError}</p>}
+        {mutation.isError && <p className="mt-2 text-xs text-danger" data-testid="runtime-profile-error">{(mutation.error as Error).message}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle" onClick={onClose}>
+            Cancel
           </button>
           <button
             type="button"
-            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-            onClick={() => void run()}
-            disabled={imp.isPending || json.trim() === ''}
-            data-testid="model-catalog-import-run"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
+            onClick={() => void submit()}
+            disabled={mutation.isPending || !key.trim() || !name.trim() || !cliKey || !modelKey}
+            data-testid="mc-form-save"
           >
-            {t('modelCatalog.import.run')}
+            Save
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+function ImpactPreview({ preview, onDismiss }: { preview: RuntimeImpactPreview; onDismiss: () => void }): React.ReactElement {
+  const c = preview.reference_counts;
+  return (
+    <aside className="rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="runtime-impact-preview">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-text-primary">Impact preview</h2>
+        <button type="button" className="text-xs text-text-muted hover:text-text-primary" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
+      <div className="grid gap-2 text-xs text-text-secondary md:grid-cols-3">
+        <Metric label="Affected new runs" value={preview.affected_new_runs} />
+        <Metric label="Default profile" value={c.default_profile} />
+        <Metric label="Executor candidates" value={c.executor_profile_selections} />
+        <Metric label="Team profiles" value={c.team_role_profile_selections} />
+        <Metric label="Team inherits" value={c.team_role_inherit_selections} />
+        <Metric label="Historical snapshots" value={c.historical_execution_snapshot} />
+      </div>
+      <p className="mt-2 text-xs text-text-muted">{preview.historical_note}</p>
+      <p className="mt-1 text-xs text-text-muted">Gray release ready: {preview.gray_release_ready ? 'yes' : 'no'}</p>
+    </aside>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }): React.ReactElement {
+  return (
+    <span className="rounded border border-border-base bg-bg-elevated px-2 py-1">
+      <span className="text-text-muted">{label}: </span>
+      <span className="font-semibold text-text-primary">{value}</span>
+    </span>
+  );
+}
+
+function firstCompatibleModel(models: RuntimeModel[], cliKey: string): RuntimeModel | undefined {
+  return models.find((model) => model.enabled && model.compatible_cli_keys.includes(cliKey));
+}
+
+const inputClass = 'mt-1 w-full rounded border border-border-base bg-bg-subtle px-2 py-1.5 text-sm text-text-primary';

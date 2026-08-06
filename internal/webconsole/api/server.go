@@ -269,6 +269,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/export", s.exportRuntimeCatalogHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/import/preview", s.previewRuntimeCatalogImportHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/import/apply", s.applyRuntimeCatalogImportHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/coverage", s.getRuntimeCoverageHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/clis", s.listRuntimeCLIsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/clis", s.createRuntimeCLIHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/clis/{id}", s.updateRuntimeCLIHandler)

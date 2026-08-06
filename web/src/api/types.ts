@@ -4,6 +4,8 @@
 //
 // Hand-written per F4 oversight #5 (no openapi-codegen — small project).
 
+import type { RuntimeSelection } from './aiRuntime';
+
 export type ConversationKind = 'channel' | 'dm' | 'issue' | 'task' | 'adhoc' | 'notification';
 export type ConversationStatus = 'active' | 'closed' | 'archived';
 
@@ -301,12 +303,14 @@ export interface Agent {
   executor_git_worktree?: boolean;
 }
 
-// v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,
-// codex} (hard-validated server-side); model is free text (the UI offers
-// suggestions but allows custom values).
+// v2.18.1+: one executor candidate keeps the legacy {cli, model} execution
+// mirror and may carry an AI Runtime selection. New UI writes the selection;
+// the backend validates it and fills the mirror for schedulers that still read
+// {cli, model}.
 export interface ExecutorProfile {
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection | null;
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is
@@ -692,6 +696,12 @@ export type TaskStatus =
 // Mirrors the backend pm.BlockReasonType. Drives the global Alerts rail grouping.
 export type BlockReasonType = 'input_required' | 'obstacle' | '';
 
+export interface EffectiveSchedulability {
+  status: string;
+  reasons?: Array<{ code: string; message: string; count?: number }>;
+  calculated_at?: string;
+}
+
 export interface Task {
   id: string;
   project_id: string;
@@ -711,6 +721,10 @@ export interface Task {
   // I14 classification of blocked_reason (input_required | obstacle); '' / absent
   // when the task is not blocked. Drives the global Alerts rail prioritization.
   blocked_reason_type?: BlockReasonType;
+  // Stage 4: execution-level schedulability is distinct from AI Runtime basic
+  // coverage. It is shown only when the backend emits this field for a concrete
+  // task/execution context.
+  effective_schedulability?: EffectiveSchedulability;
   // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
   // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil
   // array ([] when none) — pmTaskMap normalizes nil→[]. Optional on the type so

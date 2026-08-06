@@ -256,6 +256,48 @@ func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expe
 	})
 }
 
+func (r *Repository) ReferenceCounts(ctx context.Context, org, profileID string) (airuntime.RuntimeReferenceCounts, error) {
+	out := airuntime.RuntimeReferenceCounts{ProfileID: profileID}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	if profileID == "" {
+		return out, nil
+	}
+	if err := exec.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM ai_runtime_catalogs WHERE org_id=? AND default_profile_id=?`,
+		org, profileID).Scan(&out.DefaultProfile); err != nil {
+		return out, err
+	}
+	if out.DefaultProfile > 0 {
+		if err := exec.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM team_roles tr
+			JOIN teams t ON t.id = tr.team_id
+			WHERE t.org_id=?
+			  AND COALESCE(json_extract(NULLIF(tr.runtime_selection_json,''), '$.mode'), '') = 'inherit'`,
+			org).Scan(&out.TeamRoleInheritSelections); err != nil {
+			return out, err
+		}
+	}
+	if err := exec.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM team_roles tr
+		JOIN teams t ON t.id = tr.team_id
+		WHERE t.org_id=?
+		  AND COALESCE(json_extract(NULLIF(tr.runtime_selection_json,''), '$.profile_id'), '') = ?`,
+		org, profileID).Scan(&out.TeamRoleProfileSelections); err != nil {
+		return out, err
+	}
+	if err := exec.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM agents a, json_each(COALESCE(NULLIF(a.allowed_executors,''), '[]')) AS candidate
+		WHERE a.organization_id=?
+		  AND COALESCE(json_extract(candidate.value, '$.runtime_selection.profile_id'), '') = ?`,
+		org, profileID).Scan(&out.ExecutorProfileSelections); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64
 	err := persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {
@@ -307,3 +349,4 @@ func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 func parse(v string) time.Time { t, _ := time.Parse(time.RFC3339Nano, v); return t }
 
 var _ airuntime.Repository = (*Repository)(nil)
+var _ airuntime.ReferenceCounter = (*Repository)(nil)

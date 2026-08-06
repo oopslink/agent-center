@@ -252,6 +252,24 @@ func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, catalog)
 }
 
+func (s *Server) getRuntimeCoverageHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	coverage, diagnostics, err := d.RuntimeCatalog.Coverage(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"coverage_kind":       "basic_capability_coverage",
+		"schedulability_kind": "effective_schedulability_not_inferred",
+		"coverage":            coverage,
+		"diagnostics":         diagnostics,
+	})
+}
+
 func (s *Server) listRuntimeCLIsHandler(w http.ResponseWriter, r *http.Request) {
 	d, _, org, ok := aiRuntimeDeps(w, r, false)
 	if !ok {
@@ -374,7 +392,12 @@ func (s *Server) createRuntimeProfileHandler(w http.ResponseWriter, r *http.Requ
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"revision": rev, "entry": entry})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", entry.ID, "created")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"revision": rev, "entry": entry, "impact_preview": impact})
 }
 func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
@@ -392,7 +415,12 @@ func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Requ
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", entry.ID, "updated")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry, "impact_preview": impact})
 }
 func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
@@ -412,5 +440,10 @@ func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", req.ProfileID, "default_profile_changed")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID, "impact_preview": impact})
 }

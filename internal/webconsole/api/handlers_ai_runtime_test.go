@@ -68,6 +68,137 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestAIRuntimeStage4EntrypointsAndImpactPreview(t *testing.T) {
+	deps, db, owner := setupTeamsAPI(t)
+	n := 0
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("runtime-stage4-%d", n)
+	})
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	profile := seedRuntimeProfile(t, deps.RuntimeCatalog, owner.OrgID, "user:"+owner.IdentityID)
+
+	resp := orgScopedPost(t, server.URL+"/api/teams", fmt.Sprintf(`{
+		"name":"Runtime Team",
+		"description":"runtime selection team",
+		"visibility":"org-private",
+		"roles":[{
+			"role":"coder",
+			"runtime_selection":{"mode":"profile","profile_id":"%s"},
+			"max_concurrency":1,
+			"count":1,
+			"tags":"go"
+		}]
+	}`, profile.ID), owner)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create team status=%d", resp.StatusCode)
+	}
+	var teamBody map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&teamBody)
+	resp.Body.Close()
+	roles, _ := teamBody["roles"].([]any)
+	if len(roles) != 1 {
+		t.Fatalf("team roles = %v", teamBody["roles"])
+	}
+	role, _ := roles[0].(map[string]any)
+	selection, _ := role["runtime_selection"].(map[string]any)
+	if selection["mode"] != airuntime.SelectionProfile || selection["profile_id"] != profile.ID {
+		t.Fatalf("team runtime_selection = %+v", selection)
+	}
+	if role["cli"] != "codex" || role["model"] != "gpt-stage4" {
+		t.Fatalf("team runtime mirror = cli %v model %v", role["cli"], role["model"])
+	}
+
+	saveWorkerInOrg(t, db, owner.OrgID, "w-stage4")
+	resp = orgScopedPost(t, server.URL+"/api/members/agent", fmt.Sprintf(`{
+		"display_name":"runtime-coder",
+		"model":"gpt-stage4",
+		"cli":"codex",
+		"worker_id":"w-stage4",
+		"max_concurrent_tasks":2,
+		"allowed_executors":[{"runtime_selection":{"mode":"profile","profile_id":"%s"}}]
+	}`, profile.ID), owner)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create agent status=%d", resp.StatusCode)
+	}
+	var createdAgent map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&createdAgent)
+	resp.Body.Close()
+	agentID, _ := createdAgent["identity_id"].(string)
+	if agentID == "" {
+		t.Fatalf("created agent missing identity_id: %+v", createdAgent)
+	}
+	resp = orgScopedGet(t, server.URL+"/api/agents/"+agentID, owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get agent status=%d", resp.StatusCode)
+	}
+	var agentBody map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&agentBody)
+	resp.Body.Close()
+	executors, _ := agentBody["allowed_executors"].([]any)
+	if len(executors) != 1 {
+		t.Fatalf("allowed_executors = %v", agentBody["allowed_executors"])
+	}
+	execProfile, _ := executors[0].(map[string]any)
+	execSelection, _ := execProfile["runtime_selection"].(map[string]any)
+	if execSelection["mode"] != airuntime.SelectionProfile || execSelection["profile_id"] != profile.ID {
+		t.Fatalf("executor runtime_selection = %+v", execSelection)
+	}
+	if execProfile["cli"] != "codex" || execProfile["model"] != "gpt-stage4" {
+		t.Fatalf("executor runtime mirror = cli %v model %v", execProfile["cli"], execProfile["model"])
+	}
+
+	catalog, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatalf("catalog: %v", err)
+	}
+	url := orgScopedURL(server.URL+"/api/ai-runtime/default-profile", owner.OrgSlug)
+	req, _ := http.NewRequest(http.MethodPut, url, strings.NewReader(fmt.Sprintf(`{"expected_revision":%d,"profile_id":"%s"}`, catalog.Revision, profile.ID)))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(owner.Cookie)
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("set default status=%d", resp.StatusCode)
+	}
+	var defaultBody struct {
+		Impact airuntime.RuntimeImpactPreview `json:"impact_preview"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&defaultBody)
+	resp.Body.Close()
+	if defaultBody.Impact.ReferenceCounts.DefaultProfile != 1 ||
+		defaultBody.Impact.ReferenceCounts.TeamRoleProfileSelections != 1 ||
+		defaultBody.Impact.ReferenceCounts.ExecutorProfileSelections != 1 {
+		t.Fatalf("impact counts = %+v", defaultBody.Impact.ReferenceCounts)
+	}
+	if defaultBody.Impact.HistoricalNote == "" || defaultBody.Impact.ReferenceCounts.HistoricalExecutionSnapshot != 0 {
+		t.Fatalf("historical snapshot impact = %+v", defaultBody.Impact)
+	}
+}
+
+func seedRuntimeProfile(t *testing.T, svc *airuntime.Service, orgID, actor string) airuntime.RuntimeProfile {
+	t.Helper()
+	model, rev, err := svc.CreateModel(context.Background(), orgID, actor, 0, airuntime.ModelDefinition{
+		Key: "gpt-stage4", ModelKey: "gpt-stage4", DisplayName: "GPT Stage 4",
+		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create runtime model: %v", err)
+	}
+	profile, rev, err := svc.CreateProfile(context.Background(), orgID, actor, rev, airuntime.RuntimeProfile{
+		Key: "stage4-coding", Name: "Stage 4 coding", CLIKey: "codex", ModelKey: model.Key,
+		Parameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create runtime profile: %v", err)
+	}
+	if _, err := svc.SetDefaultProfile(context.Background(), orgID, actor, profile.ID, rev); err != nil {
+		t.Fatalf("set runtime default: %v", err)
+	}
+	return profile
+}
+
 func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	n := 0

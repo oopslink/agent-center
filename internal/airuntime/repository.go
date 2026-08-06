@@ -16,3 +16,7 @@ type Repository interface {
 type BulkRepository interface {
 	ApplyBulkImport(context.Context, BulkMutation, int64, AuditEvent) (int64, error)
 }
+
+type ReferenceCounter interface {
+	ReferenceCounts(context.Context, string, string) (RuntimeReferenceCounts, error)
+}

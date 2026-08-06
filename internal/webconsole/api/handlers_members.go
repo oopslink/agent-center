@@ -223,6 +223,11 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			"worker_id is required (v2.7: an execution agent must bind a worker)")
 		return
 	}
+	allowedExecutors, err := resolveExecutorRuntimeSelections(r.Context(), d.RuntimeCatalog, orgID, body.AllowedExecutors)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
 
 	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)
 	// and the execution Agent (agent BC) are created in ONE outer transaction.
@@ -267,7 +272,7 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			DefaultExecutorModel:             body.DefaultExecutorModel,
 			MaxConcurrentTasks:               body.MaxConcurrentTasks,
 			AllowedModels:                    body.AllowedModels,
-			AllowedExecutors:                 body.AllowedExecutors,
+			AllowedExecutors:                 allowedExecutors,
 			AutoAssignable:                   body.AutoAssignable,
 			IncludeDescriptionInSystemPrompt: body.IncludeDescriptionInSystemPrompt,
 			JudgeEnabled:                     body.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)

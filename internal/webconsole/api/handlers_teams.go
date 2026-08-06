@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/conversation"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/team"
@@ -75,12 +76,13 @@ func roleViewMap(rc team.RoleConfig, count int) map[string]any {
 		tags = []string{}
 	}
 	return map[string]any{
-		"role":            rc.Role,
-		"cli":             rc.CLI,
-		"model":           rc.Model,
-		"capability_tags": tags,
-		"max_concurrency": rc.MaxConcurrency,
-		"count":           count,
+		"role":              rc.Role,
+		"cli":               rc.CLI,
+		"model":             rc.Model,
+		"runtime_selection": rc.RuntimeSelection,
+		"capability_tags":   tags,
+		"max_concurrency":   rc.MaxConcurrency,
+		"count":             count,
 	}
 }
 
@@ -370,13 +372,14 @@ type createTeamReq struct {
 }
 
 type roleInputReq struct {
-	Role           string `json:"role"`
-	CLI            string `json:"cli"`
-	Model          string `json:"model"`
-	MaxConcurrency int    `json:"max_concurrency"`
-	Count          int    `json:"count"`
-	Tags           string `json:"tags"`
-	Description    string `json:"description"`
+	Role             string                      `json:"role"`
+	CLI              string                      `json:"cli"`
+	Model            string                      `json:"model"`
+	RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection"`
+	MaxConcurrency   int                         `json:"max_concurrency"`
+	Count            int                         `json:"count"`
+	Tags             string                      `json:"tags"`
+	Description      string                      `json:"description"`
 }
 
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
@@ -396,10 +399,12 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(ri.Role) == "" {
 			continue
 		}
-		roles = append(roles, team.RoleConfig{
-			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
-		})
+		rc, err := roleConfigFromInput(r.Context(), d.RuntimeCatalog, orgID, ri)
+		if err != nil {
+			writeRuntimeError(w, err)
+			return
+		}
+		roles = append(roles, rc)
 	}
 	t, err := d.TeamService.CreateTeam(r.Context(), teamservice.CreateTeamInput{
 		OrgID: orgID, Name: req.Name, Description: req.Description, Roles: roles,

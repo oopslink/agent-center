@@ -169,7 +169,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
                   {r.role}
                 </span>
               }
-              v={t('teamDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}
+              v={t('teamDetail.overview.roleSpec', { cli: roleRuntimeLabel(r.runtime_selection?.mode, r.cli), model: r.model, conc: r.max_concurrency })}
             />
           ))}
         </div>
@@ -199,6 +199,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     role: role.role,
     cli: role.cli,
     model: role.model,
+    runtime_selection: role.runtime_selection ?? null,
     max_concurrency: role.max_concurrency,
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),
@@ -219,6 +220,12 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     {invalid && <p className="mt-3 text-xs text-danger" role="alert">{t('teamDetail.roles.invalid')}</p>}
     {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
   </ModalShell>;
+}
+
+function roleRuntimeLabel(mode: string | undefined, cli: string): string {
+  if (mode === 'inherit') return 'inherit';
+  if (mode === 'profile') return 'profile';
+  return cli;
 }
 
 function MembersPane({

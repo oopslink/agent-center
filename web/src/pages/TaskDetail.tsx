@@ -274,6 +274,17 @@ export default function TaskDetail(): React.ReactElement {
               {t('task.detail.stuck', { reason: tk.blocked_reason })}
             </div>
           )}
+          {tk.effective_schedulability && (
+            <div className="mt-2 rounded border border-border-base bg-bg-subtle px-2 py-2 text-xs" data-testid="task-effective-schedulability">
+              <div className="font-semibold text-text-primary">Effective schedulability</div>
+              <div className="mt-1 text-text-secondary">{tk.effective_schedulability.status}</div>
+              {(tk.effective_schedulability.reasons ?? []).map((reason) => (
+                <div key={`${reason.code}:${reason.message}`} className="mt-1 text-text-muted">
+                  {reason.message}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

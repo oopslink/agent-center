@@ -80,6 +80,7 @@ export function ExtractModal({
           role: r.role,
           cli: r.cli,
           model: r.model,
+          runtime_selection: r.runtime_selection ?? null,
           capability_tags: r.capability_tags,
           max_concurrency: r.max_concurrency,
           count: r.count ?? 1,

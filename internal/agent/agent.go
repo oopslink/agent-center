@@ -10,11 +10,14 @@
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/airuntime"
 )
 
 // Typed identifiers.
@@ -226,8 +229,9 @@ type Profile struct {
 // (a closed set the daemon can actually fork); the model is free text (non-empty) —
 // provider model names rotate too often to hard-enumerate without going stale.
 type ExecutorProfile struct {
-	CLI   string `json:"cli"`
-	Model string `json:"model"`
+	CLI              string                      `json:"cli"`
+	Model            string                      `json:"model"`
+	RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection,omitempty"`
 	// Catalog annotations (T950 ②): filled at resume-state build time by joining the
 	// org's model catalog (pm_model_catalog) on Model. DERIVED + TRANSIENT — a stored
 	// profile is only {cli,model}; these are empty until the center join populates them
@@ -268,23 +272,37 @@ func NormalizeAllowedExecutors(in []ExecutorProfile) ([]ExecutorProfile, error) 
 	if len(in) == 0 {
 		return nil, nil
 	}
-	seen := make(map[ExecutorProfile]struct{}, len(in))
+	seen := make(map[string]struct{}, len(in))
 	out := make([]ExecutorProfile, 0, len(in))
 	for _, e := range in {
 		e.Model = strings.TrimSpace(e.Model)
+		if e.RuntimeSelection != nil {
+			selection := airuntime.NormalizeSelection(*e.RuntimeSelection)
+			e.RuntimeSelection = &selection
+		}
 		if !IsSupportedExecutorCLI(e.CLI) {
 			return nil, fmt.Errorf("%w: unsupported cli %q", ErrInvalidExecutorProfile, e.CLI)
 		}
 		if e.Model == "" {
 			return nil, fmt.Errorf("%w: empty model for cli %q", ErrInvalidExecutorProfile, e.CLI)
 		}
-		if _, dup := seen[e]; dup {
+		key := executorProfileKey(e)
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		seen[e] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+func executorProfileKey(e ExecutorProfile) string {
+	key := e.CLI + "\x00" + e.Model
+	if e.RuntimeSelection == nil {
+		return key
+	}
+	raw, _ := json.Marshal(e.RuntimeSelection)
+	return key + "\x00" + string(raw)
 }
 
 // ExecutorsFromModels lifts a legacy model-only list into {cli, model} profiles

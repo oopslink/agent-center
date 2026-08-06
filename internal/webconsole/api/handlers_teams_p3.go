@@ -2,9 +2,11 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
@@ -61,18 +63,22 @@ func (s *Server) disassociateTeamProjectHandler(w http.ResponseWriter, r *http.R
 // ---------------------------------------------------------------------------
 
 // templateSlotsFromReq maps the FE RoleSlot inputs onto domain RoleSlots.
-func templateSlotsFromReq(roles []templateRoleReq) []team.RoleSlot {
+func templateSlotsFromReq(r *http.Request, svc *airuntime.Service, orgID string, roles []templateRoleReq) ([]team.RoleSlot, error) {
 	slots := make([]team.RoleSlot, 0, len(roles))
 	for _, rr := range roles {
+		rc, err := roleConfigFromInput(r.Context(), svc, orgID, roleInputReq{
+			Role: rr.Role, CLI: rr.CLI, Model: rr.Model, RuntimeSelection: rr.RuntimeSelection,
+			MaxConcurrency: rr.MaxConcurrency, Tags: strings.Join(rr.CapabilityTags, ","),
+		})
+		if err != nil {
+			return nil, err
+		}
 		slots = append(slots, team.RoleSlot{
-			Config: team.RoleConfig{
-				Role: rr.Role, CLI: rr.CLI, Model: rr.Model,
-				CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
-			},
-			Count: rr.Count,
+			Config: rc,
+			Count:  rr.Count,
 		})
 	}
-	return slots
+	return slots, nil
 }
 
 // saveTemplateReq is the SaveTemplateInput body (teams.ts useSaveTemplate):
@@ -99,12 +105,17 @@ func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	slots, err := templateSlotsFromReq(r, d.RuntimeCatalog, orgID, req.Roles)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{
 		ID:          facadeIDGen.NewEntityID("teamtmpl"),
 		OrgID:       orgID,
 		Name:        req.Name,
 		Description: req.Description,
-		Roles:       templateSlotsFromReq(req.Roles),
+		Roles:       slots,
 		Curated:     true, // save persists the curated draft (design §9)
 		CreatedAt:   time.Now().UTC(),
 	})
@@ -125,12 +136,13 @@ func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 // template RoleSlot, but every field is optional (a cross-org envelope may be
 // partial) — defaults mirror the FE useImportTemplate re-home.
 type importTemplateRoleReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role             string                      `json:"role"`
+	CLI              string                      `json:"cli"`
+	Model            string                      `json:"model"`
+	RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection"`
+	CapabilityTags   []string                    `json:"capability_tags"`
+	MaxConcurrency   int                         `json:"max_concurrency"`
+	Count            int                         `json:"count"`
 }
 
 // importTemplateReq is the exported envelope (exportTemplateEnvelope output). Only
@@ -175,8 +187,16 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		if count <= 0 {
 			count = 1
 		}
+		rc, err := roleConfigFromInput(r.Context(), d.RuntimeCatalog, orgID, roleInputReq{
+			Role: role, CLI: cli, Model: model, RuntimeSelection: rr.RuntimeSelection,
+			MaxConcurrency: maxConc, Tags: strings.Join(tags, ","),
+		})
+		if err != nil {
+			writeRuntimeError(w, err)
+			return
+		}
 		slots = append(slots, team.RoleSlot{
-			Config: team.RoleConfig{Role: role, CLI: cli, Model: model, CapabilityTags: tags, MaxConcurrency: maxConc},
+			Config: rc,
 			Count:  count,
 		})
 	}

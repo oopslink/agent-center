@@ -154,6 +154,7 @@ func normalizeSlots(in []RoleSlot) ([]RoleSlot, error) {
 			cfg.MaxConcurrency = 1
 		}
 		cfg.CapabilityTags = append([]string(nil), sl.Config.CapabilityTags...)
+		cfg.RuntimeSelection = cloneRuntimeSelection(sl.Config.RuntimeSelection)
 		count := sl.Count
 		if count <= 0 {
 			count = 1
