@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse, delay } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1038,6 +1038,28 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(link).toHaveTextContent('frontend list');
   });
 
+  it('opens TaskDetail from the whole desktop DAG node card, without double-opening the title link', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    try {
+      mockPlan();
+      wrap();
+      fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+      await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+      const node = screen.getAllByTestId('plan-dag-node').find((el) => el.getAttribute('data-task-id') === 'n3')!;
+      expect(node).toHaveAttribute('role', 'link');
+      expect(node).toHaveAccessibleName(/frontend list/);
+
+      fireEvent.click(node);
+      expect(openSpy).toHaveBeenCalledWith('/projects/proj-a/tasks/n3', '_blank', 'noopener,noreferrer');
+      openSpy.mockClear();
+
+      fireEvent.click(within(node).getByTestId('task-open-link-n3'));
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      openSpy.mockRestore();
+    }
+  });
+
   it('A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (pending)', async () => {
     mockPlan({ status: 'pending', has_failed: false });
     wrap();
@@ -2043,6 +2065,11 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-box-st-b')).toHaveAccessibleName(/Frontend/);
     expect(screen.getByTestId('plan-stage-box-st-b')).not.toHaveTextContent('Verify responsive UI');
     expect(screen.getByTestId('plan-stage-box-st-b')).not.toHaveTextContent('Mobile overlap remains');
+    expect(screen.getByTestId('plan-stage-header-button-st-b')).toHaveAccessibleName(/Frontend/);
+    fireEvent.click(screen.getByTestId('plan-stage-header-button-st-b'));
+    expect(await screen.findByTestId('plan-stage-gate-audit-dialog-st-b')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('plan-stage-gate-audit-dialog-close-st-b'));
+    await waitFor(() => expect(screen.queryByTestId('plan-stage-gate-audit-dialog-st-b')).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-stage-box-st-b'));
     expect(await screen.findByTestId('plan-stage-gate-audit-dialog-st-b')).toBeInTheDocument();
     expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');

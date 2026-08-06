@@ -59,7 +59,7 @@ import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSide
 import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
 import type { Participant } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
-import { TaskTitleLink } from '@/components/TaskTitleLink';
+import { TaskTitleLink, taskDetailPath } from '@/components/TaskTitleLink';
 import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
 import { ActivityRefText } from '@/components/ActivityRefText';
 import { IconClose } from '@/components/icons';
@@ -1666,6 +1666,27 @@ const ZOOM_MAX = 1.5;
 const ZOOM_STEP = 0.1;
 const ZOOM_WHEEL_STEP = 0.08;
 
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest('a, button, input, select, textarea, [role="button"], [role="link"]') != null;
+}
+
+function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const interactive = target.closest('a, button, input, select, textarea, [role="button"], [role="link"]');
+  return interactive != null && interactive !== currentTarget;
+}
+
+function useTaskDetailOpener(projectId: string): (taskId: string) => void {
+  const orgCtx = useOptionalOrgContext();
+  return useCallback(
+    (taskId: string) => {
+      const opened = window.open(orgPath(taskDetailPath(projectId, taskId), orgCtx?.slug), '_blank', 'noopener,noreferrer');
+      if (opened) opened.opener = null;
+    },
+    [orgCtx?.slug, projectId],
+  );
+}
+
 function DagCanvas({
   contentW,
   contentH,
@@ -1731,7 +1752,7 @@ function DagCanvas({
   // (node link / button) is left alone so clicks still work.
   const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return; // primary button only
-    if ((e.target as HTMLElement).closest('a, button, input, select, textarea, [role="button"]')) return;
+    if (isInteractiveTarget(e.target)) return;
     const el = ref.current;
     if (!el) return;
     const start = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
@@ -2819,6 +2840,7 @@ function PlanGraphDag({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const scale = compact ? 0.7 : 1;
+  const openTaskDetails = useTaskDetailOpener(projectId);
   const graphNodes = graph.nodes;
   const graphEdges = graph.edges;
 
@@ -3043,6 +3065,8 @@ function PlanGraphDag({
                       fill="none"
                       className={st.cls}
                       strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                       strokeDasharray={st.dash}
                       markerEnd={st.marker}
                       data-testid="plan-graph-edge"
@@ -3053,6 +3077,15 @@ function PlanGraphDag({
                 })}
               </svg>
 
+              {boxes.map((b) => (
+                <StageHeaderDetailsTarget
+                  key={`stage-header-${b.stage.id}`}
+                  stage={b.stage}
+                  style={{ left: b.x, top: b.y, width: b.w, height: STAGE_HEADER_H }}
+                  testId={`plan-stage-header-button-${b.stage.id}`}
+                />
+              ))}
+
               {positioned.map((p) => {
                 if (p.node.category === 'control') {
                   return (
@@ -3062,14 +3095,31 @@ function PlanGraphDag({
                   );
                 }
                 const taskId = p.node.task_id ?? p.node.id;
+                const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
                 const status = nodeStatusOf.get(taskId) ?? 'blocked';
                 const s = NODE_STATE[status] ?? NODE_STATE.blocked;
                 const accentCls = s.border.replace(/^border-/, 'bg-');
                 return (
                   <div
                     key={p.node.id}
-                    className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${s.border} ${nodeVisualCls(status)}`}
+                    className={`absolute cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${s.border} ${nodeVisualCls(status)}`}
                     style={{ left: p.x, top: p.y, width: NODE_W }}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={t('plan.detail.dag.openTaskDetails', {
+                      title: taskTitle,
+                      defaultValue: 'Open task details for {{title}}',
+                    })}
+                    onClick={(e) => {
+                      if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
+                      openTaskDetails(taskId);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
+                      e.preventDefault();
+                      openTaskDetails(taskId);
+                    }}
                     data-testid="plan-graph-node"
                     data-task-id={taskId}
                     data-node-id={p.node.id}
@@ -3081,7 +3131,7 @@ function PlanGraphDag({
                       <NodeStateChip status={status} />
                     </div>
                     <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
-                      <TaskTitleLink projectId={projectId} taskId={taskId} title={p.node.title || refLabel(p.node.org_ref, taskId)} wrap />
+                      <TaskTitleLink projectId={projectId} taskId={taskId} title={taskTitle} wrap />
                     </div>
                     <div className="flex min-w-0 text-[0.6875rem]">
                       <AssigneeTag assigneeRef={p.node.assignee_ref ?? ''} />
@@ -3152,6 +3202,46 @@ function StageBoxSurface({
       >
         {children}
       </div>
+      <StageAuditDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        stage={stage}
+        prefix="plan-stage-gate"
+        title={title}
+      />
+    </>
+  );
+}
+
+function StageHeaderDetailsTarget({
+  stage,
+  style,
+  testId,
+}: {
+  stage: PlanStage;
+  style: React.CSSProperties;
+  testId: string;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const [open, setOpen] = useState(false);
+  const title = t('plan.detail.stages.auditTitle', { defaultValue: 'Stage gate details' });
+  const label = t('plan.detail.stages.auditOpenAria', {
+    stage: stage.name || stage.id,
+    defaultValue: 'Open stage gate details for {{stage}}',
+  });
+  return (
+    <>
+      <button
+        type="button"
+        className="absolute z-20 cursor-pointer rounded-t-xl border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        style={style}
+        aria-label={label}
+        title={title}
+        data-testid={testId}
+        onClick={() => setOpen(true)}
+      >
+        <span className="sr-only">{label}</span>
+      </button>
       <StageAuditDialog
         open={open}
         onClose={() => setOpen(false)}
@@ -3417,6 +3507,7 @@ function LegacyPlanDag({
   // / wide plan fits in view without endless horizontal scrolling. CSS transform
   // (content scales cleanly); the scroll area is sized to the scaled extent.
   const scale = compact ? 0.7 : 1;
+  const openTaskDetails = useTaskDetailOpener(projectId);
 
   // v2.9.1 point 3: IN-GRAPH dependency editing (pending-only). The dependency
   // STRUCTURE is edited directly on the graph — no separate dropdown box (§21
@@ -3699,7 +3790,7 @@ function LegacyPlanDag({
                   <path d="M0,0 L10,5 L0,10 z" className="fill-border-strong" />
                 </marker>
               </defs>
-              <g fill="none" className="stroke-border-strong" strokeWidth="1.6" markerEnd="url(#plan-dag-arrow)">
+              <g fill="none" className="stroke-border-strong" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#plan-dag-arrow)">
                 {edges.map((e) => (
                   <path key={e.key} d={e.d} data-testid="plan-dag-edge" data-edge={e.key} />
                 ))}
@@ -3710,6 +3801,8 @@ function LegacyPlanDag({
                 fill="none"
                 className="stroke-border-base"
                 strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 strokeDasharray="4 3"
                 markerEnd="url(#plan-dag-arrow)"
               >
@@ -3747,6 +3840,14 @@ function LegacyPlanDag({
                   <span aria-hidden="true">&times;</span>
                 </button>
               ))}
+            {boxes.map((box) => (
+              <StageHeaderDetailsTarget
+                key={`stage-header-${box.stage.id}`}
+                stage={box.stage}
+                style={{ left: box.x, top: box.y, width: box.w, height: STAGE_HEADER_H }}
+                testId={`plan-stage-header-button-${box.stage.id}`}
+              />
+            ))}
             {/* Nodes (z-10). */}
             {positioned.map((p) => {
               const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
@@ -3754,6 +3855,7 @@ function LegacyPlanDag({
               const inConnect = connectFrom != null;
               const isSource = connectFrom === taskId;
               const isTarget = inConnect && !isSource && dropTargets.has(taskId);
+              const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
               // T347: a status-colored left accent bar (derived from the border
               // token) + hover lift make the nodes read as status cards, not plain
               // boxes. overflow-hidden clips the bar to the rounded corner.
@@ -3761,7 +3863,7 @@ function LegacyPlanDag({
               return (
                 <div
                   key={taskId}
-                  className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${
+                  className={`absolute cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                     isTarget
                       ? 'border-accent ring-2 ring-accent'
                       : isSource
@@ -3769,6 +3871,22 @@ function LegacyPlanDag({
                         : `${s.border} ${nodeVisualCls(p.node.node_status)}`
                   }`}
                   style={{ left: p.x, top: p.y, width: NODE_W }}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={t('plan.detail.dag.openTaskDetails', {
+                    title: taskTitle,
+                    defaultValue: 'Open task details for {{title}}',
+                  })}
+                  onClick={(e) => {
+                    if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
+                    openTaskDetails(taskId);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
+                    e.preventDefault();
+                    openTaskDetails(taskId);
+                  }}
                   data-testid="plan-dag-node"
                   data-task-id={taskId}
                   data-level={p.level}
@@ -3811,7 +3929,7 @@ function LegacyPlanDag({
                     <TaskTitleLink
                       projectId={projectId}
                       taskId={taskId}
-                      title={p.node.title || refLabel(p.node.org_ref, taskId)}
+                      title={taskTitle}
                     />
                   </div>
                   {/* Assignee gets its OWN full-width row (truncates only if extreme). */}
