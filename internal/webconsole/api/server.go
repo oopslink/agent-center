@@ -266,6 +266,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/coverage", s.getRuntimeCoverageHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/migration/dry-run", s.dryRunRuntimeMigrationHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/migration/apply", s.applyRuntimeMigrationHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/cleanup/preflight", s.aiRuntimeCleanupPreflightHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/clis", s.listRuntimeCLIsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/clis", s.createRuntimeCLIHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/clis/{id}", s.updateRuntimeCLIHandler)

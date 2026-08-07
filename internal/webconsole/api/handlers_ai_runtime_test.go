@@ -67,6 +67,46 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestAIRuntimeCleanupPreflightFailsClosedAndAllowsCompleteEvidence(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string { return "runtime" })
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedPost(t, server.URL+"/api/ai-runtime/cleanup/preflight", `{}`, owner)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("empty evidence status=%d want 409", resp.StatusCode)
+	}
+	var blocked airuntime.CleanupGateResult
+	_ = json.NewDecoder(resp.Body).Decode(&blocked)
+	resp.Body.Close()
+	if blocked.Allowed || len(blocked.Blockers) == 0 {
+		t.Fatalf("empty evidence must fail closed: %+v", blocked)
+	}
+
+	body := `{
+		"baseline_sha":"36676f14",
+		"window_started_at":"2026-08-01T00:00:00Z",
+		"window_ended_at":"2026-08-08T00:00:00Z",
+		"fallback_samples":[{"object_type":"agent","observed_at":"2026-08-01T00:00:00Z","count":0}],
+		"migration_report":{"plan_sha256":"migration-sha","unmapped":[],"summary":{}},
+		"isolated_acceptance":{"deployment_id":"isolated-stage6","process_fingerprint":"binary/config","retry":true,"resume":true,"reassign":true,"cancel":true,"historical_execution_readable":true,"snapshot_stable":true,"secret_plaintext_free":true},
+		"rollback":{"artifact_sha":"rollback-sha","tested_at":"2026-08-08T01:00:00Z","succeeded":true},
+		"owner_confirmed_at":"2026-08-08T02:00:00Z"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/cleanup/preflight", body, owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("complete evidence status=%d want 200", resp.StatusCode)
+	}
+	var allowed airuntime.CleanupGateResult
+	_ = json.NewDecoder(resp.Body).Decode(&allowed)
+	resp.Body.Close()
+	if !allowed.Allowed || allowed.EvidenceSHA256 == "" {
+		t.Fatalf("complete evidence must pass: %+v", allowed)
+	}
+}
+
 func TestAIRuntimeStage4EntrypointsAndImpactPreview(t *testing.T) {
 	deps, db, owner := setupTeamsAPI(t)
 	n := 0

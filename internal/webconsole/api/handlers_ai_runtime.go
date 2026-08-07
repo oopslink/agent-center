@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
@@ -173,6 +174,26 @@ func (s *Server) applyRuntimeMigrationHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, report)
+}
+
+// aiRuntimeCleanupPreflightHandler is the production-reachable, fail-closed
+// release gate for Stage 6. It validates evidence only; it never deletes data.
+func (s *Server) aiRuntimeCleanupPreflightHandler(w http.ResponseWriter, r *http.Request) {
+	_, _, _, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var evidence airuntime.CleanupEvidence
+	if err := decodeJSON(r, &evidence); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	result := airuntime.ValidateCleanupGate(evidence, 7*24*time.Hour)
+	if !result.Allowed {
+		writeJSON(w, http.StatusConflict, result)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func writeRuntimeImportError(w http.ResponseWriter, report airuntime.ImportReport, err error) {
