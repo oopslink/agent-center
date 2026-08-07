@@ -109,6 +109,34 @@ func TestAIRuntimeCleanupPreflightFailsClosedAndAllowsCompleteEvidence(t *testin
 	}
 }
 
+func TestAIRuntimeStage6RetiresLegacyRoutesButKeepsReplacement(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string { return "runtime" })
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/ai-runtime", owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("replacement AI Runtime route status=%d want 200", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedGet(t, server.URL+"/api/model-catalog", owner)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("legacy model catalog route status=%d want 404", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	for _, path := range []string{"/api/ai-runtime/shadow-compare", "/api/ai-runtime/cutover"} {
+		resp = orgScopedPost(t, server.URL+path, `{}`, owner)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("retired route %s status=%d want 404", path, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+}
+
 func TestAIRuntimeStage4EntrypointsAndImpactPreview(t *testing.T) {
 	deps, db, owner := setupTeamsAPI(t)
 	n := 0

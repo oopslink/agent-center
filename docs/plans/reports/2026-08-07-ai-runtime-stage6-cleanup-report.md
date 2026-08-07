@@ -4,15 +4,23 @@ Date: 2026-08-07
 
 Scope: remove legacy fallback/write surfaces after Stage 5 cutover, while keeping historical runtime/catalog storage readable.
 
-## Gate
+## Gate and delivery boundary
 
-This isolated executor did not access production metrics, agent-center control-plane state, database files, admin sockets, worker tokens, or raw HTTP endpoints. Therefore the production gate cannot be independently proven from this workspace:
+This feature branch prepares the cleanup but does not merge or deploy it. The
+production gate still requires:
 
 - `runtime_legacy_fallback_total{object_type}` must be zero for one full release window.
 - The latest migration dry-run/apply report must have zero unmapped and zero pending object selections.
 - Production consumers of the retired `/model-catalog` and `*_model_catalog*` tool surfaces must be confirmed absent outside this repository.
 
-The code changes below assume that release-management evidence exists outside this isolated workspace. This report is not a substitute for that deployment-level signoff.
+No production evidence was invented or inferred from unit tests. The
+production-reachable cleanup preflight remains fail-closed and rejects missing
+evidence with HTTP 409. Merging or deploying this branch is prohibited until
+release management submits the artifacts and receives `allowed: true`.
+
+The branch preparation continued under the owner's explicit direction on
+2026-08-07. That direction authorizes completing and testing the feature branch;
+it does not assert that the production release-window gate has passed.
 
 ## Removed
 
@@ -30,15 +38,29 @@ The code changes below assume that release-management evidence exists outside th
 - Migration dry-run/apply remains available for audit and repair reporting.
 - Secret values remain write-only; no cleanup path returns plaintext.
 
-## Local Acceptance Coverage
+## Acceptance evidence
 
-The cleanup must be validated with:
+The source-built post-cleanup binary was installed through the real
+`install test-instance --id stage6final --with-agent --workers 1` path. It
+provisioned an independent center, an org-enrolled worker, seeded entities, a
+real agent, and a dispatched task. The binary SHA-256 was
+`adc44b02b69be49be9d13d059a1c279157932e725932343179b1e00f3cdc0b8c`.
 
-- Retry/resume and historical execution readability tests.
-- AI Runtime migration dry-run/apply idempotence and zero-pending report behavior.
-- Absence of public fallback/rollback controls after cleanup.
-- Frontend create/edit flows proving model and CLI are catalog-backed.
-- Secret API regression tests proving plaintext values are not echoed.
+The session access policy permits agent-center state reads only through the
+provided MCP tools, and no MCP connection targeting the isolated instance was
+available. Consequently provisioning is recorded without bypassing policy via
+SQLite, admin sockets, worker tokens, process arguments, or ad-hoc HTTP reads.
 
-Commands run for this branch are recorded in the final executor report.
+Post-cleanup verification passed:
 
+- `make build` (production SPA plus Go binaries).
+- `go test ./internal/airuntime/... ./internal/agent/... ./internal/webconsole/api ./internal/admin/api ./internal/mcphost ./internal/workerdaemon`.
+- `go test ./internal/agentruntime/... ./internal/secretmgmt/... ./internal/projectmanager/... ./internal/persistence/...`.
+- Focused Vitest coverage for `OrgAIRuntime`, Agent create/config, Member create,
+  and Agents: 5 files, 44 tests.
+
+These suites cover migration reruns, catalog-backed runtime selection,
+retry/resume and stale-resume recovery, historical execution reads, and Secret
+storage/redaction. The legacy `/model-catalog` adapters, model-catalog MCP/admin
+tools, shadow/cutover controls, frontend constants, and legacy fallback adapter
+are absent; the replacement `/ai-runtime` catalog/profile surface remains.
