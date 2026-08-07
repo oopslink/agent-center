@@ -293,7 +293,7 @@
       "plans": "Plans",
       "repos": "Repos",
       "templates": "Templates",
-      "modelCatalog": "AI Runtime",
+      "aiRuntime": "AI Runtime",
       "codeRepos": "Code repos",
       "workBoard": "Work Board"
     },

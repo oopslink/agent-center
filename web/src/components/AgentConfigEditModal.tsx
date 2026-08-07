@@ -12,16 +12,18 @@ import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
 import { executorBadgeClass } from './executorProfiles';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  compatibleRuntimeModels,
+  enabledRuntimeCLIs,
+  firstCompatibleRuntimeModelKey,
+} from './runtimeOptions';
 
 interface Props {
   agent: Agent;
   onClose: () => void;
 }
 
-// CLI options mirror the runtime allowlist (agent.IsSupportedExecutionCLI).
-const CLI_OPTIONS = ['claude-code', 'codex'];
 // Reasoning effort allowlist (backend agent.SupportedReasoningEfforts); "" = the
 // runtime default.
 const REASONING_OPTIONS = ['', 'minimal', 'low', 'medium', 'high'];
@@ -30,7 +32,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const { t } = useTranslation('members');
   const [description, setDescription] = useState(agent.description ?? '');
   const [model, setModel] = useState(agent.model ?? '');
-  const [cli, setCli] = useState(agent.cli || 'claude-code');
+  const [cli, setCli] = useState(agent.cli ?? '');
   const [reasoning, setReasoning] = useState(agent.reasoning ?? '');
   const [mode, setMode] = useState(agent.mode ?? '');
   const [provider, setProvider] = useState(agent.provider ?? '');
@@ -82,6 +84,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const busy = update.isPending || restart.isPending;
   const error = (update.error ?? restart.error) as Error | null;
   const executorOptions = executorRuntimeOptions(runtime, draftCli, draftModelKey, draftProfileID);
+  const mainOptions = mainRuntimeOptions(runtime, cli, model);
 
   const parseCurrentEnv = () =>
     parseEnvVars(envText, {
@@ -93,6 +96,10 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
     const parsedEnv = parseCurrentEnv();
     if (!parsedEnv.ok) {
       setEnvError(parsedEnv.error);
+      setConfirming(false);
+      return;
+    }
+    if (!mainOptions.cliKnown || !mainOptions.modelKnown) {
       setConfirming(false);
       return;
     }
@@ -149,6 +156,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!mainOptions.cliKnown || !mainOptions.modelKnown) {
+              return;
+            }
             const parsedEnv = parseCurrentEnv();
             if (!parsedEnv.ok) {
               setEnvError(parsedEnv.error);
@@ -175,33 +185,46 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               data-testid="agent-config-cli"
               className={inputClass}
               value={cli}
-              onChange={(e) => setCli(e.target.value)}
+              onChange={(e) => {
+                const nextCLI = e.target.value;
+                setCli(nextCLI);
+                setModel(firstCompatibleRuntimeModelKey(runtime, nextCLI));
+              }}
             >
-              {CLI_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {mainOptions.currentCliMissing && (
+                <option value={cli} disabled>
+                  {cli}
+                </option>
+              )}
+              {mainOptions.clis.length === 0 && <option value="">Unavailable</option>}
+              {mainOptions.clis.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.display_name}
                 </option>
               ))}
             </select>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
-            {/* Editable dropdown: preset models as <datalist> suggestions while
-                the field stays free text (backend accepts any model string). */}
-            <input
+            <select
               id="agent-config-model-input"
               data-testid="agent-config-model"
               className={inputClass}
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              list="agent-config-model-list"
-              placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
-            />
-            <datalist id="agent-config-model-list" data-testid="agent-config-model-list">
-              {KNOWN_MODELS.map((m) => (
-                <option key={m} value={m} />
+            >
+              {mainOptions.currentModelMissing && (
+                <option value={model} disabled>
+                  {model}
+                </option>
+              )}
+              {mainOptions.models.length === 0 && <option value="">Unavailable</option>}
+              {mainOptions.models.map((m) => (
+                <option key={m.key} value={m.model_key}>
+                  {m.display_name}
+                </option>
               ))}
-            </datalist>
+            </select>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.reasoning')} hint={t('agentRuntime.configModal.fields.reasoningHint')} htmlFor="agent-config-reasoning-input">
@@ -501,7 +524,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </button>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !mainOptions.cliKnown || !mainOptions.modelKnown}
               className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="agent-config-edit-save"
             >
@@ -527,6 +550,22 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
       />
     </div>
   );
+}
+
+function mainRuntimeOptions(catalog: RuntimeCatalog | undefined, cli: string, model: string) {
+  const clis = enabledRuntimeCLIs(catalog);
+  const cliKnown = clis.some((c) => c.key === cli);
+  const effectiveCLI = cliKnown ? cli : clis[0]?.key ?? '';
+  const models = compatibleRuntimeModels(catalog, effectiveCLI);
+  const modelKnown = models.some((m) => m.model_key === model);
+  return {
+    clis,
+    models,
+    cliKnown,
+    modelKnown,
+    currentCliMissing: Boolean(cli && !cliKnown),
+    currentModelMissing: Boolean(model && !modelKnown),
+  };
 }
 
 function executorRuntimeOptions(

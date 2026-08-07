@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/Skeleton';
 
 type EditingProfile = RuntimeProfile | null;
 
-export default function OrgModelCatalog(): React.ReactElement {
+export default function OrgAIRuntime(): React.ReactElement {
   const catalog = useAIRuntimeCatalog();
   const coverage = useAIRuntimeCoverage();
   const setDefault = useSetDefaultRuntimeProfile();
@@ -37,7 +37,7 @@ export default function OrgModelCatalog(): React.ReactElement {
   };
 
   return (
-    <section className="space-y-5" data-testid="page-OrgModelCatalog">
+    <section className="space-y-5" data-testid="page-OrgAIRuntime">
       <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">AI Runtime</h1>
@@ -53,21 +53,21 @@ export default function OrgModelCatalog(): React.ReactElement {
             setFormOpen(true);
           }}
           disabled={!catalog.data || catalog.data.clis.length === 0 || catalog.data.models.length === 0}
-          data-testid="model-catalog-add-btn"
+          data-testid="ai-runtime-add-btn"
         >
           New profile
         </button>
       </header>
 
       {catalog.isLoading && (
-        <div className="space-y-2" data-testid="model-catalog-loading">
+        <div className="space-y-2" data-testid="ai-runtime-loading">
           <Skeleton height="3rem" />
           <Skeleton height="3rem" />
         </div>
       )}
 
       {catalog.isError && (
-        <p className="text-sm text-danger" data-testid="model-catalog-error">
+        <p className="text-sm text-danger" data-testid="ai-runtime-error">
           {(catalog.error as Error).message}
         </p>
       )}
@@ -114,10 +114,10 @@ function RuntimeProfiles({
   onDefault: (profileID: string) => void;
 }): React.ReactElement {
   if (catalog.profiles.length === 0) {
-    return <EmptyState testId="model-catalog-empty" title="No runtime profiles" body="Create a profile after CLIs and models are present." />;
+    return <EmptyState testId="ai-runtime-empty" title="No runtime profiles" body="Create a profile after CLIs and models are present." />;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border-base" data-testid="model-catalog-list">
+    <div className="overflow-x-auto rounded-lg border border-border-base" data-testid="ai-runtime-list">
       <table className="w-full text-sm">
         <thead className="bg-bg-subtle text-left text-xs uppercase text-text-muted">
           <tr>
@@ -132,7 +132,7 @@ function RuntimeProfiles({
           {catalog.profiles.map((profile) => {
             const isDefault = profile.id === catalog.default_runtime_profile_id;
             return (
-              <tr key={profile.id} className="border-t border-border-base" data-testid="model-catalog-row" data-profile-id={profile.id}>
+              <tr key={profile.id} className="border-t border-border-base" data-testid="ai-runtime-row" data-profile-id={profile.id}>
                 <td className="px-3 py-2">
                   <div className="font-medium text-text-primary">{profile.name}</div>
                   <div className="font-mono text-xs text-text-muted">{profile.key}</div>
@@ -150,7 +150,7 @@ function RuntimeProfiles({
                   )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
-                  <button type="button" className="text-xs text-accent hover:underline" onClick={() => onEdit(profile)} data-testid="model-catalog-edit">
+                  <button type="button" className="text-xs text-accent hover:underline" onClick={() => onEdit(profile)} data-testid="ai-runtime-edit">
                     Edit
                   </button>
                   {!isDefault && profile.enabled && (
@@ -320,7 +320,7 @@ function ProfileFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" data-testid="model-catalog-form">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" data-testid="ai-runtime-form">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-4 shadow-2">
         <h2 className="mb-3 text-lg font-semibold text-text-primary">{profile ? 'Edit runtime profile' : 'New runtime profile'}</h2>
         <div className="grid gap-3">
@@ -394,7 +394,7 @@ function ProfileFormModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             onClick={() => void submit()}
             disabled={mutation.isPending || !key.trim() || !name.trim() || !cliKey || !modelKey}
-            data-testid="mc-form-save"
+            data-testid="ai-runtime-form-save"
           >
             Save
           </button>

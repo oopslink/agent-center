@@ -6,18 +6,37 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentConfigEditModal } from './AgentConfigEditModal';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
 import type { Agent } from '@/api/types';
+import { qk } from '@/api/queryKeys';
+
+const runtimeCatalog = {
+  org_id: 'O-1',
+  revision: 3,
+  default_runtime_profile_id: 'rp-default',
+  clis: [
+    { id: 'cli-1', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', required_features: [], enabled: true },
+    { id: 'cli-2', key: 'codex', display_name: 'Codex', executable: 'codex', required_features: [], enabled: true },
+  ],
+  models: [
+    { id: 'model-1', key: 'opus-runtime', model_key: 'opus-4-8', display_name: 'Opus 4.8', compatible_cli_keys: ['claude-code'], default_parameters: {}, enabled: true },
+    { id: 'model-2', key: 'gpt-runtime', model_key: 'gpt-5.5', display_name: 'GPT-5.5', compatible_cli_keys: ['codex'], default_parameters: {}, enabled: true },
+  ],
+  profiles: [
+    { id: 'rp-default', key: 'default-coding', name: 'Default coding', cli_key: 'claude-code', model_key: 'opus-runtime', parameters: {}, enabled: true },
+    { id: 'rp-codex', key: 'codex-review', name: 'Codex review', cli_key: 'codex', model_key: 'gpt-runtime', parameters: {}, enabled: true },
+  ],
+};
 
 const base: Agent = {
   id: 'A1', organization_id: 'O-1', name: 'bot-1', description: '',
-  model: 'claude-opus-4-8', cli: 'claude-code', reasoning: '', mode: '', provider: '',
+  model: 'opus-4-8', cli: 'claude-code', reasoning: '', mode: '', provider: '',
   env_vars: {}, worker_id: 'w-1', lifecycle: 'running', availability: 'busy',
   created_by: 'user:hayang', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
 };
 
 function wrap(agent: Agent, onClose = () => {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  qc.setQueryData(qk.aiRuntime(), runtimeCatalog);
   return render(
     <QueryClientProvider client={qc}>
       <AgentConfigEditModal agent={agent} onClose={onClose} />
@@ -29,8 +48,8 @@ afterEach(() => cleanup());
 
 describe('AgentConfigEditModal (T236)', () => {
   it('prefills the form from the agent config', () => {
-    wrap({ ...base, model: 'claude-sonnet-4-6', cli: 'codex', reasoning: 'high', mode: 'plan', provider: 'anthropic' });
-    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe('claude-sonnet-4-6');
+    wrap({ ...base, model: 'gpt-5.5', cli: 'codex', reasoning: 'high', mode: 'plan', provider: 'anthropic' });
+    expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe('gpt-5.5');
     expect((screen.getByTestId('agent-config-cli') as HTMLSelectElement).value).toBe('codex');
     expect((screen.getByTestId('agent-config-reasoning') as HTMLSelectElement).value).toBe('high');
     expect((screen.getByTestId('agent-config-mode') as HTMLInputElement).value).toBe('plan');
@@ -90,7 +109,8 @@ describe('AgentConfigEditModal (T236)', () => {
 
     // edit a couple of fields
     fireEvent.change(screen.getByTestId('agent-config-reasoning'), { target: { value: 'high' } });
-    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: 'claude-sonnet-4-6' } });
+    fireEvent.change(screen.getByTestId('agent-config-cli'), { target: { value: 'codex' } });
+    await waitFor(() => expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe('gpt-5.5'));
     // Save → confirm dialog (running → restart warning)
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
     const confirm = await screen.findByTestId('confirm-modal');
@@ -99,7 +119,7 @@ describe('AgentConfigEditModal (T236)', () => {
     // confirm → PATCH then restart, then close
     fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(patchBody).toMatchObject({ model: 'claude-sonnet-4-6', cli: 'claude-code', reasoning: 'high' });
+    expect(patchBody).toMatchObject({ model: 'gpt-5.5', cli: 'codex', reasoning: 'high' });
     expect(restarted).toBe(true);
   });
 
@@ -253,35 +273,19 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(screen.getByTestId('agent-config-include-description')).toHaveAttribute('aria-checked', 'false');
   });
 
-  // Editable model dropdown: preset <datalist> suggestions + free text.
-  it('model: renders the KNOWN_MODELS presets as a datalist bound to the input', () => {
+  it('model: renders Runtime Catalog compatible models as a select', () => {
     wrap(base);
-    const input = screen.getByTestId('agent-config-model') as HTMLInputElement;
-    expect(input.getAttribute('list')).toBe('agent-config-model-list');
-    const list = screen.getByTestId('agent-config-model-list');
-    const values = Array.from(list.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(KNOWN_MODELS);
-    expect(values).toContain('claude-opus-4-8');
+    const cli = screen.getByTestId('agent-config-cli') as HTMLSelectElement;
+    const model = screen.getByTestId('agent-config-model') as HTMLSelectElement;
+    expect(Array.from(cli.options).map((o) => o.value)).toEqual(['claude-code', 'codex']);
+    expect(Array.from(model.options).map((o) => o.value)).toEqual(['opus-4-8']);
   });
 
-  it('model: a free-typed non-preset value is NOT restricted and PATCHes through', async () => {
-    let patchBody: Record<string, unknown> | undefined;
-    server.use(
-      http.patch('/api/agents/:id/config', async ({ request }) => {
-        patchBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ...base });
-      }),
-      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
-    );
-    wrap(base);
+  it('model: an unmapped historical value is readable but cannot be saved as-is', () => {
     const custom = 'my-org/custom-model-2099';
-    expect(KNOWN_MODELS).not.toContain(custom);
-    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: custom } });
-    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe(custom);
-    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
-    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
-    await waitFor(() => expect(patchBody).toBeDefined());
-    expect(patchBody).toMatchObject({ model: custom });
+    wrap({ ...base, model: custom });
+    expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe(custom);
+    expect(screen.getByTestId('agent-config-edit-save')).toBeDisabled();
   });
 
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {

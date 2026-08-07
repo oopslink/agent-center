@@ -291,7 +291,7 @@
       "plans": "计划",
       "repos": "仓库",
       "templates": "模板",
-      "modelCatalog": "AI Runtime",
+      "aiRuntime": "AI Runtime",
       "codeRepos": "代码仓库",
       "workBoard": "工作看板"
     },

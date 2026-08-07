@@ -131,12 +131,6 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 
 // addAgentMemberHandler handles POST /api/members/agent(org via /api/orgs/{slug} path).
 // Creates a new agent identity + member.
-// defaultAgentModel is the API-layer fallback applied when an agent is created
-// without an explicit model (v2.7.1 #236). Mirrors the frontend
-// DEFAULT_AGENT_MODEL constant — kept in sync so the visible prefill and the
-// backend floor agree.
-const defaultAgentModel = "claude-opus-4-8"
-
 func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.AgentProvisionSvc == nil {
@@ -166,12 +160,10 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		Mode      string `json:"mode"`
 		Provider  string `json:"provider"`
 		// F3 model routing (design §5 & §10), optional at create time.
-		OrchestratorModel    string   `json:"orchestrator_model"`
-		DefaultExecutorModel string   `json:"default_executor_model"`
-		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
-		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
-		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
-		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
+		OrchestratorModel    string                    `json:"orchestrator_model"`
+		DefaultExecutorModel string                    `json:"default_executor_model"`
+		MaxConcurrentTasks   int                       `json:"max_concurrent_tasks"`
+		AllowedExecutors     []agentbc.ExecutorProfile `json:"allowed_executors"`
 		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil → default (true = assignable).
 		AutoAssignable *bool `json:"auto_assignable"`
 		// T728: per-agent switch to inject description into the system prompt.
@@ -193,17 +185,13 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if body.Role == "" {
 		body.Role = "member"
 	}
-	// v2.7.1 #236: API-layer model default. An empty model stores null → the
-	// AgentDetail Profile renders blank (@oopslink dogfood; recurred via the
-	// MemberNew create path that the #232 frontend prefill missed). BOTH create
-	// UIs (AgentCreateModal + MemberNew) POST here — the v2.7 single create path
-	// — so defaulting at this one boundary is the bulletproof floor for every
-	// caller (both UIs + direct API + any future entry), complementing the
-	// frontend prefill that supplies the visible UX. Mirrors the worker_id policy
-	// below: an API-LAYER choice, deliberately NOT a new domain invariant
-	// (don't push an implementation constraint across the model boundary).
+	if strings.TrimSpace(body.CLI) == "" {
+		writeError(w, http.StatusBadRequest, "cli_required", "cli is required")
+		return
+	}
 	if strings.TrimSpace(body.Model) == "" {
-		body.Model = defaultAgentModel
+		writeError(w, http.StatusBadRequest, "model_required", "model is required")
+		return
 	}
 	// v2.6 ship-block fix (X1 §3): admin cannot create owner-role agent.
 	if string(callerMember.Role()) == "admin" && body.Role == "owner" {
@@ -271,7 +259,6 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			OrchestratorModel:                body.OrchestratorModel,
 			DefaultExecutorModel:             body.DefaultExecutorModel,
 			MaxConcurrentTasks:               body.MaxConcurrentTasks,
-			AllowedModels:                    body.AllowedModels,
 			AllowedExecutors:                 allowedExecutors,
 			AutoAssignable:                   body.AutoAssignable,
 			IncludeDescriptionInSystemPrompt: body.IncludeDescriptionInSystemPrompt,

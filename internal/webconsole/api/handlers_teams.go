@@ -19,7 +19,7 @@ import (
 // (plan-32dd9107). Response JSON is field-for-field the TS types in
 // web/src/api/teams.ts @ 8ee83d33 (the code-anchored contract UDE/PD ratified).
 // requireOrgMember gates + resolves the org from {slug}; a nil TeamService degrades
-// every endpoint to 501 (mirrors the model-catalog handlers). This file lands the P1
+// every endpoint to 501 (mirrors other optional-dependency handlers). This file lands the P1
 // slice (teams CRUD + members + projects-associate) — the ops backed by existing
 // team.Service methods; P2 adds templates / instantiate / memory / extract / directory.
 

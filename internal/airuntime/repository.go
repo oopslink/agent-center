@@ -25,7 +25,4 @@ type MigrationRepository interface {
 	ListLegacyRuntimeObjects(context.Context, string) ([]MigrationObject, error)
 	ListObjectSelections(context.Context, string, string) ([]ObjectSelection, error)
 	ApplyLegacyMigration(context.Context, MigrationMutation, int64, AuditEvent) (int64, error)
-	RecordShadowComparisons(context.Context, ShadowCompareMutation) error
-	GetCutoverSettings(context.Context, string) (map[string]string, error)
-	ApplyCutover(context.Context, CutoverMutation) error
 }

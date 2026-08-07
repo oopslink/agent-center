@@ -71,6 +71,23 @@ func TestProbeAllAdapters_AllDetected(t *testing.T) {
 	}
 }
 
+func TestProbeAllAdapters_NormalizesDecoratedVersionOutput(t *testing.T) {
+	reg := newRegistryWith(
+		&fakeAdapter{name: "claude-code", available: true, version: "1.2.3 (fakeclaude e2e stand-in)"},
+		&fakeAdapter{name: "codex", available: true, version: "release latest"},
+	)
+	caps := ProbeAllAdapters(context.Background(), reg)
+	if len(caps) != 2 {
+		t.Fatalf("expected 2 caps, got %d", len(caps))
+	}
+	if caps[0].Version != "1.2.3" {
+		t.Fatalf("decorated version normalized to %q, want 1.2.3", caps[0].Version)
+	}
+	if caps[1].Version != "" {
+		t.Fatalf("unparseable version should be reported as unknown, got %q", caps[1].Version)
+	}
+}
+
 func TestProbeAllAdapters_BinaryNotAvailable(t *testing.T) {
 	reg := newRegistryWith(
 		&fakeAdapter{name: "opencode", available: false},

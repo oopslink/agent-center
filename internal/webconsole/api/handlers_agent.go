@@ -716,12 +716,10 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Provider  string             `json:"provider"`
 		EnvVars   *map[string]string `json:"env_vars"`
 		// F3 model routing (design §5 & §10).
-		OrchestratorModel    string   `json:"orchestrator_model"`
-		DefaultExecutorModel string   `json:"default_executor_model"`
-		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
-		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
-		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
-		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
+		OrchestratorModel    string                    `json:"orchestrator_model"`
+		DefaultExecutorModel string                    `json:"default_executor_model"`
+		MaxConcurrentTasks   int                       `json:"max_concurrent_tasks"`
+		AllowedExecutors     []agentbc.ExecutorProfile `json:"allowed_executors"`
 		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil (field omitted) → preserve.
 		AutoAssignable *bool `json:"auto_assignable"`
 		// Description edits the agent's human-readable description. nil → preserve.
@@ -750,8 +748,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		EnvVars:           req.EnvVars,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
-		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
-		AllowedExecutors: allowedExecutors, AutoAssignable: req.AutoAssignable,
+		MaxConcurrentTasks: req.MaxConcurrentTasks,
+		AllowedExecutors:   allowedExecutors, AutoAssignable: req.AutoAssignable,
 		Description:                      req.Description,
 		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve

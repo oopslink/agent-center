@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
-import OrgModelCatalog from './OrgModelCatalog';
+import OrgAIRuntime from './OrgAIRuntime';
 
 const catalog = {
   org_id: 'O-1',
@@ -29,7 +29,7 @@ function wrap() {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <OrgModelCatalog />
+        <OrgAIRuntime />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -37,7 +37,7 @@ function wrap() {
 
 afterEach(() => cleanup());
 
-describe('OrgModelCatalog AI Runtime', () => {
+describe('OrgAIRuntime AI Runtime', () => {
   it('renders runtime profiles and separates basic coverage from schedulability', async () => {
     server.use(
       http.get('/api/ai-runtime', () => HttpResponse.json(catalog)),
@@ -52,7 +52,7 @@ describe('OrgModelCatalog AI Runtime', () => {
     );
     wrap();
     expect((await screen.findAllByText('Default coding')).length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId('model-catalog-row')).toHaveLength(2);
+    expect(screen.getAllByTestId('ai-runtime-row')).toHaveLength(2);
     expect(screen.getByTestId('runtime-coverage-panel')).toHaveTextContent('Basic capability coverage');
     expect(screen.getByTestId('runtime-coverage-panel')).toHaveTextContent('Effective schedulability: not inferred');
   });
@@ -121,13 +121,13 @@ describe('OrgModelCatalog AI Runtime', () => {
       }),
     );
     wrap();
-    const add = await screen.findByTestId('model-catalog-add-btn');
+    const add = await screen.findByTestId('ai-runtime-add-btn');
     await waitFor(() => expect(add).not.toBeDisabled());
     fireEvent.click(add);
     fireEvent.change(screen.getByTestId('runtime-profile-key'), { target: { value: 'new-profile' } });
     fireEvent.change(screen.getByTestId('runtime-profile-name'), { target: { value: 'New profile' } });
     fireEvent.change(screen.getByTestId('runtime-profile-cli'), { target: { value: 'codex' } });
-    fireEvent.click(screen.getByTestId('mc-form-save'));
+    fireEvent.click(screen.getByTestId('ai-runtime-form-save'));
     await waitFor(() => expect(posted).toBeDefined());
     expect(posted).toMatchObject({
       expected_revision: 3,

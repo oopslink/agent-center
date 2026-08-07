@@ -131,10 +131,8 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		Analytics: usagesql.NewAnalytics(a.DB),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
-		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
-		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
-		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog:   newAIRuntimeService(a),
+		TemplateRepo:   pmsql.NewTemplateRepo(a.DB),
+		RuntimeCatalog: newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
@@ -567,10 +565,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Analytics: usagesql.NewAnalytics(a.DB),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
-		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
-		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
-		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog:   newAIRuntimeService(a),
+		TemplateRepo:   pmsql.NewTemplateRepo(a.DB),
+		RuntimeCatalog: newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
