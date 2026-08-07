@@ -40,7 +40,7 @@ import (
 	"testing"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 // runQuiet runs a command, ignoring its output; returns the run error (if any).
@@ -555,7 +555,11 @@ func orgEnrollWorker(t *testing.T, dbPath, workerID, orgID string) {
 
 func openSeedDB(t *testing.T, dbPath string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+dbPath)
+	// The real server is already running and may still be committing bootstrap
+	// state. Use the same WAL + busy_timeout contract as production instead of a
+	// raw zero-timeout sqlite connection, otherwise full-package parallel load can
+	// turn this harness setup into a spurious SQLITE_BUSY failure.
+	db, err := persistence.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}

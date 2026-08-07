@@ -557,7 +557,10 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 
 	col := &eventCollector{}
 	sess, err := workerdaemon.StartSupervisorSession(context.Background(), workerdaemon.SupervisorSessionConfig{
-		AgentID:       "agent-detach",
+		// Socket paths are deterministic from AgentID and Go runs packages in
+		// parallel. Keep this ID package-unique so supervisormanager's detach
+		// test cannot unlink or replace this live supervisor's socket.
+		AgentID:       "agent-workerdaemon-detach",
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,

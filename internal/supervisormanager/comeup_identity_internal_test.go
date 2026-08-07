@@ -10,8 +10,11 @@ package supervisormanager
 // accepts it, the caller gets a ref whose HomeDir has no matching record and then
 // reads a missing/foreign instance file — observed as the flaky
 // "supervisor.instance: no such file or directory" in
-// TestSupervisorSession_DetachSurvives + TestDetach_NotKill (both use the SAME
-// agent-id "agent-detach" and one leaves a SURVIVING supervisor for the next).
+// TestSupervisorSession_DetachSurvives + TestDetach_NotKill historically used
+// the SAME agent-id "agent-detach" across packages; because `go test ./...`
+// runs packages in parallel, either test could unlink the other's live socket.
+// Their fixtures now use package-unique IDs; these identity guards still pin the
+// production rapid-restart case.
 //
 // These tests drive waitComeUp directly (internal package) against an in-process
 // fake supervisor parked on the shared socket — no real subprocess, fully
