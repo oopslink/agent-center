@@ -69,6 +69,50 @@ func (s *Service) Catalog(ctx context.Context, orgID string) (Catalog, error) {
 	return s.repo.GetCatalog(ctx, orgID)
 }
 
+func (s *Service) Coverage(ctx context.Context, orgID string) ([]RuntimeCoverage, []Diagnostic, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if s.coverage == nil {
+		return []RuntimeCoverage{}, []Diagnostic{{
+			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+			Path: "coverage", Message: "scheduler coverage data is unavailable",
+		}}, nil
+	}
+	coverage, err := s.coverage.Coverage(ctx, cat)
+	if err != nil {
+		return []RuntimeCoverage{}, []Diagnostic{{
+			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
+			Path: "coverage", Message: "scheduler coverage data is unavailable",
+		}}, nil
+	}
+	return coverage, nil, nil
+}
+
+func (s *Service) ImpactPreview(ctx context.Context, orgID, entityType, entityID, action string) (RuntimeImpactPreview, error) {
+	counts := RuntimeReferenceCounts{ProfileID: entityID}
+	if counter, ok := s.repo.(ReferenceCounter); ok {
+		var err error
+		counts, err = counter.ReferenceCounts(ctx, orgID, entityID)
+		if err != nil {
+			return RuntimeImpactPreview{}, err
+		}
+	}
+	affected := counts.DefaultProfile + counts.AgentProfileSelections +
+		counts.ExecutorProfileSelections + counts.TeamRoleProfileSelections +
+		counts.TeamRoleInheritSelections
+	return RuntimeImpactPreview{
+		EntityType:       entityType,
+		EntityID:         entityID,
+		Action:           action,
+		ReferenceCounts:  counts,
+		AffectedNewRuns:  affected,
+		HistoricalNote:   "historical runtime snapshots are immutable and are not rewritten",
+		GrayReleaseReady: false,
+	}, nil
+}
+
 func (s *Service) CreateCLI(ctx context.Context, orgID, actor string, expected int64, in CLIDefinition) (CLIDefinition, int64, error) {
 	in.ID, in.OrgID, in.Key = s.id(), orgID, strings.TrimSpace(in.Key)
 	in.DisplayName, in.Executable = strings.TrimSpace(in.DisplayName), strings.TrimSpace(in.Executable)

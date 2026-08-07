@@ -16,3 +16,13 @@ type Repository interface {
 type BulkRepository interface {
 	ApplyBulkImport(context.Context, BulkMutation, int64, AuditEvent) (int64, error)
 }
+
+type ReferenceCounter interface {
+	ReferenceCounts(context.Context, string, string) (RuntimeReferenceCounts, error)
+}
+
+type MigrationRepository interface {
+	ListLegacyRuntimeObjects(context.Context, string) ([]MigrationObject, error)
+	ListObjectSelections(context.Context, string, string) ([]ObjectSelection, error)
+	ApplyLegacyMigration(context.Context, MigrationMutation, int64, AuditEvent) (int64, error)
+}

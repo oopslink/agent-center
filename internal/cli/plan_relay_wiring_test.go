@@ -15,6 +15,7 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // These tests guard the PRODUCTION outbox-relay wiring (App.outboxProjectors) — the
@@ -385,6 +386,17 @@ func TestProductionRelay_DispatchWake_ImmediateWorkAvailable(t *testing.T) {
 	// A desired-running agent bound to worker W1 — the wake must land here.
 	agents := agentsql.NewAgentRepo(app.DB)
 	at := app.Clock.Now()
+	w, err := workforce.RehydrateWorker(workforce.RehydrateWorkerInput{
+		ID: "W1", Name: "W1", Status: workforce.WorkerOnline, OrganizationID: "org-rel",
+		CapabilityList: []workforce.Capability{{AgentCLI: agentpkg.DefaultExecutorCLI, Detected: true, Enabled: true}},
+		EnrolledAt:     at, CreatedAt: at, UpdatedAt: at, Version: 1,
+	})
+	if err != nil {
+		t.Fatalf("RehydrateWorker: %v", err)
+	}
+	if err := app.WorkerRepo.Save(ctx, w); err != nil {
+		t.Fatalf("save worker: %v", err)
+	}
 	ag, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
 		ID: agentpkg.AgentID("WORKERBOT"), OrganizationID: "org-rel",
 		Profile: agentpkg.Profile{Name: "WORKERBOT"}, WorkerID: "W1",

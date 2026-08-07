@@ -22,9 +22,9 @@ func TestAPI_AddAgentMember_T728_IncludeDescriptionSwitch(t *testing.T) {
 		body string
 		want bool
 	}{
-		{"omitted defaults true", `{"display_name":"BotA","cli":"claude-code","worker_id":"w-1"}`, true},
-		{"explicit true", `{"display_name":"BotB","cli":"claude-code","worker_id":"w-1","include_description_in_system_prompt":true}`, true},
-		{"explicit false", `{"display_name":"BotC","cli":"claude-code","worker_id":"w-1","include_description_in_system_prompt":false}`, false},
+		{"omitted defaults true", `{"display_name":"BotA","model":"opus-4-8","cli":"claude-code","worker_id":"w-1"}`, true},
+		{"explicit true", `{"display_name":"BotB","model":"opus-4-8","cli":"claude-code","worker_id":"w-1","include_description_in_system_prompt":true}`, true},
+		{"explicit false", `{"display_name":"BotC","model":"opus-4-8","cli":"claude-code","worker_id":"w-1","include_description_in_system_prompt":false}`, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

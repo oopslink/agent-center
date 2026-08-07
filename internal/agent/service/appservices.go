@@ -25,13 +25,10 @@ type CreateAgentCommand struct {
 	Mode           string // T236: operating mode ("" = default)
 	Provider       string // T236: LLM provider ("" = center default)
 	// F3 model routing (design §5 & §10). All optional; carried like Model/Reasoning.
-	OrchestratorModel    string   // orchestrator's own model (cheap/fast tier; "" = center default)
-	DefaultExecutorModel string   // fallback executor model ("" = center default)
-	MaxConcurrentTasks   int      // executor concurrency cap (0 ⇒ EffectiveMaxConcurrentTasks default)
-	AllowedModels        []string // LEGACY model-only candidates (back-compat input; converted to AllowedExecutors)
-	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
-	// BE-1). When set it wins; otherwise AllowedModels is lifted via the agent's cli.
-	AllowedExecutors []agent.ExecutorProfile
+	OrchestratorModel    string // orchestrator's own model (cheap/fast tier; "" = center default)
+	DefaultExecutorModel string // fallback executor model ("" = center default)
+	MaxConcurrentTasks   int    // executor concurrency cap (0 ⇒ EffectiveMaxConcurrentTasks default)
+	AllowedExecutors     []agent.ExecutorProfile
 	// JudgeEnabled opts the agent in to the LLM difficulty judge (T950 ②). Default
 	// false = OFF (byte-identical to today); absent input zero-values to OFF.
 	JudgeEnabled bool
@@ -62,7 +59,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 	if !agent.IsSupportedReasoning(cmd.Reasoning) {
 		return "", agent.ErrUnsupportedReasoning
 	}
-	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors, cmd.AllowedModels, cmd.CLI)
+	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors)
 	if err != nil {
 		return "", err
 	}
@@ -229,10 +226,7 @@ type UpdateAgentConfigCommand struct {
 	OrchestratorModel    string
 	DefaultExecutorModel string
 	MaxConcurrentTasks   int
-	AllowedModels        []string // LEGACY input (converted to AllowedExecutors via the agent's cli)
-	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
-	// BE-1); wins over AllowedModels when set.
-	AllowedExecutors []agent.ExecutorProfile
+	AllowedExecutors     []agent.ExecutorProfile
 	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
 	// (v2.18.3 BE-1). nil → preserve the existing value (a config edit that omits the
 	// field must not silently flip it).
@@ -253,24 +247,10 @@ type UpdateAgentConfigCommand struct {
 	ExecutorGitWorktree *bool
 }
 
-// resolveAllowedExecutors canonicalizes the executor-candidate input into the
-// authoritative list + its derived model mirror (v2.18.1 BE-1). AllowedExecutors
-// wins when provided; otherwise the legacy AllowedModels is lifted into {cli, model}
-// via the agent's cli (the migration-0085 backfill rule). The result is validated +
-// deduped by the domain (NormalizeAllowedExecutors → ErrInvalidExecutorProfile on a
-// bad cli / empty model), and the returned models slice is the distinct-models
-// mirror persisted into the legacy column for model-only readers.
-func resolveAllowedExecutors(execs []agent.ExecutorProfile, models []string, cli string) ([]agent.ExecutorProfile, []string, error) {
-	in := execs
-	if len(in) == 0 {
-		// Back-compat: an old caller sent only the model-only allowed_models. A
-		// {cli, model} profile needs a CLI, and the model list carries none — so we
-		// pair every model with THIS agent's own cli (cmd.CLI; empty → claude-code),
-		// exactly the migration-0085 backfill rule. The agent's cli is the only
-		// defensible default: it is the runtime the supervisor already runs.
-		in = agent.ExecutorsFromModels(models, cli)
-	}
-	norm, err := agent.NormalizeAllowedExecutors(in)
+// resolveAllowedExecutors canonicalizes the authoritative executor-candidate
+// input and returns the derived model mirror persisted for legacy read paths.
+func resolveAllowedExecutors(execs []agent.ExecutorProfile) ([]agent.ExecutorProfile, []string, error) {
+	norm, err := agent.NormalizeAllowedExecutors(execs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -299,7 +279,7 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 	if !agent.IsSupportedReasoning(cmd.Reasoning) {
 		return agent.ErrUnsupportedReasoning
 	}
-	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors, cmd.AllowedModels, cmd.CLI)
+	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors)
 	if err != nil {
 		return err
 	}

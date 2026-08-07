@@ -56,6 +56,12 @@ func (s *Server) workerReportCapabilitiesHandler(w http.ResponseWriter, r *http.
 		mapDomainError(w, err)
 		return
 	}
+	if d.CapabilityRedrive != nil {
+		if err := d.CapabilityRedrive(r.Context(), req.WorkerID); err != nil {
+			mapDomainError(w, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"worker_id": string(res.WorkerID),
 		"version":   res.NewVersion,

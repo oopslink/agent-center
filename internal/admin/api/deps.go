@@ -78,6 +78,10 @@ type HandlerDeps struct {
 	// Workforce BC
 	WorkerRepo workforce.WorkerRepository
 	EnrollSvc  *wfservice.WorkerEnrollService
+	// CapabilityRedrive is an optional post-report hook: after a worker updates
+	// its capability projection, the center re-drives any waiting_for_capability
+	// dispatches for that worker without changing PM task status.
+	CapabilityRedrive func(ctx context.Context, workerID string) error
 	// WorkerConfigSvc backs the operator per-CLI capability toggle
 	// (v2.7 #147 PATCH .../capabilities/{name}/enabled).
 	WorkerConfigSvc *wfservice.WorkerConfigService
@@ -168,9 +172,8 @@ type HandlerDeps struct {
 	// TemplateRepo backs the list_templates / get_template agent tools.
 	// nil when not wired (handlers return templates_not_wired 501).
 	TemplateRepo projectmanager.TemplateRepository
-	// ModelCatalogRepo backs the *_model_catalog_entry / import_model_catalog agent
-	// tools (issue-93dd8daa ①). nil when not wired (handlers return
-	// model_catalog_not_wired 501).
+	// ModelCatalogRepo enriches resume-state executor annotations with model
+	// catalog cost/tier metadata. The legacy model-catalog agent tools are retired.
 	ModelCatalogRepo projectmanager.ModelCatalogRepository
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:

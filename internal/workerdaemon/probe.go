@@ -2,7 +2,9 @@ package workerdaemon
 
 import (
 	"context"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentadapter"
@@ -47,8 +49,11 @@ func ProbeAllAdapters(ctx context.Context, registry *agentadapter.Registry) []wo
 // probeOne runs Probe + SupportedFeatures for one adapter and returns the
 // matching Capability.
 func probeOne(ctx context.Context, adapter agentadapter.Adapter) workforce.Capability {
+	scannedAt := time.Now().UTC()
 	cap := workforce.Capability{
-		AgentCLI: adapter.Name(),
+		AgentCLI:  adapter.Name(),
+		ScannedAt: scannedAt,
+		ExpiresAt: scannedAt.Add(workforce.DefaultCapabilityTTL),
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, DefaultProbeTimeout)
 	defer cancel()
@@ -60,10 +65,30 @@ func probeOne(ctx context.Context, adapter agentadapter.Adapter) workforce.Capab
 	}
 	cap.Detected = avail
 	cap.Enabled = avail // first-probe default; user can disable later
-	cap.Version = version
+	cap.Healthy = avail
+	cap.Version = sanitizeProbeVersion(version)
 	feat := adapter.SupportedFeatures()
 	cap.SupportsMCP = feat.SupportsMCP
 	cap.SupportsSkills = feat.SupportsSkills
 	cap.SupportsSession = feat.SupportsSession
+	cap.Features = workforce.NormalizeCapabilityFeatures(cap.EffectiveFeatures())
 	return cap
+}
+
+var probeVersionTokenRe = regexp.MustCompile(`v?[0-9]+(?:\.[0-9]+){0,2}(?:[\-+][0-9A-Za-z][0-9A-Za-z.\-+]*)?`)
+
+func sanitizeProbeVersion(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	if norm, err := workforce.NormalizeCapabilityVersion(s); err == nil {
+		return norm
+	}
+	for _, token := range probeVersionTokenRe.FindAllString(s, -1) {
+		if norm, err := workforce.NormalizeCapabilityVersion(token); err == nil {
+			return norm
+		}
+	}
+	return ""
 }

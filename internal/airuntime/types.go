@@ -116,6 +116,31 @@ type RuntimeSnapshot struct {
 	ResolvedAt           time.Time      `json:"resolved_at"`
 }
 
+type RuntimeSelectionValidation struct {
+	Selection RuntimeSelection `json:"selection"`
+	Snapshot  RuntimeSnapshot  `json:"snapshot"`
+}
+
+type RuntimeReferenceCounts struct {
+	ProfileID                   string `json:"profile_id,omitempty"`
+	DefaultProfile              int    `json:"default_profile"`
+	AgentProfileSelections      int    `json:"agent_profile_selections"`
+	ExecutorProfileSelections   int    `json:"executor_profile_selections"`
+	TeamRoleProfileSelections   int    `json:"team_role_profile_selections"`
+	TeamRoleInheritSelections   int    `json:"team_role_inherit_selections"`
+	HistoricalExecutionSnapshot int    `json:"historical_execution_snapshot"`
+}
+
+type RuntimeImpactPreview struct {
+	EntityType       string                 `json:"entity_type"`
+	EntityID         string                 `json:"entity_id,omitempty"`
+	Action           string                 `json:"action"`
+	ReferenceCounts  RuntimeReferenceCounts `json:"reference_counts"`
+	AffectedNewRuns  int                    `json:"affected_new_runs"`
+	HistoricalNote   string                 `json:"historical_note"`
+	GrayReleaseReady bool                   `json:"gray_release_ready"`
+}
+
 type Catalog struct {
 	OrgID            string            `json:"org_id"`
 	Revision         int64             `json:"revision"`

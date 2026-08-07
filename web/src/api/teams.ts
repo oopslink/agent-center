@@ -14,6 +14,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import type { RuntimeSelection } from './aiRuntime';
 import { currentOrgScope } from './queryKeys';
 import { type TeamProjectLink } from './teamsFixtures';
 
@@ -26,6 +27,7 @@ export interface RoleView {
   role: string;
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection | null;
   capability_tags: string[];
   max_concurrency: number;
   count?: number;
@@ -164,6 +166,7 @@ export interface RoleInput {
   role: string;
   cli: string;
   model: string;
+  runtime_selection?: RuntimeSelection | null;
   max_concurrency: number;
   count: number;
   tags: string;
@@ -514,6 +517,7 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
       role: r.role,
       cli: r.cli,
       model: r.model,
+      runtime_selection: r.runtime_selection ?? null,
       capability_tags: r.capability_tags,
       max_concurrency: r.max_concurrency,
       count: r.count,

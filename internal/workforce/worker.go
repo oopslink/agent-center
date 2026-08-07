@@ -217,8 +217,9 @@ func (w *Worker) CapabilityList() []Capability {
 // or (zero, false) if none. v2 helper used by DispatchService feature-check
 // (per ADR-0030 § 5).
 func (w *Worker) CapabilityForCLI(agentCLI string) (Capability, bool) {
+	agentCLI = strings.TrimSpace(agentCLI)
 	for _, c := range w.capabilities {
-		if c.AgentCLI == agentCLI {
+		if capabilityCLIKey(c) == agentCLI {
 			return c, true
 		}
 	}
@@ -287,31 +288,26 @@ func (w *Worker) ApplyConfig(at time.Time, newConcurrency *WorkerConcurrency, ne
 // Bumps version.
 func (w *Worker) ApplyCapabilities(at time.Time, detected []Capability) {
 	// Preserve user-controlled `Enabled` flag from prior list.
-	enabledByCLI := map[string]bool{}
+	prevByCLI := map[string]Capability{}
 	for _, c := range w.capabilities {
-		enabledByCLI[c.AgentCLI] = c.Enabled
+		prevByCLI[capabilityCLIKey(c)] = c
 	}
 	out := make([]Capability, 0, len(detected))
 	seen := map[string]struct{}{}
 	for _, c := range detected {
-		if _, dup := seen[c.AgentCLI]; dup {
+		key := capabilityCLIKey(c)
+		if key == "" {
 			continue
 		}
-		seen[c.AgentCLI] = struct{}{}
-		// Default Enabled = previous user choice OR Detected (first time).
-		enabled := c.Detected
-		if prev, ok := enabledByCLI[c.AgentCLI]; ok {
-			enabled = prev
+		if _, dup := seen[key]; dup {
+			continue
 		}
-		out = append(out, Capability{
-			AgentCLI:        c.AgentCLI,
-			Detected:        c.Detected,
-			Enabled:         enabled,
-			Version:         c.Version,
-			SupportsMCP:     c.SupportsMCP,
-			SupportsSkills:  c.SupportsSkills,
-			SupportsSession: c.SupportsSession,
-		})
+		seen[key] = struct{}{}
+		var prev *Capability
+		if p, ok := prevByCLI[key]; ok {
+			prev = &p
+		}
+		out = append(out, mergeReportedCapability(c, prev))
 	}
 	w.capabilities = out
 	w.updatedAt = at.UTC()
@@ -394,10 +390,19 @@ func buildCapabilityList(rich []Capability, legacy []string) []Capability {
 		out := make([]Capability, 0, len(rich))
 		seen := map[string]struct{}{}
 		for _, c := range rich {
-			if _, dup := seen[c.AgentCLI]; dup {
+			key := capabilityCLIKey(c)
+			if key == "" {
 				continue
 			}
-			seen[c.AgentCLI] = struct{}{}
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			c.AgentCLI = key
+			c.Features = NormalizeCapabilityFeatures(c.Features)
+			if norm, err := NormalizeCapabilityVersion(c.Version); err == nil {
+				c.Version = norm
+			}
 			out = append(out, c)
 		}
 		return out
@@ -408,6 +413,10 @@ func buildCapabilityList(rich []Capability, legacy []string) []Capability {
 	out := make([]Capability, 0, len(legacy))
 	seen := map[string]struct{}{}
 	for _, s := range legacy {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
 		if _, dup := seen[s]; dup {
 			continue
 		}

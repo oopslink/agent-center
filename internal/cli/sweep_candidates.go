@@ -46,6 +46,11 @@ type sweepAgentReads interface {
 // resume-state key on — NOT the agentActor/identity-member ref the task assignee
 // carries (the two differ; resolveSweepAgent bridges them).
 func buildSweepCandidates(pmr sweepPMReads, ar sweepAgentReads) func(context.Context) ([]envservice.SweepCandidate, error) {
+	return buildSweepCandidatesWithCapabilities(pmr, ar, nil)
+}
+
+func buildSweepCandidatesWithCapabilities(pmr sweepPMReads, ar sweepAgentReads, wr dispatchWorkerReads) func(context.Context) ([]envservice.SweepCandidate, error) {
+	gate := newDispatchCapabilityGate(wr, nil, nil)
 	return func(ctx context.Context) ([]envservice.SweepCandidate, error) {
 		loads, err := pmr.AgentTaskLoads(ctx)
 		if err != nil {
@@ -75,6 +80,11 @@ func buildSweepCandidates(pmr sweepPMReads, ar sweepAgentReads) func(context.Con
 			taskID := firstQueuedTaskID(runnable)
 			if taskID == "" {
 				continue // pending tasks are all dependency-blocked — not pullable
+			}
+			if decision, err := gate.allows(ctx, ag, firstQueuedTask(runnable)); err != nil {
+				return nil, err
+			} else if !decision.OK {
+				continue
 			}
 			out = append(out, envservice.SweepCandidate{
 				WorkerID: worker,
@@ -107,10 +117,17 @@ func resolveSweepAgent(ctx context.Context, ar sweepAgentReads, id string) *agen
 // candidate prefilter already guarantees there are none, but this keeps the payload
 // anchored to genuinely-queued work.
 func firstQueuedTaskID(tasks []*pm.Task) string {
-	for _, t := range tasks {
-		if t.Status() == pm.TaskOpen {
-			return string(t.ID())
-		}
+	if t := firstQueuedTask(tasks); t != nil {
+		return string(t.ID())
 	}
 	return ""
+}
+
+func firstQueuedTask(tasks []*pm.Task) *pm.Task {
+	for _, t := range tasks {
+		if t.Status() == pm.TaskOpen {
+			return t
+		}
+	}
+	return nil
 }

@@ -333,14 +333,19 @@ function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
         {executors.length > 0 ? (
           executors.map((e) => (
             <span
-              key={`${e.cli}::${e.model}`}
+              key={`${e.runtime_selection ? JSON.stringify(e.runtime_selection) : `${e.cli}::${e.model}`}`}
               className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
               data-testid="agent-profile-executor-chip"
             >
+              {e.runtime_selection?.mode && (
+                <span className="rounded bg-brand/10 px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide text-brand">
+                  {e.runtime_selection.mode}
+                </span>
+              )}
               <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
-                {e.cli}
+                {e.cli || 'default'}
               </span>
-              <span className="font-mono text-text-primary">{e.model}</span>
+              <span className="font-mono text-text-primary">{e.model || e.runtime_selection?.profile_id || 'default profile'}</span>
             </span>
           ))
         ) : (

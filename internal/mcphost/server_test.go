@@ -188,9 +188,6 @@ var wantTools = []string{
 	// templates
 	"list_templates", "get_template",
 	"create_template", "update_template", "delete_template",
-	// issue-93dd8daa ①: org model catalog CRUD + import
-	"list_model_catalog_entry", "create_model_catalog_entry", "update_model_catalog_entry",
-	"delete_model_catalog_entry", "import_model_catalog",
 	// Team Phase-1 wiring (design §4/§6/§7/§9): CRUD + membership + project
 	// association (S1), template authoring / instantiation / role→agent (S3).
 	"create_team", "update_team", "delete_team", "get_team", "list_teams",

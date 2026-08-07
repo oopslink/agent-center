@@ -545,9 +545,8 @@ func TestNew_DefaultsClock(t *testing.T) {
 }
 
 // TestAllowedExecutors_ServiceRoundTrip covers v2.18.1 BE-1 at the service layer:
-// create-with-executors persists the authoritative list + derived model mirror; a
-// legacy allowed_models-only update is converted to {cli, model} via the agent's
-// cli; and an invalid executor is rejected with ErrInvalidExecutorProfile.
+// create/update with authoritative executors persists the executor list + derived
+// read mirror, and an invalid executor is rejected with ErrInvalidExecutorProfile.
 func TestAllowedExecutors_ServiceRoundTrip(t *testing.T) {
 	f := newFixture(t)
 	f.seedWorker(t, testWorker, testOrg)
@@ -576,16 +575,18 @@ func TestAllowedExecutors_ServiceRoundTrip(t *testing.T) {
 		t.Fatalf("create: derived allowed_models = %v, want [opus gpt-5-codex]", got)
 	}
 
-	// Legacy update: only allowed_models given, cli=codex → lifted to codex executors.
+	// Authoritative update: allowed_executors replaces the candidate set and
+	// rewrites the derived model mirror.
 	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{
-		CLI: "codex", MaxConcurrentTasks: 1, AllowedModels: []string{"gpt-5", "gpt-5"}, // dup collapses
+		CLI: "codex", MaxConcurrentTasks: 1,
+		AllowedExecutors: []agent.ExecutorProfile{{CLI: "codex", Model: "gpt-5"}, {CLI: "codex", Model: "gpt-5"}},
 	}); err != nil {
-		t.Fatalf("UpdateAgentConfig (legacy models): %v", err)
+		t.Fatalf("UpdateAgentConfig (executors): %v", err)
 	}
 	a, _ = f.svc.GetAgent(ctx, id)
 	xe := a.Profile().AllowedExecutors
 	if len(xe) != 1 || xe[0] != (agent.ExecutorProfile{CLI: "codex", Model: "gpt-5"}) {
-		t.Fatalf("legacy convert: executors = %v, want one {codex, gpt-5}", xe)
+		t.Fatalf("executor update: executors = %v, want one {codex, gpt-5}", xe)
 	}
 
 	// Invalid executor → ErrInvalidExecutorProfile (maps to 400 at the API).

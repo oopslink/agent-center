@@ -131,10 +131,8 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		Analytics: usagesql.NewAnalytics(a.DB),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
-		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
-		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
-		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog:   newAIRuntimeService(a),
+		TemplateRepo:   pmsql.NewTemplateRepo(a.DB),
+		RuntimeCatalog: newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
@@ -226,6 +224,7 @@ func (a *App) outboxProjectors(
 	// second guard with independent state.
 	wakeGuard := a.WakeGuard
 	sweepAgentRepo := agentsql.NewAgentRepo(a.DB)
+	capWaitRepo := envsql.NewCapabilityWaitRepo(a.DB)
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,
 		Agents:     sweepAgentRepo,
@@ -240,7 +239,7 @@ func (a *App) outboxProjectors(
 		// relaunch path. Grace=60s (one tick) debounces a normally-booting session; a
 		// stuck-forever agent is bounded by backoff + a give-up cap that escalates once.
 		SweepGrace:      60 * time.Second,
-		SweepCandidates: buildSweepCandidates(a.PMService, sweepAgentRepo),
+		SweepCandidates: buildSweepCandidatesWithCapabilities(a.PMService, sweepAgentRepo, a.WorkerRepo),
 		SweepGiveUp: func(_ context.Context, c envservice.SweepCandidate) {
 			// The sweep nudged this desired-running agent the cap's worth of times and it
 			// still has no running session — surface it for a human instead of slow-
@@ -420,10 +419,15 @@ func (a *App) outboxProjectors(
 	// stays as the down-session fallback; DispatchRecord is untouched. Resolution closures keep
 	// the pm/agent reads in composition (BC boundary), mirroring buildSweepCandidates.
 	dispatchWakeProj := envservice.NewDispatchWakeProjector(envservice.DispatchWakeProjectorDeps{
-		ControlLog:   controlLog,
-		AssignTarget: buildAssignTarget(a.PMService, sweepAgentRepo),
-		RepushTarget: buildRepushTarget(a.PMService, sweepAgentRepo),
+		ControlLog:      controlLog,
+		AssignTarget:    buildAssignTargetWithCapabilityWaits(a.PMService, sweepAgentRepo, a.WorkerRepo, capWaitRepo),
+		RepushTarget:    buildRepushTargetWithCapabilityWaits(a.PMService, sweepAgentRepo, a.WorkerRepo, capWaitRepo),
+		CapabilityWaits: capWaitRepo,
+		RedriveTarget:   buildCapabilityRedriveTarget(a.PMService, sweepAgentRepo, a.WorkerRepo),
 	})
+	if err := dispatchWakeProj.RedriveWaitingCapabilities(context.Background()); err != nil {
+		slog.Warn("capability wait restart redrive failed", "error", err)
+	}
 	// message_acknowledged activity (docs/design/features/agent-message-consumption-activity.md):
 	// agent 主动 mark_seen（PULL）→ 在其 activity 流追加一条 ack，闭合「agent 确认已读」回路。
 	msgAckProj := envservice.NewMessageAckProjector(a.DB, a.AgentActivityRepo, appliedRepo, a.IDGen, a.Clock)
@@ -561,10 +565,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Analytics: usagesql.NewAnalytics(a.DB),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
-		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
-		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
-		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
-		RuntimeCatalog:   newAIRuntimeService(a),
+		TemplateRepo:   pmsql.NewTemplateRepo(a.DB),
+		RuntimeCatalog: newAIRuntimeService(a),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
 		// newHardenedTeamService: shared Team-service constructor with the add-member
@@ -695,6 +697,23 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
+	capWaitTimeoutCtx, capWaitTimeoutCancel := context.WithCancel(ctx)
+	capWaitTimeout := envservice.NewCapabilityWaitTimeoutReconciler(envsql.NewCapabilityWaitRepo(a.DB), a.Clock, 100)
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			if _, err := capWaitTimeout.ReconcileOnce(capWaitTimeoutCtx); err != nil {
+				logger("webconsole capability wait timeout: " + err.Error())
+			}
+			select {
+			case <-capWaitTimeoutCtx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+
 	// Resolved issue lifecycle: after an issue remains resolved for the default
 	// grace period, close it automatically. The service uses durable
 	// status_changed_at, so restarts do not lose the countdown.
@@ -746,6 +765,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		gcCancel()
 		wakeLoopCancel()
 		planReconcileLoopCancel()
+		capWaitTimeoutCancel()
 		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		activityEventGCCancel()

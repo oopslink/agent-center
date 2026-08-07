@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
@@ -100,6 +101,113 @@ func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutati
 			}
 			if profileID == "" {
 				return airuntime.ErrNotFound
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) ListLegacyRuntimeObjects(ctx context.Context, orgID string) ([]airuntime.MigrationObject, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT id, organization_id, cli, model, reasoning, mode, provider
+		FROM agents
+		WHERE organization_id = ?
+		ORDER BY id`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []airuntime.MigrationObject
+	for rows.Next() {
+		var (
+			id, org                               string
+			cli, model, reasoning, mode, provider sql.NullString
+		)
+		if err := rows.Scan(&id, &org, &cli, &model, &reasoning, &mode, &provider); err != nil {
+			return nil, err
+		}
+		params := map[string]any{}
+		if strings.TrimSpace(reasoning.String) != "" {
+			params["reasoning"] = reasoning.String
+		}
+		if strings.TrimSpace(mode.String) != "" {
+			params["mode"] = mode.String
+		}
+		if strings.TrimSpace(provider.String) != "" {
+			params["provider"] = provider.String
+		}
+		out = append(out, airuntime.MigrationObject{
+			OrgID: org, ObjectType: "agent", ObjectID: id,
+			Legacy:     airuntime.LegacyRuntime{CLI: cli.String, Model: model.String},
+			Parameters: params,
+		})
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ListObjectSelections(ctx context.Context, orgID, objectType string) ([]airuntime.ObjectSelection, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT org_id, object_type, object_id, selection_json, selection_source, content_hash, migrated_at, updated_at
+		FROM ai_runtime_object_selections
+		WHERE org_id=? AND object_type=?
+		ORDER BY object_id`, orgID, objectType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []airuntime.ObjectSelection
+	for rows.Next() {
+		var x airuntime.ObjectSelection
+		var selectionJSON, migratedAt, updatedAt string
+		if err := rows.Scan(&x.OrgID, &x.ObjectType, &x.ObjectID, &selectionJSON, &x.SelectionSource, &x.ContentHash, &migratedAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(selectionJSON), &x.Selection); err != nil {
+			return nil, err
+		}
+		x.MigratedAt, x.UpdatedAt = parse(migratedAt), parse(updatedAt)
+		out = append(out, x)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ApplyLegacyMigration(ctx context.Context, m airuntime.MigrationMutation, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, m.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
+		for _, x := range m.Profiles {
+			params, _ := json.Marshal(x.Parameters)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,key) DO UPDATE SET
+					name=excluded.name,
+					description=excluded.description,
+					cli_key=excluded.cli_key,
+					model_key=excluded.model_key,
+					parameters_json=excluded.parameters_json,
+					enabled=excluded.enabled,
+					updated_at=excluded.updated_at`,
+				x.ID, m.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey,
+				string(params), boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
+			}
+		}
+		for _, x := range m.ObjectSelections {
+			selection, _ := json.Marshal(x.Selection)
+			_, err := exec.ExecContext(ctx, `
+				INSERT INTO ai_runtime_object_selections(org_id,object_type,object_id,selection_json,selection_source,content_hash,migrated_at,updated_at)
+				VALUES(?,?,?,?,?,?,?,?)
+				ON CONFLICT(org_id,object_type,object_id) DO UPDATE SET
+					selection_json=excluded.selection_json,
+					selection_source=excluded.selection_source,
+					content_hash=excluded.content_hash,
+					updated_at=excluded.updated_at`,
+				m.OrgID, x.ObjectType, x.ObjectID, string(selection), x.SelectionSource,
+				x.ContentHash, stamp(x.MigratedAt), stamp(x.UpdatedAt))
+			if err != nil {
+				return mapConstraint(err)
 			}
 		}
 		return nil
@@ -256,6 +364,48 @@ func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expe
 	})
 }
 
+func (r *Repository) ReferenceCounts(ctx context.Context, org, profileID string) (airuntime.RuntimeReferenceCounts, error) {
+	out := airuntime.RuntimeReferenceCounts{ProfileID: profileID}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	if profileID == "" {
+		return out, nil
+	}
+	if err := exec.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM ai_runtime_catalogs WHERE org_id=? AND default_profile_id=?`,
+		org, profileID).Scan(&out.DefaultProfile); err != nil {
+		return out, err
+	}
+	if out.DefaultProfile > 0 {
+		if err := exec.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM team_roles tr
+			JOIN teams t ON t.id = tr.team_id
+			WHERE t.org_id=?
+			  AND COALESCE(json_extract(NULLIF(tr.runtime_selection_json,''), '$.mode'), '') = 'inherit'`,
+			org).Scan(&out.TeamRoleInheritSelections); err != nil {
+			return out, err
+		}
+	}
+	if err := exec.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM team_roles tr
+		JOIN teams t ON t.id = tr.team_id
+		WHERE t.org_id=?
+		  AND COALESCE(json_extract(NULLIF(tr.runtime_selection_json,''), '$.profile_id'), '') = ?`,
+		org, profileID).Scan(&out.TeamRoleProfileSelections); err != nil {
+		return out, err
+	}
+	if err := exec.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM agents a, json_each(COALESCE(NULLIF(a.allowed_executors,''), '[]')) AS candidate
+		WHERE a.organization_id=?
+		  AND COALESCE(json_extract(candidate.value, '$.runtime_selection.profile_id'), '') = ?`,
+		org, profileID).Scan(&out.ExecutorProfileSelections); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64
 	err := persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {
@@ -307,3 +457,6 @@ func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 func parse(v string) time.Time { t, _ := time.Parse(time.RFC3339Nano, v); return t }
 
 var _ airuntime.Repository = (*Repository)(nil)
+var _ airuntime.ReferenceCounter = (*Repository)(nil)
+var _ airuntime.BulkRepository = (*Repository)(nil)
+var _ airuntime.MigrationRepository = (*Repository)(nil)

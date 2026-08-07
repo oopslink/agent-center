@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/team"
 )
@@ -66,11 +67,15 @@ func insertRole(ctx context.Context, exec persistence.SQLExecutor, id team.TeamI
 	if len(rc.CapabilityTags) == 0 {
 		tags = []byte("[]")
 	}
-	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-		VALUES (?,?,?,?,?,?,?)`
+	selection, err := marshalRuntimeSelection(rc.RuntimeSelection)
+	if err != nil {
+		return err
+	}
+	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at, runtime_selection_json)
+		VALUES (?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		id.String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
-		now.UTC().Format(tsLayout),
+		now.UTC().Format(tsLayout), selection,
 	)
 	return err
 }
@@ -112,12 +117,17 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 		if err != nil {
 			return fmt.Errorf("marshal capability_tags: %w", err)
 		}
+		selection, err := marshalRuntimeSelection(rc.RuntimeSelection)
+		if err != nil {
+			return err
+		}
 		_, err = exec.ExecContext(ctx, `INSERT INTO team_roles
-			(team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-			VALUES (?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
+			(team_id, role, cli, model, capability_tags, max_concurrency, created_at, runtime_selection_json)
+			VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
 			cli=excluded.cli, model=excluded.model, capability_tags=excluded.capability_tags,
-			max_concurrency=excluded.max_concurrency`, t.ID().String(), rc.Role, rc.CLI,
-			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
+			max_concurrency=excluded.max_concurrency, runtime_selection_json=excluded.runtime_selection_json`,
+			t.ID().String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
+			t.UpdatedAt().UTC().Format(tsLayout), selection)
 		if err != nil {
 			return err
 		}
@@ -187,7 +197,7 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 
 func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID) ([]team.RoleConfig, error) {
 	rows, err := exec.QueryContext(ctx,
-		`SELECT role, cli, model, capability_tags, max_concurrency FROM team_roles WHERE team_id=? ORDER BY role`,
+		`SELECT role, cli, model, capability_tags, max_concurrency, runtime_selection_json FROM team_roles WHERE team_id=? ORDER BY role`,
 		id.String())
 	if err != nil {
 		return nil, err
@@ -198,8 +208,9 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 		var (
 			role, cli, model, tagsJSON string
 			maxConc                    int
+			selectionJSON              string
 		)
-		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc); err != nil {
+		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc, &selectionJSON); err != nil {
 			return nil, err
 		}
 		var tags []string
@@ -208,12 +219,40 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 				return nil, fmt.Errorf("unmarshal capability_tags: %w", err)
 			}
 		}
+		selection, err := unmarshalRuntimeSelection(selectionJSON)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, team.RoleConfig{
 			Role: role, CLI: cli, Model: model,
-			CapabilityTags: tags, MaxConcurrency: maxConc,
+			CapabilityTags: tags, MaxConcurrency: maxConc, RuntimeSelection: selection,
 		})
 	}
 	return out, rows.Err()
+}
+
+func marshalRuntimeSelection(selection *airuntime.RuntimeSelection) (string, error) {
+	if selection == nil {
+		return "", nil
+	}
+	normalized := airuntime.NormalizeSelection(*selection)
+	raw, err := json.Marshal(normalized)
+	if err != nil {
+		return "", fmt.Errorf("marshal runtime_selection: %w", err)
+	}
+	return string(raw), nil
+}
+
+func unmarshalRuntimeSelection(raw string) (*airuntime.RuntimeSelection, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var selection airuntime.RuntimeSelection
+	if err := json.Unmarshal([]byte(raw), &selection); err != nil {
+		return nil, fmt.Errorf("unmarshal runtime_selection: %w", err)
+	}
+	normalized := airuntime.NormalizeSelection(selection)
+	return &normalized, nil
 }
 
 // ListTeams returns teams in an org (all orgs when orgID == "").

@@ -11,6 +11,7 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -84,6 +85,8 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agentbc.ErrInvalidExecutorProfile):
 		// v2.18.1 BE-1: an allowed_executors entry has a bad cli or empty model.
 		writeError(w, http.StatusBadRequest, "invalid_executor_profile", err.Error())
+	case isAIRuntimeError(err):
+		writeRuntimeError(w, err)
 	case errors.Is(err, agentsvc.ErrResetNotConfirmed),
 		errors.Is(err, agentbc.ErrInvalidResetScope),
 		errors.Is(err, agentbc.ErrWorkerRequired),
@@ -92,6 +95,11 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "agent_error", err.Error())
 	}
+}
+
+func isAIRuntimeError(err error) bool {
+	var runtimeErr *airuntime.Error
+	return errors.As(err, &runtimeErr)
 }
 
 // --- serializers ------------------------------------------------------------
@@ -708,12 +716,10 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Provider  string             `json:"provider"`
 		EnvVars   *map[string]string `json:"env_vars"`
 		// F3 model routing (design §5 & §10).
-		OrchestratorModel    string   `json:"orchestrator_model"`
-		DefaultExecutorModel string   `json:"default_executor_model"`
-		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
-		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
-		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
-		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
+		OrchestratorModel    string                    `json:"orchestrator_model"`
+		DefaultExecutorModel string                    `json:"default_executor_model"`
+		MaxConcurrentTasks   int                       `json:"max_concurrent_tasks"`
+		AllowedExecutors     []agentbc.ExecutorProfile `json:"allowed_executors"`
 		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil (field omitted) → preserve.
 		AutoAssignable *bool `json:"auto_assignable"`
 		// Description edits the agent's human-readable description. nil → preserve.
@@ -729,16 +735,21 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	d := hd(r)
-	a, _, ok := s.agentRequireInOrg(w, r, d)
+	a, orgID, ok := s.agentRequireInOrg(w, r, d)
 	if !ok {
 		return
 	}
-	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
+	allowedExecutors, err := resolveExecutorRuntimeSelections(r.Context(), d.RuntimeCatalog, orgID, req.AllowedExecutors)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	err = d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		EnvVars:           req.EnvVars,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
-		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
-		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
+		MaxConcurrentTasks: req.MaxConcurrentTasks,
+		AllowedExecutors:   allowedExecutors, AutoAssignable: req.AutoAssignable,
 		Description:                      req.Description,
 		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve

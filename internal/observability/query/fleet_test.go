@@ -122,8 +122,8 @@ func TestFleetSnapshot_WorkerRowIncludesCapabilities(t *testing.T) {
 	for _, c := range row.Capabilities {
 		byCLI[c.AgentCLI] = c
 	}
-	if c := byCLI["claude-code"]; !c.Detected || !c.Enabled || c.Version != "1.2" {
-		t.Fatalf("claude-code want detected+enabled v1.2, got %+v", c)
+	if c := byCLI["claude-code"]; !c.Detected || !c.Enabled || c.Version != "1.2.0" {
+		t.Fatalf("claude-code want detected+enabled v1.2.0, got %+v", c)
 	}
 	if c := byCLI["codex"]; !c.Detected || c.Enabled {
 		t.Fatalf("codex want detected+disabled, got %+v", c)

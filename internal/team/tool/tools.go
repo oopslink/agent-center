@@ -7,6 +7,7 @@ package tool
 import (
 	"context"
 
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/team"
 	"github.com/oopslink/agent-center/internal/team/service"
 )
@@ -56,11 +57,12 @@ func NewTools(svc *service.Service) *Tools { return &Tools{svc: svc} }
 
 // RoleArg is a role declaration in a create_team call.
 type RoleArg struct {
-	Role           string   `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
-	CLI            string   `json:"cli,omitempty" jsonschema:"agent CLI the role runs on (e.g. claude-code)"`
-	Model          string   `json:"model,omitempty" jsonschema:"model id the role uses"`
-	CapabilityTags []string `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
-	MaxConcurrency int      `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
+	Role             string                      `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
+	CLI              string                      `json:"cli,omitempty" jsonschema:"agent CLI the role runs on (e.g. claude-code)"`
+	Model            string                      `json:"model,omitempty" jsonschema:"model id the role uses"`
+	RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection,omitempty" jsonschema:"AI Runtime selection: inherit, profile, or override"`
+	CapabilityTags   []string                    `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
+	MaxConcurrency   int                         `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
 }
 
 // CreateTeamArgs is the create_team payload.
@@ -87,11 +89,12 @@ type AddMemberArgs struct {
 
 // RoleView is a serializable RoleConfig.
 type RoleView struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
+	Role             string                      `json:"role"`
+	CLI              string                      `json:"cli"`
+	Model            string                      `json:"model"`
+	RuntimeSelection *airuntime.RuntimeSelection `json:"runtime_selection,omitempty"`
+	CapabilityTags   []string                    `json:"capability_tags"`
+	MaxConcurrency   int                         `json:"max_concurrency"`
 }
 
 // TeamView is a serializable Team.
@@ -198,11 +201,12 @@ func toRoleConfigs(in []RoleArg) []team.RoleConfig {
 	out := make([]team.RoleConfig, 0, len(in))
 	for _, r := range in {
 		out = append(out, team.RoleConfig{
-			Role:           r.Role,
-			CLI:            r.CLI,
-			Model:          r.Model,
-			CapabilityTags: r.CapabilityTags,
-			MaxConcurrency: r.MaxConcurrency,
+			Role:             r.Role,
+			CLI:              r.CLI,
+			Model:            r.Model,
+			RuntimeSelection: cloneRuntimeSelection(r.RuntimeSelection),
+			CapabilityTags:   r.CapabilityTags,
+			MaxConcurrency:   r.MaxConcurrency,
 		})
 	}
 	return out
@@ -217,7 +221,8 @@ func toTeamView(t *team.Team) TeamView {
 		}
 		roles = append(roles, RoleView{
 			Role: rc.Role, CLI: rc.CLI, Model: rc.Model,
-			CapabilityTags: tags, MaxConcurrency: rc.MaxConcurrency,
+			RuntimeSelection: cloneRuntimeSelection(rc.RuntimeSelection),
+			CapabilityTags:   tags, MaxConcurrency: rc.MaxConcurrency,
 		})
 	}
 	return TeamView{
@@ -228,4 +233,12 @@ func toTeamView(t *team.Team) TeamView {
 		Roles:       roles,
 		Version:     t.Version(),
 	}
+}
+
+func cloneRuntimeSelection(selection *airuntime.RuntimeSelection) *airuntime.RuntimeSelection {
+	if selection == nil {
+		return nil
+	}
+	cloned := airuntime.NormalizeSelection(*selection)
+	return &cloned
 }

@@ -58,27 +58,6 @@ func TestNormalizeAllowedExecutors(t *testing.T) {
 	})
 }
 
-func TestExecutorsFromModels(t *testing.T) {
-	t.Run("pairs each model with the given cli", func(t *testing.T) {
-		got := ExecutorsFromModels([]string{"a", "b"}, "codex")
-		want := []ExecutorProfile{{CLI: "codex", Model: "a"}, {CLI: "codex", Model: "b"}}
-		if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
-			t.Fatalf("got %v, want %v", got, want)
-		}
-	})
-	t.Run("empty cli defaults to claude-code (0085 backfill rule)", func(t *testing.T) {
-		got := ExecutorsFromModels([]string{"a"}, "")
-		if len(got) != 1 || got[0].CLI != DefaultExecutorCLI {
-			t.Fatalf("got %v, want cli=%s", got, DefaultExecutorCLI)
-		}
-	})
-	t.Run("no models → nil", func(t *testing.T) {
-		if got := ExecutorsFromModels(nil, "codex"); got != nil {
-			t.Fatalf("got %v, want nil", got)
-		}
-	})
-}
-
 func TestModelsOf(t *testing.T) {
 	got := ModelsOf([]ExecutorProfile{
 		{CLI: "claude-code", Model: "m1"},

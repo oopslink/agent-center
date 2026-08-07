@@ -6,21 +6,24 @@
 // action adapt to lifecycle.
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAIRuntimeCatalog, type RuntimeCatalog, type RuntimeModel, type RuntimeSelectionMode } from '@/api/aiRuntime';
 import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
 import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
-import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
+import { executorBadgeClass } from './executorProfiles';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  compatibleRuntimeModels,
+  enabledRuntimeCLIs,
+  firstCompatibleRuntimeModelKey,
+} from './runtimeOptions';
 
 interface Props {
   agent: Agent;
   onClose: () => void;
 }
 
-// CLI options mirror the runtime allowlist (agent.IsSupportedExecutionCLI).
-const CLI_OPTIONS = ['claude-code', 'codex'];
 // Reasoning effort allowlist (backend agent.SupportedReasoningEfforts); "" = the
 // runtime default.
 const REASONING_OPTIONS = ['', 'minimal', 'low', 'medium', 'high'];
@@ -29,7 +32,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const { t } = useTranslation('members');
   const [description, setDescription] = useState(agent.description ?? '');
   const [model, setModel] = useState(agent.model ?? '');
-  const [cli, setCli] = useState(agent.cli || 'claude-code');
+  const [cli, setCli] = useState(agent.cli ?? '');
   const [reasoning, setReasoning] = useState(agent.reasoning ?? '');
   const [mode, setMode] = useState(agent.mode ?? '');
   const [provider, setProvider] = useState(agent.provider ?? '');
@@ -41,19 +44,20 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const [maxConcurrent, setMaxConcurrent] = useState(agent.max_concurrent_tasks ?? 0);
   const [executors, setExecutors] = useState<ExecutorProfile[]>(agent.allowed_executors ?? []);
   // The pending "add a profile" row (committed via the Add button).
+  const runtimeCatalog = useAIRuntimeCatalog();
+  const runtime = runtimeCatalog.data;
+  const [draftMode, setDraftMode] = useState<RuntimeSelectionMode>('inherit');
   const [draftCli, setDraftCli] = useState('claude-code');
-  const [draftModel, setDraftModel] = useState('');
+  const [draftModelKey, setDraftModelKey] = useState('');
+  const [draftProfileID, setDraftProfileID] = useState('');
 
   const addExecutor = () => {
-    const m = draftModel.trim();
-    if (!m) return;
-    // Skip exact {cli,model} duplicates (the server dedups too).
-    if (executors.some((e) => e.cli === draftCli && e.model === m)) {
-      setDraftModel('');
+    const candidate = buildExecutorCandidate(runtime, draftMode, draftCli, draftModelKey, draftProfileID);
+    if (!candidate) return;
+    if (executors.some((e) => executorCandidateKey(e) === executorCandidateKey(candidate))) {
       return;
     }
-    setExecutors((xs) => [...xs, { cli: draftCli, model: m }]);
-    setDraftModel('');
+    setExecutors((xs) => [...xs, candidate]);
   };
   const removeExecutor = (i: number) =>
     setExecutors((xs) => xs.filter((_, idx) => idx !== i));
@@ -79,6 +83,8 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const isRunning = agent.lifecycle === 'running';
   const busy = update.isPending || restart.isPending;
   const error = (update.error ?? restart.error) as Error | null;
+  const executorOptions = executorRuntimeOptions(runtime, draftCli, draftModelKey, draftProfileID);
+  const mainOptions = mainRuntimeOptions(runtime, cli, model);
 
   const parseCurrentEnv = () =>
     parseEnvVars(envText, {
@@ -90,6 +96,10 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
     const parsedEnv = parseCurrentEnv();
     if (!parsedEnv.ok) {
       setEnvError(parsedEnv.error);
+      setConfirming(false);
+      return;
+    }
+    if (!mainOptions.cliKnown || !mainOptions.modelKnown) {
       setConfirming(false);
       return;
     }
@@ -146,6 +156,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!mainOptions.cliKnown || !mainOptions.modelKnown) {
+              return;
+            }
             const parsedEnv = parseCurrentEnv();
             if (!parsedEnv.ok) {
               setEnvError(parsedEnv.error);
@@ -172,33 +185,46 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               data-testid="agent-config-cli"
               className={inputClass}
               value={cli}
-              onChange={(e) => setCli(e.target.value)}
+              onChange={(e) => {
+                const nextCLI = e.target.value;
+                setCli(nextCLI);
+                setModel(firstCompatibleRuntimeModelKey(runtime, nextCLI));
+              }}
             >
-              {CLI_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {mainOptions.currentCliMissing && (
+                <option value={cli} disabled>
+                  {cli}
+                </option>
+              )}
+              {mainOptions.clis.length === 0 && <option value="">Unavailable</option>}
+              {mainOptions.clis.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.display_name}
                 </option>
               ))}
             </select>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
-            {/* Editable dropdown: preset models as <datalist> suggestions while
-                the field stays free text (backend accepts any model string). */}
-            <input
+            <select
               id="agent-config-model-input"
               data-testid="agent-config-model"
               className={inputClass}
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              list="agent-config-model-list"
-              placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
-            />
-            <datalist id="agent-config-model-list" data-testid="agent-config-model-list">
-              {KNOWN_MODELS.map((m) => (
-                <option key={m} value={m} />
+            >
+              {mainOptions.currentModelMissing && (
+                <option value={model} disabled>
+                  {model}
+                </option>
+              )}
+              {mainOptions.models.length === 0 && <option value="">Unavailable</option>}
+              {mainOptions.models.map((m) => (
+                <option key={m.key} value={m.model_key}>
+                  {m.display_name}
+                </option>
               ))}
-            </datalist>
+            </select>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.reasoning')} hint={t('agentRuntime.configModal.fields.reasoningHint')} htmlFor="agent-config-reasoning-input">
@@ -293,14 +319,19 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 <ul className="mb-2 flex flex-wrap gap-2" data-testid="agent-config-executors">
                   {executors.map((e, i) => (
                     <li
-                      key={`${e.cli}::${e.model}`}
+                      key={`${executorCandidateKey(e)}::${i}`}
                       className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
                       data-testid="agent-config-executor-chip"
                     >
+                      {e.runtime_selection?.mode && (
+                        <span className="rounded bg-brand/10 px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide text-brand">
+                          {e.runtime_selection.mode}
+                        </span>
+                      )}
                       <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
-                        {e.cli}
+                        {e.cli || 'default'}
                       </span>
-                      <span className="font-mono text-text-primary">{e.model}</span>
+                      <span className="font-mono text-text-primary">{executorCandidateLabel(runtime, e)}</span>
                       <button
                         type="button"
                         className="text-text-muted hover:text-danger"
@@ -319,45 +350,80 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="flex gap-2">
+              <div className="grid gap-2 md:grid-cols-[10rem_1fr_auto]">
                 <select
-                  className={`${inputClass} w-auto`}
-                  value={draftCli}
-                  onChange={(e) => setDraftCli(e.target.value)}
-                  data-testid="agent-config-executor-cli"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
-                >
-                  {CLI_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <input
                   className={inputClass}
-                  value={draftModel}
-                  onChange={(e) => setDraftModel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addExecutor();
-                    }
-                  }}
-                  list={`executor-models-${draftCli}`}
-                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
-                  data-testid="agent-config-executor-model"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
-                />
-                <datalist id={`executor-models-${draftCli}`}>
-                  {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
+                  value={draftMode}
+                  onChange={(e) => setDraftMode(e.target.value as RuntimeSelectionMode)}
+                  data-testid="agent-config-executor-mode"
+                  aria-label="Executor runtime mode"
+                >
+                  <option value="inherit">Inherit</option>
+                  <option value="profile">Profile</option>
+                  <option value="override">Override</option>
+                </select>
+                {draftMode === 'inherit' && (
+                  <div className={`${inputClass} truncate text-text-muted`} data-testid="agent-config-executor-inherit">
+                    {executorOptions.defaultProfileName}
+                  </div>
+                )}
+                {draftMode === 'profile' && (
+                  <select
+                    className={inputClass}
+                    value={executorOptions.profileID}
+                    onChange={(e) => setDraftProfileID(e.target.value)}
+                    data-testid="agent-config-executor-profile"
+                    aria-label="Executor runtime profile"
+                  >
+                    {executorOptions.profiles.length === 0 && <option value="">Unavailable</option>}
+                    {executorOptions.profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {draftMode === 'override' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      className={inputClass}
+                      value={executorOptions.cliKey}
+                      onChange={(e) => {
+                        const nextCLI = e.target.value;
+                        setDraftCli(nextCLI);
+                        setDraftModelKey(firstCompatibleModel(runtime, nextCLI)?.key ?? '');
+                      }}
+                      data-testid="agent-config-executor-cli"
+                      aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
+                    >
+                      {executorOptions.clis.length === 0 && <option value="">Unavailable</option>}
+                      {executorOptions.clis.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.display_name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className={inputClass}
+                      value={executorOptions.modelKey}
+                      onChange={(e) => setDraftModelKey(e.target.value)}
+                      data-testid="agent-config-executor-model"
+                      aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
+                    >
+                      {executorOptions.models.length === 0 && <option value="">Unavailable</option>}
+                      {executorOptions.models.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   type="button"
                   className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"
                   onClick={addExecutor}
-                  disabled={!draftModel.trim()}
+                  disabled={!canAddExecutor(runtime, draftMode, executorOptions)}
                   data-testid="agent-config-executor-add"
                 >
                   {t('agentRuntime.configModal.concurrency.add')}
@@ -458,7 +524,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </button>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !mainOptions.cliKnown || !mainOptions.modelKnown}
               className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="agent-config-edit-save"
             >
@@ -484,6 +550,102 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
       />
     </div>
   );
+}
+
+function mainRuntimeOptions(catalog: RuntimeCatalog | undefined, cli: string, model: string) {
+  const clis = enabledRuntimeCLIs(catalog);
+  const cliKnown = clis.some((c) => c.key === cli);
+  const effectiveCLI = cliKnown ? cli : clis[0]?.key ?? '';
+  const models = compatibleRuntimeModels(catalog, effectiveCLI);
+  const modelKnown = models.some((m) => m.model_key === model);
+  return {
+    clis,
+    models,
+    cliKnown,
+    modelKnown,
+    currentCliMissing: Boolean(cli && !cliKnown),
+    currentModelMissing: Boolean(model && !modelKnown),
+  };
+}
+
+function executorRuntimeOptions(
+  catalog: RuntimeCatalog | undefined,
+  draftCli: string,
+  draftModelKey: string,
+  draftProfileID: string,
+) {
+  const profiles = catalog?.profiles.filter((p) => p.enabled) ?? [];
+  const clis = catalog?.clis.filter((c) => c.enabled) ?? [];
+  const cliKey = clis.some((c) => c.key === draftCli) ? draftCli : clis[0]?.key ?? '';
+  const models = (catalog?.models ?? []).filter((m) => m.enabled && m.compatible_cli_keys.includes(cliKey));
+  const modelKey = models.some((m) => m.key === draftModelKey) ? draftModelKey : models[0]?.key ?? '';
+  const profileID = profiles.some((p) => p.id === draftProfileID) ? draftProfileID : profiles[0]?.id ?? '';
+  const defaultProfileName = catalog?.profiles.find((p) => p.id === catalog.default_runtime_profile_id)?.name ?? 'No default profile';
+  return { profiles, clis, models, cliKey, modelKey, profileID, defaultProfileName };
+}
+
+function canAddExecutor(
+  catalog: RuntimeCatalog | undefined,
+  mode: RuntimeSelectionMode,
+  options: ReturnType<typeof executorRuntimeOptions>,
+): boolean {
+  if (!catalog) return false;
+  if (mode === 'inherit') return Boolean(catalog.default_runtime_profile_id);
+  if (mode === 'profile') return Boolean(options.profileID);
+  return Boolean(options.cliKey && options.modelKey);
+}
+
+function buildExecutorCandidate(
+  catalog: RuntimeCatalog | undefined,
+  mode: RuntimeSelectionMode,
+  draftCli: string,
+  draftModelKey: string,
+  draftProfileID: string,
+): ExecutorProfile | null {
+  const options = executorRuntimeOptions(catalog, draftCli, draftModelKey, draftProfileID);
+  if (!canAddExecutor(catalog, mode, options)) return null;
+  if (mode === 'inherit') {
+    return { cli: '', model: '', runtime_selection: { mode: 'inherit' } };
+  }
+  if (mode === 'profile') {
+    const profile = options.profiles.find((p) => p.id === options.profileID);
+    if (!profile) return null;
+    return {
+      cli: profile.cli_key,
+      model: modelRuntimeKey(catalog, profile.model_key),
+      runtime_selection: { mode: 'profile', profile_id: profile.id },
+    };
+  }
+  const model = options.models.find((m) => m.key === options.modelKey);
+  if (!model) return null;
+  return {
+    cli: options.cliKey,
+    model: model.model_key,
+    runtime_selection: { mode: 'override', cli_id: options.cliKey, model_id: model.key, parameters: {} },
+  };
+}
+
+function executorCandidateKey(candidate: ExecutorProfile): string {
+  if (candidate.runtime_selection) return JSON.stringify(candidate.runtime_selection);
+  return `${candidate.cli}::${candidate.model}`;
+}
+
+function executorCandidateLabel(catalog: RuntimeCatalog | undefined, candidate: ExecutorProfile): string {
+  if (candidate.runtime_selection?.mode === 'inherit') {
+    return catalog?.profiles.find((p) => p.id === catalog.default_runtime_profile_id)?.name ?? 'default profile';
+  }
+  if (candidate.runtime_selection?.mode === 'profile') {
+    return catalog?.profiles.find((p) => p.id === candidate.runtime_selection?.profile_id)?.name ?? candidate.model;
+  }
+  return candidate.model;
+}
+
+function firstCompatibleModel(catalog: RuntimeCatalog | undefined, cliKey: string): RuntimeModel | undefined {
+  return catalog?.models.find((m) => m.enabled && m.compatible_cli_keys.includes(cliKey));
+}
+
+function modelRuntimeKey(catalog: RuntimeCatalog | undefined, profileModelKey: string): string {
+  return catalog?.models.find((m) => m.key === profileModelKey)?.model_key ?? profileModelKey;
 }
 
 function formatEnvVars(env: Record<string, string>): string {

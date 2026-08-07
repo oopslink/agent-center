@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -45,15 +47,19 @@ func (s *WorkerEnrollService) ReportCapabilities(ctx context.Context, cmd Report
 	if string(cmd.WorkerID) == "" {
 		return ReportCapabilitiesResult{}, errors.New("workforce: report capabilities worker_id required")
 	}
+	caps, err := normalizeReportedCapabilities(cmd.Capabilities, s.clock.Now())
+	if err != nil {
+		return ReportCapabilitiesResult{}, err
+	}
 	var resp ReportCapabilitiesResult
 	resp.WorkerID = cmd.WorkerID
-	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
 		w, err := s.repo.FindByID(txCtx, cmd.WorkerID)
 		if err != nil {
 			return err
 		}
-		if len(cmd.Capabilities) > 0 {
-			if err := s.repo.UpdateCapabilities(txCtx, w.ID(), cmd.Capabilities, w.Version()); err != nil {
+		if len(caps) > 0 {
+			if err := s.repo.UpdateCapabilities(txCtx, w.ID(), caps, w.Version()); err != nil {
 				return err
 			}
 		}
@@ -79,7 +85,7 @@ func (s *WorkerEnrollService) ReportCapabilities(ctx context.Context, cmd Report
 			Actor:     cmd.ActorIdentity,
 			Payload: map[string]any{
 				"worker_id":    string(w.ID()),
-				"capabilities": cmd.Capabilities,
+				"capabilities": caps,
 			},
 		})
 		if err != nil {
@@ -98,4 +104,55 @@ func (s *WorkerEnrollService) ReportCapabilities(ctx context.Context, cmd Report
 		return ReportCapabilitiesResult{}, err
 	}
 	return resp, nil
+}
+
+func normalizeReportedCapabilities(in []workforce.Capability, now time.Time) ([]workforce.Capability, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	now = now.UTC()
+	out := make([]workforce.Capability, 0, len(in))
+	seen := map[string]struct{}{}
+	for _, c := range in {
+		c.AgentCLI = strings.TrimSpace(c.AgentCLI)
+		if c.AgentCLI == "" {
+			continue
+		}
+		if _, dup := seen[c.AgentCLI]; dup {
+			continue
+		}
+		seen[c.AgentCLI] = struct{}{}
+		if strings.TrimSpace(c.Version) != "" {
+			norm, err := workforce.NormalizeCapabilityVersion(c.Version)
+			if err != nil {
+				return nil, err
+			}
+			c.Version = norm
+		}
+		c.Features = workforce.NormalizeCapabilityFeatures(c.Features)
+		reportedHealthWindow := !c.ScannedAt.IsZero() || !c.ExpiresAt.IsZero()
+		if c.ScannedAt.IsZero() {
+			c.ScannedAt = now
+		} else {
+			c.ScannedAt = c.ScannedAt.UTC()
+		}
+		if c.ExpiresAt.IsZero() {
+			c.ExpiresAt = c.ScannedAt.Add(workforce.DefaultCapabilityTTL)
+		} else {
+			c.ExpiresAt = c.ExpiresAt.UTC()
+		}
+		if c.Detected {
+			if !reportedHealthWindow && !c.Healthy {
+				c.Healthy = true
+			}
+			if !c.Enabled {
+				c.Enabled = true
+			}
+		} else {
+			c.Enabled = false
+			c.Healthy = false
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }

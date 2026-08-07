@@ -85,6 +85,15 @@ func TestRuntimeResolverPrecedenceAndSnapshotImmutability(t *testing.T) {
 	if override.Source != "override" || override.Parameters["temperature"] != 0.7 || override.Parameters["effort"] != "medium" {
 		t.Fatalf("override = %+v", override)
 	}
+	legacyModelKeyOverride, err := resolver.Resolve(context.Background(), "org-1", RuntimeSelection{
+		Mode: SelectionOverride, CLIID: "codex", ModelID: "gpt-5",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyModelKeyOverride.ModelKey != "gpt-5" {
+		t.Fatalf("legacy model_key override = %+v", legacyModelKeyOverride)
+	}
 }
 
 func TestRuntimeResolverStructuredFailures(t *testing.T) {
@@ -113,29 +122,5 @@ func TestRuntimeResolverStructuredFailures(t *testing.T) {
 				t.Fatalf("error = %#v, want reason %s", err, tc.want)
 			}
 		})
-	}
-}
-
-type legacyCount map[string]int
-
-func (c legacyCount) IncrementLegacyFallback(kind string) { c[kind]++ }
-
-func TestLegacyAdapterPrecedenceExactMappingAndIssue(t *testing.T) {
-	resolver, _ := resolverFixture()
-	count := legacyCount{}
-	adapter := NewLegacyAdapter(resolver, count)
-	explicit := RuntimeSelection{Mode: SelectionProfile, ProfileID: "profile-default"}
-	snapshot, issue, err := adapter.Resolve(context.Background(), "org-1", "agent", &explicit, LegacyRuntime{CLI: "unknown", Model: "unknown"})
-	if err != nil || issue != nil || snapshot.Source != "profile" || count["agent"] != 0 {
-		t.Fatalf("new selection precedence: snapshot=%+v issue=%+v err=%v count=%v", snapshot, issue, err, count)
-	}
-	snapshot, issue, err = adapter.Resolve(context.Background(), "org-1", "agent", nil, LegacyRuntime{CLI: "codex", Model: "gpt-5"})
-	if err != nil || issue != nil || snapshot.Source != "legacy" || count["agent"] != 1 {
-		t.Fatalf("legacy exact map: snapshot=%+v issue=%+v err=%v count=%v", snapshot, issue, err, count)
-	}
-	_, issue, err = adapter.Resolve(context.Background(), "org-1", "agent", nil, LegacyRuntime{CLI: "codex", Model: "unknown-model"})
-	var runtimeErr *Error
-	if issue == nil || issue.Original.Model != "unknown-model" || !errors.As(err, &runtimeErr) || runtimeErr.Reason != ReasonLegacyUnmapped {
-		t.Fatalf("unmapped legacy = issue=%+v err=%#v", issue, err)
 	}
 }

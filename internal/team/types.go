@@ -14,6 +14,8 @@ package team
 import (
 	"strings"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/airuntime"
 )
 
 // TeamID is the user-facing team identifier ("team-<8hex>", idgen §187 shape).
@@ -99,6 +101,9 @@ type RoleConfig struct {
 	CapabilityTags []string
 	// MaxConcurrency caps how many members of this role may run at once.
 	MaxConcurrency int
+	// RuntimeSelection is the AI Runtime Catalog selection for new executions
+	// using this role. Nil means the legacy CLI/Model mirror is authoritative.
+	RuntimeSelection *airuntime.RuntimeSelection
 }
 
 // TeamMember is a membership record binding a MemberRef to a team under a role.

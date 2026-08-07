@@ -5,13 +5,18 @@
 // (useFleet().workers); name + worker_id are required; description/model/cli
 // optional. (Declared skills removed in issue-4a45e9cc — skills are now OBSERVED
 // per-agent.) The created agent's business id = response identity_id.
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
-import { DEFAULT_AGENT_MODEL, KNOWN_MODELS } from '@/config/agent-defaults';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  compatibleRuntimeModels,
+  enabledRuntimeCLIs,
+  firstCompatibleRuntimeModelKey,
+} from './runtimeOptions';
 
 interface Props {
   onClose: () => void;
@@ -21,24 +26,35 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const { t } = useTranslation('members');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  // v2.7.1 #232: prefill the explicit default model (not a placeholder) so an
-  // untouched form still submits a concrete value — store = Profile = runtime
-  // stay consistent instead of persisting an empty model.
-  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
-  // option select (no free text) so the form can't create an agent bound to a
-  // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
-  const [cli, setCli] = useState('claude-code');
+  const [model, setModel] = useState('');
+  const [cli, setCli] = useState('');
   const [workerId, setWorkerId] = useState('');
   // T728 (issue-0619f315): inject the description into the agent's system prompt.
   // Default ON — matches the backend default (nil → true).
   const [includeDescription, setIncludeDescription] = useState(true);
   const create = useAddAgentMember();
   const fleet = useFleet();
+  const runtimeCatalog = useAIRuntimeCatalog();
   const workers = fleet.data?.workers ?? [];
+  const runtime = runtimeCatalog.data;
+  const cliOptions = useMemo(() => enabledRuntimeCLIs(runtime), [runtime]);
+  const modelOptions = useMemo(() => compatibleRuntimeModels(runtime, cli), [runtime, cli]);
+
+  useEffect(() => {
+    if (!cli && cliOptions.length > 0) {
+      setCli(cliOptions[0].key);
+    }
+  }, [cli, cliOptions]);
+
+  useEffect(() => {
+    if (!cli) return;
+    if (modelOptions.length > 0 && !modelOptions.some((m) => m.model_key === model)) {
+      setModel(modelOptions[0].model_key);
+    }
+  }, [cli, model, modelOptions]);
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && !create.isPending;
+  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && cli.length > 0 && model.length > 0 && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,21 +139,20 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         </div>
 
         <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
-          {/* Editable dropdown: preset models as <datalist> suggestions while
-              the field stays free text (backend accepts any model string). */}
-          <input
+          <select
             id="agent-create-model-input"
             data-testid="agent-create-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            list="agent-create-model-list"
             className={inputClass}
-          />
-          <datalist id="agent-create-model-list" data-testid="agent-create-model-list">
-            {KNOWN_MODELS.map((m) => (
-              <option key={m} value={m} />
+          >
+            {modelOptions.length === 0 && <option value="">Unavailable</option>}
+            {modelOptions.map((m) => (
+              <option key={m.key} value={m.model_key}>
+                {m.display_name}
+              </option>
             ))}
-          </datalist>
+          </select>
         </Field>
 
         <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
@@ -145,10 +160,19 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             id="agent-create-cli-input"
             data-testid="agent-create-cli"
             value={cli}
-            onChange={(e) => setCli(e.target.value)}
+            onChange={(e) => {
+              const nextCLI = e.target.value;
+              setCli(nextCLI);
+              setModel(firstCompatibleRuntimeModelKey(runtime, nextCLI));
+            }}
             className={inputClass}
           >
-            <option value="claude-code">claude-code</option>
+            {cliOptions.length === 0 && <option value="">Unavailable</option>}
+            {cliOptions.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.display_name}
+              </option>
+            ))}
           </select>
         </Field>
 

@@ -278,30 +278,39 @@ func (r *WorkerRepo) UpdateCapabilities(ctx context.Context, id workforce.Worker
 	if w.Version() != version {
 		return workforce.ErrWorkerVersionConflict
 	}
-	enabledByCLI := map[string]bool{}
+	prevByCLI := map[string]workforce.Capability{}
 	for _, c := range w.CapabilityList() {
-		enabledByCLI[c.AgentCLI] = c.Enabled
+		prevByCLI[strings.TrimSpace(c.AgentCLI)] = c
 	}
 	merged := make([]workforce.Capability, 0, len(detected))
 	seen := map[string]struct{}{}
 	for _, c := range detected {
-		if _, dup := seen[c.AgentCLI]; dup {
+		key := strings.TrimSpace(c.AgentCLI)
+		if key == "" {
 			continue
 		}
-		seen[c.AgentCLI] = struct{}{}
-		enabled := c.Detected
-		if prev, ok := enabledByCLI[c.AgentCLI]; ok {
-			enabled = prev
+		if _, dup := seen[key]; dup {
+			continue
 		}
-		merged = append(merged, workforce.Capability{
-			AgentCLI:        c.AgentCLI,
-			Detected:        c.Detected,
-			Enabled:         enabled,
-			Version:         c.Version,
-			SupportsMCP:     c.SupportsMCP,
-			SupportsSkills:  c.SupportsSkills,
-			SupportsSession: c.SupportsSession,
-		})
+		seen[key] = struct{}{}
+		c.AgentCLI = key
+		c.Features = workforce.NormalizeCapabilityFeatures(c.Features)
+		if norm, err := workforce.NormalizeCapabilityVersion(c.Version); err == nil {
+			c.Version = norm
+		}
+		if prev, ok := prevByCLI[key]; ok {
+			if !c.ScannedAt.IsZero() && !prev.ScannedAt.IsZero() && c.ScannedAt.Before(prev.ScannedAt) {
+				merged = append(merged, prev)
+				continue
+			}
+			c.Enabled = prev.Enabled
+		} else if c.Detected && !c.Enabled {
+			c.Enabled = true
+		}
+		if !c.Detected {
+			c.Enabled = false
+		}
+		merged = append(merged, c)
 	}
 	b, err := json.Marshal(merged)
 	if err != nil {

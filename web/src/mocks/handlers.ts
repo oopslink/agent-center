@@ -345,9 +345,136 @@ function agentHandlers() {
   ];
 }
 
+function runtimeCatalogFixture() {
+  return {
+    org_id: 'O-1',
+    revision: 3,
+    default_runtime_profile_id: 'rp-default',
+    clis: [
+      {
+        id: 'cli-claude',
+        key: 'claude-code',
+        display_name: 'Claude Code',
+        executable: 'claude',
+        required_features: [],
+        parameter_schema: { type: 'object', additionalProperties: true },
+        enabled: true,
+      },
+      {
+        id: 'cli-codex',
+        key: 'codex',
+        display_name: 'Codex',
+        executable: 'codex',
+        required_features: [],
+        parameter_schema: { type: 'object', additionalProperties: true },
+        enabled: true,
+      },
+    ],
+    models: [
+      {
+        id: 'model-opus',
+        key: 'opus-runtime',
+        model_key: 'opus-4-8',
+        display_name: 'Opus 4.8',
+        compatible_cli_keys: ['claude-code'],
+        default_parameters: {},
+        enabled: true,
+      },
+      {
+        id: 'model-gpt',
+        key: 'gpt-runtime',
+        model_key: 'gpt-5.5',
+        display_name: 'GPT-5.5',
+        compatible_cli_keys: ['codex'],
+        default_parameters: {},
+        enabled: true,
+      },
+    ],
+    profiles: [
+      {
+        id: 'rp-default',
+        key: 'default-coding',
+        name: 'Default coding',
+        cli_key: 'claude-code',
+        model_key: 'opus-runtime',
+        parameters: {},
+        enabled: true,
+      },
+      {
+        id: 'rp-codex',
+        key: 'codex-review',
+        name: 'Codex review',
+        cli_key: 'codex',
+        model_key: 'gpt-runtime',
+        parameters: {},
+        enabled: true,
+      },
+    ],
+  };
+}
+
+function runtimeImpactFixture(profileID: string, action: string) {
+  return {
+    entity_type: 'profile',
+    entity_id: profileID,
+    action,
+    reference_counts: {
+      profile_id: profileID,
+      default_profile: profileID === 'rp-default' ? 1 : 0,
+      agent_profile_selections: 0,
+      executor_profile_selections: 1,
+      team_role_profile_selections: 1,
+      team_role_inherit_selections: profileID === 'rp-default' ? 2 : 0,
+      historical_execution_snapshot: 0,
+    },
+    affected_new_runs: profileID === 'rp-default' ? 4 : 2,
+    historical_note: 'historical runtime snapshots are immutable and are not rewritten',
+    gray_release_ready: false,
+  };
+}
+
 const baseHandlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
+
+  // AI Runtime
+  http.get('/api/ai-runtime', () => ok(runtimeCatalogFixture())),
+  http.get('/api/ai-runtime/coverage', () =>
+    ok({
+      coverage_kind: 'basic_capability_coverage',
+      schedulability_kind: 'effective_schedulability_not_inferred',
+      coverage: [
+        {
+          profile_id: 'rp-default',
+          online_worker_count: 1,
+          eligible_worker_count: 1,
+          status: 'covered',
+          reasons: [],
+          calculated_at: '2026-08-06T00:00:00Z',
+        },
+      ],
+      diagnostics: [],
+    }),
+  ),
+  http.post('/api/ai-runtime/profiles', async ({ request }) => {
+    const body = (await request.json()) as { value?: Record<string, unknown> };
+    const entry = { id: 'rp-new', ...(body.value ?? {}) };
+    return ok({ revision: 4, entry, impact_preview: runtimeImpactFixture('rp-new', 'created') }, 201);
+  }),
+  http.patch('/api/ai-runtime/profiles/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { value?: Record<string, unknown> };
+    const entry = { id: String(params.id), ...(body.value ?? {}) };
+    return ok({ revision: 4, entry, impact_preview: runtimeImpactFixture(String(params.id), 'updated') });
+  }),
+  http.put('/api/ai-runtime/default-profile', async ({ request }) => {
+    const body = (await request.json()) as { profile_id?: string };
+    const profileID = body.profile_id ?? 'rp-default';
+    return ok({
+      revision: 4,
+      default_runtime_profile_id: profileID,
+      impact_preview: runtimeImpactFixture(profileID, 'default_profile_changed'),
+    });
+  }),
 
   // Conversations
   http.get('/api/conversations', ({ request }) => {

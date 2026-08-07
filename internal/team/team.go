@@ -3,6 +3,8 @@ package team
 import (
 	"strings"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/airuntime"
 )
 
 // maxTeamNameLen bounds a team name (mirrors the org-name / template-name caps).
@@ -87,14 +89,23 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 			mc = 1 // default one concurrent slot per role
 		}
 		out = append(out, RoleConfig{
-			Role:           role,
-			CLI:            rc.CLI,
-			Model:          rc.Model,
-			CapabilityTags: append([]string(nil), rc.CapabilityTags...),
-			MaxConcurrency: mc,
+			Role:             role,
+			CLI:              rc.CLI,
+			Model:            rc.Model,
+			CapabilityTags:   append([]string(nil), rc.CapabilityTags...),
+			MaxConcurrency:   mc,
+			RuntimeSelection: cloneRuntimeSelection(rc.RuntimeSelection),
 		})
 	}
 	return out, nil
+}
+
+func cloneRuntimeSelection(selection *airuntime.RuntimeSelection) *airuntime.RuntimeSelection {
+	if selection == nil {
+		return nil
+	}
+	cloned := airuntime.NormalizeSelection(*selection)
+	return &cloned
 }
 
 // Rename updates the team name (validated) and bumps updatedAt.

@@ -42,7 +42,9 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &runtimeErr):
 		status := http.StatusBadRequest
-		if runtimeErr.Reason == airuntime.ReasonRevisionConflict || runtimeErr.Reason == airuntime.ReasonImportConflict {
+		if runtimeErr.Reason == airuntime.ReasonRevisionConflict ||
+			runtimeErr.Reason == airuntime.ReasonImportConflict ||
+			runtimeErr.Reason == airuntime.ReasonMigrationPlanChanged {
 			status = http.StatusConflict
 		}
 		writeJSON(w, status, runtimeErr)
@@ -137,6 +139,37 @@ func (s *Server) applyRuntimeCatalogImportHandler(w http.ResponseWriter, r *http
 	report, err := d.RuntimeCatalog.ApplyImport(r.Context(), org, "user:"+id.ID(), req)
 	if err != nil {
 		writeRuntimeImportError(w, report, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) dryRunRuntimeMigrationHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	report, err := d.RuntimeCatalog.LegacyMigrationDryRun(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) applyRuntimeMigrationHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ApplyMigrationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.ApplyLegacyMigration(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, report)
@@ -250,6 +283,24 @@ func (s *Server) getRuntimeCatalogHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, catalog)
+}
+
+func (s *Server) getRuntimeCoverageHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, false)
+	if !ok {
+		return
+	}
+	coverage, diagnostics, err := d.RuntimeCatalog.Coverage(r.Context(), org)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"coverage_kind":       "basic_capability_coverage",
+		"schedulability_kind": "effective_schedulability_not_inferred",
+		"coverage":            coverage,
+		"diagnostics":         diagnostics,
+	})
 }
 
 func (s *Server) listRuntimeCLIsHandler(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +425,12 @@ func (s *Server) createRuntimeProfileHandler(w http.ResponseWriter, r *http.Requ
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"revision": rev, "entry": entry})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", entry.ID, "created")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"revision": rev, "entry": entry, "impact_preview": impact})
 }
 func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
@@ -392,7 +448,12 @@ func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Requ
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", entry.ID, "updated")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry, "impact_preview": impact})
 }
 func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
@@ -412,5 +473,10 @@ func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.
 		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID})
+	impact, err := d.RuntimeCatalog.ImpactPreview(r.Context(), org, "profile", req.ProfileID, "default_profile_changed")
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID, "impact_preview": impact})
 }
