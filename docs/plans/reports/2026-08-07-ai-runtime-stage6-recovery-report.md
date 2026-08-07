@@ -37,6 +37,31 @@ deployment fingerprint. Those values must come from release-owned artifacts;
 the strengthened gate rejects their absence instead of inferring them from
 tests.
 
+## Isolated topology run
+
+A source-built release binary was provisioned through the real
+`install test-instance --with-agent --workers 1` path as instance
+`stage6-accept`. Provisioning returned a healthy independent center topology,
+one org-enrolled worker, a seeded org/project/channel, a real agent, and a
+dispatched task. The tested binary SHA-256 was
+`bde6842b0456101b8a4149a8f77cd10d36491497b3ac3e6a2820a625b02a171b`.
+
+The following focused integration tests then passed against the same source
+tree:
+
+- persisted task-execution lifecycle and participant history reads;
+- reassign, cancel-on-reassign, fresh resume, and stale-resume retry;
+- MCP secret-ref injection and executor environment secret stripping;
+- Web Secret create/list/public-map behavior and cleanup-preflight fail-closed.
+
+The session access policy permits agent-center state reads only through the
+provided MCP tools. It does not expose an MCP connection targeting the isolated
+instance, so no SQLite, admin socket, process arguments, or ad-hoc HTTP state
+inspection was used. Consequently the topology provisioning and binary digest
+are recorded, while runtime acceptance booleans remain false until a sanctioned
+instance MCP channel can read them. This is an evidence boundary, not a reason
+to treat the gate as passed.
+
 ## Release completion procedure
 
 1. Submit the metric, migration, consumer-audit, replacement-probe, isolated
