@@ -77,6 +77,7 @@ describe('App shell + route tree', () => {
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
       [`${ORG_BASE}/fleet`, 'page-Environment'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
+      [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
@@ -286,6 +287,26 @@ describe('App shell + route tree', () => {
     await renderAt(`${ORG_BASE}/organization-settings/agents`);
     await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
+  });
+
+  it('reaches AI Runtime from a normal page via Organization Settings col② nav', async () => {
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('org-switcher'));
+    fireEvent.click(await screen.findByTestId('org-settings-gear'));
+    await waitFor(() => expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/profile`));
+    const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+    const aiRuntime = within(nav).getByTestId('org-settings-nav-ai-runtime');
+    expect(aiRuntime).toHaveAttribute('href', `${ORG_BASE}/organization-settings/ai-runtime`);
+    fireEvent.click(aiRuntime);
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
+  });
+
+  it('keeps direct /ai-runtime access working by redirecting into the first organization', async () => {
+    await renderAt('/ai-runtime');
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
   });
 
   // v2.10.0 [T1]: ⌘1..4 jump to the four modules' default pages (org-scoped).

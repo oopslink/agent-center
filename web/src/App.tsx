@@ -73,6 +73,7 @@ export function App(): React.ReactElement {
 
         {/* Legacy root redirect → first org home (v2.6-FE-6) */}
         <Route index element={<OrgRedirect />} />
+        <Route path="/ai-runtime" element={<OrgRedirect to="organization-settings/ai-runtime" />} />
 
         {/* /organizations/:slug — all org-scoped routes */}
         <Route
@@ -130,6 +131,7 @@ export function App(): React.ReactElement {
               not a page-internal card-nav. The bare path redirects to Profile. */}
           <Route path="organization-settings" element={<Navigate to="profile" replace />} />
           <Route path="organization-settings/:section" element={<OrganizationSettings />} />
+          <Route path="ai-runtime" element={<Navigate to="../organization-settings/ai-runtime" replace />} />
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           {/* members-into-teams: the org Members → Humans list is merged into the

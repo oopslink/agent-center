@@ -171,7 +171,7 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
 // redirect. While loading or while a transient error is still being retried we
 // show the spinner (genuine unauth is handled at the fetch layer), so a starved
 // GET /api/orgs never bounces the user to /signup before the query settles.
-export function OrgRedirect(): React.ReactElement {
+export function OrgRedirect({ to = '' }: { to?: string } = {}): React.ReactElement {
   const orgs = useOrgs();
   if (!orgs.isSuccess) {
     return (
@@ -182,7 +182,8 @@ export function OrgRedirect(): React.ReactElement {
   }
   const firstOrg = orgs.data?.[0];
   if (firstOrg) {
-    return <Navigate to={`/organizations/${firstOrg.slug}`} replace />;
+    const suffix = to.trim().replace(/^\/+/, '');
+    return <Navigate to={`/organizations/${firstOrg.slug}${suffix ? `/${suffix}` : ''}`} replace />;
   }
   return <Navigate to="/signup" replace />;
 }

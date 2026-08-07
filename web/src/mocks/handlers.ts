@@ -345,6 +345,72 @@ function agentHandlers() {
   ];
 }
 
+function aiRuntimeCatalog() {
+  return {
+    org_id: 'org-test',
+    revision: 3,
+    default_runtime_profile_id: 'runtime-profile-default',
+    clis: [
+      {
+        id: 'runtime-cli-codex',
+        key: 'codex',
+        display_name: 'Codex CLI',
+        executable: 'codex',
+        version_constraint: '>=0.1.0',
+        required_features: ['workspace'],
+        parameter_schema: {},
+        enabled: true,
+        system: true,
+        created_at: '2026-07-01T00:00:00Z',
+        updated_at: '2026-07-01T00:00:00Z',
+      },
+    ],
+    models: [
+      {
+        id: 'runtime-model-gpt-5',
+        key: 'gpt-5',
+        model_key: 'gpt-5',
+        display_name: 'GPT-5',
+        compatible_cli_keys: ['codex'],
+        default_parameters: {},
+        enabled: true,
+        context_window: 400000,
+        input_cost_per_mtok: 1.25,
+        output_cost_per_mtok: 10,
+        tier: 'frontier',
+        created_at: '2026-07-01T00:00:00Z',
+        updated_at: '2026-07-01T00:00:00Z',
+      },
+    ],
+    profiles: [
+      {
+        id: 'runtime-profile-default',
+        key: 'default-coding',
+        name: 'Default coding',
+        description: 'Default coding runtime',
+        cli_key: 'codex',
+        model_key: 'gpt-5',
+        parameters: {},
+        enabled: true,
+        created_at: '2026-07-01T00:00:00Z',
+        updated_at: '2026-07-01T00:00:00Z',
+      },
+      {
+        id: 'runtime-profile-review',
+        key: 'review',
+        name: 'Review',
+        description: 'Code review runtime',
+        cli_key: 'codex',
+        model_key: 'gpt-5',
+        parameters: { reasoning: 'high' },
+        enabled: true,
+        created_at: '2026-07-01T00:00:00Z',
+        updated_at: '2026-07-01T00:00:00Z',
+      },
+    ],
+  };
+}
+
 const baseHandlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
@@ -607,6 +673,29 @@ const baseHandlers = [
   // contract (base /api/projects/:pid/plans). Plan DTO + Node DTO (§9.2 derived)
   // + create/list/get/add-task/remove-task + #287 deps/lifecycle stubs.
   ...planHandlers(),
+  http.get('/api/plans', () =>
+    ok({
+      items: [
+        {
+          id: 'PL-1',
+          project_id: 'proj-a',
+          project: { id: 'proj-a', name: 'Project Alpha' },
+          name: 'Onboarding flow',
+          description: '',
+          status: 'running',
+          org_ref: 'P1',
+          creator_ref: 'user:owner',
+          conversation_id: 'conv-plan-1',
+          has_failed: false,
+          progress: { done: 2, total: 5 },
+          node_count: 5,
+          created_at: '2026-06-01T01:00:00Z',
+          updated_at: '2026-06-04T02:00:00Z',
+        },
+      ],
+      total: 1,
+    }),
+  ),
 
   // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
   // sub-routes + work-items / activity.
@@ -735,7 +824,7 @@ const baseHandlers = [
 
   // Orgs
   http.get('/api/orgs', () =>
-    ok([{ id: 'org-test', slug: 'test', name: 'Test Org', created_at: '2026-01-01T00:00:00Z' }]),
+    ok([{ id: 'org-test', slug: 'test', name: 'Test Org', role: 'owner', created_at: '2026-01-01T00:00:00Z' }]),
   ),
   http.post('/api/orgs', async ({ request }) => {
     const body = (await request.json()) as { name?: string; slug?: string };
@@ -801,6 +890,19 @@ const baseHandlers = [
   // shell (which always mounts the Alerts rail) doesn't trip
   // onUnhandledRequest:'error'; tests that exercise the panel override this.
   http.get('/api/attention', () => ok({ items: [] })),
+
+  // AI Runtime catalog — org-level runtime settings. Readable by organization
+  // members; write paths are owner/admin-only in the real backend. The mock keeps
+  // the same response envelope so routing/page tests can render the delivered UI.
+  http.get('/api/ai-runtime', () => ok(aiRuntimeCatalog())),
+  http.get('/api/ai-runtime/export', () => new HttpResponse('kind: agent-center-ai-runtime\n', {
+    status: 200,
+    headers: { 'Content-Type': 'application/yaml; charset=utf-8' },
+  })),
+  http.put('/api/ai-runtime/default-profile', async ({ request }) => {
+    const body = (await request.json()) as { profile_id?: string };
+    return ok({ revision: 4, default_runtime_profile_id: body.profile_id ?? 'runtime-profile-default' });
+  }),
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),

@@ -83,6 +83,7 @@
     "aria": "系统分区"
   },
   "orgSettings": {
+    "navTitle": "组织设置",
     "profile": {
       "title": "组织资料",
       "nameLabel": "组织名称",
@@ -370,6 +371,65 @@
     "success": {
       "before": "密钥 ",
       "after": " 已创建。"
+    }
+  },
+  "aiRuntime": {
+    "title": "AI Runtime",
+    "subtitle": "组织级 Runtime Profile、模型定义、CLI 定义，以及智能体继承的默认运行时选择。",
+    "actions": {
+      "exportYaml": "导出 YAML"
+    },
+    "permissions": {
+      "unknownRole": "成员",
+      "manage": "组织成员均可看到此页。你的 {{role}} 角色可以管理运行时默认值和目录条目。",
+      "readOnly": "组织成员均可看到此页。你的 {{role}} 角色为只读；owner 和 admin 可管理运行时默认值和目录条目。"
+    },
+    "summary": {
+      "revision": "修订"
+    },
+    "tabs": {
+      "aria": "AI Runtime 目录分区",
+      "profiles": "Profiles",
+      "models": "Models",
+      "clis": "CLIs"
+    },
+    "defaultProfile": "组织默认：{{name}}",
+    "empty": {
+      "profiles": "暂无 Runtime Profile",
+      "profilesBody": "目录管理启用后，owner 和 admin 可以导入或创建 Profile。",
+      "models": "暂无 Runtime Model",
+      "modelsBody": "Runtime Model 定义各 CLI 可运行的模型 key。",
+      "clis": "暂无 Runtime CLI",
+      "clisBody": "Runtime CLI 定义 Worker 必须提供的可执行程序。"
+    },
+    "profile": {
+      "name": "Profile",
+      "cli": "CLI",
+      "model": "Model",
+      "parameters": "参数",
+      "status": "状态",
+      "actions": "操作",
+      "default": "默认",
+      "setDefault": "设为默认"
+    },
+    "model": {
+      "name": "Model",
+      "modelKey": "模型 key",
+      "compatibleCli": "兼容 CLI",
+      "context": "上下文",
+      "cost": "输入 / 输出 $/MTok",
+      "status": "状态"
+    },
+    "cli": {
+      "name": "CLI",
+      "executable": "可执行程序",
+      "version": "版本",
+      "features": "特性",
+      "status": "状态"
+    },
+    "status": {
+      "enabled": "启用",
+      "disabled": "停用"
     }
   },
   "wakeGuardrail": {

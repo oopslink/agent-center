@@ -236,6 +236,7 @@
     },
     "orgSettings": {
       "profile": "Profile",
+      "aiRuntime": "AI Runtime",
       "humans": "Humans",
       "agents": "Agents",
       "invitations": "Invitations",

@@ -236,6 +236,7 @@
     },
     "orgSettings": {
       "profile": "资料",
+      "aiRuntime": "AI Runtime",
       "humans": "成员",
       "agents": "智能体",
       "invitations": "邀请",
