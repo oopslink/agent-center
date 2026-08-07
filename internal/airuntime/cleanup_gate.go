@@ -14,20 +14,36 @@ const ReasonCleanupGateBlocked Reason = "runtime_cleanup_gate_blocked"
 // CleanupEvidence is the release-owned proof required before irreversible
 // legacy cleanup. Missing evidence is deliberately treated as a failed gate.
 type CleanupEvidence struct {
-	BaselineSHA      string                  `json:"baseline_sha"`
-	WindowStartedAt  time.Time               `json:"window_started_at"`
-	WindowEndedAt    time.Time               `json:"window_ended_at"`
-	FallbackSamples  []LegacyFallbackSample  `json:"fallback_samples"`
-	Migration        MigrationReport         `json:"migration_report"`
-	Acceptance       CleanupAcceptance       `json:"isolated_acceptance"`
-	Rollback         CleanupRollbackEvidence `json:"rollback"`
-	OwnerConfirmedAt time.Time               `json:"owner_confirmed_at"`
+	BaselineSHA           string                  `json:"baseline_sha"`
+	WindowStartedAt       time.Time               `json:"window_started_at"`
+	WindowEndedAt         time.Time               `json:"window_ended_at"`
+	FallbackSamples       []LegacyFallbackSample  `json:"fallback_samples"`
+	Migration             MigrationReport         `json:"migration_report"`
+	MigrationReportSHA256 string                  `json:"migration_report_sha256"`
+	ConsumerAudit         CleanupConsumerAudit    `json:"consumer_audit"`
+	Acceptance            CleanupAcceptance       `json:"isolated_acceptance"`
+	Rollback              CleanupRollbackEvidence `json:"rollback"`
+	OwnerConfirmedAt      time.Time               `json:"owner_confirmed_at"`
 }
 
 type LegacyFallbackSample struct {
 	ObjectType string    `json:"object_type"`
 	ObservedAt time.Time `json:"observed_at"`
 	Count      uint64    `json:"count"`
+	Source     string    `json:"source"`
+}
+
+// CleanupConsumerAudit proves that the retired surfaces have no production
+// callers and that the replacement surface was probed in the same environment.
+// ReportSHA256 binds the decision to the release-owned audit artifact.
+type CleanupConsumerAudit struct {
+	Environment         string    `json:"environment"`
+	ObservedAt          time.Time `json:"observed_at"`
+	InventorySource     string    `json:"inventory_source"`
+	LegacyConsumerCount uint64    `json:"legacy_consumer_count"`
+	NewPathProbe        string    `json:"new_path_probe"`
+	NewPathReachable    bool      `json:"new_path_reachable"`
+	ReportSHA256        string    `json:"report_sha256"`
 }
 
 type CleanupAcceptance struct {
@@ -72,7 +88,7 @@ func ValidateCleanupGate(e CleanupEvidence, minimumWindow time.Duration) Cleanup
 	}
 	seenTypes := map[string]bool{}
 	for _, sample := range e.FallbackSamples {
-		if strings.TrimSpace(sample.ObjectType) == "" || sample.ObservedAt.Before(e.WindowStartedAt) || sample.ObservedAt.After(e.WindowEndedAt) {
+		if strings.TrimSpace(sample.ObjectType) == "" || strings.TrimSpace(sample.Source) == "" || sample.ObservedAt.Before(e.WindowStartedAt) || sample.ObservedAt.After(e.WindowEndedAt) {
 			result.Blockers = append(result.Blockers, "fallback sample is outside the declared window or has no object_type")
 		}
 		if sample.Count != 0 {
@@ -88,6 +104,15 @@ func ValidateCleanupGate(e CleanupEvidence, minimumWindow time.Duration) Cleanup
 	}
 	if strings.TrimSpace(e.Migration.PlanSHA256) == "" {
 		result.Blockers = append(result.Blockers, "migration report digest is required")
+	}
+	if strings.TrimSpace(e.MigrationReportSHA256) == "" {
+		result.Blockers = append(result.Blockers, "migration report artifact digest is required")
+	}
+	c := e.ConsumerAudit
+	if strings.TrimSpace(c.Environment) == "" || c.ObservedAt.IsZero() ||
+		strings.TrimSpace(c.InventorySource) == "" || c.LegacyConsumerCount != 0 ||
+		strings.TrimSpace(c.NewPathProbe) == "" || !c.NewPathReachable || strings.TrimSpace(c.ReportSHA256) == "" {
+		result.Blockers = append(result.Blockers, "legacy consumer audit or replacement path probe is incomplete")
 	}
 	a := e.Acceptance
 	if strings.TrimSpace(a.DeploymentID) == "" || strings.TrimSpace(a.ProcessFingerprint) == "" ||

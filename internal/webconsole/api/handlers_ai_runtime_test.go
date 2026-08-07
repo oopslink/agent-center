@@ -89,8 +89,10 @@ func TestAIRuntimeCleanupPreflightFailsClosedAndAllowsCompleteEvidence(t *testin
 		"baseline_sha":"36676f14",
 		"window_started_at":"2026-08-01T00:00:00Z",
 		"window_ended_at":"2026-08-08T00:00:00Z",
-		"fallback_samples":[{"object_type":"agent","observed_at":"2026-08-01T00:00:00Z","count":0}],
+		"fallback_samples":[{"object_type":"agent","observed_at":"2026-08-01T00:00:00Z","count":0,"source":"prometheus://release/agent"}],
 		"migration_report":{"plan_sha256":"migration-sha","unmapped":[],"summary":{}},
+		"migration_report_sha256":"migration-artifact-sha",
+		"consumer_audit":{"environment":"production","observed_at":"2026-08-08T00:00:00Z","inventory_source":"gateway-and-tool-audit","legacy_consumer_count":0,"new_path_probe":"GET /api/orgs/acme/ai-runtime/catalog","new_path_reachable":true,"report_sha256":"consumer-report-sha"},
 		"isolated_acceptance":{"deployment_id":"isolated-stage6","process_fingerprint":"binary/config","retry":true,"resume":true,"reassign":true,"cancel":true,"historical_execution_readable":true,"snapshot_stable":true,"secret_plaintext_free":true},
 		"rollback":{"artifact_sha":"rollback-sha","tested_at":"2026-08-08T01:00:00Z","succeeded":true},
 		"owner_confirmed_at":"2026-08-08T02:00:00Z"

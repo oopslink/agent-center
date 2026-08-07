@@ -10,11 +10,31 @@ func validCleanupEvidence() CleanupEvidence {
 	end := start.Add(7 * 24 * time.Hour)
 	return CleanupEvidence{
 		BaselineSHA: "36676f14", WindowStartedAt: start, WindowEndedAt: end,
-		FallbackSamples:  []LegacyFallbackSample{{ObjectType: "agent", ObservedAt: start, Count: 0}, {ObjectType: "task", ObservedAt: end, Count: 0}},
-		Migration:        MigrationReport{PlanSHA256: "migration-sha", Unmapped: []MigrationUnmapped{}, Summary: MigrationSummary{}},
-		Acceptance:       CleanupAcceptance{DeploymentID: "isolated-stage6", ProcessFingerprint: "binary-sha/config-sha", Retry: true, Resume: true, Reassign: true, Cancel: true, HistoricalReadable: true, SnapshotStable: true, SecretPlaintextFree: true},
-		Rollback:         CleanupRollbackEvidence{ArtifactSHA: "rollback-sha", TestedAt: end.Add(time.Hour), Succeeded: true},
-		OwnerConfirmedAt: end.Add(2 * time.Hour),
+		FallbackSamples:       []LegacyFallbackSample{{ObjectType: "agent", ObservedAt: start, Count: 0, Source: "prometheus://release/agent"}, {ObjectType: "task", ObservedAt: end, Count: 0, Source: "prometheus://release/task"}},
+		Migration:             MigrationReport{PlanSHA256: "migration-sha", Unmapped: []MigrationUnmapped{}, Summary: MigrationSummary{}},
+		MigrationReportSHA256: "migration-artifact-sha",
+		ConsumerAudit:         CleanupConsumerAudit{Environment: "production", ObservedAt: end, InventorySource: "gateway-and-tool-audit", NewPathProbe: "GET /api/orgs/acme/ai-runtime/catalog", NewPathReachable: true, ReportSHA256: "consumer-report-sha"},
+		Acceptance:            CleanupAcceptance{DeploymentID: "isolated-stage6", ProcessFingerprint: "binary-sha/config-sha", Retry: true, Resume: true, Reassign: true, Cancel: true, HistoricalReadable: true, SnapshotStable: true, SecretPlaintextFree: true},
+		Rollback:              CleanupRollbackEvidence{ArtifactSHA: "rollback-sha", TestedAt: end.Add(time.Hour), Succeeded: true},
+		OwnerConfirmedAt:      end.Add(2 * time.Hour),
+	}
+}
+
+func TestValidateCleanupGateRejectsMissingConsumerAudit(t *testing.T) {
+	e := validCleanupEvidence()
+	e.ConsumerAudit = CleanupConsumerAudit{}
+	got := ValidateCleanupGate(e, 7*24*time.Hour)
+	if got.Allowed {
+		t.Fatalf("consumer inventory and replacement probe are mandatory: %+v", got)
+	}
+}
+
+func TestValidateCleanupGateRejectsUnattributedFallbackSamples(t *testing.T) {
+	e := validCleanupEvidence()
+	e.FallbackSamples[0].Source = ""
+	got := ValidateCleanupGate(e, 7*24*time.Hour)
+	if got.Allowed {
+		t.Fatalf("fallback samples must identify their data source: %+v", got)
 	}
 }
 
