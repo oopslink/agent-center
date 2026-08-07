@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -211,6 +212,77 @@ func (r *Repository) ApplyLegacyMigration(ctx context.Context, m airuntime.Migra
 			}
 		}
 		return nil
+	})
+}
+
+func (r *Repository) RecordShadowComparisons(ctx context.Context, m airuntime.ShadowCompareMutation) error {
+	if len(m.Records) == 0 {
+		return nil
+	}
+	return persistence.RunInTx(ctx, r.db, func(txCtx context.Context) error {
+		exec, _ := persistence.ExecutorFromCtx(txCtx, r.db)
+		for _, x := range m.Records {
+			legacyJSON, _ := json.Marshal(x.Difference.Legacy)
+			newJSON, _ := json.Marshal(x.Difference.New)
+			detailsJSON, _ := json.Marshal(x.Difference.Details)
+			_, err := exec.ExecContext(txCtx, `
+				INSERT INTO ai_runtime_shadow_diffs(id,run_id,org_id,object_type,object_id,matched,diff_type,legacy_json,new_json,details_json,compared_at)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+				x.ID, x.RunID, m.OrgID, x.Difference.ObjectType, x.Difference.ObjectID,
+				boolInt(x.Difference.Matched), x.Difference.DiffType, string(legacyJSON), string(newJSON),
+				string(detailsJSON), stamp(x.ComparedAt))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) GetCutoverSettings(ctx context.Context, orgID string) (map[string]string, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	prefix := "ai_runtime." + orgID + "."
+	rows, err := exec.QueryContext(ctx, `SELECT key, value FROM center_settings WHERE key LIKE ? || '%'`, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ApplyCutover(ctx context.Context, m airuntime.CutoverMutation) error {
+	return persistence.RunInTx(ctx, r.db, func(txCtx context.Context) error {
+		exec, _ := persistence.ExecutorFromCtx(txCtx, r.db)
+		flags := append([]airuntime.CutoverFlagChange(nil), m.Flags...)
+		sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
+		for _, flag := range flags {
+			_, err := exec.ExecContext(txCtx, `
+				INSERT INTO center_settings(key,value,updated_at)
+				VALUES(?,?,?)
+				ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+				flag.Key, flag.After, stamp(m.OccurredAt))
+			if err != nil {
+				return err
+			}
+		}
+		flagsJSON, _ := json.Marshal(flags)
+		rollbackJSON, _ := json.Marshal(m.Rollback)
+		beforeJSON, _ := json.Marshal(m.Before)
+		afterJSON, _ := json.Marshal(m.After)
+		_, err := exec.ExecContext(txCtx, `
+			INSERT INTO ai_runtime_cutover_events(id,org_id,actor,stage,action,flags_json,rollback_json,before_json,after_json,occurred_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?)`,
+			m.ID, m.OrgID, m.Actor, m.Stage, m.Action, string(flagsJSON), string(rollbackJSON),
+			string(beforeJSON), string(afterJSON), stamp(m.OccurredAt))
+		return err
 	})
 }
 

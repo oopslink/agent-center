@@ -305,6 +305,25 @@ func executorProfileKey(e ExecutorProfile) string {
 	return key + "\x00" + string(raw)
 }
 
+// ExecutorsFromModels lifts a legacy model-only list into {cli, model} profiles
+// using the SAME backfill rule as migration 0085: each model pairs with `cli` (the
+// agent's own cli; empty → DefaultExecutorCLI). It is the back-compat path for an
+// API caller that still sends allowed_models instead of allowed_executors. The
+// result is NOT yet normalized — callers run it through NormalizeAllowedExecutors.
+func ExecutorsFromModels(models []string, cli string) []ExecutorProfile {
+	if len(models) == 0 {
+		return nil
+	}
+	if cli == "" {
+		cli = DefaultExecutorCLI
+	}
+	out := make([]ExecutorProfile, 0, len(models))
+	for _, m := range models {
+		out = append(out, ExecutorProfile{CLI: cli, Model: m})
+	}
+	return out
+}
+
 // ModelsOf returns the DISTINCT models of an executor list, first-seen order — the
 // derived mirror written into the legacy allowed_models column so model-only readers
 // (the F3 router, until BE-2) still see candidates.

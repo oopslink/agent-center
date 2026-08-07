@@ -12,8 +12,11 @@ type migrationRepo struct {
 	catalog    Catalog
 	objects    []MigrationObject
 	selections []ObjectSelection
+	settings   map[string]string
 
 	applied MigrationMutation
+	shadow  ShadowCompareMutation
+	cutover CutoverMutation
 }
 
 func (r *migrationRepo) GetCatalog(context.Context, string) (Catalog, error) { return r.catalog, nil }
@@ -60,8 +63,31 @@ func (r *migrationRepo) ApplyLegacyMigration(_ context.Context, m MigrationMutat
 	r.catalog.Revision = expected + 1
 	return expected + 1, nil
 }
+func (r *migrationRepo) RecordShadowComparisons(_ context.Context, m ShadowCompareMutation) error {
+	r.shadow = m
+	return nil
+}
+func (r *migrationRepo) GetCutoverSettings(context.Context, string) (map[string]string, error) {
+	out := map[string]string{}
+	for k, v := range r.settings {
+		out[k] = v
+	}
+	return out, nil
+}
+func (r *migrationRepo) ApplyCutover(_ context.Context, m CutoverMutation) error {
+	if r.settings == nil {
+		r.settings = map[string]string{}
+	}
+	for _, flag := range m.Flags {
+		r.settings[flag.Key] = flag.After
+	}
+	r.cutover = m
+	return nil
+}
+
 func migrationFixture() (*Service, *migrationRepo) {
 	repo := &migrationRepo{
+		settings: map[string]string{},
 		catalog: Catalog{
 			OrgID: "org", Revision: 7, DefaultProfileID: "prof-default",
 			CLIs: []CLIDefinition{{
@@ -202,5 +228,56 @@ func TestLegacyMigrationApplyDryRunApplyIsIdempotent(t *testing.T) {
 	if len(repo.catalog.Profiles) != beforeProfiles || len(repo.selections) != beforeSelections {
 		t.Fatalf("second apply mutated repository: profiles %d→%d selections %d→%d",
 			beforeProfiles, len(repo.catalog.Profiles), beforeSelections, len(repo.selections))
+	}
+}
+
+func TestShadowCompareRecordsEvidenceAndCutoverFlagsRollback(t *testing.T) {
+	svc, repo := migrationFixture()
+	repo.objects = repo.objects[:2]
+	repo.selections = []ObjectSelection{{
+		ObjectType: "agent", ObjectID: "agent-a",
+		Selection: RuntimeSelection{Mode: SelectionProfile, ProfileID: "default-coding"},
+	}}
+	shadow, err := svc.ShadowCompare(context.Background(), "org", ShadowCompareRequest{ObjectType: "agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shadow.Compared != 2 || shadow.Matched != 1 || shadow.DiffCount != 1 || len(repo.shadow.Records) != 2 {
+		t.Fatalf("shadow=%+v records=%d", shadow, len(repo.shadow.Records))
+	}
+	if repo.shadow.Records[0].Difference.Legacy.ParametersSHA256 == "" {
+		t.Fatalf("shadow evidence must store parameter digest, got %+v", repo.shadow.Records[0].Difference.Legacy)
+	}
+
+	cut, err := svc.ApplyCutover(context.Background(), "org", "user:admin", CutoverRequest{
+		Stage: CutoverStageAgentScope, Enabled: true, ObjectIDs: []string{"agent-a"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.settings["ai_runtime.org.agent_resolver"] != "allowlist" ||
+		repo.settings["ai_runtime.org.agent_resolver_allowlist"] != "agent-a" ||
+		len(cut.RollbackFlags) != 2 {
+		t.Fatalf("cutover=%+v settings=%+v", cut, repo.settings)
+	}
+	snapshot, path, err := svc.ResolveObject(context.Background(), "org", ResolveObjectRequest{
+		ObjectType: "agent", ObjectID: "agent-a", Legacy: LegacyRuntime{CLI: "codex", Model: "gpt-5"},
+	})
+	if err != nil || path != "new" || snapshot.Source != "profile" {
+		t.Fatalf("allowlisted resolve snapshot=%+v path=%s err=%v", snapshot, path, err)
+	}
+	_, path, err = svc.ResolveObject(context.Background(), "org", ResolveObjectRequest{
+		ObjectType: "agent", ObjectID: "agent-b", Legacy: LegacyRuntime{CLI: "codex", Model: "gpt-5"},
+	})
+	if err != nil || path != "legacy" {
+		t.Fatalf("non-allowlisted resolve path=%s err=%v", path, err)
+	}
+	_, err = svc.ApplyCutover(context.Background(), "org", "user:admin", CutoverRequest{Stage: CutoverStageRollback})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.settings["ai_runtime.org.agent_resolver"] != "legacy" ||
+		repo.settings["ai_runtime.org.org_default_resolver"] != "legacy" {
+		t.Fatalf("rollback settings=%+v", repo.settings)
 	}
 }

@@ -506,8 +506,7 @@ POST /api/orgs/{org_id}/ai-runtime/import/preview
 POST /api/orgs/{org_id}/ai-runtime/import/apply
 ```
 
-Stage 6 后 `/api/model-catalog` 和 `/api/model-catalog/import` 兼容适配器已移除；导入、导出和管理入口统一使用
-`/api/orgs/{org_id}/ai-runtime/*`。
+现有 `/api/model-catalog` 和 `/api/model-catalog/import` 在迁移期保留兼容适配器，内部转调新应用服务。
 
 ## 11. 一致性、并发与审计
 
@@ -602,7 +601,7 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 
 ## 15. 向后兼容策略
 
-迁移窗口曾采用“新字段优先、旧字段兜底”：
+迁移窗口采用“新字段优先、旧字段兜底”：
 
 ```text
 runtime_selection 存在 -> RuntimeResolver
@@ -610,8 +609,7 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 两者均不存在 -> Organization default
 ```
 
-Stage 6 清理后，生产写路径不再双写 legacy runtime 字段，`LegacyAdapter` fallback 已移除；`allowed_models` 只作为从
-`allowed_executors` 派生的只读兼容镜像保留。前端不得自行维护两套值。所有 legacy fallback 计数必须在发布窗口归零后才允许删除兼容代码。
+写路径在短迁移期可双写，但必须由单一应用服务完成；前端不得自行维护两套值。所有 legacy fallback 计数进入 observability，计数归零后才能删除兼容代码。
 
 ## 16. 测试与验收
 

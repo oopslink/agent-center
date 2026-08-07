@@ -100,6 +100,11 @@ var AgentFacingToolNames = []string{
 	"create_template",
 	"update_template",
 	"delete_template",
+	"list_model_catalog_entry",
+	"create_model_catalog_entry",
+	"update_model_catalog_entry",
+	"delete_model_catalog_entry",
+	"import_model_catalog",
 	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9): CRUD + membership +
 	// project association (S1), template authoring / instantiation / role→agent
 	// resolution (S3). Each proxies to /admin/agent-tools/<name>.

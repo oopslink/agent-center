@@ -531,6 +531,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/create_template", s.createTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/update_template", s.updateTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/delete_template", s.deleteTemplateHandler)
+	// model catalog (issue-93dd8daa ①): org-level user-managed model catalog CRUD + import.
+	s.mux.HandleFunc("POST /admin/agent-tools/list_model_catalog_entry", s.listModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/create_model_catalog_entry", s.createModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_model_catalog_entry", s.updateModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/delete_model_catalog_entry", s.deleteModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/import_model_catalog", s.importModelCatalogHandler)
 	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9): CRUD + membership +
 	// project association (S1 tool facade), plus template authoring / instantiation
 	// / role→agent resolution (S3). See agent_tools_team.go.

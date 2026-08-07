@@ -11,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/airuntime"
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"gopkg.in/yaml.v3"
 )
 
@@ -517,5 +518,80 @@ func TestAIRuntimePreviewWarnsOnUnknownJSONAndYAMLFields(t *testing.T) {
 				t.Fatalf("warning paths=%v want=%v", paths, want)
 			}
 		})
+	}
+}
+
+func TestLegacyModelCatalogImportUsesRuntimePreviewApplyAdapter(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.ModelCatalogRepo = pmsql.NewModelCatalogRepo(db)
+	nextID := 0
+	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
+		airuntimesql.NewRepository(db),
+		func() string {
+			nextID++
+			return fmt.Sprintf("legacy-adapter-%d", nextID)
+		},
+		[]byte("0123456789abcdef0123456789abcdef"),
+	)
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+	if _, _, err := deps.RuntimeCatalog.CreateModel(context.Background(), owner.OrgID, "user:"+owner.IdentityID, 0, airuntime.ModelDefinition{
+		Key: "unrelated-runtime", ModelKey: "unrelated-runtime", DisplayName: "Unrelated Runtime",
+		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedPost(t, server.URL+"/api/model-catalog/import", `{
+		"mode":"replace",
+		"entries":[{
+			"model_id":"gpt-legacy",
+			"display_name":"GPT Legacy",
+			"input_cost":1.25,
+			"output_cost":2.5,
+			"context_window":128000,
+			"tier":"standard"
+		}]
+	}`, owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("legacy import status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+
+	catalog, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imported *airuntime.ModelDefinition
+	for i := range catalog.Models {
+		if catalog.Models[i].Key == "gpt-legacy" {
+			imported = &catalog.Models[i]
+			break
+		}
+	}
+	if imported == nil || imported.ContextWindow != 128000 || imported.InputCost != 1.25 || imported.OutputCost != 2.5 {
+		t.Fatalf("legacy import did not mutate Runtime Catalog: %+v", catalog.Models)
+	}
+	for _, model := range catalog.Models {
+		if model.Key == "unrelated-runtime" && !model.Enabled {
+			t.Fatal("legacy replace disabled an unrelated Runtime Catalog model")
+		}
+	}
+	resp = orgScopedGet(t, server.URL+"/api/model-catalog", owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy list status=%d", resp.StatusCode)
+	}
+	var legacyList struct {
+		Entries []map[string]any `json:"entries"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&legacyList); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(legacyList.Entries) != 1 || legacyList.Entries[0]["model_id"] != "gpt-legacy" {
+		t.Fatalf("legacy compatibility projection=%+v", legacyList.Entries)
 	}
 }

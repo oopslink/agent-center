@@ -1,16 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAddMember, useAddAgentMember } from '@/api/members';
 import { useWorkers } from '@/api/workers';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { EntitySelect } from '@/components/EntitySelect';
-import { useAIRuntimeCatalog } from '@/api/aiRuntime';
-import {
-  compatibleRuntimeModels,
-  enabledRuntimeCLIs,
-  firstCompatibleRuntimeModelKey,
-} from '@/components/runtimeOptions';
+import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { useTranslation } from 'react-i18next';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
@@ -27,9 +22,14 @@ export default function MemberNew(): React.ReactElement {
   const [description, setDescription] = useState('');
   const [role, setRole] = useState('member');
   // v2.7 #157: Members→Add Agent is one step — also create the execution Agent
-  // (catalog-backed model/cli + the worker it runs on). worker_id is required.
-  const [model, setModel] = useState('');
-  const [cli, setCli] = useState('');
+  // (model/cli + the worker it runs on). worker_id is required for an agent.
+  // v2.7.1 #232: prefill the explicit default model (this Members→Agents→Add
+  // path was missed by #232's AgentCreateModal-only fix — leaving it empty
+  // stored a null model → blank Profile, the original dogfood pain).
+  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
+  // v2.7 #181 / FINDING-F: only claude-code is executable — single-option
+  // select (codex/opencode become selectable in v2.8 #180).
+  const [cli, setCli] = useState('claude-code');
   const [workerID, setWorkerID] = useState('');
   const [error, setError] = useState('');
   const [tempPasscode, setTempPasscode] = useState('');
@@ -37,24 +37,7 @@ export default function MemberNew(): React.ReactElement {
   const addUser = useAddMember();
   const addAgent = useAddAgentMember();
   const workers = useWorkers();
-  const runtimeCatalog = useAIRuntimeCatalog();
-  const runtime = runtimeCatalog.data;
-  const cliOptions = useMemo(() => enabledRuntimeCLIs(runtime), [runtime]);
-  const modelOptions = useMemo(() => compatibleRuntimeModels(runtime, cli), [runtime, cli]);
   const pending = addUser.isPending || addAgent.isPending;
-
-  useEffect(() => {
-    if (!cli && cliOptions.length > 0) {
-      setCli(cliOptions[0].key);
-    }
-  }, [cli, cliOptions]);
-
-  useEffect(() => {
-    if (!cli) return;
-    if (modelOptions.length > 0 && !modelOptions.some((m) => m.model_key === model)) {
-      setModel(modelOptions[0].model_key);
-    }
-  }, [cli, model, modelOptions]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,38 +151,23 @@ export default function MemberNew(): React.ReactElement {
             </div>
             <div className="space-y-1">
               <label htmlFor="mn-model" className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</label>
-              <select
+              <input
                 id="mn-model"
+                type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-              >
-                {modelOptions.length === 0 && <option value="">Unavailable</option>}
-                {modelOptions.map((m) => (
-                  <option key={m.key} value={m.model_key}>
-                    {m.display_name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             <div className="space-y-1">
               <label htmlFor="mn-cli" className="block text-sm text-text-primary">{t('humans.new.cli')}</label>
               <select
                 id="mn-cli"
                 value={cli}
-                onChange={(e) => {
-                  const nextCLI = e.target.value;
-                  setCli(nextCLI);
-                  setModel(firstCompatibleRuntimeModelKey(runtime, nextCLI));
-                }}
+                onChange={(e) => setCli(e.target.value)}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               >
-                {cliOptions.length === 0 && <option value="">Unavailable</option>}
-                {cliOptions.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.display_name}
-                  </option>
-                ))}
+                <option value="claude-code">claude-code</option>
               </select>
               <p className="text-xs text-text-muted">{t('humans.new.cliHint')}</p>
             </div>
@@ -228,7 +196,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim() || (kind === 'agent' && (!workerID || !cli || !model))}
+            disabled={pending || !displayName.trim() || (kind === 'agent' && !workerID)}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? t('humans.new.creating') : t('humans.new.create')}

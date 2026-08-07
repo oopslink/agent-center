@@ -196,6 +196,44 @@ func (s *Server) aiRuntimeCleanupPreflightHandler(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) shadowCompareRuntimeHandler(w http.ResponseWriter, r *http.Request) {
+	d, _, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.ShadowCompareRequest
+	if r.Body != nil {
+		if err := decodeJSON(r, &req); err != nil && err != io.EOF {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+	}
+	report, err := d.RuntimeCatalog.ShadowCompare(r.Context(), org, req)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) cutoverRuntimeHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req airuntime.CutoverRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	report, err := d.RuntimeCatalog.ApplyCutover(r.Context(), org, "user:"+id.ID(), req)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
 func writeRuntimeImportError(w http.ResponseWriter, report airuntime.ImportReport, err error) {
 	var runtimeErr *airuntime.Error
 	if errors.As(err, &runtimeErr) {

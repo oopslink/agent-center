@@ -151,18 +151,19 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
-    // Stage 6: model is selected from the AI Runtime catalog, not a local default.
-    expect((screen.getByTestId('agent-create-model') as HTMLSelectElement).value).toBe('opus-4-8');
+    // v2.7.1 #232: Model is pre-filled with the explicit default (not a
+    // placeholder) so leaving it untouched still submits a concrete value.
+    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe('claude-opus-4-8');
     // v2.7 #191: pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
-    // Stage 6: CLI options come from the AI Runtime catalog.
+    // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
-    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code', 'codex']);
+    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
     // T728: the include-description switch defaults ON.
     expect(screen.getByTestId('agent-create-include-description')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('agent-create-submit'));
@@ -170,7 +171,7 @@ describe('Agents page', () => {
     await waitFor(() => expect(posted).not.toBeNull());
     // Unified create payload: display_name (not name) + role + worker_id + cli.
     // T728: default-on switch is carried as include_description_in_system_prompt=true.
-    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'opus-4-8', include_description_in_system_prompt: true });
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8', include_description_in_system_prompt: true });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );
