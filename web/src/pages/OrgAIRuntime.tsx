@@ -13,6 +13,7 @@ import {
 } from '@/api/aiRuntime';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 type EditingProfile = RuntimeProfile | null;
 
@@ -369,7 +370,12 @@ function ProfileFormModal({
             </label>
           </div>
           <label className="inline-flex items-center gap-2 text-xs text-text-secondary">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} data-testid="runtime-profile-enabled" />
+            <ToggleSwitch
+              checked={enabled}
+              onChange={setEnabled}
+              ariaLabel="Enabled"
+              testId="runtime-profile-enabled"
+            />
             Enabled
           </label>
           <label className="block text-xs text-text-secondary">
