@@ -159,6 +159,7 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe",
 	"block_task", "complete_task",
+	"report_manual_recovery_delivery",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue", // T192: (re)set/clear derived_from_issue after creation
 	// T206 Cognition reminders

@@ -98,7 +98,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 				"reason_codes":  deliveryReasonCodes(nd.Reasons),
 				"reasons":       nd.Reasons,
 				"delivery":      deliveryErrorMap(nd.Delivery),
-				"next_action":   "block/retry the task, or run worker recover-delivery after pushing a tested SHA",
+				"next_action":   "block/retry the task, or after pushing a tested SHA call report_manual_recovery_delivery (MCP) / worker recover-delivery (CLI)",
 				"required_gate": "probed && pushed && !dirty && base_known && ahead_of_base>0 && branch && head_sha",
 			})
 			return

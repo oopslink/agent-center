@@ -54,12 +54,26 @@ type deliveryGitReq struct {
 }
 
 func (s *Server) reportDeliveryHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
 	var req reportDeliveryReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	s.recordDeliveryFromRequest(w, r, req)
+}
+
+func (s *Server) reportManualRecoveryDeliveryHandler(w http.ResponseWriter, r *http.Request) {
+	var req reportDeliveryReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	req.Source = "manual_recovery"
+	s.recordDeliveryFromRequest(w, r, req)
+}
+
+func (s *Server) recordDeliveryFromRequest(w http.ResponseWriter, r *http.Request, req reportDeliveryReq) {
+	d := hd(r)
 	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
 	if !ok {
 		return

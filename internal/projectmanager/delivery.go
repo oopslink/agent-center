@@ -129,7 +129,7 @@ func (e *TaskNoValidDeliveryError) Error() string {
 			parts = append(parts, r.Code)
 		}
 	}
-	return fmt.Sprintf("%s: %s; block/retry it or register manual_recovery delivery with pushed SHA + test evidence",
+	return fmt.Sprintf("%s: %s; block/retry it or register manual_recovery delivery with pushed SHA + test evidence (report_manual_recovery_delivery MCP or worker recover-delivery CLI)",
 		ErrTaskNoValidDelivery.Error(), strings.Join(parts, "; "))
 }
 

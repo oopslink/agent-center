@@ -615,6 +615,44 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 	}
 }
 
+// --- report_manual_recovery_delivery -----------------------------------------
+
+type reportManualRecoveryDeliveryArgs struct {
+	TaskID     string                        `json:"task_id" jsonschema:"task that has been manually recovered and pushed"`
+	ExecutorID string                        `json:"executor_id,omitempty" jsonschema:"dead/stale/exhausted executor id being recovered, when known"`
+	Worktree   string                        `json:"worktree,omitempty" jsonschema:"retained/recovered local worktree path used for recovery evidence"`
+	Evidence   string                        `json:"evidence" jsonschema:"test/evidence summary proving the pushed SHA is ready, e.g. 'go test ./...: pass'"`
+	Reason     string                        `json:"reason" jsonschema:"why manual recovery was needed, e.g. executor exhausted after task_non_delivery"`
+	Git        manualRecoveryDeliveryGitArgs `json:"git" jsonschema:"git delivery snapshot for the already-pushed recovery commit"`
+}
+
+type manualRecoveryDeliveryGitArgs struct {
+	Branch      string `json:"branch" jsonschema:"delivery branch/ref containing head_sha"`
+	HeadSHA     string `json:"head_sha" jsonschema:"pushed recovery commit SHA"`
+	Dirty       bool   `json:"dirty,omitempty" jsonschema:"whether the recovery worktree was dirty at registration time"`
+	Pushed      bool   `json:"pushed" jsonschema:"true when head_sha is reachable from the remote delivery ref"`
+	Probed      bool   `json:"probed" jsonschema:"true when git state was probed before registration"`
+	BaseRef     string `json:"base_ref,omitempty" jsonschema:"base ref used to judge ahead_of_base, e.g. origin/main"`
+	BaseKnown   bool   `json:"base_known,omitempty" jsonschema:"true if base_ref could be resolved"`
+	AheadOfBase int    `json:"ahead_of_base,omitempty" jsonschema:"number of commits HEAD is ahead of base_ref"`
+	PushError   string `json:"push_error,omitempty" jsonschema:"push/remote verification error if pushed=false"`
+}
+
+func makeReportManualRecoveryDelivery(cfg Config) mcp.ToolHandlerFor[reportManualRecoveryDeliveryArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args reportManualRecoveryDeliveryArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"task_id":     args.TaskID,
+			"executor_id": args.ExecutorID,
+			"worktree":    args.Worktree,
+			"evidence":    args.Evidence,
+			"reason":      args.Reason,
+			"git":         args.Git,
+		}
+		return callAdmin(ctx, cfg, "report_manual_recovery_delivery", body)
+	}
+}
+
 // --- discard_task (T119) -----------------------------------------------------
 
 type discardTaskArgs struct {

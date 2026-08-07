@@ -58,6 +58,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"resume_paused_node", "resume a paused plan node"},
 	// tier-3 task recovery (T862): reset a task stranded running under a dead executor
 	{"reset_task", "reset a dead-executor task back to the pool for a fresh executor"},
+	{"report_manual_recovery_delivery", "register an already-pushed manual recovery delivery after task_non_delivery; MCP counterpart to recover-delivery without commit/push"},
 	// plan authoring / lifecycle
 	{"create_plan", "create a pending plan (a DAG of tasks)"},
 	{"edit_plan_topology", "atomically edit a plan's DAG (add/remove nodes+edges) on a draft OR running plan — the unified topology-edit tool"},

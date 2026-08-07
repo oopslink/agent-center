@@ -26,6 +26,7 @@ var AgentFacingToolNames = []string{
 	"block_task",
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
+	"report_manual_recovery_delivery",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
 	// T206 Cognition reminders

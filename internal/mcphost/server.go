@@ -357,6 +357,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeCompleteTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "report_manual_recovery_delivery",
+		Description: "Register an already-pushed manual recovery delivery for a task stuck on task_non_delivery after a dead/stale/exhausted executor. This MCP tool does NOT commit or push; first recover/test/push in the retained worktree, then pass task_id, optional executor_id/worktree, reason, evidence, and git{branch,head_sha,pushed,probed,base_ref,base_known,ahead_of_base,dirty,push_error}. After it returns ok, call complete_task again.",
+	}, makeReportManualRecoveryDelivery(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "discard_task",
 		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
 	}, makeDiscardTask(cfg))
