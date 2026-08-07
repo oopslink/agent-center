@@ -132,7 +132,22 @@ func (s *Service) LegacyMigrationDryRun(ctx context.Context, orgID string) (Migr
 	if err != nil {
 		return MigrationReport{}, err
 	}
-	report := planLegacyMigration(catalog, objects)
+	var selections []ObjectSelection
+	objectTypes := map[string]struct{}{}
+	for _, object := range objects {
+		objectType := strings.TrimSpace(object.ObjectType)
+		if objectType != "" {
+			objectTypes[objectType] = struct{}{}
+		}
+	}
+	for objectType := range objectTypes {
+		items, err := repo.ListObjectSelections(ctx, orgID, objectType)
+		if err != nil {
+			return MigrationReport{}, err
+		}
+		selections = append(selections, items...)
+	}
+	report := planLegacyMigration(catalog, objects, selections)
 	report.DryRun = true
 	report.Revision = catalog.Revision
 	report.PlanSHA256 = migrationReportDigest(report)
@@ -223,7 +238,7 @@ func selectionForMapping(orgID string, m MigrationMapping, now time.Time) Object
 	}
 }
 
-func planLegacyMigration(catalog Catalog, objects []MigrationObject) MigrationReport {
+func planLegacyMigration(catalog Catalog, objects []MigrationObject, selections []ObjectSelection) MigrationReport {
 	report := MigrationReport{
 		DryRun:               true,
 		ExactMappings:        []MigrationMapping{},
@@ -241,6 +256,11 @@ func planLegacyMigration(catalog Catalog, objects []MigrationObject) MigrationRe
 			profilesByHash[hash] = p
 		}
 	}
+	selectionsByObject := map[string]ObjectSelection{}
+	for _, selection := range selections {
+		key := strings.TrimSpace(selection.ObjectType) + "\x00" + strings.TrimSpace(selection.ObjectID)
+		selectionsByObject[key] = selection
+	}
 	pending := map[string][]migrationCandidate{}
 	for _, object := range objects {
 		object.ObjectType = strings.TrimSpace(object.ObjectType)
@@ -251,6 +271,9 @@ func planLegacyMigration(catalog Catalog, objects []MigrationObject) MigrationRe
 		candidate, unmapped := migrationCandidateFor(catalog, object)
 		if unmapped != nil {
 			report.Unmapped = append(report.Unmapped, *unmapped)
+			continue
+		}
+		if existing, ok := selectionsByObject[object.ObjectType+"\x00"+object.ObjectID]; ok && existing.ContentHash == candidate.hash {
 			continue
 		}
 		if profile, ok := profilesByHash[candidate.hash]; ok {

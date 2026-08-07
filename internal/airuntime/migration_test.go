@@ -58,6 +58,9 @@ func (r *migrationRepo) ApplyLegacyMigration(_ context.Context, m MigrationMutat
 		return 0, &Error{Reason: ReasonRevisionConflict, Message: "catalog revision changed"}
 	}
 	r.applied = m
+	r.catalog.Profiles = append(r.catalog.Profiles, m.Profiles...)
+	r.selections = append(r.selections, m.ObjectSelections...)
+	r.catalog.Revision = expected + 1
 	return expected + 1, nil
 }
 func (r *migrationRepo) RecordShadowComparisons(_ context.Context, m ShadowCompareMutation) error {
@@ -179,6 +182,49 @@ func TestApplyLegacyMigrationWritesSharedProfilesAndSelections(t *testing.T) {
 	var runtimeErr *Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != ReasonMigrationPlanChanged {
 		t.Fatalf("changed plan error=%v", err)
+	}
+}
+
+func TestLegacyMigrationApplyDryRunApplyIsIdempotent(t *testing.T) {
+	svc, repo := migrationFixture()
+	ctx := context.Background()
+
+	firstDryRun, err := svc.LegacyMigrationDryRun(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstApply, err := svc.ApplyLegacyMigration(ctx, "org", "user:admin", ApplyMigrationRequest{
+		ExpectedRevision: firstDryRun.Revision,
+		PlanSHA256:       firstDryRun.PlanSHA256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !firstApply.Applied || firstApply.Revision != 8 {
+		t.Fatalf("first apply=%+v", firstApply)
+	}
+
+	secondDryRun, err := svc.LegacyMigrationDryRun(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondDryRun.Revision != 8 || secondDryRun.Summary.ProfilesToCreate != 0 || secondDryRun.Summary.ObjectSelectionsToWrite != 0 {
+		t.Fatalf("second dry-run must plan zero mutations: %+v", secondDryRun)
+	}
+	beforeProfiles, beforeSelections := len(repo.catalog.Profiles), len(repo.selections)
+	secondApply, err := svc.ApplyLegacyMigration(ctx, "org", "user:admin", ApplyMigrationRequest{
+		ExpectedRevision: secondDryRun.Revision,
+		PlanSHA256:       secondDryRun.PlanSHA256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondApply.Applied || secondApply.Revision != secondDryRun.Revision {
+		t.Fatalf("second apply must be a no-op: %+v", secondApply)
+	}
+	if len(repo.catalog.Profiles) != beforeProfiles || len(repo.selections) != beforeSelections {
+		t.Fatalf("second apply mutated repository: profiles %d→%d selections %d→%d",
+			beforeProfiles, len(repo.catalog.Profiles), beforeSelections, len(repo.selections))
 	}
 }
 
