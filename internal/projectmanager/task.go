@@ -255,6 +255,10 @@ const (
 	// triage instead of resetting it again (a reset loop is a symptom of a bad task or
 	// a broken environment that auto-recovery cannot fix).
 	TaskActionResetExhausted TaskAction = "reset_exhausted"
+	// TaskActionRecoveryRequired is the operator-facing recovery event emitted when
+	// automatic recovery is no longer sufficient and a human/agent must inspect retained
+	// worktree/delivery evidence, push/register delivery, or discard/retry the task.
+	TaskActionRecoveryRequired TaskAction = "recovery_required"
 )
 
 // MaxRecoveryResets caps the per-task tier-3 recovery reset count (T862 §2B, durable
@@ -1248,6 +1252,7 @@ func (t *Task) BlockForResetExhaustion(reason string, at time.Time) error {
 	t.blockedReasonType = BlockReasonObstacle
 	t.blockedComment = ""
 	t.executionLeaseExpiresAt = nil
+	t.appendLog(TaskActionRecoveryRequired, IdentityRef("system"), t.assignee, reason, at)
 	t.appendLog(TaskActionResetExhausted, IdentityRef("system"), t.assignee, reason, at)
 	t.touch(at)
 	return nil
@@ -1303,7 +1308,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	// early conflict, but the aggregate must enforce the same invariant inside
 	// the write transaction so a concurrent zero-delivery report cannot race it.
 	if t.delivery != nil && !t.delivery.HasValidDelivery() {
-		return ErrTaskNoValidDelivery
+		return NewTaskNoValidDeliveryError(t.delivery)
 	}
 	t.status = TaskCompleted
 	t.statusChangedAt = at.UTC()

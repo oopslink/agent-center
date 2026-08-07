@@ -158,7 +158,8 @@ func TestNewDeliveryReporter_NilCaller(t *testing.T) {
 }
 
 // TestDeliveryReporter_ReportDelivery_Body locks the report_delivery wire shape: the
-// agent-tool name + {agent_id, task_id, git:{8 fields verbatim}} the center receives.
+// agent-tool name + {agent_id, task_id, source, executor_id, git:{fields verbatim}}
+// the center receives.
 func TestDeliveryReporter_ReportDelivery_Body(t *testing.T) {
 	fc := &fakeToolCaller{}
 	dr := newDeliveryReporter(fc)
@@ -167,14 +168,15 @@ func TestDeliveryReporter_ReportDelivery_Body(t *testing.T) {
 		BaseRef: "origin/main", BaseKnown: true, AheadOfBase: 2,
 	}
 	if err := dr.ReportDelivery(context.Background(), orchestrator.DeliverySample{
-		AgentID: "agent-1", TaskID: "task-7", Git: git,
+		AgentID: "agent-1", TaskID: "task-7", ExecutorID: "exec-9", Source: "executor", Git: git,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if fc.tool != "report_delivery" {
 		t.Errorf("tool = %q, want report_delivery", fc.tool)
 	}
-	if fc.body["agent_id"] != "agent-1" || fc.body["task_id"] != "task-7" {
+	if fc.body["agent_id"] != "agent-1" || fc.body["task_id"] != "task-7" ||
+		fc.body["source"] != "executor" || fc.body["executor_id"] != "exec-9" {
 		t.Errorf("body meta = %v", fc.body)
 	}
 	g, ok := fc.body["git"].(map[string]any)

@@ -94,19 +94,26 @@ func (s *Server) getTaskAuditHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type executionReadModel struct {
-	ExecutionID string `json:"execution_id"`
-	TaskID      string `json:"task_id"`
-	AgentID     string `json:"agent_id"`
-	CLI         string `json:"cli,omitempty"`
-	Model       string `json:"model,omitempty"`
-	State       string `json:"state"`
-	Outcome     string `json:"outcome,omitempty"`
-	ErrorKind   string `json:"error_kind,omitempty"`
-	ErrorDetail string `json:"error_detail,omitempty"`
-	StartedAt   string `json:"started_at,omitempty"`
-	FinishedAt  string `json:"finished_at,omitempty"`
-	Recovered   bool   `json:"recovered"`
-	Events      int    `json:"event_count"`
+	ExecutionID             string              `json:"execution_id"`
+	TaskID                  string              `json:"task_id"`
+	AgentID                 string              `json:"agent_id"`
+	CLI                     string              `json:"cli,omitempty"`
+	Model                   string              `json:"model,omitempty"`
+	State                   string              `json:"state"`
+	HealthStatus            string              `json:"health_status"`
+	RecoveryRequired        bool                `json:"recovery_required"`
+	Outcome                 string              `json:"outcome,omitempty"`
+	ErrorKind               string              `json:"error_kind,omitempty"`
+	ErrorDetail             string              `json:"error_detail,omitempty"`
+	StartedAt               string              `json:"started_at,omitempty"`
+	FinishedAt              string              `json:"finished_at,omitempty"`
+	LastEffectiveActivityAt string              `json:"last_effective_activity_at,omitempty"`
+	LastCommitSHA           string              `json:"last_commit_sha,omitempty"`
+	Branch                  string              `json:"branch,omitempty"`
+	Pushed                  *bool               `json:"pushed,omitempty"`
+	NonDeliveryReasons      []pm.DeliveryReason `json:"non_delivery_reasons,omitempty"`
+	Recovered               bool                `json:"recovered"`
+	Events                  int                 `json:"event_count"`
 }
 
 func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]executionReadModel, error) {
@@ -130,7 +137,7 @@ func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]execut
 		}
 		run := byID[id]
 		if run == nil {
-			run = &executionReadModel{ExecutionID: id, TaskID: taskID, AgentID: string(ev.AgentID()), State: "unknown"}
+			run = &executionReadModel{ExecutionID: id, TaskID: taskID, AgentID: string(ev.AgentID()), State: "unknown", HealthStatus: "unknown"}
 			byID[id] = run
 			order = append(order, id)
 		}
@@ -138,12 +145,20 @@ func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]execut
 		switch p["event"] {
 		case "executor.start":
 			run.State = "running"
+			run.HealthStatus = "active"
 			run.CLI, _ = p["cli"].(string)
 			run.Model, _ = p["model"].(string)
 			run.StartedAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
+			run.LastEffectiveActivityAt = run.StartedAt
 		case "executor.progress":
 			if state, ok := p["state"].(string); ok {
 				run.State = state
+			}
+			run.HealthStatus = "active"
+			if ts, ok := p["last_progress_at"].(string); ok && ts != "" {
+				run.LastEffectiveActivityAt = ts
+			} else {
+				run.LastEffectiveActivityAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
 			}
 		case "executor.stop":
 			run.State = "terminal"
@@ -153,13 +168,127 @@ func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]execut
 			run.ErrorDetail = redactAuditNote(run.ErrorDetail)
 			run.Recovered, _ = p["recovered"].(bool)
 			run.FinishedAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
+			run.LastEffectiveActivityAt = run.FinishedAt
+			if d := deliveryFromPayload(p["git"]); d != nil {
+				run.LastCommitSHA = d.HeadSHA
+				run.Branch = d.Branch
+				pushed := d.Pushed
+				run.Pushed = &pushed
+				if !d.HasValidDelivery() {
+					run.NonDeliveryReasons = d.InvalidReasons()
+				}
+			}
+			run.HealthStatus = executionStopHealth(run.Outcome, run.ErrorKind, run.NonDeliveryReasons)
 		}
 	}
+	now := time.Now()
 	out := make([]executionReadModel, 0, len(order))
 	for i := len(order) - 1; i >= 0; i-- {
-		out = append(out, *byID[order[i]])
+		run := *byID[order[i]]
+		finalizeExecutionHealth(&run, now)
+		out = append(out, run)
 	}
 	return out, nil
+}
+
+const executionStaleAfter = 15 * time.Minute
+
+func finalizeExecutionHealth(run *executionReadModel, now time.Time) {
+	if run == nil {
+		return
+	}
+	if run.HealthStatus == "" {
+		run.HealthStatus = "unknown"
+	}
+	if run.State != "running" {
+		run.RecoveryRequired = run.HealthStatus == "dead" || run.HealthStatus == "exhausted" || run.HealthStatus == "non_delivery"
+		return
+	}
+	at, ok := parseExecutionTime(run.LastEffectiveActivityAt)
+	if ok && now.Sub(at) > executionStaleAfter {
+		run.HealthStatus = "stale"
+		run.RecoveryRequired = true
+	}
+}
+
+func parseExecutionTime(s string) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func executionStopHealth(outcome, reason string, nonDelivery []pm.DeliveryReason) string {
+	if len(nonDelivery) > 0 {
+		return "non_delivery"
+	}
+	switch outcome {
+	case "succeeded":
+		return "terminal"
+	case "crashed":
+		return "dead"
+	case "failed":
+		if reason == "stalled" || reason == "process_gone" || reason == "clean_exit_no_output" {
+			return "dead"
+		}
+		if strings.Contains(reason, "exhaust") || reason == "reset_exhausted" || reason == "recovery_exhausted" {
+			return "exhausted"
+		}
+		return "failed"
+	default:
+		return "terminal"
+	}
+}
+
+func deliveryFromPayload(v any) *pm.Delivery {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return &pm.Delivery{
+		Branch:      stringFromAny(m["branch"]),
+		HeadSHA:     stringFromAny(m["head_sha"]),
+		Dirty:       boolFromAny(m["dirty"]),
+		Pushed:      boolFromAny(m["pushed"]),
+		Probed:      boolFromAny(m["probed"]),
+		BaseRef:     stringFromAny(m["base_ref"]),
+		BaseKnown:   boolFromAny(m["base_known"]),
+		AheadOfBase: intFromAny(m["ahead_of_base"]),
+		PushError:   stringFromAny(m["push_error"]),
+		Source:      stringFromAny(m["source"]),
+		ExecutorID:  stringFromAny(m["executor_id"]),
+		Worktree:    stringFromAny(m["worktree"]),
+		Evidence:    stringFromAny(m["evidence"]),
+		Reason:      stringFromAny(m["reason"]),
+	}
+}
+
+func stringFromAny(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func boolFromAny(v any) bool {
+	b, _ := v.(bool)
+	return b
+}
+
+func intFromAny(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
 }
 
 func (s *Server) taskExecutionHandler(single bool) http.HandlerFunc {

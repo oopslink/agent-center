@@ -114,9 +114,11 @@ type DeliveryReporter interface {
 // VERBATIM ("" ⇒ a task-less run, never reported — delivery is task-scoped). Git is
 // non-nil only when the worktree was actually probed (a git workspace).
 type DeliverySample struct {
-	AgentID string
-	TaskID  string
-	Git     *executor.FinalizedGitStatus
+	AgentID    string
+	TaskID     string
+	ExecutorID string
+	Source     string
+	Git        *executor.FinalizedGitStatus
 }
 
 // CenterWriteback implements executor.Writeback. One per agent. Its mutex makes
@@ -543,9 +545,11 @@ func (w *CenterWriteback) reportDelivery(ctx context.Context, in executor.Input,
 		return
 	}
 	if err := w.delivery.ReportDelivery(ctx, DeliverySample{
-		AgentID: w.agentID,
-		TaskID:  taskRef,
-		Git:     c.Git,
+		AgentID:    w.agentID,
+		TaskID:     taskRef,
+		ExecutorID: c.ExecutorID,
+		Source:     "executor",
+		Git:        c.Git,
 	}); err != nil {
 		// Non-fatal: a delivery-report failure is a lost side-channel signal, never a
 		// reason to retain the dir or fail the task writeback.

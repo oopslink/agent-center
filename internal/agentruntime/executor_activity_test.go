@@ -137,6 +137,23 @@ func TestExecutorStopPayload_FourClasses(t *testing.T) {
 	}
 }
 
+func TestExecutorStopPayload_IncludesGitDeliverySnapshot(t *testing.T) {
+	p := executorStopPayload(executor.StopEvent{
+		ExecutorID: "exec-xyz", TaskRef: "T758", Outcome: executor.OutcomeSucceeded,
+		Git: &executor.FinalizedGitStatus{
+			Branch: "feat/x", HeadSHA: "abc", Probed: true, Pushed: true,
+			BaseRef: "origin/main", BaseKnown: true, AheadOfBase: 1,
+		},
+	})
+	g, ok := p["git"].(*executor.FinalizedGitStatus)
+	if !ok {
+		t.Fatalf("git payload missing/wrong type: %+v", p["git"])
+	}
+	if g.Branch != "feat/x" || g.HeadSHA != "abc" || !g.Pushed {
+		t.Fatalf("git payload = %+v", g)
+	}
+}
+
 func TestExecutorProgressPayload_Schema(t *testing.T) {
 	at := time.Unix(1700000123, 0)
 	p := executorProgressPayload(executor.ProgressEvent{

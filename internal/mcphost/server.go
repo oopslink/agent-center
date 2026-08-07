@@ -216,12 +216,12 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_task_executions",
-		Description: "List stable executor runs linked to a project-visible task, reconstructed from persisted executor lifecycle events.",
+		Description: "List stable executor runs linked to a project-visible task, reconstructed from persisted executor lifecycle events. Returns health_status, recovery_required, last_effective_activity_at, branch/SHA/pushed and non_delivery reasons.",
 	}, makeTaskRead(cfg, "list_task_executions"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_task_execution",
-		Description: "Read one executor run linked to a project-visible task by execution_id, including CLI/model, outcome, error and recovery state.",
+		Description: "Read one executor run linked to a project-visible task by execution_id, including CLI/model, health_status, recovery_required, branch/SHA/pushed and non_delivery reasons. If recovery_required=true, inspect audit/worktree evidence before complete_task.",
 	}, makeTaskRead(cfg, "get_task_execution"))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -353,7 +353,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
-		Description: "Optionally post a summary and move the task to completed. In concurrent mode, call this only after you, the Agent's Supervisor control plane, have judged that this same Agent's executor truly delivered; do not complete merely because an executor exited. For a control-flow DECISION node, pass outcome=\"pass\"/\"reject\" to route its edges. For a REVIEW node, you MUST record your structured verdict via review_verdict=\"pass\"/\"reject\" (+ review_blocking) so the downstream Decision auto-decides — a non-blocking nit is review_verdict=\"pass\", review_blocking=false.",
+		Description: "Optionally post a summary and move the task to completed. In concurrent mode, call this only after you, the Agent's Supervisor control plane, have judged that this same Agent's executor truly delivered; do not complete merely because an executor exited. If it returns task_non_delivery, read reason_codes and fix/register those exact missing delivery conditions before retrying. For a control-flow DECISION node, pass outcome=\"pass\"/\"reject\" to route its edges. For a REVIEW node, you MUST record your structured verdict via review_verdict=\"pass\"/\"reject\" (+ review_blocking) so the downstream Decision auto-decides — a non-blocking nit is review_verdict=\"pass\", review_blocking=false.",
 	}, makeCompleteTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

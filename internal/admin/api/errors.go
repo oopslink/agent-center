@@ -90,6 +90,19 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "task_parked", err.Error())
 
 	case errors.Is(err, pm.ErrTaskNoValidDelivery):
+		var nd *pm.TaskNoValidDeliveryError
+		if errors.As(err, &nd) {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":         "task_non_delivery",
+				"message":       err.Error(),
+				"reason_codes":  deliveryReasonCodes(nd.Reasons),
+				"reasons":       nd.Reasons,
+				"delivery":      deliveryErrorMap(nd.Delivery),
+				"next_action":   "block/retry the task, or run worker recover-delivery after pushing a tested SHA",
+				"required_gate": "probed && pushed && !dirty && base_known && ahead_of_base>0 && branch && head_sha",
+			})
+			return
+		}
 		writeError(w, http.StatusConflict, "task_non_delivery", err.Error())
 
 	// ---- task_description_frozen (409) — I109 ①: a description edit on a RUNNING task.
@@ -185,5 +198,37 @@ func mapDomainError(w http.ResponseWriter, err error) {
 
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+	}
+}
+
+func deliveryReasonCodes(reasons []pm.DeliveryReason) []string {
+	out := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if r.Code != "" {
+			out = append(out, r.Code)
+		}
+	}
+	return out
+}
+
+func deliveryErrorMap(d *pm.Delivery) map[string]any {
+	if d == nil {
+		return nil
+	}
+	return map[string]any{
+		"source":        d.Source,
+		"executor_id":   d.ExecutorID,
+		"worktree":      d.Worktree,
+		"branch":        d.Branch,
+		"head_sha":      d.HeadSHA,
+		"dirty":         d.Dirty,
+		"pushed":        d.Pushed,
+		"probed":        d.Probed,
+		"base_ref":      d.BaseRef,
+		"base_known":    d.BaseKnown,
+		"ahead_of_base": d.AheadOfBase,
+		"push_error":    d.PushError,
+		"evidence":      d.Evidence,
+		"reason":        d.Reason,
 	}
 }

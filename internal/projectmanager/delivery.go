@@ -1,6 +1,11 @@
 package projectmanager
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // Delivery is the last forked executor's terminal git status — the center-side mirror
 // of agentruntime executor.FinalizedGitStatus (the verbatim 8 fields). It answers the
@@ -26,6 +31,20 @@ type Delivery struct {
 	// no push failure. It is the DURABLE record of WHY a delivery was not durably pushed —
 	// so audit / DB queries can see the cause, not just the live task conversation + logs.
 	PushError string `json:"push_error,omitempty"`
+	// Source names who produced this delivery signal. "" and "executor" are the normal
+	// runtime path; "manual_recovery" is a worker/runtime-side operator command that
+	// reuses report_delivery after a human has recovered, tested and pushed the work.
+	Source string `json:"source,omitempty"`
+	// ExecutorID is the runtime executor that produced the signal when known.
+	ExecutorID string `json:"executor_id,omitempty"`
+	// Worktree is the retained/recovered worktree path used to register a manual recovery.
+	// It is operator evidence only; completion still keys off the git fields above.
+	Worktree string `json:"worktree,omitempty"`
+	// Evidence is a short human-authored test/evidence summary for manual recovery delivery.
+	Evidence string `json:"evidence,omitempty"`
+	// Reason explains why the delivery was reported manually (dead/exhausted/abandoned
+	// executor, operator takeover, etc.).
+	Reason string `json:"reason,omitempty"`
 }
 
 // HasValidDelivery reports whether the executor produced a durable, pushed delivery —
@@ -45,6 +64,83 @@ func (d *Delivery) HasValidDelivery() bool {
 		d.AheadOfBase > 0 &&
 		d.Branch != "" &&
 		d.HeadSHA != ""
+}
+
+// DeliveryReason is one machine-readable reason a delivery is not acceptable for
+// complete_task. Keep codes stable; they are returned to agents on task_non_delivery.
+type DeliveryReason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// InvalidReasons returns every missing/invalid condition that prevents this delivery
+// from counting as a durable pushed delivery. It is the diagnostic twin of
+// HasValidDelivery; do not loosen completion by editing this without editing the gate.
+func (d *Delivery) InvalidReasons() []DeliveryReason {
+	if d == nil {
+		return []DeliveryReason{{Code: "delivery_missing", Message: "no delivery has been reported for this task"}}
+	}
+	reasons := []DeliveryReason{}
+	if !d.Probed {
+		reasons = append(reasons, DeliveryReason{Code: "git_not_probed", Message: "executor/worktree git state was not probed"})
+	}
+	if !d.Pushed {
+		msg := "delivery HEAD is not verified on a remote ref"
+		if strings.TrimSpace(d.PushError) != "" {
+			msg += ": " + d.PushError
+		}
+		reasons = append(reasons, DeliveryReason{Code: "head_not_pushed", Message: msg})
+	}
+	if d.Dirty {
+		reasons = append(reasons, DeliveryReason{Code: "worktree_dirty", Message: "worktree still has uncommitted changes"})
+	}
+	if !d.BaseKnown {
+		reasons = append(reasons, DeliveryReason{Code: "base_unknown", Message: "spawn/recovery base ref is unknown or unresolved"})
+	}
+	if d.AheadOfBase <= 0 {
+		reasons = append(reasons, DeliveryReason{Code: "no_commit_ahead_of_base", Message: "HEAD is not ahead of the recorded base ref"})
+	}
+	if strings.TrimSpace(d.Branch) == "" {
+		reasons = append(reasons, DeliveryReason{Code: "branch_missing", Message: "delivery branch is missing"})
+	}
+	if strings.TrimSpace(d.HeadSHA) == "" {
+		reasons = append(reasons, DeliveryReason{Code: "head_sha_missing", Message: "delivery HEAD SHA is missing"})
+	}
+	return reasons
+}
+
+// TaskNoValidDeliveryError carries the same sentinel semantics as
+// ErrTaskNoValidDelivery while exposing exact missing delivery conditions.
+type TaskNoValidDeliveryError struct {
+	Delivery *Delivery
+	Reasons  []DeliveryReason
+}
+
+func (e *TaskNoValidDeliveryError) Error() string {
+	reasons := e.Reasons
+	if len(reasons) == 0 {
+		reasons = e.Delivery.InvalidReasons()
+	}
+	parts := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if r.Message != "" {
+			parts = append(parts, r.Message)
+		} else {
+			parts = append(parts, r.Code)
+		}
+	}
+	return fmt.Sprintf("%s: %s; block/retry it or register manual_recovery delivery with pushed SHA + test evidence",
+		ErrTaskNoValidDelivery.Error(), strings.Join(parts, "; "))
+}
+
+func (e *TaskNoValidDeliveryError) Is(target error) bool {
+	return errors.Is(target, ErrTaskNoValidDelivery)
+}
+
+// NewTaskNoValidDeliveryError wraps a delivery diagnostic in the sentinel-compatible
+// error complete_task surfaces as task_non_delivery.
+func NewTaskNoValidDeliveryError(d *Delivery) error {
+	return &TaskNoValidDeliveryError{Delivery: d, Reasons: d.InvalidReasons()}
 }
 
 // MarshalDelivery renders a *Delivery to its stored JSON (” for nil). Kept beside the

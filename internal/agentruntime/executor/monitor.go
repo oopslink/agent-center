@@ -846,6 +846,7 @@ func (m *Monitor) emitStop(c Completion) {
 		Retryable:  c.Retryable,
 		Recovered:  c.Recovered,
 		At:         m.clk.Now(),
+		Git:        c.Git,
 	}
 	if c.Error != nil {
 		ev.Reason = c.Error.Kind

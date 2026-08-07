@@ -712,7 +712,7 @@ func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) er
 	// Nil remains allowed for center-action/non-code tasks; a present but invalid
 	// delivery is positive zero/non-delivery evidence and requires block/retry.
 	if delivery := task.Delivery(); delivery != nil && !delivery.HasValidDelivery() {
-		return pm.ErrTaskNoValidDelivery
+		return pm.NewTaskNoValidDeliveryError(delivery)
 	}
 	return nil
 }

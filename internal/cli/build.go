@@ -126,6 +126,9 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, WorkerRunCommand()); err != nil {
 		return nil, "", err
 	}
+	if err := router.Add([]string{"worker"}, WorkerRecoverDeliveryCommand()); err != nil {
+		return nil, "", err
+	}
 	// T854 D6 §4.5: per-agent self-contained runtime process (spawned by the worker
 	// launcher, one per agent). os.Executable() worker agent-runtime --agent-id X.
 	if err := router.Add([]string{"worker"}, AgentRuntimeCommand()); err != nil {

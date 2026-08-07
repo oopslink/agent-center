@@ -53,7 +53,7 @@ func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
 	start := time.Date(2026, 7, 24, 1, 2, 3, 0, time.UTC)
 	repo := readModelActivityRepo{events: []*agent.AgentActivityEvent{
 		readModelEvent(t, "01", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, start),
-		readModelEvent(t, "02", `{"event":"executor.stop","outcome":"failed","reason":"repo_source_unavailable","detail":"token=must-not-leak","recovered":true}`, start.Add(time.Minute)),
+		readModelEvent(t, "02", `{"event":"executor.stop","outcome":"failed","reason":"repo_source_unavailable","detail":"token=must-not-leak","recovered":true,"git":{"branch":"feat/x","head_sha":"abc","probed":true,"pushed":false,"dirty":false,"base_ref":"origin/main","base_known":true,"ahead_of_base":1}}`, start.Add(time.Minute)),
 	}}
 	runs, err := taskExecutions(context.Background(), HandlerDeps{AgentActivityRepo: repo}, "task-1")
 	if err != nil {
@@ -65,8 +65,12 @@ func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
 	got := runs[0]
 	if got.ExecutionID != "exec-1" || got.CLI != "codex" || got.Model != "gpt-5" ||
 		got.Outcome != "failed" || got.ErrorKind != "repo_source_unavailable" ||
-		got.ErrorDetail != "[redacted]" || !got.Recovered {
+		got.ErrorDetail != "[redacted]" || !got.Recovered || got.LastCommitSHA != "abc" ||
+		got.Branch != "feat/x" || got.Pushed == nil || *got.Pushed || got.HealthStatus != "non_delivery" {
 		t.Fatalf("run = %+v", got)
+	}
+	if len(got.NonDeliveryReasons) == 0 || got.NonDeliveryReasons[0].Code != "head_not_pushed" {
+		t.Fatalf("non-delivery reasons = %+v", got.NonDeliveryReasons)
 	}
 }
 

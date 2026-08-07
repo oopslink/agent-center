@@ -66,6 +66,10 @@ type StopEvent struct {
 	Recovered bool
 	// At is when the stop was observed.
 	At time.Time
+	// Git is the terminal worktree delivery snapshot captured at finalize, when
+	// available. It lets read models show the exact branch/SHA/pushed state for this
+	// executor run instead of relying only on the task's latest delivery sidecar.
+	Git *FinalizedGitStatus
 }
 
 // ProgressEvent is the executor-scoped fact set for one progress heartbeat,

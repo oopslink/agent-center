@@ -287,6 +287,13 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// Always project the effective contract: workers must freeze the create-time choice,
 	// while legacy empty rows retain code_change behavior.
 	m["delivery_contract"] = string(t.DeliveryContract().Effective())
+	if delivery := t.Delivery(); delivery != nil {
+		m["delivery"] = deliveryErrorMap(delivery)
+		m["delivery_valid"] = delivery.HasValidDelivery()
+		if !delivery.HasValidDelivery() {
+			m["delivery_non_delivery_reasons"] = delivery.InvalidReasons()
+		}
+	}
 	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable

@@ -260,9 +260,11 @@ var _ orchestrator.DeliveryReporter = (*deliveryReporterAdapter)(nil)
 // including push_error), which the center stores unabridged and reads probed && !pushed from.
 func (a *deliveryReporterAdapter) ReportDelivery(ctx context.Context, s orchestrator.DeliverySample) error {
 	body := map[string]any{
-		"agent_id": s.AgentID,
-		"task_id":  s.TaskID,
-		"git":      s.Git,
+		"agent_id":    s.AgentID,
+		"task_id":     s.TaskID,
+		"source":      s.Source,
+		"executor_id": s.ExecutorID,
+		"git":         s.Git,
 	}
 	return a.caller.CallAgentTool(ctx, "report_delivery", body, nil)
 }

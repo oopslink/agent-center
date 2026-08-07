@@ -173,6 +173,10 @@ func TestBlockForResetExhaustion_BlocksWithDistinctLog(t *testing.T) {
 	if lg.Action != TaskActionResetExhausted || lg.ActorRef != "system" {
 		t.Fatalf("exhaustion log wrong: %+v", lg)
 	}
+	logs := tk.ActionLogs()
+	if len(logs) < 2 || logs[len(logs)-2].Action != TaskActionRecoveryRequired {
+		t.Fatalf("missing recovery_required log before reset_exhausted: %+v", logs)
+	}
 }
 
 func TestBlockForResetExhaustion_RejectsNonRunning(t *testing.T) {

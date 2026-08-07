@@ -144,6 +144,9 @@ func executorStopPayload(ev executor.StopEvent) map[string]any {
 	}
 	putIfSet(p, "reason", ev.Reason)
 	putIfSet(p, "detail", ev.Detail)
+	if ev.Git != nil {
+		p["git"] = ev.Git
+	}
 	return p
 }
 

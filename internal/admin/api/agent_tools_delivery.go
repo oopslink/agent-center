@@ -27,9 +27,14 @@ import (
 // the verbatim 9 FinalizedGitStatus fields; project_id is derived from the task, never
 // trusted from the wire.
 type reportDeliveryReq struct {
-	AgentID string          `json:"agent_id"`
-	TaskID  string          `json:"task_id"`
-	Git     *deliveryGitReq `json:"git"`
+	AgentID    string          `json:"agent_id"`
+	TaskID     string          `json:"task_id"`
+	Source     string          `json:"source"`
+	ExecutorID string          `json:"executor_id"`
+	Worktree   string          `json:"worktree"`
+	Evidence   string          `json:"evidence"`
+	Reason     string          `json:"reason"`
+	Git        *deliveryGitReq `json:"git"`
 }
 
 // deliveryGitReq mirrors agentruntime executor.FinalizedGitStatus (9 fields verbatim —
@@ -68,6 +73,28 @@ func (s *Server) reportDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
 	}
+	source := strings.TrimSpace(req.Source)
+	if source == "" {
+		source = "executor"
+	}
+	if source != "executor" && source != "manual_recovery" {
+		writeError(w, http.StatusBadRequest, "invalid_delivery_source", "delivery source must be executor or manual_recovery")
+		return
+	}
+	if source == "manual_recovery" {
+		if strings.TrimSpace(req.Reason) == "" {
+			writeError(w, http.StatusBadRequest, "missing_manual_recovery_reason", "manual recovery delivery requires reason")
+			return
+		}
+		if strings.TrimSpace(req.Evidence) == "" {
+			writeError(w, http.StatusBadRequest, "missing_manual_recovery_evidence", "manual recovery delivery requires test/evidence summary")
+			return
+		}
+		if req.Git == nil {
+			writeError(w, http.StatusBadRequest, "missing_manual_recovery_git", "manual recovery delivery requires git delivery snapshot")
+			return
+		}
+	}
 
 	// nil git → nil delivery (never-reported / probe absent): a valid best-effort no-op
 	// signal, still recorded as "no delivery" (the safe side).
@@ -83,6 +110,11 @@ func (s *Server) reportDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 			BaseKnown:   g.BaseKnown,
 			AheadOfBase: g.AheadOfBase,
 			PushError:   g.PushError,
+			Source:      source,
+			ExecutorID:  strings.TrimSpace(req.ExecutorID),
+			Worktree:    strings.TrimSpace(req.Worktree),
+			Evidence:    strings.TrimSpace(req.Evidence),
+			Reason:      strings.TrimSpace(req.Reason),
 		}
 	}
 	if err := d.PMService.RecordDelivery(r.Context(), pm.TaskID(taskID), pm.IdentityRef(agentActor(a)), delivery); err != nil {
