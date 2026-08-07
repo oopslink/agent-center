@@ -167,6 +167,9 @@ func TestApplyLegacyMigrationWritesSharedProfilesAndSelections(t *testing.T) {
 	if !applied.Applied || applied.Revision != 8 || len(repo.applied.Profiles) != 1 || len(repo.applied.ObjectSelections) != 4 {
 		t.Fatalf("applied=%+v mutation profiles=%d selections=%d", applied, len(repo.applied.Profiles), len(repo.applied.ObjectSelections))
 	}
+	if got := repo.applied.Profiles[0].ModelKey; got != "gpt" {
+		t.Fatalf("shared profile model key=%q want catalog key gpt", got)
+	}
 	for _, selection := range repo.applied.ObjectSelections {
 		if selection.ObjectID == "agent-e" {
 			t.Fatal("unmapped object must not receive a generated selection")

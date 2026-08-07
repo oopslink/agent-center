@@ -68,6 +68,13 @@ func TestLegacyMigrationSQLiteApplyIsDedupedAndAudited(t *testing.T) {
 	if sharedProfiles != 1 {
 		t.Fatalf("shared migrated profiles=%d want 1", sharedProfiles)
 	}
+	var sharedModelKey string
+	if err := db.QueryRow(`SELECT model_key FROM ai_runtime_profiles WHERE org_id='org' AND key LIKE 'migrated-shared-%'`).Scan(&sharedModelKey); err != nil {
+		t.Fatal(err)
+	}
+	if sharedModelKey != "gpt" {
+		t.Fatalf("shared migrated profile model_key=%q want catalog key gpt", sharedModelKey)
+	}
 	var selections int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_runtime_object_selections WHERE org_id='org'`).Scan(&selections); err != nil {
 		t.Fatal(err)
