@@ -29,6 +29,7 @@ import { useOptionalOrgContext } from '@/OrgContext';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { useSystemSegments } from './useSystemSegments';
 
@@ -1004,7 +1005,7 @@ function Checkbox({
 }): React.ReactElement {
   return (
     <label className="inline-flex items-center gap-2 text-sm text-text-secondary">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={testId} />
+      <ToggleSwitch checked={checked} onChange={onChange} ariaLabel={label} testId={testId} />
       {label}
     </label>
   );

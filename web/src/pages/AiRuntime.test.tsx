@@ -108,6 +108,11 @@ describe('AiRuntime page', () => {
     fireEvent.click(await screen.findByTestId('ai-runtime-create-profile'));
     fireEvent.change(screen.getByTestId('ai-runtime-profile-key'), { target: { value: 'planning' } });
     fireEvent.change(screen.getByTestId('ai-runtime-profile-name'), { target: { value: 'Planning' } });
+    const enabledSwitch = screen.getByTestId('ai-runtime-profile-enabled');
+    expect(enabledSwitch).toHaveAttribute('role', 'switch');
+    expect(enabledSwitch).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(enabledSwitch);
+    expect(enabledSwitch).toHaveAttribute('aria-checked', 'false');
     fireEvent.click(screen.getByTestId('ai-runtime-form-save'));
     await waitFor(() =>
       expect(payload).toEqual({
@@ -121,7 +126,7 @@ describe('AiRuntime page', () => {
             cli_key: 'codex',
             model_key: 'gpt-5',
             parameters: {},
-            enabled: true,
+            enabled: false,
           },
         },
       }),
