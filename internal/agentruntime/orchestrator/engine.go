@@ -335,7 +335,7 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 		b.WriteString("\n\n## Context\n")
 		b.WriteString(c)
 	}
-	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
+	if rb := RenderRuleSnapshot(item.RuleSnapshot); rb != "" {
 		b.WriteString("\n\n")
 		b.WriteString(rb)
 	}
@@ -343,7 +343,9 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	return b.String()
 }
 
-func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
+// RenderRuleSnapshot renders the frozen team-rule snapshot into model-visible
+// prompt text while preserving the audit handles needed to replay the rule set.
+func RenderRuleSnapshot(snap *executor.RuleSnapshot) string {
 	if snap == nil {
 		return ""
 	}
@@ -364,6 +366,11 @@ func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
 		b.WriteString(strings.Join(meta, " "))
 		b.WriteString("\n\n")
 	}
+	if refresh := strings.TrimSpace(snap.RefreshSemantics); refresh != "" {
+		b.WriteString("refresh_semantics: ")
+		b.WriteString(refresh)
+		b.WriteString("\n\n")
+	}
 	if len(snap.Rules) == 0 {
 		b.WriteString("_No enabled team rules matched this phase._")
 		return b.String()
@@ -380,6 +387,11 @@ func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
 			title = "rule"
 		}
 		fmt.Fprintf(&b, "### %s\n", title)
+		ruleMeta := ruleContextMeta(r)
+		if len(ruleMeta) > 0 {
+			b.WriteString(strings.Join(ruleMeta, " "))
+			b.WriteString("\n\n")
+		}
 		if desc := strings.TrimSpace(r.Description); desc != "" {
 			b.WriteString(desc)
 			b.WriteString("\n\n")
@@ -389,6 +401,17 @@ func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
 		}
 	}
 	return b.String()
+}
+
+func ruleContextMeta(r executor.RuleContext) []string {
+	meta := []string{"enabled=true"}
+	if src := strings.TrimSpace(r.SourcePath); src != "" {
+		meta = append(meta, "source_path="+src)
+	}
+	if len(r.AppliesTo) > 0 {
+		meta = append(meta, "applies_to="+strings.Join(r.AppliesTo, ","))
+	}
+	return meta
 }
 
 // refsOf returns a single-element slice for a non-empty ref, else nil (so omitempty

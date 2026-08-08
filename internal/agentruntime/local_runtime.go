@@ -507,7 +507,8 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 		}
 	}
 
-	if err := sess.Inject(ctx, req.Brief); err != nil {
+	brief := appendRuleSnapshotBrief(req.Brief, planningRulesForInjectedWork(ctx, r, req))
+	if err := sess.Inject(ctx, brief); err != nil {
 		r.signalFatalIfSessionClosed("work inject", err)
 		return fmt.Errorf("agent_controller: inject agent=%s: %w", agentID, err)
 	}
@@ -582,11 +583,12 @@ func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) 
 		return fmt.Errorf("agent_controller: converse for agent=%s but no running session (retry after reconcile)", agentID)
 	}
 
-	if err := sess.Inject(ctx, BuildConverseBrief(req)); err != nil {
+	brief := appendRuleSnapshotBrief(BuildConverseBrief(req), r.planningRulesForConverse(ctx, req))
+	if err := sess.Inject(ctx, brief); err != nil {
 		r.signalFatalIfSessionClosed("converse inject", err)
 		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", agentID, err)
 	}
-	if err := r.persistInterruptedConverse(agentID, req); err != nil {
+	if err := r.persistInterruptedConverse(agentID, req, brief); err != nil {
 		return fmt.Errorf("agent_controller: persist interrupted converse agent=%s: %w", agentID, err)
 	}
 	r.recordWake(req.MessageID)
@@ -1304,7 +1306,7 @@ func (r *LocalRuntime) NotifyWorkAvailable(ctx context.Context, taskID string) e
 		r.log("work_available agent=%s: empty task_id — skipping supervisor nudge", r.cfg.AgentID)
 		return nil
 	}
-	brief := workAvailableBrief(taskID)
+	brief := appendRuleSnapshotBrief(workAvailableBrief(taskID), r.planningRulesForWorkAvailable(ctx, r.cfg.AgentID, taskID))
 	if err := r.injectSession(ctx, brief); err != nil {
 		return fmt.Errorf("agent_controller: work_available inject agent=%s task=%s: %w", r.cfg.AgentID, taskID, err)
 	}

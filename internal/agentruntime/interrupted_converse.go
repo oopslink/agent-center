@@ -14,6 +14,7 @@ const interruptedConverseFile = "interrupted_converse.json"
 
 type interruptedConverseRecord struct {
 	Request    ConverseRequest `json:"request"`
+	Brief      string          `json:"brief,omitempty"`
 	Attempts   int             `json:"attempts"`
 	AcceptedAt time.Time       `json:"accepted_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
@@ -30,7 +31,7 @@ func (r *LocalRuntime) interruptedConversePath(agentID string) (string, error) {
 	return filepath.Join(home, interruptedConverseFile), nil
 }
 
-func (r *LocalRuntime) persistInterruptedConverse(agentID string, req ConverseRequest) error {
+func (r *LocalRuntime) persistInterruptedConverse(agentID string, req ConverseRequest, brief string) error {
 	if strings.TrimSpace(req.ConversationID) == "" || strings.TrimSpace(req.MessageID) == "" {
 		return nil
 	}
@@ -44,6 +45,7 @@ func (r *LocalRuntime) persistInterruptedConverse(agentID string, req ConverseRe
 	now := r.now()
 	rec := interruptedConverseRecord{
 		Request:    req,
+		Brief:      brief,
 		Attempts:   0,
 		AcceptedAt: now.UTC(),
 		UpdatedAt:  now.UTC(),
@@ -117,7 +119,11 @@ func (r *LocalRuntime) RecoverInterruptedConverse(ctx context.Context) error {
 			r.log("agent=%s interrupted-converse activity report: %v", agentID, err)
 		}
 	}
-	if err := sess.Inject(ctx, BuildConverseBrief(req)); err != nil {
+	brief := rec.Brief
+	if strings.TrimSpace(brief) == "" {
+		brief = BuildConverseBrief(req)
+	}
+	if err := sess.Inject(ctx, brief); err != nil {
 		r.signalFatalIfSessionClosed("interrupted_converse recover", err)
 		return fmt.Errorf("agent=%s interrupted-converse recover inject: %w", agentID, err)
 	}
