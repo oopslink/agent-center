@@ -7,11 +7,14 @@ import (
 
 func TestPool_Adopt_TakesSlotWithoutSpawning(t *testing.T) {
 	pool, git := newTestPool(t, 2, nil)
-	if err := pool.Adopt("recovered-1"); err != nil {
+	if err := pool.Adopt("recovered-1", 1); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 	if pool.Active() != 1 {
 		t.Errorf("Active = %d, want 1", pool.Active())
+	}
+	if got := mustSlot(t, pool, "recovered-1"); got != 1 {
+		t.Errorf("adopted slot = %d, want preferred slot 1", got)
 	}
 	// Adopt must NOT spawn / provision: no git worktree calls happened.
 	if len(git.args) != 0 {
@@ -37,6 +40,19 @@ func TestPool_Adopt_DuplicateAndCapacity(t *testing.T) {
 	}
 	if err := pool.Adopt("b"); !errors.Is(err, ErrAtCapacity) {
 		t.Errorf("over-cap adopt err = %v, want ErrAtCapacity", err)
+	}
+}
+
+func TestPool_Adopt_PreferredSlotConflictsFailLoud(t *testing.T) {
+	pool, _ := newTestPool(t, 2, nil)
+	if err := pool.Adopt("a", 0); err != nil {
+		t.Fatalf("Adopt a: %v", err)
+	}
+	if err := pool.Adopt("b", 0); !errors.Is(err, ErrSlotOccupied) {
+		t.Fatalf("duplicate slot adopt err = %v, want ErrSlotOccupied", err)
+	}
+	if err := pool.Adopt("b", 2); !errors.Is(err, ErrSlotOutOfRange) {
+		t.Fatalf("out-of-range adopt err = %v, want ErrSlotOutOfRange", err)
 	}
 }
 

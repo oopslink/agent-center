@@ -203,7 +203,7 @@ func TestRelaunchExecutor_ReapsOrphan_T877(t *testing.T) {
 	trueBin := lookTrue(t)
 	rt, ee, _ := engineForAgent(t, "agent-a")
 	rt.cacheExecConfig(ExecutorConfig{AgentID: "agent-a", MaxConcurrentTasks: 1})
-	rt.relaunchExecutor(ee, "exec-z", []string{trueBin})
+	rt.relaunchExecutor(ee, "exec-z", []string{trueBin}, nil)
 	var pid int
 	for id, p := range ee.snapshotOrphans() {
 		if id == "exec-z" {

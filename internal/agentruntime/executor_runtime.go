@@ -139,6 +139,7 @@ func (r *LocalRuntime) UpdateExecutorConfig(pl ExecutorConfig) {
 		return
 	}
 	ee.engine.UpdateRouterConfig(routerConfigOf(pl))
+	ee.engine.Pool().Resize(pl.MaxConcurrentTasks)
 	r.cacheExecConfig(pl)
 }
 
@@ -245,6 +246,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 	if err != nil {
 		return nil, err
 	}
+	reconciler.SetSlotCap(pool.SlotCount())
 	var wb executor.Writeback
 	caller := r.toolCaller()
 	if cc := newCenterClient(caller); cc != nil {
@@ -608,8 +610,12 @@ func (r *LocalRuntime) recoverExecutors(ctx context.Context, agentID string, ee 
 			continue
 		}
 		if it.Record != nil && it.Record.PID > 0 {
-			ee.addOrphan(it.ExecutorID, it.Record.PID)
-			adopted++
+			if err := ee.adoptOrphan(it.ExecutorID, it.Record.PID, it.Record.SlotIndex); err != nil {
+				lost++
+				r.log("agent=%s recovered running executor=%s slot adopt failed: %v", agentID, it.ExecutorID, err)
+			} else {
+				adopted++
+			}
 		} else {
 			lost++
 			r.log("agent=%s recovered running executor=%s lacks a pid record — not watchdog-tracked", agentID, it.ExecutorID)
@@ -690,6 +696,16 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 		return nil
 	}
 	return ee.SnapshotConcurrency()
+}
+
+// SnapshotAgentConcurrency returns this agent's full live executor snapshot,
+// including allocator-derived slot metadata.
+func (r *LocalRuntime) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
+	ee := r.execEngine()
+	if ee == nil {
+		return concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
+	}
+	return ee.SnapshotAgentConcurrency()
 }
 
 // ---------------------------------------------------------------------------

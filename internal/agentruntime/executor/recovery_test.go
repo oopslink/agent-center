@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ func TestRecord_Validate(t *testing.T) {
 
 func TestTracker_WriteReadRoundTrip(t *testing.T) {
 	_, tr := newRecoveryFixture(t)
-	rec := Record{ExecutorID: "e1", PID: 555, SpawnedAt: time.Unix(1700000000, 0).UTC(), BaseRef: "dev", RunnerCmd: []string{"claude", "-p"}, SessionID: "11111111-2222-5333-8444-555555555555"}
+	rec := Record{ExecutorID: "e1", SlotIndex: intPtr(0), PID: 555, SpawnedAt: time.Unix(1700000000, 0).UTC(), BaseRef: "dev", RunnerCmd: []string{"claude", "-p"}, SessionID: "11111111-2222-5333-8444-555555555555"}
 	if err := tr.Write(rec); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -70,6 +71,9 @@ func TestTracker_WriteReadRoundTrip(t *testing.T) {
 	}
 	if got.PID != 555 || got.BaseRef != "dev" || len(got.RunnerCmd) != 2 {
 		t.Errorf("round trip mismatch: %+v", got)
+	}
+	if got.SlotIndex == nil || *got.SlotIndex != 0 {
+		t.Fatalf("slot_index round trip = %v, want 0", got.SlotIndex)
 	}
 	// §4.3: the session id survives the round trip so recovery can --resume it.
 	if got.SessionID != rec.SessionID {
@@ -221,6 +225,68 @@ func TestReconciler_Validation(t *testing.T) {
 	}
 }
 
+func TestReconciler_LegacyBackfillStableSlots(t *testing.T) {
+	fx, tr := newRecoveryFixture(t)
+	base := time.Unix(1700000000, 0)
+	seedInputAndRecord(t, fx, tr, "exec-explicit", 1001, base, intPtr(1), nil)
+	seedInputAndRecord(t, fx, tr, "exec-b", 1002, base.Add(2*time.Second), nil, nil)
+	seedInputAndRecord(t, fx, tr, "exec-a", 1003, base.Add(time.Second), nil, nil)
+
+	rc, err := NewReconciler(fx, tr, fakeLiveness{alive: map[int]bool{1001: true, 1002: true, 1003: true}})
+	if err != nil {
+		t.Fatalf("NewReconciler: %v", err)
+	}
+	rc.SetSlotCap(3)
+	if _, err := rc.Reconcile(); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	assertRecordSlot(t, tr, "exec-explicit", 1)
+	assertRecordSlot(t, tr, "exec-a", 0)
+	assertRecordSlot(t, tr, "exec-b", 2)
+}
+
+func TestReconciler_BackfillsRecordFromInputSlot(t *testing.T) {
+	fx, tr := newRecoveryFixture(t)
+	seedInputAndRecord(t, fx, tr, "exec-input-slot", 1001, time.Unix(1700000000, 0), nil, intPtr(2))
+	rc, err := NewReconciler(fx, tr, fakeLiveness{alive: map[int]bool{1001: true}})
+	if err != nil {
+		t.Fatalf("NewReconciler: %v", err)
+	}
+	rc.SetSlotCap(3)
+	if _, err := rc.Reconcile(); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	assertRecordSlot(t, tr, "exec-input-slot", 2)
+}
+
+func TestReconciler_DuplicateAndOutOfRangeSlotsFailLoud(t *testing.T) {
+	t.Run("duplicate", func(t *testing.T) {
+		fx, tr := newRecoveryFixture(t)
+		seedInputAndRecord(t, fx, tr, "exec-a", 1001, time.Unix(1700000000, 0), intPtr(0), nil)
+		seedInputAndRecord(t, fx, tr, "exec-b", 1002, time.Unix(1700000001, 0), intPtr(0), nil)
+		rc, err := NewReconciler(fx, tr, fakeLiveness{alive: map[int]bool{1001: true, 1002: true}})
+		if err != nil {
+			t.Fatalf("NewReconciler: %v", err)
+		}
+		rc.SetSlotCap(2)
+		if _, err := rc.Reconcile(); err == nil || !strings.Contains(err.Error(), "duplicate slot_index") {
+			t.Fatalf("Reconcile err = %v, want duplicate slot_index", err)
+		}
+	})
+	t.Run("out of range", func(t *testing.T) {
+		fx, tr := newRecoveryFixture(t)
+		seedInputAndRecord(t, fx, tr, "exec-a", 1001, time.Unix(1700000000, 0), intPtr(2), nil)
+		rc, err := NewReconciler(fx, tr, fakeLiveness{alive: map[int]bool{1001: true}})
+		if err != nil {
+			t.Fatalf("NewReconciler: %v", err)
+		}
+		rc.SetSlotCap(2)
+		if _, err := rc.Reconcile(); err == nil || !strings.Contains(err.Error(), "out of range") {
+			t.Fatalf("Reconcile err = %v, want out of range", err)
+		}
+	})
+}
+
 func TestNewTracker_NilLayout(t *testing.T) {
 	if _, err := NewTracker(nil); err == nil {
 		t.Error("nil layout must error")
@@ -258,5 +324,28 @@ func mustWriteRecord(t *testing.T, tr *Tracker, id string, pid int) {
 	t.Helper()
 	if err := tr.Write(Record{ExecutorID: id, PID: pid, SpawnedAt: time.Unix(1700000000, 0)}); err != nil {
 		t.Fatalf("Write record %s: %v", id, err)
+	}
+}
+
+func seedInputAndRecord(t *testing.T, fx *FileExchange, tr *Tracker, id string, pid int, spawnedAt time.Time, recordSlot, inputSlot *int) {
+	t.Helper()
+	mustProvision(t, fx, id)
+	in := validPoolInput(id)
+	in.SlotIndex = inputSlot
+	mustWriteInput(t, fx, in)
+	rec := Record{ExecutorID: id, SlotIndex: recordSlot, PID: pid, SpawnedAt: spawnedAt}
+	if err := tr.Write(rec); err != nil {
+		t.Fatalf("Write record %s: %v", id, err)
+	}
+}
+
+func assertRecordSlot(t *testing.T, tr *Tracker, id string, want int) {
+	t.Helper()
+	rec, err := tr.Read(id)
+	if err != nil {
+		t.Fatalf("Read %s: %v", id, err)
+	}
+	if rec.SlotIndex == nil || *rec.SlotIndex != want {
+		t.Fatalf("%s slot_index = %v, want %d", id, rec.SlotIndex, want)
 	}
 }

@@ -2,8 +2,10 @@ package api
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/concurrency"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -72,14 +74,40 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	stale := true
 	hasSnapshot := false
 	var snapshotAgeMs int64
+	admissionCap := cap
+	slotCount := cap
+	slotStable := false
 	executors := []map[string]any{}
+	slots := []map[string]any{}
 	if d.LiveState != nil {
 		if snap, age, found := d.LiveState.Get(liveKey, time.Now()); found {
 			hasSnapshot = true
 			snapshotAgeMs = age.Milliseconds()
 			stale = age > liveStateTTL
 			active = snap.Active
-			for _, e := range snap.Executors {
+			if snap.AdmissionCap > 0 {
+				admissionCap = snap.AdmissionCap
+			}
+			if snap.SlotCount > 0 {
+				slotCount = snap.SlotCount
+			}
+			execList := append([]concurrency.ExecutorSnapshot(nil), snap.Executors...)
+			sort.SliceStable(execList, func(i, j int) bool {
+				a, b := execList[i], execList[j]
+				switch {
+				case a.SlotIndex != nil && b.SlotIndex != nil && *a.SlotIndex != *b.SlotIndex:
+					return *a.SlotIndex < *b.SlotIndex
+				case a.SlotIndex != nil && b.SlotIndex == nil:
+					return true
+				case a.SlotIndex == nil && b.SlotIndex != nil:
+					return false
+				default:
+					return a.ExecutorID < b.ExecutorID
+				}
+			})
+			slotStable = snapshotSlotStable(execList, slotCount)
+			occupied := map[int]map[string]any{}
+			for _, e := range execList {
 				em := map[string]any{
 					"executor_id": e.ExecutorID,
 					"task_id":     e.TaskID,
@@ -97,7 +125,28 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 				if e.CurrentActivity != "" {
 					em["current_activity"] = e.CurrentActivity
 				}
+				if e.SlotIndex != nil {
+					em["slot_index"] = *e.SlotIndex
+					occupied[*e.SlotIndex] = em
+				}
 				executors = append(executors, em)
+			}
+			if slotStable {
+				for i := 0; i < slotCount; i++ {
+					if em := occupied[i]; em != nil {
+						sm := map[string]any{"slot_index": i}
+						for k, v := range em {
+							sm[k] = v
+						}
+						slots = append(slots, sm)
+						continue
+					}
+					state := "idle"
+					if stale {
+						state = "unknown"
+					}
+					slots = append(slots, map[string]any{"slot_index": i, "state": state})
+				}
 			}
 		}
 	}
@@ -115,6 +164,10 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agent_id":            agentID,
 		"cap":                 cap,
+		"configured_cap":      cap,
+		"admission_cap":       admissionCap,
+		"slot_count":          slotCount,
+		"slot_stable":         slotStable,
 		"active":              active,
 		"queued":              queued,
 		"running":             running,
@@ -124,5 +177,27 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 		"has_snapshot":        hasSnapshot,
 		"snapshot_age_ms":     snapshotAgeMs,
 		"executors":           executors,
+		"slots":               slots,
 	})
+}
+
+func snapshotSlotStable(execs []concurrency.ExecutorSnapshot, slotCount int) bool {
+	if slotCount <= 0 {
+		return false
+	}
+	seen := map[int]struct{}{}
+	for _, e := range execs {
+		if e.SlotIndex == nil {
+			return false
+		}
+		slot := *e.SlotIndex
+		if slot < 0 || slot >= slotCount {
+			return false
+		}
+		if _, dup := seen[slot]; dup {
+			return false
+		}
+		seen[slot] = struct{}{}
+	}
+	return true
 }

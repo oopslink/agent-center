@@ -90,15 +90,17 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
     [items, statusFilter, typeFilter],
   );
 
-  // task_id → { executor, slot }. Slots are numbered by start order (oldest = 1) —
-  // the contract carries no explicit slot index; mirrors the mockup. The overlay
-  // joins to a row when its underlying task_id matches an executor's task_id.
+  // task_id → { executor, slot }. Slots come ONLY from the runtime's stable
+  // slot_index; old/mixed-version snapshots without it do not get a fabricated
+  // display number.
   const execByTask = useMemo(() => {
     const m = new Map<string, { exec: ConcurrencyExecutor; slot: number }>();
     const xs = concData?.executors ?? [];
+    if (concData?.slot_stable !== true) return m;
     [...xs]
-      .sort((a, b) => (a.started_at < b.started_at ? -1 : a.started_at > b.started_at ? 1 : 0))
-      .forEach((e, i) => m.set(e.task_id, { exec: e, slot: i + 1 }));
+      .filter((e) => e.task_id && Number.isInteger(e.slot_index))
+      .sort((a, b) => (a.slot_index as number) - (b.slot_index as number))
+      .forEach((e) => m.set(e.task_id, { exec: e, slot: e.slot_index as number }));
     return m;
   }, [concData]);
 
@@ -342,7 +344,7 @@ function concurrencyMode(data: AgentConcurrency): ConcurrencyMode {
 function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElement {
   const { t } = useTranslation('members');
   const mode = concurrencyMode(data);
-  const cap = Math.max(0, data.cap);
+  const cap = Math.max(0, data.slot_count ?? data.cap);
   const active = Math.max(0, data.active);
   // Occupancy: the live executor count when the snapshot is fresh, else the
   // center-known in-progress count (data.running) as a FALLBACK so a busy agent

@@ -140,6 +140,29 @@ func TestPool_ReleaseFreesSlot(t *testing.T) {
 	}
 }
 
+func TestPool_LaunchAssignsLowestFreeSlot(t *testing.T) {
+	pool, _ := newTestPool(t, 3, nil)
+	if _, err := launch(pool, "a"); err != nil {
+		t.Fatalf("launch a: %v", err)
+	}
+	if _, err := launch(pool, "b"); err != nil {
+		t.Fatalf("launch b: %v", err)
+	}
+	if got := mustSlot(t, pool, "a"); got != 0 {
+		t.Fatalf("slot a = %d, want 0", got)
+	}
+	if got := mustSlot(t, pool, "b"); got != 1 {
+		t.Fatalf("slot b = %d, want 1", got)
+	}
+	pool.Release("a")
+	if _, err := launch(pool, "c"); err != nil {
+		t.Fatalf("launch c: %v", err)
+	}
+	if got := mustSlot(t, pool, "c"); got != 0 {
+		t.Fatalf("slot c = %d, want reused lowest free slot 0", got)
+	}
+}
+
 func TestPool_ProvisionFailureFreesSlot(t *testing.T) {
 	pool, _ := newTestPool(t, 2, errors.New("git boom"))
 	if _, err := launch(pool, "x"); err == nil {
@@ -185,6 +208,20 @@ func TestPool_ConcurrentLaunchesRespectCap(t *testing.T) {
 	}
 	if len(pool.Handles()) != max {
 		t.Errorf("Handles = %d, want %d", len(pool.Handles()), max)
+	}
+	assignments := pool.Assignments()
+	if len(assignments) != max {
+		t.Fatalf("Assignments = %d, want %d", len(assignments), max)
+	}
+	seen := map[int]bool{}
+	for _, asg := range assignments {
+		if asg.SlotIndex < 0 || asg.SlotIndex >= max {
+			t.Fatalf("slot %d out of range [0,%d)", asg.SlotIndex, max)
+		}
+		if seen[asg.SlotIndex] {
+			t.Fatalf("duplicate slot %d in assignments %+v", asg.SlotIndex, assignments)
+		}
+		seen[asg.SlotIndex] = true
 	}
 }
 
@@ -253,4 +290,13 @@ func TestPool_PlainDirWorkspace(t *testing.T) {
 	if _, err := os.Stat(wsDir + "/.git"); err == nil {
 		t.Error("plain-dir workspace must not be a git worktree")
 	}
+}
+
+func mustSlot(t *testing.T, p *Pool, id string) int {
+	t.Helper()
+	slot, ok := p.SlotIndex(id)
+	if !ok {
+		t.Fatalf("missing slot for %s; assignments=%+v", id, p.Assignments())
+	}
+	return slot
 }

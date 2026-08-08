@@ -537,6 +537,13 @@ func (h agentControlHandler) SnapshotConcurrency() []concurrency.ExecutorSnapsho
 	return h.rt.SnapshotConcurrency()
 }
 
+func (h agentControlHandler) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
+	if h.rt == nil {
+		return concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
+	}
+	return h.rt.SnapshotAgentConcurrency()
+}
+
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied
 // verbatim — using the SAME daemon payload types + converters the in-process path
 // used, and dispatches to the matching runtime method. Reusing the daemon's decoders

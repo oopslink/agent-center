@@ -25,6 +25,7 @@ const (
 // ExecutorSnapshot is one live executor's point-in-time view.
 type ExecutorSnapshot struct {
 	ExecutorID      string     `json:"executor_id"`
+	SlotIndex       *int       `json:"slot_index,omitempty"`
 	TaskID          string     `json:"task_id,omitempty"`
 	CLI             string     `json:"cli,omitempty"`
 	Model           string     `json:"model,omitempty"`
@@ -39,8 +40,10 @@ type ExecutorSnapshot struct {
 // count of slot-occupying executors (== len(Executors)); the cap + queued depth are
 // joined center-side (they are not the worker's to know).
 type AgentSnapshot struct {
-	Active    int                `json:"active"`
-	Executors []ExecutorSnapshot `json:"executors"`
+	AdmissionCap int                `json:"admission_cap,omitempty"`
+	SlotCount    int                `json:"slot_count,omitempty"`
+	Active       int                `json:"active"`
+	Executors    []ExecutorSnapshot `json:"executors"`
 }
 
 // LiveStateStore keeps the latest per-agent snapshot the center received on a

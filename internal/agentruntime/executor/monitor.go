@@ -429,7 +429,7 @@ func (m *Monitor) Recover(ctx context.Context) ([]Reconciled, error) {
 	}
 	for _, it := range items {
 		if it.Completion.Kind == OutcomeRunning {
-			m.adopt(it.ExecutorID)
+			m.adopt(it.ExecutorID, it.Record)
 			continue
 		}
 		it.Completion.Recovered = true // finalized from durable files at restart (orphan)
@@ -444,8 +444,12 @@ func (m *Monitor) Recover(ctx context.Context) ([]Reconciled, error) {
 // toward max_concurrent_tasks again. Best-effort: a full pool or an unknown id is
 // not fatal to recovery (the executor keeps running regardless; the worst case is
 // transient over-admission, never a lost executor).
-func (m *Monitor) adopt(executorID string) {
+func (m *Monitor) adopt(executorID string, rec *Record) {
 	if m.pool == nil {
+		return
+	}
+	if rec != nil && rec.SlotIndex != nil {
+		_ = m.pool.Adopt(executorID, *rec.SlotIndex)
 		return
 	}
 	_ = m.pool.Adopt(executorID)
@@ -558,15 +562,16 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 			return fmt.Errorf("executor: writeback %s: %w", c.ExecutorID, err)
 		}
 	}
-	// 2) Free the concurrency slot so a queued executor can launch (design §3). The
+	// 2) Emit the terminal stop to the activity stream BEFORE slot release/teardown, so
+	// task_ref and slot_index are still resolvable from the not-yet-removed input.json
+	// and live Pool assignment. Best-effort +
+	// observational: it never affects the finalize outcome (activity.go contract).
+	m.emitStop(c)
+	// 2b) Free the concurrency slot so a queued executor can launch (design §3). The
 	// process is already gone for every finalized outcome.
 	if m.pool != nil {
 		m.pool.Release(c.ExecutorID)
 	}
-	// 2b) Emit the terminal stop to the activity stream BEFORE teardown, so task_ref
-	// is still resolvable from the (not-yet-removed) input.json. Best-effort +
-	// observational: it never affects the finalize outcome (activity.go contract).
-	m.emitStop(c)
 	// 3) Teardown durable state. A retryable crash RETAINS its dir/worktree for
 	// re-launch + inspection (design §7 "清理或保留").
 	if c.Retryable {
@@ -724,13 +729,13 @@ func (m *Monitor) FinalizeFused(ctx context.Context, c Completion) error {
 		return nil
 	}
 	m.captureCodexThreadID(c)
+	// Terminal stop for the activity stream (before teardown, so task_ref still resolves).
+	m.emitStop(c)
 	// Free the concurrency slot (the process is already gone). No writeback precedes it,
 	// so — unlike Finalize's writeback-gated release — this is unconditional.
 	if m.pool != nil {
 		m.pool.Release(c.ExecutorID)
 	}
-	// Terminal stop for the activity stream (before teardown, so task_ref still resolves).
-	m.emitStop(c)
 	// Force delayed-teardown (never RETAIN as retryable): a fused executor must not leave
 	// state a later recovery/boot Scan could relaunch into a new unfused incarnation. A
 	// fused executor's work is deliberately rejected, so no git-status audit marker is
@@ -841,6 +846,7 @@ func (m *Monitor) emitStop(c Completion) {
 	}
 	ev := StopEvent{
 		ExecutorID: c.ExecutorID,
+		SlotIndex:  m.slotIndex(c.ExecutorID),
 		TaskRef:    m.taskRef(c.ExecutorID),
 		Outcome:    c.Kind,
 		Retryable:  c.Retryable,
@@ -883,6 +889,7 @@ func (m *Monitor) SampleProgress() {
 		}
 		m.obs.ExecutorProgress(ProgressEvent{
 			ExecutorID:     h.ExecutorID,
+			SlotIndex:      m.slotIndex(h.ExecutorID),
 			TaskRef:        m.taskRef(h.ExecutorID),
 			State:          string(st.State),
 			Summary:        st.Summary,
@@ -891,6 +898,25 @@ func (m *Monitor) SampleProgress() {
 			At:             m.clk.Now(),
 		})
 	}
+}
+
+func (m *Monitor) slotIndex(executorID string) *int {
+	if m.pool != nil {
+		if slot, ok := m.pool.SlotIndex(executorID); ok {
+			return intPtr(slot)
+		}
+	}
+	if m.fx != nil {
+		if in, err := m.fx.ReadInput(executorID); err == nil && in.SlotIndex != nil {
+			return cloneIntPtr(in.SlotIndex)
+		}
+	}
+	if m.tracker != nil {
+		if rec, err := m.tracker.Read(executorID); err == nil && rec.SlotIndex != nil {
+			return cloneIntPtr(rec.SlotIndex)
+		}
+	}
+	return nil
 }
 
 // taskRef resolves an executor's source task ref from its input.json (the fork

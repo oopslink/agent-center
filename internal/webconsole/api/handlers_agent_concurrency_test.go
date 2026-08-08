@@ -55,11 +55,12 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	// Seed a fresh snapshot under the REAL worker write key (the AR id), NOT the member
 	// id — matching production (issue-c44ccf6b). The handler must resolve the member-id
 	// URL to a.ID() and find it there.
+	slot0 := 0
 	store.Put(arID(t, deps, id), concurrency.AgentSnapshot{
-		Active: 1,
+		Active: 1, AdmissionCap: 3, SlotCount: 3,
 		Executors: []concurrency.ExecutorSnapshot{
 			{
-				ExecutorID: "e1", TaskID: "t1", CLI: "codex", Model: "gpt-5.5",
+				ExecutorID: "e1", SlotIndex: &slot0, TaskID: "t1", CLI: "codex", Model: "gpt-5.5",
 				State: concurrency.StateRunning, PID: 99, StartedAt: time.Now(),
 				CurrentActivity: "running tests for fork executor heartbeat",
 			},
@@ -83,6 +84,15 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	if active, _ := body["active"].(float64); active != 1 {
 		t.Errorf("active = %v, want 1", body["active"])
 	}
+	if admission, _ := body["admission_cap"].(float64); admission != 3 {
+		t.Errorf("admission_cap = %v, want 3", body["admission_cap"])
+	}
+	if sc, _ := body["slot_count"].(float64); sc != 3 {
+		t.Errorf("slot_count = %v, want 3", body["slot_count"])
+	}
+	if stable, _ := body["slot_stable"].(bool); !stable {
+		t.Errorf("slot_stable = %v, want true", body["slot_stable"])
+	}
 	if stale, _ := body["stale"].(bool); stale {
 		t.Errorf("fresh snapshot must not be stale")
 	}
@@ -97,8 +107,23 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	if e0["executor_id"] != "e1" || e0["cli"] != "codex" || e0["task_id"] != "t1" || e0["state"] != "running" {
 		t.Errorf("executor = %v", e0)
 	}
+	if e0["slot_index"] != float64(0) {
+		t.Errorf("executor slot_index = %v, want 0", e0["slot_index"])
+	}
 	if e0["current_activity"] != "running tests for fork executor heartbeat" {
 		t.Errorf("current_activity = %v", e0["current_activity"])
+	}
+	slots, _ := body["slots"].([]any)
+	if len(slots) != 3 {
+		t.Fatalf("slots len = %d, want 3", len(slots))
+	}
+	s0, _ := slots[0].(map[string]any)
+	s1, _ := slots[1].(map[string]any)
+	if s0["slot_index"] != float64(0) || s0["executor_id"] != "e1" {
+		t.Errorf("slot 0 = %v, want executor e1", s0)
+	}
+	if s1["slot_index"] != float64(1) || s1["state"] != "idle" {
+		t.Errorf("slot 1 = %v, want idle", s1)
 	}
 }
 

@@ -59,6 +59,7 @@ func (r *LocalRuntime) emitExecutorStart(agentID, taskRef, title string, launche
 	}
 	payload := executorStartPayload(executorStartFields{
 		ExecutorID:  launched.ExecutorID,
+		SlotIndex:   launched.SlotIndex,
 		TaskRef:     taskRef,
 		PID:         pid,
 		CLI:         launched.CLI,
@@ -95,6 +96,7 @@ func executorInteractionRef(execID string) string { return "executor:" + execID 
 // pure builder below is table-testable without a Launched/Handle).
 type executorStartFields struct {
 	ExecutorID  string
+	SlotIndex   *int
 	TaskRef     string
 	PID         int
 	CLI         string
@@ -116,6 +118,9 @@ func executorStartPayload(f executorStartFields) map[string]any {
 		"cli":         f.CLI,
 		"model":       f.Model,
 		"scope":       f.Model,
+	}
+	if f.SlotIndex != nil {
+		p["slot_index"] = *f.SlotIndex
 	}
 	putIfSet(p, "model_source", f.ModelSource)
 	putIfSet(p, "problem_id", f.ProblemID)
@@ -142,6 +147,9 @@ func executorStopPayload(ev executor.StopEvent) map[string]any {
 		"recovered":   ev.Recovered,
 		"scope":       scope,
 	}
+	if ev.SlotIndex != nil {
+		p["slot_index"] = *ev.SlotIndex
+	}
 	putIfSet(p, "reason", ev.Reason)
 	putIfSet(p, "detail", ev.Detail)
 	if ev.Git != nil {
@@ -160,6 +168,9 @@ func executorProgressPayload(ev executor.ProgressEvent) map[string]any {
 		"task_ref":    ev.TaskRef,
 		"state":       ev.State,
 		"scope":       ev.State,
+	}
+	if ev.SlotIndex != nil {
+		p["slot_index"] = *ev.SlotIndex
 	}
 	if !ev.LastProgressAt.IsZero() {
 		p["last_progress_at"] = ev.LastProgressAt.UTC().Format(time.RFC3339)

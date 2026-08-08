@@ -43,8 +43,10 @@ func TestExecutorActivityObserver_Emits(t *testing.T) {
 // invariant and the event-specific keys, in the activity_payload_v271_test.go style.
 
 func TestExecutorStartPayload_Schema(t *testing.T) {
+	slot := 0
 	p := executorStartPayload(executorStartFields{
 		ExecutorID:  "exec-abc123",
+		SlotIndex:   &slot,
 		TaskRef:     "T758",
 		PID:         4242,
 		CLI:         "claude-code",
@@ -61,6 +63,9 @@ func TestExecutorStartPayload_Schema(t *testing.T) {
 	}
 	if p["pid"] != 4242 || p["cli"] != "claude-code" || p["model"] != "claude-opus-4-8" {
 		t.Fatalf("start payload core = %+v", p)
+	}
+	if p["slot_index"] != 0 {
+		t.Fatalf("slot_index = %v, want 0", p["slot_index"])
 	}
 	if p["model_source"] != "task_model" || p["problem_id"] != "prob-1" || p["title"] != "do the thing" {
 		t.Fatalf("start payload optionals = %+v", p)
@@ -88,9 +93,10 @@ func TestExecutorStartPayload_OmitsEmptyOptionals(t *testing.T) {
 }
 
 func TestExecutorStopPayload_FourClasses(t *testing.T) {
+	slot := 2
 	base := func(o executor.OutcomeKind, reason, detail string, retryable, recovered bool) executor.StopEvent {
 		return executor.StopEvent{
-			ExecutorID: "exec-xyz", TaskRef: "T758", Outcome: o,
+			ExecutorID: "exec-xyz", SlotIndex: &slot, TaskRef: "T758", Outcome: o,
 			Reason: reason, Detail: detail, Retryable: retryable, Recovered: recovered,
 			At: time.Unix(1700000000, 0),
 		}
@@ -116,6 +122,9 @@ func TestExecutorStopPayload_FourClasses(t *testing.T) {
 			}
 			if p["executor_id"] != "exec-xyz" || p["task_ref"] != "T758" {
 				t.Fatalf("missing executor_id/task_ref prefix: %+v", p)
+			}
+			if p["slot_index"] != 2 {
+				t.Fatalf("slot_index = %v, want 2", p["slot_index"])
 			}
 			if p["outcome"] != tc.wantOutcome {
 				t.Errorf("outcome = %v, want %s", p["outcome"], tc.wantOutcome)
@@ -156,8 +165,9 @@ func TestExecutorStopPayload_IncludesGitDeliverySnapshot(t *testing.T) {
 
 func TestExecutorProgressPayload_Schema(t *testing.T) {
 	at := time.Unix(1700000123, 0)
+	slot := 1
 	p := executorProgressPayload(executor.ProgressEvent{
-		ExecutorID: "exec-run", TaskRef: "T758", State: "running",
+		ExecutorID: "exec-run", SlotIndex: &slot, TaskRef: "T758", State: "running",
 		Summary: "wrote tests", Detail: "读 task.go", LastProgressAt: at,
 	})
 	if p["event"] != "executor.progress" {
@@ -168,6 +178,9 @@ func TestExecutorProgressPayload_Schema(t *testing.T) {
 	}
 	if p["state"] != "running" || p["scope"] != "running" {
 		t.Fatalf("progress state/scope = %+v", p)
+	}
+	if p["slot_index"] != 1 {
+		t.Fatalf("slot_index = %v, want 1", p["slot_index"])
 	}
 	if p["summary"] != "wrote tests" {
 		t.Fatalf("summary = %v", p["summary"])

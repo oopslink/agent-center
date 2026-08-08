@@ -103,6 +103,12 @@ type Snapshotter interface {
 	SnapshotConcurrency() []concurrency.ExecutorSnapshot
 }
 
+// AgentSnapshotter is the slot-aware snapshot extension. When present, it is the
+// source for /concurrency; Snapshotter remains for older handlers/tests.
+type AgentSnapshotter interface {
+	SnapshotAgentConcurrency() concurrency.AgentSnapshot
+}
+
 // HandlerFunc adapts a function to Handler.
 type HandlerFunc func(ctx context.Context, cmd Command) error
 
@@ -194,6 +200,18 @@ func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if snapper, ok := s.handler.(AgentSnapshotter); ok {
+		snap := snapper.SnapshotAgentConcurrency()
+		if snap.Executors == nil {
+			snap.Executors = []concurrency.ExecutorSnapshot{}
+		}
+		if snap.Active == 0 {
+			snap.Active = len(snap.Executors)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(snap)
 		return
 	}
 	var execs []concurrency.ExecutorSnapshot
