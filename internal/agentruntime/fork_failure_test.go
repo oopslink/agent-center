@@ -80,8 +80,8 @@ func TestSpawnExecutor_NoModelResolvable_BlocksWithCause(t *testing.T) {
 	setToolCaller(rt, sc)
 
 	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-nm"})
-	if res != nil || err != nil {
-		t.Fatalf("SpawnExecutor (no model) = (%v, %v), want (nil, nil)", res, err)
+	if err != nil || res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != string(CauseNoModelResolvable) {
+		t.Fatalf("SpawnExecutor (no model) = (%v, %v), want failed/no_model_resolvable", res, err)
 	}
 	seen := sc.toolsSeen()
 	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {

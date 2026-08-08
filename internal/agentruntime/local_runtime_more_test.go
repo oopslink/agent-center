@@ -14,10 +14,11 @@ func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 	rt, _ := newTestRuntime(t)
 	ctx := context.Background()
 
-	// No engine + no ToolCaller → SpawnExecutor logs + returns (nil, nil), never wedges.
+	// No engine + no ToolCaller → SpawnExecutor returns a structured failure, never a
+	// silent ack-able no-op.
 	res, err := rt.SpawnExecutor(ctx, SpawnRequest{TaskID: "wi-1"})
-	if res != nil || err != nil {
-		t.Errorf("SpawnExecutor (no engine) = (%v, %v), want (nil, nil)", res, err)
+	if err != nil || res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "runtime_executor_unavailable" {
+		t.Errorf("SpawnExecutor (no engine) = (%v, %v), want runtime_executor_unavailable result", res, err)
 	}
 	if err := rt.Recover(ctx); err != nil {
 		t.Errorf("Recover (no engine) = %v, want nil", err)

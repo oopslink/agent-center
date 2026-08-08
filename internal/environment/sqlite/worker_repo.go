@@ -24,6 +24,13 @@ func ts(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
 
+func tsZeroNull(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return ts(t)
+}
+
 func parseTime(s string) time.Time {
 	if strings.TrimSpace(s) == "" {
 		return time.Time{}

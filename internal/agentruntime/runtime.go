@@ -162,7 +162,8 @@ type StartSpec struct {
 
 // SpawnRequest is the input for SpawnExecutor (supervisor → runtime fork entry).
 type SpawnRequest struct {
-	TaskID string
+	TaskID    string
+	CommandID string
 	// Model is the supervisor-specified model override (empty ⇒ runtime resolves).
 	Model string
 	// Context is the supervisor-aggregated context (empty ⇒ runtime builds it from
@@ -184,7 +185,10 @@ type SpawnRequest struct {
 
 // SpawnResult is the outcome of a successful SpawnExecutor.
 type SpawnResult struct {
-	ExecutorID string
-	Model      string
-	CLI        string
+	ExecutorID    string
+	Model         string
+	CLI           string
+	CommandStatus string
+	Reason        string
+	Detail        string
 }

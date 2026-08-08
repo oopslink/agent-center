@@ -175,11 +175,25 @@ func (s *Server) envWorkerHeartbeatHandler(w http.ResponseWriter, r *http.Reques
 // re-executing a destructive command seen again after a reconnect.
 func controlEventMap(e *environment.WorkerControlEvent) map[string]any {
 	return map[string]any{
-		"id":              e.ID(),
-		"offset":          e.Offset(),
-		"idempotency_key": e.IdempotencyKey(),
-		"command_type":    e.CommandType(),
-		"payload":         e.Payload(),
-		"created_at":      e.CreatedAt().Format(time.RFC3339Nano),
+		"id":                e.ID(),
+		"offset":            e.Offset(),
+		"idempotency_key":   e.IdempotencyKey(),
+		"command_type":      e.CommandType(),
+		"payload":           e.Payload(),
+		"agent_id":          e.AgentID(),
+		"task_id":           e.TaskID(),
+		"status":            e.Status(),
+		"status_reason":     e.StatusReason(),
+		"status_detail":     e.StatusDetail(),
+		"execution_id":      e.ExecutionID(),
+		"status_updated_at": formatOptionalTime(e.StatusUpdatedAt()),
+		"created_at":        e.CreatedAt().Format(time.RFC3339Nano),
 	}
+}
+
+func formatOptionalTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }

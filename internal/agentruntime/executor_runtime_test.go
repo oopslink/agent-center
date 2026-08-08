@@ -674,8 +674,8 @@ func TestSpawnExecutor_SameTaskWithLiveExecutorCoalescesBeforeCenterRead(t *test
 	defer rt.untrackTaskExecutor("task-live", "exec-live")
 
 	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-live"})
-	if err != nil || res != nil {
-		t.Fatalf("duplicate live spawn = (%+v, %v), want coalesced nil result", res, err)
+	if err != nil || res == nil || res.ExecutorID != "exec-live" {
+		t.Fatalf("duplicate live spawn = (%+v, %v), want coalesced exec-live result", res, err)
 	}
 	if calls := caller.toolsSeen(); len(calls) != 0 {
 		t.Fatalf("known live executor duplicate reached center: calls=%v", calls)
@@ -708,8 +708,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 	setToolCaller(rt, sc)
 
 	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-x"})
-	if res != nil || err != nil {
-		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want (nil, nil)", res, err)
+	if err != nil || res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != string(CauseModelNotAllowed) {
+		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
 	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {

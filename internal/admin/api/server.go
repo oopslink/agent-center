@@ -346,6 +346,7 @@ func (s *Server) routes() {
 	// feedback is PERSIST-ONLY (never emits agent.lifecycle_changed → no
 	// reconcile loop). Nothing is activated; the legacy path is untouched.
 	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/control-command-status", s.envAgentControlCommandStatusHandler)
 	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
 	// v2.14.0 F7 (issue I14): the work-item-state feedback route was removed —
 	// AgentWorkItem retired (the daemon pulls/advances work via list_my_tasks/

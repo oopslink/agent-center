@@ -63,6 +63,9 @@ type AppendCommandInput struct {
 	CommandType    string
 	Payload        string
 	IdempotencyKey string
+	AgentID        string
+	TaskID         string
+	Status         string
 }
 
 // AppendCommand enqueues a command for a Worker. IDEMPOTENT: if a command with
@@ -89,13 +92,17 @@ func (l *ControlLog) AppendCommand(ctx context.Context, in AppendCommandInput) (
 		return nil, err
 	}
 	evt, err := NewWorkerControlEvent(NewWorkerControlEventInput{
-		ID:             l.idgen.NewULID(),
-		WorkerID:       in.WorkerID,
-		Offset:         maxOff + 1,
-		IdempotencyKey: in.IdempotencyKey,
-		CommandType:    in.CommandType,
-		Payload:        in.Payload,
-		CreatedAt:      l.clock.Now(),
+		ID:              l.idgen.NewULID(),
+		WorkerID:        in.WorkerID,
+		Offset:          maxOff + 1,
+		IdempotencyKey:  in.IdempotencyKey,
+		CommandType:     in.CommandType,
+		Payload:         in.Payload,
+		AgentID:         in.AgentID,
+		TaskID:          in.TaskID,
+		Status:          in.Status,
+		StatusUpdatedAt: l.clock.Now(),
+		CreatedAt:       l.clock.Now(),
 	})
 	if err != nil {
 		return nil, err
@@ -138,6 +145,21 @@ func (l *ControlLog) publish(e *WorkerControlEvent) {
 // reconnecting Worker still needs.
 func (l *ControlLog) CommandsAfter(ctx context.Context, workerID WorkerID, offset int64) ([]*WorkerControlEvent, error) {
 	return l.events.ListAfter(ctx, workerID, offset)
+}
+
+func (l *ControlLog) LatestNonTerminalByAgentTask(ctx context.Context, workerID WorkerID, commandType, agentID, taskID string) (*WorkerControlEvent, error) {
+	return l.events.LatestNonTerminalByAgentTask(ctx, workerID, commandType, agentID, taskID)
+}
+
+func (l *ControlLog) ListByAgentTask(ctx context.Context, workerID WorkerID, commandType, agentID, taskID string) ([]*WorkerControlEvent, error) {
+	return l.events.ListByAgentTask(ctx, workerID, commandType, agentID, taskID)
+}
+
+func (l *ControlLog) UpdateStatus(ctx context.Context, in UpdateCommandStatusInput) (*WorkerControlEvent, error) {
+	if in.StatusUpdatedAt.IsZero() {
+		in.StatusUpdatedAt = l.clock.Now()
+	}
+	return l.events.UpdateStatus(ctx, in)
 }
 
 // Replay is the convenience wrapper for a reconnecting Worker: the commands

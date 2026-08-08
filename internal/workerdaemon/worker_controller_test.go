@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
@@ -104,6 +105,69 @@ func TestControllerHandler_UndeliveredCommandErrors(t *testing.T) {
 	// It still ensured the agent was launched (so the retry lands once it is up).
 	if !l.running["a"] {
 		t.Error("Deliver must ensure the target agent is launched")
+	}
+}
+
+func TestControllerHandler_ForkDeliveryErrorRetriesWithoutAck(t *testing.T) {
+	h, l := newTestHandler(t)
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-fork",
+		CommandType: cmdTypeAgentForkExec,
+		Offset:      7,
+		Status:      environment.CommandStatusPending,
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:     `{"agent_id":"a","task_id":"t1"}`,
+	})
+	if err == nil {
+		t.Fatal("an undelivered fork command must return an error so the cursor is not acked")
+	}
+	if !l.running["a"] {
+		t.Fatal("fork delivery retry path must ensure the target agent is launched")
+	}
+}
+
+func TestControllerHandler_ExpiredForkCommandReportsTerminalAndSkipsDelivery(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-old",
+		CommandType: cmdTypeAgentForkExec,
+		Offset:      8,
+		Status:      environment.CommandStatusPending,
+		CreatedAt:   time.Now().Add(-forkCommandExpireAfter - time.Second).UTC().Format(time.RFC3339Nano),
+		Payload:     `{"agent_id":"a","task_id":"t1"}`,
+	})
+	if err != nil {
+		t.Fatalf("expired fork command should be ackable after terminal report, got %v", err)
+	}
+	if l.running["a"] {
+		t.Fatal("expired fork command must not be delivered to the agent process")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 1 || r.commands[0].commandID != "cmd-old" ||
+		r.commands[0].status != environment.CommandStatusExpired ||
+		r.commands[0].taskID != "t1" {
+		t.Fatalf("command status reports = %+v", r.commands)
+	}
+}
+
+func TestControllerHandler_ExpiredForkCommandReportFailureRetries(t *testing.T) {
+	r := &fakeCommandStatusReporter{fail: errors.New("center unavailable")}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-old",
+		CommandType: cmdTypeAgentForkExec,
+		Offset:      9,
+		Status:      environment.CommandStatusPending,
+		CreatedAt:   time.Now().Add(-forkCommandExpireAfter - time.Second).UTC().Format(time.RFC3339Nano),
+		Payload:     `{"agent_id":"a","task_id":"t1"}`,
+	})
+	if err == nil {
+		t.Fatal("failed terminal status report must leave the command unacked for retry")
+	}
+	if l.running["a"] {
+		t.Fatal("expired fork command must not be delivered when terminal report fails")
 	}
 }
 
@@ -262,6 +326,40 @@ func (r *fakeLifecycleReporter) ReportAgentLifecycle(_ context.Context, agentID,
 		return r.fail
 	}
 	r.got = append(r.got, lifecycleFeedback{agentID: agentID, state: state, errMsg: errMsg, at: at})
+	return nil
+}
+
+type fakeCommandStatusReporter struct {
+	mu       sync.Mutex
+	commands []commandStatusFeedback
+	fail     error
+}
+
+type commandStatusFeedback struct {
+	agentID     string
+	commandID   string
+	taskID      string
+	status      string
+	reason      string
+	detail      string
+	executionID string
+	at          time.Time
+}
+
+func (r *fakeCommandStatusReporter) ReportAgentLifecycle(context.Context, string, string, string, time.Time) error {
+	return nil
+}
+
+func (r *fakeCommandStatusReporter) ReportControlCommandStatus(_ context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fail != nil {
+		return r.fail
+	}
+	r.commands = append(r.commands, commandStatusFeedback{
+		agentID: agentID, commandID: commandID, taskID: taskID,
+		status: status, reason: reason, detail: detail, executionID: executionID, at: at,
+	})
 	return nil
 }
 

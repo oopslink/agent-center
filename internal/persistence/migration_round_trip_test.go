@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 122 || v2 != 122 {
-		t.Fatalf("Version after Up: got (%d, %d) want (122, 122)", v1, v2)
+	if v1 != 123 || v2 != 123 {
+		t.Fatalf("Version after Up: got (%d, %d) want (123, 123)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -373,9 +373,14 @@ func TestMigration_0044_EnvironmentWorkerShape(t *testing.T) {
 	}
 	// v2.7 #140 step-3: idx_env_workers_org removed with the organization_id
 	// column (org is no longer stored on the control-channel Worker AR).
-	for _, idx := range []string{"idx_wce_worker_offset"} {
+	for _, idx := range []string{"idx_wce_worker_offset", "idx_wce_worker_agent_task_status"} {
 		if !indexExists(t, db, idx) {
 			t.Fatalf("index %s must exist after Up", idx)
+		}
+	}
+	for _, col := range []string{"agent_id", "task_id", "status", "status_reason", "status_detail", "execution_id", "status_updated_at"} {
+		if !columnExists(t, db, "worker_control_events", col) {
+			t.Fatalf("worker_control_events.%s must exist after Up", col)
 		}
 	}
 	// v2.7 #140 step-3: org is NOT stored on the control-channel Worker AR.

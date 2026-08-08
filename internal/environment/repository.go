@@ -1,6 +1,9 @@
 package environment
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // WorkerRepository persists Worker ARs (D1). The sqlite implementation honors
 // persistence.ExecutorFromCtx so writes can compose in one transaction.
@@ -26,8 +29,47 @@ type ControlEventRepository interface {
 	// FindByIdempotencyKey returns the existing stream entry for a (worker, key)
 	// pair, or ErrWorkerNotFound-style nil,nil when absent.
 	FindByIdempotencyKey(ctx context.Context, workerID WorkerID, key string) (*WorkerControlEvent, error)
+	// FindByID returns one stream entry by id, or nil,nil when absent.
+	FindByID(ctx context.Context, id string) (*WorkerControlEvent, error)
+	// LatestNonTerminalByAgentTask returns the newest non-terminal command for a
+	// logical agent/task fork attempt, or nil,nil when there is none.
+	LatestNonTerminalByAgentTask(ctx context.Context, workerID WorkerID, commandType, agentID, taskID string) (*WorkerControlEvent, error)
 	// ListAfter returns commands with offset strictly greater than `offset`,
 	// ascending — the replay set for a reconnecting worker (offset =
 	// worker.LastAckedOffset()).
 	ListAfter(ctx context.Context, workerID WorkerID, offset int64) ([]*WorkerControlEvent, error)
+	// ListByAgentTask returns command rows for an agent/task pair ordered newest
+	// first. Read models use this to surface pending/terminal fork commands even
+	// before an executor.start activity exists.
+	ListByAgentTask(ctx context.Context, workerID WorkerID, commandType, agentID, taskID string) ([]*WorkerControlEvent, error)
+	UpdateStatus(ctx context.Context, in UpdateCommandStatusInput) (*WorkerControlEvent, error)
+}
+
+const (
+	CommandStatusPending  = "pending"
+	CommandStatusStarted  = "started"
+	CommandStatusRejected = "rejected"
+	CommandStatusFailed   = "failed"
+	CommandStatusExpired  = "expired"
+)
+
+func CommandStatusTerminal(status string) bool {
+	switch status {
+	case CommandStatusRejected, CommandStatusFailed, CommandStatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
+type UpdateCommandStatusInput struct {
+	WorkerID        WorkerID
+	CommandID       string
+	AgentID         string
+	TaskID          string
+	Status          string
+	StatusReason    string
+	StatusDetail    string
+	ExecutionID     string
+	StatusUpdatedAt time.Time
 }

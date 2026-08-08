@@ -739,18 +739,21 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	ee := r.execEngine()
 	if ee == nil {
 		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_executor_unavailable", Detail: "runtime has no executor engine attached"}, nil
 	}
 
 	if strings.TrimSpace(taskID) == "" {
 		r.log("fork_executor agent=%s concurrency fork: empty task_id — skipping", agentID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "missing_task_id"}, nil
 	}
 	r.log("DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=%s task_id=%s — SpawnExecutor entry",
 		agentID, taskID)
 	started, existing := r.beginTaskFork(taskID)
 	if !started {
 		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_in_flight", agentID, taskID, existing)
+		if existing != "" {
+			return &SpawnResult{ExecutorID: existing}, nil
+		}
 		return nil, nil
 	}
 	defer r.endTaskFork(taskID)
@@ -758,14 +761,14 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	caller := r.toolCaller()
 	if caller == nil {
 		r.log("fork_executor agent=%s task=%s concurrency fork: no ToolCaller — left queued", agentID, taskID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "center_transport_unavailable", Detail: "runtime has no ToolCaller"}, nil
 	}
 
 	// 1. Pull the task detail to build the WorkItem (title/description/model).
 	task, err := r.fetchCenterTask(ctx, agentID, taskID)
 	if err != nil {
 		r.log("fork_executor agent=%s task=%s get_task: %v — left queued", agentID, taskID, err)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "get_task_failed", Detail: err.Error()}, nil
 	}
 
 	// issue-d118b5dc ② foreign-assignee guard: SpawnExecutor forks for whatever task_id the
@@ -784,7 +787,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	if ref := r.identityRef(); taskReassigned(task.Assignee, ref) {
 		r.log("DISPATCH-CROSS-NAMESPACE agent_namespace=%s agent_ref=%s task_id=%s task_assignee=%q — fork_executor on a task NOT assigned to this runtime (issue-d118b5dc ②); SKIPPING fork (foreign-assignee guard), left queued for the real assignee",
 			agentID, ref, taskID, task.Assignee)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "task_reassigned", Detail: "task is assigned to " + task.Assignee}, nil
 	}
 
 	// A task explicitly marked supervisor_inline must be handled by the supervisor,
@@ -793,7 +796,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	if strings.TrimSpace(task.DispatchMode) == executor.DispatchModeSupervisorInline {
 		r.log("FORK-REJECTED route=fork_executor dispatch_mode=supervisor_inline agent_namespace=%s task_id=%s — supervisor_inline tasks must be handled inline by the supervisor",
 			agentID, taskID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "supervisor_inline"}, nil
 	}
 
 	// The supervisor-driven protocol has TWO valid entry states:
@@ -808,7 +811,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	alreadyAdmitted := false
 	if reason := strings.TrimSpace(task.BlockedReason); reason != "" {
 		r.log("FORK-REJECTED agent_namespace=%s task_id=%s status=%s reason=task_blocked — blocked_reason is non-empty", agentID, taskID, strings.TrimSpace(task.Status))
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "task_blocked", Detail: reason}, nil
 	}
 	switch st := strings.TrimSpace(task.Status); st {
 	case "running":
@@ -817,11 +820,11 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		// fork_executor performs admission below.
 	default:
 		r.log("FORK-REJECTED agent_namespace=%s task_id=%s status=%s reason=task_not_dispatchable", agentID, taskID, st)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "task_not_dispatchable", Detail: st}, nil
 	}
 	if activeID, active := r.executorForTask(ee, taskID); active {
 		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_active", agentID, taskID, activeID)
-		return nil, nil
+		return &SpawnResult{ExecutorID: activeID}, nil
 	}
 	if alreadyAdmitted {
 		r.log("FORK-ADMISSION-REUSED agent_namespace=%s task_id=%s status=running — Supervisor already admitted task; continuing to executor launch", agentID, taskID)
@@ -833,22 +836,24 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// to be re-emitted forever.
 	codeDispatch := strings.TrimSpace(task.DispatchMode) == executor.DispatchModeExecutorFork
 	if codeDispatch && (task.Repo == nil || strings.TrimSpace(task.Repo.URL) == "") {
+		err := errors.New("code task has no resolved repo_ref")
 		if alreadyAdmitted {
-			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, err)
 		} else if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task has no resolved repo_ref"))
 		}
 		r.log("fork_executor agent=%s task=%s repository preflight failed: missing repo_ref — executor NOT forked", agentID, taskID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "missing_repo_ref", Detail: err.Error()}, nil
 	}
 	if task.Repo != nil && r.cfg.Materializer == nil && r.cfg.CloneMaterializer == nil {
+		err := errors.New("code task repo workspace materializer unavailable")
 		if alreadyAdmitted {
-			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, err)
 		} else if err := r.startCenterTask(ctx, agentID, taskID); err == nil {
 			r.blockTaskOnForkFailure(ctx, agentID, taskID, errors.New("code task repo workspace materializer unavailable"))
 		}
 		r.log("fork_executor agent=%s task=%s repository preflight failed: workspace materializer unavailable — executor NOT forked", agentID, taskID)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_materializer_unavailable", Detail: err.Error()}, nil
 	}
 
 	// 2. Repo workspace (P3, red line A): materialize the canonical source + a
@@ -880,7 +885,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		if !ready {
 			// Return NOW so the control command acks; the background materialize calls
 			// SpawnExecutor again for this task once the source lands.
-			r.deferForSource(agentID, taskID, repoKey, target)
+			r.deferForSource(agentID, deferredSpawnFromRequest(req, taskID), repoKey, target)
 			return nil, nil
 		}
 		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
@@ -889,7 +894,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 		if wsErr != nil {
 			r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
-			return nil, nil
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_resolve_failed", Detail: wsErr.Error()}, nil
 		}
 		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap
 		// any orphaned worktrees under this source (a prior retryable-crash's kept worktree
@@ -912,7 +917,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		if wtErr != nil {
 			r.log("fork_executor agent=%s task=%s prepare worktree: %v — left queued (start_task NOT called)",
 				agentID, taskID, wtErr)
-			return nil, nil
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "worktree_prepare_failed", Detail: wtErr.Error()}, nil
 		}
 		prepared = &executor.PreparedWorkspace{
 			Path:       wt.WorkspacePath,
@@ -935,9 +940,9 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 			if wsErr != nil {
 				r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
-				return nil, nil
+				return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_resolve_failed", Detail: wsErr.Error()}, nil
 			}
-			r.deferForClone(agentID, taskID, target, reporepo.CloneRequest{
+			r.deferForClone(agentID, deferredSpawnFromRequest(req, taskID), target, reporepo.CloneRequest{
 				ExecutorID:    execID,
 				TaskID:        taskID,
 				BranchName:    "ac-exec/" + taskID + "/" + execID,
@@ -964,7 +969,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
 			r.log("fork_executor agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
 				agentID, taskID, err)
-			return nil, nil
+			return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "start_task_declined", Detail: err.Error()}, nil
 		}
 	}
 
@@ -982,7 +987,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			// skew as retryable blocked work instead of silently leaving it fake-running.
 			r.blockTaskOnForkFailure(ctx, agentID, taskID,
 				fmt.Errorf("center admitted task but local executor pool is at capacity: %w", err))
-			return nil, nil
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "executor_pool_at_capacity", Detail: err.Error()}, nil
 		}
 		// NON-TRANSIENT fork failure (no model resolvable / model not allowed / rate-limited
 		// / other): the task was admitted (start_task ok → running) but no executor will ever
@@ -991,7 +996,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		// for the lease to reclaim (the silent-failure hole that stalled tasks for hours and
 		// got misdiagnosed as a hook/code bug).
 		r.blockTaskOnForkFailure(ctx, agentID, taskID, err)
-		return nil, nil
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: string(classifyForkFailure(err)), Detail: err.Error()}, nil
 	}
 	return &SpawnResult{ExecutorID: launched.ExecutorID, Model: launched.Model, CLI: launched.CLI}, nil
 }

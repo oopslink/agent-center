@@ -254,7 +254,7 @@ func TestSourceGate_StaleRefreshDegradesToExistingSource(t *testing.T) {
 	// Now simulate a FAILED refresh episode against the cached-ready entry. The tool
 	// caller is NOT swapped: doing so would race the forked executor's drain goroutine.
 	rt.sources.mu.Lock()
-	rt.sources.entries[key].waiters = map[string]struct{}{"task-dg2": {}}
+	rt.sources.entries[key].waiters = map[string]deferredSpawn{"task-dg2": {TaskID: "task-dg2"}}
 	rt.sources.mu.Unlock()
 
 	rt.finishPrewarm("agent-degrade", key, nil, context.DeadlineExceeded)
@@ -298,7 +298,7 @@ func TestSourceGate_DegradeRefusesAVanishedSource(t *testing.T) {
 	// The source disappears from disk while still cached as ready.
 	rt.sources.mu.Lock()
 	cached := rt.sources.entries[key].ready.Path
-	rt.sources.entries[key].waiters = map[string]struct{}{"task-v2": {}}
+	rt.sources.entries[key].waiters = map[string]deferredSpawn{"task-v2": {TaskID: "task-v2"}}
 	rt.sources.mu.Unlock()
 	if err := os.RemoveAll(cached); err != nil {
 		t.Fatalf("remove source: %v", err)

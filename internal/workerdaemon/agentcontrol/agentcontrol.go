@@ -83,10 +83,14 @@ func SocketName(agentID string) string {
 // the center's ControlCommand. Payload is the type-specific body the agent's Handler
 // decodes; Seq is the center cursor position (for logging / idempotency).
 type Command struct {
-	Type    string          `json:"type"`
-	AgentID string          `json:"agent_id"`
-	Seq     int64           `json:"seq"`
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Type           string          `json:"type"`
+	AgentID        string          `json:"agent_id"`
+	Seq            int64           `json:"seq"`
+	ID             string          `json:"id,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	CreatedAt      string          `json:"created_at,omitempty"`
+	Payload        json.RawMessage `json:"payload,omitempty"`
 }
 
 // Handler is the agent-side command sink (the runtime's command entry). Returning an
