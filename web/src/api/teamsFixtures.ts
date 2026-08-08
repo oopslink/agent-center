@@ -161,14 +161,14 @@ function seed(): TeamsData {
       slug: 'review-conventions',
       path: 'team-memory/rules/review-conventions.md',
       title: '评审约定',
-      frontmatter: 'name: review-conventions\ntype: rule\nupdated: 2026-07-09',
+      frontmatter: 'name: review-conventions\nupdated: 2026-07-09',
       body: '阻塞位：正确性缺陷、安全问题、无测试的行为改动。\n\n#### 非阻塞\n\n- 命名/风格 → nit\n- 可跟进重构 → 记 issue\n',
     },
     'merge-gate': {
       slug: 'merge-gate',
       path: 'team-memory/rules/merge-gate.md',
       title: '合并门禁',
-      frontmatter: 'name: merge-gate\ntype: rule\nupdated: 2026-07-13',
+      frontmatter: 'name: merge-gate\nupdated: 2026-07-13',
       body: '合并前必须有可定位测试结果、风险说明和 owner 确认。失败用 issue 记录，不在聊天里口头关闭。\n',
     },
     'go-error-patterns': {

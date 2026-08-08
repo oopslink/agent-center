@@ -249,7 +249,8 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.getByTestId('memory-view')).toHaveTextContent('评审约定'));
     expect(screen.getByTestId('memory-doc-rule-badge')).toHaveTextContent('RULE');
     fireEvent.click(screen.getByTestId('memory-raw-toggle'));
-    expect(screen.getByTestId('memory-raw-view')).toHaveTextContent('type: rule');
+    expect(screen.getByTestId('memory-raw-view')).toHaveTextContent('name: review-conventions');
+    expect(screen.getByTestId('memory-raw-view')).not.toHaveTextContent(/(?:kind|type): rule/);
   });
 
   it('does not infer rules from rule-like entry slugs', async () => {
