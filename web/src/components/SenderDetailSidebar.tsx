@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useAgent, useAgentActivity, useAgentTasks } from '@/api/agents';
+import { useAgentConcurrency } from '@/api/concurrency';
 import { refLabel } from '@/components/workItemDisplay';
 import { extractRateLimitReset } from '@/utils/rateLimitReminder';
 import { ReminderCreateModal, type ReminderPrefill } from './ReminderCreateModal';
@@ -21,6 +22,7 @@ import { useOpenDm } from './useOpenDm';
 import { Avatar } from './Avatar';
 import { LifecycleBadge, AvailabilityBadge } from './AgentBadges';
 import { AgentActivityRow, CheckingGroup, ExecutorProgressGroup } from './AgentActivityRow';
+import { ExecutorSlotPanel } from './ExecutorSlotPanel';
 import { groupActivity } from './agentActivityGrouping';
 
 // SenderDetailSidebar (v2.8.1 7th DM redesign, increment 2). A right slide-in
@@ -327,6 +329,7 @@ function AgentDetailBody({
   const { t } = useTranslation('members');
   // Activity loads in parallel with the agent detail (both gated on the same id).
   const activity = useAgentActivity(agentId);
+  const concurrency = useAgentConcurrency(agentId);
 
   if (query.isLoading) return <StateMessage>{t('humans.sidebar.loadingAgent')}</StateMessage>;
   // F2 (v2.8.1): a force-deleted agent's GET 404s. Show a FRIENDLY deleted
@@ -373,6 +376,13 @@ function AgentDetailBody({
       {/* @oopslink: the agent's current (in-flight) tasks, listed at the top of
           the Activity area — id / title / status. */}
       <AgentCurrentTasks agentId={agentId} />
+
+      <ExecutorSlotPanel
+        data={concurrency.data}
+        loading={concurrency.isLoading}
+        error={concurrency.error as Error | null}
+        testId="sender-sidebar-slot-panel"
+      />
 
       <AgentActivitySection activity={activity} />
     </div>

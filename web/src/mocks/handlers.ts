@@ -301,6 +301,22 @@ function agentHandlers() {
     http.get('/api/agents/:id', ({ params }) =>
       ok(baseAgent(String(params.id))),
     ),
+    http.get('/api/agents/:id/concurrency', ({ params }) =>
+      ok({
+        agent_id: String(params.id),
+        cap: 1,
+        active: 0,
+        queued: 0,
+        running: 0,
+        concurrency_enabled: false,
+        slot_stable: false,
+        stale: true,
+        reachable: true,
+        has_snapshot: false,
+        snapshot_age_ms: 0,
+        executors: [],
+      }),
+    ),
     http.post('/api/agents/:id/start', ({ params }) =>
       ok(baseAgent(String(params.id), { lifecycle: 'running' })),
     ),

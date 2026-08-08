@@ -4,8 +4,15 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { OrgLink } from '@/OrgContext';
 import { useAgentTasks } from '@/api/agents';
-import { useAgentConcurrency, type AgentConcurrency, type ConcurrencyExecutor } from '@/api/concurrency';
+import { useAgentConcurrency } from '@/api/concurrency';
 import { AgentContextPanel } from '@/components/AgentContextPanel';
+import {
+  ExecutorSlotPanel,
+  ExecutorTaskOverlay,
+  buildExecutorSlotByTask,
+  formatAge,
+  type ExecutorSlotMatch,
+} from '@/components/ExecutorSlotPanel';
 import { TypeChip } from '@/components/TypeChip';
 import { refLabel } from '@/components/workItemDisplay';
 import type { AgentTask, AgentTaskStatus } from '@/api/types';
@@ -90,18 +97,10 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
     [items, statusFilter, typeFilter],
   );
 
-  // task_id → { executor, slot }. Slots come ONLY from the runtime's stable
-  // slot_index; old/mixed-version snapshots without it do not get a fabricated
-  // display number.
+  // task_id -> live executor/slot. New workers carry slot_index; old workers can
+  // still show an unnumbered executor overlay, but never a fabricated #N.
   const execByTask = useMemo(() => {
-    const m = new Map<string, { exec: ConcurrencyExecutor; slot: number }>();
-    const xs = concData?.executors ?? [];
-    if (concData?.slot_stable !== true) return m;
-    [...xs]
-      .filter((e) => e.task_id && Number.isInteger(e.slot_index))
-      .sort((a, b) => (a.slot_index as number) - (b.slot_index as number))
-      .forEach((e) => m.set(e.task_id, { exec: e, slot: e.slot_index as number }));
-    return m;
+    return buildExecutorSlotByTask(concData);
   }, [concData]);
 
   return (
@@ -143,10 +142,12 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
         </div>
       </div>
 
-      {/* T593: live slots summary (active/cap + queued + heartbeat + snapshot age).
-          Shown only once the concurrency snapshot has loaded; absent on error so
-          the task list is never blocked by the overlay. */}
-      {concData && <ConcurrencySlots data={concData} />}
+      <ExecutorSlotPanel
+        data={concData}
+        error={concurrency.error as Error | null}
+        compact={false}
+        testId="agent-concurrency-summary"
+      />
 
       {workItems.isLoading && (
         <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
@@ -229,7 +230,7 @@ function TaskRow({
   t,
 }: {
   item: AgentTask;
-  slot?: { exec: ConcurrencyExecutor; slot: number };
+  slot?: ExecutorSlotMatch;
   stale?: boolean;
   snapshotAgeMs?: number;
   t: TFunction;
@@ -266,9 +267,7 @@ function TaskRow({
         {/* T593: live concurrency overlay. In-progress rows show the executor
             (cli·model / slot / elapsed / heartbeat / orphan); pending rows show
             the queued-for-slot hint. Done/Blocked/Paused are unchanged. */}
-        {bucket === 'in_progress' && slot && (
-          <ExecutorOverlay slot={slot} stale={stale} snapshotAgeMs={snapshotAgeMs} t={t} />
-        )}
+        {bucket === 'in_progress' && slot && <ExecutorTaskOverlay match={slot} stale={stale} snapshotAgeMs={snapshotAgeMs} />}
         {bucket === 'pending' && (
           <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-task-queued">
             {waitingFor(w.updated_at)
@@ -309,221 +308,6 @@ function formatUpdated(iso: string, t: TFunction): string {
   yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return t('agentRuntime.tasks.yesterday');
   return d.toLocaleDateString();
-}
-
-// ── T593: concurrency overlay ────────────────────────────────────────────────
-
-// concurrencyMode resolves freshness + activation state from the snapshot:
-//   - 'live'     — a fresh snapshot: show real active/cap slots.
-//   - 'offline'  — the bound worker is truly OFFLINE (reachable=false).
-//   - 'expired'  — a snapshot exists but aged past the TTL (last-known, worker online).
-//   - 'disabled' — the agent does NOT run the concurrent path (concurrency_enabled=false,
-//                  cap 1): the honest "concurrency not active" single-active case.
-//   - 'nodata'   — concurrency IS enabled but no live snapshot has landed yet — NEUTRAL:
-//                  "awaiting live data", NOT "not active" (issue-c44ccf6b: a running,
-//                  concurrency-enabled agent was mislabeled "concurrency not active"
-//                  because its snapshot lookup missed on a read/write key mismatch — now
-//                  fixed center-side; this split stops the remaining label from lying).
-// reachable/has_snapshot/concurrency_enabled are optional for back-compat with a pre-fix
-// Center: absent reachable/has_snapshot → online + (snapshot present iff not stale);
-// absent concurrency_enabled → the legacy single 'nodata' label.
-type ConcurrencyMode = 'live' | 'offline' | 'expired' | 'disabled' | 'nodata';
-function concurrencyMode(data: AgentConcurrency): ConcurrencyMode {
-  const reachable = data.reachable ?? true;
-  const hasSnapshot = data.has_snapshot ?? !data.stale;
-  if (!reachable) return 'offline';
-  if (!hasSnapshot) return data.concurrency_enabled === false ? 'disabled' : 'nodata';
-  if (data.stale) return 'expired';
-  return 'live';
-}
-
-// ConcurrencySlots — the live slots summary header: active/cap occupancy bar +
-// queued count + adaptive-heartbeat label + snapshot age. Renders one of three
-// non-live states (worker offline / snapshot expired / no live data) instead of a
-// single amber "unreachable" strip; the task list below stays visible regardless.
-function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElement {
-  const { t } = useTranslation('members');
-  const mode = concurrencyMode(data);
-  const cap = Math.max(0, data.slot_count ?? data.cap);
-  const active = Math.max(0, data.active);
-  // Occupancy: the live executor count when the snapshot is fresh, else the
-  // center-known in-progress count (data.running) as a FALLBACK so a busy agent
-  // never reads a bare "—". Drives both the number and the filled segments.
-  const fallback = Math.max(0, data.running ?? 0);
-  const occupancy = mode === 'live' ? active : fallback;
-  const segs = Array.from({ length: cap }, (_, i) => i < occupancy);
-  // offline/expired are warnings (amber); disabled/nodata are neutral; live is normal.
-  const amber = mode === 'offline' || mode === 'expired';
-  const slotsLabel: Record<ConcurrencyMode, string> = {
-    live: t('agentRuntime.tasks.concurrency.slotsLabel.live'),
-    offline: t('agentRuntime.tasks.concurrency.slotsLabel.offline'),
-    expired: t('agentRuntime.tasks.concurrency.slotsLabel.expired'),
-    disabled: t('agentRuntime.tasks.concurrency.slotsLabel.disabled'),
-    nodata: t('agentRuntime.tasks.concurrency.slotsLabel.nodata'),
-  };
-  return (
-    <div
-      className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${
-        amber ? 'border-warning/40 bg-status-amber-bg' : 'border-border-base bg-bg-subtle'
-      }`}
-      data-testid="agent-concurrency-summary"
-      data-stale={data.stale ? 'true' : 'false'}
-      data-mode={mode}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-bold text-text-primary" data-testid="agent-concurrency-slots">
-          {mode === 'live' ? active : occupancy > 0 ? `~${occupancy}` : '—'}
-          <span className="text-text-muted">/{cap}</span>
-        </span>
-        <span className="text-xs text-text-muted">{slotsLabel[mode]}</span>
-        <span className="ml-1 inline-flex items-center gap-0.5" aria-hidden="true">
-          {segs.map((on, i) => (
-            <span
-              key={i}
-              className={`h-2 w-5 rounded-sm ${
-                mode === 'live' && on
-                  ? 'bg-brand'
-                  : amber && on
-                    ? 'bg-warning'
-                    : on
-                      ? 'bg-text-muted'
-                      : 'bg-border-strong'
-              }`}
-            />
-          ))}
-        </span>
-        {mode === 'live' && data.queued > 0 && (
-          <span className="text-xs text-text-muted" data-testid="agent-concurrency-queued">{t('agentRuntime.tasks.concurrency.queued', { count: data.queued })}</span>
-        )}
-      </div>
-      {mode === 'live' ? (
-        <span className="flex items-center gap-2 text-xs text-text-muted" data-testid="agent-concurrency-age">
-          <span className="inline-flex items-center gap-1" title={t('agentRuntime.tasks.concurrency.adaptiveTitle')}><HeartIcon /> {t('agentRuntime.tasks.concurrency.adaptive')}</span>
-          <span>{t('agentRuntime.tasks.concurrency.updatedAgo', { age: formatAge(data.snapshot_age_ms) })}</span>
-        </span>
-      ) : mode === 'offline' ? (
-        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
-          <WarnIcon /> {t('agentRuntime.tasks.concurrency.workerOffline')}
-        </span>
-      ) : mode === 'expired' ? (
-        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
-          <WarnIcon /> {t('agentRuntime.tasks.concurrency.expiredAge', { age: formatAge(data.snapshot_age_ms) })}
-        </span>
-      ) : mode === 'disabled' ? (
-        // Genuinely single-active (concurrency not enabled) — the HONEST "not active".
-        <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="agent-concurrency-age">
-          {t('agentRuntime.tasks.concurrency.disabledDetail')}
-        </span>
-      ) : (
-        // Concurrency enabled but no live snapshot yet — awaiting data, NOT "not active".
-        <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="agent-concurrency-age">
-          {t('agentRuntime.tasks.concurrency.nodataDetail')}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ExecutorOverlay — the per-row in-progress overlay: cli·model chip, slot, elapsed
-// (from started_at), heartbeat age, current activity, and orphan/stale markers.
-function ExecutorOverlay({
-  slot,
-  stale,
-  snapshotAgeMs,
-  t,
-}: {
-  slot: { exec: ConcurrencyExecutor; slot: number };
-  stale?: boolean;
-  snapshotAgeMs?: number;
-  t: TFunction;
-}): React.ReactElement {
-  const { exec } = slot;
-  const starting = exec.state.toLowerCase().includes('starting');
-  const orphan = exec.state.toLowerCase().includes('orphan');
-  const elapsed = formatElapsed(exec.started_at);
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]" data-testid="agent-task-overlay">
-      <span
-        className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-text-secondary"
-        data-testid="agent-task-cli-model"
-      >
-        {exec.cli} · {exec.model}
-      </span>
-      <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-semibold uppercase tracking-wide text-status-blue-fg" data-testid="agent-task-slot">
-        {t('agentRuntime.tasks.overlay.slot', { slot: slot.slot })}
-      </span>
-      {elapsed && (
-        <span className="text-text-muted" data-testid="agent-task-elapsed">
-          ⏱ {elapsed}{starting ? ` ${t('agentRuntime.tasks.overlay.starting')}` : ''}
-        </span>
-      )}
-      {!stale && typeof snapshotAgeMs === 'number' && (
-        <span className="inline-flex items-center gap-1 text-text-muted" data-testid="agent-task-heartbeat" title={t('agentRuntime.tasks.overlay.heartbeatTitle')}>
-          <HeartIcon /> {formatAge(snapshotAgeMs)}
-        </span>
-      )}
-      {orphan && (
-        <span className="rounded bg-status-amber-bg px-1.5 py-0.5 font-semibold uppercase tracking-wide text-status-amber-fg" data-testid="agent-task-orphan">
-          {t('agentRuntime.tasks.overlay.orphan')}
-        </span>
-      )}
-      {stale && (
-        <span className="font-medium text-status-amber-fg" data-testid="agent-task-overlay-stale">
-          {t('agentRuntime.tasks.overlay.stale')}
-        </span>
-      )}
-      {exec.current_activity && (
-        <span
-          className="min-w-0 basis-full truncate text-text-secondary"
-          data-testid="agent-task-current-activity"
-          title={exec.current_activity}
-        >
-          {t('agentRuntime.tasks.overlay.currentActivity', { activity: exec.current_activity })}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Heartbeat / warning glyphs as SVG (a11y: no emoji as icon).
-function HeartIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="currentColor" aria-hidden="true">
-      <path d="M8 14s-5-3.3-5-7a3 3 0 0 1 5-2.2A3 3 0 0 1 13 7c0 3.7-5 7-5 7z" />
-    </svg>
-  );
-}
-function WarnIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      <path d="M8 2.5 14.5 13.5H1.5z" strokeLinejoin="round" />
-      <path d="M8 6.5v3.2M8 11.6v.01" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// formatAge — compact "Ns" / "Nm" from a millisecond age (snapshot/heartbeat).
-function formatAge(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '0s';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-// formatElapsed — "4m 12s" / "6s" / "1h 3m" from an ISO start time to now. Returns
-// "" for an unparseable / future start.
-function formatElapsed(startedAt: string): string {
-  const start = new Date(startedAt).getTime();
-  if (Number.isNaN(start)) return '';
-  const s = Math.floor((Date.now() - start) / 1000);
-  if (s < 0) return '';
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
 }
 
 // waitingFor — how long a pending task has been queued (since its last update).

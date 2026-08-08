@@ -206,23 +206,45 @@ function shortExecId(id: string): string {
   return tail.length > 8 ? tail.slice(-8) : tail;
 }
 
+function slotIndex(p: Record<string, unknown>): number | undefined {
+  return typeof p.slot_index === 'number' && Number.isInteger(p.slot_index) && p.slot_index >= 0
+    ? p.slot_index
+    : undefined;
+}
+
+function executorLabel(p: Record<string, unknown>): string {
+  const idx = slotIndex(p);
+  if (idx != null) return `Executor #${idx}`;
+  const exec = shortExecId(str(p.executor_id));
+  return exec ? `exec ${exec}` : '';
+}
+
+function executorFullLabel(p: Record<string, unknown>): string {
+  const exec = str(p.executor_id);
+  if (!exec) return '';
+  const idx = slotIndex(p);
+  return idx != null ? `Executor #${idx} · ${exec}` : exec;
+}
+
 // executorPreview — one-line summary for an executor lifecycle event: the kind
 // (start/stop/progress), which executor, which task, and the state/outcome — so
 // an operator sees "which executor is running which task" without expanding.
 function executorPreview(p: Record<string, unknown>): string {
   const kind = str(p.event).replace(/^executor\./, ''); // start | stop | progress
-  const exec = shortExecId(str(p.executor_id));
-  const task = truncate(str(p.title) || str(p.task_ref), 60);
+  const label = executorLabel(p);
+  const task = truncate(str(p.org_ref) || str(p.task_org_ref) || str(p.title) || str(p.task_ref), 60);
   // scope is the emitter's precomputed one-word summary: model (start),
   // outcome[:reason] (stop), or state (progress); fall back to the raw fields.
-  const scope = str(p.scope) || str(p.outcome) || str(p.state);
+  const rawScope = str(p.scope) || str(p.outcome) || str(p.state) || kind;
+  const slotScope = titleCase(str(p.state) || str(p.scope) || str(p.outcome) || kind);
   // T880: the sanitized "what it's doing" activity note, when present.
   // v2.31.2 (oopslink DM 2026-07-05): bounded to the SAME granularity as the
   // top-level assistant_text/thinking preview (120, not the old crude 40 that
   // rendered "跑 cd …") — the executor detail is a first-class summary, not a
   // second-class chip. The row's own CSS `truncate` still clips it to fit.
   const activity = truncate(str(p.detail), 120);
-  return [kind, exec && `exec ${exec}`, task, scope, activity].filter(Boolean).join(' · ');
+  if (slotIndex(p) != null) return [label, task, slotScope, activity].filter(Boolean).join(' · ');
+  return [kind, label, task, rawScope, activity].filter(Boolean).join(' · ');
 }
 
 function truncate(s: string, n: number): string {
@@ -341,6 +363,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   // CSS-truncated teaser; expanding reveals the complete command verbatim, the
   // same way the grouped executor row does (agent-activity-executor-detail-full).
   const executorDetailFull = isExecutorEvent(event.event_type, payload) ? str(payload.detail) : '';
+  const executorDescriptor = isExecutorEvent(event.event_type, payload) ? executorFullLabel(payload) : '';
 
   return (
     <li
@@ -407,7 +430,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
 
       {open && (
         <div className="mb-2 ml-[4.75rem] space-y-2" data-testid="agent-activity-detail">
-          {(event.task_ref || event.interaction_ref) && (
+          {(event.task_ref || event.interaction_ref || executorDescriptor) && (
             <dl className="grid grid-cols-[7rem_1fr] gap-x-2 text-[0.6875rem] text-text-muted">
               {event.task_ref && (
                 <>
@@ -421,6 +444,12 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
                 <>
                   <dt>{t('activity.detail.interaction')}</dt>
                   <dd className="truncate font-mono" data-testid="agent-activity-interaction-ref">{event.interaction_ref}</dd>
+                </>
+              )}
+              {executorDescriptor && (
+                <>
+                  <dt>{t('activity.detail.executor')}</dt>
+                  <dd className="truncate font-mono" data-testid="agent-activity-executor-id">{executorDescriptor}</dd>
                 </>
               )}
             </dl>
@@ -567,6 +596,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
   const earliest = events[n - 1];
   const p = parsePayload(latest?.payload ?? '');
   const exec = shortExecId(str(p.executor_id));
+  const execLabel = executorLabel(p);
   // Prefer the structured task_ref field; fall back to the payload copy.
   const taskRef = latest?.task_ref || str(p.task_ref);
   const state = titleCase(str(p.state) || str(p.scope));
@@ -605,7 +635,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
                 {', '}
               </>
             )}
-            exec {exec}){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''}
+            {slotIndex(p) != null ? execLabel : `exec ${exec}`}){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''}
             {detail ? (
               <span className="font-normal text-text-muted" data-testid="agent-activity-executor-detail">
                 {' · '}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -14,6 +14,32 @@ function LocationProbe(): React.ReactElement {
 }
 
 afterEach(() => cleanup());
+
+beforeEach(() => {
+  server.use(
+    http.get('/api/agents/:id/concurrency', () =>
+      HttpResponse.json({
+        agent_id: 'A1',
+        cap: 2,
+        configured_cap: 2,
+        admission_cap: 2,
+        slot_count: 2,
+        active: 1,
+        queued: 0,
+        slot_stable: true,
+        stale: false,
+        reachable: true,
+        has_snapshot: true,
+        snapshot_age_ms: 1000,
+        executors: [],
+        slots: [
+          { slot_index: 0, state: 'running', executor_id: 'exec-0', task_id: 'task-0' },
+          { slot_index: 1, state: 'idle' },
+        ],
+      }),
+    ),
+  );
+});
 
 // Fresh QueryClient per render so cached agent/user responses don't leak.
 // MemoryRouter: T136's header "Open DM" button uses useOpenDm → useNavigate,
@@ -154,6 +180,8 @@ describe('SenderDetailSidebar', () => {
     expect(screen.getByText('worker001')).toBeInTheDocument();
     // activity feed renders its events.
     await waitFor(() => expect(screen.getByTestId('sender-sidebar-activity-list')).toBeInTheDocument());
+    expect(screen.getByTestId('sender-sidebar-slot-panel')).toHaveTextContent('1/2');
+    expect(screen.getByTestId('sender-sidebar-slot-panel').compareDocumentPosition(screen.getByTestId('sender-sidebar-activity')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows an empty-activity state when the agent has no activity', async () => {

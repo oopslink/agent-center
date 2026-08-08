@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -265,6 +265,27 @@ describe('Agents list-enrichment (v2.8.1)', () => {
     // multi-line flattened to single line + full text on title
     expect(content.textContent).not.toContain('\n');
     expect(content).toHaveAttribute('title', expect.stringContaining('finished the migration'));
+  });
+
+  it('renders compact executor slot metrics with fallback when list fields are absent', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('bot-1', { name: 'bot-1', active: 2, slot_count: 4, slot_stable: true, stale: false }),
+            agent('bot-2', { name: 'bot-2', running_tasks: 2, effective_concurrency_cap: 4 }),
+          ],
+        }),
+      ),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(2));
+    const cells = screen.getAllByTestId('agent-slots-cell');
+    expect(within(cells[0]).getByTestId('agent-slot-metric')).toHaveTextContent('2/4');
+    expect(within(cells[0]).getByTestId('agent-slot-metric')).toHaveAttribute('data-approximate', 'false');
+    expect(within(cells[1]).getByTestId('agent-slot-metric')).toHaveTextContent('~2/4');
+    expect(within(cells[1]).getByTestId('agent-slot-metric')).toHaveAttribute('data-approximate', 'true');
+    expect(within(screen.getAllByTestId('agent-card-mobile')[0]).getByTestId('agent-slot-metric')).toHaveTextContent('2/4');
   });
 
   it('shows a friendly placeholder when an agent has no activity', async () => {

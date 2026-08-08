@@ -256,6 +256,7 @@
     "detail": {
       "task": "任务",
       "interaction": "交互",
+      "executor": "执行器",
       "executorDetail": "当前命令"
     },
     "checkingGroup": {

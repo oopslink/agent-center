@@ -24,6 +24,7 @@ import {
   LifecycleBadge,
   ProviderBadge,
 } from '@/components/AgentBadges';
+import { AgentSlotMetricBadge } from '@/components/ExecutorSlotPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
@@ -191,6 +192,7 @@ export default function Agents(): React.ReactElement {
                   </OrgLink>
                   <LifecycleBadge lifecycle={a.lifecycle} />
                   <AvailabilityBadge availability={a.availability} />
+                  <AgentSlotMetricBadge agent={a} />
                 </div>
                 <button
                   type="button"
@@ -240,14 +242,21 @@ export default function Agents(): React.ReactElement {
                 <th className="w-[11%] border-b border-border-base px-3 py-2">{t('agents.list.col.availability')}</th>
                 {/* T342: agent load = doing / (doing+pending), colored by pressure. */}
                 <th
-                  className="w-[9%] border-b border-border-base px-3 py-2"
+                  className="w-[8%] border-b border-border-base px-3 py-2"
+                  title={t('agents.list.col.slotsTitle')}
+                >
+                  {t('agents.list.col.slots')}
+                </th>
+                {/* T342: agent load = doing / (doing+pending), colored by pressure. */}
+                <th
+                  className="w-[8%] border-b border-border-base px-3 py-2"
                   title={t('agents.list.col.loadTitle')}
                 >
                   {t('agents.list.col.load')}
                 </th>
                 {/* T342b: backlog = pending (queued) task count, colored by depth. */}
                 <th
-                  className="w-[9%] border-b border-border-base px-3 py-2"
+                  className="w-[8%] border-b border-border-base px-3 py-2"
                   title={t('agents.list.col.backlogTitle')}
                 >
                   {t('agents.list.col.backlog')}
@@ -314,6 +323,9 @@ export default function Agents(): React.ReactElement {
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <AvailabilityBadge availability={a.availability} />
+                </td>
+                <td className="border-b border-border-base px-3 py-2" data-testid="agent-slots-cell">
+                  <AgentSlotMetricBadge agent={a} />
                 </td>
                 <td className="border-b border-border-base px-3 py-2" data-testid="agent-load-cell">
                   <AgentLoadBadge agent={a} />
