@@ -135,7 +135,6 @@ describe('App shell + route tree', () => {
       // merged surfaces).
       [`${ORG_BASE}/teams`, [
         ['All teams', `${ORG_BASE}/teams`],
-        ['Templates', `${ORG_BASE}/teams/templates`],
         ['Agents', `${ORG_BASE}/teams/agents`],
         ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
@@ -154,6 +153,7 @@ describe('App shell + route tree', () => {
         expect(link, `col② link for ${label} on ${route}`).toBeDefined();
         expect(link).toHaveAttribute('href', href);
       }
+      expect(within(nav).queryByRole('link', { name: /^templates$/i })).not.toBeInTheDocument();
       unmount();
     }
     // v2.10.0 [T64]: Conversations custom col② — the Channels / Direct messages
@@ -287,6 +287,16 @@ describe('App shell + route tree', () => {
     await renderAt(`${ORG_BASE}/organization-settings/agents`);
     await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
+  });
+
+  it('does not route retired template pages', async () => {
+    for (const path of [`${ORG_BASE}/templates`, `${ORG_BASE}/teams/templates`]) {
+      const { unmount } = renderAppAt(path);
+      await waitFor(() => expect(screen.getByTestId('page-NotFound')).toBeInTheDocument());
+      expect(screen.queryByTestId('page-OrgTemplates')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('page-TeamTemplates')).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('reaches AI Runtime from a normal page via Organization Settings col② nav', async () => {

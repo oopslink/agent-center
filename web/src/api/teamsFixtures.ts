@@ -127,9 +127,11 @@ function seed(): TeamsData {
     { slug: 'MEMORY.md', pinned: true },
     { group: 'entries/' },
     { slug: 'ci-runbook' },
-    { slug: 'review-conventions' },
     { slug: 'go-error-patterns' },
     { slug: 'release-checklist' },
+    { group: 'rules/' },
+    { slug: 'review-conventions' },
+    { slug: 'merge-gate' },
   ];
 
   const memoryDocs: Record<string, MemoryDoc> = {
@@ -142,9 +144,11 @@ function seed(): TeamsData {
         '团队常驻记忆索引。**此文件常驻加载**进每个成员上下文；`entries/<slug>.md` 条目按需拉取。\n\n' +
         '#### Entries\n\n' +
         '- **ci-runbook** — CI/CD 部署与回滚\n' +
-        '- **review-conventions** — 评审阻塞位\n' +
         '- **go-error-patterns** — 错误处理约定\n' +
-        '- **release-checklist** — 发布清单\n',
+        '- **release-checklist** — 发布清单\n\n' +
+        '#### Rules\n\n' +
+        '- **review-conventions** — 评审阻塞位\n' +
+        '- **merge-gate** — 合并门禁\n',
     },
     'ci-runbook': {
       slug: 'ci-runbook',
@@ -155,10 +159,17 @@ function seed(): TeamsData {
     },
     'review-conventions': {
       slug: 'review-conventions',
-      path: 'team-memory/entries/review-conventions.md',
+      path: 'team-memory/rules/review-conventions.md',
       title: '评审约定',
-      frontmatter: 'name: review-conventions\ntype: project\nupdated: 2026-07-09',
+      frontmatter: 'name: review-conventions\ntype: rule\nupdated: 2026-07-09',
       body: '阻塞位：正确性缺陷、安全问题、无测试的行为改动。\n\n#### 非阻塞\n\n- 命名/风格 → nit\n- 可跟进重构 → 记 issue\n',
+    },
+    'merge-gate': {
+      slug: 'merge-gate',
+      path: 'team-memory/rules/merge-gate.md',
+      title: '合并门禁',
+      frontmatter: 'name: merge-gate\ntype: rule\nupdated: 2026-07-13',
+      body: '合并前必须有可定位测试结果、风险说明和 owner 确认。失败用 issue 记录，不在聊天里口头关闭。\n',
     },
     'go-error-patterns': {
       slug: 'go-error-patterns',

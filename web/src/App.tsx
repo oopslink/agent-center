@@ -36,7 +36,6 @@ const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 // T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
-const OrgTemplates = lazy(() => import('./pages/OrgTemplates'));
 const OrgModelCatalog = lazy(() => import('./pages/OrgModelCatalog'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Secrets = lazy(() => import('./pages/Secrets'));
@@ -52,8 +51,6 @@ const Me = lazy(() => import('./pages/Me'));
 // Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
 const Teams = lazy(() => import('./pages/Teams'));
 const TeamDetail = lazy(() => import('./pages/TeamDetail'));
-const TeamTemplates = lazy(() => import('./pages/TeamTemplates'));
-const TeamTemplateDetail = lazy(() => import('./pages/TeamTemplateDetail'));
 const TeamsDirectoryAgents = lazy(() => import('./pages/TeamsDirectoryAgents'));
 const TeamsDirectoryHumans = lazy(() => import('./pages/TeamsDirectoryHumans'));
 // dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
@@ -115,7 +112,6 @@ export function App(): React.ReactElement {
           {/* T575 (issue-f980c8de): workspace-level Repos — top-level code-repo
               registry (CRUD + credentials + remote viewing). */}
           <Route path="repos" element={<OrgRepos />} />
-          <Route path="templates" element={<OrgTemplates />} />
           {/* issue-93dd8daa ①: org model catalog (Workspace > Model catalog). */}
           <Route path="model-catalog" element={<OrgModelCatalog />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
@@ -140,8 +136,8 @@ export function App(): React.ReactElement {
           <Route path="members/humans" element={<Navigate to="../teams/humans" replace />} />
           {/* Team WebUI (Phase-1). Static children rank above teams/:teamId. */}
           <Route path="teams" element={<Teams />} />
-          <Route path="teams/templates" element={<TeamTemplates />} />
-          <Route path="teams/templates/:templateId" element={<TeamTemplateDetail />} />
+          <Route path="teams/templates" element={<NotFound />} />
+          <Route path="teams/templates/:templateId" element={<NotFound />} />
           <Route path="teams/agents" element={<TeamsDirectoryAgents />} />
           <Route path="teams/humans" element={<TeamsDirectoryHumans />} />
           <Route path="teams/:teamId" element={<TeamDetail />} />

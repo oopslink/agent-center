@@ -46,6 +46,7 @@ describe('WorkspaceSecondaryNav (v2.10.0 [T4])', () => {
       expect(link, `link ${label}`).toBeDefined();
       expect(link).toHaveAttribute('href', href);
     }
+    expect(within(nav).queryByRole('link', { name: /^templates$/i })).not.toBeInTheDocument();
   });
 
   it('inside a project: shows the project sub-nav (tabs as ?tab=, Work Board, back) + project name', async () => {

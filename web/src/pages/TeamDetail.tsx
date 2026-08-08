@@ -1,7 +1,6 @@
 // Team detail (/organizations/:slug/teams/:teamId) — 4 tabs:
-// Overview / Members / Linked projects / Team Memory. Header carries the Extract →
-// Template entry (one of the two extract entry points; the other is the
-// Templates page). Members enforces the agent-exclusivity migration confirm.
+// Overview / Members / Linked projects / Team Memory. Team Memory is the only
+// product surface for team entries/rules; templates are not a routed product.
 import { useState } from 'react';
 import type React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -23,7 +22,6 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { AddMemberModal } from '@/components/teams/AddMemberModal';
-import { ExtractModal } from '@/components/teams/ExtractModal';
 import { MemoryPane } from '@/components/teams/MemoryPane';
 import { RoleBuilder } from '@/components/teams/RoleBuilder';
 import {
@@ -41,7 +39,6 @@ import {
   Tabs,
 } from '@/components/teams/kit';
 import {
-  ExtractIcon,
   Glyph,
   KindTag,
   RoleBar,
@@ -59,7 +56,6 @@ export default function TeamDetail(): React.ReactElement {
   const org = useOptionalOrgContext();
   const orgBase = org ? `/organizations/${org.slug}` : '';
   const [tab, setTab] = useState<TabKey>('ov');
-  const [extracting, setExtracting] = useState(false);
 
   const TABS = [
     { key: 'ov', label: t('teamDetail.tabs.overview') },
@@ -94,25 +90,20 @@ export default function TeamDetail(): React.ReactElement {
 
   return (
     <section className="space-y-2" data-testid="page-TeamDetail">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Glyph text={tv.glyph} size="lg" />
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-heading text-xl font-semibold text-text-primary">{tv.name}</h1>
-              <StatusChip status={tv.status} />
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-text-muted">
-              <span className="font-mono">{tv.id}</span>
-              <span>{t('teamDetail.membersRoles', { members: tv.members_count, roles: tv.roles.length })}</span>
-              <span>{t('teamDetail.projectsCount', { count: tv.projects_count })}</span>
-              <span>{t('teamDetail.createdAt', { date: tv.created })}</span>
-            </div>
+      <div className="flex items-start gap-4">
+        <Glyph text={tv.glyph} size="lg" />
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="font-heading text-xl font-semibold text-text-primary">{tv.name}</h1>
+            <StatusChip status={tv.status} />
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-text-muted">
+            <span className="font-mono">{tv.id}</span>
+            <span>{t('teamDetail.membersRoles', { members: tv.members_count, roles: tv.roles.length })}</span>
+            <span>{t('teamDetail.projectsCount', { count: tv.projects_count })}</span>
+            <span>{t('teamDetail.createdAt', { date: tv.created })}</span>
           </div>
         </div>
-        <button type="button" className={btnGhost} data-testid="team-extract" onClick={() => setExtracting(true)}>
-          <ExtractIcon className="h-4 w-4" /> {t('teamDetail.extractToTemplate')}
-        </button>
       </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} testId="team-tabs" />
@@ -125,13 +116,6 @@ export default function TeamDetail(): React.ReactElement {
         {tab === 'tm' && <MemoryPane teamId={tv.id} heading={t('teamDetail.memoryHeading')} />}
       </div>
 
-      {extracting && (
-        <ExtractModal
-          team={tv}
-          onClose={() => setExtracting(false)}
-          onSaved={() => navigate(`${orgBase}/teams/templates`)}
-        />
-      )}
     </section>
   );
 }
@@ -146,7 +130,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
   // a fabricated constant (a fresh empty team must not read as "3 running tasks").
   const { t } = useTranslation('teams');
   const memory = useTeamMemoryIndex(tv.id);
-  const memoryEntries = memory.data?.length;
+  const memoryEntries = memory.data?.filter((node) => node.slug).length;
   const [editingRoles, setEditingRoles] = useState(false);
   const NA = <span className="text-text-muted">—</span>;
   return (
