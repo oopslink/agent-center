@@ -94,6 +94,11 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 **Web Console surface（2026-08 收口）**：Team Detail > Memory 是唯一产品面；同页按 `entries/` 与 `rules/` 分组/筛选，`rules/` 条目显示 RULE 标识。Web 端当前只读展示 team memory，并给出管理权限/能力反馈；不新增 Team Rules 一级页、独立产品对象或 `kind` 双重字段。
 
+**受控写入（ADR-0057）**：Team Detail > Memory 继续是唯一产品面，并增加 Proposals 筛选与
+owner/admin 审核；Agent 通过 MCP 提案，只有显式 Curator Agent 或 human owner/admin 可 promotion。
+canonical 仍为同一 Git repo 的 `entries/` / `rules/`，详见
+[Team Memory 受控写入能力](team-memory-controlled-writing.md)。
+
 ---
 
 ## 6. Team 模版
