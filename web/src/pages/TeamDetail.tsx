@@ -113,7 +113,7 @@ export default function TeamDetail(): React.ReactElement {
         {tab === 'mm' && <MembersPane teamId={tv.id} roleOptions={roleNames} team={tv} />}
         {/* panes below */}
         {tab === 'pj' && <ProjectsPane teamId={tv.id} />}
-        {tab === 'tm' && <MemoryPane teamId={tv.id} heading={t('teamDetail.memoryHeading')} />}
+        {tab === 'tm' && <MemoryPane teamId={tv.id} heading={t('teamDetail.memoryHeading')} team={tv} currentUserRole={org?.role} />}
       </div>
 
     </section>
