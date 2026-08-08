@@ -51,7 +51,6 @@ describe('CommandPalette org-scoped navigation (v2.8.1 fix)', () => {
     ['tasks', '/organizations/acme/tasks'],
     ['plans', '/organizations/acme/plans'],
     ['repos', '/organizations/acme/repos'],
-    ['templates', '/organizations/acme/templates'],
   ])('jumps to the workspace %s list', async (query, expected) => {
     renderPalette({ slug: 'acme', orgId: 'o1', orgName: 'Acme' });
     const input = await screen.findByTestId('palette-input');

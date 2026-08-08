@@ -2,10 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { teamsStore } from '@/api/teamsFixtures';
 import type {
   MemberView,
-  RoleSlot,
-  SaveTemplateInput,
   TeamProjectLink,
-  TeamTemplate,
   TeamView,
 } from '@/api/teams';
 
@@ -188,171 +185,15 @@ export function teamHandlers() {
       return json({ ok: true, team_id: id, project_id: projectId });
     }),
 
-    // ---- P2: team memory (read-only) ----
+    // ---- P2: team memory ----
     http.get('/api/teams/:id/memory', () => json(teamsStore().memoryIndex)),
 
     http.get('/api/teams/:id/memory/:entry', ({ params }) => {
-      const doc = teamsStore().memoryDocs[String(params.entry)];
+      const entry = decodeURIComponent(String(params.entry));
+      const doc = teamsStore().memoryDocs[entry] ?? teamsStore().memoryDocs[String(params.entry)];
       return doc
         ? json(doc)
         : HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
-    }),
-
-    // ---- P2: templates (Phase-1 in-memory; list + get only — save/import are residual) ----
-    http.get('/api/team-templates', () => json(teamsStore().templates)),
-
-    http.get('/api/team-templates/:tid', ({ params }) => {
-      const t = teamsStore().templates.find((x) => x.id === String(params.tid));
-      return t
-        ? json(t)
-        : HttpResponse.json({ error: 'not_found', message: 'template_not_found' }, { status: 404 });
-    }),
-
-    // save — persist a CURATED template draft → TeamTemplate (201).
-    http.post('/api/team-templates/save', async ({ request }) => {
-      const input = (await request.json()) as SaveTemplateInput;
-      const s = teamsStore();
-      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
-      const tmpl: TeamTemplate = {
-        id,
-        org_id: 'org-ooo',
-        name: input.name,
-        description: input.description,
-        roles: input.roles,
-        workflow_template_ref: 'plan-builtin',
-        curated: true,
-        source: input.source,
-        source_kind: input.source_kind,
-        version_label: 'v1 · curated',
-        instances_count: 0,
-      };
-      s.templates.push(tmpl);
-      s.templateInstances[id] = [];
-      return json(tmpl, 201);
-    }),
-
-    // import — re-home an exported envelope as an UN-curated template → 201.
-    http.post('/api/team-templates/import', async ({ request }) => {
-      const doc = (await request.json()) as {
-        name?: string;
-        description?: string;
-        roles?: Array<Partial<RoleSlot>>;
-        workflow_template_ref?: string;
-      };
-      const s = teamsStore();
-      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
-      const tmpl: TeamTemplate = {
-        id,
-        org_id: 'org-ooo',
-        name: doc.name || 'imported-template',
-        description: doc.description || '',
-        roles: (doc.roles ?? []).map((r) => ({
-          role: r.role || 'coder',
-          cli: r.cli || 'claude-code',
-          model: r.model || 'sonnet-5',
-          capability_tags: r.capability_tags ?? [],
-          max_concurrency: r.max_concurrency ?? 1,
-          count: r.count ?? 1,
-          description: r.description,
-        })),
-        workflow_template_ref: doc.workflow_template_ref || 'plan-builtin',
-        curated: false,
-        source: '导入 · cross-org JSON',
-        source_kind: 'import',
-        version_label: 'v1',
-        instances_count: 0,
-      };
-      s.templates.push(tmpl);
-      s.templateInstances[id] = [];
-      return json(tmpl, 201);
-    }),
-
-    // instances — teams instantiated from a template → TeamView[] (the FE reads
-    // id/name off each; the fixture holds those two fields per instance).
-    http.get('/api/team-templates/:tid/instances', ({ params }) =>
-      json(teamsStore().templateInstances[String(params.tid)] ?? []),
-    ),
-
-    // scrub — the template's curation findings stripped to the truthful 3 fields
-    // (same {scrub_findings} envelope as /teams/:id/extract; FE enriches). Unknown
-    // tid → 404. Backed by the shared seed scrub fixture (the store holds one
-    // findings set; a real backend derives per-template from its seed memory).
-    http.get('/api/team-templates/:tid/scrub', ({ params }) => {
-      const s = teamsStore();
-      const tid = String(params.tid);
-      if (!s.templates.some((t) => t.id === tid)) {
-        return HttpResponse.json(
-          { error: 'not_found', message: 'template_not_found' },
-          { status: 404 },
-        );
-      }
-      const findings = s.scrub.map((f) => ({
-        experience_slug: f.experience_slug,
-        kind: f.kind,
-        token: f.token,
-      }));
-      return json({ scrub_findings: findings });
-    }),
-
-    // ---- P2: extract — findings stripped to the truthful 3 fields (FE enriches) ----
-    http.get('/api/teams/:id/extract', () =>
-      json({
-        draft: {},
-        scrub_findings: teamsStore().scrub.map((f) => ({
-          experience_slug: f.experience_slug,
-          kind: f.kind,
-          token: f.token,
-        })),
-        dropped_project: 0,
-        curated: false,
-      }),
-    ),
-
-    // ---- P2: instantiate (project-decoupled) ----
-    http.post('/api/teams/instantiate', async ({ request }) => {
-      const input = (await request.json()) as {
-        template_id: string;
-        team_name: string;
-        roles: Array<{
-          role: string;
-          cli: string;
-          model: string;
-          max_concurrency: number;
-          count?: number;
-          tags?: string;
-        }>;
-      };
-      const s = teamsStore();
-      const id = `team-${(s.teams.length + 1).toString(16).padStart(6, '0')}`;
-      const team: TeamView = {
-        id,
-        org_id: 'org-ooo',
-        name: input.team_name,
-        description: '从模版实例化。',
-        version: 1,
-        glyph: input.team_name.slice(0, 2).toUpperCase(),
-        status: 'active',
-        members_count: 0,
-        projects_count: 0,
-        created: '刚刚',
-        roles: input.roles.map((r) => ({
-          role: r.role,
-          cli: r.cli,
-          model: r.model,
-          max_concurrency: r.max_concurrency,
-          count: r.count,
-          capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
-        })),
-      };
-      s.teams.push(team);
-      s.members[id] = [];
-      s.projects[id] = [];
-      const inst =
-        s.templateInstances[input.template_id] ?? (s.templateInstances[input.template_id] = []);
-      inst.push({ id, name: team.name });
-      const tmpl = s.templates.find((x) => x.id === input.template_id);
-      if (tmpl) tmpl.instances_count = inst.length;
-      return json(team, 201);
     }),
 
     // ---- P3: directory (agents / humans with team membership) ----

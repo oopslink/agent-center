@@ -103,7 +103,6 @@
     "membersRoles": "{{members}} 名成员 · {{roles}} 个角色",
     "projectsCount": "{{count}} 个项目",
     "createdAt": "创建于 {{date}}",
-    "extractToTemplate": "Extract → Template",
     "memoryHeading": "⌗ team-memory",
     "overview": {
       "roleMix": "角色定义",
@@ -159,74 +158,6 @@
       "pickerEmptyBody": "组织下的活跃项目都已关联，或还没有项目。"
     }
   },
-  "templates": {
-    "title": "Team Templates",
-    "import": "Import",
-    "extractFromTeam": "Extract from team",
-    "emptyTitle": "还没有模版",
-    "emptyBody": "从一支 team extract 蓝图，或导入跨 org 的模版 JSON。",
-    "instantiate": "Instantiate",
-    "details": "详情",
-    "export": "Export",
-    "importModal": {
-      "title": "Import team template",
-      "subtitle": "粘贴导出的 team-template/v1 JSON envelope，导入即重新归属到本 org（curated=false）。",
-      "invalidJson": "不是合法 JSON",
-      "importing": "导入中…",
-      "submit": "Import",
-      "jsonLabel": "Template JSON"
-    }
-  },
-  "templateDetail": {
-    "backToTemplates": "← Templates",
-    "notFound": "template_not_found",
-    "tabs": {
-      "overview": "Overview",
-      "seedMemory": "Seed Memory",
-      "curation": "Curation & 来源",
-      "instances": "Instances"
-    },
-    "sourcePrefix": "来源：{{source}}",
-    "slotsRoles": "{{slots}} slots · {{roles}} roles",
-    "instancesCount": "{{count}} 个实例",
-    "exportJson": "Export JSON",
-    "instantiate": "Instantiate",
-    "seedMemoryHint": "实例化时种入新 team memory-repo · 已 curation · 只读预览",
-    "seedMemoryHeading": "⌗ template seed",
-    "riskHigh": "high",
-    "riskMed": "med",
-    "riskLow": "low",
-    "overview": {
-      "roleMix": "角色配比",
-      "roleMixHint": "实例化时可调 count",
-      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
-      "info": "模版信息",
-      "infoHint": "provenance",
-      "version": "版本",
-      "source": "来源",
-      "workflowRef": "workflow-ref",
-      "curation": "curation",
-      "gated": "已过门",
-      "notGated": "未过门",
-      "instances": "实例",
-      "instancesValue": "{{count}} 个 team",
-      "note": "Instantiate 时会按此配比建一支 team、声明角色 slots、把 Seed Memory 种进新 team 的 memory-repo、绑 workflow-ref。<b>Phase-1 不铸 agent 身份</b>（运行时另行编入），<b>与 project 无关</b>，project 后置关联。总 {{slots}} slots。"
-    },
-    "curation": {
-      "title": "Curation & 来源",
-      "hint": "extract 时的逐条处置（审计只读）",
-      "note": "此模版从 <b>{{source}}</b> 抽取。下列疑似专属 token 已逐条 curation：<danger>占位</danger>=已替换成占位符，<success>保留</success>=人工确认保留。",
-      "keptBadge": "保留",
-      "placeheldBadge": "已占位"
-    },
-    "instances": {
-      "title": "Instances",
-      "hint": "从此模版实例化出的 team",
-      "emptyTitle": "还没有实例",
-      "emptyBody": "还没有从此模版实例化的 team。",
-      "open": "打开"
-    }
-  },
   "newTeamModal": {
     "title": "New Team",
     "subtitle": "声明角色配比 —— 每角色单独配 CLI / model / tags / 并发。创建即声明角色 slots 与 memory-repo（Phase-1 不铸 agent 身份，运行时另行编入）。",
@@ -242,29 +173,6 @@
     "slotsSummary": "Σ {{slots}} slots = 派生 {{slots}} 个 agent",
     "errRoleNameRequired": "每个角色都需要填写角色名。",
     "errRoleNameDuplicate": "角色名不能重复。"
-  },
-  "instantiateModal": {
-    "title": "Instantiate template",
-    "subtitle": "把 <b>{{name}}</b> 实例化成一支 team。<b>与 project 无关</b> —— 建 team + 按配比声明角色 slots + seed memory + 绑 workflow；<b>Phase-1 不铸 agent 身份</b>（运行时另行编入），project 之后在详情「关联项目」里加。",
-    "instantiating": "实例化中…",
-    "submit": "Instantiate →",
-    "nameLabel": "新 team 名称",
-    "roleMixLabel": "角色配比",
-    "roleMixHint": "(从模版带出，可调 count / cli / model / 并发 / tags)",
-    "slotsSummary": "Σ {{total}} slots → 声明 {{total}} 个角色 slot",
-    "summaryLabel": "实例化将执行（与 project 无关）",
-    "declaredSlots": "声明角色 slots",
-    "declaredSlotsValue": "{{total}} 个 · {{breakdown}}",
-    "unnamed": "未命名",
-    "memoryRepo": "建 memory-repo",
-    "memoryRepoValue": "从模版种子 MEMORY.md",
-    "bindWorkflow": "绑定 workflow",
-    "bindWorkflowValue": "team 级 · 不依赖 project",
-    "agentIdentity": "agent 身份",
-    "agentIdentityValue": "Phase-1 不铸 · 运行时另行编入",
-    "projectLink": "project 关联",
-    "projectLinkValue": "后置 → 详情「关联项目」(0..N)",
-    "footnote": "＊ 实例化只建 team 与角色声明，<b>不创建 agent 身份</b>（Phase-1 facade 铸 0 agent，成员运行时另行编入）；项目相关的事（seed 项目事实进 team repo、实际跑 plan）延后到 <code>associate_project</code> 时；workflow 绑定不依赖 project。"
   },
   "addMemberModal": {
     "errIdentityNotFound": "该 agent / human 不存在或已注销，请重新选择。",
@@ -301,34 +209,6 @@
     "roleLabel": "分配角色",
     "roleHint": "同一个 member 可以在同一个 team 中关联多个角色。"
   },
-  "extractModal": {
-    "title": "Extract → Template",
-    "subtitle": "从 <b>{{name}}</b> 抽取蓝图。已扫描疑似专属 token —— 必须逐条 curation 过门才能存（无批量勾选，防泄漏）。",
-    "stepSelectSource": "选择源",
-    "stepScrubCurate": "Scrub / Curate",
-    "stepNameSave": "命名 & 保存",
-    "note": "扫描到 <b>{{count}}</b> 处疑似专属内容。默认动作已预选，请<b>逐条</b>确认。<danger>红=移除</danger> · <success>绿=保留</success>。",
-    "scanning": "扫描中…",
-    "removePlaceholder": "移除（占位）",
-    "keep": "保留",
-    "riskHigh": "high",
-    "riskMed": "med",
-    "riskLow": "low",
-    "gateScanningTitle": "扫描中…",
-    "gateScanningBody": " —— 正在识别疑似专属 token，稍候。",
-    "gatePassedTitle": "Curation 已过门",
-    "gatePassedBody": " —— 无遗留 high-risk。{{kept}} 保留 / {{scrubbed}} 占位化。",
-    "gateBlockedTitle": "门未通过",
-    "gateBlockedBody": " —— 仍保留 {{count}} 处 high-risk token，需先占位化。",
-    "count": "{{scrubbed}} scrubbed · {{kept}} kept",
-    "saveScanning": "扫描中…",
-    "saveBlocked": "需先处理 high-risk",
-    "saving": "保存中…",
-    "save": "保存为模版 →",
-    "templateNameSuffix": "{{name}} template",
-    "templateDescription": "从 {{name}} 抽取的蓝图。",
-    "templateSource": "从 {{id}} extract"
-  },
   "roleBuilder": {
     "roleNamePlaceholder": "角色名",
     "decreaseCount": "decrease count",
@@ -348,7 +228,21 @@
   "memoryPane": {
     "pinned": "常驻",
     "lazy": "lazy",
+    "rule": "规则",
+    "filterAria": "Team memory 筛选",
+    "filterAll": "全部",
+    "filterEntries": "Entries",
+    "filterRules": "Rules",
+    "manageRules": "管理规则",
+    "permissionFeedback": "规则通过 team-memory git repo 管理。Team 成员可向 rules/ 推送修改；非成员只读并会收到 403。",
+    "permissionDenied": "你对该 team-memory repo 是只读权限。编辑 rules/ 前请先请求 team owner 加入成员。",
+    "emptyTitle": "没有 memory entries",
+    "emptyBody": "该 team-memory repo 在当前分组下没有匹配条目。",
+    "emptyRulesTitle": "还没有 rules",
+    "emptyRulesBody": "在 team-memory git repo 的 rules/ 下添加规则 Markdown 文件。",
     "raw": "原始",
+    "rendered": "渲染",
+    "copiedPath": "路径已复制。",
     "copyPath": "复制路径"
   }
 }

@@ -44,8 +44,8 @@ export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSeconda
   // v2.10.0 [T4]: route-aware Workspace nav (top-level list ↔ project sub-nav).
   workspace: WorkspaceSecondaryNav,
   conversations: ConversationsSecondaryNav, // T2 / T64 (dev1)
-  // Team WebUI: TEAMS (All teams / Templates) + DIRECTORY (Agents / Humans). The
-  // legacy Members module is merged in here (members-into-teams).
+  // Team WebUI: TEAMS (All teams) + DIRECTORY (Agents / Humans). The legacy
+  // Members module is merged in here (members-into-teams).
   teamui: TeamUISecondaryNav,
   // T248: Reminders filter rail (search + Scope + Status) lives in col②, not as
   // a page-internal aside — restores the three-column layout (issue-c438cde1).

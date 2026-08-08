@@ -2,15 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import TeamDetail from './TeamDetail';
 import { resetTeamsStore } from '@/api/teamsFixtures';
 import { server } from '@/test/mswServer';
-
-function Loc(): React.ReactElement {
-  const l = useLocation();
-  return <div data-testid="loc">{l.pathname}</div>;
-}
 
 function renderAt(id: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -19,8 +14,6 @@ function renderAt(id: string) {
       <MemoryRouter initialEntries={[`/teams/${id}`]}>
         <Routes>
           <Route path="/teams/:teamId" element={<TeamDetail />} />
-          <Route path="/teams" element={<Loc />} />
-          <Route path="/teams/templates" element={<Loc />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -231,28 +224,66 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByTestId('assoc-project-c7073e48')).not.toBeInTheDocument());
   });
 
-  it('renders the read-only team-memory two-pane', async () => {
+  it('renders team-memory entries and rules in one pane', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-tm'));
     expect(await screen.findByTestId('memory-pane')).toBeInTheDocument();
-    fireEvent.click(await screen.findByTestId('memory-node-ci-runbook'));
+    expect(screen.getByTestId('memory-filter-entries')).toHaveTextContent('3');
+    expect(screen.getByTestId('memory-filter-rules')).toHaveTextContent('2');
+    fireEvent.click(await screen.findByTestId('memory-node-entries/ci-runbook'));
     await waitFor(() => expect(screen.getByTestId('memory-view')).toHaveTextContent('CI/CD runbook'));
+    fireEvent.click(screen.getByTestId('memory-filter-rules'));
+    const ruleNode = await screen.findByTestId('memory-node-rules/review-gate');
+    expect(within(ruleNode).getByTestId('memory-rule-badge-rules/review-gate')).toHaveTextContent('rule');
+    fireEvent.click(ruleNode);
+    await waitFor(() => expect(screen.getByTestId('memory-rule-doc-badge')).toHaveTextContent('rule'));
+    expect(screen.getByTestId('memory-view')).toHaveTextContent('Review gate rule');
+    fireEvent.click(screen.getByTestId('memory-manage-rules'));
+    expect(await screen.findByTestId('memory-permission-feedback')).toHaveTextContent('team-memory git repo');
   });
 
-  it('runs the Extract → Template curation gate', async () => {
+  it('shows an empty state when a team has no memory rules', async () => {
+    server.use(
+      http.get('/api/teams/:id/memory', () =>
+        HttpResponse.json([
+          { slug: 'MEMORY.md', pinned: true },
+          { group: 'entries/' },
+          { slug: 'entries/ci-runbook' },
+        ]),
+      ),
+    );
     renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-extract'));
-    const modal = await screen.findByTestId('extract-modal');
-    // default seeds one high-risk kept? No — defaults scrub all hi. Gate passes.
-    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('Curation cleared'));
-    // keep a high-risk token → gate blocks
-    fireEvent.click(within(modal).getByTestId('scrub-0-keep'));
-    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('Gate not passed'));
-    expect(within(modal).getByTestId('extract-save')).toBeDisabled();
-    // scrub it back → save enabled → save navigates to templates
-    fireEvent.click(within(modal).getByTestId('scrub-0-scrub'));
-    await waitFor(() => expect(within(modal).getByTestId('extract-save')).not.toBeDisabled());
-    fireEvent.click(within(modal).getByTestId('extract-save'));
-    await waitFor(() => expect(screen.getByTestId('loc')).toHaveTextContent('/teams/templates'));
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    fireEvent.click(await screen.findByTestId('memory-filter-rules'));
+    expect(await screen.findByTestId('memory-rules-empty')).toHaveTextContent('No rules yet');
+  });
+
+  it('surfaces memory permission and document errors', async () => {
+    server.use(
+      http.get('/api/teams/:id/memory', () =>
+        HttpResponse.json({ error: 'forbidden', message: 'not a team member' }, { status: 403 }),
+      ),
+    );
+    const first = renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    expect(await screen.findByTestId('memory-index-error')).toHaveTextContent('read-only');
+    first.unmount();
+
+    server.use(
+      http.get('/api/teams/:id/memory', () =>
+        HttpResponse.json([
+          { slug: 'MEMORY.md', pinned: true },
+          { group: 'rules/' },
+          { slug: 'rules/missing' },
+        ]),
+      ),
+      http.get('/api/teams/:id/memory/:entry', () =>
+        HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 }),
+      ),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    fireEvent.click(await screen.findByTestId('memory-filter-rules'));
+    expect(await screen.findByTestId('memory-doc-error')).toHaveTextContent('memory_not_found');
   });
 });

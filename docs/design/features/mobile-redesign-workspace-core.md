@@ -10,7 +10,7 @@
 
 ## 1. 背景
 
-第三批交付物，覆盖底部 Tab「Work」（不是 Chat——Work 对应 Projects/Issues/Tasks/Plan/Repos/Templates，Chat 对应上一批的 Conversations，两者是并列模块，命名已在批次一/二混淆过，这里再次明确）。
+第三批交付物，覆盖底部 Tab「Work」（不是 Chat——Work 对应 Projects/Issues/Tasks/Plan/Repos，Chat 对应上一批的 Conversations，两者是并列模块，命名已在批次一/二混淆过，这里再次明确）。
 
 设计前对 PC 端实现做了两轮功能审计：
 
@@ -117,7 +117,7 @@ PC 端是横向多列 kanban + 鼠标拖拽；已有的移动端妥协方案是"
 - WorkItemFilterBar 筛选弹层的具体交互（状态多选、assignee 单选、日期范围选择器在移动端的控件形态）。
 - PlanDetail 依赖边增删的表单细节。
 - Work Board 的"新建 Plan”/“新建 Task”表单细节。
-- Templates 页面（Workspace 模块内还有一个 `templates` 路由，未在本批调研范围内，留给后续批次）。
+- Workspace/Team Templates 独立页面已从 Web Console 收口；Team 规约在 Team Detail > Memory 的 `rules/` 分组内查看。
 
 ## 7. 未来扩展
 

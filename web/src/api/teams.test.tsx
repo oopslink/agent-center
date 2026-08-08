@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { makeWrapper } from '@/test/renderWith';
 import {
-  exportTemplateEnvelope,
   roleColor,
   useCreateTeam,
   useDeleteTeam,
   useTeamMemoryDoc,
   useTeams,
-  type TeamTemplate,
 } from './teams';
 import { resetTeamsStore, teamsStore } from './teamsFixtures';
 
@@ -18,14 +16,6 @@ describe('teams api (fixture-backed)', () => {
   it('roleColor falls back for unknown roles', () => {
     expect(roleColor('planner')).toBe('#7C3AED');
     expect(roleColor('mystery')).toBe('#8b8794');
-  });
-
-  it('exportTemplateEnvelope emits a team-template/v1 doc', () => {
-    const t = teamsStore().templates[0] as TeamTemplate;
-    const env = exportTemplateEnvelope(t) as Record<string, unknown>;
-    expect(env.format).toBe('team-template/v1');
-    expect(env.source_id).toBe(t.id);
-    expect(Array.isArray(env.roles)).toBe(true);
   });
 
   it('useTeams resolves the seeded list', async () => {

@@ -6,13 +6,12 @@ import {
   DirectoryIcon,
   GridIcon,
   TeamsIcon,
-  TemplateIcon,
 } from '@/components/teams/teamsUi';
 
 // Team WebUI (Phase-1) — col② secondary nav (registered override).
 //
 // Two groups mirroring the v7 mockup's context column:
-//   • TEAMS      — All teams (/teams), Templates (/teams/templates)
+//   • TEAMS      — All teams (/teams)
 //   • DIRECTORY  — Agents (/teams/agents), Humans (/teams/humans)
 // These directory pages are the mockup's DIRECTORY section (crumbs
 // /teams/agents · /teams/humans) — distinct from the org-level /agents and
@@ -33,14 +32,13 @@ export default function TeamUISecondaryNav({ orgBase }: ModuleSecondaryNavProps)
 
   const teamsGroup: NavEntry[] = [
     { id: 'teams', to: p('teams'), labelKey: 'shell.teamui.allTeams', Icon: GridIcon, end: true },
-    { id: 'templates', to: p('teams/templates'), labelKey: 'shell.teamui.templates', Icon: TemplateIcon },
   ];
   const directoryGroup: NavEntry[] = [
     { id: 'agents', to: p('teams/agents'), labelKey: 'shell.teamui.agents', Icon: DirectoryIcon },
     { id: 'humans', to: p('teams/humans'), labelKey: 'shell.teamui.humans', Icon: DirectoryIcon },
   ];
 
-  // "All teams" must not stay highlighted on /teams/templates|agents|humans.
+  // "All teams" must not stay highlighted on /teams/agents|humans or team details.
   const onTeamsList = new RegExp(`${orgBase}/teams/?$`).test(location.pathname);
 
   return (

@@ -94,19 +94,15 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 ---
 
-## 6. Team 模版
+## 6. Team Memory rules 与经验复制
 
-**Team 模版 = org 级用户自管 artifact**，三条创建/管理路径都是一等能力：
+**Web Console 收口（2026-08）**：Team Detail > Memory 是唯一产品面，按 repo 路径分成 `entries/` 与 `rules/` 两组；`rules/` 条目显示明确规约标识。Web 不再提供 Workspace `/templates`、Team `/teams/templates`、extract/import/export/instantiate 等独立页面或入口，也不新增独立产品对象或 `kind` 双重字段。
 
-- **`extract_from_team`**：从活 team 快照 → 草稿（只抽 team/全局 scope 的**可泛化层**，剥掉项目专属；用户再 curate 保证干净）。
-- **`create` / `update` / `delete` / `list`**：手动建/编辑。
-- **`import` / `export`**（JSON 文件）：备份、跨环境搬，**也天然是"跨 org 共享"的机制**（export 一个文件 → 别的 org import，不用另做 sync/授权管线）。
+**Team Memory rules** 承载团队规约：流程约束、编码规范、评审门槛、清理规则等都以规则 markdown 存在于 team-memory repo 的 `rules/` 下；普通经验仍在 `entries/` 下。查看、空态、错误态和权限反馈都落在 Team Detail > Memory 内。
 
-**可泛化 vs 项目专属**靠 §3 的 scope 边界切（team/全局 scope=可泛化、可带走；project scope=专属、必剥）+ 手动 curate；**不做自动脱敏管线**（MVP）。
+**经验复制/搬运**若保留为工具或后端能力，应被视为 repo/archive 级操作：按 §3 的 scope 边界切分（team/全局 scope=可泛化、可带走；project scope=专属、必剥）+ 手动 curate，避免把项目专属内容带进可复用规则或经验。它不是 Web Console 的一级产品页面。
 
-**内容三块**：① 角色配比 + 每角色配置（cli/model/tags/并发）② 工作规约（引用一个 workflow 模版 + 编码规范/裁决惯例/清理规则）③ 可泛化经验（skills/rules/原则）。
-
-**实例化（project-independent，issue-c4dccae0）** = 按角色配比建 N 个新 agent（新身份）+ seed 它们 memory（那套可泛化经验）+ 绑 workflow 模版。团队是 **org 级实体、与 project 无关**；要把团队投到某个/某些 project 上干活是**独立的一步 associate_project**（§3 "team 与 project 是两条正交轴"）。这样一个 team 天然可服务多个 project、也可先建后关联。
+**实例化/建队**仍是 org 级实体能力：团队是 **org 级实体、与 project 无关**；要把团队投到某个/某些 project 上干活是**独立的一步 associate_project**（§3 "team 与 project 是两条正交轴"）。这样一个 team 天然可服务多个 project、也可先建后关联。
 
 ---
 
@@ -128,7 +124,7 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 ## 8. 分期
 
-- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team 模版（3 路径）+ 实例化（project-independent，见 §6/issue-c4dccae0；project 关联走独立 associate_project）+ role→agent 角色便利（§7）。
+- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team Detail > Memory 的 `entries/`/`rules/` 单一产品面 + 实例化（project-independent，见 §6/issue-c4dccae0；project 关联走独立 associate_project）+ role→agent 角色便利（§7）。
 - **Phase 2**：**agent memory 迁移到 center-hosted git**（比只做 team memory 大、动到跑着的东西，故拆后）。
 - **将来**：一个 team 服务多个 project；跨 org 共享（export/import 已覆盖，见 §6）。
 
@@ -142,15 +138,15 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 **agent memory 可用性（细化 §4.1，Phase 2）**：center-hosted 若每次 boot 全 clone → boot 网络依赖、center 挂了 agent 没记忆。解法：runtime 留**本地工作副本**（跨 boot 持久化），boot 走增量 `git fetch/pull`；center 够不着 → **回落上次本地副本**（降级但能跑）。是"本地缓存 + 可达时同步"。
 
-**角色 team 自定义（细化 §2/§7）**：角色**不硬编码** {PD/dev/integration/tester}——由 **team 模版自定义声明**（角色名 + 配比 + 每角色配置）；plan 节点引用 team 声明的角色名。固定枚举只是 agent-center 这个 team 的角色、非系统约束。
+**角色 team 自定义（细化 §2/§7）**：角色**不硬编码** {PD/dev/integration/tester}——由 **team 声明**定义（角色名 + 配比 + 每角色配置）；plan 节点引用 team 声明的角色名。固定枚举只是 agent-center 这个 team 的角色、非系统约束。
 
 **实例化 ≠ 能跑的团队（细化 §6）**：建 N 个新 agent 还需 **runtime 家 + auth**（codex/claude login、MCP token）。模版带**配置**、不带 runtime/auth（per-deployment）。所以实例化=建身份+配置+memory-repo+绑 workflow；**runtime provisioning（派到 worker、装 auth）是单独一步**（复用现有 enroll/worker-provision 流）。
 
-**抽取 curation 强制（细化 §6）**：scope 过滤不保证干净（team-scope 教训也可能提具体 repo/代号）→ **手动 curation 是 load-bearing、export/cross-org 强制**（抽取产草稿、过审再成可共享模版），防泄漏；加 **scrub 辅助**（高亮疑似专属 token：repo 名、"T950"类代号、路径）。
+**经验复制 curation 强制（细化 §6）**：scope 过滤不保证干净（team-scope 教训也可能提具体 repo/代号）→ **手动 curation 是 load-bearing、export/cross-org 强制**，防泄漏；加 **scrub 辅助**（高亮疑似专属 token：repo 名、"T950"类代号、路径）。
 
 **访问控制映射（细化 §4.2）**：center 维护 agent→team 映射，git-http 中间件判"这 token 的 agent 属不属 repo 所属 team"→rw；全局 repo 全员可读；human 多 team；实例化时给新 agent 授权其 team repo。
 
-**模版版本不 retro（细化 §6）**：模版=快照、实例独立（Q1 无 live link）、**不 retro-update**；要新经验就重抽 v2 或手动 import 特定条目。
+**导出版本不 retro（细化 §6）**：导出包=快照、实例独立（Q1 无 live link）、**不 retro-update**；要新经验就重新导出或手动搬运特定条目。
 
 **team scope 写靠 agent 判断（软肋，记录）**：通用 vs 专属靠 agent prompted 判断（同现有 memory 纪律），判错会污染 team scope；靠模版抽取的手动 curation + 可选周期性卫生复审兜。
 

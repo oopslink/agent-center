@@ -3,13 +3,13 @@
 // WHY fixtures and not the real backend: the Team domain is wired only on the
 // `/admin/agent-tools/*` RPC surface (worker-token auth, agent_id bound to a
 // worker) — it is NOT reachable from a browser session, and it exposes no
-// list-templates / list-members / member→teams endpoints, nor any team
-// active/draft status. So a browser-facing Phase-1 UI cannot bind to it yet.
+// list-members / member→teams endpoints, nor any team active/draft status. So a
+// browser-facing Phase-1 UI cannot bind to it yet.
 // This module backs the UI with typed fixtures shaped to the backend view
-// structs (TeamView / RoleView / MemberView / template export envelope), so
-// swapping to a future `/api/orgs/{slug}/teams` REST facade is a queryFn-only
-// change in teams.ts. Mutations mutate this store so create / instantiate /
-// extract / member flows feel live within a session.
+// structs (TeamView / RoleView / MemberView), so swapping to a future
+// `/api/orgs/{slug}/teams` REST facade is a queryFn-only change in teams.ts.
+// Mutations mutate this store so create / member flows feel live within a
+// session.
 //
 // The data mirrors the finalised v7 mockup (team-webui-mockup.html).
 
@@ -19,8 +19,6 @@ import type {
   MemberView,
   MemoryDoc,
   MemoryIndexEntry,
-  ScrubFinding,
-  TeamTemplate,
   TeamView,
 } from './teams';
 
@@ -28,11 +26,8 @@ export interface TeamsData {
   teams: TeamView[];
   members: Record<string, MemberView[]>;
   projects: Record<string, TeamProjectLink[]>;
-  templates: TeamTemplate[];
-  templateInstances: Record<string, Array<{ id: string; name: string }>>;
   memoryIndex: MemoryIndexEntry[];
   memoryDocs: Record<string, MemoryDoc>;
-  scrub: ScrubFinding[];
   agents: DirectoryAgent[];
   humans: DirectoryHuman[];
 }
@@ -126,10 +121,12 @@ function seed(): TeamsData {
   const memoryIndex: MemoryIndexEntry[] = [
     { slug: 'MEMORY.md', pinned: true },
     { group: 'entries/' },
-    { slug: 'ci-runbook' },
-    { slug: 'review-conventions' },
-    { slug: 'go-error-patterns' },
-    { slug: 'release-checklist' },
+    { slug: 'entries/ci-runbook' },
+    { slug: 'entries/go-error-patterns' },
+    { slug: 'entries/release-checklist' },
+    { group: 'rules/' },
+    { slug: 'rules/review-gate' },
+    { slug: 'rules/scope-discipline' },
   ];
 
   const memoryDocs: Record<string, MemoryDoc> = {
@@ -141,107 +138,48 @@ function seed(): TeamsData {
       body:
         '团队常驻记忆索引。**此文件常驻加载**进每个成员上下文；`entries/<slug>.md` 条目按需拉取。\n\n' +
         '#### Entries\n\n' +
-        '- **ci-runbook** — CI/CD 部署与回滚\n' +
-        '- **review-conventions** — 评审阻塞位\n' +
-        '- **go-error-patterns** — 错误处理约定\n' +
-        '- **release-checklist** — 发布清单\n',
+        '- **entries/ci-runbook** — CI/CD 部署与回滚\n' +
+        '- **entries/go-error-patterns** — 错误处理约定\n' +
+        '- **entries/release-checklist** — 发布清单\n\n' +
+        '#### Rules\n\n' +
+        '- **rules/review-gate** — 评审阻塞规约\n' +
+        '- **rules/scope-discipline** — team/project/agent memory 归属规约\n',
     },
-    'ci-runbook': {
-      slug: 'ci-runbook',
+    'entries/ci-runbook': {
+      slug: 'entries/ci-runbook',
       path: 'team-memory/entries/ci-runbook.md',
       title: 'CI/CD runbook',
       frontmatter: 'name: ci-runbook\ntype: reference\nupdated: 2026-07-11',
       body: '#### 触发\n\npush 到 `main` 触发 `ci.yml`；tag `v*` 触发 release。\n\n#### 回滚\n\n- revert 合并提交，让流水线重跑\n- 或 dashboard 手动 promote 上一个 green build\n',
     },
-    'review-conventions': {
-      slug: 'review-conventions',
-      path: 'team-memory/entries/review-conventions.md',
-      title: '评审约定',
-      frontmatter: 'name: review-conventions\ntype: project\nupdated: 2026-07-09',
-      body: '阻塞位：正确性缺陷、安全问题、无测试的行为改动。\n\n#### 非阻塞\n\n- 命名/风格 → nit\n- 可跟进重构 → 记 issue\n',
-    },
-    'go-error-patterns': {
-      slug: 'go-error-patterns',
+    'entries/go-error-patterns': {
+      slug: 'entries/go-error-patterns',
       path: 'team-memory/entries/go-error-patterns.md',
       title: 'Go 错误处理约定',
       frontmatter: 'name: go-error-patterns\ntype: reference\nupdated: 2026-07-05',
       body: '包装用 `fmt.Errorf("…: %w", err)`；哨兵错误集中在 `errors.go`。禁止吞错。\n',
     },
-    'release-checklist': {
-      slug: 'release-checklist',
+    'entries/release-checklist': {
+      slug: 'entries/release-checklist',
       path: 'team-memory/entries/release-checklist.md',
       title: '发布清单',
       frontmatter: 'name: release-checklist\ntype: project\nupdated: 2026-07-12',
       body: '- migration 已跑 + 可回滚\n- coverage ≥ 基线\n- CHANGELOG 更新\n- owner 签发\n',
     },
-  };
-
-  const scrub: ScrubFinding[] = [
-    { experience_slug: 'ci-runbook', kind: 'path', token: 'prod-us-east-2.oopslink.internal', risk: 'hi', loc: 'entries/ci-runbook.md:8', reason: '疑似专属内网主机名', default_action: 'scrub' },
-    { experience_slug: 'MEMORY.md', kind: 'code_name', token: 'gpt-5-ft:ooo-internal-2026', risk: 'hi', loc: 'MEMORY.md · roles', reason: '疑似私有微调模型 ID', default_action: 'scrub' },
-    { experience_slug: 'release-checklist', kind: 'code_name', token: 'heyang198@…', risk: 'md', loc: 'release-checklist.md:4', reason: '疑似个人邮箱', default_action: 'scrub' },
-    { experience_slug: '', kind: 'code_name', token: 'proj-falcon', risk: 'md', loc: 'roles/coder.tags', reason: '疑似内部代号', default_action: 'scrub' },
-    { experience_slug: 'go-error-patterns', kind: 'code_name', token: 'fmt.Errorf', risk: 'lo', loc: 'go-error-patterns.md', reason: '通用 API，可能保留', default_action: 'keep' },
-  ];
-
-  const templates: TeamTemplate[] = [
-    {
-      id: 'tmpl-core',
-      org_id: 'org-ooo',
-      name: 'Core Feature Squad',
-      description: '规划、实现、评审闭环的主力编队蓝图。',
-      source: '从 team-7c19b0 extract',
-      source_kind: 'extract',
-      version_label: 'v3 · curated',
-      curated: true,
-      workflow_template_ref: 'plan-builtin',
-      instances_count: 1,
-      roles: [
-        { role: 'planner', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: ['design', 'arch'], description: '拆解需求、产出实现计划与架构取舍' },
-        { role: 'coder', count: 3, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: ['go', 'ts'], description: '实现功能、编写测试' },
-        { role: 'reviewer', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: ['security'], description: '评审正确性/安全、把阻塞位' },
-        { role: 'ops', count: 1, cli: 'codex', model: 'gpt-5', max_concurrency: 1, capability_tags: ['ci', 'deploy'], description: 'CI/CD、部署与回滚' },
-      ],
+    'rules/review-gate': {
+      slug: 'rules/review-gate',
+      path: 'team-memory/rules/review-gate.md',
+      title: 'Review gate rule',
+      frontmatter: 'name: review-gate\ntype: rule\nupdated: 2026-07-13',
+      body: '阻塞规约：正确性缺陷、安全问题、无测试的行为改动必须退回；命名和风格问题标记为 nit，不阻塞发布。\n',
     },
-    {
-      id: 'tmpl-triage',
-      org_id: 'org-ooo',
-      name: 'Bug Triage Pod',
-      description: '调研 + 快速修复的小队蓝图。',
-      source: '手建',
-      source_kind: 'manual',
-      version_label: 'v1',
-      curated: true,
-      workflow_template_ref: 'plan-builtin',
-      instances_count: 0,
-      roles: [
-        { role: 'researcher', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: ['analytics'], description: '调研、数据回收与分析' },
-        { role: 'coder', count: 2, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: ['go'], description: '实现功能、编写测试' },
-      ],
+    'rules/scope-discipline': {
+      slug: 'rules/scope-discipline',
+      path: 'team-memory/rules/scope-discipline.md',
+      title: 'Memory scope discipline',
+      frontmatter: 'name: scope-discipline\ntype: rule\nupdated: 2026-07-13',
+      body: '通用团队经验写入 `team-memory/entries/` 或 `team-memory/rules/`；项目事实写 project memory；个人偏好和局部操作痕迹写 agent memory。\n',
     },
-    {
-      id: 'tmpl-rnd',
-      org_id: 'org-ooo',
-      name: 'R&D Prototype',
-      description: '跨 org 导入的原型编队蓝图。',
-      source: '导入 · cross-org JSON',
-      source_kind: 'import',
-      version_label: 'v2',
-      curated: true,
-      workflow_template_ref: 'plan-builtin',
-      instances_count: 1,
-      roles: [
-        { role: 'planner', count: 1, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, capability_tags: [], description: '拆解需求、产出实现计划与架构取舍' },
-        { role: 'coder', count: 1, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, capability_tags: ['react'], description: '实现功能、编写测试' },
-        { role: 'designer', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: ['ux'], description: 'UX/UI 设计与原型' },
-      ],
-    },
-  ];
-
-  const templateInstances: Record<string, Array<{ id: string; name: string }>> = {
-    'tmpl-core': [{ name: 'agent-center core', id: 'team-7c19b0' }],
-    'tmpl-triage': [],
-    'tmpl-rnd': [{ name: 'rnd-proto-01', id: 'team-2f01aa' }],
   };
 
   const agents: DirectoryAgent[] = [
@@ -269,11 +207,8 @@ function seed(): TeamsData {
     teams,
     members,
     projects,
-    templates,
-    templateInstances,
     memoryIndex,
     memoryDocs,
-    scrub,
     agents,
     humans,
   };

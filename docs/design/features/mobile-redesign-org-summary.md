@@ -4,18 +4,18 @@
 |---|---|
 | Status | Proposed |
 | Date | 2026-07-16 |
-| Scope | Workspace 模块的跨项目视图：OrgWorkItems（`/issues` `/tasks`，同一组件两种 kind）/ OrgPlans（`/plans`）/ OrgRepos（`/repos`，工作区仓库注册表）/ OrgTemplates（`/templates`，纯文本 prompt 模板） |
+| Scope | Workspace 模块的跨项目视图：OrgWorkItems（`/issues` `/tasks`，同一组件两种 kind）/ OrgPlans（`/plans`）/ OrgRepos（`/repos`，工作区仓库注册表）/ OrgModelCatalog（`/model-catalog`） |
 | Depends on | [mobile-redesign-workspace-core.md](mobile-redesign-workspace-core.md)（复用其 tabstrip / wi-row / 只读摘要弹层等视觉语言） |
 | Mockup | [assets/mobile-redesign-org-summary-mockup.html](../assets/mobile-redesign-org-summary-mockup.html) |
 
 ## 1. 背景
 
-第五批交付物，仍在底部 Tab「Work」下，但是与第三批（ProjectDetail 内的项目内视图）平级的**跨项目**视图——PC 端顶层路由 `/issues` `/tasks` `/plans` `/repos` `/templates`，对应 col① rail 的 `pathPrefixes`。
+第五批交付物，仍在底部 Tab「Work」下，但是与第三批（ProjectDetail 内的项目内视图）平级的**跨项目**视图——PC 端顶层路由 `/issues` `/tasks` `/plans` `/repos` `/model-catalog`，对应 Workspace col② 导航。
 
-审计澄清了两组容易混淆的概念，写这批 spec 前必须先分清楚：
+审计澄清了容易混淆的概念，写这批 spec 前必须先分清楚：
 
 1. **OrgRepos ≠ ProjectDetail 的 Repos tab**。OrgRepos 是工作区级别的仓库**注册表**（创建/编辑/删除仓库元数据：label/provider/url/默认分支/凭证），外加只读的远端查看（Commits/Branches，直接从 git host 拉取，不做本地 clone）。第三批的 ProjectDetail Repos tab 则是"项目引用了注册表里的哪些仓库"（引用/取消引用/设主仓库）。两者是不同的读写面，不要合并成一个页面。
-2. **OrgTemplates ≠ Team Templates**。OrgTemplates 是纯文本 `{name, description, content}` 的 prompt 模板 CRUD，**没有"应用/实例化"动作**。仓库里另有一个不相关的 Team Templates 功能（`/teams/templates`，团队组成模板，可导入/导出/实例化）不在本批范围内，也不应被混进本批设计。
+2. **Team Memory rules 不属于 Workspace 跨项目导航**。规则文件只在 Team Detail > Memory 的 `rules/` 分组内查看和管理，不再通过 Workspace `/templates` 或 Team `/teams/templates` 独立页面承载。
 
 ## 2. 页面清单与信息架构
 
@@ -25,9 +25,9 @@
 | OrgWorkItems（Tasks） | `/tasks` | 跨项目列表 | 同一组件，`kind` 不同 |
 | OrgPlans | `/plans` | 跨项目列表 | 只读投影，不能在此建 Plan |
 | OrgRepos | `/repos` | 注册表 | 增删改 + 只读远端查看 |
-| OrgTemplates | `/templates` | 注册表 | 纯文本模板 CRUD |
+| OrgModelCatalog | `/model-catalog` | 注册表 | 组织级模型类目 |
 
-Workspace 顶层 `tabstrip` 从第三批的"Projects"单项扩展为 **Projects / Issues / Tasks / Plans / Repos / Templates** 六项，横向可滑动——对应 PC 端 col① rail 的完整 `pathPrefixes` 集合，与第三批 ProjectDetail 内部的 tabstrip 是同一视觉语言但不同语义层级（这里切的是"跨项目视图"，那里切的是"单项目内的维度"）。
+Workspace 顶层 `tabstrip` 从第三批的"Projects"单项扩展为 **Projects / Issues / Tasks / Plans / Repos / Model catalog**，横向可滑动——对应 PC 端 Workspace col② 集合，与第三批 ProjectDetail 内部的 tabstrip 是同一视觉语言但不同语义层级（这里切的是"跨项目视图"，那里切的是"单项目内的维度"）。
 
 ## 3. 视觉设计
 
@@ -51,11 +51,10 @@ Workspace 顶层 `tabstrip` 从第三批的"Projects"单项扩展为 **Projects 
 - 每张卡片可展开"查看远端"（可多张同时展开）：Commits/Branches 两个子 tab。Commits 按日期分组，每条含作者、相对时间、短 SHA（复制按钮）、以及尽力构造的"在代码托管平台中查看"外链；Branches 是分支 chip 列表，默认分支高亮。
 - 编辑/删除走行内"⋯"菜单（未在 mockup 逐一画出交互态，参照上一批"⋯"底部弹层的既有模式）。
 
-### 3.4 OrgTemplates
+### 3.4 OrgModelCatalog
 
-- 卡片：名称 + 描述 + 内置徽章（仅内置模板显示，灰色，不用禁用态图标制造额外视觉噪音）。
-- 内置模板**隐藏**编辑/删除入口，只保留"查看"；自定义模板三个操作都在。
-- "查看"展开一个 `code-block`（等宽字体、保留换行）显示模板正文——列表 DTO 本身不含 `content`，展开时才异步拉取完整内容，与 PC 端行为一致。
+- 模型类目保留为 Workspace 下的组织级注册表入口。
+- Team rules 不在此处建二级入口；移动端进入 Team Detail > Memory 后用 `entries/` 与 `rules/` 分组承载同一产品面。
 
 ## 4. 功能覆盖清单
 
@@ -72,9 +71,7 @@ Workspace 顶层 `tabstrip` 从第三批的"Projects"单项扩展为 **Projects 
 | OrgRepos 只读远端查看（Commits 按天分组/复制 SHA/外链、Branches 列表） | `RemoteViewerPanel` | Covered |
 | OrgRepos 远端不可用时的降级态 | 现状确认 | Covered（要求："不可用"而非硬报错） |
 | OrgRepos 深链自动展开定位（`/repos?repo=`） | 现状确认 | Deferred — 确认保留跳转定位能力，具体动效留实现阶段 |
-| OrgTemplates 模板 CRUD（name/description/content） | `TemplateFormModal` | Deferred — 入口已标，表单细节留后续；编辑时 content 异步加载完成前禁止保存的约束需写进实现阶段 |
-| OrgTemplates 内置模板隐藏编辑/删除 | 现状确认 | Covered |
-| OrgTemplates 无"应用/实例化"动作 | 现状确认（区别于不相关的 Team Templates） | N/A — 确认后移动端不额外发明"应用"按钮 |
+| Team Memory rules 查看/管理入口 | `MemoryPane` | N/A in Workspace — 在 Team Detail > Memory 的 `rules/` 分组内承载，不新增 Workspace 页 |
 
 ## 5. 与第三批（Workspace 核心）的关系
 
@@ -85,8 +82,7 @@ Workspace 顶层 `tabstrip` 从第三批的"Projects"单项扩展为 **Projects 
 
 - OrgWorkItems 跨项目筛选弹层、创建流程"选项目"步骤的具体表单。
 - OrgRepos 的 Add/Edit Repo 表单细节，删除确认的具体文案分级。
-- OrgTemplates 的 Add/Edit 表单细节。
-- Team Templates（`/teams/templates`）——与本批的 OrgTemplates 是完全不同的功能，不在本次调研范围内，是否需要单独立项留待后续决定。
+- Team Memory rules 的编辑表单细节；Web 当前提供查看、分组筛选、权限反馈与 git 管理入口。
 
 ## 7. 未来扩展
 

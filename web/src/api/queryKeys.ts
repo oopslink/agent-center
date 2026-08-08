@@ -106,8 +106,6 @@ export const qk = {
   // T593: per-agent live concurrency slots (3s poll), overlaid on the Tasks tab.
   agentConcurrency: (agentId: string) => o('agentConcurrency', agentId),
   // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
-  templates: () => o('templates'),
-  template: (id: string) => o('templates', id),
   modelCatalog: () => o('model-catalog'),
   aiRuntimeCatalog: () => o('ai-runtime'),
   workspaceRepos: () => o('workspaceRepos'),

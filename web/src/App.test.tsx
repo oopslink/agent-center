@@ -135,7 +135,6 @@ describe('App shell + route tree', () => {
       // merged surfaces).
       [`${ORG_BASE}/teams`, [
         ['All teams', `${ORG_BASE}/teams`],
-        ['Templates', `${ORG_BASE}/teams/templates`],
         ['Agents', `${ORG_BASE}/teams/agents`],
         ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
@@ -154,6 +153,7 @@ describe('App shell + route tree', () => {
         expect(link, `col② link for ${label} on ${route}`).toBeDefined();
         expect(link).toHaveAttribute('href', href);
       }
+      expect(within(nav).queryByRole('link', { name: /^Templates$/ })).not.toBeInTheDocument();
       unmount();
     }
     // v2.10.0 [T64]: Conversations custom col② — the Channels / Direct messages
@@ -163,6 +163,14 @@ describe('App shell + route tree', () => {
       const nav = await screen.findByRole('navigation', { name: /^primary$/ });
       expect(within(nav).getByTestId('conv-new-channel')).toHaveAttribute('href', `${ORG_BASE}/channels`);
       expect(within(nav).getByTestId('conv-new-dm')).toHaveAttribute('href', `${ORG_BASE}/dms`);
+      unmount();
+    }
+  }, 20000);
+
+  it('does not route old Workspace or Team Templates pages', async () => {
+    for (const path of [`${ORG_BASE}/templates`, `${ORG_BASE}/teams/templates`]) {
+      const { unmount } = renderAppAt(path);
+      await waitFor(() => expect(screen.getByTestId('page-NotFound')).toBeInTheDocument());
       unmount();
     }
   }, 20000);

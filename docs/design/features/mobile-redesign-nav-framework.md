@@ -22,7 +22,7 @@
 PC 端 `AppLayout` 是四栏结构：
 
 - **col① 模块 rail**：5 个模块图标（Workspace / Conversations / Members / Reminders / System），常驻左侧。
-- **col② 二级导航**：当前模块的子项列表（如 Workspace 下的 Projects/Issues/Tasks/Plan/Repos/Templates），可折叠。
+- **col② 二级导航**：当前模块的子项列表（如 Workspace 下的 Projects/Issues/Tasks/Plan/Repos/Model catalog），可折叠。
 - **col③ 内容区**：当前路由页面。
 - **col④ Context Panel**：详情类页面（Task/Project/Issue/Plan Detail）的按需辅助信息侧栏。
 - **右上角 attention 铃铛**：跨页面常驻的"需要你处理"告警入口（stuck 任务 + 未读 @mention）。

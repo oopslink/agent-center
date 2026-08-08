@@ -291,14 +291,12 @@
       "tasks": "任务",
       "plans": "计划",
       "repos": "仓库",
-      "templates": "模板",
       "modelCatalog": "模型类目",
       "codeRepos": "代码仓库",
       "workBoard": "工作看板"
     },
     "teamui": {
       "allTeams": "全部 team",
-      "templates": "模版",
       "directory": "人员",
       "agents": "Agents",
       "humans": "Humans"
