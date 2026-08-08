@@ -1,12 +1,30 @@
 package agentruntime
 
 import (
+	"context"
+	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
 )
+
+type activityCaptureReporter struct {
+	nopReporter
+	mu              sync.Mutex
+	payloads        []string
+	interactionRefs []string
+}
+
+func (r *activityCaptureReporter) ReportAgentActivity(_ context.Context, _, _, payloadJSON, _, interactionRef string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.payloads = append(r.payloads, payloadJSON)
+	r.interactionRefs = append(r.interactionRefs, interactionRef)
+	return nil
+}
 
 // TestExecutorActivityObserver_Emits covers the observer→activity bridge: stop and
 // progress events (and emitExecutorStart) each post ONE lifecycle activity, and a nil
@@ -34,6 +52,38 @@ func TestExecutorActivityObserver_Emits(t *testing.T) {
 		if ev != "lifecycle" {
 			t.Errorf("event type = %q, want lifecycle", ev)
 		}
+	}
+}
+
+func TestExecutorActivityBridge_KeepsExecutionIDGroupingWithSlotPayload(t *testing.T) {
+	rep := &activityCaptureReporter{}
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID: "a", Reporter: rep,
+		Log: func(string, ...any) {}, Now: func() time.Time { return time.Unix(1, 0) },
+	}, &SessionState{})
+	slot := 3
+	execID := "exec-activity"
+	rt.emitExecutorStart("a", "task-1", "title", &orchestrator.Launched{
+		ExecutorID: execID,
+		SlotIndex:  &slot,
+		CLI:        "codex",
+		Model:      "gpt-5",
+	})
+
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.payloads) != 1 || len(rep.interactionRefs) != 1 {
+		t.Fatalf("activity emits = payloads:%d refs:%d, want 1/1", len(rep.payloads), len(rep.interactionRefs))
+	}
+	if rep.interactionRefs[0] != "executor:"+execID {
+		t.Fatalf("interaction_ref = %q, want executor:%s", rep.interactionRefs[0], execID)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(rep.payloads[0]), &payload); err != nil {
+		t.Fatalf("payload json: %v", err)
+	}
+	if payload["slot_index"] != float64(3) {
+		t.Fatalf("slot_index payload = %v, want 3", payload["slot_index"])
 	}
 }
 

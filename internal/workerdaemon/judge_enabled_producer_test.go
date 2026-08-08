@@ -36,3 +36,22 @@ func TestExecConfig_JudgeEnabledPassthrough(t *testing.T) {
 		}
 	}
 }
+
+func TestExecConfig_ConfigVersionPassthrough(t *testing.T) {
+	pool := []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus"}}
+
+	ec, _, err := execConfigFromResumeAgent(ResumeAgent{
+		AgentID: "agent-1", Version: 17, AllowedExecutors: pool,
+	})
+	if err != nil {
+		t.Fatalf("execConfigFromResumeAgent: %v", err)
+	}
+	if ec.ConfigVersion != 17 {
+		t.Fatalf("resume path ConfigVersion = %d, want 17", ec.ConfigVersion)
+	}
+
+	ec = execConfigOf(reconcilePayload{AgentID: "agent-1", Version: 23, AllowedExecutors: pool})
+	if ec.ConfigVersion != 23 {
+		t.Fatalf("reconcile path ConfigVersion = %d, want 23", ec.ConfigVersion)
+	}
+}

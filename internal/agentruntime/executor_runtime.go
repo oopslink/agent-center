@@ -53,6 +53,7 @@ type ExecutorConfig struct {
 	DisplayName          string
 	EnvVars              map[string]string
 	MaxConcurrentTasks   int
+	ConfigVersion        int
 	AllowedExecutors     []agent.ExecutorProfile
 	OrchestratorModel    string
 	DefaultExecutorModel string
@@ -140,6 +141,7 @@ func (r *LocalRuntime) UpdateExecutorConfig(pl ExecutorConfig) {
 	}
 	ee.engine.UpdateRouterConfig(routerConfigOf(pl))
 	ee.engine.Pool().Resize(pl.MaxConcurrentTasks)
+	ee.setConfigVersion(pl.ConfigVersion)
 	r.cacheExecConfig(pl)
 }
 
@@ -287,7 +289,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 	if err != nil {
 		return nil, err
 	}
-	return &ExecutorEngine{engine: eng, monitor: mon, fx: fx}, nil
+	return &ExecutorEngine{engine: eng, monitor: mon, fx: fx, configVersion: pl.ConfigVersion}, nil
 }
 
 // workViaExecutor handles an agent.work brief by forking an executor (the executor

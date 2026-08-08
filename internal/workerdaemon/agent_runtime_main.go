@@ -509,6 +509,7 @@ func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, boo
 		DisplayName:          ra.DisplayName,
 		EnvVars:              ra.EnvVars,
 		MaxConcurrentTasks:   ra.MaxConcurrentTasks,
+		ConfigVersion:        ra.Version,
 		AllowedExecutors:     ra.AllowedExecutors,
 		OrchestratorModel:    ra.OrchestratorModel,
 		DefaultExecutorModel: ra.DefaultExecutorModel,

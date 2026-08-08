@@ -13,6 +13,8 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +62,11 @@ type ExecutorEngine struct {
 	// recovering (above) blocks CONCURRENT dup-recovery; recoverCount blocks the SERIAL
 	// loop. Cleared on terminal. Guarded by ee.mu.
 	recoverCount map[string]recoverBudget
+	// configVersion is the latest agent profile version applied to this engine by boot
+	// attach or live reconcile. It is surfaced in the heartbeat snapshot so the center
+	// can distinguish "runtime has not received the new cap yet" from a truly idle slot.
+	// Guarded by ee.mu.
+	configVersion int
 }
 
 // recoverBudget is a task's consumed recovery counts, split by cause so stall (proven-
@@ -110,6 +117,18 @@ func (ee *ExecutorEngine) clearRecoverBudget(taskRef string) {
 	ee.mu.Lock()
 	defer ee.mu.Unlock()
 	delete(ee.recoverCount, taskRef)
+}
+
+func (ee *ExecutorEngine) setConfigVersion(version int) {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	ee.configVersion = version
+}
+
+func (ee *ExecutorEngine) snapshotConfigVersion() int {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	return ee.configVersion
 }
 
 // beginRecovery CAS-claims execID for point recovery: it returns true exactly once
@@ -254,18 +273,86 @@ func (ee *ExecutorEngine) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 		ee.enrichFromFiles(&snap, true)
 		out = append(out, snap)
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		switch {
+		case a.SlotIndex != nil && b.SlotIndex != nil && *a.SlotIndex != *b.SlotIndex:
+			return *a.SlotIndex < *b.SlotIndex
+		case a.SlotIndex != nil && b.SlotIndex == nil:
+			return true
+		case a.SlotIndex == nil && b.SlotIndex != nil:
+			return false
+		default:
+			return a.ExecutorID < b.ExecutorID
+		}
+	})
 	return out
 }
 
 func (ee *ExecutorEngine) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
 	execs := ee.SnapshotConcurrency()
-	snap := concurrency.AgentSnapshot{Active: len(execs), Executors: execs}
+	snap := concurrency.AgentSnapshot{Active: len(execs), Executors: execs, ConfigVersion: ee.snapshotConfigVersion()}
 	if ee.engine != nil && ee.engine.Pool() != nil {
 		pool := ee.engine.Pool()
 		snap.AdmissionCap = pool.AdmissionMax()
 		snap.SlotCount = pool.SlotCount()
+		slots, integrityErr := buildSlotSnapshots(execs, snap.SlotCount, snap.AdmissionCap)
+		if integrityErr != "" {
+			snap.Integrity = "degraded"
+			snap.IntegrityError = integrityErr
+		} else {
+			snap.Slots = slots
+		}
 	}
 	return snap
+}
+
+func buildSlotSnapshots(execs []concurrency.ExecutorSnapshot, slotCount, admissionCap int) ([]concurrency.SlotSnapshot, string) {
+	if slotCount <= 0 {
+		return nil, ""
+	}
+	bySlot := make(map[int]concurrency.ExecutorSnapshot, len(execs))
+	for _, e := range execs {
+		if e.SlotIndex == nil {
+			return nil, fmt.Sprintf("executor %s missing slot_index", e.ExecutorID)
+		}
+		slot := *e.SlotIndex
+		if slot < 0 || slot >= slotCount {
+			return nil, fmt.Sprintf("executor %s slot_index %d out of range [0,%d)", e.ExecutorID, slot, slotCount)
+		}
+		if other, dup := bySlot[slot]; dup {
+			return nil, fmt.Sprintf("duplicate slot_index %d for %s and %s", slot, other.ExecutorID, e.ExecutorID)
+		}
+		bySlot[slot] = e
+	}
+	slots := make([]concurrency.SlotSnapshot, 0, slotCount)
+	for i := 0; i < slotCount; i++ {
+		if e, ok := bySlot[i]; ok {
+			slots = append(slots, slotFromExecutorSnapshot(i, e))
+			continue
+		}
+		state := concurrency.StateIdle
+		if i >= admissionCap {
+			state = concurrency.StateDraining
+		}
+		slots = append(slots, concurrency.SlotSnapshot{SlotIndex: i, State: state})
+	}
+	return slots, ""
+}
+
+func slotFromExecutorSnapshot(slot int, e concurrency.ExecutorSnapshot) concurrency.SlotSnapshot {
+	return concurrency.SlotSnapshot{
+		SlotIndex:       slot,
+		ExecutorID:      e.ExecutorID,
+		TaskID:          e.TaskID,
+		CLI:             e.CLI,
+		Model:           e.Model,
+		State:           e.State,
+		StartedAt:       e.StartedAt,
+		PID:             e.PID,
+		LastProgressAt:  e.LastProgressAt,
+		CurrentActivity: e.CurrentActivity,
+	}
 }
 
 // FuseExecutorForTask graceful-kills the live executor running taskID (issue-88e32d98,

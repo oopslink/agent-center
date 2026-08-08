@@ -28,6 +28,22 @@ func arID(t *testing.T, deps HandlerDeps, memberID string) string {
 	return string(a.ID())
 }
 
+func createConcurrencyTestAgent(t *testing.T, serverURL string, sess testSession, name string) string {
+	t.Helper()
+	resp := orgScopedPost(t, serverURL+"/api/members/agent",
+		`{"display_name":"`+name+`","description":"d","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create agent: %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+	if id == "" {
+		t.Fatal("missing agent id")
+	}
+	return id
+}
+
 // v2.19.0 GET .../agents/{id}/concurrency: the cap (profile) + queued (pm) joined
 // with the worker's last-known live executor snapshot (store).
 func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
@@ -57,7 +73,7 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	// URL to a.ID() and find it there.
 	slot0 := 0
 	store.Put(arID(t, deps, id), concurrency.AgentSnapshot{
-		Active: 1, AdmissionCap: 3, SlotCount: 3,
+		Active: 1, AdmissionCap: 3, SlotCount: 3, ConfigVersion: 7,
 		Executors: []concurrency.ExecutorSnapshot{
 			{
 				ExecutorID: "e1", SlotIndex: &slot0, TaskID: "t1", CLI: "codex", Model: "gpt-5.5",
@@ -89,6 +105,9 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	}
 	if sc, _ := body["slot_count"].(float64); sc != 3 {
 		t.Errorf("slot_count = %v, want 3", body["slot_count"])
+	}
+	if cv, _ := body["config_version"].(float64); cv != 7 {
+		t.Errorf("config_version = %v, want 7", body["config_version"])
 	}
 	if stable, _ := body["slot_stable"].(bool); !stable {
 		t.Errorf("slot_stable = %v, want true", body["slot_stable"])
@@ -124,6 +143,159 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	}
 	if s1["slot_index"] != float64(1) || s1["state"] != "idle" {
 		t.Errorf("slot 1 = %v, want idle", s1)
+	}
+}
+
+func TestAPI_AgentConcurrency_FullSlotsSortsBySlotIndex(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	store := concurrency.NewInMemoryStore()
+	deps.LiveState = store
+	s := newTestServer(t, deps)
+	defer s.Close()
+	memberID := createConcurrencyTestAgent(t, s.URL, sess, "slot-sorted")
+
+	slot2 := 2
+	slot1 := 1
+	store.Put(arID(t, deps, memberID), concurrency.AgentSnapshot{
+		Active: 2, AdmissionCap: 2, SlotCount: 3, ConfigVersion: 9,
+		Executors: []concurrency.ExecutorSnapshot{
+			{ExecutorID: "e2", SlotIndex: &slot2, TaskID: "t2", State: concurrency.StateRunning},
+			{ExecutorID: "e1", SlotIndex: &slot1, TaskID: "t1", State: concurrency.StateStarting},
+		},
+		Slots: []concurrency.SlotSnapshot{
+			{SlotIndex: 2, ExecutorID: "e2", TaskID: "t2", State: concurrency.StateRunning},
+			{SlotIndex: 0, State: concurrency.StateIdle},
+			{SlotIndex: 1, ExecutorID: "e1", TaskID: "t1", State: concurrency.StateStarting},
+		},
+	}, time.Now())
+
+	resp := orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if stable, _ := body["slot_stable"].(bool); !stable {
+		t.Fatalf("slot_stable = %v, want true; body=%v", body["slot_stable"], body)
+	}
+	execs, _ := body["executors"].([]any)
+	if len(execs) != 2 {
+		t.Fatalf("executors len = %d, want 2", len(execs))
+	}
+	e0 := execs[0].(map[string]any)
+	e1 := execs[1].(map[string]any)
+	if e0["executor_id"] != "e1" || e1["executor_id"] != "e2" {
+		t.Fatalf("executors order = %v, want e1 then e2", execs)
+	}
+	slots, _ := body["slots"].([]any)
+	if len(slots) != 3 {
+		t.Fatalf("slots len = %d, want 3", len(slots))
+	}
+	for i, raw := range slots {
+		sm := raw.(map[string]any)
+		if sm["slot_index"] != float64(i) {
+			t.Fatalf("slot order[%d] = %v", i, sm)
+		}
+	}
+	if slots[2].(map[string]any)["executor_id"] != "e2" {
+		t.Fatalf("slot 2 = %v, want e2", slots[2])
+	}
+}
+
+func TestAPI_AgentConcurrency_StaleSnapshotDoesNotAssertIdle(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	store := concurrency.NewInMemoryStore()
+	deps.LiveState = store
+	s := newTestServer(t, deps)
+	defer s.Close()
+	memberID := createConcurrencyTestAgent(t, s.URL, sess, "stale-slots")
+
+	slot0 := 0
+	store.Put(arID(t, deps, memberID), concurrency.AgentSnapshot{
+		Active: 1, AdmissionCap: 2, SlotCount: 2,
+		Executors: []concurrency.ExecutorSnapshot{{ExecutorID: "e1", SlotIndex: &slot0, TaskID: "t1", State: concurrency.StateRunning}},
+	}, time.Now().Add(-2*liveStateTTL))
+
+	resp := orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if stale, _ := body["stale"].(bool); !stale {
+		t.Fatalf("stale = %v, want true", body["stale"])
+	}
+	slots, _ := body["slots"].([]any)
+	if len(slots) != 2 {
+		t.Fatalf("slots len = %d, want 2", len(slots))
+	}
+	empty := slots[1].(map[string]any)
+	if empty["state"] != "unknown" {
+		t.Fatalf("stale empty slot state = %v, want unknown", empty["state"])
+	}
+}
+
+func TestAPI_AgentConcurrency_LegacySnapshotWithoutSlotFields(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	store := concurrency.NewInMemoryStore()
+	deps.LiveState = store
+	s := newTestServer(t, deps)
+	defer s.Close()
+	memberID := createConcurrencyTestAgent(t, s.URL, sess, "legacy-slots")
+
+	store.Put(arID(t, deps, memberID), concurrency.AgentSnapshot{
+		Active:    1,
+		Executors: []concurrency.ExecutorSnapshot{{ExecutorID: "legacy-e1", TaskID: "t1", State: concurrency.StateRunning}},
+	}, time.Now())
+
+	resp := orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if stable, _ := body["slot_stable"].(bool); stable {
+		t.Fatalf("slot_stable = true for legacy snapshot without slot_index")
+	}
+	if integrity, _ := body["integrity"].(string); integrity != "" {
+		t.Fatalf("integrity = %q, want empty legacy-compatible state", integrity)
+	}
+	if slots, _ := body["slots"].([]any); len(slots) != 0 {
+		t.Fatalf("legacy slots = %v, want none", slots)
+	}
+}
+
+func TestAPI_AgentConcurrency_DegradedDuplicateSlot(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	store := concurrency.NewInMemoryStore()
+	deps.LiveState = store
+	s := newTestServer(t, deps)
+	defer s.Close()
+	memberID := createConcurrencyTestAgent(t, s.URL, sess, "bad-slots")
+
+	slot0a := 0
+	slot0b := 0
+	store.Put(arID(t, deps, memberID), concurrency.AgentSnapshot{
+		Active: 2, AdmissionCap: 2, SlotCount: 2,
+		Executors: []concurrency.ExecutorSnapshot{
+			{ExecutorID: "e1", SlotIndex: &slot0a, TaskID: "t1", State: concurrency.StateRunning},
+			{ExecutorID: "e2", SlotIndex: &slot0b, TaskID: "t2", State: concurrency.StateRunning},
+		},
+	}, time.Now())
+
+	resp := orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if stable, _ := body["slot_stable"].(bool); stable {
+		t.Fatalf("slot_stable = true for duplicate slot snapshot")
+	}
+	if integrity, _ := body["integrity"].(string); integrity != "degraded" {
+		t.Fatalf("integrity = %q, want degraded; body=%v", integrity, body)
+	}
+	if errText, _ := body["integrity_error"].(string); errText == "" {
+		t.Fatalf("integrity_error empty, want duplicate slot explanation")
+	}
+	if slots, _ := body["slots"].([]any); len(slots) != 0 {
+		t.Fatalf("degraded slots = %v, want none", slots)
 	}
 }
 

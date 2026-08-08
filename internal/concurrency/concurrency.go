@@ -20,6 +20,9 @@ const (
 	StateRunning   = "running"   // status=running
 	StateFinishing = "finishing" // terminal status (done/failed), slot not yet freed
 	StateOrphan    = "orphan"    // adopted across a daemon restart (no reapable handle)
+	StateIdle      = "idle"      // fresh runtime snapshot: slot is currently admissible + empty
+	StateDraining  = "draining"  // fresh runtime snapshot: empty high slot kept only until shrink converges
+	StateUnknown   = "unknown"   // stale/legacy view: emptiness cannot be asserted
 )
 
 // ExecutorSnapshot is one live executor's point-in-time view.
@@ -36,14 +39,35 @@ type ExecutorSnapshot struct {
 	CurrentActivity string     `json:"current_activity,omitempty"`
 }
 
+// SlotSnapshot is one addressable runtime slot in an AgentSnapshot. Occupied slots
+// mirror the executor fields the UI needs; empty slots carry only slot_index+state.
+type SlotSnapshot struct {
+	SlotIndex       int        `json:"slot_index"`
+	ExecutorID      string     `json:"executor_id,omitempty"`
+	TaskID          string     `json:"task_id,omitempty"`
+	CLI             string     `json:"cli,omitempty"`
+	Model           string     `json:"model,omitempty"`
+	State           string     `json:"state"`
+	StartedAt       time.Time  `json:"started_at,omitempty"`
+	PID             int        `json:"pid,omitempty"`
+	LastProgressAt  *time.Time `json:"last_progress_at,omitempty"`
+	CurrentActivity string     `json:"current_activity,omitempty"`
+}
+
 // AgentSnapshot is one agent's live executor set at heartbeat time. Active is the
-// count of slot-occupying executors (== len(Executors)); the cap + queued depth are
-// joined center-side (they are not the worker's to know).
+// count of slot-occupying executors. The cap + queued depth are joined center-side
+// (they are not the worker's to know), while admission/slot/config fields are the
+// runtime's own view and may lag the center profile during mixed-version config
+// propagation.
 type AgentSnapshot struct {
-	AdmissionCap int                `json:"admission_cap,omitempty"`
-	SlotCount    int                `json:"slot_count,omitempty"`
-	Active       int                `json:"active"`
-	Executors    []ExecutorSnapshot `json:"executors"`
+	AdmissionCap   int                `json:"admission_cap,omitempty"`
+	SlotCount      int                `json:"slot_count,omitempty"`
+	ConfigVersion  int                `json:"config_version,omitempty"`
+	Integrity      string             `json:"integrity,omitempty"`
+	IntegrityError string             `json:"integrity_error,omitempty"`
+	Active         int                `json:"active"`
+	Executors      []ExecutorSnapshot `json:"executors"`
+	Slots          []SlotSnapshot     `json:"slots,omitempty"`
 }
 
 // LiveStateStore keeps the latest per-agent snapshot the center received on a
