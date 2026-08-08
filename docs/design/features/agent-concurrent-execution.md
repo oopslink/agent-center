@@ -50,10 +50,14 @@
 worker
  └── agent（身份 / profile）
       └── orchestrator（常驻，唯一连 mcp，看所有 chat）
-           ├── executor #1 （按需，隔离，文件通信）
-           ├── executor #2
-           └── executor #3      ← 并发上限 max_concurrent_tasks（profile，默认 3）
+           ├── Executor Slot #0 → Execution Run exec-{ULID}
+           ├── Executor Slot #1 → Execution Run exec-{ULID}
+           └── Executor Slot #2 → idle  ← 并发上限 max_concurrent_tasks（profile，默认 3）
 ```
+
+Slot 是 Agent 内可复用的固定并发资源；`exec-{ULID}` 是每次 Run 的唯一身份。两者不可
+合并，详见 [Executor Slot 编号与并发可观测性](executor-slot-observability.md) 与
+[ADR-0056](../decisions/0056-stable-executor-slots.md)。
 
 ---
 

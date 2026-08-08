@@ -69,6 +69,14 @@ import agentsupervisor 一旦接线就成环）：
 失败的 launch 释放其 reserved 槽。`Max()/Active()/Available()/Handles()/Release()` 给监工循环（F5）驱动。
 每 executor 一条 `executor/<id>` 分支（`AddNewBranch`），两并发 executor 端到端不共享 checkout（接 F2 §6.D）。
 
+### 5.1 稳定 Executor Slot（ADR-0056）
+
+Pool 的“槽”从纯计数升级为 Agent 内稳定编号 `#0 ~ #N-1`；每次 Execution Run 仍使用
+唯一 `exec-{ULID}`。Slot 分配、持久化、restart adopt、动态 cap draining 与观测契约以
+[Executor Slot 编号与并发可观测性](executor-slot-observability.md) 和
+[ADR-0056](../decisions/0056-stable-executor-slots.md) 为准；本节早期实现中只按
+`active map` 计数的描述不再代表最终 Slot identity 模型。
+
 ## 6. executor 入口状态机（`run.go`，design §11.2 / §9）
 
 `RunExecutor`：`ReadInput → WriteStatus(running) → Runner.Run（边跑边 AppendProgress 并刷
