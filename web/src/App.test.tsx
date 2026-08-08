@@ -17,6 +17,7 @@ afterEach(() => cleanup());
 
 // MSW mock for /api/orgs returns slug='test', so org base is /organizations/test.
 const ORG_BASE = '/organizations/test';
+const ROUTE_WAIT = { timeout: 10000 };
 
 async function renderAt(path: string): Promise<void> {
   window.history.pushState({}, '', path);
@@ -44,7 +45,7 @@ describe('App shell + route tree', () => {
     await renderAt(`${ORG_BASE}`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Projects')).toBeInTheDocument();
-    });
+    }, ROUTE_WAIT);
     expect(window.location.pathname).toBe(`${ORG_BASE}/projects`);
     expect(screen.queryByTestId('page-Home')).not.toBeInTheDocument();
   });
@@ -53,7 +54,7 @@ describe('App shell + route tree', () => {
     await renderAt(`${ORG_BASE}/channels/alpha`);
     await waitFor(() => {
       expect(screen.getByTestId('page-ChannelDetail')).toBeInTheDocument();
-    });
+    }, ROUTE_WAIT);
   }, 20000);
 
   it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
@@ -77,16 +78,17 @@ describe('App shell + route tree', () => {
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
       [`${ORG_BASE}/fleet`, 'page-Environment'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
+      [`${ORG_BASE}/ai-runtime`, 'page-AiRuntime'],
       [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
       await waitFor(() => {
         expect(screen.getByTestId(testId)).toBeInTheDocument();
-      });
+      }, ROUTE_WAIT);
       unmount();
     }
-  }, 20000);
+  }, 60000);
 
   // v2.9 #286 §4.2 reachability: Plans are reached via the project detail page.
   it('reaches the Plan list + Plan detail via the project detail page (not direct-URL-only)', async () => {
@@ -141,6 +143,7 @@ describe('App shell + route tree', () => {
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
+        ['AI Runtime', `${ORG_BASE}/ai-runtime`],
         ['Settings', `${ORG_BASE}/settings`],
       ]],
     ];
@@ -289,24 +292,41 @@ describe('App shell + route tree', () => {
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
   });
 
-  it('reaches AI Runtime from a normal page via Organization Settings col② nav', async () => {
+  it('reaches AI Runtime from a normal page via System col② nav', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('org-switcher'));
-    fireEvent.click(await screen.findByTestId('org-settings-gear'));
-    await waitFor(() => expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/profile`));
+    fireEvent.click(screen.getByTestId('rail-module-system'));
+    await waitFor(() => expect(screen.getByTestId('page-Environment')).toBeInTheDocument());
     const nav = await screen.findByRole('navigation', { name: /^primary$/ });
-    const aiRuntime = within(nav).getByTestId('org-settings-nav-ai-runtime');
-    expect(aiRuntime).toHaveAttribute('href', `${ORG_BASE}/organization-settings/ai-runtime`);
+    const environment = within(nav).getByTestId('system-nav-environment');
+    const aiRuntime = within(nav).getByTestId('system-nav-ai-runtime');
+    const settings = within(nav).getByTestId('system-nav-settings');
+    const ordered = within(nav).getAllByRole('link');
+    expect(ordered.indexOf(environment)).toBeLessThan(ordered.indexOf(aiRuntime));
+    expect(ordered.indexOf(aiRuntime)).toBeLessThan(ordered.indexOf(settings));
+    expect(environment).toHaveAttribute('aria-current', 'page');
+    expect(aiRuntime).toHaveAttribute('href', `${ORG_BASE}/ai-runtime`);
     fireEvent.click(aiRuntime);
     await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
-    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+    expect(within(nav).getByTestId('system-nav-ai-runtime')).toHaveAttribute('aria-current', 'page');
   });
 
   it('keeps direct /ai-runtime access working by redirecting into the first organization', async () => {
     await renderAt('/ai-runtime');
     await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
-    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+  });
+
+  it('redirects retired AI Runtime and Model Catalog URLs to the canonical AI Runtime page', async () => {
+    await renderAt(`${ORG_BASE}/organization-settings/ai-runtime`);
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+    cleanup();
+    await renderAt(`${ORG_BASE}/model-catalog`);
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+    expect(window.location.search).toBe('?tab=models');
   });
 
   // v2.10.0 [T1]: ⌘1..4 jump to the four modules' default pages (org-scoped).

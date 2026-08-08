@@ -19,7 +19,6 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 export const ORG_SETTINGS_SECTIONS: ReadonlyArray<{ slug: string; label: string; labelKey: string }> = [
   { slug: 'profile', label: 'Profile', labelKey: 'shell.orgSettings.profile' },
-  { slug: 'ai-runtime', label: 'AI Runtime', labelKey: 'shell.orgSettings.aiRuntime' },
   { slug: 'humans', label: 'Humans', labelKey: 'shell.orgSettings.humans' },
   { slug: 'agents', label: 'Agents', labelKey: 'shell.orgSettings.agents' },
   { slug: 'invitations', label: 'Invitations', labelKey: 'shell.orgSettings.invitations' },

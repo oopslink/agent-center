@@ -181,6 +181,135 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	}
 }
 
+func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	nextID := 0
+	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
+		airuntimesql.NewRepository(db),
+		func() string {
+			nextID++
+			return fmt.Sprintf("models-only-%d", nextID)
+		},
+		[]byte("0123456789abcdef0123456789abcdef"),
+	)
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	ctx := context.Background()
+	actor := "user:" + owner.IdentityID
+	model, rev, err := deps.RuntimeCatalog.CreateModel(ctx, owner.OrgID, actor, 0, airuntime.ModelDefinition{
+		Key: "gpt-5", ModelKey: "gpt-5", DisplayName: "GPT-5",
+		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
+		ContextWindow: 400000, InputCost: 1.25, OutputCost: 10, Tier: "frontier",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, rev, err := deps.RuntimeCatalog.CreateProfile(ctx, owner.OrgID, actor, rev, airuntime.RuntimeProfile{
+		Key: "default-coding", Name: "Default coding", Description: "Default runtime",
+		CLIKey: "codex", ModelKey: model.Key, Parameters: map[string]any{"reasoning": "medium"}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deps.RuntimeCatalog.SetDefaultProfile(ctx, owner.OrgID, actor, profile.ID, rev); err != nil {
+		t.Fatal(err)
+	}
+	before, err := deps.RuntimeCatalog.Catalog(ctx, owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeCLIState := map[string]bool{}
+	for _, cli := range before.CLIs {
+		beforeCLIState[cli.Key] = cli.Enabled
+	}
+	beforeProfiles := map[string]string{}
+	for _, p := range before.Profiles {
+		beforeProfiles[p.Key] = p.ModelKey
+	}
+
+	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export?format=json", owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("export status=%d", resp.StatusCode)
+	}
+	var doc airuntime.ExportDocument
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	doc.Runtime.Models = append(doc.Runtime.Models, airuntime.ExportModel{
+		Key: "gpt-5-mini", ModelKey: "gpt-5-mini", DisplayName: "GPT-5 mini",
+		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
+		ContextWindow: 128000, InputCost: 0.15, OutputCost: 0.6, Tier: "standard",
+	})
+
+	payload, _ := json.Marshal(airuntime.PreviewRequest{Strategy: airuntime.StrategyMerge, Document: doc})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(payload), owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("preview status=%d body=%+v", resp.StatusCode, body)
+	}
+	var preview airuntime.PreviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !hasImportItem(preview.Report.Items, "model", "gpt-5-mini", "create") {
+		t.Fatalf("preview did not show model create: %+v", preview.Report.Items)
+	}
+	if !hasImportItem(preview.Report.Items, "cli", "codex", "unchanged") ||
+		!hasImportItem(preview.Report.Items, "profile", "default-coding", "unchanged") {
+		t.Fatalf("preview did not make preserved CLI/Profile explicit: %+v", preview.Report.Items)
+	}
+
+	applyPayload, _ := json.Marshal(airuntime.ApplyRequest{
+		Strategy: airuntime.StrategyMerge, Document: doc, ValidationToken: preview.ValidationToken,
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/apply", string(applyPayload), owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("apply status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+
+	after, err := deps.RuntimeCatalog.Catalog(ctx, owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.DefaultProfileID != before.DefaultProfileID {
+		t.Fatalf("default profile changed: before=%s after=%s", before.DefaultProfileID, after.DefaultProfileID)
+	}
+	if len(after.CLIs) != len(before.CLIs) {
+		t.Fatalf("CLI count changed: before=%d after=%d", len(before.CLIs), len(after.CLIs))
+	}
+	for _, cli := range after.CLIs {
+		if beforeCLIState[cli.Key] != cli.Enabled {
+			t.Fatalf("CLI state changed for %s: before=%v after=%v", cli.Key, beforeCLIState[cli.Key], cli.Enabled)
+		}
+	}
+	if len(after.Profiles) != len(before.Profiles) {
+		t.Fatalf("profile count changed: before=%d after=%d", len(before.Profiles), len(after.Profiles))
+	}
+	for _, p := range after.Profiles {
+		if beforeProfiles[p.Key] != p.ModelKey {
+			t.Fatalf("profile changed for %s: before model=%s after model=%s", p.Key, beforeProfiles[p.Key], p.ModelKey)
+		}
+	}
+	var imported *airuntime.ModelDefinition
+	for i := range after.Models {
+		if after.Models[i].Key == "gpt-5-mini" {
+			imported = &after.Models[i]
+			break
+		}
+	}
+	if imported == nil || !imported.Enabled || imported.ContextWindow != 128000 {
+		t.Fatalf("imported model missing or malformed: %+v", after.Models)
+	}
+}
+
 func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
@@ -275,6 +404,15 @@ func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
 		t.Fatalf("tampered apply status=%d", resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+func hasImportItem(items []airuntime.ImportItem, entityType, key, action string) bool {
+	for _, item := range items {
+		if item.EntityType == entityType && item.Key == key && item.Action == action {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAIRuntimePreviewWarnsOnUnknownJSONAndYAMLFields(t *testing.T) {
@@ -418,7 +556,13 @@ func TestLegacyModelCatalogImportUsesRuntimePreviewApplyAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if len(legacyList.Entries) != 1 || legacyList.Entries[0]["model_id"] != "gpt-legacy" {
-		t.Fatalf("legacy compatibility projection=%+v", legacyList.Entries)
+	listedImported := false
+	listedRuntime := false
+	for _, entry := range legacyList.Entries {
+		listedImported = listedImported || entry["model_id"] == "gpt-legacy"
+		listedRuntime = listedRuntime || entry["model_id"] == "unrelated-runtime"
+	}
+	if !listedImported || !listedRuntime {
+		t.Fatalf("legacy compatibility projection should come from Runtime Catalog: %+v", legacyList.Entries)
 	}
 }

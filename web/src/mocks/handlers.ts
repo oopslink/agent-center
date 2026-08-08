@@ -903,6 +903,63 @@ const baseHandlers = [
     const body = (await request.json()) as { profile_id?: string };
     return ok({ revision: 4, default_runtime_profile_id: body.profile_id ?? 'runtime-profile-default' });
   }),
+  http.post('/api/ai-runtime/profiles', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    const key = typeof body.value?.key === 'string' ? body.value.key : 'new-profile';
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: `runtime-profile-${key}`, ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/profiles/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/models', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    const key = typeof body.value?.key === 'string' ? body.value.key : 'new-model';
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: `runtime-model-${key}`, ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/models/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/clis', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    const key = typeof body.value?.key === 'string' ? body.value.key : 'new-cli';
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: `runtime-cli-${key}`, ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/clis/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/import/preview', async ({ request }) => {
+    const body = (await request.json()) as {
+      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }>; profiles?: Array<{ key?: string }> } };
+    };
+    const runtime = body.document?.runtime ?? {};
+    const items = [
+      ...(runtime.clis ?? []).map((cli) => ({ entity_type: 'cli', key: cli.key ?? '', action: 'unchanged' })),
+      ...(runtime.models ?? []).map((model) => ({ entity_type: 'model', key: model.key ?? '', action: 'update' })),
+      ...(runtime.profiles ?? []).map((profile) => ({ entity_type: 'profile', key: profile.key ?? '', action: 'unchanged' })),
+    ];
+    return ok({
+      report: { dry_run: true, applied: false, revision: 3, items, diagnostics: [] },
+      coverage: [],
+      validation_token: 'mock-runtime-import-token',
+      expires_at: '2026-08-08T00:00:00Z',
+      document_sha256: 'mock-runtime-import-sha',
+    });
+  }),
+  http.post('/api/ai-runtime/import/apply', async ({ request }) => {
+    const body = (await request.json()) as {
+      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }>; profiles?: Array<{ key?: string }> } };
+    };
+    const runtime = body.document?.runtime ?? {};
+    const items = [
+      ...(runtime.clis ?? []).map((cli) => ({ entity_type: 'cli', key: cli.key ?? '', action: 'unchanged' })),
+      ...(runtime.models ?? []).map((model) => ({ entity_type: 'model', key: model.key ?? '', action: 'update' })),
+      ...(runtime.profiles ?? []).map((profile) => ({ entity_type: 'profile', key: profile.key ?? '', action: 'unchanged' })),
+    ];
+    return ok({ dry_run: false, applied: true, revision: 4, items, diagnostics: [] });
+  }),
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),

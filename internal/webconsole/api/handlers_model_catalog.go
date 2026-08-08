@@ -1,53 +1,32 @@
 package api
 
 import (
-	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
-	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/identity"
 )
 
-// Org model catalog webconsole endpoints (issue-93dd8daa ①) — the browser-facing
-// CRUD + JSON import behind the org settings "模型类目" panel. Mirrors the template
-// handlers: requireOrgMember gates + resolves the org from {slug}; no built-in rows.
+// Org model catalog webconsole endpoints are now compatibility adapters over
+// AI Runtime models. The old OrgModelCatalog page redirects to AI Runtime, and
+// these legacy endpoints no longer write pm_model_catalog as a second source.
 
-func modelCatalogMap(e *pm.ModelCatalogEntry) map[string]any {
+func runtimeModelCatalogMap(m airuntime.ModelDefinition) map[string]any {
 	return map[string]any{
-		"id":             string(e.ID()),
-		"model_id":       e.ModelID(),
-		"display_name":   e.DisplayName(),
-		"input_cost":     e.InputCost(),
-		"output_cost":    e.OutputCost(),
-		"context_window": e.ContextWindow(),
-		"tier":           e.Tier(),
-		"version":        e.Version(),
-		"updated_at":     e.UpdatedAt().Format(time.RFC3339Nano),
+		"id":             m.ID,
+		"model_id":       m.ModelKey,
+		"display_name":   m.DisplayName,
+		"input_cost":     m.InputCost,
+		"output_cost":    m.OutputCost,
+		"context_window": m.ContextWindow,
+		"tier":           m.Tier,
+		"version":        1,
+		"updated_at":     m.UpdatedAt.Format(time.RFC3339Nano),
 	}
-}
-
-func mapModelCatalogWebError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, pm.ErrModelCatalogEntryNotFound):
-		writeError(w, http.StatusNotFound, "not_found", err.Error())
-	case errors.Is(err, pm.ErrModelCatalogEntryExists):
-		writeError(w, http.StatusConflict, "model_id_exists", err.Error())
-	default:
-		writeError(w, http.StatusInternalServerError, "internal_error", "an internal error occurred")
-	}
-}
-
-func generateModelCatalogID() (string, error) {
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("mdl-%x", b[:]), nil
 }
 
 // catalogFieldsReq is the create/update body (also one element of an import array).
@@ -60,44 +39,51 @@ type catalogFieldsReq struct {
 	Tier          string  `json:"tier"`
 }
 
-func (c catalogFieldsReq) fields() pm.ModelCatalogFields {
-	return pm.ModelCatalogFields{
-		ModelID: c.ModelID, DisplayName: c.DisplayName, InputCost: c.InputCost,
-		OutputCost: c.OutputCost, ContextWindow: c.ContextWindow, Tier: c.Tier,
+func validateLegacyModelCatalogFields(req catalogFieldsReq) error {
+	if req.ModelID == "" || req.DisplayName == "" || req.InputCost < 0 || req.OutputCost < 0 || req.ContextWindow < 0 {
+		return fmt.Errorf("invalid catalog fields")
+	}
+	return nil
+}
+
+func modelDefinitionFromLegacy(req catalogFieldsReq) airuntime.ModelDefinition {
+	return airuntime.ModelDefinition{
+		Key:               req.ModelID,
+		ModelKey:          req.ModelID,
+		DisplayName:       req.DisplayName,
+		CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{},
+		Enabled:           true,
+		ContextWindow:     req.ContextWindow,
+		InputCost:         req.InputCost,
+		OutputCost:        req.OutputCost,
+		Tier:              req.Tier,
 	}
 }
 
 // listModelCatalogHandler serves GET /api/orgs/{slug}/model-catalog.
 func (s *Server) listModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ModelCatalogRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog repo not wired")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	d, _, orgID, ok := aiRuntimeDeps(w, r, false)
 	if !ok {
 		return
 	}
-	entries, err := d.ModelCatalogRepo.ListByOrg(r.Context(), orgID)
+	catalog, err := d.RuntimeCatalog.Catalog(r.Context(), orgID)
 	if err != nil {
-		mapModelCatalogWebError(w, err)
+		writeRuntimeError(w, err)
 		return
 	}
-	out := make([]map[string]any, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, modelCatalogMap(e))
+	out := make([]map[string]any, 0, len(catalog.Models))
+	for _, model := range catalog.Models {
+		if model.Enabled {
+			out = append(out, runtimeModelCatalogMap(model))
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"entries": out})
 }
 
 // createModelCatalogHandler serves POST /api/orgs/{slug}/model-catalog.
 func (s *Server) createModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ModelCatalogRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog repo not wired")
-		return
-	}
-	callerID, _, orgID, ok := requireOrgMember(w, r, d)
+	d, callerID, orgID, ok := aiRuntimeDeps(w, r, true)
 	if !ok {
 		return
 	}
@@ -106,38 +92,30 @@ func (s *Server) createModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	id, err := generateModelCatalogID()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
-		return
-	}
-	e, err := pm.NewModelCatalogEntry(pm.NewModelCatalogEntryInput{
-		ID: pm.ModelCatalogEntryID(id), OrgID: orgID, Fields: req.fields(),
-		CreatedBy: pm.IdentityRef("user:" + callerID.ID()), CreatedAt: time.Now().UTC(),
-	})
-	if err != nil {
+	if err := validateLegacyModelCatalogFields(req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 		return
 	}
-	if err := d.ModelCatalogRepo.Save(r.Context(), e); err != nil {
-		mapModelCatalogWebError(w, err)
+	catalog, err := d.RuntimeCatalog.Catalog(r.Context(), orgID)
+	if err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, modelCatalogMap(e))
+	model, _, err := d.RuntimeCatalog.CreateModel(r.Context(), orgID, "user:"+callerID.ID(), catalog.Revision, modelDefinitionFromLegacy(req))
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, runtimeModelCatalogMap(model))
 }
 
 // updateModelCatalogHandler serves PUT /api/orgs/{slug}/model-catalog/{id}.
 func (s *Server) updateModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ModelCatalogRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog repo not wired")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	d, callerID, orgID, ok := aiRuntimeDeps(w, r, true)
 	if !ok {
 		return
 	}
-	e, ok := s.loadOwnedCatalogEntry(w, r, d, orgID)
+	catalog, model, ok := loadRuntimeModelFromCatalog(w, r, d, orgID)
 	if !ok {
 		return
 	}
@@ -146,51 +124,55 @@ func (s *Server) updateModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if err := e.Update(req.fields(), time.Now().UTC()); err != nil {
+	if err := validateLegacyModelCatalogFields(req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 		return
 	}
-	if err := d.ModelCatalogRepo.Update(r.Context(), e); err != nil {
-		mapModelCatalogWebError(w, err)
+	model.ModelKey = req.ModelID
+	model.DisplayName = req.DisplayName
+	model.ContextWindow = req.ContextWindow
+	model.InputCost = req.InputCost
+	model.OutputCost = req.OutputCost
+	model.Tier = req.Tier
+	updated, _, err := d.RuntimeCatalog.UpdateModel(r.Context(), orgID, "user:"+callerID.ID(), catalog.Revision, model)
+	if err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, modelCatalogMap(e))
+	writeJSON(w, http.StatusOK, runtimeModelCatalogMap(updated))
 }
 
 // deleteModelCatalogHandler serves DELETE /api/orgs/{slug}/model-catalog/{id}.
 func (s *Server) deleteModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ModelCatalogRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog repo not wired")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	d, callerID, orgID, ok := aiRuntimeDeps(w, r, true)
 	if !ok {
 		return
 	}
-	e, ok := s.loadOwnedCatalogEntry(w, r, d, orgID)
+	catalog, model, ok := loadRuntimeModelFromCatalog(w, r, d, orgID)
 	if !ok {
 		return
 	}
-	if err := d.ModelCatalogRepo.Delete(r.Context(), e.ID()); err != nil {
-		mapModelCatalogWebError(w, err)
+	model.Enabled = false
+	if _, _, err := d.RuntimeCatalog.UpdateModel(r.Context(), orgID, "user:"+callerID.ID(), catalog.Revision, model); err != nil {
+		writeRuntimeError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// loadOwnedCatalogEntry loads {id} and enforces the org boundary (cross-org → 404).
-func (s *Server) loadOwnedCatalogEntry(w http.ResponseWriter, r *http.Request, d HandlerDeps, orgID string) (*pm.ModelCatalogEntry, bool) {
-	e, err := d.ModelCatalogRepo.FindByID(r.Context(), pm.ModelCatalogEntryID(r.PathValue("id")))
+func loadRuntimeModelFromCatalog(w http.ResponseWriter, r *http.Request, d HandlerDeps, orgID string) (airuntime.Catalog, airuntime.ModelDefinition, bool) {
+	catalog, err := d.RuntimeCatalog.Catalog(r.Context(), orgID)
 	if err != nil {
-		mapModelCatalogWebError(w, err)
-		return nil, false
+		writeRuntimeError(w, err)
+		return airuntime.Catalog{}, airuntime.ModelDefinition{}, false
 	}
-	if e.OrgID() != orgID {
-		writeError(w, http.StatusNotFound, "not_found", "model catalog entry not found")
-		return nil, false
+	for _, model := range catalog.Models {
+		if model.ID == r.PathValue("id") {
+			return catalog, model, true
+		}
 	}
-	return e, true
+	writeError(w, http.StatusNotFound, "not_found", airuntime.ErrNotFound.Error())
+	return airuntime.Catalog{}, airuntime.ModelDefinition{}, false
 }
 
 // importModelCatalogHandler serves POST /api/orgs/{slug}/model-catalog/import.
@@ -199,12 +181,16 @@ func (s *Server) loadOwnedCatalogEntry(w http.ResponseWriter, r *http.Request, d
 // rejects the entire import (no half-swallow).
 func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.RuntimeCatalog == nil || d.ModelCatalogRepo == nil {
+	if d.RuntimeCatalog == nil {
 		writeError(w, http.StatusNotImplemented, "not_configured", "model catalog adapter is not configured")
 		return
 	}
-	callerID, _, orgID, ok := requireOrgMember(w, r, d)
+	callerID, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can manage AI Runtime Catalog")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<20) // 4 MiB
@@ -235,9 +221,6 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 	}
 	seen := make(map[string]struct{}, len(dtos))
 	models := make([]airuntime.ExportModel, 0, len(dtos))
-	legacyEntries := make([]*pm.ModelCatalogEntry, 0, len(dtos))
-	now := time.Now().UTC()
-	actor := pm.IdentityRef("user:" + callerID.ID())
 	for i, dto := range dtos {
 		if dto.ModelID == "" || dto.DisplayName == "" || dto.InputCost < 0 || dto.OutputCost < 0 || dto.ContextWindow < 0 {
 			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: invalid catalog fields (whole batch rejected)", i))
@@ -248,20 +231,6 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		seen[dto.ModelID] = struct{}{}
-		id, err := generateModelCatalogID()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
-			return
-		}
-		entry, err := pm.NewModelCatalogEntry(pm.NewModelCatalogEntryInput{
-			ID: pm.ModelCatalogEntryID(id), OrgID: orgID, Fields: dto.fields(),
-			CreatedBy: actor, CreatedAt: now,
-		})
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_import", fmt.Sprintf("entry[%d]: %s (whole batch rejected)", i, err.Error()))
-			return
-		}
-		legacyEntries = append(legacyEntries, entry)
 		models = append(models, airuntime.ExportModel{
 			Key: dto.ModelID, ModelKey: dto.ModelID, DisplayName: dto.DisplayName,
 			CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{},
@@ -303,15 +272,6 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		writeRuntimeImportError(w, airuntime.ImportReport{}, err)
-		return
-	}
-	if mode == "replace" {
-		err = d.ModelCatalogRepo.ReplaceForOrg(r.Context(), orgID, legacyEntries)
-	} else {
-		err = d.ModelCatalogRepo.UpsertForOrg(r.Context(), orgID, legacyEntries)
-	}
-	if err != nil {
-		mapModelCatalogWebError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode, "imported": len(models)})

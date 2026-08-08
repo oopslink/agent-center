@@ -127,7 +127,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'System',
     defaultPath: 'environment',
     Icon: FleetIcon,
-    pathPrefixes: ['environment', 'settings', 'version'],
+    pathPrefixes: ['environment', 'ai-runtime', 'settings', 'version'],
   },
 ];
 
@@ -199,6 +199,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'system':
       return [{ label: 'System', items: [
         { to: p('environment'), label: 'Environment', Icon: FleetIcon },
+        { to: p('ai-runtime'), label: 'AI Runtime', Icon: RuntimeIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
         { to: p('version'), label: 'Version', Icon: VersionIcon },
       ] }];
@@ -1363,6 +1364,9 @@ function FleetIcon(): React.ReactElement {
 }
 function SettingsIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);
+}
+function RuntimeIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h12" strokeLinecap="round" /><circle cx="6.5" cy="5.5" r="1" fill="currentColor" stroke="none" /><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none" /><circle cx="13.5" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>);
 }
 function VersionIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5a1.5 1.5 0 0 1 2.1 0l5.9 5.9a1.5 1.5 0 0 1 0 2.1l-5 5a1.5 1.5 0 0 1-2.1 0L3.5 10.6V8.5z" strokeLinejoin="round" /><circle cx="7" cy="7" r="1.2" /></svg>);

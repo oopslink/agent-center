@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "系统",
     "environment": "环境",
+    "aiRuntime": "AI Runtime",
     "settings": "设置",
     "version": "版本",
     "aria": "系统分区"
@@ -377,7 +378,12 @@
     "title": "AI Runtime",
     "subtitle": "组织级 Runtime Profile、模型定义、CLI 定义，以及智能体继承的默认运行时选择。",
     "actions": {
-      "exportYaml": "导出 YAML"
+      "exportYaml": "导出 YAML",
+      "newProfile": "新建 Profile",
+      "newModel": "新建 Model",
+      "newCLI": "新建 CLI",
+      "importModels": "导入 Models",
+      "edit": "编辑"
     },
     "permissions": {
       "unknownRole": "成员",
@@ -425,11 +431,51 @@
       "executable": "可执行程序",
       "version": "版本",
       "features": "特性",
-      "status": "状态"
+      "status": "状态",
+      "system": "系统"
     },
     "status": {
       "enabled": "启用",
       "disabled": "停用"
+    },
+    "form": {
+      "newProfile": "新建 Profile",
+      "editProfile": "编辑 Profile",
+      "newModel": "新建 Model",
+      "editModel": "编辑 Model",
+      "newCLI": "新建 CLI",
+      "editCLI": "编辑 CLI",
+      "key": "稳定 key",
+      "description": "描述",
+      "parameters": "Parameters JSON",
+      "defaultParameters": "Default parameters JSON",
+      "parameterSchema": "Parameter schema JSON",
+      "enabled": "启用",
+      "inputCost": "输入 $/MTok",
+      "outputCost": "输出 $/MTok",
+      "tier": "Tier",
+      "immutableKey": "稳定 key 创建后不可变；后端会拒绝 key 变更。",
+      "systemHint": "这是系统 CLI。后端会保留它的系统标记和不可变 key；这里只提交表单中展示的可编辑字段。",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中..."
+    },
+    "import": {
+      "title": "导入 Models",
+      "help": "粘贴模型定义 JSON 数组。界面会生成保留现有 Profiles 与 CLIs 的完整 AI Runtime 文档，先预览模型差异，再用安全 upsert 语义应用。",
+      "scope": "仅影响 Models。现有 CLIs（{{clis}}）和 Profiles（{{profiles}}）会在生成文档中原样保留。",
+      "preview": "预览",
+      "previewing": "预览中...",
+      "apply": "应用导入",
+      "applying": "应用中...",
+      "revision": "修订 {{revision}}",
+      "preserved": "已保留 {{clis}} 个 CLIs 和 {{profiles}} 个 Profiles",
+      "noModelChanges": "此次导入没有 Model 变更。",
+      "entity": "实体",
+      "key": "Key",
+      "action": "动作",
+      "diagnostics": "诊断",
+      "applied": "已应用。新修订：{{revision}}"
     }
   },
   "wakeGuardrail": {
