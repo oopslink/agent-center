@@ -217,6 +217,27 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(preview).toHaveTextContent('claude-opus');
   });
 
+  it('executor lifecycle with slot_index previews Executor #N and expands full exec id', () => {
+    row(
+      ev('lifecycle', {
+        event: 'executor.progress',
+        slot_index: 2,
+        executor_id: 'exec-409d0782abcdef',
+        task_ref: 'pm://tasks/task-99',
+        org_ref: 'T1274',
+        state: 'running',
+        detail: 'Bash({"command":"pnpm test"})',
+      }),
+    );
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(preview).toHaveTextContent('Executor #2');
+    expect(preview).toHaveTextContent('T1274');
+    expect(preview).toHaveTextContent('Running');
+    expect(preview).not.toHaveTextContent('exec 78');
+    fireEvent.click(screen.getByTestId('agent-activity-toggle'));
+    expect(screen.getByTestId('agent-activity-executor-id')).toHaveTextContent('Executor #2 · exec-409d0782abcdef');
+  });
+
   it('executor.stop lifecycle → Executor badge + outcome in preview', () => {
     row(
       ev('lifecycle', {

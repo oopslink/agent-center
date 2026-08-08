@@ -279,6 +279,16 @@ export interface Agent {
   running_tasks?: number;
   pending_tasks?: number;
   task_load?: number;
+  // Slot-first list summary (same names as the frozen /concurrency contract when
+  // embedded on a list row). All optional: older list payloads fall back to the
+  // PM running count + effective_concurrency_cap and render with a "~" prefix.
+  active?: number;
+  queued?: number;
+  slot_count?: number;
+  slot_stable?: boolean;
+  stale?: boolean;
+  reachable?: boolean;
+  has_snapshot?: boolean;
   // v2.18.1 (issue-8746a5b9) — executor concurrency config. allowed_executors is
   // the authoritative {cli,model} candidate list the daemon forks from; the
   // opt-in gate is max_concurrent_tasks>0 && allowed_executors non-empty. The

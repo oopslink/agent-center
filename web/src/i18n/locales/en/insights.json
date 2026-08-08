@@ -256,6 +256,7 @@
     "detail": {
       "task": "task",
       "interaction": "interaction",
+      "executor": "executor",
       "executorDetail": "current command"
     },
     "checkingGroup": {

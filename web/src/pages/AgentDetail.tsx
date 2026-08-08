@@ -16,9 +16,11 @@ import {
   useStopAgent,
   type ResetScope,
 } from '@/api/agents';
+import { useAgentConcurrency } from '@/api/concurrency';
 import { AgentBacklogBadge, AgentLoadBadge, AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ForceDeleteModal } from '@/components/ForceDeleteModal';
+import { ExecutorSlotPanel } from '@/components/ExecutorSlotPanel';
 import { AgentActivityRow, CheckingGroup, ExecutorProgressGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentMemoryManager } from '@/components/AgentMemoryManager';
@@ -55,6 +57,7 @@ export default function AgentDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const agent = useAgent(id);
   const activity = useAgentActivity(id);
+  const concurrency = useAgentConcurrency(id);
   // #274: flatten the cursor-paginated pages into one chronological event list
   // (newest-first). Grouping/folding runs over this FULL accumulated set so a
   // Checking run spanning a page boundary merges rather than fragmenting.
@@ -365,7 +368,17 @@ export default function AgentDetail(): React.ReactElement {
         ))}
       </nav>
 
-      {tab === 'profile' && <AgentProfile agent={a} />}
+      {tab === 'profile' && (
+        <div className="space-y-3" data-testid="agent-tabpanel-overview">
+          <ExecutorSlotPanel
+            data={concurrency.data}
+            loading={concurrency.isLoading}
+            error={concurrency.error as Error | null}
+            testId="agent-detail-slot-panel"
+          />
+          <AgentProfile agent={a} />
+        </div>
+      )}
 
       {/* I5 (T583): read-only runtime browser. */}
       {tab === 'runtime' && <AgentRuntime agentId={id} />}
@@ -398,6 +411,13 @@ export default function AgentDetail(): React.ReactElement {
             {activity.isFetching ? t('agents.detail.activity.refreshing') : t('agents.detail.activity.refresh')}
           </button>
         </div>
+        <ExecutorSlotPanel
+          data={concurrency.data}
+          loading={concurrency.isLoading}
+          error={concurrency.error as Error | null}
+          className="mb-3"
+          testId="agent-activity-slot-panel"
+        />
         {activity.isLoading && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-loading">
             {t('agents.detail.activity.loading')}

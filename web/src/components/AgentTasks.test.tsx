@@ -237,9 +237,10 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
   it('in-progress row overlays the executor joined by task_id (cli·model / slot / elapsed / heartbeat / current activity)', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
-      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: false, snapshot_age_ms: 1000,
+      agent_id: 'A1', cap: 3, slot_count: 3, active: 1, queued: 0, slot_stable: true, stale: false, snapshot_age_ms: 1000,
       executors: [{
         executor_id: 'e1',
+        slot_index: 0,
         task_id: 't1',
         cli: 'claude-code',
         model: 'sonnet',
@@ -251,7 +252,7 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     wrap();
     const overlay = await screen.findByTestId('agent-task-overlay');
     expect(within(overlay).getByTestId('agent-task-cli-model')).toHaveTextContent('claude-code · sonnet');
-    expect(within(overlay).getByTestId('agent-task-slot')).toHaveTextContent('slot 1');
+    expect(within(overlay).getByTestId('agent-task-slot')).toHaveTextContent('Executor #0');
     expect(within(overlay).getByTestId('agent-task-elapsed')).toBeInTheDocument();
     expect(within(overlay).getByTestId('agent-task-heartbeat')).toBeInTheDocument();
     expect(within(overlay).getByTestId('agent-task-current-activity')).toHaveTextContent('Doing: editing web/src/components/AgentTasks.tsx');
@@ -260,8 +261,8 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
   it('orphan executor shows the orphan·monitored badge', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
-      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: false, snapshot_age_ms: 1000,
-      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'orphan-monitored', started_at: '2026-05-24T01:55:00Z' }],
+      agent_id: 'A1', cap: 3, slot_count: 3, active: 1, queued: 0, slot_stable: true, stale: false, snapshot_age_ms: 1000,
+      executors: [{ executor_id: 'e1', slot_index: 0, task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'orphan-monitored', started_at: '2026-05-24T01:55:00Z' }],
     });
     wrap();
     expect(await screen.findByTestId('agent-task-orphan')).toBeInTheDocument();
@@ -272,8 +273,8 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
   it('expired snapshot: summary shows last-known; row overlay stale; list visible; heartbeat hidden', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
-      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: true, reachable: true, has_snapshot: true, snapshot_age_ms: 74000,
-      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
+      agent_id: 'A1', cap: 3, slot_count: 3, active: 1, queued: 0, slot_stable: true, stale: true, reachable: true, has_snapshot: true, snapshot_age_ms: 74000,
+      executors: [{ executor_id: 'e1', slot_index: 0, task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
     });
     wrap();
     const sum = await screen.findByTestId('agent-concurrency-summary');
@@ -359,8 +360,21 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     server.use(http.get('/api/agents/:id/concurrency', () => HttpResponse.json({ message: 'nope' }, { status: 500 })));
     wrap();
     await screen.findByTestId('agent-workitem-row');
-    expect(screen.queryByTestId('agent-concurrency-summary')).toBeNull();
+    expect(await screen.findByTestId('agent-concurrency-summary')).toHaveTextContent(/unavailable/i);
     expect(screen.queryByTestId('agent-task-overlay')).toBeNull();
+  });
+
+  it('old worker payloads do not fabricate Executor #N labels', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 1, queued: 0, slot_stable: false, stale: false, snapshot_age_ms: 1000,
+      executors: [{ executor_id: 'exec-legacy-123456789', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
+    });
+    wrap();
+    const overlay = await screen.findByTestId('agent-task-overlay');
+    expect(within(overlay).queryByTestId('agent-task-slot')).toBeNull();
+    expect(within(overlay).getByTestId('agent-task-executor')).toHaveTextContent('exec 23456789');
+    expect(screen.getByTestId('executor-slot-legacy')).toHaveTextContent(/Slot numbers unavailable/i);
   });
 });
 

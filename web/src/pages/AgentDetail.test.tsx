@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -10,6 +10,34 @@ import AgentDetail from './AgentDetail';
 
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
+});
+
+beforeEach(() => {
+  server.use(
+    http.get('/api/agents/:id/concurrency', () =>
+      HttpResponse.json({
+        agent_id: 'A1',
+        cap: 4,
+        configured_cap: 4,
+        admission_cap: 4,
+        slot_count: 4,
+        active: 2,
+        queued: 1,
+        slot_stable: true,
+        stale: false,
+        reachable: true,
+        has_snapshot: true,
+        snapshot_age_ms: 1000,
+        executors: [],
+        slots: [
+          { slot_index: 0, state: 'running', executor_id: 'exec-0', task_id: 'task-0' },
+          { slot_index: 1, state: 'idle' },
+          { slot_index: 2, state: 'running', executor_id: 'exec-2', task_id: 'task-2' },
+          { slot_index: 3, state: 'idle' },
+        ],
+      }),
+    ),
+  );
 });
 
 function wrap(path: string) {
@@ -165,10 +193,21 @@ describe('AgentDetail page', () => {
     wrap('/agents/A1');
     // Profile is the default tab.
     await waitFor(() => expect(screen.getByTestId('agent-tabpanel-profile')).toBeInTheDocument());
+    expect(screen.getByTestId('agent-detail-slot-panel')).toHaveTextContent('2/4');
+    expect(screen.getByTestId('agent-detail-slot-panel')).toHaveTextContent('1 queued');
     expect(screen.queryByTestId('agent-tabpanel-workitems')).not.toBeInTheDocument();
     // Workspace tab no longer exists.
     expect(screen.queryByTestId('agent-tab-workspace')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-tabpanel-workspace')).not.toBeInTheDocument();
+  });
+
+  it('Activity tab shows the real-time slot panel above the history timeline', async () => {
+    stubAgent();
+    wrap('/agents/A1?tab=activity');
+    const slotPanel = await screen.findByTestId('agent-activity-slot-panel');
+    const activityList = await screen.findByTestId('agent-activity-list');
+    expect(slotPanel).toHaveTextContent('2/4');
+    expect(slotPanel.compareDocumentPosition(activityList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // I28/F7 (v2.15.0): the 5th tab mounts the per-agent analytics dashboard

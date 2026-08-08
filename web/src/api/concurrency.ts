@@ -14,6 +14,9 @@ export interface ConcurrencyExecutor {
   task_id: string;
   cli: string;
   model: string;
+  // v2.31 Slot-first contract. Optional because older workers only reported an
+  // unordered executor list; the UI must not synthesize a #N when absent.
+  slot_index?: number;
   // running | starting | orphan(-monitored) | … (free text; the UI special-cases
   // "starting" and any state containing "orphan").
   state: string;
@@ -23,11 +26,32 @@ export interface ConcurrencyExecutor {
   current_activity?: string;
 }
 
+export interface AgentConcurrencySlot {
+  slot_index: number;
+  state: string;
+  executor_id?: string;
+  task_id?: string;
+  cli?: string;
+  model?: string;
+  started_at?: string;
+  pid?: number;
+  last_progress_at?: string;
+  current_activity?: string;
+}
+
 export interface AgentConcurrency {
   agent_id: string;
+  // Back-compat cap. Newer centers also send configured_cap/admission_cap and
+  // slot_count so draining resizes can be shown without pretending capacity has
+  // already converged.
   cap: number;
+  configured_cap?: number;
+  admission_cap?: number;
+  slot_count?: number;
   active: number;
   queued: number;
+  slot_stable?: boolean;
+  slots?: AgentConcurrencySlot[];
   // stale — coarse "live view not usable" flag (no fresh snapshot). Kept for
   // back-compat; the overlay now branches on reachable + has_snapshot below.
   stale: boolean;
