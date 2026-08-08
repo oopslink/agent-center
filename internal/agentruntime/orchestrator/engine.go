@@ -59,6 +59,10 @@ type WorkItem struct {
 	Prepared *executor.PreparedWorkspace
 	// Repo is the center-resolved repository/base contract copied into input.json.
 	Repo *executor.RepoRef
+	// RuleSnapshot is the phase-scoped, enabled team-rule set loaded immediately before
+	// a new executor fork. It is copied into input.json and rendered into the prompt so
+	// the run is auditable by team memory commit.
+	RuleSnapshot *executor.RuleSnapshot
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -264,7 +268,8 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 			IssueRef: item.IssueRef,
 			TaskRef:  item.TaskRef,
 		},
-		Repo: item.Repo,
+		Repo:      item.Repo,
+		TeamRules: item.RuleSnapshot,
 		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
 		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
 		DispatchMode:     item.DispatchMode,
@@ -330,7 +335,59 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 		b.WriteString("\n\n## Context\n")
 		b.WriteString(c)
 	}
+	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
+		b.WriteString("\n\n")
+		b.WriteString(rb)
+	}
 	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
+	return b.String()
+}
+
+func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
+	if snap == nil {
+		return ""
+	}
+	var b strings.Builder
+	phase := strings.TrimSpace(snap.Phase)
+	if phase == "" {
+		phase = "execute"
+	}
+	fmt.Fprintf(&b, "## Team Rules (%s)\n", phase)
+	meta := make([]string, 0, 2)
+	if teamID := strings.TrimSpace(snap.TeamID); teamID != "" {
+		meta = append(meta, "team="+teamID)
+	}
+	if commit := strings.TrimSpace(snap.Commit); commit != "" {
+		meta = append(meta, "commit="+commit)
+	}
+	if len(meta) > 0 {
+		b.WriteString(strings.Join(meta, " "))
+		b.WriteString("\n\n")
+	}
+	if len(snap.Rules) == 0 {
+		b.WriteString("_No enabled team rules matched this phase._")
+		return b.String()
+	}
+	for i, r := range snap.Rules {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		title := strings.TrimSpace(r.Title)
+		if title == "" {
+			title = strings.TrimSpace(r.Slug)
+		}
+		if title == "" {
+			title = "rule"
+		}
+		fmt.Fprintf(&b, "### %s\n", title)
+		if desc := strings.TrimSpace(r.Description); desc != "" {
+			b.WriteString(desc)
+			b.WriteString("\n\n")
+		}
+		if body := strings.TrimSpace(r.Body); body != "" {
+			b.WriteString(body)
+		}
+	}
 	return b.String()
 }
 

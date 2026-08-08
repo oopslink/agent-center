@@ -25,6 +25,9 @@ func sampleTemplate(t *testing.T, curated bool) *team.TeamTemplate {
 			{Slug: "prefer-tdd", Description: "write tests first", Scope: team.ExpScopeTeam},
 			{Slug: "global-style", Description: "gofmt everything", Scope: team.ExpScopeGlobal},
 		},
+		Rules: []team.Rule{
+			{Slug: "plan-dag", Description: "plan as a DAG", Body: "Use explicit dependencies.", Enabled: true, AppliesTo: []string{"plan"}},
+		},
 		Curated:   curated,
 		CreatedAt: time.Unix(1000, 0),
 	})
@@ -74,6 +77,9 @@ func TestExtractFromTeam_DropsProjectScopeAndScrubs(t *testing.T) {
 			{Slug: "leaky", Description: "the fix for T950 in internal/team/foo.go", Scope: team.ExpScopeTeam},
 			{Slug: "secret", Description: "project-only fact about repo layout", Scope: team.ExpScopeProject},
 		},
+		Rules: []team.Rule{
+			{Slug: "gate-rule", Description: "review gate rule", Body: "Check T951 in internal/team/rules.go", Enabled: true, AppliesTo: []string{"review"}},
+		},
 	}
 	res, err := team.ExtractFromTeam(snap, "tmpl-x", nil, time.Unix(1, 0))
 	if err != nil {
@@ -85,6 +91,9 @@ func TestExtractFromTeam_DropsProjectScopeAndScrubs(t *testing.T) {
 	if len(res.Draft.Experiences) != 2 {
 		t.Errorf("kept experiences = %d want 2", len(res.Draft.Experiences))
 	}
+	if len(res.Draft.Rules) != 1 {
+		t.Errorf("kept rules = %d want 1", len(res.Draft.Rules))
+	}
 	if res.Draft.Curated {
 		t.Error("extracted draft must be Curated=false")
 	}
@@ -92,10 +101,10 @@ func TestExtractFromTeam_DropsProjectScopeAndScrubs(t *testing.T) {
 	if len(res.Draft.Roles) != 1 || res.Draft.Roles[0].Count != 2 {
 		t.Errorf("role slot = %+v, want dev count 2", res.Draft.Roles)
 	}
-	// scrub must flag the T950 code name and the path in the "leaky" experience.
+	// scrub must flag code names and paths in kept entries and rules.
 	var sawCode, sawPath bool
 	for _, f := range res.ScrubFindings {
-		if f.Kind == team.ScrubCodeName && f.Token == "T950" {
+		if f.Kind == team.ScrubCodeName && (f.Token == "T950" || f.Token == "T951") {
 			sawCode = true
 		}
 		if f.Kind == team.ScrubPath && strings.Contains(f.Token, "internal/team/foo.go") {
@@ -131,8 +140,8 @@ func TestExportImport_RoundTripCrossOrg(t *testing.T) {
 	if imported.Curated {
 		t.Error("imported template must land Curated=false for re-review")
 	}
-	if len(imported.Roles) != len(tmpl.Roles) || len(imported.Experiences) != len(tmpl.Experiences) {
-		t.Errorf("round trip lost content: roles %d exp %d", len(imported.Roles), len(imported.Experiences))
+	if len(imported.Roles) != len(tmpl.Roles) || len(imported.Experiences) != len(tmpl.Experiences) || len(imported.Rules) != len(tmpl.Rules) {
+		t.Errorf("round trip lost content: roles %d exp %d rules %d", len(imported.Roles), len(imported.Experiences), len(imported.Rules))
 	}
 	if imported.WorkflowTemplateRef != tmpl.WorkflowTemplateRef {
 		t.Errorf("workflow ref lost: %q", imported.WorkflowTemplateRef)
@@ -224,6 +233,9 @@ func TestPlanInstantiation_BuildsIdentitiesConfigMembersAndRuntimeStep(t *testin
 	// memory seed carries the portable experiences.
 	if len(inst.MemorySeed) != 2 {
 		t.Errorf("memory seed = %d want 2 portable experiences", len(inst.MemorySeed))
+	}
+	if len(inst.RuleSeed) != 1 || inst.RuleSeed[0].Slug != "plan-dag" {
+		t.Errorf("rule seed = %+v want plan-dag", inst.RuleSeed)
 	}
 	// every member ref maps to a created agent identity under a declared role.
 	for _, m := range inst.Members {

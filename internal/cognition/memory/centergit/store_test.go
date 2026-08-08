@@ -62,14 +62,66 @@ func TestWriteEntryValidation(t *testing.T) {
 	}
 }
 
+func TestWriteRuleNamingFrontmatterAndValidation(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, nil, WithIDGen(mustDeterministicIDs("rid1")))
+	rel, err := s.WriteRule(Rule{
+		Slug:        "prefer-small-prs",
+		Title:       "Prefer small PRs",
+		Description: "keep reviewable diffs",
+		Body:        "Split unrelated changes.",
+		Enabled:     true,
+		AppliesTo:   []string{"execute", "review"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "rules/prefer-small-prs-rid1.md"
+	if rel != want {
+		t.Fatalf("rel=%q want %q", rel, want)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(got)
+	for _, must := range []string{
+		"name: prefer-small-prs",
+		"description: keep reviewable diffs",
+		"uuid: rid1",
+		"enabled: true",
+		"- execute",
+		"- review",
+		"Split unrelated changes.",
+	} {
+		if !strings.Contains(content, must) {
+			t.Errorf("rule missing %q in:\n%s", must, content)
+		}
+	}
+	for _, forbidden := range []string{"kind: rule", "type: rule"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("rule frontmatter must not carry %q:\n%s", forbidden, content)
+		}
+	}
+	if _, err := s.WriteRule(Rule{Slug: "../evil", Description: "x", Enabled: true}); !errors.Is(err, ErrInvalidRule) {
+		t.Errorf("bad rule slug should be ErrInvalidRule, got %v", err)
+	}
+	if _, err := s.WriteRule(Rule{Slug: "ok", Enabled: true, AppliesTo: []string{"unknown"}}); !errors.Is(err, ErrInvalidRule) {
+		t.Errorf("bad rule applies_to should be ErrInvalidRule, got %v", err)
+	}
+}
+
 func TestRegenerateIndexDeterministicAndDerived(t *testing.T) {
 	dir := t.TempDir()
-	s := NewStore(dir, nil, WithIDGen(mustDeterministicIDs("b1", "a1")))
+	s := NewStore(dir, nil, WithIDGen(mustDeterministicIDs("b1", "a1", "r1")))
 	// Write out of alphabetical order; index must be sorted by name.
 	if _, err := s.WriteEntry(Entry{Slug: "zeta", Description: "last one"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.WriteEntry(Entry{Slug: "alpha", Description: "first one"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.WriteRule(Rule{Slug: "review-rigor", Description: "review with evidence", Enabled: true, AppliesTo: []string{"review"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RegenerateIndex(); err != nil {
@@ -91,6 +143,9 @@ func TestRegenerateIndexDeterministicAndDerived(t *testing.T) {
 	if !strings.Contains(body, "[alpha](entries/alpha-a1.md) — first one") {
 		t.Errorf("index row not derived from entry frontmatter:\n%s", body)
 	}
+	if !strings.Contains(body, "## Rules") || !strings.Contains(body, "[review-rigor](rules/review-rigor-r1.md) — review with evidence (enabled; applies_to: review)") {
+		t.Errorf("index should include rules/ rows:\n%s", body)
+	}
 
 	// Regenerating again must be byte-identical (determinism).
 	if err := s.RegenerateIndex(); err != nil {
@@ -111,6 +166,39 @@ func TestRegenerateIndexEmpty(t *testing.T) {
 	idx, _ := os.ReadFile(filepath.Join(dir, indexFile))
 	if !strings.Contains(string(idx), "No entries yet") {
 		t.Errorf("empty index should note no entries:\n%s", idx)
+	}
+	if !strings.Contains(string(idx), "No rules yet") {
+		t.Errorf("empty index should note no rules:\n%s", idx)
+	}
+}
+
+func TestReadRulesFiltersEnabledPhase(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir, nil, WithIDGen(mustDeterministicIDs("r1", "r2", "r3")))
+	if _, err := s.WriteRule(Rule{Slug: "execute", Description: "execute rule", Body: "do it", Enabled: true, AppliesTo: []string{"execute"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.WriteRule(Rule{Slug: "review", Description: "review rule", Body: "review it", Enabled: true, AppliesTo: []string{"review"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.WriteRule(Rule{Slug: "off", Description: "disabled rule", Body: "ignore", Enabled: false, AppliesTo: []string{"execute"}}); err != nil {
+		t.Fatal(err)
+	}
+	rules, skipped, err := s.ReadRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skipped) != 0 || len(rules) != 3 {
+		t.Fatalf("rules=%+v skipped=%v", rules, skipped)
+	}
+	var matched []string
+	for _, r := range rules {
+		if RuleAppliesToPhase(r, "execute") {
+			matched = append(matched, r.Slug)
+		}
+	}
+	if len(matched) != 1 || matched[0] != "execute" {
+		t.Fatalf("execute phase matched %v, want [execute]", matched)
 	}
 }
 

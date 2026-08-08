@@ -64,6 +64,7 @@ var AgentFacingToolNames = []string{
 	"find_org_channel",
 	"fork_executor",
 	"get_issue",
+	"get_team_rules",
 	"get_my_profile",
 	"get_my_unread",
 	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)

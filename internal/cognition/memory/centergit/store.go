@@ -15,10 +15,14 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 )
 
-// entriesDir is the sub-directory (relative to a working copy root) that holds
-// one file per experience. indexFile is the derived, never-hand-edited index.
+// entriesDir and rulesDir are the sub-directories (relative to a working copy
+// root) that hold one file per memory item. The directory is the type source:
+// entries/ are knowledge/experience; rules/ are operational team rules. Do not
+// add a kind:rule field to rule frontmatter. indexFile is the derived,
+// never-hand-edited index.
 const (
 	entriesDir = "entries"
+	rulesDir   = "rules"
 	indexFile  = "MEMORY.md"
 )
 
@@ -29,6 +33,8 @@ var (
 	ErrPushRetriesExhausted = errors.New("centergit: push retries exhausted")
 	// ErrInvalidEntry means an Entry failed validation.
 	ErrInvalidEntry = errors.New("centergit: invalid entry")
+	// ErrInvalidRule means a Rule failed validation.
+	ErrInvalidRule = errors.New("centergit: invalid rule")
 	// errMalformedEntry marks a file that is NOT a well-formed memory entry — a
 	// missing / unterminated frontmatter fence or un-parseable YAML header. It is a
 	// CONTENT problem (a stray, non-standard file a member pushed into the repo),
@@ -60,6 +66,27 @@ type Entry struct {
 	Type string
 }
 
+// Rule is one team-scoped operational rule. Rules live under rules/; that
+// directory, not a frontmatter kind, is the only source of their type.
+type Rule struct {
+	// Slug is the human, path-safe stem of the file name.
+	Slug string
+	// Title is an optional heading for the rule body.
+	Title string
+	// Description is the one-line hook that lands in the index.
+	Description string
+	// Body is the markdown content (without frontmatter).
+	Body string
+	// Enabled gates whether the rule is loaded into runtime context.
+	Enabled bool
+	// AppliesTo names the phases where the rule is active. Empty normalizes to
+	// all phases when writing; accepted values are plan, execute, review,
+	// recovery, or all.
+	AppliesTo []string
+	// SourcePath is populated by readers with the repo-relative path.
+	SourcePath string
+}
+
 // entryFrontmatter is the YAML header persisted at the top of every entry file
 // and re-read to regenerate the index. A struct (not a map) keeps key order
 // deterministic across writes.
@@ -69,6 +96,40 @@ type entryFrontmatter struct {
 	Description string `yaml:"description"`
 	UUID        string `yaml:"uuid"`
 	Type        string `yaml:"type,omitempty"`
+}
+
+// ruleFrontmatter is the YAML header persisted at the top of every rule file.
+// There is deliberately no kind/type field: rules/ is the type boundary.
+type ruleFrontmatter struct {
+	Name        string   `yaml:"name"`
+	Title       string   `yaml:"title,omitempty"`
+	Description string   `yaml:"description"`
+	UUID        string   `yaml:"uuid"`
+	Enabled     bool     `yaml:"enabled"`
+	AppliesTo   []string `yaml:"applies_to"`
+}
+
+var allRulePhases = []string{"plan", "execute", "review", "recovery"}
+
+// RuleAppliesToPhase reports whether r is enabled and active in phase.
+func RuleAppliesToPhase(r Rule, phase string) bool {
+	if !r.Enabled {
+		return false
+	}
+	want := normalizeRulePhase(phase)
+	if want == "" {
+		want = "execute"
+	}
+	applies, err := normalizeAppliesTo(r.AppliesTo)
+	if err != nil {
+		return false
+	}
+	for _, p := range applies {
+		if p == want {
+			return true
+		}
+	}
+	return false
 }
 
 // Store is the client-side (runtime) view of a checked-out center repo working
@@ -140,8 +201,55 @@ func (s *Store) WriteEntry(e Entry) (string, error) {
 	return rel, nil
 }
 
-// renderEntry serialises frontmatter + body into the on-disk format.
+// WriteRule persists r as rules/<slug>-<uuid>.md and returns the repo-relative
+// path. Like WriteEntry, it does not commit; callers batch via RegenerateIndex
+// and SyncPush.
+func (s *Store) WriteRule(r Rule) (string, error) {
+	if err := validateSegment(r.Slug); err != nil {
+		return "", fmt.Errorf("%w: slug: %v", ErrInvalidRule, err)
+	}
+	if strings.TrimSpace(r.Description) == "" {
+		return "", fmt.Errorf("%w: description is required (it seeds the index)", ErrInvalidRule)
+	}
+	applies, err := normalizeAppliesTo(r.AppliesTo)
+	if err != nil {
+		return "", fmt.Errorf("%w: applies_to: %v", ErrInvalidRule, err)
+	}
+	id := s.newID()
+	fm := ruleFrontmatter{
+		Name:        r.Slug,
+		Title:       r.Title,
+		Description: strings.TrimSpace(r.Description),
+		UUID:        id,
+		Enabled:     r.Enabled,
+		AppliesTo:   applies,
+	}
+	rel := filepath.ToSlash(filepath.Join(rulesDir, r.Slug+"-"+id+".md"))
+	abs := filepath.Join(s.dir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		return "", err
+	}
+	content, err := renderRule(fm, r.Body)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(abs, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	return rel, nil
+}
+
+// renderEntry serialises frontmatter + body into the on-disk entry format.
 func renderEntry(fm entryFrontmatter, body string) (string, error) {
+	return renderMarkdown(fm, body)
+}
+
+// renderRule serialises frontmatter + body into the on-disk rule format.
+func renderRule(fm ruleFrontmatter, body string) (string, error) {
+	return renderMarkdown(fm, body)
+}
+
+func renderMarkdown(fm any, body string) (string, error) {
 	y, err := yaml.Marshal(fm)
 	if err != nil {
 		return "", err
@@ -155,16 +263,25 @@ func renderEntry(fm entryFrontmatter, body string) (string, error) {
 	return b.String(), nil
 }
 
-// indexRow is one parsed entry used to build the index.
-type indexRow struct {
+// entryIndexRow is one parsed entry used to build the index.
+type entryIndexRow struct {
 	file        string // repo-relative path
 	name        string
 	description string
 }
 
+// ruleIndexRow is one parsed rule used to build the index.
+type ruleIndexRow struct {
+	file        string // repo-relative path
+	name        string
+	description string
+	enabled     bool
+	appliesTo   []string
+}
+
 // ListEntries parses every entries/*.md file's frontmatter. Entries are sorted
 // by (name, file) for a stable, deterministic order.
-func (s *Store) ListEntries() ([]indexRow, error) {
+func (s *Store) ListEntries() ([]entryIndexRow, error) {
 	dir := filepath.Join(s.dir, entriesDir)
 	ents, err := os.ReadDir(dir)
 	if err != nil {
@@ -173,7 +290,7 @@ func (s *Store) ListEntries() ([]indexRow, error) {
 		}
 		return nil, err
 	}
-	var rows []indexRow
+	var rows []entryIndexRow
 	for _, de := range ents {
 		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
 			continue
@@ -182,10 +299,47 @@ func (s *Store) ListEntries() ([]indexRow, error) {
 		if perr != nil {
 			return nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
 		}
-		rows = append(rows, indexRow{
+		rows = append(rows, entryIndexRow{
 			file:        filepath.ToSlash(filepath.Join(entriesDir, de.Name())),
 			name:        fm.Name,
 			description: fm.Description,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].name != rows[j].name {
+			return rows[i].name < rows[j].name
+		}
+		return rows[i].file < rows[j].file
+	})
+	return rows, nil
+}
+
+// ListRules parses every rules/*.md file's frontmatter. Rules are sorted by
+// (name, file) for a stable, deterministic order.
+func (s *Store) ListRules() ([]ruleIndexRow, error) {
+	dir := filepath.Join(s.dir, rulesDir)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var rows []ruleIndexRow
+	for _, de := range ents {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
+			continue
+		}
+		fm, perr := parseRuleFrontmatter(filepath.Join(dir, de.Name()))
+		if perr != nil {
+			return nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
+		}
+		rows = append(rows, ruleIndexRow{
+			file:        filepath.ToSlash(filepath.Join(rulesDir, de.Name())),
+			name:        fm.Name,
+			description: fm.Description,
+			enabled:     fm.Enabled,
+			appliesTo:   fm.AppliesTo,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -203,31 +357,57 @@ func parseFrontmatter(path string) (entryFrontmatter, error) {
 	return fm, err
 }
 
+// parseRuleFrontmatter extracts the leading YAML frontmatter block of a rule file.
+func parseRuleFrontmatter(path string) (ruleFrontmatter, error) {
+	fm, _, err := parseRule(path)
+	return fm, err
+}
+
 // parseEntry extracts BOTH the frontmatter and the markdown body of an entry file
 // (the round-trip counterpart to renderEntry). ReadEntries needs the body + type
 // that ListEntries discards.
 func parseEntry(path string) (entryFrontmatter, string, error) {
 	var fm entryFrontmatter
-	raw, err := os.ReadFile(path)
+	body, err := parseMarkdown(path, &fm)
+	return fm, body, err
+}
+
+// parseRule extracts BOTH the frontmatter and markdown body of a rule file.
+func parseRule(path string) (ruleFrontmatter, string, error) {
+	var fm ruleFrontmatter
+	body, err := parseMarkdown(path, &fm)
 	if err != nil {
 		return fm, "", err
 	}
+	applies, err := normalizeAppliesTo(fm.AppliesTo)
+	if err != nil {
+		return fm, "", fmt.Errorf("%w: invalid applies_to: %v", errMalformedEntry, err)
+	}
+	fm.AppliesTo = applies
+	return fm, body, nil
+}
+
+func parseMarkdown(path string, out any) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
 	text := string(raw)
 	if !strings.HasPrefix(text, "---\n") {
-		return fm, "", fmt.Errorf("%w: missing frontmatter", errMalformedEntry)
+		return "", fmt.Errorf("%w: missing frontmatter", errMalformedEntry)
 	}
 	rest := text[len("---\n"):]
 	end := strings.Index(rest, "\n---")
 	if end < 0 {
-		return fm, "", fmt.Errorf("%w: unterminated frontmatter", errMalformedEntry)
+		return "", fmt.Errorf("%w: unterminated frontmatter", errMalformedEntry)
 	}
-	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return fm, "", fmt.Errorf("%w: %v", errMalformedEntry, err)
+	if err := yaml.Unmarshal([]byte(rest[:end]), out); err != nil {
+		return "", fmt.Errorf("%w: %v", errMalformedEntry, err)
 	}
 	// The body is everything after the closing "\n---" fence: renderEntry writes
 	// "---\n\n<body>\n", so trim the leading blank line(s) and the trailing newline.
 	body := strings.TrimRight(strings.TrimLeft(rest[end+len("\n---"):], "\n"), "\n")
-	return fm, body, nil
+	return body, nil
 }
 
 // ReadEntries parses every entries/*.md file into a FULL Entry (frontmatter +
@@ -289,26 +469,106 @@ func (s *Store) ReadEntries() (entries []Entry, skipped []string, err error) {
 	return out, skipped, nil
 }
 
-// RegenerateIndex rebuilds MEMORY.md purely from the entry files (§9: 索引从条目
-// 派生、不手编). The output is deterministic so identical entry sets on two
-// runtimes produce byte-identical indexes → no spurious merge conflicts.
+// ReadRules parses every rules/*.md file into a FULL Rule. Malformed rule files
+// are skipped and returned to the caller; genuine IO errors surface.
+func (s *Store) ReadRules() (rules []Rule, skipped []string, err error) {
+	dir := filepath.Join(s.dir, rulesDir)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+	type rec struct {
+		file string
+		rule Rule
+	}
+	var recs []rec
+	for _, de := range ents {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
+			continue
+		}
+		rel := filepath.ToSlash(filepath.Join(rulesDir, de.Name()))
+		fm, body, perr := parseRule(filepath.Join(dir, de.Name()))
+		if perr != nil {
+			if errors.Is(perr, errMalformedEntry) {
+				skipped = append(skipped, de.Name())
+				continue
+			}
+			return nil, nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
+		}
+		recs = append(recs, rec{
+			file: de.Name(),
+			rule: Rule{
+				Slug:        fm.Name,
+				Title:       fm.Title,
+				Description: fm.Description,
+				Body:        body,
+				Enabled:     fm.Enabled,
+				AppliesTo:   fm.AppliesTo,
+				SourcePath:  rel,
+			},
+		})
+	}
+	sort.Slice(recs, func(i, j int) bool {
+		if recs[i].rule.Slug != recs[j].rule.Slug {
+			return recs[i].rule.Slug < recs[j].rule.Slug
+		}
+		return recs[i].file < recs[j].file
+	})
+	sort.Strings(skipped)
+	out := make([]Rule, len(recs))
+	for i, r := range recs {
+		out[i] = r.rule
+	}
+	return out, skipped, nil
+}
+
+// RegenerateIndex rebuilds MEMORY.md purely from entries/ and rules/ (§9:
+// 索引从条目派生、不手编). The output is deterministic so identical memory sets on
+// two runtimes produce byte-identical indexes → no spurious merge conflicts.
 func (s *Store) RegenerateIndex() error {
-	rows, err := s.ListEntries()
+	entryRows, err := s.ListEntries()
+	if err != nil {
+		return err
+	}
+	ruleRows, err := s.ListRules()
 	if err != nil {
 		return err
 	}
 	var b strings.Builder
 	b.WriteString("# Memory Index\n\n")
-	b.WriteString("<!-- GENERATED from entries/ — do not edit by hand. See centergit.Store.RegenerateIndex. -->\n\n")
-	if len(rows) == 0 {
+	b.WriteString("<!-- GENERATED from entries/ and rules/ — do not edit by hand. See centergit.Store.RegenerateIndex. -->\n\n")
+	b.WriteString("## Entries\n\n")
+	if len(entryRows) == 0 {
 		b.WriteString("_No entries yet._\n")
 	}
-	for _, r := range rows {
+	for _, r := range entryRows {
 		desc := strings.TrimSpace(r.description)
 		if desc == "" {
 			desc = "(no description)"
 		}
 		fmt.Fprintf(&b, "- [%s](%s) — %s\n", r.name, r.file, desc)
+	}
+	b.WriteString("\n## Rules\n\n")
+	if len(ruleRows) == 0 {
+		b.WriteString("_No rules yet._\n")
+	}
+	for _, r := range ruleRows {
+		desc := strings.TrimSpace(r.description)
+		if desc == "" {
+			desc = "(no description)"
+		}
+		status := "disabled"
+		if r.enabled {
+			status = "enabled"
+		}
+		applies := strings.Join(r.appliesTo, ",")
+		if applies == "" {
+			applies = strings.Join(allRulePhases, ",")
+		}
+		fmt.Fprintf(&b, "- [%s](%s) — %s (%s; applies_to: %s)\n", r.name, r.file, desc, status, applies)
 	}
 	return os.WriteFile(filepath.Join(s.dir, indexFile), []byte(b.String()), 0o600)
 }
@@ -405,4 +665,47 @@ func isNonFastForward(out string) bool {
 		strings.Contains(lo, "fetch first") ||
 		strings.Contains(lo, "updates were rejected") ||
 		(strings.Contains(lo, "rejected") && strings.Contains(lo, "push"))
+}
+
+func normalizeAppliesTo(in []string) ([]string, error) {
+	if len(in) == 0 {
+		return append([]string(nil), allRulePhases...), nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, raw := range in {
+		p := normalizeRulePhase(raw)
+		if p == "" {
+			return nil, fmt.Errorf("unknown phase %q", raw)
+		}
+		if p == "all" {
+			return append([]string(nil), allRulePhases...), nil
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	if len(out) == 0 {
+		return nil, errors.New("applies_to must name at least one phase")
+	}
+	return out, nil
+}
+
+func normalizeRulePhase(phase string) string {
+	switch strings.ToLower(strings.TrimSpace(phase)) {
+	case "all":
+		return "all"
+	case "plan":
+		return "plan"
+	case "execute", "execution":
+		return "execute"
+	case "review":
+		return "review"
+	case "recovery", "recover":
+		return "recovery"
+	default:
+		return ""
+	}
 }

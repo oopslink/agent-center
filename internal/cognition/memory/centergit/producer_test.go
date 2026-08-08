@@ -73,3 +73,38 @@ func TestTeamMemoryProducer_EmptySeedProvisions(t *testing.T) {
 		t.Fatalf("empty-seed team repo not provisioned")
 	}
 }
+
+func TestTeamMemoryProducer_SeedTeamRulesAndConsumerSnapshot(t *testing.T) {
+	host := NewHost(t.TempDir(), nil)
+	prod := NewTeamMemoryProducer(host, nil)
+	ctx := context.Background()
+
+	n, err := prod.SeedTeam(ctx, "team-rules",
+		[]Entry{{Slug: "lesson", Description: "entry", Body: "knowledge", Type: "team"}},
+		[]Rule{
+			{Slug: "execute-rule", Description: "execute hook", Body: "Do the thing.", Enabled: true, AppliesTo: []string{"execute"}},
+			{Slug: "review-rule", Description: "review hook", Body: "Review the thing.", Enabled: true, AppliesTo: []string{"review"}},
+			{Slug: "disabled-rule", Description: "disabled hook", Body: "Nope.", Enabled: false, AppliesTo: []string{"execute"}},
+		},
+	)
+	if err != nil {
+		t.Fatalf("SeedTeam: %v", err)
+	}
+	if n != 4 {
+		t.Fatalf("seeded=%d want 4 items", n)
+	}
+
+	snap, err := NewTeamMemoryConsumer(host, nil).ReadTeamRules(ctx, "team-rules", "execute")
+	if err != nil {
+		t.Fatalf("ReadTeamRules: %v", err)
+	}
+	if snap.TeamID != "team-rules" || snap.Phase != "execute" || strings.TrimSpace(snap.Commit) == "" {
+		t.Fatalf("bad snapshot metadata: %+v", snap)
+	}
+	if len(snap.Rules) != 1 || snap.Rules[0].Slug != "execute-rule" || snap.Rules[0].SourcePath == "" {
+		t.Fatalf("execute rules = %+v, want only execute-rule with source path", snap.Rules)
+	}
+	if !strings.Contains(snap.RefreshSemantics, "snapshotted") {
+		t.Fatalf("snapshot missing refresh semantics: %+v", snap)
+	}
+}

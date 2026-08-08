@@ -493,23 +493,23 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// --- template tools ------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_templates",
-		Description: "List available workflow templates. Returns both system built-in templates and organization-specific templates. Use get_template to read the full content of a template.",
+		Description: "LEGACY/DEPRECATED: list old org workflow templates. New plan/runtime guidance should live in Team Memory rules/ and be read with get_team_rules.",
 	}, makeListTemplates(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_template",
-		Description: "Get a workflow template by ID. Returns the full markdown content that describes the workflow. Read it to understand how to author a plan DAG via the plan tools (create_plan / add_task_to_plan / add_plan_dependency / start_plan).",
+		Description: "LEGACY/DEPRECATED: get an old workflow template by ID. Prefer migrated Team Memory rules/ plus get_team_rules for plan guidance.",
 	}, makeGetTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_template",
-		Description: "Create a new workflow template in your organization. Provide name, description, and the full markdown content (the orchestration rules agents read to scaffold graphs).",
+		Description: "LEGACY/DEPRECATED compatibility path for old workflow templates. Prefer authoring Team Memory rules/ through team templates or migration.",
 	}, makeCreateTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_template",
-		Description: "Update an existing (non-builtin) workflow template's name/description/content by template_id. Builtin templates cannot be modified.",
+		Description: "LEGACY/DEPRECATED compatibility path for old workflow templates. Prefer updating Team Memory rules/.",
 	}, makeUpdateTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "delete_template",
-		Description: "Delete a non-builtin workflow template by template_id. Builtin templates cannot be deleted.",
+		Description: "LEGACY/DEPRECATED compatibility path for old workflow templates. Prefer deleting or reverting Team Memory rules/ files.",
 	}, makeDeleteTemplate(cfg))
 
 	// --- model catalog tools (issue-93dd8daa ①) ------------------------------

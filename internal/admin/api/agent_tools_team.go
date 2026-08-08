@@ -257,6 +257,126 @@ func (s *Server) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"teams": views})
 }
 
+// --- get_team_rules ---------------------------------------------------------
+
+type getTeamRulesReq struct {
+	AgentID string `json:"agent_id"`
+	Phase   string `json:"phase"`
+}
+
+func (s *Server) getTeamRulesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getTeamRulesReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	phase, ok := normalizeTeamRulePhase(req.Phase)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_phase", "phase must be one of plan, execute, review, recovery")
+		return
+	}
+	teamID, hasTeam, err := d.TeamSvc.FindAgentTeam(r.Context(), operatingAgentMemberRef(a))
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	if !hasTeam {
+		writeJSON(w, http.StatusOK, emptyTeamRulesView("", phase))
+		return
+	}
+	t, err := d.TeamSvc.GetTeam(r.Context(), teamID)
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	if t.OrgID() != string(a.OrganizationID()) {
+		writeError(w, http.StatusNotFound, "team_not_found", "not found")
+		return
+	}
+	if d.TeamGitHost == nil {
+		writeJSON(w, http.StatusOK, emptyTeamRulesView(teamID.String(), phase))
+		return
+	}
+	snap, err := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeamRules(r.Context(), teamID.String(), phase)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, teamRulesSnapshotView(snap))
+}
+
+func operatingAgentMemberRef(a *agent.Agent) team.MemberRef {
+	if a == nil {
+		return ""
+	}
+	id := strings.TrimSpace(a.IdentityMemberID())
+	if id == "" {
+		id = strings.TrimSpace(a.ID().String())
+	}
+	if id == "" {
+		return ""
+	}
+	return team.MemberRef("agent:" + id)
+}
+
+func normalizeTeamRulePhase(phase string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(phase)) {
+	case "", "execute", "execution":
+		return "execute", true
+	case "plan":
+		return "plan", true
+	case "review":
+		return "review", true
+	case "recovery", "recover":
+		return "recovery", true
+	default:
+		return "", false
+	}
+}
+
+func emptyTeamRulesView(teamID, phase string) map[string]any {
+	return map[string]any{
+		"team_id":             teamID,
+		"phase":               phase,
+		"commit":              "",
+		"rules":               []any{},
+		"skipped_nonstandard": []string{},
+		"refresh_semantics":   centergit.RuleRefreshSemantics,
+	}
+}
+
+func teamRulesSnapshotView(snap centergit.RuleSnapshot) map[string]any {
+	rules := make([]map[string]any, 0, len(snap.Rules))
+	for _, r := range snap.Rules {
+		rules = append(rules, map[string]any{
+			"slug":        r.Slug,
+			"title":       r.Title,
+			"description": r.Description,
+			"body":        r.Body,
+			"enabled":     r.Enabled,
+			"applies_to":  r.AppliesTo,
+			"source_path": r.SourcePath,
+		})
+	}
+	skipped := snap.Skipped
+	if skipped == nil {
+		skipped = []string{}
+	}
+	return map[string]any{
+		"team_id":             snap.TeamID,
+		"phase":               snap.Phase,
+		"commit":              snap.Commit,
+		"rules":               rules,
+		"skipped_nonstandard": skipped,
+		"refresh_semantics":   snap.RefreshSemantics,
+	}
+}
+
 // --- add_member --------------------------------------------------------------
 
 type addMemberReq struct {
@@ -374,6 +494,16 @@ type experienceReq struct {
 	Tags        []string `json:"tags"`
 }
 
+// ruleReq is a portable rule carried in a template and seeded into rules/.
+type ruleReq struct {
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Body        string   `json:"body"`
+	Enabled     *bool    `json:"enabled"`
+	AppliesTo   []string `json:"applies_to"`
+}
+
 func toRoleSlots(in []roleSlotReq) []team.RoleSlot {
 	out := make([]team.RoleSlot, 0, len(in))
 	for _, r := range in {
@@ -406,6 +536,25 @@ func toExperiences(in []experienceReq) []team.Experience {
 	return out
 }
 
+func toRules(in []ruleReq) []team.Rule {
+	out := make([]team.Rule, 0, len(in))
+	for _, r := range in {
+		enabled := true
+		if r.Enabled != nil {
+			enabled = *r.Enabled
+		}
+		out = append(out, team.Rule{
+			Slug:        r.Slug,
+			Title:       r.Title,
+			Description: r.Description,
+			Body:        r.Body,
+			Enabled:     enabled,
+			AppliesTo:   append([]string(nil), r.AppliesTo...),
+		})
+	}
+	return out
+}
+
 func templateView(t *team.TeamTemplate) map[string]any {
 	roles := make([]map[string]any, 0, len(t.Roles))
 	for _, sl := range t.Roles {
@@ -418,7 +567,8 @@ func templateView(t *team.TeamTemplate) map[string]any {
 	return map[string]any{
 		"id": t.ID, "org_id": t.OrgID, "name": t.Name, "description": t.Description,
 		"roles": roles, "workflow_template_ref": t.WorkflowTemplateRef,
-		"experience_count": len(t.Experiences), "curated": t.Curated, "version": t.Version,
+		"experience_count": len(t.Experiences), "rule_count": len(t.Rules),
+		"curated": t.Curated, "version": t.Version,
 	}
 }
 
@@ -431,6 +581,7 @@ type createTeamTemplateReq struct {
 	Roles               []roleSlotReq   `json:"roles"`
 	WorkflowTemplateRef string          `json:"workflow_template_ref"`
 	Experiences         []experienceReq `json:"experiences"`
+	Rules               []ruleReq       `json:"rules"`
 }
 
 // buildTemplate constructs a normalized TeamTemplate from an inline request in the
@@ -445,6 +596,7 @@ func buildTemplate(d HandlerDeps, orgID string, req createTeamTemplateReq, curat
 		Roles:               toRoleSlots(req.Roles),
 		WorkflowTemplateRef: req.WorkflowTemplateRef,
 		Experiences:         toExperiences(req.Experiences),
+		Rules:               toRules(req.Rules),
 		Curated:             curated,
 		CreatedAt:           time.Now().UTC(),
 	})
@@ -624,6 +776,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		Roles:               toRoleSlots(req.Template.Roles),
 		WorkflowTemplateRef: req.Template.WorkflowTemplateRef,
 		Experiences:         toExperiences(req.Template.Experiences),
+		Rules:               toRules(req.Template.Rules),
 		CreatedAt:           now,
 	})
 	if err != nil {
@@ -725,7 +878,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	memorySeeded := false
 	if d.TeamGitHost != nil {
 		prod := centergit.NewTeamMemoryProducer(d.TeamGitHost, nil)
-		if _, seedErr := prod.SeedTeam(r.Context(), created.ID().String(), toMemoryEntries(instPlan.MemorySeed)); seedErr == nil {
+		if _, seedErr := prod.SeedTeam(r.Context(), created.ID().String(), toMemoryEntries(instPlan.MemorySeed), toMemoryRules(instPlan.RuleSeed)); seedErr == nil {
 			memorySeeded = true
 		}
 	}
@@ -743,6 +896,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		// wiring without the identity provision service — refs stay minted).
 		"identities_created": identitiesCreated,
 		"memory_seed_count":  len(instPlan.MemorySeed),
+		"rule_seed_count":    len(instPlan.RuleSeed),
 		"memory_seeded":      memorySeeded,
 		// The runtime-provisioning plan is a SEPARATE step (design §9): the
 		// template carries no runtime/auth, so the operator runs enroll for each.
@@ -812,6 +966,21 @@ func toMemoryEntries(in []team.Experience) []centergit.Entry {
 	return out
 }
 
+func toMemoryRules(in []team.Rule) []centergit.Rule {
+	out := make([]centergit.Rule, 0, len(in))
+	for _, r := range in {
+		out = append(out, centergit.Rule{
+			Slug:        r.Slug,
+			Title:       r.Title,
+			Description: r.Description,
+			Body:        r.Body,
+			Enabled:     r.Enabled,
+			AppliesTo:   append([]string(nil), r.AppliesTo...),
+		})
+	}
+	return out
+}
+
 // --- extract_from_team -------------------------------------------------------
 
 type extractFromTeamReq struct {
@@ -848,24 +1017,34 @@ func (s *Server) extractFromTeamHandler(w http.ResponseWriter, r *http.Request) 
 	// wired (client/test mode) → degrade to a roles-only draft rather than erroring,
 	// mirroring instantiate_team's memory_seeded=false degrade.
 	var experiences []team.Experience
+	var rules []team.Rule
 	var skipped []string
 	if d.TeamGitHost != nil {
-		entries, skp, rErr := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeam(r.Context(), t.ID().String())
+		consumer := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil)
+		entries, skp, rErr := consumer.ReadTeam(r.Context(), t.ID().String())
 		if rErr != nil {
 			mapDomainError(w, rErr)
 			return
 		}
 		experiences = experiencesFromEntries(entries)
+		ruleFiles, ruleSkp, rrErr := consumer.ReadTeamAllRules(r.Context(), t.ID().String())
+		if rrErr != nil {
+			mapDomainError(w, rrErr)
+			return
+		}
+		rules = rulesFromMemoryRules(ruleFiles)
 		// skp names any NON-STANDARD files a member pushed into the team repo (no
 		// frontmatter, stray notes, …). ReadTeam skipped them instead of crashing —
 		// we flag the count so the curator knows some content was not extractable
 		// (design §6: a member's stray push must not 500 the whole extract).
 		skipped = skp
+		skipped = append(skipped, ruleSkp...)
 	}
 
 	res, err := team.ExtractFromTeam(team.TeamSnapshot{
 		Team:        t,
 		Experiences: experiences,
+		Rules:       rules,
 		Counts:      req.Counts,
 	}, d.TeamIDGen.NewEntityID("teamtmpl"), nil, time.Now().UTC())
 	if err != nil {
@@ -888,6 +1067,21 @@ func experiencesFromEntries(in []centergit.Entry) []team.Experience {
 			Description: e.Description,
 			Body:        e.Body,
 			Scope:       team.ExperienceScope(e.Type),
+		})
+	}
+	return out
+}
+
+func rulesFromMemoryRules(in []centergit.Rule) []team.Rule {
+	out := make([]team.Rule, 0, len(in))
+	for _, r := range in {
+		out = append(out, team.Rule{
+			Slug:        r.Slug,
+			Title:       r.Title,
+			Description: r.Description,
+			Body:        r.Body,
+			Enabled:     r.Enabled,
+			AppliesTo:   append([]string(nil), r.AppliesTo...),
 		})
 	}
 	return out

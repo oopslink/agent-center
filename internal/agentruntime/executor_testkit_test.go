@@ -81,12 +81,14 @@ func attach(rt *LocalRuntime, ee *ExecutorEngine) *LocalRuntime {
 // scriptedToolCaller is a TEST-ONLY ToolCaller that records calls in order and returns
 // canned per-tool responses.
 type scriptedToolCaller struct {
-	mu          sync.Mutex
-	calls       []scriptedCall
-	getTaskBody map[string]any
-	getTaskRaw  []byte
-	getTaskErr  error
-	startErr    error
+	mu            sync.Mutex
+	calls         []scriptedCall
+	getTaskBody   map[string]any
+	getTaskRaw    []byte
+	getTaskErr    error
+	teamRulesBody map[string]any
+	teamRulesErr  error
+	startErr      error
 	// seq, when set, also records each tool name into a shared cross-collaborator
 	// order log (so a repo-workspace test can assert PrepareWorktree happens BEFORE
 	// start_task). Nil for the pre-existing tests → no behavior change.
@@ -121,6 +123,15 @@ func (s *scriptedToolCaller) CallAgentTool(_ context.Context, tool string, body 
 			*out = append((*out)[:0], rb...)
 		}
 		return nil
+	case "get_team_rules":
+		if s.teamRulesErr != nil {
+			return s.teamRulesErr
+		}
+		if out != nil && s.teamRulesBody != nil {
+			rb, _ := json.Marshal(s.teamRulesBody)
+			*out = append((*out)[:0], rb...)
+		}
+		return nil
 	case "start_task":
 		return s.startErr
 	default:
@@ -139,7 +150,8 @@ func (s *scriptedToolCaller) toolsSeen() []string {
 }
 
 // assertAdmissionForked locks the admission handshake of a FORKING spawn: get_task then
-// start_task, in that order, as the first two center calls.
+// start_task, in that order, as the first two center calls. A get_team_rules call may
+// follow immediately before launch; it is the run's auditable rule snapshot.
 //
 // It deliberately does NOT lock the TOTAL call count. A forked executor is the `true`
 // stand-in, so it exits immediately and is reaped asynchronously; reconcileOneExecutor
@@ -159,8 +171,8 @@ func assertAdmissionForked(t *testing.T, sc *scriptedToolCaller, msg string) {
 		t.Fatalf("%s: tool calls = %v — want [get_task start_task] as the first two calls", msg, seen)
 	}
 	for i, tool := range seen[2:] {
-		if tool != "get_task" {
-			t.Fatalf("%s: tool calls = %v — call #%d is %q; after the admission handshake only get_task (the async reap's should-continue query) may follow",
+		if tool != "get_task" && tool != "get_team_rules" {
+			t.Fatalf("%s: tool calls = %v — call #%d is %q; after the admission handshake only get_team_rules (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow",
 				msg, seen, i+2, tool)
 		}
 	}

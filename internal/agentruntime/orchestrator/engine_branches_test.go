@@ -102,8 +102,18 @@ func TestBuildPrompt_AllBranches(t *testing.T) {
 	full := eng.buildPrompt(context.Background(), WorkItem{
 		Goal:    executor.Goal{Title: "T", Description: "D", IssueSpec: "S"},
 		Context: "C",
+		RuleSnapshot: &executor.RuleSnapshot{
+			TeamID: "team-1",
+			Phase:  "execute",
+			Commit: "abc123",
+			Rules: []executor.RuleContext{{
+				Slug:        "prefer-tests",
+				Description: "test rule",
+				Body:        "Write a focused test.",
+			}},
+		},
 	})
-	for _, want := range []string{"T", "D", "## Spec\nS", "## Context\nC"} {
+	for _, want := range []string{"T", "D", "## Spec\nS", "## Context\nC", "## Team Rules (execute)", "team=team-1 commit=abc123", "Write a focused test."} {
 		if !strings.Contains(full, want) {
 			t.Errorf("prompt %q missing %q", full, want)
 		}

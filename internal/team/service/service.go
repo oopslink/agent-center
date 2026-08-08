@@ -346,6 +346,11 @@ func (s *Service) ListMembersByTeams(ctx context.Context, ids []team.TeamID) ([]
 	return s.repo.ListMembersByTeams(ctx, ids)
 }
 
+// FindAgentTeam returns the team an agent currently belongs to, if any.
+func (s *Service) FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error) {
+	return s.repo.FindAgentTeam(ctx, ref)
+}
+
 // AssociateProject links a project to a team.
 func (s *Service) AssociateProject(ctx context.Context, id team.TeamID, projectID string) error {
 	if projectID == "" {

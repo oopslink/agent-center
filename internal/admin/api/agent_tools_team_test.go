@@ -120,10 +120,16 @@ func TestTeamTools_CRUDAndInstantiate(t *testing.T) {
 			{"slug": "prefer-tdd", "description": "write tests first", "scope": "team", "body": "always TDD"},
 			{"slug": "secret-fact", "description": "proj only", "scope": "project"}, // dropped on instantiate seed
 		},
+		"rules": []map[string]any{
+			{"slug": "plan-dag", "description": "plan with a DAG", "body": "Use explicit dependencies.", "enabled": true, "applies_to": []string{"plan"}},
+		},
 	}
 	st, body = postBearer(t, srv.URL, "/admin/agent-tools/create_team_template", "acat_w1", tmpl)
 	if st != http.StatusCreated {
 		t.Fatalf("create_team_template status=%d body=%v", st, body)
+	}
+	if rc, _ := body["rule_count"].(float64); int(rc) != 1 {
+		t.Fatalf("create_team_template rule_count=%v want 1", body["rule_count"])
 	}
 
 	// instantiate_team expands the template into the org (project-independent,
@@ -145,6 +151,9 @@ func TestTeamTools_CRUDAndInstantiate(t *testing.T) {
 	if n, _ := body["memory_seed_count"].(float64); int(n) != 1 {
 		t.Errorf("memory_seed_count=%v want 1 (project-scope dropped)", body["memory_seed_count"])
 	}
+	if n, _ := body["rule_seed_count"].(float64); int(n) != 1 {
+		t.Errorf("rule_seed_count=%v want 1", body["rule_seed_count"])
+	}
 	rt, _ := body["runtime_provisioning"].(map[string]any)
 	if enr, _ := rt["enrollments"].([]any); len(enr) != 3 {
 		t.Errorf("runtime_provisioning enrollments=%v want 3", rt["enrollments"])
@@ -160,6 +169,60 @@ func TestTeamTools_Unwired(t *testing.T) {
 	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{"agent_id": atAgent1, "name": "x"})
 	if st != http.StatusNotImplemented {
 		t.Fatalf("unwired create_team status=%d body=%v, want 501 (NOT 404)", st, body)
+	}
+}
+
+func TestTeamTools_GetTeamRulesLoadsEnabledPhaseSnapshot(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-rules", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+
+	written, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
+		{Slug: "execute-rule", Description: "execute hook", Body: "Execute carefully.", Enabled: true, AppliesTo: []string{"execute"}},
+		{Slug: "review-rule", Description: "review hook", Body: "Review carefully.", Enabled: true, AppliesTo: []string{"review"}},
+		{Slug: "off-rule", Description: "off hook", Body: "Do not load.", Enabled: false, AppliesTo: []string{"execute"}},
+	})
+	if err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+	if written != 3 {
+		t.Fatalf("SeedTeam wrote %d rules, want 3", written)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rules", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("get_team_rules status=%d body=%v", st, body)
+	}
+	if body["team_id"] != teamID || body["phase"] != "execute" {
+		t.Fatalf("bad team rules metadata: %v", body)
+	}
+	if commit, _ := body["commit"].(string); commit == "" {
+		t.Fatalf("get_team_rules missing commit: %v", body)
+	}
+	rules, _ := body["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("rules=%v want exactly one execute rule", body["rules"])
+	}
+	rule, _ := rules[0].(map[string]any)
+	if rule["slug"] != "execute-rule" || rule["body"] != "Execute carefully." || rule["source_path"] == "" {
+		t.Fatalf("unexpected rule payload: %v", rule)
 	}
 }
 

@@ -7,9 +7,8 @@ import (
 
 // template.go implements the Team template artifact (design §6): an org-level,
 // user-managed snapshot of a team's reusable shape — role composition + per-role
-// config, a referenced workflow template, and the generalizable experience
-// (skills/rules/principles). A template is a SNAPSHOT: instances are independent
-// and are NOT retro-updated (design §9 "模版版本不 retro").
+// config, portable memory entries, and team rules. A template is a SNAPSHOT:
+// instances are independent and are NOT retro-updated (design §9 "模版版本不 retro").
 //
 // Three first-class create/manage paths (design §6), all landing on this type:
 //   - manual create / update / delete / list (see service layer);
@@ -43,8 +42,8 @@ func (s ExperienceScope) Portable() bool {
 	return s == ExpScopeTeam || s == ExpScopeGlobal
 }
 
-// Experience is one generalizable memory/skill/rule entry captured in a
-// template. It mirrors the one-file-per-experience memory model (design §9).
+// Experience is one generalizable memory entry captured in a template. It
+// mirrors the one-file-per-experience memory model (design §9).
 type Experience struct {
 	Slug        string
 	Title       string
@@ -52,6 +51,18 @@ type Experience struct {
 	Body        string
 	Scope       ExperienceScope
 	Tags        []string
+}
+
+// Rule is one operational team rule captured in a template. Rules are seeded
+// into rules/ in the Team Memory repo; the directory is the type source, so this
+// has no kind/type field.
+type Rule struct {
+	Slug        string
+	Title       string
+	Description string
+	Body        string
+	Enabled     bool
+	AppliesTo   []string
 }
 
 // RoleSlot is a template role: the per-role config (cli/model/tags/concurrency)
@@ -70,10 +81,13 @@ type TeamTemplate struct {
 	Description string
 	// Roles is the role composition + per-role config (design §6 block ①).
 	Roles []RoleSlot
-	// WorkflowTemplateRef references a workflow template (design §6 block ②).
+	// WorkflowTemplateRef is a legacy compatibility field for pre-rules workflow
+	// templates. New runtime behavior is driven by Rules seeded into Team Memory.
 	WorkflowTemplateRef string
-	// Experiences are the portable skills/rules/principles (design §6 block ③).
+	// Experiences are portable memory entries (design §6 block ③).
 	Experiences []Experience
+	// Rules are portable operational rules seeded into rules/.
+	Rules []Rule
 	// Curated records that a human ran the mandatory manual curation pass
 	// (design §9). export / cross-org share REQUIRE this (Validate enforces it
 	// on the IO path; see template_io.go).
@@ -92,6 +106,7 @@ type NewTemplateInput struct {
 	Roles               []RoleSlot
 	WorkflowTemplateRef string
 	Experiences         []Experience
+	Rules               []Rule
 	Curated             bool
 	CreatedAt           time.Time
 }
@@ -121,6 +136,7 @@ func NewTemplate(in NewTemplateInput) (*TeamTemplate, error) {
 		Roles:               roles,
 		WorkflowTemplateRef: strings.TrimSpace(in.WorkflowTemplateRef),
 		Experiences:         append([]Experience(nil), in.Experiences...),
+		Rules:               append([]Rule(nil), in.Rules...),
 		Curated:             in.Curated,
 		Version:             1,
 		CreatedAt:           ts.UTC(),
@@ -181,6 +197,7 @@ type TeamSnapshot struct {
 	Team                *Team
 	WorkflowTemplateRef string
 	Experiences         []Experience
+	Rules               []Rule
 	// Counts optionally overrides per-role instance counts (role → count). When
 	// absent a role defaults to Count 1.
 	Counts map[string]int
@@ -236,6 +253,15 @@ func ExtractFromTeam(snap TeamSnapshot, newID string, gen func() string, now tim
 		kept = append(kept, e)
 		findings = append(findings, ScrubExperience(e)...)
 	}
+	rules := append([]Rule(nil), snap.Rules...)
+	for _, r := range rules {
+		findings = append(findings, ScrubExperience(Experience{
+			Slug:        r.Slug,
+			Description: r.Description,
+			Body:        r.Body,
+			Scope:       ExpScopeTeam,
+		})...)
+	}
 
 	draft, err := NewTemplate(NewTemplateInput{
 		ID:                  newID,
@@ -245,6 +271,7 @@ func ExtractFromTeam(snap TeamSnapshot, newID string, gen func() string, now tim
 		Roles:               roles,
 		WorkflowTemplateRef: snap.WorkflowTemplateRef,
 		Experiences:         kept,
+		Rules:               rules,
 		Curated:             false,
 		CreatedAt:           now,
 	})

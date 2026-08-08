@@ -15,8 +15,8 @@ import (
 //   - InstantiationPlan: the IDENTITY + CONFIG + MEMORY-REPO seed + workflow
 //     binding — everything the template CARRIES (per-org-independent). Building
 //     N new agents (new identities) per the role composition, binding them to
-//     the new team under their roles, and the generalizable experiences to seed
-//     into the team's center-hosted memory repo.
+//     the new team under their roles, and the generalizable entries/rules to
+//     seed into the team's center-hosted memory repo.
 //
 //   - RuntimeProvisioningPlan: the SEPARATE step (design §9) that gives those
 //     new agents a runtime home + auth (codex/claude login, MCP token). The
@@ -56,7 +56,10 @@ type InstantiationPlan struct {
 	Members []*TeamMember
 	// MemorySeed is the portable experience to seed into the team memory repo.
 	MemorySeed []Experience
-	// WorkflowTemplateRef is the workflow to bind (design §6 "绑 workflow").
+	// RuleSeed is the portable rule set to seed into rules/.
+	RuleSeed []Rule
+	// WorkflowTemplateRef is the legacy workflow template reference. New
+	// runtime behavior is driven by RuleSeed.
 	WorkflowTemplateRef string
 }
 
@@ -174,6 +177,7 @@ func PlanInstantiation(in InstantiateInput) (*InstantiationPlan, *RuntimeProvisi
 		Agents:              agents,
 		Members:             memberRs,
 		MemorySeed:          seed,
+		RuleSeed:            append([]Rule(nil), in.Template.Rules...),
 		WorkflowTemplateRef: in.Template.WorkflowTemplateRef,
 	}
 	rtPlan := &RuntimeProvisioningPlan{Enrollments: enrolls}

@@ -545,6 +545,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/delete_team", s.deleteTeamHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_team", s.getTeamHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_teams", s.listTeamsHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_team_rules", s.getTeamRulesHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_member", s.addMemberHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/remove_member", s.removeMemberHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/associate_project", s.associateProjectHandler)

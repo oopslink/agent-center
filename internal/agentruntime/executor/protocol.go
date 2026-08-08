@@ -114,6 +114,29 @@ type RepoRef struct {
 	BaseSHA       string `json:"base_sha"`
 }
 
+// RuleContext is the frozen, credential-free representation of a team memory
+// rule that applied when the executor was forked.
+type RuleContext struct {
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Body        string   `json:"body,omitempty"`
+	AppliesTo   []string `json:"applies_to,omitempty"`
+	SourcePath  string   `json:"source_path,omitempty"`
+}
+
+// RuleSnapshot records the exact team rules loaded for this run. The commit is
+// the HEAD of the team memory repo that was read, so a later audit can replay
+// the rule set even if the repo has moved on.
+type RuleSnapshot struct {
+	TeamID           string        `json:"team_id,omitempty"`
+	Phase            string        `json:"phase,omitempty"`
+	Commit           string        `json:"commit,omitempty"`
+	Rules            []RuleContext `json:"rules,omitempty"`
+	Skipped          []string      `json:"skipped_nonstandard,omitempty"`
+	RefreshSemantics string        `json:"refresh_semantics,omitempty"`
+}
+
 // Input is input.json — written by the orchestrator, read by the executor
 // (design §7). It is the executor's complete starting context: it carries no
 // credentials and no center handle, by design.
@@ -125,11 +148,12 @@ type Input struct {
 	// CLI is the executor CLI the orchestrator routed (claude-code|codex), persisted
 	// for observability — the real-time concurrency snapshot reads it back from
 	// input.json (v2.19.0). Empty for pre-v2.19 launches; not required at startup.
-	CLI       string     `json:"cli,omitempty"`
-	Context   string     `json:"context,omitempty"`
-	Source    SourceRefs `json:"source"`
-	Repo      *RepoRef   `json:"repo_ref,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
+	CLI       string        `json:"cli,omitempty"`
+	Context   string        `json:"context,omitempty"`
+	Source    SourceRefs    `json:"source"`
+	Repo      *RepoRef      `json:"repo_ref,omitempty"`
+	TeamRules *RuleSnapshot `json:"team_rules,omitempty"`
+	CreatedAt time.Time     `json:"created_at"`
 	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
 	// center stamps it at dispatch so the worker-side writeback — which only sees
 	// input.json — can tell an executor-fork Dev node from a supervisor-inline node that
