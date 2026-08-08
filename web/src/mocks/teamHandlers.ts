@@ -5,6 +5,8 @@ import type {
   RoleSlot,
   SaveTemplateInput,
   TeamProjectLink,
+  TeamMemoryProposal,
+  TeamMemorySettings,
   TeamTemplate,
   TeamView,
 } from '@/api/teams';
@@ -190,6 +192,132 @@ export function teamHandlers() {
 
     // ---- P2: team memory (read-only) ----
     http.get('/api/teams/:id/memory', () => json(teamsStore().memoryIndex)),
+
+    http.get('/api/teams/:id/memory/proposals/:proposalId', ({ params }) => {
+      const proposal = teamsStore().memoryProposals[String(params.proposalId)];
+      return proposal
+        ? json({
+          slug: proposal.id,
+          path: proposal.source_path,
+          source_path: proposal.source_path,
+          title: proposal.title,
+          frontmatter: `id: ${proposal.id}\nstatus: ${proposal.status}`,
+          body: proposal.body,
+          uuid: proposal.uuid,
+          commit: proposal.commit,
+          kind: 'proposal',
+          diff: proposal.diff,
+          proposal,
+          effect_hint: teamsStore().memorySettings[String(params.id)]?.effect_hint,
+        })
+        : HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
+    }),
+
+    http.post('/api/teams/:id/memory/proposals', async ({ request }) => {
+      const input = (await request.json()) as {
+        target_kind: 'entry' | 'rule';
+        slug: string;
+        title: string;
+        description: string;
+        body: string;
+        enabled: boolean;
+        applies_to: string[];
+        warning_acknowledged: boolean;
+      };
+      if (!input.warning_acknowledged) {
+        return HttpResponse.json({ error: 'warning_ack_required', message: 'warning acknowledgement is required' }, { status: 400 });
+      }
+      const s = teamsStore();
+      const n = Object.keys(s.memoryProposals).length + 1;
+      const id = `proposal-new-${n}`;
+      const proposal: TeamMemoryProposal = {
+        id,
+        uuid: `uuid-new-${n}`,
+        status: 'pending',
+        target_kind: input.target_kind,
+        slug: input.slug,
+        title: input.title || input.slug,
+        description: input.description,
+        body: input.body,
+        author_ref: 'user:user-oops',
+        created_at: '2026-08-08T12:00:00Z',
+        updated_at: '2026-08-08T12:00:00Z',
+        source_path: `proposals/${id}.md`,
+        promoted_path: '',
+        target_uuid: '',
+        commit: 'newcommit123',
+        enabled: input.enabled,
+        applies_to: input.applies_to,
+        warning_acknowledged: true,
+        reject_reason: '',
+        diff: `+++ ${input.target_kind === 'rule' ? 'rules' : 'entries'}/${input.slug}.md\n+${input.body}`,
+      };
+      s.memoryProposals[id] = proposal;
+      s.memoryIndex.push({ slug: id, kind: 'proposal', path: proposal.source_path, source_path: proposal.source_path, title: proposal.title, status: proposal.status, target_kind: proposal.target_kind, uuid: proposal.uuid, commit: proposal.commit });
+      return json(proposal, 201);
+    }),
+
+    http.post('/api/teams/:id/memory/proposals/:proposalId/promote', ({ params }) => {
+      const s = teamsStore();
+      const proposal = s.memoryProposals[String(params.proposalId)];
+      if (!proposal) return HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
+      proposal.status = 'promoted';
+      proposal.promoted_path = `${proposal.target_kind === 'rule' ? 'rules' : 'entries'}/${proposal.slug}-targetuuid.md`;
+      proposal.target_uuid = 'targetuuid';
+      const idx = s.memoryIndex.find((item) => item.slug === proposal.id);
+      if (idx) {
+        idx.status = 'promoted';
+        idx.promoted_path = proposal.promoted_path;
+      }
+      const docPath = proposal.promoted_path;
+      s.memoryDocs[proposal.slug] = {
+        slug: proposal.slug,
+        path: docPath,
+        source_path: docPath,
+        title: proposal.title,
+        frontmatter: `name: ${proposal.slug}\nuuid: targetuuid`,
+        body: proposal.body,
+        uuid: 'targetuuid',
+        commit: proposal.commit,
+        kind: proposal.target_kind,
+      };
+      return json(proposal);
+    }),
+
+    http.post('/api/teams/:id/memory/proposals/:proposalId/reject', async ({ params, request }) => {
+      const s = teamsStore();
+      const proposal = s.memoryProposals[String(params.proposalId)];
+      if (!proposal) return HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
+      const input = (await request.json()) as { reason?: string };
+      proposal.status = 'rejected';
+      proposal.reject_reason = input.reason ?? '';
+      const idx = s.memoryIndex.find((item) => item.slug === proposal.id);
+      if (idx) idx.status = 'rejected';
+      return json(proposal);
+    }),
+
+    http.get('/api/teams/:id/memory/settings', ({ params }) => {
+      const settings = teamsStore().memorySettings[String(params.id)] ?? {
+        curator_agents: [],
+        policy: 'owner_admin_review',
+        effect_hint: 'New sessions and fresh forks load promoted team memory from the current commit; in-flight sessions keep their snapshotted rules until restarted or forked again.',
+      } satisfies TeamMemorySettings;
+      return json(settings);
+    }),
+
+    http.put('/api/teams/:id/memory/settings', async ({ params, request }) => {
+      const input = (await request.json()) as Pick<TeamMemorySettings, 'curator_agents' | 'policy'>;
+      const settings: TeamMemorySettings = {
+        curator_agents: Array.from(new Set(input.curator_agents.filter((ref) => ref.startsWith('agent:')))).sort(),
+        policy: input.policy,
+        updated_at: '2026-08-08T12:30:00Z',
+        updated_by: 'user:user-oops',
+        commit: 'settingscommit',
+        effect_hint: 'New sessions and fresh forks load promoted team memory from the current commit; in-flight sessions keep their snapshotted rules until restarted or forked again.',
+      };
+      teamsStore().memorySettings[String(params.id)] = settings;
+      return json(settings);
+    }),
 
     http.get('/api/teams/:id/memory/:entry', ({ params }) => {
       const doc = teamsStore().memoryDocs[String(params.entry)];

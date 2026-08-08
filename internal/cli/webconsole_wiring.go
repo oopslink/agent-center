@@ -16,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/airuntime"
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -147,6 +148,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// experience read go through the SAME center-hosted git host the /admin team
 		// tools use. nil in test/client mode → memory degrades to empty (design §6).
 		TeamGitHost: buildTeamGitHost(a),
+		TeamMemory:  centergit.NewTeamMemoryService(buildTeamGitHost(a), nil),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -577,6 +579,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// experience read go through the SAME center-hosted git host the /admin team
 		// tools use. nil in test/client mode → memory degrades to empty (design §6).
 		TeamGitHost: buildTeamGitHost(a),
+		TeamMemory:  centergit.NewTeamMemoryService(buildTeamGitHost(a), nil),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

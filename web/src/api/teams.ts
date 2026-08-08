@@ -99,17 +99,67 @@ export interface TeamTemplate {
 export interface MemoryIndexEntry {
   slug?: string;
   path?: string;
+  source_path?: string;
   pinned?: boolean;
   group?: string;
+  kind?: 'index' | 'entry' | 'rule' | 'proposal';
+  title?: string;
+  description?: string;
+  uuid?: string;
+  commit?: string;
+  status?: TeamMemoryProposalStatus;
+  target_kind?: 'entry' | 'rule';
+  promoted_path?: string;
 }
 
-/** A rendered team-memory document (Phase-1: read-only). */
+export type TeamMemoryProposalStatus = 'pending' | 'promoted' | 'rejected';
+
+export interface TeamMemoryProposal {
+  id: string;
+  uuid: string;
+  status: TeamMemoryProposalStatus;
+  target_kind: 'entry' | 'rule';
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  author_ref: string;
+  created_at: string;
+  updated_at: string;
+  source_path: string;
+  promoted_path: string;
+  target_uuid: string;
+  commit: string;
+  enabled: boolean;
+  applies_to: string[];
+  warning_acknowledged: boolean;
+  reject_reason: string;
+  diff: string;
+}
+
+/** A rendered team-memory document. */
 export interface MemoryDoc {
   slug: string;
   path: string;
+  source_path?: string;
   title: string;
   frontmatter: string | null;
   body: string;
+  uuid?: string;
+  commit?: string;
+  kind?: 'index' | 'entry' | 'rule' | 'proposal';
+  diff?: string;
+  proposal?: TeamMemoryProposal;
+  effect_hint?: string;
+}
+
+export interface TeamMemorySettings {
+  curator_agents: string[];
+  policy: 'owner_admin_review' | 'curator_review' | 'read_only';
+  updated_at?: string;
+  updated_by?: string;
+  commit?: string;
+  effect_hint?: string;
 }
 
 /** Curation finding kind — mirrors internal/team ScrubKind. */
@@ -218,7 +268,8 @@ export const teamKeys = {
   members: (id: string) => key('members', id),
   projects: (id: string) => key('projects', id),
   memoryIndex: (id: string) => key('memory', id),
-  memoryDoc: (id: string, slug: string) => key('memory', id, slug),
+  memoryDoc: (id: string, slug: string, kind?: string) => key('memory', id, kind ?? 'auto', slug),
+  memorySettings: (id: string) => key('memory', id, 'settings'),
   templates: () => key('templates'),
   template: (id: string) => key('template', id),
   templateInstances: (id: string) => key('template', id, 'instances'),
@@ -388,11 +439,90 @@ export function useTeamMemoryIndex(id: string) {
   });
 }
 
-export function useTeamMemoryDoc(id: string, slug: string) {
+export function useTeamMemoryDoc(id: string, slug: string, kind?: MemoryIndexEntry['kind']) {
   return useQuery({
-    queryKey: teamKeys.memoryDoc(id, slug),
-    queryFn: () => api.get<MemoryDoc>(`/teams/${id}/memory/${encodeURIComponent(slug)}`),
+    queryKey: teamKeys.memoryDoc(id, slug, kind),
+    queryFn: () => {
+      if (kind === 'proposal') {
+        return api.get<MemoryDoc>(`/teams/${id}/memory/proposals/${encodeURIComponent(slug)}`);
+      }
+      const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+      return api.get<MemoryDoc>(`/teams/${id}/memory/${encodeURIComponent(slug)}${qs}`);
+    },
     enabled: !!id && !!slug,
+  });
+}
+
+export interface CreateTeamMemoryProposalInput {
+  team_id: string;
+  target_kind: 'entry' | 'rule';
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  enabled: boolean;
+  applies_to: string[];
+  warning_acknowledged: boolean;
+}
+
+export function useCreateTeamMemoryProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTeamMemoryProposalInput) =>
+      api.post<TeamMemoryProposal>(`/teams/${input.team_id}/memory/proposals`, {
+        target_kind: input.target_kind,
+        slug: input.slug,
+        title: input.title,
+        description: input.description,
+        body: input.body,
+        enabled: input.enabled,
+        applies_to: input.applies_to,
+        warning_acknowledged: input.warning_acknowledged,
+      }),
+    onSuccess: (_d, input) => {
+      qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(input.team_id) });
+    },
+  });
+}
+
+export function usePromoteTeamMemoryProposal(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (proposalId: string) =>
+      api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(proposalId)}/promote`, {}),
+    onSuccess: (_d, proposalId) => {
+      qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(teamId) });
+      qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(teamId, proposalId, 'proposal') });
+    },
+  });
+}
+
+export function useRejectTeamMemoryProposal(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { proposal_id: string; reason: string }) =>
+      api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(input.proposal_id)}/reject`, { reason: input.reason }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(teamId) });
+      qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(teamId, v.proposal_id, 'proposal') });
+    },
+  });
+}
+
+export function useTeamMemorySettings(teamId: string) {
+  return useQuery({
+    queryKey: teamKeys.memorySettings(teamId),
+    queryFn: () => api.get<TeamMemorySettings>(`/teams/${teamId}/memory/settings`),
+    enabled: !!teamId,
+  });
+}
+
+export function useUpdateTeamMemorySettings(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Pick<TeamMemorySettings, 'curator_agents' | 'policy'>) =>
+      api.put<TeamMemorySettings>(`/teams/${teamId}/memory/settings`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.memorySettings(teamId) }),
   });
 }
 
