@@ -93,12 +93,21 @@ type Config struct {
 	// search_tools meta-tool. Off (default) registers the FULL set — used by the
 	// docs export and parity tests. The production per-agent host turns it ON.
 	TierTools bool
+	// Generation is the supervisor generation that launched this MCP host. It is
+	// stamped onto the frozen plan-rule snapshot so audits can distinguish a
+	// reused planning session from a fresh supervisor generation reload.
+	Generation int
+
+	planningRules *planningRuleCache
 }
 
 // NewServer builds the per-agent MCP server, registers the b3-i tools, and
 // returns it WITHOUT running it. The caller runs it (srv.Run with a
 // transport) so tests can attach an in-process transport.
 func NewServer(cfg Config) *mcp.Server {
+	if cfg.planningRules == nil {
+		cfg.planningRules = newPlanningRuleCache(cfg)
+	}
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "agent-center-mcp-host",
 		Version: "0.1.0",
@@ -123,6 +132,11 @@ func NewServer(cfg Config) *mcp.Server {
 // registerAllTools registers the FULL agent-facing tool surface on srv.
 // NewServer calls it, then (when cfg.TierTools) defers the secondary tier.
 func registerAllTools(srv *mcp.Server, cfg Config) {
+	planningRules := cfg.planningRules
+	if planningRules == nil {
+		planningRules = newPlanningRuleCache(cfg)
+	}
+
 	// v2.14.0 I14/F5 §五/§13.A: the SINGLE "what do I have to do?" query in the Task
 	// model — replaces get_my_work. Returns the agent's open/running tasks that are
 	// RUNNABLE (blockedBy deps satisfied), each carrying its blocked_reason /
@@ -397,7 +411,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_plan",
 		Description: "Create a new pending plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
-	}, makeCreatePlan(cfg))
+	}, makeCreatePlan(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
@@ -435,7 +449,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "edit_plan_topology",
 		Description: "Atomically edit a plan's DAG with a batch of ops — the SINGLE topology-edit entrypoint, for PENDING and RUNNING plans alike. Pass base_version (read from get_plan) for optimistic concurrency: if another edit landed first you get a version conflict — re-read and retry. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated (a reorder may pass through a transient cycle), so it must be acyclic and, when running, every node must have a resolvable assignee. On a RUNNING plan you may only restructure a node that has not started (blocked/ready): editing the in-edges of, or removing, a dispatched/running/completed node is rejected. Newly-ready nodes are dispatched immediately. Prefer this over add_task_to_plan/add_plan_dependency (pending-only, deprecated).",
-	}, makeEditPlanTopology(cfg))
+	}, makeEditPlanTopology(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",

@@ -121,6 +121,7 @@ type RuleContext struct {
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Body        string   `json:"body,omitempty"`
+	Enabled     bool     `json:"enabled"`
 	AppliesTo   []string `json:"applies_to,omitempty"`
 	SourcePath  string   `json:"source_path,omitempty"`
 }

@@ -30,6 +30,9 @@ type CreatePlanCommand struct {
 	Description string
 	TargetDate  *time.Time
 	CreatedBy   pm.IdentityRef
+	// PlanningRules is the phase=plan Team Memory snapshot consumed by the
+	// plan-authoring tool chain for this create operation.
+	PlanningRules *RuleSnapshot
 }
 
 // CreatePlan writes the Plan (draft) + outbox pm.plan.created. The projector
@@ -95,8 +98,13 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 			}); err != nil {
 			return err
 		}
-		// audit §5: record the plan's creation.
-		s.auditPlan(txCtx, p, pm.AuditPlanCreated, cmd.CreatedBy, map[string]any{"name": p.Name()})
+		// audit §5: record the plan's creation and the frozen phase=plan Team
+		// Memory snapshot the tool chain consumed for this planning session.
+		detail := map[string]any{"name": p.Name()}
+		if rules := PlanRuleSnapshotAudit(cmd.PlanningRules); rules != nil {
+			detail["team_rules"] = rules
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanCreated, cmd.CreatedBy, detail)
 		return nil
 	})
 	if err != nil {

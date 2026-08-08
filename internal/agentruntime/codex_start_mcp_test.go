@@ -71,6 +71,7 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 		`command = "/opt/agent-center-worker"`,
 		`"worker"`, `"mcp-host"`,
 		`AC_MCP_TIER_TOOLS = "false"`,
+		`AC_MCP_GENERATION = "1"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("config.toml missing %q; got:\n%s", want, s)

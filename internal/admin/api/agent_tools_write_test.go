@@ -140,6 +140,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		IDGen:            gen,
 		Clock:            clk,
 		AgentDir:         atAllAgentsDir{},
+		Audit:            pmsql.NewAuditLogRepo(db, gen),
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, func(_ context.Context, ref string) (string, bool) {
 			if i := strings.IndexByte(ref, ':'); i >= 0 {
 				ref = ref[i+1:]

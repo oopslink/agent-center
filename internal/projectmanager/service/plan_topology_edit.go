@@ -72,6 +72,9 @@ type EditPlanTopologyCommand struct {
 	BaseVersion int
 	Ops         []TopologyOp
 	Actor       pm.IdentityRef
+	// PlanningRules is the frozen phase=plan Team Memory snapshot used by this
+	// authoring session. It is audited with the topology commit.
+	PlanningRules *RuleSnapshot
 }
 
 // EditPlanTopology applies an ops batch to a draft OR running plan atomically
@@ -276,13 +279,17 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 		}
 
 		// ---- §5 layer 2: the ONE topology_commit audit entry. ----
-		s.auditPlan(txCtx, p, pm.AuditPlanTopologyCommit, cmd.Actor, map[string]any{
+		auditDetail := map[string]any{
 			"from_version":  cmd.BaseVersion,
 			"to_version":    cmd.BaseVersion + 1,
 			"ops":           opsAuditDetail(cmd.Ops),
 			"added_nodes":   taskIDStrings(addedNodes),
 			"removed_nodes": taskIDStrings(removedNodes),
-		})
+		}
+		if rules := PlanRuleSnapshotAudit(cmd.PlanningRules); rules != nil {
+			auditDetail["team_rules"] = rules
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanTopologyCommit, cmd.Actor, auditDetail)
 
 		// ---- §4 step 4 (cont.): running → rebuild graph + dispatch new ready nodes. ----
 		if running {

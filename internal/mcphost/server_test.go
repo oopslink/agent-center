@@ -57,10 +57,17 @@ func TestResetTaskTool_StatesSupervisorMustFork(t *testing.T) {
 // so the tests exercise the real mcp.Server end-to-end over an in-memory
 // transport without a center.
 type fakeAdmin struct {
-	gotTool string
-	gotBody map[string]any
-	canned  json.RawMessage
-	err     error
+	gotTool      string
+	gotBody      map[string]any
+	calls        []adminCall
+	canned       json.RawMessage
+	cannedByTool map[string]json.RawMessage
+	err          error
+}
+
+type adminCall struct {
+	tool string
+	body map[string]any
 }
 
 func (f *fakeAdmin) CallAgentTool(_ context.Context, tool string, body any, out *json.RawMessage) error {
@@ -70,13 +77,30 @@ func (f *fakeAdmin) CallAgentTool(_ context.Context, tool string, body any, out 
 	raw, _ := json.Marshal(body)
 	f.gotBody = map[string]any{}
 	_ = json.Unmarshal(raw, &f.gotBody)
+	f.calls = append(f.calls, adminCall{tool: tool, body: f.gotBody})
 	if f.err != nil {
 		return f.err
 	}
 	if out != nil {
-		*out = append((*out)[:0], f.canned...)
+		canned := f.canned
+		if f.cannedByTool != nil {
+			if byTool, ok := f.cannedByTool[tool]; ok {
+				canned = byTool
+			}
+		}
+		*out = append((*out)[:0], canned...)
 	}
 	return nil
+}
+
+func (f *fakeAdmin) callsFor(tool string) []adminCall {
+	var out []adminCall
+	for _, call := range f.calls {
+		if call.tool == tool {
+			out = append(out, call)
+		}
+	}
+	return out
 }
 
 // connect wires a real mcp.Server (built by NewServer) to an in-process MCP

@@ -2,11 +2,19 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	"github.com/oopslink/agent-center/internal/team"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
 
 // =============================================================================
@@ -60,6 +68,85 @@ func (f *writeToolsFixture) seedPlanTask(t *testing.T, pid pm.ProjectID, planID 
 	return string(tid)
 }
 
+func createPlanRuleTeam(t *testing.T, baseURL string) string {
+	t.Helper()
+	st, body := postBearer(t, baseURL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "plan-rules-team", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	if teamID == "" {
+		t.Fatalf("create_team returned no id: %v", body)
+	}
+	st, body = postBearer(t, baseURL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+	return teamID
+}
+
+func planAuditDetail(t *testing.T, f *writeToolsFixture, planID string, change pm.AuditChangeType) map[string]any {
+	t.Helper()
+	entries, _, err := f.pmSvc.ListObjectAudit(context.Background(), pm.AuditObjectPlan, planID, "", 0)
+	if err != nil {
+		t.Fatalf("ListObjectAudit: %v", err)
+	}
+	for _, e := range entries {
+		if e.ChangeType != change {
+			continue
+		}
+		var detail map[string]any
+		if err := json.Unmarshal([]byte(e.Detail), &detail); err != nil {
+			t.Fatalf("audit detail decode: %v; detail=%s", err, e.Detail)
+		}
+		return detail
+	}
+	t.Fatalf("missing plan audit change %s; entries=%+v", change, entries)
+	return nil
+}
+
+func pushMalformedPlanRule(t *testing.T, gitHost *centergit.Host, teamID string) {
+	t.Helper()
+	bareDir, err := gitHost.RepoDir(centergit.TeamRepo(teamID))
+	if err != nil {
+		t.Fatalf("team repo dir: %v", err)
+	}
+	work := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = work
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	runGit("clone", bareDir, "repo")
+	repoDir := filepath.Join(work, "repo")
+	if err := os.MkdirAll(filepath.Join(repoDir, "rules"), 0o700); err != nil {
+		t.Fatalf("mkdir rules: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "rules", "bad.md"), []byte("not frontmatter\n"), 0o600); err != nil {
+		t.Fatalf("write bad rule: %v", err)
+	}
+	cmd := exec.Command("git", "-C", repoDir, "add", "rules/bad.md")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add bad rule: %v\n%s", err, out)
+	}
+	cmd = exec.Command("git", "-C", repoDir, "-c", "user.name=agent-center", "-c", "user.email=test@example.invalid", "commit", "-m", "add malformed rule")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit bad rule: %v\n%s", err, out)
+	}
+	cmd = exec.Command("git", "-C", repoDir, "push", "origin", "HEAD:main")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git push bad rule: %v\n%s", err, out)
+	}
+}
+
 // --- create_plan -------------------------------------------------------------
 
 func TestCreatePlan_AsMember_OK(t *testing.T) {
@@ -88,6 +175,197 @@ func TestCreatePlan_AsMember_OK(t *testing.T) {
 	if p.Status() != pm.PlanPending {
 		t.Fatalf("status = %s, want draft", p.Status())
 	}
+}
+
+func TestCreatePlan_AutoLoadsPlanTeamRules_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, gitHost := wireTeam(t, f)
+	pid, _ := f.seedMemberProject(t)
+	teamID := createPlanRuleTeam(t, srv.URL)
+
+	written, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(t.Context(), teamID, nil, []centergit.Rule{
+		{Slug: "plan-shape", Description: "shape the DAG", Body: "Keep the plan DAG explicit.", Enabled: true, AppliesTo: []string{"plan"}},
+		{Slug: "execute-only", Description: "execute only", Body: "Do not load for plan.", Enabled: true, AppliesTo: []string{"execute"}},
+	})
+	if err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+	if written != 2 {
+		t.Fatalf("SeedTeam wrote %d rules, want 2", written)
+	}
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Rules Plan"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	planID, _ := body["plan_id"].(string)
+	rulesView, _ := body["team_rules"].(map[string]any)
+	if rulesView["team_id"] != teamID || rulesView["phase"] != "plan" || rulesView["source"] != "team_memory" {
+		t.Fatalf("team_rules metadata = %v", rulesView)
+	}
+	if commit, _ := rulesView["commit"].(string); commit == "" {
+		t.Fatalf("team_rules missing commit: %v", rulesView)
+	}
+	if got := rulesView["refresh_semantics"].(string); !strings.Contains(got, "once per MCP planning session") {
+		t.Fatalf("team_rules refresh_semantics = %q", got)
+	}
+	rules, _ := rulesView["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("team_rules rules=%v want one phase=plan rule", rulesView["rules"])
+	}
+	rule, _ := rules[0].(map[string]any)
+	if rule["slug"] != "plan-shape" || rule["body"] != "Keep the plan DAG explicit." || rule["enabled"] != true || rule["source_path"] == "" {
+		t.Fatalf("unexpected plan rule payload: %v", rule)
+	}
+
+	detail := planAuditDetail(t, f, planID, pm.AuditPlanCreated)
+	auditRules, _ := detail["team_rules"].(map[string]any)
+	if auditRules["team_id"] != teamID || auditRules["commit"] != rulesView["commit"] {
+		t.Fatalf("audit team_rules = %v, response = %v", auditRules, rulesView)
+	}
+	auditList, _ := auditRules["rules"].([]any)
+	if len(auditList) != 1 || auditList[0].(map[string]any)["enabled"] != true {
+		t.Fatalf("audit rules = %v", auditRules["rules"])
+	}
+}
+
+func TestEditPlanTopology_UsesFrozenPlanningRulesFromRequest(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	tid, err := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "new node", CreatedBy: pm.IdentityRef("user:owner"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	srv := f.server(t)
+	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	frozen := map[string]any{
+		"team_id":             "team-frozen",
+		"phase":               "plan",
+		"commit":              "frozen-commit",
+		"source":              "mcp_plan_tool",
+		"planning_session_id": "agent:agent-1/generation:9",
+		"planning_generation": 9,
+		"refresh_semantics":   "frozen for this MCP planning session",
+		"rules": []map[string]any{{
+			"slug": "frozen-plan", "description": "frozen", "body": "Use the frozen snapshot.", "enabled": true,
+			"applies_to": []string{"plan"}, "source_path": "rules/frozen-plan.md",
+		}},
+		"skipped_nonstandard": []string{},
+	}
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/edit_plan_topology", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "plan_id": planID, "base_version": p.Version(),
+		"ops":            []map[string]any{{"op": "add_node", "task_id": string(tid)}},
+		"planning_rules": frozen,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	rulesView, _ := body["team_rules"].(map[string]any)
+	if rulesView["commit"] != "frozen-commit" || rulesView["source"] != "mcp_plan_tool" || rulesView["planning_generation"] != float64(9) {
+		t.Fatalf("response team_rules = %v", rulesView)
+	}
+	detail := planAuditDetail(t, f, planID, pm.AuditPlanTopologyCommit)
+	auditRules, _ := detail["team_rules"].(map[string]any)
+	if auditRules["commit"] != "frozen-commit" || auditRules["source"] != "mcp_plan_tool" {
+		t.Fatalf("audit team_rules = %v", auditRules)
+	}
+	auditRuleList, _ := auditRules["rules"].([]any)
+	if len(auditRuleList) != 1 || auditRuleList[0].(map[string]any)["enabled"] != true {
+		t.Fatalf("audit rule list = %v", auditRules["rules"])
+	}
+}
+
+func TestCreatePlan_TeamRuleIsolation_NoTeamNoRepoCrossOrgAndBadRules(t *testing.T) {
+	t.Run("no_team", func(t *testing.T) {
+		f := newWriteToolsFixture(t)
+		f.addWorkerToken(t, "acat_w1", atWorker1)
+		srv, _ := wireTeam(t, f)
+		pid, _ := f.seedMemberProject(t)
+		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Team"})
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%v", status, body)
+		}
+		rulesView := body["team_rules"].(map[string]any)
+		if rulesView["team_id"] != "" || len(rulesView["rules"].([]any)) != 0 {
+			t.Fatalf("no_team team_rules = %v", rulesView)
+		}
+	})
+
+	t.Run("no_repo", func(t *testing.T) {
+		f := newWriteToolsFixture(t)
+		f.addWorkerToken(t, "acat_w1", atWorker1)
+		srv, _ := wireTeam(t, f)
+		pid, _ := f.seedMemberProject(t)
+		teamID := createPlanRuleTeam(t, srv.URL)
+		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Repo"})
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%v", status, body)
+		}
+		rulesView := body["team_rules"].(map[string]any)
+		if rulesView["team_id"] != teamID || rulesView["commit"] != "" || len(rulesView["rules"].([]any)) != 0 {
+			t.Fatalf("no_repo team_rules = %v", rulesView)
+		}
+	})
+
+	t.Run("cross_org", func(t *testing.T) {
+		f := newWriteToolsFixture(t)
+		f.addWorkerToken(t, "acat_w1", atWorker1)
+		srv, _ := wireTeam(t, f)
+		pid, _ := f.seedMemberProject(t)
+		foreign, err := f.deps.TeamSvc.CreateTeam(t.Context(), teamservice.CreateTeamInput{
+			OrgID: "org-foreign", Name: "foreign", Roles: []team.RoleConfig{{Role: "dev"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.deps.TeamSvc.AddMember(t.Context(), foreign.ID(), team.MemberRef("agent:"+atAgent1), "dev"); err != nil {
+			t.Fatal(err)
+		}
+		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Cross Org"})
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%v", status, body)
+		}
+		rulesView := body["team_rules"].(map[string]any)
+		if rulesView["team_id"] != "" || rulesView["commit"] != "" || len(rulesView["rules"].([]any)) != 0 {
+			t.Fatalf("cross_org leaked foreign team data: %v", rulesView)
+		}
+	})
+
+	t.Run("bad_rules", func(t *testing.T) {
+		f := newWriteToolsFixture(t)
+		f.addWorkerToken(t, "acat_w1", atWorker1)
+		srv, gitHost := wireTeam(t, f)
+		pid, _ := f.seedMemberProject(t)
+		teamID := createPlanRuleTeam(t, srv.URL)
+		if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(t.Context(), teamID, nil, []centergit.Rule{
+			{Slug: "good-plan", Description: "good", Body: "Keep going.", Enabled: true, AppliesTo: []string{"plan"}},
+		}); err != nil {
+			t.Fatalf("SeedTeam: %v", err)
+		}
+		pushMalformedPlanRule(t, gitHost, teamID)
+		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Bad Rule"})
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%v", status, body)
+		}
+		rulesView := body["team_rules"].(map[string]any)
+		if len(rulesView["rules"].([]any)) != 1 || len(rulesView["skipped_nonstandard"].([]any)) != 1 {
+			t.Fatalf("bad_rules team_rules = %v", rulesView)
+		}
+	})
 }
 
 func TestCreatePlan_ForeignProject_403(t *testing.T) {

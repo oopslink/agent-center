@@ -29,6 +29,7 @@ type teamRulesToolRule struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Body        string   `json:"body"`
+	Enabled     bool     `json:"enabled"`
 	AppliesTo   []string `json:"applies_to"`
 	SourcePath  string   `json:"source_path"`
 }
@@ -72,6 +73,7 @@ func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string)
 			Title:       tr.Title,
 			Description: tr.Description,
 			Body:        tr.Body,
+			Enabled:     tr.Enabled,
 			AppliesTo:   append([]string(nil), tr.AppliesTo...),
 			SourcePath:  tr.SourcePath,
 		})

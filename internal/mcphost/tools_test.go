@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -175,6 +176,84 @@ func TestJSONToolsForwarding(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
+	fake := &fakeAdmin{cannedByTool: map[string]json.RawMessage{
+		"get_team_rules":     json.RawMessage(`{"team_id":"team-1","phase":"plan","commit":"c1","rules":[{"slug":"plan-dag","description":"plan shape","body":"Use a DAG.","enabled":true,"applies_to":["plan"],"source_path":"rules/plan-dag.md"}]}`),
+		"create_plan":        json.RawMessage(`{"plan_id":"plan-1"}`),
+		"edit_plan_topology": json.RawMessage(`{"ok":true,"version":2,"dispatched":[]}`),
+	}}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 7})
+
+	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
+	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
+
+	if got := len(fake.callsFor("get_team_rules")); got != 1 {
+		t.Fatalf("get_team_rules calls = %d, want 1 frozen load per MCP session; calls=%+v", got, fake.calls)
+	}
+	createCalls := fake.callsFor("create_plan")
+	editCalls := fake.callsFor("edit_plan_topology")
+	if len(createCalls) != 1 || len(editCalls) != 1 {
+		t.Fatalf("plan tool calls create=%d edit=%d; calls=%+v", len(createCalls), len(editCalls), fake.calls)
+	}
+	createRules, _ := createCalls[0].body["planning_rules"].(map[string]any)
+	if createRules["commit"] != "c1" || createRules["phase"] != "plan" || createRules["source"] != "mcp_plan_tool" {
+		t.Fatalf("create planning_rules metadata = %v", createRules)
+	}
+	if createRules["planning_generation"] != float64(7) ||
+		createRules["planning_session_id"] != "agent:agent-1/generation:7" ||
+		!strings.Contains(createRules["refresh_semantics"].(string), "once per MCP planning session") {
+		t.Fatalf("create planning_rules freeze boundary = %v", createRules)
+	}
+	rules, _ := createRules["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("create planning_rules rules = %v", createRules["rules"])
+	}
+	rule, _ := rules[0].(map[string]any)
+	if rule["slug"] != "plan-dag" || rule["enabled"] != true || rule["body"] != "Use a DAG." {
+		t.Fatalf("create planning_rules rule = %v", rule)
+	}
+	editRules, _ := editCalls[0].body["planning_rules"].(map[string]any)
+	if editRules["commit"] != "c1" || editRules["planning_generation"] != float64(7) {
+		t.Fatalf("edit planning_rules should reuse frozen c1 generation 7 snapshot, got %v", editRules)
+	}
+
+	fake2 := &fakeAdmin{cannedByTool: map[string]json.RawMessage{
+		"get_team_rules": json.RawMessage(`{"team_id":"team-1","phase":"plan","commit":"c2","rules":[]}`),
+		"create_plan":    json.RawMessage(`{"plan_id":"plan-2"}`),
+	}}
+	cs2 := connect(t, Config{AgentID: "agent-1", Admin: fake2, Generation: 8})
+	callOK(t, cs2, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan 2"})
+	if got := len(fake2.callsFor("get_team_rules")); got != 1 {
+		t.Fatalf("new generation get_team_rules calls = %d, want 1", got)
+	}
+	createRules2, _ := fake2.callsFor("create_plan")[0].body["planning_rules"].(map[string]any)
+	if createRules2["commit"] != "c2" || createRules2["planning_generation"] != float64(8) {
+		t.Fatalf("new MCP session should reload c2 generation 8 snapshot, got %v", createRules2)
+	}
+}
+
+func TestPlanRuleFreezeSurvivesSearchToolsReregister(t *testing.T) {
+	fake := &fakeAdmin{cannedByTool: map[string]json.RawMessage{
+		"get_team_rules":     json.RawMessage(`{"team_id":"team-1","phase":"plan","commit":"c1","rules":[]}`),
+		"create_plan":        json.RawMessage(`{"plan_id":"plan-1"}`),
+		"edit_plan_topology": json.RawMessage(`{"ok":true,"version":2,"dispatched":[]}`),
+	}}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 3, TierTools: true})
+
+	callOK(t, cs, "search_tools", map[string]any{"query": "plan"})
+	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
+	callOK(t, cs, "search_tools", map[string]any{"query": "plan"})
+	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
+
+	if got := len(fake.callsFor("get_team_rules")); got != 1 {
+		t.Fatalf("get_team_rules calls after search_tools re-register = %d, want 1; calls=%+v", got, fake.calls)
+	}
+	editRules, _ := fake.callsFor("edit_plan_topology")[0].body["planning_rules"].(map[string]any)
+	if editRules["commit"] != "c1" || editRules["planning_generation"] != float64(3) {
+		t.Fatalf("edit planning_rules = %v", editRules)
 	}
 }
 

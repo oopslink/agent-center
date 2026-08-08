@@ -842,7 +842,7 @@ type createPlanArgs struct {
 	TargetDate  string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
 }
 
-func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
+func makeCreatePlan(cfg Config, planRules *planningRuleCache) mcp.ToolHandlerFor[createPlanArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args createPlanArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
 			"agent_id":    cfg.AgentID,
@@ -850,6 +850,9 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 			"name":        args.Name,
 			"description": args.Description,
 			"target_date": args.TargetDate,
+		}
+		if planRules != nil {
+			body["planning_rules"] = planRules.Snapshot(ctx)
 		}
 		return callAdmin(ctx, cfg, "create_plan", body)
 	}
@@ -956,7 +959,7 @@ type editPlanTopologyArgs struct {
 
 // makeEditPlanTopology backs edit_plan_topology. Body keys match the admin handler's
 // editPlanTopologyReq exactly (ops passed through as a list of maps).
-func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, any] {
+func makeEditPlanTopology(cfg Config, planRules *planningRuleCache) mcp.ToolHandlerFor[editPlanTopologyArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args editPlanTopologyArgs) (*mcp.CallToolResult, any, error) {
 		ops := make([]map[string]any, 0, len(args.Ops))
 		for _, o := range args.Ops {
@@ -971,6 +974,9 @@ func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, a
 			"plan_id":      args.PlanID,
 			"base_version": args.BaseVersion,
 			"ops":          ops,
+		}
+		if planRules != nil {
+			body["planning_rules"] = planRules.Snapshot(ctx)
 		}
 		return callAdmin(ctx, cfg, "edit_plan_topology", body)
 	}

@@ -19,9 +19,13 @@
 //	AC_MCP_SERVER_FINGERPRINT pinned cert fingerprint (required for tcp://)
 //	AC_MCP_AGENT_ROOT         agent workspace root (file-tool containment)
 //	AC_MCP_TIER_TOOLS         optional bool; false exposes the full catalog
+//	AC_MCP_GENERATION         supervisor generation that owns this host process
 package mcphost
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strconv"
+)
 
 // MCPServerSpec is one entry in the `mcpServers` map: a stdio MCP server
 // launched as command+args with the given environment.
@@ -48,6 +52,7 @@ type MCPConfigParams struct {
 	WorkerToken       string
 	ServerFingerprint string
 	AgentRoot         string
+	Generation        int
 	// DisableToolTiering sets AC_MCP_TIER_TOOLS=false for clients that already
 	// have their own deferred-tool mechanism. Codex is one such client: it only
 	// indexes tools present in the MCP startup catalog, so mcp-host-side dynamic
@@ -64,6 +69,7 @@ func BuildMCPConfig(p MCPConfigParams) MCPConfig {
 		"AC_MCP_WORKER_TOKEN":       p.WorkerToken,
 		"AC_MCP_SERVER_FINGERPRINT": p.ServerFingerprint,
 		"AC_MCP_AGENT_ROOT":         p.AgentRoot,
+		"AC_MCP_GENERATION":         strconv.Itoa(p.Generation),
 	}
 	if p.DisableToolTiering {
 		env["AC_MCP_TIER_TOOLS"] = "false"

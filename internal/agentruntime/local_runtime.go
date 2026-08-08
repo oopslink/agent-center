@@ -713,6 +713,15 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		return fmt.Errorf("agent_controller: mkdir tasks/.claude: %w", err)
 	}
 
+	epochState, err := supervisormanager.ReadEpoch(home)
+	if err != nil {
+		return fmt.Errorf("agent_controller: read epoch agent=%s: %w", agentID, err)
+	}
+	plannedGeneration := epochState.Generation
+	if spec.ForkResume {
+		plannedGeneration++
+	}
+
 	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
 		ServerName:        MCPServerName,
 		Command:           r.cfg.BinaryPath,
@@ -722,6 +731,7 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		WorkerToken:       r.cfg.WorkerToken,
 		ServerFingerprint: r.cfg.ServerFingerprint,
 		AgentRoot:         tasksDir,
+		Generation:        plannedGeneration,
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate mcp-config: %w", err)
@@ -732,11 +742,6 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	}
 	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, true, []string{"post_message", "list_my_tasks", "search_tools"}); err != nil {
 		return err
-	}
-
-	epochState, err := supervisormanager.ReadEpoch(home)
-	if err != nil {
-		return fmt.Errorf("agent_controller: read epoch agent=%s: %w", agentID, err)
 	}
 
 	generation := epochState.Generation
@@ -815,6 +820,8 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if err := WriteAgentCLIMarker(home, CLICodex); err != nil {
 		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
 	}
+	prior, _ := sessioninstance.ReadInstance(home)
+	plannedGeneration := prior.Generation + 1
 
 	// codex supervisor MCP (T972): generate the SAME canonical mcp_config.runtime.json
 	// the claude supervisor gets (agent-center host binary + per-agent AC_MCP_* creds),
@@ -830,6 +837,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		WorkerToken:        r.cfg.WorkerToken,
 		ServerFingerprint:  r.cfg.ServerFingerprint,
 		AgentRoot:          tasksDir,
+		Generation:         plannedGeneration,
 		DisableToolTiering: true,
 	})
 	if err != nil {
@@ -883,7 +891,6 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	// completed a clean turn. Otherwise a poisoned but locally-existing rollout can be
 	// resumed forever, leaving new messages delivered/seen while Codex is stuck inside
 	// an old incomplete turn.
-	prior, _ := sessioninstance.ReadInstance(home)
 	resumeThreadID := ""
 	if spec.Resume && prior.CompletedTurn {
 		resumeThreadID = prior.SessionID

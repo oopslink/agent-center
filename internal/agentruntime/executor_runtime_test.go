@@ -276,7 +276,7 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 		"team_id": "team-1", "phase": "execute", "commit": "abc123",
 		"refresh_semantics": "snapshot at fork",
 		"rules": []map[string]any{{
-			"slug": "prefer-tests", "description": "test first", "body": "Write the regression test.", "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
+			"slug": "prefer-tests", "description": "test first", "body": "Write the regression test.", "enabled": true, "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
 		}},
 	}}
 	rt, _, home := spawn(t, "agent-fork", "task-9", sc)
@@ -303,7 +303,8 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read input: %v", err)
 		}
-		if in.TeamRules == nil || in.TeamRules.Commit != "abc123" || len(in.TeamRules.Rules) != 1 || in.TeamRules.Rules[0].Slug != "prefer-tests" {
+		if in.TeamRules == nil || in.TeamRules.Commit != "abc123" || len(in.TeamRules.Rules) != 1 ||
+			in.TeamRules.Rules[0].Slug != "prefer-tests" || !in.TeamRules.Rules[0].Enabled {
 			t.Fatalf("input team_rules = %+v", in.TeamRules)
 		}
 	}

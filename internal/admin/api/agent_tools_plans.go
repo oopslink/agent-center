@@ -101,11 +101,12 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 // --- create_plan -------------------------------------------------------------
 
 type createPlanReq struct {
-	AgentID     string `json:"agent_id"`
-	ProjectID   string `json:"project_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	TargetDate  string `json:"target_date"`
+	AgentID       string                  `json:"agent_id"`
+	ProjectID     string                  `json:"project_id"`
+	Name          string                  `json:"name"`
+	Description   string                  `json:"description"`
+	TargetDate    string                  `json:"target_date"`
+	PlanningRules *pmservice.RuleSnapshot `json:"planning_rules"`
 }
 
 // createPlanHandler creates a draft Plan via pm.CreatePlan with actor=agent. The
@@ -139,18 +140,25 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		td = &t
 	}
+	planningRules := req.PlanningRules
+	if planningRules == nil {
+		planningRules = s.loadPlanRulesForAgent(r.Context(), d, a)
+	} else {
+		planningRules = pmservice.NormalizePlanRuleSnapshot(planningRules, pmservice.PlanRuleSourceMCP)
+	}
 	planID, err := d.PMService.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
-		ProjectID:   pm.ProjectID(req.ProjectID),
-		Name:        req.Name,
-		Description: req.Description,
-		TargetDate:  td,
-		CreatedBy:   pm.IdentityRef(agentActor(a)),
+		ProjectID:     pm.ProjectID(req.ProjectID),
+		Name:          req.Name,
+		Description:   req.Description,
+		TargetDate:    td,
+		CreatedBy:     pm.IdentityRef(agentActor(a)),
+		PlanningRules: planningRules,
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID)})
+	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID), "team_rules": planRulesView(planningRules)})
 }
 
 // --- add_task_to_plan --------------------------------------------------------
@@ -292,10 +300,11 @@ type topologyOpReq struct {
 }
 
 type editPlanTopologyReq struct {
-	AgentID     string          `json:"agent_id"`
-	PlanID      string          `json:"plan_id"`
-	BaseVersion int             `json:"base_version"`
-	Ops         []topologyOpReq `json:"ops"`
+	AgentID       string                  `json:"agent_id"`
+	PlanID        string                  `json:"plan_id"`
+	BaseVersion   int                     `json:"base_version"`
+	Ops           []topologyOpReq         `json:"ops"`
+	PlanningRules *pmservice.RuleSnapshot `json:"planning_rules"`
 }
 
 // editPlanTopologyHandler applies a whole topology-edit batch to a draft or running
@@ -335,11 +344,18 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 			MaxRounds:  o.MaxRounds,
 		})
 	}
+	planningRules := req.PlanningRules
+	if planningRules == nil {
+		planningRules = s.loadPlanRulesForAgent(r.Context(), d, a)
+	} else {
+		planningRules = pmservice.NormalizePlanRuleSnapshot(planningRules, pmservice.PlanRuleSourceMCP)
+	}
 	dispatched, err := d.PMService.EditPlanTopology(r.Context(), pmservice.EditPlanTopologyCommand{
-		PlanID:      pm.PlanID(req.PlanID),
-		BaseVersion: req.BaseVersion,
-		Ops:         ops,
-		Actor:       pm.IdentityRef(agentActor(a)),
+		PlanID:        pm.PlanID(req.PlanID),
+		BaseVersion:   req.BaseVersion,
+		Ops:           ops,
+		Actor:         pm.IdentityRef(agentActor(a)),
+		PlanningRules: planningRules,
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
@@ -349,7 +365,7 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 	for _, id := range dispatched {
 		out = append(out, string(id))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out, "team_rules": planRulesView(planningRules)})
 }
 
 // --- start_plan / pause_plan / resume_plan / discard_plan -------------------

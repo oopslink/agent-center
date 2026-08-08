@@ -36,6 +36,8 @@ import (
 //     AC_MCP_ADMIN_URL is tcp://...
 //   - AC_MCP_TIER_TOOLS optional bool, default true. Set false only for
 //     clients that already own deferred MCP discovery.
+//   - AC_MCP_GENERATION optional non-negative int identifying the launching
+//     supervisor generation for plan-rule snapshot audits.
 func MCPHostCommand() *Command {
 	return &Command{
 		Name:    "mcp-host",
@@ -45,7 +47,8 @@ func MCPHostCommand() *Command {
 			"is injected into every admin call and is never taken from tool args. " +
 			"Reads AC_MCP_AGENT_ID, AC_MCP_ADMIN_URL, AC_MCP_WORKER_TOKEN " +
 			"(+ AC_MCP_SERVER_FINGERPRINT for tcp://, + AC_MCP_AGENT_ROOT for the " +
-			"file tools' workspace containment) from the environment.",
+			"file tools' workspace containment, + AC_MCP_GENERATION for plan-rule " +
+			"snapshot auditing) from the environment.",
 		Flags: func(fs *flag.FlagSet) Handler {
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				return runMCPHost(ctx, errw)
@@ -80,6 +83,11 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 		fmt.Fprintf(errw, "Error: mcp_host: %v\n", err)
 		return ExitUsage
 	}
+	generation, err := mcpHostGenerationFromEnv()
+	if err != nil {
+		fmt.Fprintf(errw, "Error: mcp_host: %v\n", err)
+		return ExitUsage
+	}
 
 	target, err := clienttransport.ParseTarget(adminURL)
 	if err != nil {
@@ -98,11 +106,12 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	fileClient := workerdaemon.NewFileTransferClient(adminClient)
 
 	srv := mcphost.NewServer(mcphost.Config{
-		AgentID:   agentID,
-		Admin:     adminClient,
-		AgentRoot: agentRoot,
-		Files:     fileClient,
-		TierTools: tierTools,
+		AgentID:    agentID,
+		Admin:      adminClient,
+		AgentRoot:  agentRoot,
+		Files:      fileClient,
+		TierTools:  tierTools,
+		Generation: generation,
 	})
 
 	// SIGINT/SIGTERM cancels the run ctx so Server.Run closes the stdio
@@ -141,6 +150,18 @@ func mcpHostTierToolsFromEnv() (bool, error) {
 	v, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false, fmt.Errorf("bad AC_MCP_TIER_TOOLS %q (want true/false)", raw)
+	}
+	return v, nil
+}
+
+func mcpHostGenerationFromEnv() (int, error) {
+	raw := strings.TrimSpace(os.Getenv("AC_MCP_GENERATION"))
+	if raw == "" {
+		return 0, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 0 {
+		return 0, fmt.Errorf("bad AC_MCP_GENERATION %q (want non-negative integer)", raw)
 	}
 	return v, nil
 }
