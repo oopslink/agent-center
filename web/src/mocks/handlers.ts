@@ -903,6 +903,49 @@ const baseHandlers = [
     const body = (await request.json()) as { profile_id?: string };
     return ok({ revision: 4, default_runtime_profile_id: body.profile_id ?? 'runtime-profile-default' });
   }),
+  http.post('/api/ai-runtime/clis', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: 'runtime-cli-new', ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/clis/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/models', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: 'runtime-model-new', ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/models/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/profiles', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: 'runtime-profile-new', ...(body.value ?? {}) } }, 201);
+  }),
+  http.patch('/api/ai-runtime/profiles/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
+    return ok({ revision: (body.expected_revision ?? 0) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.post('/api/ai-runtime/import/preview', async ({ request }) => {
+    const body = (await request.json()) as { document?: { runtime?: { models?: Array<{ key?: string }> } } };
+    const existing = new Set(aiRuntimeCatalog().models.map((m) => m.key));
+    const items = (body.document?.runtime?.models ?? []).map((m) => ({
+      entity_type: 'model',
+      key: m.key ?? '',
+      action: existing.has(m.key ?? '') ? 'update' : 'create',
+    }));
+    return ok({
+      report: { dry_run: true, applied: false, revision: 3, items, diagnostics: [] },
+      coverage: [],
+      validation_token: 'runtime-preview-token',
+      expires_at: '2026-07-01T00:10:00Z',
+      document_sha256: '0123456789abcdef',
+    });
+  }),
+  http.post('/api/ai-runtime/import/apply', async () =>
+    ok({ dry_run: false, applied: true, revision: 4, items: [], diagnostics: [] }),
+  ),
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),

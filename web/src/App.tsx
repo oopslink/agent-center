@@ -37,12 +37,12 @@ const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 // T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
 const OrgTemplates = lazy(() => import('./pages/OrgTemplates'));
-const OrgModelCatalog = lazy(() => import('./pages/OrgModelCatalog'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
+const AiRuntime = lazy(() => import('./pages/AiRuntime'));
 const OrganizationSettings = lazy(() => import('./pages/OrganizationSettings'));
 const Version = lazy(() => import('./pages/Version'));
 const Me = lazy(() => import('./pages/Me'));
@@ -73,7 +73,7 @@ export function App(): React.ReactElement {
 
         {/* Legacy root redirect → first org home (v2.6-FE-6) */}
         <Route index element={<OrgRedirect />} />
-        <Route path="/ai-runtime" element={<OrgRedirect to="organization-settings/ai-runtime" />} />
+        <Route path="/ai-runtime" element={<OrgRedirect to="ai-runtime" />} />
 
         {/* /organizations/:slug — all org-scoped routes */}
         <Route
@@ -116,8 +116,8 @@ export function App(): React.ReactElement {
               registry (CRUD + credentials + remote viewing). */}
           <Route path="repos" element={<OrgRepos />} />
           <Route path="templates" element={<OrgTemplates />} />
-          {/* issue-93dd8daa ①: org model catalog (Workspace > Model catalog). */}
-          <Route path="model-catalog" element={<OrgModelCatalog />} />
+          {/* Model catalog is consolidated into AI Runtime; keep stale links working. */}
+          <Route path="model-catalog" element={<Navigate to="../ai-runtime" replace />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
           <Route path="secrets" element={<Secrets />} />
@@ -126,12 +126,13 @@ export function App(): React.ReactElement {
           <Route path="environment" element={<Environment />} />
           <Route path="workers/:id" element={<WorkerDetail />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="ai-runtime" element={<AiRuntime />} />
           {/* I41 (T470): the 5 Org Settings sections are routed sub-paths so they
               render via the shell's col② secondary nav (OrgSettingsSecondaryNav),
               not a page-internal card-nav. The bare path redirects to Profile. */}
           <Route path="organization-settings" element={<Navigate to="profile" replace />} />
+          <Route path="organization-settings/ai-runtime" element={<Navigate to="../ai-runtime" replace />} />
           <Route path="organization-settings/:section" element={<OrganizationSettings />} />
-          <Route path="ai-runtime" element={<Navigate to="../organization-settings/ai-runtime" replace />} />
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           {/* members-into-teams: the org Members → Humans list is merged into the

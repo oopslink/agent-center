@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "System",
     "environment": "Environment",
+    "aiRuntime": "AI Runtime",
     "settings": "Settings",
     "version": "Version",
     "aria": "System sections"
@@ -377,7 +378,14 @@
     "title": "AI Runtime",
     "subtitle": "Organization-wide runtime profiles, model definitions, CLI definitions, and the default runtime selection agents inherit.",
     "actions": {
-      "exportYaml": "Export YAML"
+      "exportYaml": "Export YAML",
+      "importModels": "Import models",
+      "edit": "Edit",
+      "add": {
+        "profiles": "+ Add profile",
+        "models": "+ Add model",
+        "clis": "+ Add CLI"
+      }
     },
     "permissions": {
       "unknownRole": "member",
@@ -430,6 +438,45 @@
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "system": {
+      "badge": "System",
+      "note": "This is a system-provided CLI. Its key and system ownership are locked by the backend; editable fields still pass server validation."
+    },
+    "form": {
+      "addProfile": "Add profile",
+      "editProfile": "Edit profile",
+      "addModel": "Add model",
+      "editModel": "Edit model",
+      "addCli": "Add CLI",
+      "editCli": "Edit CLI",
+      "key": "Key",
+      "description": "Description",
+      "enabled": "Enabled",
+      "parameters": "Parameters JSON",
+      "defaultParameters": "Default parameters JSON",
+      "parameterSchema": "Parameter schema JSON",
+      "inputCost": "Input $/MTok",
+      "outputCost": "Output $/MTok",
+      "tier": "Tier",
+      "compatibleRequired": "At least one compatible CLI key is required.",
+      "immutableKey": "Keys are immutable after creation; create a new entry to use a different key.",
+      "cancel": "Cancel",
+      "close": "Close",
+      "saving": "Saving…",
+      "save": "Save"
+    },
+    "import": {
+      "title": "Import models",
+      "help": "Paste a JSON array of model entries. Existing models are upserted by key; Profiles and CLIs are preserved.",
+      "fullDocumentNote": "Preview uses the AI Runtime import protocol with a complete document generated from the current catalog. Only Models are changed; current Profiles and CLIs are carried forward unchanged.",
+      "preview": "Preview",
+      "previewing": "Previewing…",
+      "previewTitle": "Model changes",
+      "noModelChanges": "No model changes in this import.",
+      "apply": "Apply import",
+      "applying": "Applying…",
+      "applied": "Import applied."
     }
   },
   "wakeGuardrail": {

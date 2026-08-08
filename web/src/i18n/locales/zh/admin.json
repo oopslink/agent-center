@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "系统",
     "environment": "环境",
+    "aiRuntime": "AI Runtime",
     "settings": "设置",
     "version": "版本",
     "aria": "系统分区"
@@ -377,7 +378,14 @@
     "title": "AI Runtime",
     "subtitle": "组织级 Runtime Profile、模型定义、CLI 定义，以及智能体继承的默认运行时选择。",
     "actions": {
-      "exportYaml": "导出 YAML"
+      "exportYaml": "导出 YAML",
+      "importModels": "导入 Models",
+      "edit": "编辑",
+      "add": {
+        "profiles": "+ 新建 Profile",
+        "models": "+ 新建 Model",
+        "clis": "+ 新建 CLI"
+      }
     },
     "permissions": {
       "unknownRole": "成员",
@@ -430,6 +438,45 @@
     "status": {
       "enabled": "启用",
       "disabled": "停用"
+    },
+    "system": {
+      "badge": "系统",
+      "note": "这是系统内置 CLI。key 和系统归属由后端锁定；其它可编辑字段仍按服务端规则校验。"
+    },
+    "form": {
+      "addProfile": "新建 Profile",
+      "editProfile": "编辑 Profile",
+      "addModel": "新建 Model",
+      "editModel": "编辑 Model",
+      "addCli": "新建 CLI",
+      "editCli": "编辑 CLI",
+      "key": "Key",
+      "description": "描述",
+      "enabled": "启用",
+      "parameters": "参数 JSON",
+      "defaultParameters": "默认参数 JSON",
+      "parameterSchema": "参数 Schema JSON",
+      "inputCost": "输入 $/MTok",
+      "outputCost": "输出 $/MTok",
+      "tier": "档位/描述",
+      "compatibleRequired": "至少需要一个兼容 CLI key。",
+      "immutableKey": "创建后 key 不可变；如需更换 key，请新建条目。",
+      "cancel": "取消",
+      "close": "关闭",
+      "saving": "保存中…",
+      "save": "保存"
+    },
+    "import": {
+      "title": "导入 Models",
+      "help": "粘贴 Model 条目的 JSON 数组。现有 Model 按 key upsert；Profiles 和 CLIs 会保留。",
+      "fullDocumentNote": "预览会使用 AI Runtime 导入协议，并基于当前目录生成完整文档。仅 Models 会变化；现有 Profiles 和 CLIs 会原样带入。",
+      "preview": "预览",
+      "previewing": "预览中…",
+      "previewTitle": "Model 变更",
+      "noModelChanges": "本次导入没有 Model 变更。",
+      "apply": "应用导入",
+      "applying": "应用中…",
+      "applied": "导入已应用。"
     }
   },
   "wakeGuardrail": {

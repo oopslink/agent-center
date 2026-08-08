@@ -127,7 +127,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'System',
     defaultPath: 'environment',
     Icon: FleetIcon,
-    pathPrefixes: ['environment', 'settings', 'version'],
+    pathPrefixes: ['environment', 'ai-runtime', 'settings', 'version'],
   },
 ];
 
@@ -199,6 +199,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'system':
       return [{ label: 'System', items: [
         { to: p('environment'), label: 'Environment', Icon: FleetIcon },
+        { to: p('ai-runtime'), label: 'AI Runtime', Icon: SettingsIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
         { to: p('version'), label: 'Version', Icon: VersionIcon },
       ] }];
