@@ -11,6 +11,7 @@ import { qk } from './queryKeys';
 
 export interface ConcurrencyExecutor {
   executor_id: string;
+  slot_index?: number;
   task_id: string;
   cli: string;
   model: string;
@@ -26,6 +27,13 @@ export interface ConcurrencyExecutor {
 export interface AgentConcurrency {
   agent_id: string;
   cap: number;
+  configured_cap?: number;
+  admission_cap?: number;
+  slot_count?: number;
+  config_version?: number;
+  slot_stable?: boolean;
+  integrity?: string;
+  integrity_error?: string;
   active: number;
   queued: number;
   // stale — coarse "live view not usable" flag (no fresh snapshot). Kept for
@@ -50,6 +58,18 @@ export interface AgentConcurrency {
   concurrency_enabled?: boolean;
   snapshot_age_ms: number;
   executors: ConcurrencyExecutor[];
+  slots?: Array<{
+    slot_index: number;
+    state: string;
+    executor_id?: string;
+    task_id?: string;
+    cli?: string;
+    model?: string;
+    pid?: number;
+    started_at?: string;
+    last_progress_at?: string;
+    current_activity?: string;
+  }>;
 }
 
 export const CONCURRENCY_POLL_MS = 3000;

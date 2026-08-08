@@ -242,8 +242,16 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 	for _, d := range decisions {
 		switch d.Action {
 		case reconcileAdopt:
-			ee.adoptAlive(d.ExecutorID, d.PID) // pool slot + watchdog
-			adopted++
+			var slot *int
+			if d.Record != nil {
+				slot = d.Record.SlotIndex
+			}
+			if err := ee.adoptAlive(d.ExecutorID, d.PID, slot); err != nil {
+				r.log("agent=%s self-reconcile adopt executor=%s: %v (continuing)", r.cfg.AgentID, d.ExecutorID, err)
+				kept++
+			} else {
+				adopted++
+			}
 		case reconcileRecover:
 			r.enactRecover(ctx, ee, d)
 			recovered++
@@ -324,13 +332,13 @@ func (r *LocalRuntime) enactRecover(ctx context.Context, ee *ExecutorEngine, d e
 	case orchestrator.RecoverResume:
 		// tier-1: resume the SAME claude session in place (--resume argv). MUST keep the
 		// same session-id — resume-in-place relies on continuing that conversation state.
-		r.relaunchExecutor(ee, d.ExecutorID, d.Plan.RunnerCmd)
+		r.relaunchExecutor(ee, d.ExecutorID, d.Plan.RunnerCmd, slotIndexOfRecord(d.Record))
 	case orchestrator.RecoverRerun:
 		// tier-2: fresh LLM state → a FRESH claude session. Reusing the prior --session-id
 		// collides ("Session ID … is already in use") because the hard-killed claude's
 		// session registration is not released on SIGKILL (T877 bug2). Mint a new id.
 		// RERUN-ONLY — a Resume above must never have its session swapped.
-		r.relaunchExecutor(ee, d.ExecutorID, withRerunSessionID(d.Plan.RunnerCmd, d.ExecutorID))
+		r.relaunchExecutor(ee, d.ExecutorID, withRerunSessionID(d.Plan.RunnerCmd, d.ExecutorID), slotIndexOfRecord(d.Record))
 	case orchestrator.RecoverFresh:
 		// tier-3: the workspace/worktree is GONE (or the k8s node changed) → the executor
 		// is CONFIRMED dead. Clean its residue, then RESET the still-running-under-a-dead-
@@ -404,7 +412,7 @@ func withRerunSessionID(argv []string, execID string) []string {
 // EXISTING workspace and re-adopts it into the watchdog. Best-effort: a missing
 // cached config or spawn error logs and returns (the task stays in-flight, so the
 // normal dispatch loop can still re-fork it fresh).
-func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd []string) {
+func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd []string, slotIndex *int) {
 	cfg, ok := r.cachedExecConfig()
 	if !ok || len(runnerCmd) == 0 {
 		r.log("agent=%s self-reconcile relaunch executor=%s skipped (config_cached=%t cmd_len=%d)",
@@ -427,7 +435,10 @@ func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd
 		r.log("agent=%s self-reconcile relaunch executor=%s spawn: %v", r.cfg.AgentID, id, err)
 		return
 	}
-	ee.addOrphan(id, h.PID)
+	if err := ee.adoptOrphan(id, h.PID, slotIndex); err != nil {
+		r.log("agent=%s self-reconcile relaunch executor=%s slot adopt: %v", r.cfg.AgentID, id, err)
+		ee.addOrphan(id, h.PID)
+	}
 	// Reap this self-forked orphan (T877 bug3): relaunchExecutor's Spawn makes THIS
 	// agent-runtime the child's parent, so we MUST Wait() it — otherwise on exit it
 	// becomes a <defunct> zombie and the orphan-poll's liveness probe (kill(pid,0)) reports
@@ -483,7 +494,10 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 				r.cfg.AgentID, d.TaskRef, err, d.ExecutorID)
 		}
 		if d.Alive {
-			ee.addOrphan(d.ExecutorID, d.PID)
+			if err := ee.adoptOrphan(d.ExecutorID, d.PID, slotIndexOfRecord(d.Record)); err != nil {
+				r.log("agent=%s self-reconcile keep executor=%s slot adopt: %v", r.cfg.AgentID, d.ExecutorID, err)
+				ee.addOrphan(d.ExecutorID, d.PID)
+			}
 		}
 		return false
 	}
@@ -496,9 +510,19 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 	}
 	// Still mine/running ⇒ the in-flight set was incomplete: keep it.
 	if d.Alive {
-		ee.addOrphan(d.ExecutorID, d.PID)
+		if err := ee.adoptOrphan(d.ExecutorID, d.PID, slotIndexOfRecord(d.Record)); err != nil {
+			r.log("agent=%s self-reconcile keep executor=%s slot adopt: %v", r.cfg.AgentID, d.ExecutorID, err)
+			ee.addOrphan(d.ExecutorID, d.PID)
+		}
 	}
 	return false
+}
+
+func slotIndexOfRecord(rec *executor.Record) *int {
+	if rec == nil || rec.SlotIndex == nil {
+		return nil
+	}
+	return intPtr(*rec.SlotIndex)
 }
 
 // taskCancelEvidence is the PURE cancel-proof test: a task is safe to cancel its

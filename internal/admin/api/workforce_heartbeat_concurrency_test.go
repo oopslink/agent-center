@@ -42,10 +42,18 @@ func TestWorkerHeartbeat_WritesConcurrencySnapshots(t *testing.T) {
 		"worker_id": "w-1",
 		"agent_concurrency_snapshots": map[string]any{
 			"agent-1": map[string]any{
-				"active": 2,
+				"active":         2,
+				"admission_cap":  2,
+				"slot_count":     3,
+				"config_version": 11,
 				"executors": []map[string]any{
-					{"executor_id": "e1", "task_id": "t1", "cli": "codex", "model": "gpt-5.5", "state": "running", "pid": 111},
-					{"executor_id": "e2", "state": "starting"},
+					{"executor_id": "e1", "slot_index": 0, "task_id": "t1", "cli": "codex", "model": "gpt-5.5", "state": "running", "pid": 111},
+					{"executor_id": "e2", "slot_index": 1, "state": "starting"},
+				},
+				"slots": []map[string]any{
+					{"slot_index": 0, "executor_id": "e1", "task_id": "t1", "state": "running"},
+					{"slot_index": 1, "executor_id": "e2", "state": "starting"},
+					{"slot_index": 2, "state": "draining"},
 				},
 			},
 		},
@@ -60,8 +68,14 @@ func TestWorkerHeartbeat_WritesConcurrencySnapshots(t *testing.T) {
 	if snap.Active != 2 || len(snap.Executors) != 2 {
 		t.Fatalf("stored snapshot = %+v, want active=2 execs=2", snap)
 	}
+	if snap.AdmissionCap != 2 || snap.SlotCount != 3 || snap.ConfigVersion != 11 {
+		t.Fatalf("stored cap/slots/version = %d/%d/%d, want 2/3/11", snap.AdmissionCap, snap.SlotCount, snap.ConfigVersion)
+	}
 	if snap.Executors[0].CLI != "codex" || snap.Executors[0].Model != "gpt-5.5" || snap.Executors[0].TaskID != "t1" {
 		t.Errorf("executor[0] = %+v", snap.Executors[0])
+	}
+	if len(snap.Slots) != 3 || snap.Slots[2].State != concurrency.StateDraining {
+		t.Errorf("slots = %+v, want third draining slot", snap.Slots)
 	}
 }
 

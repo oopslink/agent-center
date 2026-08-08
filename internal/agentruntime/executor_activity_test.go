@@ -1,12 +1,30 @@
 package agentruntime
 
 import (
+	"context"
+	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
 )
+
+type activityCaptureReporter struct {
+	nopReporter
+	mu              sync.Mutex
+	payloads        []string
+	interactionRefs []string
+}
+
+func (r *activityCaptureReporter) ReportAgentActivity(_ context.Context, _, _, payloadJSON, _, interactionRef string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.payloads = append(r.payloads, payloadJSON)
+	r.interactionRefs = append(r.interactionRefs, interactionRef)
+	return nil
+}
 
 // TestExecutorActivityObserver_Emits covers the observer→activity bridge: stop and
 // progress events (and emitExecutorStart) each post ONE lifecycle activity, and a nil
@@ -37,14 +55,48 @@ func TestExecutorActivityObserver_Emits(t *testing.T) {
 	}
 }
 
+func TestExecutorActivityBridge_KeepsExecutionIDGroupingWithSlotPayload(t *testing.T) {
+	rep := &activityCaptureReporter{}
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID: "a", Reporter: rep,
+		Log: func(string, ...any) {}, Now: func() time.Time { return time.Unix(1, 0) },
+	}, &SessionState{})
+	slot := 3
+	execID := "exec-activity"
+	rt.emitExecutorStart("a", "task-1", "title", &orchestrator.Launched{
+		ExecutorID: execID,
+		SlotIndex:  &slot,
+		CLI:        "codex",
+		Model:      "gpt-5",
+	})
+
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.payloads) != 1 || len(rep.interactionRefs) != 1 {
+		t.Fatalf("activity emits = payloads:%d refs:%d, want 1/1", len(rep.payloads), len(rep.interactionRefs))
+	}
+	if rep.interactionRefs[0] != "executor:"+execID {
+		t.Fatalf("interaction_ref = %q, want executor:%s", rep.interactionRefs[0], execID)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(rep.payloads[0]), &payload); err != nil {
+		t.Fatalf("payload json: %v", err)
+	}
+	if payload["slot_index"] != float64(3) {
+		t.Fatalf("slot_index payload = %v, want 3", payload["slot_index"])
+	}
+}
+
 // T758: the executor lifecycle activity payloads follow a fixed per-event schema
 // the Web Console Activity stream reads. Every payload MUST carry the executor_id +
 // task_ref prefix (design point 3) plus its event marker; the tests assert that
 // invariant and the event-specific keys, in the activity_payload_v271_test.go style.
 
 func TestExecutorStartPayload_Schema(t *testing.T) {
+	slot := 0
 	p := executorStartPayload(executorStartFields{
 		ExecutorID:  "exec-abc123",
+		SlotIndex:   &slot,
 		TaskRef:     "T758",
 		PID:         4242,
 		CLI:         "claude-code",
@@ -61,6 +113,9 @@ func TestExecutorStartPayload_Schema(t *testing.T) {
 	}
 	if p["pid"] != 4242 || p["cli"] != "claude-code" || p["model"] != "claude-opus-4-8" {
 		t.Fatalf("start payload core = %+v", p)
+	}
+	if p["slot_index"] != 0 {
+		t.Fatalf("slot_index = %v, want 0", p["slot_index"])
 	}
 	if p["model_source"] != "task_model" || p["problem_id"] != "prob-1" || p["title"] != "do the thing" {
 		t.Fatalf("start payload optionals = %+v", p)
@@ -88,9 +143,10 @@ func TestExecutorStartPayload_OmitsEmptyOptionals(t *testing.T) {
 }
 
 func TestExecutorStopPayload_FourClasses(t *testing.T) {
+	slot := 2
 	base := func(o executor.OutcomeKind, reason, detail string, retryable, recovered bool) executor.StopEvent {
 		return executor.StopEvent{
-			ExecutorID: "exec-xyz", TaskRef: "T758", Outcome: o,
+			ExecutorID: "exec-xyz", SlotIndex: &slot, TaskRef: "T758", Outcome: o,
 			Reason: reason, Detail: detail, Retryable: retryable, Recovered: recovered,
 			At: time.Unix(1700000000, 0),
 		}
@@ -116,6 +172,9 @@ func TestExecutorStopPayload_FourClasses(t *testing.T) {
 			}
 			if p["executor_id"] != "exec-xyz" || p["task_ref"] != "T758" {
 				t.Fatalf("missing executor_id/task_ref prefix: %+v", p)
+			}
+			if p["slot_index"] != 2 {
+				t.Fatalf("slot_index = %v, want 2", p["slot_index"])
 			}
 			if p["outcome"] != tc.wantOutcome {
 				t.Errorf("outcome = %v, want %s", p["outcome"], tc.wantOutcome)
@@ -156,8 +215,9 @@ func TestExecutorStopPayload_IncludesGitDeliverySnapshot(t *testing.T) {
 
 func TestExecutorProgressPayload_Schema(t *testing.T) {
 	at := time.Unix(1700000123, 0)
+	slot := 1
 	p := executorProgressPayload(executor.ProgressEvent{
-		ExecutorID: "exec-run", TaskRef: "T758", State: "running",
+		ExecutorID: "exec-run", SlotIndex: &slot, TaskRef: "T758", State: "running",
 		Summary: "wrote tests", Detail: "读 task.go", LastProgressAt: at,
 	})
 	if p["event"] != "executor.progress" {
@@ -168,6 +228,9 @@ func TestExecutorProgressPayload_Schema(t *testing.T) {
 	}
 	if p["state"] != "running" || p["scope"] != "running" {
 		t.Fatalf("progress state/scope = %+v", p)
+	}
+	if p["slot_index"] != 1 {
+		t.Fatalf("slot_index = %v, want 1", p["slot_index"])
 	}
 	if p["summary"] != "wrote tests" {
 		t.Fatalf("summary = %v", p["summary"])

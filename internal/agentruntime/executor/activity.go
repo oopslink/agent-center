@@ -49,6 +49,7 @@ type ActivityObserver interface {
 // is one source of truth for "why did it stop".
 type StopEvent struct {
 	ExecutorID string
+	SlotIndex  *int
 	TaskRef    string
 	// Outcome is the dual-signal classification (succeeded | failed | crashed).
 	Outcome OutcomeKind
@@ -78,6 +79,7 @@ type StopEvent struct {
 // human-readable progress note.
 type ProgressEvent struct {
 	ExecutorID string
+	SlotIndex  *int
 	TaskRef    string
 	State      string
 	Summary    string

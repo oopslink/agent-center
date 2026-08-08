@@ -13,6 +13,8 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +62,11 @@ type ExecutorEngine struct {
 	// recovering (above) blocks CONCURRENT dup-recovery; recoverCount blocks the SERIAL
 	// loop. Cleared on terminal. Guarded by ee.mu.
 	recoverCount map[string]recoverBudget
+	// configVersion is the latest agent profile version applied to this engine by boot
+	// attach or live reconcile. It is surfaced in the heartbeat snapshot so the center
+	// can distinguish "runtime has not received the new cap yet" from a truly idle slot.
+	// Guarded by ee.mu.
+	configVersion int
 }
 
 // recoverBudget is a task's consumed recovery counts, split by cause so stall (proven-
@@ -112,6 +119,18 @@ func (ee *ExecutorEngine) clearRecoverBudget(taskRef string) {
 	delete(ee.recoverCount, taskRef)
 }
 
+func (ee *ExecutorEngine) setConfigVersion(version int) {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	ee.configVersion = version
+}
+
+func (ee *ExecutorEngine) snapshotConfigVersion() int {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	return ee.configVersion
+}
+
 // beginRecovery CAS-claims execID for point recovery: it returns true exactly once
 // per (unsettled) recovery — the caller that gets true owns the recovery and MUST
 // call endRecovery when it settles. A concurrent/duplicate trigger gets false and
@@ -148,6 +167,37 @@ func (ee *ExecutorEngine) isRecovering(id string) bool {
 
 // addOrphan registers a recovered, still-alive executor for watchdog polling.
 func (ee *ExecutorEngine) addOrphan(id string, pid int) {
+	if err := ee.adoptOrphan(id, pid, nil); err != nil {
+		// Preserve the old "never lose the orphan" behavior for test seams and
+		// degraded callers that do not have a durable slot available.
+		ee.recordOrphan(id, pid)
+	}
+}
+
+// adoptOrphan registers a recovered, still-alive executor for watchdog polling and
+// ensures it occupies its stable Pool slot. preferredSlot is the durable assignment
+// from orchestrator.json/input.json; nil falls back to the Pool's lowest free slot
+// for legacy/test paths.
+func (ee *ExecutorEngine) adoptOrphan(id string, pid int, preferredSlot *int) error {
+	if ee.engine != nil && ee.engine.Pool() != nil {
+		pool := ee.engine.Pool()
+		if _, ok := pool.SlotIndex(id); !ok {
+			var err error
+			if preferredSlot != nil {
+				err = pool.Adopt(id, *preferredSlot)
+			} else {
+				err = pool.Adopt(id)
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+	ee.recordOrphan(id, pid)
+	return nil
+}
+
+func (ee *ExecutorEngine) recordOrphan(id string, pid int) {
 	ee.mu.Lock()
 	defer ee.mu.Unlock()
 	if ee.orphans == nil {
@@ -162,9 +212,8 @@ func (ee *ExecutorEngine) addOrphan(id string, pid int) {
 // Recover — does NOT re-adopt into the pool, so the driver must (T854 D6 P0-2). Best-
 // effort pool.Adopt: a full pool / unknown id is not fatal (the executor keeps running;
 // worst case is transient over-admission, never a lost executor).
-func (ee *ExecutorEngine) adoptAlive(id string, pid int) {
-	_ = ee.engine.Pool().Adopt(id)
-	ee.addOrphan(id, pid)
+func (ee *ExecutorEngine) adoptAlive(id string, pid int, preferredSlot *int) error {
+	return ee.adoptOrphan(id, pid, preferredSlot)
 }
 
 // snapshotOrphans returns a copy of the orphan set for lock-free iteration by the
@@ -195,19 +244,28 @@ func (ee *ExecutorEngine) dropOrphan(id string) {
 func (ee *ExecutorEngine) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 	var out []concurrency.ExecutorSnapshot
 	seen := make(map[string]struct{})
+	orphans := ee.snapshotOrphans()
 
-	for _, h := range ee.engine.Pool().Handles() {
-		seen[h.ExecutorID] = struct{}{}
+	for _, asg := range ee.engine.Pool().Assignments() {
+		seen[asg.ExecutorID] = struct{}{}
 		snap := concurrency.ExecutorSnapshot{
-			ExecutorID: h.ExecutorID,
-			PID:        h.PID,
-			StartedAt:  h.StartedAt(),
+			ExecutorID: asg.ExecutorID,
+			SlotIndex:  intPtr(asg.SlotIndex),
 		}
-		ee.enrichFromFiles(&snap, false)
+		if asg.Handle != nil {
+			snap.PID = asg.Handle.PID
+			snap.StartedAt = asg.Handle.StartedAt()
+			ee.enrichFromFiles(&snap, false)
+		} else if pid, orphan := orphans[asg.ExecutorID]; orphan {
+			snap.PID = pid
+			ee.enrichFromFiles(&snap, true)
+		} else {
+			ee.enrichFromFiles(&snap, false)
+		}
 		out = append(out, snap)
 	}
 
-	for id, pid := range ee.snapshotOrphans() {
+	for id, pid := range orphans {
 		if _, dup := seen[id]; dup {
 			continue
 		}
@@ -215,7 +273,86 @@ func (ee *ExecutorEngine) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 		ee.enrichFromFiles(&snap, true)
 		out = append(out, snap)
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		switch {
+		case a.SlotIndex != nil && b.SlotIndex != nil && *a.SlotIndex != *b.SlotIndex:
+			return *a.SlotIndex < *b.SlotIndex
+		case a.SlotIndex != nil && b.SlotIndex == nil:
+			return true
+		case a.SlotIndex == nil && b.SlotIndex != nil:
+			return false
+		default:
+			return a.ExecutorID < b.ExecutorID
+		}
+	})
 	return out
+}
+
+func (ee *ExecutorEngine) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
+	execs := ee.SnapshotConcurrency()
+	snap := concurrency.AgentSnapshot{Active: len(execs), Executors: execs, ConfigVersion: ee.snapshotConfigVersion()}
+	if ee.engine != nil && ee.engine.Pool() != nil {
+		pool := ee.engine.Pool()
+		snap.AdmissionCap = pool.AdmissionMax()
+		snap.SlotCount = pool.SlotCount()
+		slots, integrityErr := buildSlotSnapshots(execs, snap.SlotCount, snap.AdmissionCap)
+		if integrityErr != "" {
+			snap.Integrity = "degraded"
+			snap.IntegrityError = integrityErr
+		} else {
+			snap.Slots = slots
+		}
+	}
+	return snap
+}
+
+func buildSlotSnapshots(execs []concurrency.ExecutorSnapshot, slotCount, admissionCap int) ([]concurrency.SlotSnapshot, string) {
+	if slotCount <= 0 {
+		return nil, ""
+	}
+	bySlot := make(map[int]concurrency.ExecutorSnapshot, len(execs))
+	for _, e := range execs {
+		if e.SlotIndex == nil {
+			return nil, fmt.Sprintf("executor %s missing slot_index", e.ExecutorID)
+		}
+		slot := *e.SlotIndex
+		if slot < 0 || slot >= slotCount {
+			return nil, fmt.Sprintf("executor %s slot_index %d out of range [0,%d)", e.ExecutorID, slot, slotCount)
+		}
+		if other, dup := bySlot[slot]; dup {
+			return nil, fmt.Sprintf("duplicate slot_index %d for %s and %s", slot, other.ExecutorID, e.ExecutorID)
+		}
+		bySlot[slot] = e
+	}
+	slots := make([]concurrency.SlotSnapshot, 0, slotCount)
+	for i := 0; i < slotCount; i++ {
+		if e, ok := bySlot[i]; ok {
+			slots = append(slots, slotFromExecutorSnapshot(i, e))
+			continue
+		}
+		state := concurrency.StateIdle
+		if i >= admissionCap {
+			state = concurrency.StateDraining
+		}
+		slots = append(slots, concurrency.SlotSnapshot{SlotIndex: i, State: state})
+	}
+	return slots, ""
+}
+
+func slotFromExecutorSnapshot(slot int, e concurrency.ExecutorSnapshot) concurrency.SlotSnapshot {
+	return concurrency.SlotSnapshot{
+		SlotIndex:       slot,
+		ExecutorID:      e.ExecutorID,
+		TaskID:          e.TaskID,
+		CLI:             e.CLI,
+		Model:           e.Model,
+		State:           e.State,
+		StartedAt:       e.StartedAt,
+		PID:             e.PID,
+		LastProgressAt:  e.LastProgressAt,
+		CurrentActivity: e.CurrentActivity,
+	}
 }
 
 // FuseExecutorForTask graceful-kills the live executor running taskID (issue-88e32d98,
@@ -320,6 +457,11 @@ func firstNonEmptyLine(s string) string {
 		return line
 	}
 	return ""
+}
+
+func intPtr(v int) *int {
+	vv := v
+	return &vv
 }
 
 // clock import retained for funcClock's interface conformance.

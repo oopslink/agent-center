@@ -154,6 +154,7 @@ func execConfigOf(pl reconcilePayload) agentruntime.ExecutorConfig {
 		DisplayName:          pl.DisplayName,
 		EnvVars:              pl.EnvVars,
 		MaxConcurrentTasks:   pl.MaxConcurrentTasks,
+		ConfigVersion:        pl.Version,
 		AllowedExecutors:     pl.AllowedExecutors,
 		OrchestratorModel:    pl.OrchestratorModel,
 		DefaultExecutorModel: pl.DefaultExecutorModel,

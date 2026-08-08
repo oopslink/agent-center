@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"time"
 )
@@ -30,9 +31,13 @@ const orchestratorFileName = "orchestrator.json"
 // Record is what the orchestrator persists when it launches an executor, so a
 // later (post-restart) orchestrator can reconstruct and probe it.
 type Record struct {
-	ExecutorID string    `json:"executor_id"`
-	PID        int       `json:"pid"`
-	SpawnedAt  time.Time `json:"spawned_at"`
+	ExecutorID string `json:"executor_id"`
+	// SlotIndex is the stable executor-slot assignment for this run. Optional for
+	// legacy orchestrator.json files; recovery backfills it from input.json or by
+	// stable spawned_at+executor_id order.
+	SlotIndex *int      `json:"slot_index,omitempty"`
+	PID       int       `json:"pid"`
+	SpawnedAt time.Time `json:"spawned_at"`
 	// BaseRef / RunnerCmd capture enough to RE-LAUNCH a crashed-retryable executor
 	// without re-deriving them (the orchestrator already chose them at spawn).
 	BaseRef   string   `json:"base_ref,omitempty"`
@@ -59,6 +64,9 @@ type Record struct {
 func (r Record) Validate() error {
 	if err := validateExecutorID(r.ExecutorID); err != nil {
 		return err
+	}
+	if r.SlotIndex != nil && *r.SlotIndex < 0 {
+		return errors.New("executor: record.slot_index must be non-negative")
 	}
 	if r.PID <= 0 {
 		return errors.New("executor: record.pid required")
@@ -158,6 +166,7 @@ type Reconciler struct {
 	fx      *FileExchange
 	tracker *Tracker
 	live    LivenessProbe
+	slotCap int
 }
 
 // NewReconciler wires a Reconciler. A nil probe defaults to SignalLiveness.
@@ -174,6 +183,15 @@ func NewReconciler(fx *FileExchange, tracker *Tracker, live LivenessProbe) (*Rec
 	return &Reconciler{fx: fx, tracker: tracker, live: live}, nil
 }
 
+// SetSlotCap configures the runtime slot range used to validate/backfill durable
+// slot assignments during recovery. <=0 falls back to DefaultMaxConcurrent.
+func (r *Reconciler) SetSlotCap(max int) {
+	if max <= 0 {
+		max = DefaultMaxConcurrent
+	}
+	r.slotCap = max
+}
+
 // Reconcile scans every executor dir and classifies each one exactly once
 // (design §12: no loss, no duplication). It performs NO side effects — no spawn,
 // no kill, no writeback — so it can never double-launch; the orchestrator drives
@@ -183,9 +201,18 @@ func (r *Reconciler) Reconcile() ([]Reconciled, error) {
 	if err != nil {
 		return nil, err
 	}
+	records := make(map[string]*Record, len(snaps))
+	for _, snap := range snaps {
+		if rec := r.recordFor(snap.ExecutorID); rec != nil {
+			records[snap.ExecutorID] = rec
+		}
+	}
+	if err := r.reconcileSlotAssignments(snaps, records); err != nil {
+		return nil, err
+	}
 	out := make([]Reconciled, 0, len(snaps))
 	for _, snap := range snaps {
-		rec := r.recordFor(snap.ExecutorID)
+		rec := records[snap.ExecutorID]
 		alive := rec != nil && r.live.Alive(rec.PID)
 		facts := CompletionFacts{
 			ExecutorID: snap.ExecutorID,
@@ -214,4 +241,87 @@ func (r *Reconciler) recordFor(id string) *Record {
 		return nil
 	}
 	return &rec
+}
+
+type legacySlotRecord struct {
+	executorID string
+	spawnedAt  time.Time
+	rec        *Record
+}
+
+func (r *Reconciler) reconcileSlotAssignments(snaps []Snapshot, records map[string]*Record) error {
+	if len(records) == 0 {
+		return nil
+	}
+	limit := r.slotCap
+	if limit <= 0 {
+		limit = len(records)
+	}
+	used := make(map[int]string, len(records))
+	var legacy []legacySlotRecord
+	for _, snap := range snaps {
+		rec := records[snap.ExecutorID]
+		if rec == nil {
+			continue
+		}
+		if slot, ok := durableSlotIndex(rec, snap.Input); ok {
+			if slot < 0 || slot >= limit {
+				return fmt.Errorf("executor: recovery slot_index %d for %s out of range [0,%d)", slot, rec.ExecutorID, limit)
+			}
+			if other := used[slot]; other != "" && other != rec.ExecutorID {
+				return fmt.Errorf("executor: recovery duplicate slot_index %d for %s and %s", slot, other, rec.ExecutorID)
+			}
+			used[slot] = rec.ExecutorID
+			if rec.SlotIndex == nil {
+				rec.SlotIndex = intPtr(slot)
+				if err := r.tracker.Write(*rec); err != nil {
+					return fmt.Errorf("executor: recovery backfill slot_index for %s: %w", rec.ExecutorID, err)
+				}
+			}
+			continue
+		}
+		legacy = append(legacy, legacySlotRecord{executorID: rec.ExecutorID, spawnedAt: rec.SpawnedAt, rec: rec})
+	}
+	sort.SliceStable(legacy, func(i, j int) bool {
+		if !legacy[i].spawnedAt.Equal(legacy[j].spawnedAt) {
+			return legacy[i].spawnedAt.Before(legacy[j].spawnedAt)
+		}
+		return legacy[i].executorID < legacy[j].executorID
+	})
+	for _, lr := range legacy {
+		slot, ok := firstUnusedSlot(used, limit)
+		if !ok {
+			return fmt.Errorf("executor: recovery no free slot to backfill %s within [0,%d)", lr.executorID, limit)
+		}
+		used[slot] = lr.executorID
+		lr.rec.SlotIndex = intPtr(slot)
+		if err := r.tracker.Write(*lr.rec); err != nil {
+			return fmt.Errorf("executor: recovery backfill slot_index for %s: %w", lr.executorID, err)
+		}
+	}
+	return nil
+}
+
+func durableSlotIndex(rec *Record, in *Input) (int, bool) {
+	if rec != nil && rec.SlotIndex != nil {
+		return *rec.SlotIndex, true
+	}
+	if in != nil && in.SlotIndex != nil {
+		return *in.SlotIndex, true
+	}
+	return 0, false
+}
+
+func firstUnusedSlot(used map[int]string, limit int) (int, bool) {
+	for i := 0; i < limit; i++ {
+		if used[i] == "" {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func intPtr(v int) *int {
+	vv := v
+	return &vv
 }

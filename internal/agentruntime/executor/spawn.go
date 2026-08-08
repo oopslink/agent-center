@@ -175,6 +175,11 @@ type Handle struct {
 	// startedAt is the spawn time (v2.19.0), set by the Pool after a successful fork;
 	// the real-time concurrency snapshot reports it as the executor's started_at.
 	startedAt time.Time
+	// slotIndex is the stable executor-slot assignment, set by Pool.Launch after the
+	// reservation is known. Recovered handles do not carry it; the Pool assignment is
+	// the source for adopted orphans.
+	slotIndex    int
+	slotIndexSet bool
 
 	cmd    *exec.Cmd
 	signal groupSignaler
@@ -182,6 +187,19 @@ type Handle struct {
 
 // StartedAt returns the executor's spawn time (zero if unset).
 func (h *Handle) StartedAt() time.Time { return h.startedAt }
+
+func (h *Handle) setSlotIndex(slot int) {
+	h.slotIndex = slot
+	h.slotIndexSet = true
+}
+
+// SlotIndex returns the stable executor-slot assignment when known.
+func (h *Handle) SlotIndex() (int, bool) {
+	if h == nil || !h.slotIndexSet {
+		return 0, false
+	}
+	return h.slotIndex, true
+}
 
 // Signal delivers sig to the executor's entire process group (killpg). Used by
 // the orchestrator's stop / watchdog paths (F5 consumes this).

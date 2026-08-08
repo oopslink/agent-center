@@ -509,6 +509,7 @@ func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, boo
 		DisplayName:          ra.DisplayName,
 		EnvVars:              ra.EnvVars,
 		MaxConcurrentTasks:   ra.MaxConcurrentTasks,
+		ConfigVersion:        ra.Version,
 		AllowedExecutors:     ra.AllowedExecutors,
 		OrchestratorModel:    ra.OrchestratorModel,
 		DefaultExecutorModel: ra.DefaultExecutorModel,
@@ -535,6 +536,13 @@ func (h agentControlHandler) SnapshotConcurrency() []concurrency.ExecutorSnapsho
 		return nil
 	}
 	return h.rt.SnapshotConcurrency()
+}
+
+func (h agentControlHandler) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
+	if h.rt == nil {
+		return concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
+	}
+	return h.rt.SnapshotAgentConcurrency()
 }
 
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied

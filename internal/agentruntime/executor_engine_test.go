@@ -118,3 +118,52 @@ func TestSnapshotConcurrency_DedupsOrphanAlsoLive(t *testing.T) {
 		t.Error("the live handle should win over the orphan entry (not state=orphan)")
 	}
 }
+
+func TestSnapshotAgentConcurrency_FullSlotsAfterLiveResize(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-slots")
+	first, err := ee.engine.HandleWork(context.Background(), orchestrator.WorkItem{
+		TaskID: "task-1", TaskRef: "task-1", Goal: executor.Goal{Title: "first"},
+	})
+	if err != nil {
+		t.Fatalf("HandleWork first: %v", err)
+	}
+	defer func() { _ = first.Handle.Wait() }()
+	second, err := ee.engine.HandleWork(context.Background(), orchestrator.WorkItem{
+		TaskID: "task-2", TaskRef: "task-2", Goal: executor.Goal{Title: "second"},
+	})
+	if err != nil {
+		t.Fatalf("HandleWork second: %v", err)
+	}
+	defer func() { _ = second.Handle.Wait() }()
+
+	rt.AttachExecutor(ee)
+	rt.UpdateExecutorConfig(ExecutorConfig{
+		AgentID:              "agent-slots",
+		MaxConcurrentTasks:   1,
+		ConfigVersion:        42,
+		DefaultExecutorModel: "claude-default",
+	})
+
+	snap := rt.SnapshotAgentConcurrency()
+	if snap.ConfigVersion != 42 {
+		t.Fatalf("config_version = %d, want 42", snap.ConfigVersion)
+	}
+	if snap.AdmissionCap != 1 || snap.SlotCount != 2 {
+		t.Fatalf("admission/slot_count = %d/%d, want 1/2 during shrink draining", snap.AdmissionCap, snap.SlotCount)
+	}
+	if snap.Integrity != "" || snap.IntegrityError != "" {
+		t.Fatalf("snapshot integrity = %q %q, want ok", snap.Integrity, snap.IntegrityError)
+	}
+	if len(snap.Slots) != 2 {
+		t.Fatalf("slots len = %d, want 2: %+v", len(snap.Slots), snap.Slots)
+	}
+	if snap.Slots[0].SlotIndex != 0 || snap.Slots[0].ExecutorID != first.ExecutorID {
+		t.Fatalf("slot 0 = %+v, want first executor %s", snap.Slots[0], first.ExecutorID)
+	}
+	if snap.Slots[1].SlotIndex != 1 || snap.Slots[1].ExecutorID != second.ExecutorID {
+		t.Fatalf("slot 1 = %+v, want second executor %s", snap.Slots[1], second.ExecutorID)
+	}
+	if second.SlotIndex == nil || *second.SlotIndex != 1 {
+		t.Fatalf("launched second slot = %v, want stable high slot 1", second.SlotIndex)
+	}
+}

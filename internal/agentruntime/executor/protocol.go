@@ -143,9 +143,12 @@ type RuleSnapshot struct {
 // credentials and no center handle, by design.
 type Input struct {
 	ExecutorID string `json:"executor_id"`
-	ProblemID  string `json:"problem_id,omitempty"`
-	Goal       Goal   `json:"goal"`
-	Model      string `json:"model"`
+	// SlotIndex is the stable executor-slot assignment for this run. It is optional
+	// for legacy input.json files; 0 is valid, so the field is a pointer.
+	SlotIndex *int   `json:"slot_index,omitempty"`
+	ProblemID string `json:"problem_id,omitempty"`
+	Goal      Goal   `json:"goal"`
+	Model     string `json:"model"`
 	// CLI is the executor CLI the orchestrator routed (claude-code|codex), persisted
 	// for observability — the real-time concurrency snapshot reads it back from
 	// input.json (v2.19.0). Empty for pre-v2.19 launches; not required at startup.
@@ -194,6 +197,9 @@ const (
 func (in Input) Validate() error {
 	if err := validateExecutorID(in.ExecutorID); err != nil {
 		return err
+	}
+	if in.SlotIndex != nil && *in.SlotIndex < 0 {
+		return errors.New("executor: input.slot_index must be non-negative")
 	}
 	if strings.TrimSpace(in.Goal.Title) == "" {
 		return errors.New("executor: input.goal.title required")

@@ -69,6 +69,7 @@ type WorkItem struct {
 // routing/model provenance (for logging + the daemon's completion tracking).
 type Launched struct {
 	ExecutorID  string
+	SlotIndex   *int
 	ProblemID   string
 	CLI         string // v2.18.1 BE-2: which CLI runner forked this executor (claude-code|codex)
 	Model       string
@@ -285,6 +286,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		}
 		return nil, fmt.Errorf("orchestrator: launch executor: %w", err)
 	}
+	slotIndex := launchedSlotIndex(h)
 
 	// 5. F4 merge — bind the launched executor + source refs onto the problem so a
 	// later message about the same problem routes here (best-effort: a merge failure
@@ -292,6 +294,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	if mErr := e.routing.Merge(problemID, sig, execID); mErr != nil {
 		return &Launched{
 			ExecutorID:  execID,
+			SlotIndex:   slotIndex,
 			ProblemID:   problemID,
 			CLI:         modelDec.CLI,
 			Model:       modelDec.Model,
@@ -303,6 +306,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 
 	return &Launched{
 		ExecutorID:  execID,
+		SlotIndex:   slotIndex,
 		ProblemID:   problemID,
 		CLI:         modelDec.CLI,
 		Model:       modelDec.Model,
@@ -310,6 +314,22 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		RouteReason: dec.Reason,
 		Handle:      h,
 	}, nil
+}
+
+func launchedSlotIndex(h *executor.Handle) *int {
+	if h == nil {
+		return nil
+	}
+	slot, ok := h.SlotIndex()
+	if !ok {
+		return nil
+	}
+	return intPtr(slot)
+}
+
+func intPtr(v int) *int {
+	vv := v
+	return &vv
 }
 
 // buildPrompt assembles the executor's prompt from the goal + aggregated context.

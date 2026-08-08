@@ -526,8 +526,6 @@ func mustWorktrees(t *testing.T, root string) *WorktreeProvisioner {
 }
 
 func poolHas(p *Pool, id string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	_, ok := p.active[id]
+	_, ok := p.SlotIndex(id)
 	return ok
 }

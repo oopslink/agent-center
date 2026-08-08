@@ -140,6 +140,29 @@ func TestPool_ReleaseFreesSlot(t *testing.T) {
 	}
 }
 
+func TestPool_LaunchAssignsLowestFreeSlot(t *testing.T) {
+	pool, _ := newTestPool(t, 3, nil)
+	if _, err := launch(pool, "a"); err != nil {
+		t.Fatalf("launch a: %v", err)
+	}
+	if _, err := launch(pool, "b"); err != nil {
+		t.Fatalf("launch b: %v", err)
+	}
+	if got := mustSlot(t, pool, "a"); got != 0 {
+		t.Fatalf("slot a = %d, want 0", got)
+	}
+	if got := mustSlot(t, pool, "b"); got != 1 {
+		t.Fatalf("slot b = %d, want 1", got)
+	}
+	pool.Release("a")
+	if _, err := launch(pool, "c"); err != nil {
+		t.Fatalf("launch c: %v", err)
+	}
+	if got := mustSlot(t, pool, "c"); got != 0 {
+		t.Fatalf("slot c = %d, want reused lowest free slot 0", got)
+	}
+}
+
 func TestPool_ProvisionFailureFreesSlot(t *testing.T) {
 	pool, _ := newTestPool(t, 2, errors.New("git boom"))
 	if _, err := launch(pool, "x"); err == nil {
@@ -186,6 +209,20 @@ func TestPool_ConcurrentLaunchesRespectCap(t *testing.T) {
 	if len(pool.Handles()) != max {
 		t.Errorf("Handles = %d, want %d", len(pool.Handles()), max)
 	}
+	assignments := pool.Assignments()
+	if len(assignments) != max {
+		t.Fatalf("Assignments = %d, want %d", len(assignments), max)
+	}
+	seen := map[int]bool{}
+	for _, asg := range assignments {
+		if asg.SlotIndex < 0 || asg.SlotIndex >= max {
+			t.Fatalf("slot %d out of range [0,%d)", asg.SlotIndex, max)
+		}
+		if seen[asg.SlotIndex] {
+			t.Fatalf("duplicate slot %d in assignments %+v", asg.SlotIndex, assignments)
+		}
+		seen[asg.SlotIndex] = true
+	}
 }
 
 func TestPool_LaunchValidatesInput(t *testing.T) {
@@ -196,6 +233,78 @@ func TestPool_LaunchValidatesInput(t *testing.T) {
 	}
 	if pool.Active() != 0 {
 		t.Errorf("rejected launch must not occupy a slot, Active = %d", pool.Active())
+	}
+}
+
+func TestPool_ResizeExpandAppendsAdmissibleSlots(t *testing.T) {
+	pool, _ := newTestPool(t, 2, nil)
+	if _, err := launch(pool, "a"); err != nil {
+		t.Fatalf("launch a: %v", err)
+	}
+	if _, err := launch(pool, "b"); err != nil {
+		t.Fatalf("launch b: %v", err)
+	}
+	if _, err := launch(pool, "before-expand"); !errors.Is(err, ErrAtCapacity) {
+		t.Fatalf("pre-expand launch err = %v, want ErrAtCapacity", err)
+	}
+
+	pool.Resize(4)
+	if pool.Max() != 4 || pool.AdmissionMax() != 4 || pool.SlotCount() != 4 {
+		t.Fatalf("after expand max/admission/slots = %d/%d/%d, want 4/4/4", pool.Max(), pool.AdmissionMax(), pool.SlotCount())
+	}
+	if _, err := launch(pool, "c"); err != nil {
+		t.Fatalf("launch c after expand: %v", err)
+	}
+	if got := mustSlot(t, pool, "c"); got != 2 {
+		t.Fatalf("slot c = %d, want appended slot 2", got)
+	}
+}
+
+func TestPool_ResizeShrinkDrainsWithoutMovingRuns(t *testing.T) {
+	pool, _ := newTestPool(t, 3, nil)
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := launch(pool, id); err != nil {
+			t.Fatalf("launch %s: %v", id, err)
+		}
+	}
+	if got := mustSlot(t, pool, "c"); got != 2 {
+		t.Fatalf("precondition c slot = %d, want 2", got)
+	}
+
+	pool.Resize(1)
+	if pool.Max() != 1 || pool.AdmissionMax() != 1 || pool.SlotCount() != 3 {
+		t.Fatalf("after shrink max/admission/slots = %d/%d/%d, want 1/1/3", pool.Max(), pool.AdmissionMax(), pool.SlotCount())
+	}
+	if got := mustSlot(t, pool, "c"); got != 2 {
+		t.Fatalf("shrink moved c to slot %d, want it left in high draining slot 2", got)
+	}
+	if _, err := launch(pool, "d"); !errors.Is(err, ErrAtCapacity) {
+		t.Fatalf("launch while low slot occupied err = %v, want ErrAtCapacity", err)
+	}
+
+	if !pool.Release("b") {
+		t.Fatal("Release(b) should free slot 1")
+	}
+	if pool.SlotCount() != 3 {
+		t.Fatalf("slot_count after releasing middle high slot = %d, want 3 while slot 2 drains", pool.SlotCount())
+	}
+	if !pool.Release("a") {
+		t.Fatal("Release(a) should free slot 0")
+	}
+	if _, err := launch(pool, "d"); err != nil {
+		t.Fatalf("launch d after low slot freed: %v", err)
+	}
+	if got := mustSlot(t, pool, "d"); got != 0 {
+		t.Fatalf("slot d = %d, want only admissible low slot 0", got)
+	}
+	if got := mustSlot(t, pool, "c"); got != 2 {
+		t.Fatalf("high draining run c moved to slot %d, want 2", got)
+	}
+	if !pool.Release("c") {
+		t.Fatal("Release(c) should free high slot")
+	}
+	if pool.SlotCount() != 1 {
+		t.Fatalf("slot_count after high slot drained = %d, want converged cap 1", pool.SlotCount())
 	}
 }
 
@@ -253,4 +362,13 @@ func TestPool_PlainDirWorkspace(t *testing.T) {
 	if _, err := os.Stat(wsDir + "/.git"); err == nil {
 		t.Error("plain-dir workspace must not be a git worktree")
 	}
+}
+
+func mustSlot(t *testing.T, p *Pool, id string) int {
+	t.Helper()
+	slot, ok := p.SlotIndex(id)
+	if !ok {
+		t.Fatalf("missing slot for %s; assignments=%+v", id, p.Assignments())
+	}
+	return slot
 }

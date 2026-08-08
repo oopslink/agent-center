@@ -37,6 +37,15 @@ var ErrAtCapacity = errors.New("executor: pool at capacity")
 // with the same id is still tracked (a double-launch bug or a stale id reuse).
 var ErrAlreadyActive = errors.New("executor: id already active")
 
+// ErrSlotOutOfRange is returned when recovery tries to bind an executor to a slot
+// outside this pool's current addressable range.
+var ErrSlotOutOfRange = errors.New("executor: slot index out of range")
+
+// ErrSlotOccupied is returned when recovery tries to bind two executor ids to the
+// same slot. This is fail-loud: silently moving either run would corrupt the
+// stable slot identity.
+var ErrSlotOccupied = errors.New("executor: slot already occupied")
+
 // DefaultMaxConcurrent is the profile default for max_concurrent_tasks (design §10).
 const DefaultMaxConcurrent = 3
 
@@ -121,15 +130,26 @@ type PreparedWorkspace struct {
 	BaseRef string
 }
 
+// SlotAssignment is a snapshot of one slot-occupying executor. Handle is nil for
+// launch reservations and adopted orphans; those still occupy their SlotIndex until
+// Release.
+type SlotAssignment struct {
+	SlotIndex  int
+	ExecutorID string
+	Handle     *Handle
+}
+
 // Pool tracks an agent's live executors under a concurrency cap.
 type Pool struct {
 	cfg     PoolConfig
 	spawner *Spawner
 	clk     clock.Clock
-	max     int
 
-	mu     sync.Mutex
-	active map[string]*Handle // value nil == reserved slot mid-launch
+	mu            sync.Mutex
+	configuredMax int
+	admissionMax  int
+	byExecutor    map[string]*SlotAssignment
+	bySlot        []*SlotAssignment
 }
 
 // NewPool validates cfg and builds a Pool.
@@ -161,30 +181,58 @@ func NewPool(cfg PoolConfig) (*Pool, error) {
 		clk = clock.SystemClock{}
 	}
 	return &Pool{
-		cfg:     cfg,
-		spawner: sp,
-		clk:     clk,
-		max:     max,
-		active:  make(map[string]*Handle),
+		cfg:           cfg,
+		spawner:       sp,
+		clk:           clk,
+		configuredMax: max,
+		admissionMax:  max,
+		byExecutor:    make(map[string]*SlotAssignment),
+		bySlot:        make([]*SlotAssignment, max),
 	}, nil
 }
 
 // Max returns the concurrency cap.
-func (p *Pool) Max() int { return p.max }
+func (p *Pool) Max() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.configuredMax
+}
+
+// AdmissionMax returns the current admission cap for new launches. During shrink
+// draining it may be lower than SlotCount while high-index active slots finish.
+func (p *Pool) AdmissionMax() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.admissionMax
+}
+
+// SlotCount returns the current addressable slot array length. During shrink
+// draining it may exceed AdmissionMax until high slots release.
+func (p *Pool) SlotCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.bySlot)
+}
 
 // Active returns the number of executors currently occupying a slot (running +
 // mid-launch reservations).
 func (p *Pool) Active() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.active)
+	return len(p.byExecutor)
 }
 
 // Available returns how many more executors may be launched right now.
 func (p *Pool) Available() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.max - len(p.active)
+	n := 0
+	for i := 0; i < p.admissionMax && i < len(p.bySlot); i++ {
+		if p.bySlot[i] == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // Handles returns the live handles for currently-spawned executors (excludes
@@ -192,13 +240,54 @@ func (p *Pool) Available() int {
 func (p *Pool) Handles() []*Handle {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	out := make([]*Handle, 0, len(p.active))
-	for _, h := range p.active {
-		if h != nil {
-			out = append(out, h)
+	out := make([]*Handle, 0, len(p.byExecutor))
+	for _, asg := range p.bySlot {
+		if asg != nil && asg.Handle != nil {
+			out = append(out, asg.Handle)
 		}
 	}
 	return out
+}
+
+// Assignments returns every slot occupant, including launch reservations and
+// handle-less adopted orphans, sorted by slot index.
+func (p *Pool) Assignments() []SlotAssignment {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]SlotAssignment, 0, len(p.byExecutor))
+	for _, asg := range p.bySlot {
+		if asg == nil {
+			continue
+		}
+		out = append(out, *asg)
+	}
+	return out
+}
+
+// SlotIndex returns executorID's current slot assignment.
+func (p *Pool) SlotIndex(executorID string) (int, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	asg, ok := p.byExecutor[executorID]
+	if !ok || asg == nil {
+		return 0, false
+	}
+	return asg.SlotIndex, true
+}
+
+// Resize updates the pool's admission cap. Shrinks are draining: existing high
+// slots are left in place until Release, but new launches only use slots below
+// admissionMax.
+func (p *Pool) Resize(max int) {
+	max = effectiveMax(max)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.configuredMax = max
+	p.admissionMax = max
+	if len(p.bySlot) < max {
+		p.bySlot = append(p.bySlot, make([]*SlotAssignment, max-len(p.bySlot))...)
+	}
+	p.convergeSlotsLocked()
 }
 
 // Launch admits one executor if a slot is free, then provisions its directory +
@@ -215,26 +304,26 @@ func (p *Pool) Launch(ctx context.Context, spec LaunchSpec) (*Handle, error) {
 
 	// Reserve a slot (enforces the cap atomically).
 	p.mu.Lock()
-	if _, dup := p.active[id]; dup {
+	slot, err := p.reserveLocked(id)
+	if err != nil {
 		p.mu.Unlock()
-		return nil, ErrAlreadyActive
+		return nil, err
 	}
-	if len(p.active) >= p.max {
-		p.mu.Unlock()
-		return nil, ErrAtCapacity
-	}
-	p.active[id] = nil // reservation; counts toward the cap until finalized
 	p.mu.Unlock()
 
+	spec.Input.SlotIndex = intPtr(slot)
 	h, err := p.provisionAndSpawn(ctx, spec)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err != nil {
-		delete(p.active, id) // free the reserved slot on failure
+		p.releaseLocked(id) // free the reserved slot on failure
 		return nil, err
 	}
-	p.active[id] = h
+	h.setSlotIndex(slot)
+	if asg := p.byExecutor[id]; asg != nil {
+		asg.Handle = h
+	}
 	return h, nil
 }
 
@@ -292,6 +381,7 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	if p.cfg.Tracker != nil {
 		rec := Record{
 			ExecutorID: id,
+			SlotIndex:  cloneIntPtr(spec.Input.SlotIndex),
 			PID:        h.PID,
 			SpawnedAt:  p.clk.Now(),
 			BaseRef:    p.cfg.BaseRef,
@@ -327,19 +417,34 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 // WITHOUT spawning (the process exists), tracking it as a handle-less reservation
 // (Handles() skips it; Release frees it). Returns ErrAlreadyActive if the id is
 // already tracked, or ErrAtCapacity if no slot is free.
-func (p *Pool) Adopt(executorID string) error {
+func (p *Pool) Adopt(executorID string, preferredSlot ...int) error {
 	if err := validateExecutorID(executorID); err != nil {
 		return err
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, dup := p.active[executorID]; dup {
+	if _, dup := p.byExecutor[executorID]; dup {
 		return ErrAlreadyActive
 	}
-	if len(p.active) >= p.max {
-		return ErrAtCapacity
+	var slot int
+	if len(preferredSlot) > 0 {
+		slot = preferredSlot[0]
+		if slot < 0 || slot >= len(p.bySlot) {
+			return ErrSlotOutOfRange
+		}
+		if p.bySlot[slot] != nil {
+			return ErrSlotOccupied
+		}
+	} else {
+		var err error
+		slot, err = p.firstFreeAdmissionSlotLocked()
+		if err != nil {
+			return err
+		}
 	}
-	p.active[executorID] = nil // handle-less reservation: alive but not reapable here
+	asg := &SlotAssignment{SlotIndex: slot, ExecutorID: executorID}
+	p.byExecutor[executorID] = asg
+	p.bySlot[slot] = asg
 	return nil
 }
 
@@ -349,11 +454,64 @@ func (p *Pool) Adopt(executorID string) error {
 func (p *Pool) Release(executorID string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, ok := p.active[executorID]; !ok {
+	return p.releaseLocked(executorID)
+}
+
+func (p *Pool) reserveLocked(executorID string) (int, error) {
+	if _, dup := p.byExecutor[executorID]; dup {
+		return 0, ErrAlreadyActive
+	}
+	slot, err := p.firstFreeAdmissionSlotLocked()
+	if err != nil {
+		return 0, err
+	}
+	asg := &SlotAssignment{SlotIndex: slot, ExecutorID: executorID}
+	p.byExecutor[executorID] = asg
+	p.bySlot[slot] = asg
+	return slot, nil
+}
+
+func (p *Pool) firstFreeAdmissionSlotLocked() (int, error) {
+	for i := 0; i < p.admissionMax && i < len(p.bySlot); i++ {
+		if p.bySlot[i] == nil {
+			return i, nil
+		}
+	}
+	return 0, ErrAtCapacity
+}
+
+func (p *Pool) releaseLocked(executorID string) bool {
+	asg := p.byExecutor[executorID]
+	if asg == nil {
 		return false
 	}
-	delete(p.active, executorID)
+	delete(p.byExecutor, executorID)
+	if asg.SlotIndex >= 0 && asg.SlotIndex < len(p.bySlot) && p.bySlot[asg.SlotIndex] == asg {
+		p.bySlot[asg.SlotIndex] = nil
+	}
+	p.convergeSlotsLocked()
 	return true
+}
+
+func (p *Pool) convergeSlotsLocked() {
+	minLen := p.configuredMax
+	for len(p.bySlot) > minLen && p.bySlot[len(p.bySlot)-1] == nil {
+		p.bySlot = p.bySlot[:len(p.bySlot)-1]
+	}
+}
+
+func effectiveMax(max int) int {
+	if max <= 0 {
+		return DefaultMaxConcurrent
+	}
+	return max
+}
+
+func cloneIntPtr(v *int) *int {
+	if v == nil {
+		return nil
+	}
+	return intPtr(*v)
 }
 
 // executorBranch is the per-executor worktree branch name: a stable, collision

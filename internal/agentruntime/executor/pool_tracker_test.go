@@ -80,10 +80,20 @@ func TestPool_Launch_WritesRecoveryRecord(t *testing.T) {
 	if rec.PID != pid {
 		t.Errorf("record pid = %d, want %d", rec.PID, pid)
 	}
+	if rec.SlotIndex == nil || *rec.SlotIndex != 0 {
+		t.Fatalf("record slot_index = %v, want 0", rec.SlotIndex)
+	}
 	if len(rec.RunnerCmd) != 3 || rec.RunnerCmd[0] != "claude" {
 		t.Errorf("record runner cmd = %v, want the launched argv", rec.RunnerCmd)
 	}
 	if rec.SpawnedAt.IsZero() {
 		t.Error("record spawned_at must be stamped")
+	}
+	in, err := pool.cfg.Exchange.ReadInput(id)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.SlotIndex == nil || *in.SlotIndex != *rec.SlotIndex {
+		t.Fatalf("input slot_index = %v, want record slot %v", in.SlotIndex, rec.SlotIndex)
 	}
 }
