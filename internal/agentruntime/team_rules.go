@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
@@ -22,6 +23,52 @@ type teamRulesToolResponse struct {
 	Rules            []teamRulesToolRule `json:"rules"`
 	Skipped          []string            `json:"skipped_nonstandard"`
 	RefreshSemantics string              `json:"refresh_semantics"`
+}
+
+// planningPromptDescription freezes the Team Memory rules that govern plan
+// authoring into a newly-created resident supervisor session.  The caller invokes
+// it exactly once per new session generation; subsequent turns therefore keep the
+// same repo commit even when Team Memory moves, while a crash/reset that creates a
+// new generation reloads from the center.
+func (r *LocalRuntime) planningPromptDescription(ctx context.Context, agentID, description string) string {
+	snapshot := r.loadTeamRules(ctx, agentID, rulePhasePlan)
+	section := renderPlanningRuleSnapshot(snapshot)
+	if section == "" {
+		return description
+	}
+	if strings.TrimSpace(description) == "" {
+		return section
+	}
+	return strings.TrimSpace(description) + "\n\n" + section
+}
+
+func renderPlanningRuleSnapshot(snapshot *executor.RuleSnapshot) string {
+	if snapshot == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("== Team Memory rules (frozen planning snapshot) ==\n")
+	fmt.Fprintf(&b, "Team: %s\nPhase: %s\nCommit: %s\nRefresh: %s\n",
+		snapshot.TeamID, snapshot.Phase, snapshot.Commit, snapshot.RefreshSemantics)
+	if len(snapshot.Skipped) > 0 {
+		fmt.Fprintf(&b, "Skipped nonstandard rules: %s\n", strings.Join(snapshot.Skipped, ", "))
+	}
+	for _, rule := range snapshot.Rules {
+		heading := strings.TrimSpace(rule.Title)
+		if heading == "" {
+			heading = strings.TrimSpace(rule.Slug)
+		}
+		fmt.Fprintf(&b, "\n### %s", heading)
+		fmt.Fprintf(&b, "\nSource: %s\nApplies to: %s\n",
+			strings.TrimSpace(rule.SourcePath), strings.Join(rule.AppliesTo, ", "))
+		if d := strings.TrimSpace(rule.Description); d != "" {
+			b.WriteString(d)
+			b.WriteByte('\n')
+		}
+		b.WriteString(strings.TrimSpace(rule.Body))
+		b.WriteByte('\n')
+	}
+	return strings.TrimSpace(b.String())
 }
 
 type teamRulesToolRule struct {

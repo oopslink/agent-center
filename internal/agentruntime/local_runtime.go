@@ -699,6 +699,13 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	r.state.CLI = spec.CLI
 	r.mu.Unlock()
 
+	// A resident supervisor is the production Plan author: create_plan and the
+	// topology tools are called from this session, not from a task executor. Freeze
+	// phase=plan Team rules into this generation before either CLI is started. Keep
+	// state.PromptDescription as the unexpanded profile text so a later generation
+	// reloads instead of duplicating/staling this snapshot.
+	spec.PromptDescription = r.planningPromptDescription(ctx, agentID, spec.PromptDescription)
+
 	home, tasksDir, _, err := r.agentPaths(agentID)
 	if err != nil {
 		return err
