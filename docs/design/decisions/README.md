@@ -43,6 +43,7 @@
 | 0054 | [Task 增加 delivered / blocked 两个非终态（park），修正 ADR-0046](0054-task-delivered-blocked-parked-states.md) | Superseded (2026-07-22: delivered removed; blocked remains parked) |
 | 0055 | [Plan 单调生命周期与增量 Remediation Stage](0055-monotonic-plan-lifecycle-and-remediation-stages.md) | Accepted |
 | 0056 | [Executor Slot 与 Execution Run identity 分离](0056-stable-executor-slots.md) | Accepted |
+| 0057 | [Team Memory 通过 Proposal/Promotion 受控写入](0057-controlled-team-memory-writes.md) | Accepted |
 
 ## 规则提示
 
