@@ -103,7 +103,6 @@
     "membersRoles": "{{members}} members · {{roles}} roles",
     "projectsCount": "{{count}} projects",
     "createdAt": "created {{date}}",
-    "extractToTemplate": "Extract → Template",
     "memoryHeading": "⌗ team-memory",
     "overview": {
       "roleMix": "Role definitions",
@@ -159,74 +158,6 @@
       "pickerEmptyBody": "Every active project in the org is already linked, or there are none yet."
     }
   },
-  "templates": {
-    "title": "Team Templates",
-    "import": "Import",
-    "extractFromTeam": "Extract from team",
-    "emptyTitle": "No templates yet",
-    "emptyBody": "Extract a blueprint from a team, or import a cross-org template JSON.",
-    "instantiate": "Instantiate",
-    "details": "Details",
-    "export": "Export",
-    "importModal": {
-      "title": "Import team template",
-      "subtitle": "Paste an exported team-template/v1 JSON envelope; importing re-homes it to this org (curated=false).",
-      "invalidJson": "Not valid JSON",
-      "importing": "Importing…",
-      "submit": "Import",
-      "jsonLabel": "Template JSON"
-    }
-  },
-  "templateDetail": {
-    "backToTemplates": "← Templates",
-    "notFound": "template_not_found",
-    "tabs": {
-      "overview": "Overview",
-      "seedMemory": "Seed Memory",
-      "curation": "Curation & source",
-      "instances": "Instances"
-    },
-    "sourcePrefix": "Source: {{source}}",
-    "slotsRoles": "{{slots}} slots · {{roles}} roles",
-    "instancesCount": "{{count}} instances",
-    "exportJson": "Export JSON",
-    "instantiate": "Instantiate",
-    "seedMemoryHint": "seeded into the new team's memory-repo on instantiate · curated · read-only preview",
-    "seedMemoryHeading": "⌗ template seed",
-    "riskHigh": "high",
-    "riskMed": "med",
-    "riskLow": "low",
-    "overview": {
-      "roleMix": "Role mix",
-      "roleMixHint": "count adjustable on instantiate",
-      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
-      "info": "Template info",
-      "infoHint": "provenance",
-      "version": "Version",
-      "source": "Source",
-      "workflowRef": "workflow-ref",
-      "curation": "curation",
-      "gated": "gated",
-      "notGated": "not gated",
-      "instances": "Instances",
-      "instancesValue": "{{count}} teams",
-      "note": "Instantiate builds a team from this mix, declares the role slots, seeds the Seed Memory into the new team's memory-repo, and binds the workflow-ref. <b>Phase-1 does not mint agent identities</b> (enrolled at runtime), <b>is project-independent</b>, and project linkage comes later. {{slots}} slots total."
-    },
-    "curation": {
-      "title": "Curation & source",
-      "hint": "per-token disposition at extract time (audit read-only)",
-      "note": "This template was extracted from <b>{{source}}</b>. The suspected proprietary tokens below were curated one by one: <danger>placeholder</danger> = replaced with a placeholder, <success>kept</success> = kept after human confirmation.",
-      "keptBadge": "kept",
-      "placeheldBadge": "placeheld"
-    },
-    "instances": {
-      "title": "Instances",
-      "hint": "teams instantiated from this template",
-      "emptyTitle": "No instances yet",
-      "emptyBody": "No team has been instantiated from this template yet.",
-      "open": "Open"
-    }
-  },
   "newTeamModal": {
     "title": "New Team",
     "subtitle": "Declare the role mix — configure CLI / model / tags / concurrency per role. Creating declares the role slots and a memory-repo (Phase-1 does not mint agent identities; they are enrolled at runtime).",
@@ -242,29 +173,6 @@
     "slotsSummary": "Σ {{slots}} slots = {{slots}} agents derived",
     "errRoleNameRequired": "Each role needs a role name.",
     "errRoleNameDuplicate": "Role names must be unique."
-  },
-  "instantiateModal": {
-    "title": "Instantiate template",
-    "subtitle": "Instantiate <b>{{name}}</b> into a team. <b>Project-independent</b> — build the team + declare role slots by the mix + seed memory + bind the workflow; <b>Phase-1 does not mint agent identities</b> (enrolled at runtime), and projects are linked later under the detail's “Linked projects”.",
-    "instantiating": "Instantiating…",
-    "submit": "Instantiate →",
-    "nameLabel": "New team name",
-    "roleMixLabel": "Role mix",
-    "roleMixHint": "(carried from the template; count / cli / model / concurrency / tags adjustable)",
-    "slotsSummary": "Σ {{total}} slots → {{total}} role slots declared",
-    "summaryLabel": "Instantiate will do (project-independent)",
-    "declaredSlots": "Declared role slots",
-    "declaredSlotsValue": "{{total}} · {{breakdown}}",
-    "unnamed": "unnamed",
-    "memoryRepo": "Build memory-repo",
-    "memoryRepoValue": "seed MEMORY.md from the template",
-    "bindWorkflow": "Bind workflow",
-    "bindWorkflowValue": "team-level · project-independent",
-    "agentIdentity": "Agent identity",
-    "agentIdentityValue": "Phase-1 not minted · enrolled at runtime",
-    "projectLink": "Project link",
-    "projectLinkValue": "later → detail “Linked projects” (0..N)",
-    "footnote": "＊ Instantiate only builds the team and role declarations, <b>not agent identities</b> (Phase-1 facade mints 0 agents; members are enrolled at runtime); project-related work (seeding project facts into the team repo, actually running a plan) is deferred to <code>associate_project</code>; workflow binding does not depend on a project."
   },
   "addMemberModal": {
     "errIdentityNotFound": "This agent / human no longer exists or was deactivated; please re-select.",
@@ -301,34 +209,6 @@
     "roleLabel": "Assign roles",
     "roleHint": "A member can hold multiple roles in the same team."
   },
-  "extractModal": {
-    "title": "Extract → Template",
-    "subtitle": "Extract a blueprint from <b>{{name}}</b>. Suspected proprietary tokens have been scanned — each must be curated to pass the gate before saving (no bulk select, to prevent leaks).",
-    "stepSelectSource": "Select source",
-    "stepScrubCurate": "Scrub / Curate",
-    "stepNameSave": "Name & save",
-    "note": "Scanned <b>{{count}}</b> suspected proprietary spots. Default actions are pre-selected; please confirm <b>each one</b>. <danger>red = remove</danger> · <success>green = keep</success>.",
-    "scanning": "Scanning…",
-    "removePlaceholder": "Remove (placeholder)",
-    "keep": "Keep",
-    "riskHigh": "high",
-    "riskMed": "med",
-    "riskLow": "low",
-    "gateScanningTitle": "Scanning…",
-    "gateScanningBody": " — identifying suspected proprietary tokens, hold on.",
-    "gatePassedTitle": "Curation cleared",
-    "gatePassedBody": " — no high-risk left. {{kept}} kept / {{scrubbed}} placeheld.",
-    "gateBlockedTitle": "Gate not passed",
-    "gateBlockedBody": " — still keeping {{count}} high-risk token(s); placehold them first.",
-    "count": "{{scrubbed}} scrubbed · {{kept}} kept",
-    "saveScanning": "Scanning…",
-    "saveBlocked": "Resolve high-risk first",
-    "saving": "Saving…",
-    "save": "Save as template →",
-    "templateNameSuffix": "{{name}} template",
-    "templateDescription": "Blueprint extracted from {{name}}.",
-    "templateSource": "extracted from {{id}}"
-  },
   "roleBuilder": {
     "roleNamePlaceholder": "Role name",
     "decreaseCount": "decrease count",
@@ -348,7 +228,37 @@
   "memoryPane": {
     "pinned": "pinned",
     "lazy": "lazy",
+    "manage": "Manage memory",
     "raw": "Raw",
-    "copyPath": "Copy path"
+    "rendered": "Rendered",
+    "copyPath": "Copy path",
+    "copied": "Copied",
+    "ruleBadge": "RULE",
+    "permission": {
+      "readOnly": "Web access is read-only for team memory. Members can view entries and rules here; edits land through the team memory repo workflow.",
+      "manageDisabledTitle": "Team memory writes are not exposed in the web console yet."
+    },
+    "filter": {
+      "aria": "Team memory filters",
+      "all": "All {{count}}",
+      "entries": "Entries {{count}}",
+      "rules": "Rules {{count}}"
+    },
+    "section": {
+      "index": "index"
+    },
+    "empty": {
+      "allTitle": "No team memory yet",
+      "allBody": "This team has no indexed entries or rules yet.",
+      "entriesTitle": "No entries yet",
+      "entriesBody": "Shared experience entries will appear under entries/ after the team memory repo receives them.",
+      "rulesTitle": "No rules yet",
+      "rulesBody": "Team-level rules will appear under rules/ after they are added to the team memory repo."
+    },
+    "error": {
+      "index": "Couldn't load team memory.",
+      "doc": "Couldn't load this memory document.",
+      "permission": "You don't have permission to view this memory document."
+    }
   }
 }

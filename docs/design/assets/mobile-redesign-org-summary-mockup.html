@@ -104,7 +104,7 @@
 </svg>
 
 <h1>跨项目汇总 — 移动端高保真 mockup</h1>
-<p class="sub">OrgWorkItems（Issues/Tasks 跨项目汇总，同一组件不同 kind）/ OrgPlans / OrgRepos（工作区仓库注册表，非 GitHub 连接、也非项目内引用）/ OrgTemplates（纯文本 prompt 模板，与另一个不相关的 Team Templates 功能无关）。设计前已审计 PC 端功能——项目筛选器是这批独有的（项目内视图没有，因为项目维度已固定）；OrgWorkItems/OrgPlans 点行进入的是<b>只读摘要面板</b>，不能就地编辑，要跳转到项目内详情页才能操作。</p>
+<p class="sub">OrgWorkItems（Issues/Tasks 跨项目汇总，同一组件不同 kind）/ OrgPlans / OrgRepos（工作区仓库注册表，非 GitHub 连接、也非项目内引用）。2026-08 收口后 OrgTemplates 独立页面已下线；team 级规约统一在 Team Detail > Memory 的 rules/ 分组查看。设计前已审计 PC 端功能——项目筛选器是这批独有的（项目内视图没有，因为项目维度已固定）；OrgWorkItems/OrgPlans 点行进入的是<b>只读摘要面板</b>，不能就地编辑，要跳转到项目内详情页才能操作。</p>
 
 <div class="row">
 
@@ -264,7 +264,6 @@
         <div class="t">Tasks</div>
         <div class="t">Plans</div>
         <div class="t active">Repos</div>
-        <div class="t">Templates</div>
       </div>
       <div class="content">
         <div class="card">
@@ -338,104 +337,16 @@
     </div>
   </div>
 
-  <div class="frame-wrap">
-    <div class="frame-label">④ OrgTemplates（纯文本 prompt 模板）</div>
-    <div class="phone">
-      <div class="topbar">
-        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
-        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
-      </div>
-      <div class="tabstrip">
-        <div class="t">Projects</div>
-        <div class="t">Issues</div>
-        <div class="t">Tasks</div>
-        <div class="t">Plans</div>
-        <div class="t">Repos</div>
-        <div class="t active">Templates</div>
-      </div>
-      <div class="content">
-        <div class="card">
-          <div class="card-top">
-            <div class="card-title">Bug 修复标准流程</div>
-            <span class="status-badge badge-builtin">内置</span>
-          </div>
-          <div class="card-desc">用于指导 agent 按标准步骤定位并修复 bug</div>
-          <div class="card-bottom">
-            <span style="font-size:10px;color:var(--text-muted)">内置模板不可编辑/删除</span>
-            <span class="row-action" style="color:var(--brand)"><svg class="icon" style="width:13px;height:13px"><use href="#i-search"/></svg></span>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-top">
-            <div class="card-title">支付合规检查清单</div>
-          </div>
-          <div class="card-desc">团队自定义的支付相关合规审查提示词</div>
-          <div class="card-bottom">
-            <span style="font-size:10px;color:var(--text-muted)">自定义模板</span>
-            <span style="display:flex;gap:4px">
-              <span class="row-action" style="color:var(--brand)"><svg class="icon" style="width:13px;height:13px"><use href="#i-edit"/></svg></span>
-              <span class="row-action" style="color:var(--danger)"><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg></span>
-            </span>
-          </div>
-        </div>
-      </div>
-      <div class="tabbar">
-        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
-        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
-        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
-        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
-        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="frame-wrap">
-    <div class="frame-label">④' OrgTemplates → 展开查看内容</div>
-    <div class="phone">
-      <div class="topbar">
-        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
-      </div>
-      <div class="tabstrip">
-        <div class="t">Projects</div>
-        <div class="t">Issues</div>
-        <div class="t">Tasks</div>
-        <div class="t">Plans</div>
-        <div class="t">Repos</div>
-        <div class="t active">Templates</div>
-      </div>
-      <div class="content">
-        <div class="card">
-          <div class="card-top">
-            <div class="card-title">支付合规检查清单</div>
-          </div>
-          <div class="card-desc">团队自定义的支付相关合规审查提示词</div>
-        </div>
-        <div class="code-block">1. 检查是否记录完整审计日志
-2. 检查敏感字段是否加密存储
-3. 检查是否有幂等性保护
-4. 检查回滚方案是否完备</div>
-      </div>
-      <div class="tabbar">
-        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
-        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
-        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
-        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
-        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <div class="section-note">
   <h3>设计要点</h3>
   <ul>
-    <li>Workspace 顶层 tabstrip 从"Projects"扩展到"Projects / Issues / Tasks / Plans / Repos / Templates"六项，横向可滑动——这是 PC 端 col① rail 的 pathPrefixes（<code>projects/issues/tasks/plans/repos/templates</code>）在移动端的统一入口，跟第三批 ProjectDetail 内部的 tabstrip 是同一视觉语言但不同语义层级（这里切的是"跨项目视图"，那里切的是"单项目内的维度"）。</li>
+    <li>Workspace 顶层 tabstrip 从"Projects"扩展到"Projects / Issues / Tasks / Plans / Repos"五项，横向可滑动——这是 PC 端 col① rail 的 pathPrefixes（<code>projects/issues/tasks/plans/repos</code>）在移动端的统一入口，跟第三批 ProjectDetail 内部的 tabstrip 是同一视觉语言但不同语义层级（这里切的是"跨项目视图"，那里切的是"单项目内的维度"）。</li>
     <li>项目筛选器（"全部项目"下拉）只在这批跨项目视图里出现——这是与第三批 ProjectDetail 表格视图唯一的结构性差异（项目内视图项目维度已固定，不需要这个筛选器），mockup 里特意标出来避免复用第三批组件时误加或误删。</li>
     <li>OrgWorkItems/OrgPlans 点行是<b>只读摘要弹层 + "打开完整详情"跳转按钮</b>，不能就地编辑状态/负责人——这是刻意保留的 PC 端设计（列表本身是只读投影，编辑要进项目内详情页），移动端不要"顺手"加一个编辑按钮。</li>
     <li>OrgRepos 明确是<b>工作区仓库注册表</b>（增删改仓库元数据 + 只读查看远端 commits/branches），不是 GitHub OAuth 连接流程，也不是"项目引用哪些仓库"（那是第三批 ProjectDetail 的 Repos tab）——两个"仓库"页面职责不同，mockup 标题和文案里都点出这个区分，避免实现时混淆两个概念。</li>
-    <li>OrgTemplates 是纯文本 prompt 模板 CRUD，没有"应用/实例化"动作——跟另一个不相关的 Team Templates（团队组成模板，可导入/导出/实例化）完全是两回事，本批的模板卡片没有"应用"按钮是有意为之，不是漏画。</li>
-    <li>内置模板（builtin）隐藏编辑/删除入口，只保留查看——与自定义模板视觉区分只用一个"内置"灰色徽章，不用禁用态图标制造额外视觉噪音。</li>
+    <li>OrgTemplates 已退休；team rules 不在 Workspace 暴露一级入口，统一在 Team Detail > Memory 的 rules/ 分组查看。</li>
   </ul>
   <h3 style="margin-top:14px">功能覆盖清单（未逐屏画出，写 spec 时逐项定案）</h3>
   <ul>
@@ -443,7 +354,7 @@
     <li><b>OrgWorkItems 跨项目创建</b>（先选项目，再委托给项目内的 Create 弹层）：入口已标（顶栏 + 号），二级"选项目"步骤留后续。</li>
     <li><b>OrgRepos 的 Add/Edit Repo 表单</b>（label/provider/url/默认分支/凭证，凭证字段留空=保留原值）：入口已标，表单细节留后续。</li>
     <li><b>OrgRepos 删除仓库的差异化确认文案</b>（有项目引用 vs 无引用时警示不同）：需要在实现阶段体现"有引用"警示，不能所有删除都用同一句文案。</li>
-    <li><b>OrgTemplates 的 Add/Edit 表单</b>（name/description/content 多行文本）：入口已标，表单细节留后续；编辑时要求 content 异步加载完成才能保存（避免覆盖为空），这条约束要写进 spec。</li>
+    <li><b>Team Memory rules</b>：不新增独立产品对象或一级页面；规则查看、空态、错误态和权限反馈在 Team Detail > Memory 内完成。</li>
   </ul>
 </div>
 

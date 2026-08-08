@@ -16,9 +16,9 @@ describe('TeamUISecondaryNav', () => {
     renderAt('/organizations/ooo/teams');
     expect(screen.getByTestId('teamui-nav')).toBeInTheDocument();
     expect(screen.getByTestId('teamui-nav-teams')).toHaveAttribute('href', '/organizations/ooo/teams');
-    expect(screen.getByTestId('teamui-nav-templates')).toHaveAttribute('href', '/organizations/ooo/teams/templates');
     expect(screen.getByTestId('teamui-nav-agents')).toHaveAttribute('href', '/organizations/ooo/teams/agents');
     expect(screen.getByTestId('teamui-nav-humans')).toHaveAttribute('href', '/organizations/ooo/teams/humans');
+    expect(screen.queryByTestId('teamui-nav-templates')).not.toBeInTheDocument();
   });
 
   it('marks All teams active only on the exact /teams path', () => {
@@ -26,9 +26,9 @@ describe('TeamUISecondaryNav', () => {
     expect(screen.getByTestId('teamui-nav-teams').className).toContain('bg-brand-hover');
   });
 
-  it('does not keep All teams active on a nested page', () => {
-    renderAt('/organizations/ooo/teams/templates');
+  it('does not keep All teams active on a nested directory page', () => {
+    renderAt('/organizations/ooo/teams/agents');
     expect(screen.getByTestId('teamui-nav-teams').className).not.toContain('bg-brand-hover');
-    expect(screen.getByTestId('teamui-nav-templates').className).toContain('bg-brand-hover');
+    expect(screen.getByTestId('teamui-nav-agents').className).toContain('bg-brand-hover');
   });
 });

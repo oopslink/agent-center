@@ -293,14 +293,12 @@
       "tasks": "Tasks",
       "plans": "Plans",
       "repos": "Repos",
-      "templates": "Templates",
       "modelCatalog": "Model catalog",
       "codeRepos": "Code repos",
       "workBoard": "Work Board"
     },
     "teamui": {
       "allTeams": "All teams",
-      "templates": "Templates",
       "directory": "PEOPLES",
       "agents": "Agents",
       "humans": "Humans"

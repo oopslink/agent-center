@@ -92,6 +92,8 @@ agent 自己  →  team（共享）  →  project  →  global
 
 git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费（进 context）"，两者叠加：checkout 下来的 repo 里有 `MEMORY.md` 索引（常驻）+ 条目文件（按需载）。
 
+**Web Console surface（2026-08 收口）**：Team Detail > Memory 是唯一产品面；同页按 `entries/` 与 `rules/` 分组/筛选，`rules/` 条目显示 RULE 标识。Web 端当前只读展示 team memory，并给出管理权限/能力反馈；不新增 Team Rules 一级页、独立产品对象或 `kind` 双重字段。
+
 ---
 
 ## 6. Team 模版

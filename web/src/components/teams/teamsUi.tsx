@@ -158,15 +158,6 @@ export function GridIcon({ className }: IconProps): React.ReactElement {
   );
 }
 
-export function TemplateIcon({ className }: IconProps): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3l8 4.5-8 4.5-8-4.5z" />
-      <path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5" />
-    </svg>
-  );
-}
-
 export function DirectoryIcon({ className }: IconProps): React.ReactElement {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -214,41 +205,6 @@ export function InfoIcon({ className }: IconProps): React.ReactElement {
     <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8v.01" />
-    </svg>
-  );
-}
-
-export function ArrowRightIcon({ className }: IconProps): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-export function ExtractIcon({ className }: IconProps): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
-      <path d="M12 12v9M12 12L4 7.5M12 12l8-4.5" />
-    </svg>
-  );
-}
-
-export function ImportIcon({ className }: IconProps): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12M7 10l5 5 5-5" />
-      <path d="M4 21h16" />
-    </svg>
-  );
-}
-
-export function ExportIcon({ className }: IconProps): React.ReactElement {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={base(className)} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 15V3M7 8l5-5 5 5" />
-      <path d="M4 21h16" />
     </svg>
   );
 }
