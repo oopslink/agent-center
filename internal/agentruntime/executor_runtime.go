@@ -305,6 +305,7 @@ func (r *LocalRuntime) workViaExecutor(ctx context.Context, req WorkRequest, ee 
 		// "" / executor_fork; a stamped inline value would be an N4 case.
 		DispatchMode: strings.TrimSpace(req.DispatchMode),
 	}
+	item.RuleSnapshot = r.loadTeamRules(ctx, req.AgentID, rulePhaseExecute)
 	return r.launchExecutor(ctx, req.AgentID, req.TaskID, item, ee)
 }
 
@@ -951,7 +952,9 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
-	launched, err := r.launchExecutorNow(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context), ee)
+	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
+	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task))
+	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
 		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
@@ -1106,6 +1109,9 @@ type centerTaskDetail struct {
 	// (DispatchMode.RoutesInline is a strict equality test).
 	DispatchMode     string `json:"dispatch_mode"`
 	DeliveryContract string `json:"delivery_contract"`
+	StageID          string `json:"stage_id"`
+	FollowsTaskID    string `json:"follows_task_id"`
+	OriginVerdictID  string `json:"origin_verdict_id"`
 }
 
 // centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a

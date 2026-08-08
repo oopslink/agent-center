@@ -56,11 +56,12 @@ func NewTeamMemoryProducer(host *Host, runner memory.GitRunner, opts ...Producer
 }
 
 // SeedTeam provisions (idempotently) team teamID's bare repo and writes each
-// entry into it as one file, pushing a single seed commit. Entries that fail
-// per-entry validation (empty slug/description) are skipped — seeding is
-// best-effort over a human-curated template. Returns the number of entries
-// actually written. A nil/zero entry set is a no-op (repo still provisioned).
-func (p *TeamMemoryProducer) SeedTeam(ctx context.Context, teamID string, entries []Entry) (int, error) {
+// entry/rule into it as one file, pushing a single seed commit. Entries/rules
+// that fail per-item validation are skipped — seeding is best-effort over a
+// human-curated template. Returns the number of items actually written. A
+// nil/zero item set is a no-op (repo still provisioned). The variadic rules
+// parameter preserves the original entries-only call shape.
+func (p *TeamMemoryProducer) SeedTeam(ctx context.Context, teamID string, entries []Entry, ruleSets ...[]Rule) (int, error) {
 	if p == nil || p.host == nil {
 		return 0, fmt.Errorf("%w: producer not wired", ErrGitOpFailed)
 	}
@@ -68,7 +69,8 @@ func (p *TeamMemoryProducer) SeedTeam(ctx context.Context, teamID string, entrie
 	if err := p.host.EnsureRepo(ctx, ref); err != nil {
 		return 0, err
 	}
-	if len(entries) == 0 {
+	rules := flattenRules(ruleSets)
+	if len(entries) == 0 && len(rules) == 0 {
 		return 0, nil
 	}
 	bareDir, err := p.host.RepoDir(ref)
@@ -102,12 +104,36 @@ func (p *TeamMemoryProducer) SeedTeam(ctx context.Context, teamID string, entrie
 		}
 		written++
 	}
+	for _, r := range rules {
+		if strings.TrimSpace(r.Slug) == "" || strings.TrimSpace(r.Description) == "" {
+			continue // skip un-curated / partial rules
+		}
+		if _, wErr := store.WriteRule(r); wErr != nil {
+			continue // best-effort: a single bad rule never fails the whole seed
+		}
+		written++
+	}
 	if written == 0 {
 		return 0, nil
 	}
 	if pErr := store.SyncPush(ctx, "origin", "main", p.author,
-		fmt.Sprintf("seed team %s memory (%d experiences)", teamID, written), 3); pErr != nil {
+		fmt.Sprintf("seed team %s memory (%d items)", teamID, written), 3); pErr != nil {
 		return 0, pErr
 	}
 	return written, nil
+}
+
+func flattenRules(ruleSets [][]Rule) []Rule {
+	var total int
+	for _, rs := range ruleSets {
+		total += len(rs)
+	}
+	if total == 0 {
+		return nil
+	}
+	out := make([]Rule, 0, total)
+	for _, rs := range ruleSets {
+		out = append(out, rs...)
+	}
+	return out
 }

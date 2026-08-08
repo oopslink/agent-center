@@ -25,6 +25,7 @@ type exportEnvelope struct {
 	Roles               []roleSlotWire   `json:"roles"`
 	WorkflowTemplateRef string           `json:"workflow_template_ref,omitempty"`
 	Experiences         []experienceWire `json:"experiences,omitempty"`
+	Rules               []ruleWire       `json:"rules,omitempty"`
 	SourceOrgID         string           `json:"source_org_id,omitempty"`
 	SourceID            string           `json:"source_id,omitempty"`
 	ExportedAt          time.Time        `json:"exported_at"`
@@ -46,6 +47,15 @@ type experienceWire struct {
 	Body        string   `json:"body,omitempty"`
 	Scope       string   `json:"scope"`
 	Tags        []string `json:"tags,omitempty"`
+}
+
+type ruleWire struct {
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Body        string   `json:"body,omitempty"`
+	Enabled     *bool    `json:"enabled,omitempty"`
+	AppliesTo   []string `json:"applies_to,omitempty"`
 }
 
 // ExportTemplate serialises a template to a shareable JSON document. It refuses
@@ -84,6 +94,17 @@ func ExportTemplate(t *TeamTemplate) ([]byte, error) {
 			Body:        e.Body,
 			Scope:       string(e.Scope),
 			Tags:        e.Tags,
+		})
+	}
+	for _, r := range t.Rules {
+		enabled := r.Enabled
+		env.Rules = append(env.Rules, ruleWire{
+			Slug:        r.Slug,
+			Title:       r.Title,
+			Description: r.Description,
+			Body:        r.Body,
+			Enabled:     &enabled,
+			AppliesTo:   append([]string(nil), r.AppliesTo...),
 		})
 	}
 	return json.MarshalIndent(env, "", "  ")
@@ -138,6 +159,21 @@ func ImportTemplate(data []byte, in ImportTemplateInput) (*TeamTemplate, error) 
 			Tags:        ew.Tags,
 		})
 	}
+	rules := make([]Rule, 0, len(env.Rules))
+	for _, rw := range env.Rules {
+		enabled := true
+		if rw.Enabled != nil {
+			enabled = *rw.Enabled
+		}
+		rules = append(rules, Rule{
+			Slug:        rw.Slug,
+			Title:       rw.Title,
+			Description: rw.Description,
+			Body:        rw.Body,
+			Enabled:     enabled,
+			AppliesTo:   append([]string(nil), rw.AppliesTo...),
+		})
+	}
 	name := strings.TrimSpace(env.Name)
 	return NewTemplate(NewTemplateInput{
 		ID:                  in.NewID,
@@ -147,6 +183,7 @@ func ImportTemplate(data []byte, in ImportTemplateInput) (*TeamTemplate, error) 
 		Roles:               roles,
 		WorkflowTemplateRef: env.WorkflowTemplateRef,
 		Experiences:         exps,
+		Rules:               rules,
 		Curated:             false,
 		CreatedAt:           in.Now,
 	})

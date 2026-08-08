@@ -35,6 +35,10 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 		Description: "List the teams in your organization.",
 	}, makeListTeams(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_team_rules",
+		Description: "Read the enabled Team Memory rules for the current agent's team and phase (plan, execute, review, recovery). The response includes the team memory commit used for audit. In-flight executors keep their snapshotted rules; fresh forks reload.",
+	}, makeGetTeamRules(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_member",
 		Description: "Add a member to a team under a role the team declared. member_ref is an identity ref: agent:<id> or user:<id>. An agent belongs to at most one team (exclusivity); a human may join many.",
 	}, makeAddMember(cfg))
@@ -48,7 +52,7 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 	}, makeAssociateProject(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_team_template",
-		Description: "Author + validate a team template: role composition (each role with a count/配比 and its cli/model/capability_tags), an optional referenced workflow template, and portable (team/global-scope) experiences. Returns the normalized template. Templates are org-level snapshots you then instantiate onto a project.",
+		Description: "Author + validate a team template: role composition (each role with a count/配比 and its cli/model/capability_tags), portable (team/global-scope) experiences, and Team Memory rules. workflow_template_ref is legacy compatibility; prefer rules. Returns the normalized template.",
 	}, makeCreateTeamTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "curate_team_template",
@@ -149,6 +153,18 @@ func makeListTeams(cfg Config) mcp.ToolHandlerFor[listTeamsArgs, any] {
 	}
 }
 
+// ---- get_team_rules --------------------------------------------------------
+
+type getTeamRulesArgs struct {
+	Phase string `json:"phase,omitempty" jsonschema:"plan | execute | review | recovery; defaults to execute"`
+}
+
+func makeGetTeamRules(cfg Config) mcp.ToolHandlerFor[getTeamRulesArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamRulesArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_team_rules", map[string]any{"agent_id": cfg.AgentID, "phase": args.Phase})
+	}
+}
+
 // ---- add_member / remove_member ---------------------------------------------
 
 type addMemberArgs struct {
@@ -213,18 +229,29 @@ type teamExperienceArg struct {
 	Tags        []string `json:"tags,omitempty" jsonschema:"optional tags"`
 }
 
+type teamRuleArg struct {
+	Slug        string   `json:"slug" jsonschema:"path-safe stem for the rule file"`
+	Title       string   `json:"title,omitempty" jsonschema:"optional heading"`
+	Description string   `json:"description" jsonschema:"one-line hook (seeds the memory index)"`
+	Body        string   `json:"body,omitempty" jsonschema:"markdown rule content"`
+	Enabled     *bool    `json:"enabled,omitempty" jsonschema:"whether the rule is active; omitted defaults to true"`
+	AppliesTo   []string `json:"applies_to,omitempty" jsonschema:"plan | execute | review | recovery; omitted applies to all phases"`
+}
+
 type createTeamTemplateArgs struct {
 	Name                string              `json:"name" jsonschema:"template name"`
 	Description         string              `json:"description,omitempty" jsonschema:"optional description"`
 	Roles               []teamRoleSlotArg   `json:"roles" jsonschema:"role composition + per-role config"`
-	WorkflowTemplateRef string              `json:"workflow_template_ref,omitempty" jsonschema:"referenced workflow template"`
+	WorkflowTemplateRef string              `json:"workflow_template_ref,omitempty" jsonschema:"legacy workflow template reference; prefer rules"`
 	Experiences         []teamExperienceArg `json:"experiences,omitempty" jsonschema:"portable (team/global) experiences to carry"`
+	Rules               []teamRuleArg       `json:"rules,omitempty" jsonschema:"team rules to seed into rules/"`
 }
 
 func (a createTeamTemplateArgs) body(cfg Config) map[string]any {
 	return map[string]any{
 		"agent_id": cfg.AgentID, "name": a.Name, "description": a.Description,
 		"roles": a.Roles, "workflow_template_ref": a.WorkflowTemplateRef, "experiences": a.Experiences,
+		"rules": a.Rules,
 	}
 }
 

@@ -272,15 +272,40 @@ func spawn(t *testing.T, agentID, taskID string, sc ToolCaller) (*LocalRuntime, 
 func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 	sc := &scriptedToolCaller{getTaskBody: map[string]any{
 		"id": "task-9", "title": "Fix the bug", "description": "do the fix", "status": "open", "model": "claude-haiku",
+	}, teamRulesBody: map[string]any{
+		"team_id": "team-1", "phase": "execute", "commit": "abc123",
+		"refresh_semantics": "snapshot at fork",
+		"rules": []map[string]any{{
+			"slug": "prefer-tests", "description": "test first", "body": "Write the regression test.", "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
+		}},
 	}}
 	rt, _, home := spawn(t, "agent-fork", "task-9", sc)
 
 	assertAdmissionForked(t, sc, "admission must run get_task→start_task before forking")
+	if body, ok := sc.callFor("get_team_rules"); !ok || body["phase"] != "execute" || body["agent_id"] != "agent-fork" {
+		t.Errorf("get_team_rules body = %v", body)
+	}
 	if body, ok := sc.callFor("start_task"); !ok || body["task_id"] != "task-9" || body["agent_id"] != "agent-fork" {
 		t.Errorf("start_task body = %v", body)
 	}
 	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) == 0 || probs[0].TaskRefs[0] != "task-9" {
 		t.Fatalf("expected one problem bound to task-9, got %+v", probs)
+	} else {
+		layout, err := executor.NewLayout(home)
+		if err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+		fx, err := executor.NewFileExchange(layout, nil)
+		if err != nil {
+			t.Fatalf("file exchange: %v", err)
+		}
+		in, err := fx.ReadInput(probs[0].ExecutorIDs[0])
+		if err != nil {
+			t.Fatalf("read input: %v", err)
+		}
+		if in.TeamRules == nil || in.TeamRules.Commit != "abc123" || len(in.TeamRules.Rules) != 1 || in.TeamRules.Rules[0].Slug != "prefer-tests" {
+			t.Fatalf("input team_rules = %+v", in.TeamRules)
+		}
 	}
 	if got := rt.CurrentTaskID(); got != "task-9" {
 		t.Errorf("currentTaskID = %q, want task-9", got)
@@ -456,7 +481,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 3 || seen[1] != "start_task" || seen[2] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -686,8 +711,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want (nil, nil)", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 3 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task block_task]", seen)
+	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rules block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

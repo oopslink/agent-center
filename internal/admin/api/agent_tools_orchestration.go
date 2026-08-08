@@ -714,6 +714,8 @@ func (s *Server) unbindTaskFromNodeHandler(w http.ResponseWriter, r *http.Reques
 // Template tools: list_templates / get_template
 // =============================================================================
 
+const legacyTemplateDeprecation = "legacy workflow templates are deprecated; migrate owned templates to Team Memory rules/ and use get_team_rules"
+
 type listTemplatesReq struct {
 	AgentID string `json:"agent_id"`
 }
@@ -749,7 +751,7 @@ func (s *Server) listTemplatesHandler(w http.ResponseWriter, r *http.Request) {
 			"builtin":     t.IsBuiltin(),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"templates": items})
+	writeJSON(w, http.StatusOK, map[string]any{"templates": items, "deprecated": true, "deprecation": legacyTemplateDeprecation})
 }
 
 type getTemplateReq struct {
@@ -792,6 +794,8 @@ func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		"description": t.Description(),
 		"content":     t.Content(),
 		"builtin":     t.IsBuiltin(),
+		"deprecated":  true,
+		"deprecation": legacyTemplateDeprecation,
 	})
 }
 
@@ -856,6 +860,7 @@ func (s *Server) createTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": string(t.ID()), "name": t.Name(), "description": t.Description(), "builtin": false,
+		"deprecated": true, "deprecation": legacyTemplateDeprecation,
 	})
 }
 
@@ -907,7 +912,7 @@ func (s *Server) updateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": string(t.ID()), "name": t.Name()})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": string(t.ID()), "name": t.Name(), "deprecated": true, "deprecation": legacyTemplateDeprecation})
 }
 
 type deleteTemplateReq struct {
@@ -951,5 +956,5 @@ func (s *Server) deleteTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deprecated": true, "deprecation": legacyTemplateDeprecation})
 }

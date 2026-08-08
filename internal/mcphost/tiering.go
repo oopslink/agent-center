@@ -96,12 +96,12 @@ var secondaryTools = []struct{ name, summary string }{
 	// directly, and post_message attachments depend on upload_file. attach_file
 	// (rarer — re-scoping an existing blob) stays deferred.
 	{"attach_file", "attach an existing center file into a scope"},
-	// templates — workflow template catalog
-	{"list_templates", "list available workflow templates"},
-	{"get_template", "get a workflow template's content"},
-	{"create_template", "create a new workflow template"},
-	{"update_template", "update a non-builtin workflow template"},
-	{"delete_template", "delete a non-builtin workflow template"},
+	// templates — legacy workflow template catalog; prefer Team Memory rules.
+	{"list_templates", "legacy/deprecated workflow templates; prefer get_team_rules"},
+	{"get_template", "legacy/deprecated workflow template content; prefer Team Memory rules"},
+	{"create_template", "legacy/deprecated workflow template creation; prefer Team Memory rules"},
+	{"update_template", "legacy/deprecated workflow template update; prefer Team Memory rules"},
+	{"delete_template", "legacy/deprecated workflow template delete; prefer Team Memory rules"},
 	// model catalog — org-level user-managed model catalog (issue-93dd8daa ①)
 	{"list_model_catalog_entry", "list the org's model catalog"},
 	{"create_model_catalog_entry", "add a model to the org catalog"},
