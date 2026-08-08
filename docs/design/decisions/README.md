@@ -42,6 +42,7 @@
 | 0039 | [Conversation 业务模型 v2 统一（supersedes 0017/0021/0022）](0039-conversation-business-model-v2-unified.md) | Accepted |
 | 0054 | [Task 增加 delivered / blocked 两个非终态（park），修正 ADR-0046](0054-task-delivered-blocked-parked-states.md) | Superseded (2026-07-22: delivered removed; blocked remains parked) |
 | 0055 | [Plan 单调生命周期与增量 Remediation Stage](0055-monotonic-plan-lifecycle-and-remediation-stages.md) | Accepted |
+| 0056 | [Executor Slot 与 Execution Run identity 分离](0056-stable-executor-slots.md) | Accepted |
 
 ## 规则提示
 
