@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,11 @@ func asstToolID(id, name, inputJSON string) string {
 func toolResultID(id, content string, isError bool) string {
 	b, _ := json.Marshal(content)
 	return fmt.Sprintf(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":%q,"content":%s,"is_error":%t}]}}`, id, b, isError)
+}
+
+func codexCommandStarted(id, cmd string) string {
+	b, _ := json.Marshal(cmd)
+	return fmt.Sprintf(`{"type":"item.started","item":{"id":%q,"type":"command_execution","command":%s,"status":"in_progress"}}`, id, b)
 }
 
 func TestRunExecutor_CommandEventsCaptureClaudeExitStatuses(t *testing.T) {
@@ -76,7 +82,7 @@ func (s *codexScriptedRunner) Run(ctx context.Context, rc RunContext) (RunResult
 
 func TestRunExecutor_CommandEventsCaptureCodexExitStatus(t *testing.T) {
 	lines := []string{
-		`{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","command":"go test ./...","status":"in_progress"}}`,
+		codexCommandStarted("cmd-1", "go test ./..."),
 		`{"type":"item.completed","item":{"id":"cmd-1","type":"command_execution","command":"go test ./...","aggregated_output":"ok\n","exit_code":0,"status":"completed"}}`,
 		`{"type":"item.completed","item":{"type":"agent_message","text":"done"}}`,
 	}
@@ -102,5 +108,44 @@ func TestRunExecutor_CommandEventsCaptureCodexExitStatus(t *testing.T) {
 	}
 	if len(commands) != 1 || commands[0].Command != "go test ./..." || commands[0].ExitStatus != 0 {
 		t.Fatalf("codex commands=%+v, want go test exit 0", commands)
+	}
+}
+
+func TestCommandRunner_CodexCommandEventFeedsProgressActivity(t *testing.T) {
+	cr := &CommandRunner{
+		cmd: []string{"codex", "exec", "--json", "prompt"},
+		run: func(_ context.Context, _ string, _ []string, onLine func(string)) (string, error) {
+			onLine(codexCommandStarted("cmd-1", "git status --short"))
+			return `{"type":"item.completed","item":{"type":"agent_message","text":"done"}}`, nil
+		},
+	}
+	var running []string
+	res, err := cr.Run(context.Background(), RunContext{
+		WorkspaceDir: "/ws/exec",
+		Progress: func(phase, message string, _ ...string) {
+			if phase == phaseRunning {
+				running = append(running, message)
+			}
+		},
+		CommandEvent: func(CommandExecutionEvent) {},
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.Result != "done" {
+		t.Fatalf("Result = %q, want done", res.Result)
+	}
+	want := `shell({"command":"git status --short"})`
+	var saw bool
+	for _, msg := range running {
+		if msg == want {
+			saw = true
+		}
+		if strings.Contains(msg, executorActiveStreamingMessage) {
+			t.Fatalf("codex command activity fell back to generic heartbeat: %v", running)
+		}
+	}
+	if !saw {
+		t.Fatalf("running progress = %v, want %q", running, want)
 	}
 }

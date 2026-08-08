@@ -139,9 +139,9 @@ func newCommandStreamRecorder(codex bool, emit func(CommandExecutionEvent)) *com
 	return &commandStreamRecorder{codex: codex, emit: emit, shellToolUseIDs: make(map[string]struct{})}
 }
 
-func (r *commandStreamRecorder) ObserveLine(line string) {
-	if r == nil || r.emit == nil {
-		return
+func (r *commandStreamRecorder) ObserveLine(line string) []CommandExecutionEvent {
+	if r == nil {
+		return nil
 	}
 	var events []CommandExecutionEvent
 	if r.codex {
@@ -149,10 +149,14 @@ func (r *commandStreamRecorder) ObserveLine(line string) {
 	} else {
 		events = extractClaudeCommandEvents([]byte(line))
 	}
+	observed := make([]CommandExecutionEvent, 0, len(events))
 	for _, ev := range events {
 		if !r.codex {
 			switch ev.Type {
 			case commandEventStarted:
+				if r.shellToolUseIDs == nil {
+					r.shellToolUseIDs = make(map[string]struct{})
+				}
 				r.shellToolUseIDs[ev.ToolUseID] = struct{}{}
 			case commandEventFinished:
 				if _, ok := r.shellToolUseIDs[ev.ToolUseID]; !ok {
@@ -161,8 +165,23 @@ func (r *commandStreamRecorder) ObserveLine(line string) {
 				delete(r.shellToolUseIDs, ev.ToolUseID)
 			}
 		}
-		r.emit(ev)
+		if r.emit != nil {
+			r.emit(ev)
+		}
+		observed = append(observed, ev)
 	}
+	return observed
+}
+
+func commandEventActivity(ev CommandExecutionEvent) string {
+	if ev.Type != commandEventStarted || strings.TrimSpace(ev.Command) == "" {
+		return ""
+	}
+	input, err := json.Marshal(map[string]string{"command": ev.Command})
+	if err != nil {
+		return ""
+	}
+	return clip(toolActivity(ev.ToolName, json.RawMessage(input)), maxDetailLen)
 }
 
 func extractClaudeCommandEvents(line []byte) []CommandExecutionEvent {

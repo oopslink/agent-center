@@ -95,6 +95,49 @@ func TestRunExecutor_SuccessWritesOutputAndDoneStatus(t *testing.T) {
 	}
 }
 
+type heartbeatOnlyRunner struct{}
+
+func (heartbeatOnlyRunner) Run(_ context.Context, rc RunContext) (RunResult, error) {
+	if rc.Heartbeat == nil {
+		return RunResult{}, errors.New("heartbeat sink missing")
+	}
+	rc.Heartbeat(phaseRunning, executorActiveStreamingMessage)
+	return RunResult{Result: "done", Summary: "ok"}, nil
+}
+
+func TestRunExecutor_LivenessHeartbeatDoesNotPopulateStatusDetail(t *testing.T) {
+	fx, root := runHarness(t, "exec-heartbeat")
+	err := RunExecutor(context.Background(), RunConfig{
+		AgentRoot:  root,
+		ExecutorID: "exec-heartbeat",
+		Runner:     heartbeatOnlyRunner{},
+		Clock:      clock.NewFakeClock(time.Unix(1700000000, 0)),
+	})
+	if err != nil {
+		t.Fatalf("RunExecutor: %v", err)
+	}
+	st, err := fx.ReadStatus("exec-heartbeat")
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if st.Detail != "" {
+		t.Fatalf("status detail = %q, want empty liveness-only heartbeat detail", st.Detail)
+	}
+	entries, err := fx.ReadProgress("exec-heartbeat")
+	if err != nil {
+		t.Fatalf("ReadProgress: %v", err)
+	}
+	var sawHeartbeat bool
+	for _, e := range entries {
+		if e.Phase == phaseRunning && e.Message == executorActiveStreamingMessage {
+			sawHeartbeat = true
+		}
+	}
+	if !sawHeartbeat {
+		t.Fatalf("progress entries did not retain the liveness heartbeat: %+v", entries)
+	}
+}
+
 func TestRunExecutor_UsesWorkspaceDirOverride(t *testing.T) {
 	fx, root := runHarness(t, "exec-prepared")
 	preparedWS := filepath.Join(root, "runtime", "worktrees", "exec-prepared")

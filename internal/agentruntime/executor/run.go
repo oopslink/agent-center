@@ -49,6 +49,10 @@ const (
 	// Matches the previous heartbeat cadence, so status/executor.progress behave exactly
 	// as before now that progress.jsonl appends are no longer coupled to them (I109 ②).
 	statusRefreshInterval = 15 * time.Second
+	// executorActiveStreamingMessage is a liveness-only fallback. It may be appended to
+	// progress.jsonl so a run visibly remains alive, but it must not populate
+	// status.detail / executor.progress.detail because it is not a concrete activity.
+	executorActiveStreamingMessage = "executor active (streaming)"
 	// maxRunnerLine bounds a single streamed line (claude stream-json lines carrying a
 	// large tool result can be big) so bufio.Scanner does not error with "token too long".
 	maxRunnerLine = 16 << 20 // 16 MiB
@@ -75,6 +79,12 @@ type RunContext struct {
 	// is a SEPARATE argument rather than something parsed back out of message because
 	// message is length-clipped — see ProgressEntry.Tools (I109 ②).
 	Progress func(phase, message string, tools ...string)
+	// Heartbeat records liveness without treating the message as current activity.
+	// It exists for generic "still streaming" notes: the watchdog timestamp must
+	// advance, but status.detail should stay empty rather than claiming a vague
+	// heartbeat is the concrete thing the executor is doing. When nil, callers fall
+	// back to Progress for compatibility with older tests/fakes.
+	Heartbeat func(phase, message string)
 	// CommandEvent records structured shell-command executions parsed from the runner
 	// stream. It is the audit source for evidence_only artifacts and deliberately does
 	// not come from RunnerCmd, which is only the model launcher argv.
@@ -173,32 +183,38 @@ func RunExecutor(ctx context.Context, cfg RunConfig) error {
 	// lossy: to keep status writes off the hot path the CALLER throttled itself to one
 	// note per ~15s, so the file only ever saw a ~15s SAMPLE of the run and a tool call
 	// landing between beats left no trace at all. Splitting them lets the file record
-	// every tool call (an append is cheap and append-only) while status keeps exactly
-	// its previous write cadence — so watchdog freshness and the executor.progress
-	// event are unchanged, byte-for-byte, and only the record gets denser.
+	// every tool call (an append is cheap and append-only) while status keeps the same
+	// write cadence. Generic liveness can refresh the watchdog without pretending to
+	// be status.detail; concrete activity still flows through detail.
 	var lastStatusWrite time.Time
-	progress := func(phase, message string, tools ...string) {
+	progressWithStatusDetail := func(phase, message, statusDetail string, tools ...string) {
 		now := clk.Now()
 		entry := ProgressEntry{At: now, Phase: phase, Message: message, Tools: tools}
 		_ = fx.AppendProgress(in.ExecutorID, entry) // best-effort relay
 		// A lifecycle note (start/done) always writes through; a running note writes at
 		// most once per interval. Refreshing LastProgressAt keeps a long-but-live run from
-		// being judged stalled, and Detail carries the note into the executor.progress
-		// event so it says WHAT the runner is doing, not just that it is alive (T880).
+		// being judged stalled. statusDetail is separate so a liveness-only heartbeat can
+		// keep the watchdog fresh without surfacing as executor.progress.detail.
 		lifecycle := phase == phaseStart || phase == phaseDone
 		if !lifecycle && now.Sub(lastStatusWrite) < statusRefreshInterval {
 			return
 		}
 		lastStatusWrite = now
 		st.LastProgressAt = now
-		st.Detail = message
+		st.Detail = statusDetail
 		_ = fx.WriteStatus(st)
+	}
+	progress := func(phase, message string, tools ...string) {
+		progressWithStatusDetail(phase, message, message, tools...)
+	}
+	heartbeat := func(phase, message string) {
+		progressWithStatusDetail(phase, message, "")
 	}
 	commandEvent := func(ev CommandExecutionEvent) {
 		_ = fx.AppendCommandEvent(in.ExecutorID, ev) // best-effort audit side channel
 	}
 
-	res, runErr := runner.Run(ctx, RunContext{Input: in, WorkspaceDir: wsDir, Progress: progress, CommandEvent: commandEvent})
+	res, runErr := runner.Run(ctx, RunContext{Input: in, WorkspaceDir: wsDir, Progress: progress, Heartbeat: heartbeat, CommandEvent: commandEvent})
 	if runErr != nil {
 		return recordFailure(fx, in, &st, clk, runErr)
 	}
@@ -344,8 +360,16 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 	var lastBeat time.Time
 	var lastActivity string
 	cmdEvents := newCommandStreamRecorder(isCodexRunnerCmd(r.cmd), rc.CommandEvent)
+	heartbeat := rc.Heartbeat
+	if heartbeat == nil {
+		heartbeat = func(phase, message string) { rc.Progress(phase, message) }
+	}
 	onLine := func(line string) {
-		cmdEvents.ObserveLine(line)
+		for _, ev := range cmdEvents.ObserveLine(line) {
+			if d := commandEventActivity(ev); d != "" {
+				lastActivity = d
+			}
+		}
 		detail, tools, isTool := streamLineActivity([]byte(line))
 		if detail != "" {
 			lastActivity = detail
@@ -362,7 +386,8 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 			lastBeat = now
 			msg := lastActivity
 			if msg == "" {
-				msg = "executor active (streaming)"
+				heartbeat(phaseRunning, executorActiveStreamingMessage)
+				return
 			}
 			rc.Progress(phaseRunning, msg)
 		}
