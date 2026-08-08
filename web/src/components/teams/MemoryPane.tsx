@@ -77,8 +77,8 @@ export function MemoryPane({ teamId, heading }: { teamId: string; heading: strin
         <div className="px-1.5 pb-2 pt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">{heading}</div>
         <div
           className="mb-3 rounded border border-border-base bg-bg-elevated px-2.5 py-2 text-[0.6875rem] text-text-secondary"
-          data-testid="memory-permission"
-          data-can-manage="false"
+          data-testid="memory-management-capability"
+          data-management-available="false"
         >
           {t('memoryPane.permission.readOnly')}
           <button
@@ -296,7 +296,7 @@ function sectionFromGroup(group: string): Exclude<MemorySection, 'index'> {
 
 function sectionFromSlug(slug: string, fallback: Exclude<MemorySection, 'index'>): Exclude<MemorySection, 'index'> {
   const lower = slug.toLowerCase();
-  if (lower.startsWith('rules/') || lower.startsWith('rules-') || lower.includes('-rule')) return 'rules';
+  if (lower.startsWith('rules/')) return 'rules';
   if (lower.startsWith('entries/')) return 'entries';
   return fallback;
 }

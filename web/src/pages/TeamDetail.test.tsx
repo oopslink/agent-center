@@ -230,11 +230,12 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByTestId('assoc-project-c7073e48')).not.toBeInTheDocument());
   });
 
-  it('groups team-memory entries and rules with read-only management feedback', async () => {
+  it('groups team-memory entries and rules with explicit web capability feedback', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-tm'));
     expect(await screen.findByTestId('memory-pane')).toBeInTheDocument();
-    expect(screen.getByTestId('memory-permission')).toHaveAttribute('data-can-manage', 'false');
+    expect(screen.getByTestId('memory-management-capability')).toHaveAttribute('data-management-available', 'false');
+    expect(screen.getByTestId('memory-management-capability')).not.toHaveAttribute('data-can-manage');
     expect(screen.getByTestId('memory-manage')).toBeDisabled();
     expect(screen.getByTestId('memory-section-entries')).toBeInTheDocument();
     expect(screen.getByTestId('memory-section-rules')).toBeInTheDocument();
@@ -249,6 +250,25 @@ describe('TeamDetail', () => {
     expect(screen.getByTestId('memory-doc-rule-badge')).toHaveTextContent('RULE');
     fireEvent.click(screen.getByTestId('memory-raw-toggle'));
     expect(screen.getByTestId('memory-raw-view')).toHaveTextContent('type: rule');
+  });
+
+  it('does not infer rules from rule-like entry slugs', async () => {
+    server.use(http.get('/api/teams/:id/memory', () => HttpResponse.json([
+      { group: 'entries/' },
+      { slug: 'rules-of-thumb' },
+      { slug: 'payroll-rule-notes' },
+      { group: 'rules/' },
+      { slug: 'review-policy' },
+    ])));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    const entries = await screen.findByTestId('memory-section-entries');
+    expect(within(entries).getByTestId('memory-node-rules-of-thumb')).toBeInTheDocument();
+    expect(within(entries).getByTestId('memory-node-payroll-rule-notes')).toBeInTheDocument();
+    expect(screen.queryByTestId('memory-rule-badge-rules-of-thumb')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('memory-rule-badge-payroll-rule-notes')).not.toBeInTheDocument();
+    const rules = screen.getByTestId('memory-section-rules');
+    expect(within(rules).getByTestId('memory-node-review-policy')).toBeInTheDocument();
   });
 
   it('shows an empty state when the rules group has no entries', async () => {
