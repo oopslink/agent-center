@@ -1,5 +1,5 @@
 // v2.10.0 [T8] System — the System module in the three-column shell. System
-// uses the shell-default col② (Environment / Settings — no custom registry
+// uses the shell-default col② (Environment / AI Runtime / Settings — no custom registry
 // override, no expandable sub-lists) and is intentionally THREE columns: no
 // col④ context panel (mockup `docs/design/v2.10.0/system.html` — "多为三栏无需
 // 第四栏"). This pins that integration.
@@ -22,6 +22,7 @@ function renderShell(initial = '/environment') {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/environment" element={<div data-testid="page-Environment">env</div>} />
+            <Route path="/ai-runtime" element={<div data-testid="page-AiRuntime">runtime</div>} />
             <Route path="/settings" element={<div data-testid="page-Settings">settings</div>} />
             <Route path="/version" element={<div data-testid="page-Version">version</div>} />
           </Route>
@@ -40,14 +41,16 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', '/environment');
   });
 
-  it('col② shows the shell-default System group with Environment + Settings (no expandable sub-lists)', () => {
+  it('col② shows the shell-default System group with Environment + AI Runtime + Settings (no expandable sub-lists)', () => {
     renderShell('/environment');
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     expect(within(nav).getByTestId('section-label')).toHaveTextContent('System');
     expect(within(nav).getByRole('link', { name: /environment/i })).toHaveAttribute('href', '/environment');
+    expect(within(nav).getByRole('link', { name: /ai runtime/i })).toHaveAttribute('href', '/ai-runtime');
     expect(within(nav).getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/settings');
     // System nav items are flat — no channel/DM/agent-style sub-list toggles.
     expect(within(nav).queryByTestId('sidebar-subitem-toggle-/environment')).not.toBeInTheDocument();
+    expect(within(nav).queryByTestId('sidebar-subitem-toggle-/ai-runtime')).not.toBeInTheDocument();
     expect(within(nav).queryByTestId('sidebar-subitem-toggle-/settings')).not.toBeInTheDocument();
   });
 
@@ -57,6 +60,14 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     cleanup();
     renderShell('/settings');
     expect(screen.getByTestId('context-panel')).toHaveAttribute('data-open', 'false');
+  });
+
+  it('keeps System active on /ai-runtime and highlights the AI Runtime col② item', () => {
+    renderShell('/ai-runtime');
+    expect(screen.getByTestId('rail-module-system')).toHaveAttribute('data-active', 'true');
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    expect(within(nav).getByTestId('system-nav-ai-runtime')).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByTestId('section-label')).toHaveTextContent('System');
   });
 
   it('the Settings col② item navigates to the Settings content', () => {

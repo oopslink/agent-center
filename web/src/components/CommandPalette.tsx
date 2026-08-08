@@ -66,7 +66,7 @@ export function CommandPalette({
       { kind: 'nav', label: 'Plans', href: '/plans', hint: 'page', key: 'nav-/plans' },
       { kind: 'nav', label: 'Repos', href: '/repos', hint: 'page', key: 'nav-/repos' },
       { kind: 'nav', label: 'Agents', href: '/agents', hint: 'page', key: 'nav-/agents' },
-      { kind: 'nav', label: 'AI Runtime', href: '/organization-settings/ai-runtime', hint: 'page', key: 'nav-/organization-settings/ai-runtime' },
+      { kind: 'nav', label: 'AI Runtime', href: '/ai-runtime', hint: 'page', key: 'nav-/ai-runtime' },
       { kind: 'nav', label: 'Environment', href: '/environment', hint: 'page', key: 'nav-/environment' },
       { kind: 'nav', label: 'Secrets', href: '/secrets', hint: 'page', key: 'nav-/secrets' },
       { kind: 'nav', label: 'Settings', href: '/settings', hint: 'page', key: 'nav-/settings' },

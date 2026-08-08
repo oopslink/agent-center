@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "System",
     "environment": "Environment",
+    "aiRuntime": "AI Runtime",
     "settings": "Settings",
     "version": "Version",
     "aria": "System sections"
@@ -350,7 +351,12 @@
     "title": "AI Runtime",
     "subtitle": "Organization-wide runtime profiles, model definitions, CLI definitions, and the default runtime selection agents inherit.",
     "actions": {
-      "exportYaml": "Export YAML"
+      "exportYaml": "Export YAML",
+      "newProfile": "New profile",
+      "newModel": "New model",
+      "newCLI": "New CLI",
+      "importModels": "Import models",
+      "edit": "Edit"
     },
     "permissions": {
       "unknownRole": "member",
@@ -398,11 +404,51 @@
       "executable": "Executable",
       "version": "Version",
       "features": "Features",
-      "status": "Status"
+      "status": "Status",
+      "system": "System"
     },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "form": {
+      "newProfile": "New profile",
+      "editProfile": "Edit profile",
+      "newModel": "New model",
+      "editModel": "Edit model",
+      "newCLI": "New CLI",
+      "editCLI": "Edit CLI",
+      "key": "Stable key",
+      "description": "Description",
+      "parameters": "Parameters JSON",
+      "defaultParameters": "Default parameters JSON",
+      "parameterSchema": "Parameter schema JSON",
+      "enabled": "Enabled",
+      "inputCost": "Input $/MTok",
+      "outputCost": "Output $/MTok",
+      "tier": "Tier",
+      "immutableKey": "Stable keys are immutable after creation; the backend rejects key changes.",
+      "systemHint": "This is a system CLI. The backend preserves its system marker and immutable key; only the fields shown here are submitted.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "import": {
+      "title": "Import models",
+      "help": "Paste a JSON array of model definitions. The UI builds a full AI Runtime document that preserves existing Profiles and CLIs, previews the model diff, then applies it with safe upsert semantics.",
+      "scope": "Models only. Existing CLIs ({{clis}}) and Profiles ({{profiles}}) are carried forward unchanged in the generated document.",
+      "preview": "Preview",
+      "previewing": "Previewing...",
+      "apply": "Apply import",
+      "applying": "Applying...",
+      "revision": "Revision {{revision}}",
+      "preserved": "Preserved {{clis}} CLIs and {{profiles}} Profiles",
+      "noModelChanges": "No model changes in this import.",
+      "entity": "Entity",
+      "key": "Key",
+      "action": "Action",
+      "diagnostics": "Diagnostics",
+      "applied": "Applied. New revision: {{revision}}"
     }
   },
   "wakeGuardrail": {

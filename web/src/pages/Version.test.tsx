@@ -50,7 +50,7 @@ describe('Version page', () => {
   });
 
   // I7-D3: Version is now a sibling System page — the mobile 二级段控 highlights
-  // Version (Environment | Settings | Version).
+  // Version (Environment | AI Runtime | Settings | Version).
   it('renders the mobile System segmented nav with Version active', async () => {
     server.use(
       http.get('/api/system/version', () =>
@@ -60,6 +60,7 @@ describe('Version page', () => {
     wrap('/version');
     const nav = await screen.findByTestId('segmented-nav');
     expect(within(nav).getByTestId('system-seg-version')).toHaveAttribute('data-active', 'true');
+    expect(within(nav).getByTestId('system-seg-ai-runtime')).toHaveAttribute('data-active', 'false');
     expect(within(nav).getByTestId('system-seg-settings')).toHaveAttribute('data-active', 'false');
     expect(within(nav).getByTestId('system-seg-environment')).toHaveAttribute('data-active', 'false');
   });

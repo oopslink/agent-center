@@ -7,7 +7,7 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 // ============================================================================
 // v2.25 [T716] System — col② secondary nav (registered in
 // shell/secondaryNav.tsx). Single localized source for the System module's
-// col② nav (Environment / Settings / Version), replacing the previous
+// col② nav (Environment / AI Runtime / Settings / Version), replacing the previous
 // hardcoded-English fallback in AppLayout's buildModuleNavSections `case
 // 'system'`. Labels come from the `admin` namespace (`systemNav.*`) so zh
 // renders correctly; routes/testids stay stable literals.
@@ -52,6 +52,7 @@ function writeGroupOpen(id: string, open: boolean): void {
 interface SystemRow {
   to: string;
   label: string;
+  testId: string;
   Icon: () => React.ReactElement;
 }
 
@@ -63,9 +64,10 @@ export function SystemSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.
   }, [open]);
 
   const rows: SystemRow[] = [
-    { to: `${orgBase}/environment`, label: t('systemNav.environment'), Icon: FleetIcon },
-    { to: `${orgBase}/settings`, label: t('systemNav.settings'), Icon: SettingsIcon },
-    { to: `${orgBase}/version`, label: t('systemNav.version'), Icon: VersionIcon },
+    { to: `${orgBase}/environment`, label: t('systemNav.environment'), testId: 'system-nav-environment', Icon: FleetIcon },
+    { to: `${orgBase}/ai-runtime`, label: t('systemNav.aiRuntime'), testId: 'system-nav-ai-runtime', Icon: RuntimeIcon },
+    { to: `${orgBase}/settings`, label: t('systemNav.settings'), testId: 'system-nav-settings', Icon: SettingsIcon },
+    { to: `${orgBase}/version`, label: t('systemNav.version'), testId: 'system-nav-version', Icon: VersionIcon },
   ];
 
   return (
@@ -89,6 +91,7 @@ export function SystemSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.
               <li key={r.to}>
                 <NavLink
                   to={r.to}
+                  data-testid={r.testId}
                   className={({ isActive }) => [
                     'flex flex-1 items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
                     isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
@@ -117,6 +120,9 @@ function FleetIcon(): React.ReactElement {
 }
 function SettingsIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);
+}
+function RuntimeIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h12" strokeLinecap="round" /><circle cx="6.5" cy="5.5" r="1" fill="currentColor" stroke="none" /><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none" /><circle cx="13.5" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>);
 }
 function VersionIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5a1.5 1.5 0 0 1 2.1 0l5.9 5.9a1.5 1.5 0 0 1 0 2.1l-5 5a1.5 1.5 0 0 1-2.1 0L3.5 10.6V8.5z" strokeLinejoin="round" /><circle cx="7" cy="7" r="1.2" /></svg>);

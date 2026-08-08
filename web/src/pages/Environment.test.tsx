@@ -282,7 +282,7 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(card).toHaveTextContent('project/p-1');
   });
 
-  // v2.10.1 [M7] the System module mobile 二级段控 (Environment | Settings).
+  // v2.10.1 [M7] the System module mobile 二级段控 (Environment | AI Runtime | Settings).
   it('renders the mobile System segmented nav (Environment active)', async () => {
     server.use(
       http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([]))),
@@ -292,6 +292,7 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     wrap(<Environment />, '/environment');
     const nav = await screen.findByTestId('segmented-nav');
     expect(within(nav).getByTestId('system-seg-environment')).toHaveAttribute('data-active', 'true');
+    expect(within(nav).getByTestId('system-seg-ai-runtime')).toHaveAttribute('data-active', 'false');
     expect(within(nav).getByTestId('system-seg-settings')).toHaveAttribute('data-active', 'false');
   });
 
