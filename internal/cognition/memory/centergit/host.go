@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/oopslink/agent-center/internal/cognition/memory"
 )
@@ -23,6 +24,7 @@ var ErrGitOpFailed = errors.New("centergit: git operation failed")
 type Host struct {
 	root   string
 	runner memory.GitRunner
+	mu     sync.Mutex
 }
 
 // NewHost wires a Host at root. A nil runner defaults to the real git binary.
@@ -69,6 +71,8 @@ func (h *Host) RepoExists(ref RepoRef) (bool, error) {
 // smart-HTTP. Provisioning per-agent / per-team repos and, at instantiation, a
 // team's shared repo, all funnel through here (§4.2/§4.3, §9 provisioning).
 func (h *Host) EnsureRepo(ctx context.Context, ref RepoRef) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	dir, err := h.RepoDir(ref)
 	if err != nil {
 		return err
@@ -85,6 +89,9 @@ func (h *Host) EnsureRepo(ctx context.Context, ref RepoRef) error {
 	}
 	env := baseGitEnv("", "", "")
 	if out, initErr := h.runner.Run(ctx, h.root, env, "init", "--bare", "--initial-branch=main", dir); initErr != nil {
+		if ok, statErr := h.RepoExists(ref); statErr == nil && ok {
+			return nil
+		}
 		return fmt.Errorf("%w: init --bare %s: %v: %s", ErrGitOpFailed, dir, initErr, out)
 	}
 	// Enable smart-HTTP push; upload-pack (read) is on by default but set it

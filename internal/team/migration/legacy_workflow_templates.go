@@ -3,8 +3,6 @@ package migration
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -270,55 +268,18 @@ func slugify(s string) string {
 }
 
 func applyTeamClaims(ctx context.Context, host *centergit.Host, runner memory.GitRunner, teamID team.TeamID, claims []MigrationClaim) ([]string, string, error) {
-	ref := centergit.TeamRepo(teamID.String())
-	if err := host.EnsureRepo(ctx, ref); err != nil {
-		return nil, "", err
-	}
-	bareDir, err := host.RepoDir(ref)
-	if err != nil {
-		return nil, "", err
-	}
-	work, err := os.MkdirTemp("", "legacy-workflow-template-migrate-*")
-	if err != nil {
-		return nil, "", err
-	}
-	defer os.RemoveAll(work)
-
-	repoDir := filepath.Join(work, "repo")
-	if out, cErr := runner.Run(ctx, work, gitEnv(work), "clone", bareDir, repoDir); cErr != nil {
-		return nil, "", fmt.Errorf("%w: clone %s: %v: %s", centergit.ErrGitOpFailed, bareDir, cErr, out)
-	}
-	store := centergit.NewStore(repoDir, runner, centergit.WithHomeOverride(work))
-	paths := make([]string, 0, len(claims))
+	repo := centergit.NewTeamMemoryRepository(host, runner)
+	rules := make([]centergit.Rule, 0, len(claims))
 	for _, claim := range claims {
-		path, wErr := store.WriteRule(claim.Rule)
-		if wErr != nil {
-			return nil, "", wErr
-		}
-		paths = append(paths, path)
+		rules = append(rules, claim.Rule)
 	}
-	if err := store.SyncPush(ctx, "origin", "main",
-		centergit.Author{Name: "agent-center", Email: "team-memory@agent-center.local"},
-		fmt.Sprintf("migrate %d workflow template(s) to team rules", len(claims)), 3); err != nil {
+	_, paths, commit, err := repo.BootstrapWithPaths(ctx, teamID.String(), centergit.TrustedBootstrapCommand{
+		ActorRef: "system:bootstrap",
+		Source:   "legacy-workflow-template-migration",
+		Rules:    rules,
+	})
+	if err != nil {
 		return nil, "", err
-	}
-	commit := ""
-	if out, rErr := runner.Run(ctx, repoDir, gitEnv(work), "rev-parse", "HEAD"); rErr == nil {
-		commit = strings.TrimSpace(out)
 	}
 	return paths, commit, nil
-}
-
-func gitEnv(home string) []string {
-	return []string{
-		"GIT_TERMINAL_PROMPT=0",
-		"GIT_OPTIONAL_LOCKS=0",
-		"GIT_CONFIG_GLOBAL=/dev/null",
-		"GIT_CONFIG_SYSTEM=/dev/null",
-		"LANGUAGE=en",
-		"LC_ALL=en_US.UTF-8",
-		"PATH=/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin",
-		"HOME=" + home,
-		"XDG_CONFIG_HOME=" + home,
-	}
 }

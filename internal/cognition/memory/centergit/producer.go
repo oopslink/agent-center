@@ -3,8 +3,6 @@ package centergit
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/cognition/memory"
@@ -65,62 +63,27 @@ func (p *TeamMemoryProducer) SeedTeam(ctx context.Context, teamID string, entrie
 	if p == nil || p.host == nil {
 		return 0, fmt.Errorf("%w: producer not wired", ErrGitOpFailed)
 	}
-	ref := TeamRepo(teamID)
-	if err := p.host.EnsureRepo(ctx, ref); err != nil {
-		return 0, err
-	}
 	rules := flattenRules(ruleSets)
-	if len(entries) == 0 && len(rules) == 0 {
-		return 0, nil
-	}
-	bareDir, err := p.host.RepoDir(ref)
-	if err != nil {
-		return 0, err
-	}
-
-	work, err := os.MkdirTemp("", "team-memory-seed-*")
-	if err != nil {
-		return 0, fmt.Errorf("%w: mktemp: %v", ErrGitOpFailed, err)
-	}
-	defer os.RemoveAll(work)
-
-	env := baseGitEnv("", p.author.Name, p.author.Email)
-	// Clone the bare repo into work/repo. An unborn (empty) bare repo clones to a
-	// working tree with an unborn HEAD on main, which is exactly what we want to
-	// commit the first seed onto.
-	repoDir := filepath.Join(work, "repo")
-	if out, cErr := p.runner.Run(ctx, work, env, "clone", bareDir, repoDir); cErr != nil {
-		return 0, fmt.Errorf("%w: clone %s: %v: %s", ErrGitOpFailed, bareDir, cErr, out)
-	}
-
-	store := NewStore(repoDir, p.runner, WithHomeOverride(work))
-	written := 0
+	filteredEntries := make([]Entry, 0, len(entries))
 	for _, e := range entries {
-		if strings.TrimSpace(e.Slug) == "" || strings.TrimSpace(e.Description) == "" {
-			continue // skip un-curated / partial experiences
+		if strings.TrimSpace(e.Slug) != "" && strings.TrimSpace(e.Description) != "" {
+			filteredEntries = append(filteredEntries, e)
 		}
-		if _, wErr := store.WriteEntry(e); wErr != nil {
-			continue // best-effort: a single bad entry never fails the whole seed
-		}
-		written++
 	}
+	filteredRules := make([]Rule, 0, len(rules))
 	for _, r := range rules {
-		if strings.TrimSpace(r.Slug) == "" || strings.TrimSpace(r.Description) == "" {
-			continue // skip un-curated / partial rules
+		if strings.TrimSpace(r.Slug) != "" && strings.TrimSpace(r.Description) != "" {
+			filteredRules = append(filteredRules, r)
 		}
-		if _, wErr := store.WriteRule(r); wErr != nil {
-			continue // best-effort: a single bad rule never fails the whole seed
-		}
-		written++
 	}
-	if written == 0 {
-		return 0, nil
-	}
-	if pErr := store.SyncPush(ctx, "origin", "main", p.author,
-		fmt.Sprintf("seed team %s memory (%d items)", teamID, written), 3); pErr != nil {
-		return 0, pErr
-	}
-	return written, nil
+	repo := NewTeamMemoryRepository(p.host, p.runner, WithRepositoryAuthor(p.author))
+	written, _, err := repo.Bootstrap(ctx, teamID, TrustedBootstrapCommand{
+		ActorRef: "system:bootstrap",
+		Source:   "team-memory-producer",
+		Entries:  filteredEntries,
+		Rules:    filteredRules,
+	})
+	return written, err
 }
 
 func flattenRules(ruleSets [][]Rule) []Rule {

@@ -96,12 +96,19 @@ type RoleView struct {
 
 // TeamView is a serializable Team.
 type TeamView struct {
-	ID          string     `json:"id"`
-	OrgID       string     `json:"org_id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Roles       []RoleView `json:"roles"`
-	Version     int        `json:"version"`
+	ID           string           `json:"id"`
+	OrgID        string           `json:"org_id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description"`
+	Roles        []RoleView       `json:"roles"`
+	MemoryPolicy MemoryPolicyView `json:"memory_policy"`
+	Version      int              `json:"version"`
+}
+
+// MemoryPolicyView is a serializable Team Memory controlled-write policy.
+type MemoryPolicyView struct {
+	Mode             string   `json:"mode"`
+	CuratorAgentRefs []string `json:"curator_agent_refs"`
 }
 
 // MemberView is a serializable TeamMember.
@@ -221,11 +228,24 @@ func toTeamView(t *team.Team) TeamView {
 		})
 	}
 	return TeamView{
-		ID:          t.ID().String(),
-		OrgID:       t.OrgID(),
-		Name:        t.Name(),
-		Description: t.Description(),
-		Roles:       roles,
-		Version:     t.Version(),
+		ID:           t.ID().String(),
+		OrgID:        t.OrgID(),
+		Name:         t.Name(),
+		Description:  t.Description(),
+		Roles:        roles,
+		MemoryPolicy: toMemoryPolicyView(t.MemoryPolicy()),
+		Version:      t.Version(),
 	}
+}
+
+func toMemoryPolicyView(p team.TeamMemoryPolicy) MemoryPolicyView {
+	n, err := p.Normalize()
+	if err != nil {
+		n = team.DefaultTeamMemoryPolicy()
+	}
+	refs := make([]string, 0, len(n.CuratorAgentRefs))
+	for _, ref := range n.CuratorAgentRefs {
+		refs = append(refs, ref.String())
+	}
+	return MemoryPolicyView{Mode: string(n.Mode), CuratorAgentRefs: refs}
 }
