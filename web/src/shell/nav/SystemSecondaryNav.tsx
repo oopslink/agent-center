@@ -64,6 +64,7 @@ export function SystemSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.
 
   const rows: SystemRow[] = [
     { to: `${orgBase}/environment`, label: t('systemNav.environment'), Icon: FleetIcon },
+    { to: `${orgBase}/ai-runtime`, label: t('systemNav.aiRuntime'), Icon: AIRuntimeIcon },
     { to: `${orgBase}/settings`, label: t('systemNav.settings'), Icon: SettingsIcon },
     { to: `${orgBase}/version`, label: t('systemNav.version'), Icon: VersionIcon },
   ];
@@ -114,6 +115,9 @@ export function SystemSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.
 // VersionIcon 1:1 so the System nav looks identical.
 function FleetIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="2.5" y="6" width="6" height="8" rx="1" /><rect x="11.5" y="6" width="6" height="8" rx="1" /><path d="M5.5 9.5h0.01M14.5 9.5h0.01" strokeLinecap="round" /></svg>);
+}
+function AIRuntimeIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 6.5h12M4 10h12M4 13.5h12" strokeLinecap="round" /><path d="M7 4v12M13 4v12" strokeLinecap="round" /></svg>);
 }
 function SettingsIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);

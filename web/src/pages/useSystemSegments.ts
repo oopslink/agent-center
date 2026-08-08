@@ -6,6 +6,7 @@ import type { Segment } from '@/shell/SegmentedNav';
 // the display label is localised at render time via t('systemNav.<id>').
 const SYSTEM_SEGMENT_DEFS: ReadonlyArray<{ id: string; to: string; testId: string }> = [
   { id: 'environment', to: '/environment', testId: 'system-seg-environment' },
+  { id: 'aiRuntime', to: '/ai-runtime', testId: 'system-seg-ai-runtime' },
   { id: 'settings', to: '/settings', testId: 'system-seg-settings' },
   { id: 'version', to: '/version', testId: 'system-seg-version' },
 ];

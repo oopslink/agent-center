@@ -22,6 +22,7 @@ function renderShell(initial = '/environment') {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/environment" element={<div data-testid="page-Environment">env</div>} />
+            <Route path="/ai-runtime" element={<div data-testid="page-AiRuntime">runtime</div>} />
             <Route path="/settings" element={<div data-testid="page-Settings">settings</div>} />
             <Route path="/version" element={<div data-testid="page-Version">version</div>} />
           </Route>
@@ -40,11 +41,12 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', '/environment');
   });
 
-  it('col② shows the shell-default System group with Environment + Settings (no expandable sub-lists)', () => {
+  it('col② shows the System group with Environment + AI Runtime + Settings (no expandable sub-lists)', () => {
     renderShell('/environment');
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     expect(within(nav).getByTestId('section-label')).toHaveTextContent('System');
     expect(within(nav).getByRole('link', { name: /environment/i })).toHaveAttribute('href', '/environment');
+    expect(within(nav).getByRole('link', { name: /ai runtime/i })).toHaveAttribute('href', '/ai-runtime');
     expect(within(nav).getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/settings');
     // System nav items are flat — no channel/DM/agent-style sub-list toggles.
     expect(within(nav).queryByTestId('sidebar-subitem-toggle-/environment')).not.toBeInTheDocument();
@@ -64,6 +66,14 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     fireEvent.click(within(nav).getByRole('link', { name: /settings/i }));
     expect(screen.getByTestId('page-Settings')).toBeInTheDocument();
+  });
+
+  it('keeps System active on /ai-runtime', () => {
+    renderShell('/ai-runtime');
+    expect(screen.getByTestId('rail-module-system')).toHaveAttribute('data-active', 'true');
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    expect(within(nav).getByRole('link', { name: /ai runtime/i })).toHaveAttribute('href', '/ai-runtime');
+    expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument();
   });
 
   // Regression (issue: clicking Version flipped col② to the Workspace group).

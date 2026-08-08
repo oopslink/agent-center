@@ -68,6 +68,54 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestAIRuntimePatchRevisionConflictAndSystemCLIImmutability(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	n := 0
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), func() string { n++; return fmt.Sprintf("runtime-patch-%d", n) })
+	owner := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	cat, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codex airuntime.CLIDefinition
+	for _, cli := range cat.CLIs {
+		if cli.Key == "codex" {
+			codex = cli
+			break
+		}
+	}
+	if codex.ID == "" || !codex.System {
+		t.Fatalf("seeded codex CLI = %+v", codex)
+	}
+
+	body := `{"expected_revision":99,"value":{"key":"codex","display_name":"Codex Runtime","executable":"codex","required_features":["workspace"],"parameter_schema":{"type":"object"},"enabled":true}}`
+	resp := orgScopedPatch(t, server.URL+"/api/ai-runtime/clis/"+codex.ID, body, owner)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale patch status=%d want 409", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	body = `{"expected_revision":0,"value":{"key":"codex","display_name":"Codex Runtime","executable":"codex","required_features":["workspace"],"parameter_schema":{"type":"object"},"enabled":true,"system":false}}`
+	resp = orgScopedPatch(t, server.URL+"/api/ai-runtime/clis/"+codex.ID, body, owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch system cli status=%d", resp.StatusCode)
+	}
+	var out struct {
+		Revision int64                   `json:"revision"`
+		Entry    airuntime.CLIDefinition `json:"entry"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if out.Revision != 1 || out.Entry.Key != "codex" || !out.Entry.System || out.Entry.DisplayName != "Codex Runtime" {
+		t.Fatalf("patched system cli = rev %d entry %+v", out.Revision, out.Entry)
+	}
+}
+
 func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	n := 0

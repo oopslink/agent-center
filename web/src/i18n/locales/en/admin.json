@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "System",
     "environment": "Environment",
+    "aiRuntime": "AI Runtime",
     "settings": "Settings",
     "version": "Version",
     "aria": "System sections"
@@ -377,7 +378,14 @@
     "title": "AI Runtime",
     "subtitle": "Organization-wide runtime profiles, model definitions, CLI definitions, and the default runtime selection agents inherit.",
     "actions": {
-      "exportYaml": "Export YAML"
+      "exportYaml": "Export YAML",
+      "importModels": "Import models",
+      "edit": "Edit",
+      "add": {
+        "profile": "Add profile",
+        "model": "Add model",
+        "cli": "Add CLI"
+      }
     },
     "permissions": {
       "unknownRole": "member",
@@ -425,11 +433,51 @@
       "executable": "Executable",
       "version": "Version",
       "features": "Features",
-      "status": "Status"
+      "status": "Status",
+      "system": "System"
     },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "editor": {
+      "profile": {
+        "create": "Create profile",
+        "edit": "Edit profile"
+      },
+      "model": {
+        "create": "Create model",
+        "edit": "Edit model"
+      },
+      "cli": {
+        "create": "Create CLI",
+        "edit": "Edit CLI"
+      },
+      "key": "Stable key",
+      "parameterSchema": "Parameter schema JSON",
+      "defaultParameters": "Default parameters JSON",
+      "description": "Description",
+      "inputCost": "Input $/MTok",
+      "outputCost": "Output $/MTok",
+      "tier": "Tier",
+      "choose": "Choose...",
+      "immutableHint": "The stable key is immutable after creation; other fields are checked against the catalog revision on save.",
+      "systemHint": "System CLI: stable key and system status are locked. Editable fields still follow backend validation and revision checks.",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "save": "Save"
+    },
+    "import": {
+      "title": "Import models",
+      "help": "Paste a JSON array of Runtime model entries. The generated import document preserves current Profiles and CLIs and applies model upserts only.",
+      "preview": "Preview",
+      "previewing": "Previewing...",
+      "apply": "Apply",
+      "applying": "Applying...",
+      "modelChanges": "{{count}} model changes",
+      "preservedProfiles": "{{count}} profiles preserved",
+      "preservedClis": "{{count}} CLIs preserved",
+      "noModelChanges": "No model changes"
     }
   },
   "wakeGuardrail": {

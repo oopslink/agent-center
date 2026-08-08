@@ -77,6 +77,7 @@ describe('App shell + route tree', () => {
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
       [`${ORG_BASE}/fleet`, 'page-Environment'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
+      [`${ORG_BASE}/ai-runtime`, 'page-AiRuntime'],
       [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
     ];
     for (const [path, testId] of cases) {
@@ -141,6 +142,7 @@ describe('App shell + route tree', () => {
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
+        ['AI Runtime', `${ORG_BASE}/ai-runtime`],
         ['Settings', `${ORG_BASE}/settings`],
       ]],
     ];
@@ -289,24 +291,33 @@ describe('App shell + route tree', () => {
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
   });
 
-  it('reaches AI Runtime from a normal page via Organization Settings col② nav', async () => {
-    await renderAt(`${ORG_BASE}/channels`);
-    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+  it('reaches AI Runtime from the System col② nav, not Organization Settings', async () => {
+    await renderAt(`${ORG_BASE}/environment`);
+    await waitFor(() => expect(screen.getByTestId('page-Environment')).toBeInTheDocument());
+    const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+    const aiRuntime = within(nav).getByRole('link', { name: /ai runtime/i });
+    expect(aiRuntime).toHaveAttribute('href', `${ORG_BASE}/ai-runtime`);
+    fireEvent.click(aiRuntime);
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+
     fireEvent.click(screen.getByTestId('org-switcher'));
     fireEvent.click(await screen.findByTestId('org-settings-gear'));
     await waitFor(() => expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/profile`));
-    const nav = await screen.findByRole('navigation', { name: /^primary$/ });
-    const aiRuntime = within(nav).getByTestId('org-settings-nav-ai-runtime');
-    expect(aiRuntime).toHaveAttribute('href', `${ORG_BASE}/organization-settings/ai-runtime`);
-    fireEvent.click(aiRuntime);
-    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
-    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
+    const orgNav = await screen.findByRole('navigation', { name: /^primary$/ });
+    expect(within(orgNav).queryByTestId('org-settings-nav-ai-runtime')).not.toBeInTheDocument();
   });
 
   it('keeps direct /ai-runtime access working by redirecting into the first organization', async () => {
     await renderAt('/ai-runtime');
     await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
-    expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/ai-runtime`);
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
+  });
+
+  it('keeps the old organization-settings AI Runtime URL as a compatibility redirect', async () => {
+    await renderAt(`${ORG_BASE}/organization-settings/ai-runtime`);
+    await waitFor(() => expect(screen.getByTestId('page-AiRuntime')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/ai-runtime`);
   });
 
   // v2.10.0 [T1]: ⌘1..4 jump to the four modules' default pages (org-scoped).

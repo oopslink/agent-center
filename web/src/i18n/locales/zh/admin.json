@@ -78,6 +78,7 @@
   "systemNav": {
     "system": "系统",
     "environment": "环境",
+    "aiRuntime": "AI Runtime",
     "settings": "设置",
     "version": "版本",
     "aria": "系统分区"
@@ -377,7 +378,14 @@
     "title": "AI Runtime",
     "subtitle": "组织级 Runtime Profile、模型定义、CLI 定义，以及智能体继承的默认运行时选择。",
     "actions": {
-      "exportYaml": "导出 YAML"
+      "exportYaml": "导出 YAML",
+      "importModels": "导入 Models",
+      "edit": "编辑",
+      "add": {
+        "profile": "新建 Profile",
+        "model": "新建 Model",
+        "cli": "新建 CLI"
+      }
     },
     "permissions": {
       "unknownRole": "成员",
@@ -425,11 +433,51 @@
       "executable": "可执行程序",
       "version": "版本",
       "features": "特性",
-      "status": "状态"
+      "status": "状态",
+      "system": "系统内置"
     },
     "status": {
       "enabled": "启用",
       "disabled": "停用"
+    },
+    "editor": {
+      "profile": {
+        "create": "新建 Profile",
+        "edit": "编辑 Profile"
+      },
+      "model": {
+        "create": "新建 Model",
+        "edit": "编辑 Model"
+      },
+      "cli": {
+        "create": "新建 CLI",
+        "edit": "编辑 CLI"
+      },
+      "key": "稳定 key",
+      "parameterSchema": "参数 schema JSON",
+      "defaultParameters": "默认参数 JSON",
+      "description": "描述",
+      "inputCost": "输入 $/MTok",
+      "outputCost": "输出 $/MTok",
+      "tier": "层级",
+      "choose": "请选择...",
+      "immutableHint": "稳定 key 创建后不可修改；其他字段保存时会按目录 revision 校验。",
+      "systemHint": "系统内置 CLI：稳定 key 与 system 状态锁定。可编辑字段仍按后端校验与 revision 检查处理。",
+      "cancel": "取消",
+      "saving": "保存中...",
+      "save": "保存"
+    },
+    "import": {
+      "title": "导入 Models",
+      "help": "粘贴 Runtime model JSON 数组。系统会生成保留当前 Profiles 与 CLIs 的完整导入文档，并仅对 Models 执行 upsert。",
+      "preview": "预览",
+      "previewing": "预览中...",
+      "apply": "应用",
+      "applying": "应用中...",
+      "modelChanges": "{{count}} 个 Model 变更",
+      "preservedProfiles": "保留 {{count}} 个 Profile",
+      "preservedClis": "保留 {{count}} 个 CLI",
+      "noModelChanges": "没有 Model 变更"
     }
   },
   "wakeGuardrail": {
