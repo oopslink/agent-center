@@ -235,8 +235,13 @@
     "copied": "已复制",
     "ruleBadge": "RULE",
     "permission": {
-      "readOnly": "Web 端对 team memory 只读。成员可在这里查看 entries 与 rules；写入仍走 team memory repo 流程。",
-      "manageDisabledTitle": "Web Console 尚未暴露 team memory 写入口。"
+      "unavailable": "当前服务未提供编辑能力。成员可在这里查看 entries 与 rules。",
+      "manage": "你的 {{role}} 角色可以管理 team memory。",
+      "readOnly": "你的 {{role}} 角色对 team memory 只读；owner 和 admin 可管理 entries 与 rules。",
+      "unknownRole": "当前",
+      "unavailableTitle": "当前服务未暴露 team memory 写入口。",
+      "manageTitle": "你的角色可管理 team memory。",
+      "readOnlyTitle": "你的角色不能管理 team memory。"
     },
     "filter": {
       "aria": "Team memory 筛选",

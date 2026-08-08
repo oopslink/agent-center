@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import TeamDetail from './TeamDetail';
+import { OrgContext } from '@/OrgContext';
 import { resetTeamsStore } from '@/api/teamsFixtures';
 import { server } from '@/test/mswServer';
 
@@ -12,16 +13,40 @@ function Loc(): React.ReactElement {
   return <div data-testid="loc">{l.pathname}</div>;
 }
 
-function renderAt(id: string) {
+function teamDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'team-7c19b0',
+    org_id: 'org-ooo',
+    name: 'agent-center core',
+    description: '',
+    roles: [],
+    version: 3,
+    glyph: 'AC',
+    status: 'active',
+    members_count: 0,
+    projects_count: 0,
+    created: '2026/6/12',
+    ...overrides,
+  };
+}
+
+function renderAt(id: string, orgRole?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const routes = (
+    <MemoryRouter initialEntries={[`/teams/${id}`]}>
+      <Routes>
+        <Route path="/teams/:teamId" element={<TeamDetail />} />
+        <Route path="/teams" element={<Loc />} />
+      </Routes>
+    </MemoryRouter>
+  );
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/teams/${id}`]}>
-        <Routes>
-          <Route path="/teams/:teamId" element={<TeamDetail />} />
-          <Route path="/teams" element={<Loc />} />
-        </Routes>
-      </MemoryRouter>
+      {orgRole ? (
+        <OrgContext.Provider value={{ slug: 'test', orgId: 'org-test', orgName: 'Test Org', role: orgRole }}>
+          {routes}
+        </OrgContext.Provider>
+      ) : routes}
     </QueryClientProvider>,
   );
 }
@@ -230,12 +255,12 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByTestId('assoc-project-c7073e48')).not.toBeInTheDocument());
   });
 
-  it('groups team-memory entries and rules with explicit web capability feedback', async () => {
+  it('groups team-memory entries and rules with read-only management feedback', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-tm'));
     expect(await screen.findByTestId('memory-pane')).toBeInTheDocument();
-    expect(screen.getByTestId('memory-management-capability')).toHaveAttribute('data-management-available', 'false');
-    expect(screen.getByTestId('memory-management-capability')).not.toHaveAttribute('data-can-manage');
+    expect(screen.getByTestId('memory-permission')).toHaveAttribute('data-can-manage', 'unavailable');
+    expect(screen.getByTestId('memory-permission')).toHaveTextContent('Current service does not provide editing capability');
     expect(screen.getByTestId('memory-manage')).toBeDisabled();
     expect(screen.getByTestId('memory-section-entries')).toBeInTheDocument();
     expect(screen.getByTestId('memory-section-rules')).toBeInTheDocument();
@@ -253,23 +278,60 @@ describe('TeamDetail', () => {
     expect(screen.getByTestId('memory-raw-view')).not.toHaveTextContent(/(?:kind|type): rule/);
   });
 
-  it('does not infer rules from rule-like entry slugs', async () => {
-    server.use(http.get('/api/teams/:id/memory', () => HttpResponse.json([
-      { group: 'entries/' },
-      { slug: 'rules-of-thumb' },
-      { slug: 'payroll-rule-notes' },
-      { group: 'rules/' },
-      { slug: 'review-policy' },
-    ])));
+  it('does not infer rules from entry names that merely contain rule text', async () => {
+    server.use(
+      http.get('/api/teams/:id/memory', () => HttpResponse.json([
+        { slug: 'MEMORY.md', pinned: true },
+        { group: 'entries/' },
+        { slug: 'rules-of-thumb' },
+        { slug: 'release-rulebook' },
+        { slug: 'policy', path: 'team-memory/rules/policy.md' },
+      ])),
+      http.get('/api/teams/:id/memory/:entry', ({ params }) => HttpResponse.json({
+        slug: String(params.entry),
+        path: `team-memory/entries/${String(params.entry)}.md`,
+        title: String(params.entry),
+        frontmatter: null,
+        body: String(params.entry),
+      })),
+    );
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-tm'));
-    const entries = await screen.findByTestId('memory-section-entries');
-    expect(within(entries).getByTestId('memory-node-rules-of-thumb')).toBeInTheDocument();
-    expect(within(entries).getByTestId('memory-node-payroll-rule-notes')).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByTestId('memory-filter-entries'));
+    expect(await screen.findByTestId('memory-node-rules-of-thumb')).toHaveTextContent('entries/rules-of-thumb.md');
+    expect(screen.getByTestId('memory-node-release-rulebook')).toHaveTextContent('entries/release-rulebook.md');
     expect(screen.queryByTestId('memory-rule-badge-rules-of-thumb')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('memory-rule-badge-payroll-rule-notes')).not.toBeInTheDocument();
-    const rules = screen.getByTestId('memory-section-rules');
-    expect(within(rules).getByTestId('memory-node-review-policy')).toBeInTheDocument();
+    expect(screen.queryByTestId('memory-rule-badge-release-rulebook')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('memory-filter-rules'));
+    expect(await screen.findByTestId('memory-node-policy')).toHaveTextContent('rules/policy.md');
+    expect(screen.queryByTestId('memory-node-rules-of-thumb')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('memory-node-release-rulebook')).not.toBeInTheDocument();
+  });
+
+  it.each(['owner', 'admin'])('derives team-memory manage access for %s when the team capability is exposed', async (role) => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true },
+    }))));
+    renderAt('team-7c19b0', role);
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    const permission = await screen.findByTestId('memory-permission');
+    expect(permission).toHaveAttribute('data-can-manage', 'true');
+    expect(permission).toHaveTextContent(`Your ${role} role can manage team memory.`);
+    expect(screen.getByTestId('memory-manage')).not.toBeDisabled();
+  });
+
+  it('keeps regular members read-only when team-memory editing exists but their role cannot manage it', async () => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true },
+    }))));
+    renderAt('team-7c19b0', 'member');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    const permission = await screen.findByTestId('memory-permission');
+    expect(permission).toHaveAttribute('data-can-manage', 'false');
+    expect(permission).toHaveTextContent('Your member role is read-only for team memory');
+    expect(screen.getByTestId('memory-manage')).toBeDisabled();
   });
 
   it('shows an empty state when the rules group has no entries', async () => {

@@ -42,6 +42,13 @@ export interface TeamView {
   description: string;
   roles: RoleView[];
   version: number;
+  // Optional, caller-specific capability signal. Current Web API responses omit
+  // this because team memory is read-only; when a backend starts exposing web
+  // edits it must say so here instead of the UI guessing from names/routes.
+  memory_permissions?: {
+    web_edit?: boolean;
+    can_manage?: boolean;
+  };
   // Phase-1 display extras:
   glyph: string;
   status: TeamStatus;
@@ -91,6 +98,7 @@ export interface TeamTemplate {
 /** A team-memory index node — a doc slug, a pinned index, or a group label. */
 export interface MemoryIndexEntry {
   slug?: string;
+  path?: string;
   pinned?: boolean;
   group?: string;
 }

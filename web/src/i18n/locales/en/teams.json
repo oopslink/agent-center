@@ -235,8 +235,13 @@
     "copied": "Copied",
     "ruleBadge": "RULE",
     "permission": {
-      "readOnly": "Web access is read-only for team memory. Members can view entries and rules here; edits land through the team memory repo workflow.",
-      "manageDisabledTitle": "Team memory writes are not exposed in the web console yet."
+      "unavailable": "Current service does not provide editing capability. Members can view entries and rules here.",
+      "manage": "Your {{role}} role can manage team memory.",
+      "readOnly": "Your {{role}} role is read-only for team memory; owners and admins manage entries and rules.",
+      "unknownRole": "current",
+      "unavailableTitle": "Team memory writes are not exposed by the current service.",
+      "manageTitle": "Team memory management is available for your role.",
+      "readOnlyTitle": "Your role cannot manage team memory."
     },
     "filter": {
       "aria": "Team memory filters",

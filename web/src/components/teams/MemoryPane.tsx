@@ -5,10 +5,11 @@
 // field to the DTO.
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useTeamMemoryDoc, useTeamMemoryIndex, type MemoryIndexEntry } from '@/api/teams';
+import { useTeamMemoryDoc, useTeamMemoryIndex, type MemoryIndexEntry, type TeamView } from '@/api/teams';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { Skeleton } from '@/components/Skeleton';
@@ -25,10 +26,23 @@ interface MemoryNode {
   displayPath: string;
 }
 
-export function MemoryPane({ teamId, heading }: { teamId: string; heading: string }): React.ReactElement {
+type PermissionState = 'manage' | 'read-only' | 'unavailable';
+
+export function MemoryPane({
+  teamId,
+  heading,
+  team,
+  currentUserRole,
+}: {
+  teamId: string;
+  heading: string;
+  team?: TeamView;
+  currentUserRole?: string;
+}): React.ReactElement {
   const { t } = useTranslation('teams');
   const index = useTeamMemoryIndex(teamId);
   const nodes = useMemo(() => buildMemoryNodes(index.data ?? []), [index.data]);
+  const permission = memoryPermission(team, currentUserRole);
   const [filter, setFilter] = useState<MemoryFilter>('all');
   const [slug, setSlug] = useState('');
   const targetNodes = useMemo(
@@ -77,16 +91,17 @@ export function MemoryPane({ teamId, heading }: { teamId: string; heading: strin
         <div className="px-1.5 pb-2 pt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">{heading}</div>
         <div
           className="mb-3 rounded border border-border-base bg-bg-elevated px-2.5 py-2 text-[0.6875rem] text-text-secondary"
-          data-testid="memory-management-capability"
-          data-management-available="false"
+          data-testid="memory-permission"
+          data-can-manage={permission.canManage == null ? 'unavailable' : permission.canManage ? 'true' : 'false'}
+          data-permission-state={permission.state}
         >
-          {t('memoryPane.permission.readOnly')}
+          {permissionText(permission.state, permission.role, t)}
           <button
             type="button"
             className="mt-2 w-full rounded border border-border-base bg-bg-muted px-2 py-1 text-xs font-semibold text-text-muted"
             data-testid="memory-manage"
-            disabled
-            title={t('memoryPane.permission.manageDisabledTitle')}
+            disabled={permission.canManage !== true}
+            title={permissionTitle(permission.state, t)}
           >
             {t('memoryPane.manage')}
           </button>
@@ -279,7 +294,7 @@ function buildMemoryNodes(entries: MemoryIndexEntry[]): MemoryNode[] {
     }
     if (!entry.slug) continue;
     const pinned = entry.pinned === true || entry.slug === 'MEMORY.md';
-    const section = pinned ? 'index' : sectionFromSlug(entry.slug, currentSection);
+    const section = pinned ? 'index' : sectionFromEntry(entry, currentSection);
     nodes.push({
       slug: entry.slug,
       pinned,
@@ -291,14 +306,24 @@ function buildMemoryNodes(entries: MemoryIndexEntry[]): MemoryNode[] {
 }
 
 function sectionFromGroup(group: string): Exclude<MemorySection, 'index'> {
-  return group.trim().toLowerCase().startsWith('rules') ? 'rules' : 'entries';
+  return normalizeGroup(group) === 'rules' ? 'rules' : 'entries';
 }
 
-function sectionFromSlug(slug: string, fallback: Exclude<MemorySection, 'index'>): Exclude<MemorySection, 'index'> {
-  const lower = slug.toLowerCase();
-  if (lower.startsWith('rules/')) return 'rules';
-  if (lower.startsWith('entries/')) return 'entries';
+function sectionFromEntry(entry: MemoryIndexEntry, fallback: Exclude<MemorySection, 'index'>): Exclude<MemorySection, 'index'> {
+  if (hasSectionPrefix(entry.slug, 'rules') || hasSectionPrefix(entry.path, 'rules')) return 'rules';
+  if (hasSectionPrefix(entry.slug, 'entries') || hasSectionPrefix(entry.path, 'entries')) return 'entries';
   return fallback;
+}
+
+function normalizeGroup(group: string): string {
+  return group.trim().toLowerCase().replace(/\/+$/, '');
+}
+
+function hasSectionPrefix(value: string | undefined, section: Exclude<MemorySection, 'index'>): boolean {
+  if (!value) return false;
+  const normalized = value.trim().replace(/^\.\/+/, '').toLowerCase();
+  const path = normalized.startsWith('team-memory/') ? normalized.slice('team-memory/'.length) : normalized;
+  return path.startsWith(`${section}/`);
 }
 
 function displayPath(slug: string, section: MemorySection): string {
@@ -310,4 +335,39 @@ function displayPath(slug: string, section: MemorySection): string {
 function rawDoc(frontmatter: string | null, body: string): string {
   if (!frontmatter) return body;
   return `---\n${frontmatter}\n---\n\n${body}`;
+}
+
+function memoryPermission(team: TeamView | undefined, currentUserRole: string | undefined): {
+  state: PermissionState;
+  canManage: boolean | null;
+  role: string | undefined;
+} {
+  const permissions = team?.memory_permissions;
+  const role = currentUserRole;
+  if (permissions?.can_manage != null) {
+    return { state: permissions.can_manage ? 'manage' : 'read-only', canManage: permissions.can_manage, role };
+  }
+  if (permissions?.web_edit !== true) {
+    return { state: 'unavailable', canManage: null, role };
+  }
+  const canManage = role === 'owner' || role === 'admin';
+  return { state: canManage ? 'manage' : 'read-only', canManage, role };
+}
+
+function permissionText(
+  state: PermissionState,
+  role: string | undefined,
+  t: TFunction<'teams'>,
+): string {
+  if (state === 'unavailable') return t('memoryPane.permission.unavailable');
+  const roleLabel = role ?? t('memoryPane.permission.unknownRole');
+  return state === 'manage'
+    ? t('memoryPane.permission.manage', { role: roleLabel })
+    : t('memoryPane.permission.readOnly', { role: roleLabel });
+}
+
+function permissionTitle(state: PermissionState, t: TFunction<'teams'>): string {
+  if (state === 'manage') return t('memoryPane.permission.manageTitle');
+  if (state === 'read-only') return t('memoryPane.permission.readOnlyTitle');
+  return t('memoryPane.permission.unavailableTitle');
 }

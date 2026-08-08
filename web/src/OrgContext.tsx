@@ -6,6 +6,7 @@ interface OrgContextValue {
   slug: string;
   orgId: string;
   orgName: string;
+  role?: string;
 }
 
 export const OrgContext = createContext<OrgContextValue | null>(null);
@@ -159,7 +160,7 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
 
   return (
     <OrgContext.Provider
-      value={{ slug: activeOrg.slug, orgId: activeOrg.id, orgName: activeOrg.name }}
+      value={{ slug: activeOrg.slug, orgId: activeOrg.id, orgName: activeOrg.name, role: activeOrg.role }}
     >
       {children}
     </OrgContext.Provider>
