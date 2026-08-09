@@ -98,7 +98,8 @@
       "overview": "概览",
       "members": "成员",
       "projects": "关联项目",
-      "memory": "Team Memory"
+      "memory": "Team Memory",
+      "settings": "设置"
     },
     "membersRoles": "{{members}} 名成员 · {{roles}} 个角色",
     "projectsCount": "{{count}} 个项目",
@@ -156,6 +157,23 @@
       "selectOption": "{{name}}（{{id}}）",
       "pickerEmptyTitle": "没有可关联的项目",
       "pickerEmptyBody": "组织下的活跃项目都已关联，或还没有项目。"
+    },
+    "settings": {
+      "title": "Team memory 设置",
+      "manageHint": "owner/admin 可写",
+      "readOnlyHint": "当前角色只读",
+      "policy": "审核策略",
+      "policyOwnerAdmin": "Owner/admin 审核 proposal",
+      "policyCurator": "列出的 curator agents 准备 proposal，owner/admin 审核",
+      "policyReadOnly": "只读；禁用 proposal",
+      "curators": "Curator agents",
+      "noAgents": "目录中还没有 agent。",
+      "save": "保存设置",
+      "commit": "settings commit {{commit}}",
+      "noCommit": "暂无 settings commit",
+      "guardrails": "约束",
+      "agentSelfGrant": "Agent 不能把自己授予 curator 权限。设置变更必须由 owner/admin 审核。",
+      "reviewSurface": "Promote 后的 memory 对新会话与新 fork 生效；运行中的会话继续使用已快照 rules。"
     }
   },
   "newTeamModal": {
@@ -229,6 +247,8 @@
     "pinned": "常驻",
     "lazy": "lazy",
     "manage": "管理 memory",
+    "newProposal": "新 proposal",
+    "effectHint": "Promote 后的 memory 对新会话与新 fork 生效；运行中的会话继续使用已快照 rules。",
     "raw": "原始",
     "rendered": "渲染",
     "copyPath": "复制路径",
@@ -247,7 +267,8 @@
       "aria": "Team memory 筛选",
       "all": "全部 {{count}}",
       "entries": "Entries {{count}}",
-      "rules": "Rules {{count}}"
+      "rules": "Rules {{count}}",
+      "proposals": "Proposals {{count}}"
     },
     "section": {
       "index": "index"
@@ -258,12 +279,54 @@
       "entriesTitle": "还没有 entries",
       "entriesBody": "team memory repo 写入共享经验后，会显示在 entries/ 下。",
       "rulesTitle": "还没有 rules",
-      "rulesBody": "team memory repo 写入团队规约后，会显示在 rules/ 下。"
+      "rulesBody": "team memory repo 写入团队规约后，会显示在 rules/ 下。",
+      "proposalsTitle": "还没有 proposals",
+      "proposalsBody": "Owner 和 admin 可在这里为 entries 或 rules 创建 proposal。"
     },
     "error": {
       "index": "Team memory 加载失败。",
       "doc": "该 memory 文档加载失败。",
       "permission": "你没有权限查看该 memory 文档。"
+    },
+    "meta": {
+      "sourcePath": "source_path",
+      "uuid": "UUID",
+      "commit": "commit"
+    },
+    "proposalStatus": {
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "rejected": "REJECTED"
+    },
+    "proposal": {
+      "target": "target",
+      "author": "author",
+      "ack": "warning ack",
+      "created": "created",
+      "promotedPath": "promoted path",
+      "rejectReason": "reject reason",
+      "diff": "Diff",
+      "promote": "Promote",
+      "reject": "Reject",
+      "readOnly": "当前角色只读。",
+      "rejectPlaceholder": "驳回原因",
+      "yes": "是",
+      "no": "否"
+    },
+    "create": {
+      "title": "创建 memory proposal",
+      "subtitle": "Proposal 审核后才会成为 team memory。",
+      "kind": "目标",
+      "entry": "Entry",
+      "rule": "Rule",
+      "slug": "Slug",
+      "titleLabel": "标题",
+      "description": "描述",
+      "enabled": "启用",
+      "appliesTo": "适用阶段",
+      "body": "Markdown 内容",
+      "warningAck": "我已检查该内容不包含 secrets、私有 URL、专有名称或不安全指令。",
+      "submit": "创建 proposal"
     }
   }
 }

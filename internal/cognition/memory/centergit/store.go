@@ -64,6 +64,10 @@ type Entry struct {
 	Body string
 	// Type is an optional classification (user/feedback/project/reference…).
 	Type string
+	// SourcePath is populated by readers with the repo-relative path.
+	SourcePath string
+	// UUID is populated by readers from the entry frontmatter.
+	UUID string
 }
 
 // Rule is one team-scoped operational rule. Rules live under rules/; that
@@ -85,6 +89,8 @@ type Rule struct {
 	AppliesTo []string
 	// SourcePath is populated by readers with the repo-relative path.
 	SourcePath string
+	// UUID is populated by readers from the rule frontmatter.
+	UUID string
 }
 
 // entryFrontmatter is the YAML header persisted at the top of every entry file
@@ -451,8 +457,12 @@ func (s *Store) ReadEntries() (entries []Entry, skipped []string, err error) {
 			return nil, nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
 		}
 		recs = append(recs, rec{
-			file:  de.Name(),
-			entry: Entry{Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body, Type: fm.Type},
+			file: de.Name(),
+			entry: Entry{
+				Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body,
+				Type: fm.Type, SourcePath: filepath.ToSlash(filepath.Join(entriesDir, de.Name())),
+				UUID: fm.UUID,
+			},
 		})
 	}
 	sort.Slice(recs, func(i, j int) bool {
@@ -508,6 +518,7 @@ func (s *Store) ReadRules() (rules []Rule, skipped []string, err error) {
 				Enabled:     fm.Enabled,
 				AppliesTo:   fm.AppliesTo,
 				SourcePath:  rel,
+				UUID:        fm.UUID,
 			},
 		})
 	}
