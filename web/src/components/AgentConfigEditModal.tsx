@@ -15,10 +15,10 @@ import { ToggleSwitch } from './ToggleSwitch';
 import { useRuntimeSelector } from '@/lib/useRuntimeSelector';
 import {
   defaultModelForCLI,
+  invalidRuntimeExecutorProfiles,
   isRuntimeCLISelectable,
   isRuntimeModelSelectable,
   normalizeExecutorProfiles,
-  runtimeModelChoicesForCLI,
 } from '@/lib/runtimeSelector';
 
 interface Props {
@@ -48,6 +48,8 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   // The pending "add a profile" row (committed via the Add button).
   const [draftCli, setDraftCli] = useState(agent.cli || '');
   const [draftModel, setDraftModel] = useState('');
+  const [modelSearch, setModelSearch] = useState('');
+  const [draftModelSearch, setDraftModelSearch] = useState('');
   const runtimeDefaultsApplied = useRef(false);
   const runtimeSelector = useRuntimeSelector({
     currentCLI: cli,
@@ -89,11 +91,14 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
     setExecutors((xs) => xs.filter((_, idx) => idx !== i));
 
   const trulyParallel = maxConcurrent >= 2 && executors.length > 0;
-  const modelChoices = runtimeModelChoicesForCLI(runtimeSelector, cli, model);
-  const draftModelChoices = runtimeModelChoicesForCLI(runtimeSelector, draftCli, draftModel);
+  const cliChoices = runtimeSelector.cliChoicesForSearch();
+  const modelChoices = runtimeSelector.modelChoicesForCLI(cli, model, { search: modelSearch });
+  const draftModelChoices = runtimeSelector.modelChoicesForCLI(draftCli, draftModel, { search: draftModelSearch });
+  const invalidExecutors = invalidRuntimeExecutorProfiles(runtimeSelector, executors);
   const runtimeSelectionValid =
     isRuntimeCLISelectable(runtimeSelector, cli) &&
     isRuntimeModelSelectable(runtimeSelector, cli, model);
+  const runtimeConfigValid = runtimeSelectionValid && invalidExecutors.length === 0;
 
   // T566 (issue-577a7b0e): per-agent auto-assign opt-out (default true).
   const [autoAssignable, setAutoAssignable] = useState(agent.auto_assignable ?? true);
@@ -236,6 +241,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               onChange={(e) => {
                 const next = e.target.value;
                 setCli(next);
+                setModelSearch('');
                 if (!isRuntimeModelSelectable(runtimeSelector, next, model)) {
                   setModel('');
                 }
@@ -244,7 +250,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               <option value="" disabled>
                 {t('agentRuntime.configModal.fields.cliPlaceholder')}
               </option>
-              {runtimeSelector.cliChoices.map((choice) => (
+              {cliChoices.map((choice) => (
                 <option key={choice.key} value={choice.key} disabled={!choice.selectable}>
                   {choice.label}
                   {!choice.selectable ? ` ${t('agentRuntime.configModal.runtimeCatalog.unavailable')}` : ''}
@@ -254,6 +260,15 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
+            <input
+              type="search"
+              data-testid="agent-config-model-search"
+              className={`${inputClass} mb-2`}
+              value={modelSearch}
+              onChange={(e) => setModelSearch(e.target.value)}
+              placeholder={t('agentRuntime.configModal.runtimeCatalog.modelSearch')}
+              disabled={!cli || runtimeSelector.isEmpty}
+            />
             <select
               id="agent-config-model-input"
               data-testid="agent-config-model"
@@ -369,27 +384,36 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             >
               {executors.length > 0 ? (
                 <ul className="mb-2 flex flex-wrap gap-2" data-testid="agent-config-executors">
-                  {executors.map((e, i) => (
-                    <li
-                      key={`${e.cli}::${e.model}`}
-                      className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
-                      data-testid="agent-config-executor-chip"
-                    >
-                      <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
-                        {e.cli}
-                      </span>
-                      <span className="font-mono text-text-primary">{e.model}</span>
-                      <button
-                        type="button"
-                        className="text-text-muted hover:text-danger"
-                        onClick={() => removeExecutor(i)}
-                        aria-label={t('agentRuntime.configModal.concurrency.removeExecutor', { cli: e.cli, model: e.model })}
-                        data-testid="agent-config-executor-remove"
+                  {executors.map((e, i) => {
+                    const selectable = isRuntimeModelSelectable(runtimeSelector, e.cli, e.model);
+                    return (
+                      <li
+                        key={`${e.cli}::${e.model}`}
+                        className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
+                        data-testid="agent-config-executor-chip"
+                        data-selectable={selectable}
                       >
-                        <span aria-hidden="true">×</span>
-                      </button>
-                    </li>
-                  ))}
+                        <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
+                          {e.cli}
+                        </span>
+                        <span className="font-mono text-text-primary">{e.model}</span>
+                        {!selectable && (
+                          <span className="text-danger">
+                            {t('agentRuntime.configModal.runtimeCatalog.unavailable')}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="text-text-muted hover:text-danger"
+                          onClick={() => removeExecutor(i)}
+                          aria-label={t('agentRuntime.configModal.concurrency.removeExecutor', { cli: e.cli, model: e.model })}
+                          data-testid="agent-config-executor-remove"
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="mb-2 text-[0.6875rem] italic text-text-muted" data-testid="agent-config-executors-empty">
@@ -397,13 +421,14 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <select
                   className={`${inputClass} w-auto`}
                   value={draftCli}
                   onChange={(e) => {
                     const next = e.target.value;
                     setDraftCli(next);
+                    setDraftModelSearch('');
                     if (!isRuntimeModelSelectable(runtimeSelector, next, draftModel)) {
                       setDraftModel('');
                     }
@@ -421,6 +446,16 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                     </option>
                   ))}
                 </select>
+                <input
+                  type="search"
+                  className={inputClass}
+                  value={draftModelSearch}
+                  onChange={(e) => setDraftModelSearch(e.target.value)}
+                  placeholder={t('agentRuntime.configModal.runtimeCatalog.executorModelSearch')}
+                  disabled={!draftCli || runtimeSelector.isEmpty}
+                  data-testid="agent-config-executor-model-search"
+                  aria-label={t('agentRuntime.configModal.runtimeCatalog.executorModelSearch')}
+                />
                 <select
                   className={inputClass}
                   value={draftModel}
@@ -455,6 +490,11 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                   {t('agentRuntime.configModal.concurrency.add')}
                 </button>
               </div>
+              {invalidExecutors.length > 0 && (
+                <p className="mt-1 text-[0.6875rem] text-danger" data-testid="agent-config-executor-selection-error">
+                  {t('agentRuntime.configModal.runtimeCatalog.invalidExecutors')}
+                </p>
+              )}
             </Field>
 
             <p
@@ -550,7 +590,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </button>
             <button
               type="submit"
-              disabled={busy || !runtimeSelectionValid}
+              disabled={busy || !runtimeConfigValid}
               className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="agent-config-edit-save"
             >

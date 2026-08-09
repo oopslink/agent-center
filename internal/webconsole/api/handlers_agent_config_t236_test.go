@@ -222,6 +222,46 @@ func TestAPI_Agent_UpdateConfig_ValidatesRuntimeCatalogCombinations(t *testing.T
 	}
 }
 
+func TestAPI_Agent_Create_ValidatesRuntimeCatalogCombinations(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), runtimeIDGen())
+	sess := setupTestSession(t, db, deps)
+	seedRuntimeCatalogForAgentConfig(t, deps.RuntimeCatalog, sess.OrgID, "user:"+sess.IdentityID)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"bad-main","model":"gpt-5","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create incompatible main pair: got %d, want 400", resp.StatusCode)
+	}
+	var errBody airuntime.Error
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("create main pair reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"bad-executor","model":"gpt-5","cli":"codex","worker_id":"w-1",`+
+			`"max_concurrent_tasks":2,"allowed_executors":[{"cli":"claude-code","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create incompatible executor pair: got %d, want 400", resp.StatusCode)
+	}
+	errBody = airuntime.Error{}
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("create executor reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"good","model":"gpt-5","cli":"codex","worker_id":"w-1",`+
+			`"max_concurrent_tasks":2,"allowed_executors":[{"cli":"codex","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create compatible runtime config: got %d, want 201", resp.StatusCode)
+	}
+}
+
 func seedRuntimeCatalogForAgentConfig(t *testing.T, svc *airuntime.Service, orgID, actor string) {
 	t.Helper()
 	ctx := context.Background()

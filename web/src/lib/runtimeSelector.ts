@@ -1,12 +1,28 @@
-import type {
-  AIRuntimeCatalog,
-  RuntimeCLI,
-  RuntimeModel,
-  RuntimeProfile,
-} from '@/api/aiRuntime';
 import type { ExecutorProfile } from '@/api/types';
 
 export type RuntimeChoiceSource = 'catalog' | 'current';
+
+export interface RuntimeSelectorCatalogCLI {
+  key?: string;
+  display_name?: string;
+  enabled?: boolean;
+}
+
+export interface RuntimeSelectorCatalogModel {
+  key?: string;
+  model_key?: string;
+  display_name?: string;
+  compatible_cli_keys?: string[];
+  enabled?: boolean;
+}
+
+// Deliberately structural: T1310 removes Runtime Profile fields from the API, so
+// the shared selector only accepts the CLI/Model catalog slice it actually owns.
+export interface RuntimeSelectorCatalog {
+  revision?: number;
+  clis?: RuntimeSelectorCatalogCLI[];
+  models?: RuntimeSelectorCatalogModel[];
+}
 
 export interface RuntimeCLIChoice {
   key: string;
@@ -32,6 +48,16 @@ export interface RuntimeSelectorCurrent {
   executors?: ExecutorProfile[];
 }
 
+export interface RuntimeChoiceFilter {
+  search?: string;
+}
+
+export interface RuntimePairState {
+  cliSelectable: boolean;
+  modelSelectable: boolean;
+  selectable: boolean;
+}
+
 export interface RuntimeSelectorModel {
   revision?: number;
   defaultCLI: string;
@@ -40,10 +66,11 @@ export interface RuntimeSelectorModel {
   modelChoices: RuntimeModelChoice[];
   hasCatalog: boolean;
   isEmpty: boolean;
+  selectablePairCount: number;
 }
 
 export function buildRuntimeSelectorModel(
-  catalog: AIRuntimeCatalog | undefined,
+  catalog: RuntimeSelectorCatalog | undefined,
   current: RuntimeSelectorCurrent = {},
 ): RuntimeSelectorModel {
   const cliChoices = dedupeCLIs(catalog?.clis ?? []);
@@ -58,8 +85,9 @@ export function buildRuntimeSelectorModel(
     addCurrentModel(modelChoices, exec.model);
   }
 
-  const defaultCLI = defaultCLIForCatalog(catalog, cliChoices);
-  const defaultModel = defaultModelForCLI({ modelChoices }, defaultCLI, catalog);
+  const selectablePairCount = countSelectablePairs(cliChoices, modelChoices);
+  const defaultCLI = defaultCLIForChoices(cliChoices, modelChoices);
+  const defaultModel = defaultModelForCLI({ modelChoices }, defaultCLI);
   return {
     revision: catalog?.revision,
     defaultCLI,
@@ -67,19 +95,32 @@ export function buildRuntimeSelectorModel(
     cliChoices,
     modelChoices,
     hasCatalog: !!catalog,
-    isEmpty: !hasSelectableCLI(cliChoices) || modelChoices.every((m) => !m.selectable),
+    isEmpty: selectablePairCount === 0,
+    selectablePairCount,
   };
+}
+
+export function searchRuntimeCLIChoices(
+  model: Pick<RuntimeSelectorModel, 'cliChoices'>,
+  search?: string,
+): RuntimeCLIChoice[] {
+  const query = normalizeSearch(search);
+  return model.cliChoices.filter((choice) => choiceMatches(query, [choice.key, choice.label]));
 }
 
 export function runtimeModelChoicesForCLI(
   model: Pick<RuntimeSelectorModel, 'modelChoices'>,
   cli: string,
   currentModel?: string,
+  filter: RuntimeChoiceFilter = {},
 ): RuntimeModelChoice[] {
   const normalizedCLI = cli.trim();
   const normalizedCurrent = currentModel?.trim() ?? '';
+  const query = normalizeSearch(filter.search);
   const out = model.modelChoices.filter((choice) =>
-    choice.selectable && choice.compatibleCLIKeys.includes(normalizedCLI),
+    choice.selectable &&
+    choice.compatibleCLIKeys.includes(normalizedCLI) &&
+    choiceMatches(query, [choice.value, choice.catalogKey ?? '', choice.label]),
   );
   if (normalizedCurrent && !out.some((choice) => choice.value === normalizedCurrent)) {
     const current = model.modelChoices.find((choice) => choice.value === normalizedCurrent);
@@ -88,6 +129,13 @@ export function runtimeModelChoicesForCLI(
     }
   }
   return out;
+}
+
+export function defaultModelForCLI(
+  model: Pick<RuntimeSelectorModel, 'modelChoices'>,
+  cli: string,
+): string {
+  return runtimeModelChoicesForCLI(model, cli)[0]?.value ?? '';
 }
 
 export function isRuntimeCLISelectable(
@@ -112,23 +160,27 @@ export function isRuntimeModelSelectable(
   );
 }
 
-export function defaultModelForCLI(
-  model: Pick<RuntimeSelectorModel, 'modelChoices'>,
+export function runtimePairState(
+  model: Pick<RuntimeSelectorModel, 'cliChoices' | 'modelChoices'>,
   cli: string,
-  catalog?: AIRuntimeCatalog,
-): string {
-  const profile = defaultProfile(catalog);
-  if (profile?.cli_key === cli) {
-    const profileModel = catalog?.models.find((item) => item.key === profile.model_key);
-    if (
-      profileModel?.enabled &&
-      (profileModel.compatible_cli_keys ?? []).includes(cli) &&
-      profileModel.model_key.trim()
-    ) {
-      return profileModel.model_key.trim();
-    }
-  }
-  return runtimeModelChoicesForCLI(model, cli)[0]?.value ?? '';
+  runtimeModel: string,
+): RuntimePairState {
+  const cliSelectable = isRuntimeCLISelectable(model, cli);
+  const modelSelectable = isRuntimeModelSelectable(model, cli, runtimeModel);
+  return {
+    cliSelectable,
+    modelSelectable,
+    selectable: cliSelectable && modelSelectable,
+  };
+}
+
+export function invalidRuntimeExecutorProfiles(
+  model: Pick<RuntimeSelectorModel, 'cliChoices' | 'modelChoices'>,
+  executors: ExecutorProfile[],
+): ExecutorProfile[] {
+  return normalizeExecutorProfiles(executors).filter((exec) =>
+    !runtimePairState(model, exec.cli, exec.model).selectable,
+  );
 }
 
 export function normalizeExecutorProfiles(executors: ExecutorProfile[]): ExecutorProfile[] {
@@ -146,16 +198,16 @@ export function normalizeExecutorProfiles(executors: ExecutorProfile[]): Executo
   return out;
 }
 
-function dedupeCLIs(clis: RuntimeCLI[]): RuntimeCLIChoice[] {
+function dedupeCLIs(clis: RuntimeSelectorCatalogCLI[]): RuntimeCLIChoice[] {
   const byKey = new Map<string, RuntimeCLIChoice>();
   for (const cli of clis) {
-    const key = cli.key.trim();
+    const key = cli.key?.trim() ?? '';
     if (!key) continue;
     const choice: RuntimeCLIChoice = {
       key,
       label: cli.display_name ? `${cli.display_name} (${key})` : key,
-      enabled: cli.enabled,
-      selectable: cli.enabled,
+      enabled: cli.enabled === true,
+      selectable: cli.enabled === true,
       source: 'catalog',
     };
     const previous = byKey.get(key);
@@ -166,21 +218,22 @@ function dedupeCLIs(clis: RuntimeCLI[]): RuntimeCLIChoice[] {
   return [...byKey.values()];
 }
 
-function dedupeModels(models: RuntimeModel[]): RuntimeModelChoice[] {
+function dedupeModels(models: RuntimeSelectorCatalogModel[]): RuntimeModelChoice[] {
   const byValue = new Map<string, RuntimeModelChoice>();
   for (const model of models) {
-    const value = model.model_key.trim();
+    const value = model.model_key?.trim() ?? '';
     if (!value) continue;
     const compatibleCLIKeys = uniqueStrings(model.compatible_cli_keys ?? []);
+    const enabled = model.enabled === true;
     const choice: RuntimeModelChoice = {
       value,
-      catalogKey: model.key,
+      catalogKey: model.key?.trim() || undefined,
       label: model.display_name && model.display_name !== value
         ? `${model.display_name} (${value})`
         : value,
       compatibleCLIKeys,
-      enabled: model.enabled,
-      selectable: model.enabled && compatibleCLIKeys.length > 0,
+      enabled,
+      selectable: enabled && compatibleCLIKeys.length > 0,
       source: 'catalog',
     };
     const previous = byValue.get(value);
@@ -188,10 +241,13 @@ function dedupeModels(models: RuntimeModel[]): RuntimeModelChoice[] {
       byValue.set(value, choice);
       continue;
     }
+    const selectable = previous.selectable || choice.selectable;
     byValue.set(value, {
       ...previous,
+      label: !previous.selectable && choice.selectable ? choice.label : previous.label,
+      catalogKey: previous.catalogKey ?? choice.catalogKey,
       enabled: previous.enabled || choice.enabled,
-      selectable: previous.selectable || choice.selectable,
+      selectable,
       compatibleCLIKeys: uniqueStrings([...previous.compatibleCLIKeys, ...choice.compatibleCLIKeys]),
     });
   }
@@ -217,25 +273,43 @@ function addCurrentModel(choices: RuntimeModelChoice[], raw: string | undefined)
   });
 }
 
-function defaultCLIForCatalog(
-  catalog: AIRuntimeCatalog | undefined,
-  choices: RuntimeCLIChoice[],
+function defaultCLIForChoices(
+  cliChoices: RuntimeCLIChoice[],
+  modelChoices: RuntimeModelChoice[],
 ): string {
-  const profile = defaultProfile(catalog);
-  if (profile && choices.some((choice) => choice.key === profile.cli_key && choice.selectable)) {
-    return profile.cli_key;
+  return cliChoices.find((choice) =>
+    choice.selectable && hasSelectableModelForCLI(modelChoices, choice.key),
+  )?.key ?? cliChoices.find((choice) => choice.selectable)?.key ?? '';
+}
+
+function hasSelectableModelForCLI(modelChoices: RuntimeModelChoice[], cli: string): boolean {
+  return modelChoices.some((choice) =>
+    choice.selectable && choice.compatibleCLIKeys.includes(cli),
+  );
+}
+
+function countSelectablePairs(
+  cliChoices: RuntimeCLIChoice[],
+  modelChoices: RuntimeModelChoice[],
+): number {
+  const selectableCLIs = new Set(cliChoices.filter((choice) => choice.selectable).map((choice) => choice.key));
+  let count = 0;
+  for (const model of modelChoices) {
+    if (!model.selectable) continue;
+    for (const cli of model.compatibleCLIKeys) {
+      if (selectableCLIs.has(cli)) count += 1;
+    }
   }
-  return choices.find((choice) => choice.selectable)?.key ?? '';
+  return count;
 }
 
-function defaultProfile(catalog: AIRuntimeCatalog | undefined): RuntimeProfile | undefined {
-  const id = catalog?.default_runtime_profile_id;
-  if (!id) return undefined;
-  return catalog?.profiles.find((profile) => profile.id === id && profile.enabled);
+function normalizeSearch(search: string | undefined): string {
+  return search?.trim().toLowerCase() ?? '';
 }
 
-function hasSelectableCLI(choices: RuntimeCLIChoice[]): boolean {
-  return choices.some((choice) => choice.selectable);
+function choiceMatches(query: string, values: string[]): boolean {
+  if (!query) return true;
+  return values.some((value) => value.toLowerCase().includes(query));
 }
 
 function uniqueStrings(items: string[]): string[] {
