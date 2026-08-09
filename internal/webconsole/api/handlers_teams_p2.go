@@ -324,7 +324,10 @@ func (s *Server) teamMemoryIndexHandler(w http.ResponseWriter, r *http.Request) 
 	if d.TeamMemoryWrite != nil {
 		// Git is authoritative; every read is also a restart-safe opportunity to
 		// backfill observability transitions missed before a crash.
-		_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+		if err := d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String()); err != nil {
+			mapTeamMemoryWebError(w, err)
+			return
+		}
 		proposals, perr := d.TeamMemoryWrite.List(r.Context(), teammemory.ListCommand{
 			ActorRef: actorRefForIdentity(caller), TeamID: t.ID().String(),
 			Status: []teammemory.ProposalStatus{teammemory.StatusPending, teammemory.StatusPromoted, teammemory.StatusRejected, teammemory.StatusSuperseded}, Limit: 100,
@@ -333,11 +336,38 @@ func (s *Server) teamMemoryIndexHandler(w http.ResponseWriter, r *http.Request) 
 			mapTeamMemoryWebError(w, perr)
 			return
 		}
-		for _, view := range proposals.Proposals {
-			out = append(out, controlledProposalIndexView(view))
-		}
+		out = mergeControlledProposalIndexViews(out, proposals.Proposals)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// mergeControlledProposalIndexViews makes the application-service projection
+// authoritative for proposal rows. TeamMemory.List still exposes the legacy Git
+// proposal view for read compatibility; appending the controlled projection
+// without replacing that row rendered and counted the same proposal twice.
+func mergeControlledProposalIndexViews(out []map[string]any, proposals []teammemory.ProposalView) []map[string]any {
+	if len(proposals) == 0 {
+		return out
+	}
+	controlled := make(map[string]struct{}, len(proposals))
+	for _, view := range proposals {
+		controlled[view.Proposal.ProposalID] = struct{}{}
+	}
+	merged := make([]map[string]any, 0, len(out)+len(proposals))
+	for _, item := range out {
+		if item["kind"] == centergit.MemoryItemProposal {
+			if id, _ := item["slug"].(string); id != "" {
+				if _, replaced := controlled[id]; replaced {
+					continue
+				}
+			}
+		}
+		merged = append(merged, item)
+	}
+	for _, view := range proposals {
+		merged = append(merged, controlledProposalIndexView(view))
+	}
+	return merged
 }
 
 // teamMemoryDocHandler serves GET /api/orgs/{slug}/teams/{id}/memory/{slug} →
@@ -450,7 +480,10 @@ func (s *Server) createTeamMemoryProposalHandler(w http.ResponseWriter, r *http.
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	if err := d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String()); err != nil {
+		mapTeamMemoryWebError(w, err)
+		return
+	}
 	view, err := d.TeamMemoryWrite.Get(r.Context(), teammemory.GetCommand{ActorRef: actorRefForIdentity(caller), TeamID: t.ID().String(), ProposalID: result.ProposalID})
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
@@ -485,7 +518,10 @@ func (s *Server) promoteTeamMemoryProposalHandler(w http.ResponseWriter, r *http
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	if err := d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String()); err != nil {
+		mapTeamMemoryWebError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, controlledResultView(result))
 }
 
@@ -514,7 +550,10 @@ func (s *Server) rejectTeamMemoryProposalHandler(w http.ResponseWriter, r *http.
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	if err := d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String()); err != nil {
+		mapTeamMemoryWebError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, controlledResultView(result))
 }
 

@@ -129,6 +129,9 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "Error: app_bootstrap: %v\n", err)
 					return ExitBusinessError
 				}
+				reconcileTeamMemoryFromApp(ctx, app, func(msg string) {
+					fmt.Fprintf(errw, "[server] %s\n", msg)
+				})
 
 				esc := escalator.NewService(app.EventRepo, app.Sink, app.Clock, escalator.Config{
 					Interval:  1 * time.Hour,

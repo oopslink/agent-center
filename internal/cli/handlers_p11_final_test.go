@@ -2,15 +2,21 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
 
@@ -56,6 +62,7 @@ func newWebConsoleTestApp(t *testing.T) *App {
 		t.Fatal(err)
 	}
 	cfg := config.DefaultConfig()
+	cfg.Server.SqlitePath = dir + "/test.db"
 	mkPath := dir + "/master.key"
 	if err := writeTestMasterKey(mkPath); err != nil {
 		t.Fatal(err)
@@ -125,6 +132,71 @@ func TestRunWebConsole_StartsAndStops(t *testing.T) {
 		t.Fatalf("server never came up: %v", err)
 	}
 	_ = resp.Body.Close()
+}
+
+func TestCenterStartup_ReconcilesTeamMemoryFromGit(t *testing.T) {
+	app := newWebConsoleTestApp(t)
+	ctx := context.Background()
+	tm, err := newHardenedTeamService(app).CreateTeam(ctx, teamservice.CreateTeamInput{
+		OrgID: "org-startup-reconcile", Name: "Startup Reconcile",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := centergit.NewTeamMemoryRepository(buildTeamGitHost(app), nil,
+		centergit.WithProposalIDGen(func() string { return "startup-proposal" }))
+	created, err := repo.Propose(ctx, tm.ID().String(), teammemory.ProposeCommand{
+		ActorRef: "agent:startup", IdempotencyKey: "startup/reconcile/1",
+		Operation: teammemory.OperationAdd, TargetKind: teammemory.TargetEntry,
+		Candidate: &teammemory.Candidate{Slug: "boot-proof", Title: "Boot proof", Description: "restart", Body: "Backfill on boot."},
+		Rationale: "prove startup reconciliation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reconcileTeamMemoryFromApp(ctx, app, func(msg string) { t.Log(msg) })
+
+	typ := observability.EventType("team_memory.proposed")
+	events, err := app.EventRepo.Find(ctx, observability.EventQueryFilter{
+		EventType: &typ,
+		Refs:      observability.EventRefsFilter{TeamID: tm.ID().String(), ProposalID: created.ProposalID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("startup-projected events = %d, want 1", len(events))
+	}
+	var checkpoint string
+	if err := app.DB.QueryRowContext(ctx, `SELECT last_projected_commit FROM team_memory_observability_checkpoints WHERE team_id=?`, tm.ID().String()).Scan(&checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	if checkpoint != created.RepoCommit {
+		t.Fatalf("checkpoint = %q, want Git commit %q", checkpoint, created.RepoCommit)
+	}
+}
+
+type failingStartupReconciler struct{}
+
+func (failingStartupReconciler) ReconcileTeam(context.Context, string) error {
+	return errors.New("git unavailable")
+}
+
+func TestReconcileTeamMemoryOnStartup_ReportsFailures(t *testing.T) {
+	app := newWebConsoleTestApp(t)
+	if _, err := newHardenedTeamService(app).CreateTeam(context.Background(), teamservice.CreateTeamInput{
+		OrgID: "org-reconcile-error", Name: "Reconcile Error",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var logs []string
+	reconcileTeamMemoryOnStartup(context.Background(), newHardenedTeamService(app), failingStartupReconciler{}, func(msg string) {
+		logs = append(logs, msg)
+	})
+	if len(logs) != 1 || !strings.Contains(logs[0], "team memory startup reconcile") || !strings.Contains(logs[0], "git unavailable") {
+		t.Fatalf("startup reconcile logs = %#v, want observable Git failure", logs)
+	}
 }
 
 func TestRunWebConsole_NilApp(t *testing.T) {

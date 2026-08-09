@@ -433,15 +433,18 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 		t.Fatalf("memory index = %d body=%v", index.StatusCode, decodeBody(t, index))
 	}
 	arr := decodeArray(t, index)
-	var sawProposal bool
+	var proposalCount int
 	for _, item := range arr {
 		m, _ := item.(map[string]any)
 		if m["slug"] == proposalID {
-			sawProposal = m["kind"] == "proposal" && m["status"] == "pending" && m["source_path"] != ""
+			proposalCount++
+			if m["kind"] != "proposal" || m["status"] != "pending" || m["source_path"] == "" {
+				t.Fatalf("proposal index metadata = %#v", m)
+			}
 		}
 	}
-	if !sawProposal {
-		t.Fatalf("proposal not present in index: %#v", arr)
+	if proposalCount != 1 {
+		t.Fatalf("proposal index count = %d, want exactly 1: %#v", proposalCount, arr)
 	}
 
 	docResp := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals/"+proposalID, owner)

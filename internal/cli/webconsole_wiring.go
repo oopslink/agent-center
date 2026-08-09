@@ -33,6 +33,7 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
+	"github.com/oopslink/agent-center/internal/team"
 	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
@@ -769,6 +770,51 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		return srv.Shutdown(shutCtx)
 	}
 	return cleanup, nil
+}
+
+type startupTeamLister interface {
+	ListTeams(context.Context, string) ([]*team.Team, error)
+}
+
+type startupTeamMemoryReconciler interface {
+	ReconcileTeam(context.Context, string) error
+}
+
+// reconcileTeamMemoryOnStartup backfills Git-authoritative proposal transitions
+// before the web server accepts traffic. Request-driven reconciliation alone
+// misses proposals created before a center restart until somebody opens the UI.
+// Reconciliation remains best-effort for availability, but every failure is
+// surfaced through the production logger instead of being silently discarded.
+func reconcileTeamMemoryOnStartup(ctx context.Context, teams startupTeamLister, projector startupTeamMemoryReconciler, logger func(string)) {
+	if teams == nil || projector == nil {
+		return
+	}
+	all, err := teams.ListTeams(ctx, "")
+	if err != nil {
+		logger("team memory startup reconcile: list teams: " + err.Error())
+		return
+	}
+	for _, tm := range all {
+		if tm == nil {
+			continue
+		}
+		if err := projector.ReconcileTeam(ctx, tm.ID().String()); err != nil {
+			logger(fmt.Sprintf("team memory startup reconcile: team %s: %v", tm.ID(), err))
+		}
+	}
+}
+
+func reconcileTeamMemoryFromApp(ctx context.Context, a *App, logger func(string)) {
+	if a == nil {
+		return
+	}
+	host := buildTeamGitHost(a)
+	reconcileTeamMemoryOnStartup(
+		ctx,
+		newHardenedTeamService(a),
+		teammemory.NewProjector(a.DB, centergit.NewTeamMemoryRepository(host, nil), a.EventRepo, a.EventRepo),
+		logger,
+	)
 }
 
 // controlEventGCConfig resolves the control-event GC retention + sweep interval from
