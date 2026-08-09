@@ -87,7 +87,7 @@ export function buildRuntimeSelectorModel(
 
   const selectablePairCount = countSelectablePairs(cliChoices, modelChoices);
   const defaultCLI = defaultCLIForChoices(cliChoices, modelChoices);
-  const defaultModel = defaultModelForCLI({ modelChoices }, defaultCLI);
+  const defaultModel = defaultModelForCLI({ cliChoices, modelChoices }, defaultCLI);
   return {
     revision: catalog?.revision,
     defaultCLI,
@@ -109,7 +109,7 @@ export function searchRuntimeCLIChoices(
 }
 
 export function runtimeModelChoicesForCLI(
-  model: Pick<RuntimeSelectorModel, 'modelChoices'>,
+  model: Pick<RuntimeSelectorModel, 'cliChoices' | 'modelChoices'>,
   cli: string,
   currentModel?: string,
   filter: RuntimeChoiceFilter = {},
@@ -117,11 +117,14 @@ export function runtimeModelChoicesForCLI(
   const normalizedCLI = cli.trim();
   const normalizedCurrent = currentModel?.trim() ?? '';
   const query = normalizeSearch(filter.search);
-  const out = model.modelChoices.filter((choice) =>
-    choice.selectable &&
-    choice.compatibleCLIKeys.includes(normalizedCLI) &&
-    choiceMatches(query, [choice.value, choice.catalogKey ?? '', choice.label]),
-  );
+  const cliSelectable = isRuntimeCLISelectable(model, normalizedCLI);
+  const out = cliSelectable
+    ? model.modelChoices.filter((choice) =>
+      choice.selectable &&
+      choice.compatibleCLIKeys.includes(normalizedCLI) &&
+      choiceMatches(query, [choice.value, choice.catalogKey ?? '', choice.label]),
+    )
+    : [];
   if (normalizedCurrent && !out.some((choice) => choice.value === normalizedCurrent)) {
     const current = model.modelChoices.find((choice) => choice.value === normalizedCurrent);
     if (current) {
@@ -132,7 +135,7 @@ export function runtimeModelChoicesForCLI(
 }
 
 export function defaultModelForCLI(
-  model: Pick<RuntimeSelectorModel, 'modelChoices'>,
+  model: Pick<RuntimeSelectorModel, 'cliChoices' | 'modelChoices'>,
   cli: string,
 ): string {
   return runtimeModelChoicesForCLI(model, cli)[0]?.value ?? '';
@@ -147,12 +150,13 @@ export function isRuntimeCLISelectable(
 }
 
 export function isRuntimeModelSelectable(
-  model: Pick<RuntimeSelectorModel, 'modelChoices'>,
+  model: Pick<RuntimeSelectorModel, 'cliChoices' | 'modelChoices'>,
   cli: string,
   runtimeModel: string,
 ): boolean {
   const normalizedCLI = cli.trim();
   const normalizedModel = runtimeModel.trim();
+  if (!isRuntimeCLISelectable(model, normalizedCLI)) return false;
   return model.modelChoices.some((choice) =>
     choice.value === normalizedModel &&
     choice.selectable &&
