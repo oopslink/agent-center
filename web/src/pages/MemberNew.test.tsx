@@ -27,15 +27,52 @@ function wrap(path = '/members/new?kind=agent') {
   );
 }
 
-describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
+function runtimeCatalog() {
+  return {
+    org_id: 'org-test',
+    revision: 7,
+    default_runtime_profile_id: 'profile-codex',
+    clis: [
+      { id: 'cli-codex', key: 'codex', display_name: 'Codex CLI', executable: 'codex', enabled: true },
+    ],
+    models: [
+      { id: 'model-gpt', key: 'gpt-5', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
+    ],
+    profiles: [
+      { id: 'profile-codex', key: 'default-codex', name: 'Default Codex', cli_key: 'codex', model_key: 'gpt-5', parameters: {}, enabled: true },
+    ],
+  };
+}
+
+function workersHandler() {
+  return http.get('/api/workers', () =>
+    HttpResponse.json({
+      workers: [
+        {
+          worker_id: 'w-7',
+          name: 'box-7',
+          status: 'online',
+          capabilities: [{ agent_cli: 'codex', detected: true, enabled: true }],
+        },
+      ],
+    }),
+  );
+}
+
+async function chooseWorker() {
+  fireEvent.click(screen.getByTestId('mn-worker-trigger'));
+  await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
+  fireEvent.click(screen.getByTestId('mn-worker-option'));
+}
+
+describe('MemberNew — Add agent runtime default', () => {
   afterEach(() => cleanup());
 
-  it('prefills Model with the explicit default and submits it when untouched', async () => {
+  it('selects the AI Runtime default supported by the worker and submits it when untouched', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      http.get('/api/ai-runtime', () => HttpResponse.json(runtimeCatalog())),
+      workersHandler(),
       http.post('/api/members/agent', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ id: 'a-new', identity_id: 'a-new', kind: 'agent', display_name: 'newbot' }, { status: 201 });
@@ -43,20 +80,14 @@ describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
     );
     wrap();
 
-    // Model is pre-filled with the explicit default (was an empty input → null
-    // model → blank Profile, the original dogfood pain that #232 missed here).
-    const model = screen.getByLabelText(/Model/i) as HTMLInputElement;
-    await waitFor(() => expect(model.value).toBe('claude-opus-4-8'));
-
     await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
-    // Pick the worker via the EntitySelect (open → click option).
-    fireEvent.click(screen.getByTestId('mn-worker-trigger'));
-    await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
-    fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await chooseWorker();
+    await waitFor(() => expect(screen.getByLabelText(/Model/i)).toHaveValue('gpt-5'));
+    expect(screen.getByLabelText('CLI')).toHaveValue('codex');
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(posted).not.toBeNull());
-    expect(posted).toMatchObject({ display_name: 'newbot', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8' });
+    expect(posted).toMatchObject({ display_name: 'newbot', worker_id: 'w-7', cli: 'codex', model: 'gpt-5' });
   });
 });
 
@@ -67,9 +98,8 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
 
   it('Cancel (agent kind) navigates to /agents, not /members/agents', async () => {
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      http.get('/api/ai-runtime', () => HttpResponse.json(runtimeCatalog())),
+      workersHandler(),
     );
     wrap();
     await screen.findByLabelText('Display name');
@@ -80,9 +110,8 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
 
   it('post-create fallback (no identity_id) navigates to /agents', async () => {
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      http.get('/api/ai-runtime', () => HttpResponse.json(runtimeCatalog())),
+      workersHandler(),
       // Response without identity_id → MemberNew falls back to the list page.
       http.post('/api/members/agent', () =>
         HttpResponse.json({ id: 'a-new', kind: 'agent', display_name: 'newbot' }, { status: 201 }),
@@ -90,9 +119,7 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
     );
     wrap();
     await userEvent.type(await screen.findByLabelText('Display name'), 'newbot');
-    fireEvent.click(screen.getByTestId('mn-worker-trigger'));
-    await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
-    fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await chooseWorker();
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/agents'));
     expect(screen.getByTestId('location-probe')).not.toHaveTextContent('/members/agents');

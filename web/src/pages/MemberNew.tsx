@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAddMember, useAddAgentMember } from '@/api/members';
 import { useWorkers } from '@/api/workers';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { EntitySelect } from '@/components/EntitySelect';
-import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
+import {
+  coerceRuntimePair,
+  defaultSupportedRuntimePair,
+  runtimeCLIOptions,
+  runtimeModelOptions,
+  validateRuntimePair,
+} from '@/components/runtimeSelection';
 import { useTranslation } from 'react-i18next';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
@@ -23,13 +30,8 @@ export default function MemberNew(): React.ReactElement {
   const [role, setRole] = useState('member');
   // v2.7 #157: Members→Add Agent is one step — also create the execution Agent
   // (model/cli + the worker it runs on). worker_id is required for an agent.
-  // v2.7.1 #232: prefill the explicit default model (this Members→Agents→Add
-  // path was missed by #232's AgentCreateModal-only fix — leaving it empty
-  // stored a null model → blank Profile, the original dogfood pain).
-  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable — single-option
-  // select (codex/opencode become selectable in v2.8 #180).
-  const [cli, setCli] = useState('claude-code');
+  const [model, setModel] = useState('');
+  const [cli, setCli] = useState('');
   const [workerID, setWorkerID] = useState('');
   const [error, setError] = useState('');
   const [tempPasscode, setTempPasscode] = useState('');
@@ -37,19 +39,42 @@ export default function MemberNew(): React.ReactElement {
   const addUser = useAddMember();
   const addAgent = useAddAgentMember();
   const workers = useWorkers();
+  const runtime = useAIRuntimeCatalog();
   const pending = addUser.isPending || addAgent.isPending;
+  const selectedWorker = useMemo(
+    () => (workers.data ?? []).find((w) => w.worker_id === workerID),
+    [workerID, workers.data],
+  );
+  const cliOptions = runtimeCLIOptions(runtime.data, selectedWorker);
+  const modelOptions = runtimeModelOptions(runtime.data, selectedWorker, cli);
+  const runtimeValidation = validateRuntimePair(runtime.data, selectedWorker, { cli, model });
+
+  useEffect(() => {
+    if (kind !== 'agent' || !runtime.data || !selectedWorker) return;
+    const next = coerceRuntimePair(runtime.data, selectedWorker, { cli, model });
+    if (!next) return;
+    if (next.cli !== cli || next.model !== model) {
+      setCli(next.cli);
+      setModel(next.model);
+    }
+  }, [cli, kind, model, runtime.data, selectedWorker]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (kind === 'agent') {
+      const runtimeConfig = validateRuntimePair(runtime.data, selectedWorker, { cli, model });
+      if (!runtimeConfig.ok) {
+        setError(t('agentRuntime.runtimeSelection.invalidMain'));
+        return;
+      }
       addAgent.mutate(
         {
           display_name: displayName.trim(),
           description: description.trim(),
           role,
-          model: model.trim() || undefined,
-          cli,
+          model: runtimeConfig.pair.model,
+          cli: runtimeConfig.pair.cli,
           worker_id: workerID || undefined,
         },
         {
@@ -139,7 +164,14 @@ export default function MemberNew(): React.ReactElement {
               <EntitySelect
                 testId="mn-worker"
                 value={workerID}
-                onChange={setWorkerID}
+                onChange={(nextWorkerID) => {
+                  setWorkerID(nextWorkerID);
+                  setError('');
+                  const worker = (workers.data ?? []).find((w) => w.worker_id === nextWorkerID);
+                  const pair = defaultSupportedRuntimePair(runtime.data, worker);
+                  setCli(pair?.cli ?? '');
+                  setModel(pair?.model ?? '');
+                }}
                 options={(workers.data ?? []).map((w) => ({
                   value: w.worker_id,
                   label: w.name || w.worker_id,
@@ -150,26 +182,62 @@ export default function MemberNew(): React.ReactElement {
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-model" className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</label>
-              <input
-                id="mn-model"
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-              />
-            </div>
-            <div className="space-y-1">
               <label htmlFor="mn-cli" className="block text-sm text-text-primary">{t('humans.new.cli')}</label>
               <select
                 id="mn-cli"
                 value={cli}
-                onChange={(e) => setCli(e.target.value)}
+                onChange={(e) => {
+                  const nextCli = e.target.value;
+                  const next = coerceRuntimePair(runtime.data, selectedWorker, { cli: nextCli, model });
+                  setCli(next?.cli ?? nextCli);
+                  setModel(next?.model ?? '');
+                  setError('');
+                }}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                disabled={!runtime.data || !selectedWorker || cliOptions.length === 0}
               >
-                <option value="claude-code">claude-code</option>
+                {cli && !cliOptions.some((option) => option.key === cli) && (
+                  <option value={cli} disabled>
+                    {t('agentRuntime.runtimeSelection.legacyOption', { value: cli })}
+                  </option>
+                )}
+                {cliOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {runtimeOptionLabel(option.display_name, option.key)}
+                  </option>
+                ))}
               </select>
-              <p className="text-xs text-text-muted">{t('humans.new.cliHint')}</p>
+              <RuntimeSelectionHint
+                loading={runtime.isLoading || workers.isLoading}
+                workerSelected={!!selectedWorker}
+                cliCount={cliOptions.length}
+                modelCount={modelOptions.length}
+                invalid={runtime.isSuccess && workers.isSuccess && !runtimeValidation.ok}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="mn-model" className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</label>
+              <select
+                id="mn-model"
+                value={model}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                  setError('');
+                }}
+                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                disabled={!runtime.data || !selectedWorker || modelOptions.length === 0}
+              >
+                {model && !modelOptions.some((option) => option.model_key === model) && (
+                  <option value={model} disabled>
+                    {t('agentRuntime.runtimeSelection.legacyOption', { value: model })}
+                  </option>
+                )}
+                {modelOptions.map((option) => (
+                  <option key={option.key} value={option.model_key}>
+                    {runtimeOptionLabel(option.display_name, option.model_key)}
+                  </option>
+                ))}
+              </select>
             </div>
           </>
         )}
@@ -196,7 +264,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim() || (kind === 'agent' && !workerID)}
+            disabled={pending || !displayName.trim() || (kind === 'agent' && (!workerID || !runtimeValidation.ok))}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? t('humans.new.creating') : t('humans.new.create')}
@@ -205,4 +273,32 @@ export default function MemberNew(): React.ReactElement {
       </form>
     </section>
   );
+}
+
+function RuntimeSelectionHint({
+  loading,
+  workerSelected,
+  cliCount,
+  modelCount,
+  invalid,
+}: {
+  loading: boolean;
+  workerSelected: boolean;
+  cliCount: number;
+  modelCount: number;
+  invalid: boolean;
+}): React.ReactElement | null {
+  const { t } = useTranslation('members');
+  let message = '';
+  if (loading) message = t('agentRuntime.runtimeSelection.loading');
+  else if (!workerSelected) message = t('agentRuntime.runtimeSelection.noWorker');
+  else if (cliCount === 0) message = t('agentRuntime.runtimeSelection.noCLI');
+  else if (modelCount === 0) message = t('agentRuntime.runtimeSelection.noModel');
+  else if (invalid) message = t('agentRuntime.runtimeSelection.unsupportedLegacy');
+  if (!message) return null;
+  return <p className="text-xs text-text-muted" data-testid="mn-runtime-hint">{message}</p>;
+}
+
+function runtimeOptionLabel(displayName: string | undefined, key: string): string {
+  return displayName && displayName !== key ? `${displayName} (${key})` : key;
 }

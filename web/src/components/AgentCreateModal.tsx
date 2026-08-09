@@ -2,16 +2,24 @@
 // was removed ("no middle state" — agent always has a member id), so this posts
 // to the unified POST /api/members/agent (atomic identity-member + execution
 // Agent, #157). The Worker picker is sourced from the Environment snapshot
-// (useFleet().workers); name + worker_id are required; description/model/cli
-// optional. (Declared skills removed in issue-4a45e9cc — skills are now OBSERVED
-// per-agent.) The created agent's business id = response identity_id.
-import React, { useState } from 'react';
+// (useFleet().workers); name + worker_id are required, and CLI/model are selected
+// from AI Runtime entries supported by the selected worker. (Declared skills
+// removed in issue-4a45e9cc — skills are now OBSERVED per-agent.) The created
+// agent's business id = response identity_id.
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
-import { DEFAULT_AGENT_MODEL, KNOWN_MODELS } from '@/config/agent-defaults';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  coerceRuntimePair,
+  defaultSupportedRuntimePair,
+  runtimeCLIOptions,
+  runtimeModelOptions,
+  validateRuntimePair,
+} from './runtimeSelection';
 
 interface Props {
   onClose: () => void;
@@ -21,35 +29,52 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const { t } = useTranslation('members');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  // v2.7.1 #232: prefill the explicit default model (not a placeholder) so an
-  // untouched form still submits a concrete value — store = Profile = runtime
-  // stay consistent instead of persisting an empty model.
-  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
-  // option select (no free text) so the form can't create an agent bound to a
-  // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
-  const [cli, setCli] = useState('claude-code');
+  const [model, setModel] = useState('');
+  const [cli, setCli] = useState('');
   const [workerId, setWorkerId] = useState('');
+  const [runtimeError, setRuntimeError] = useState('');
   // T728 (issue-0619f315): inject the description into the agent's system prompt.
   // Default ON — matches the backend default (nil → true).
   const [includeDescription, setIncludeDescription] = useState(true);
   const create = useAddAgentMember();
   const fleet = useFleet();
+  const runtime = useAIRuntimeCatalog();
   const workers = fleet.data?.workers ?? [];
+  const selectedWorker = useMemo(
+    () => workers.find((w) => w.worker_id === workerId),
+    [workerId, workers],
+  );
+  const cliOptions = runtimeCLIOptions(runtime.data, selectedWorker);
+  const modelOptions = runtimeModelOptions(runtime.data, selectedWorker, cli);
+  const runtimeValidation = validateRuntimePair(runtime.data, selectedWorker, { cli, model });
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && !create.isPending;
+  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && runtimeValidation.ok && !create.isPending;
+
+  useEffect(() => {
+    if (!runtime.data || !selectedWorker) return;
+    const next = coerceRuntimePair(runtime.data, selectedWorker, { cli, model });
+    if (!next) return;
+    if (next.cli !== cli || next.model !== model) {
+      setCli(next.cli);
+      setModel(next.model);
+    }
+  }, [cli, model, runtime.data, selectedWorker]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
+    if (!runtimeValidation.ok) {
+      setRuntimeError(t('agentRuntime.runtimeSelection.invalidMain'));
+      return;
+    }
     try {
       await create.mutateAsync({
         display_name: trimmedName,
         description: description.trim() || undefined,
         role: 'member',
-        model: model.trim() || undefined,
-        cli,
+        model: runtimeValidation.pair.model,
+        cli: runtimeValidation.pair.cli,
         worker_id: workerId,
         include_description_in_system_prompt: includeDescription,
       });
@@ -122,42 +147,19 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </span>
         </div>
 
-        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
-          {/* Editable dropdown: preset models as <datalist> suggestions while
-              the field stays free text (backend accepts any model string). */}
-          <input
-            id="agent-create-model-input"
-            data-testid="agent-create-model"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            list="agent-create-model-list"
-            className={inputClass}
-          />
-          <datalist id="agent-create-model-list" data-testid="agent-create-model-list">
-            {KNOWN_MODELS.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-        </Field>
-
-        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
-          <select
-            id="agent-create-cli-input"
-            data-testid="agent-create-cli"
-            value={cli}
-            onChange={(e) => setCli(e.target.value)}
-            className={inputClass}
-          >
-            <option value="claude-code">claude-code</option>
-          </select>
-        </Field>
-
         <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>
           {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
           <EntitySelect
             testId="agent-create-worker"
             value={workerId}
-            onChange={setWorkerId}
+            onChange={(nextWorkerId) => {
+              setWorkerId(nextWorkerId);
+              setRuntimeError('');
+              const worker = workers.find((w) => w.worker_id === nextWorkerId);
+              const pair = defaultSupportedRuntimePair(runtime.data, worker);
+              setCli(pair?.cli ?? '');
+              setModel(pair?.model ?? '');
+            }}
             options={workers.map((w) => ({
               value: w.worker_id,
               label: w.name || w.worker_id,
@@ -174,6 +176,72 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             </p>
           )}
         </Field>
+
+        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
+          <select
+            id="agent-create-cli-input"
+            data-testid="agent-create-cli"
+            value={cli}
+            onChange={(e) => {
+              const nextCli = e.target.value;
+              const next = coerceRuntimePair(runtime.data, selectedWorker, { cli: nextCli, model });
+              setCli(next?.cli ?? nextCli);
+              setModel(next?.model ?? '');
+              setRuntimeError('');
+            }}
+            className={inputClass}
+            disabled={!runtime.data || !selectedWorker || cliOptions.length === 0}
+          >
+            {cli && !cliOptions.some((option) => option.key === cli) && (
+              <option value={cli} disabled>
+                {t('agentRuntime.runtimeSelection.legacyOption', { value: cli })}
+              </option>
+            )}
+            {cliOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {runtimeOptionLabel(option.display_name, option.key)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
+          <select
+            id="agent-create-model-input"
+            data-testid="agent-create-model"
+            value={model}
+            onChange={(e) => {
+              setModel(e.target.value);
+              setRuntimeError('');
+            }}
+            className={inputClass}
+            disabled={!runtime.data || !selectedWorker || modelOptions.length === 0}
+          >
+            {model && !modelOptions.some((option) => option.model_key === model) && (
+              <option value={model} disabled>
+                {t('agentRuntime.runtimeSelection.legacyOption', { value: model })}
+              </option>
+            )}
+            {modelOptions.map((option) => (
+              <option key={option.key} value={option.model_key}>
+                {runtimeOptionLabel(option.display_name, option.model_key)}
+              </option>
+            ))}
+          </select>
+          <RuntimeSelectionHint
+            loading={runtime.isLoading}
+            workerSelected={!!selectedWorker}
+            cliCount={cliOptions.length}
+            modelCount={modelOptions.length}
+            invalid={!!workerId && runtime.isSuccess && !runtimeValidation.ok}
+          />
+        </Field>
+
+        {runtimeError && (
+          <p className="mb-3 text-xs text-danger" data-testid="agent-create-runtime-error">
+            {runtimeError}
+          </p>
+        )}
 
         {create.isError && (
           <p className="mb-3 text-xs text-danger" data-testid="agent-create-error">
@@ -202,6 +270,38 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
       </form>
     </div>
   );
+}
+
+function RuntimeSelectionHint({
+  loading,
+  workerSelected,
+  cliCount,
+  modelCount,
+  invalid,
+}: {
+  loading: boolean;
+  workerSelected: boolean;
+  cliCount: number;
+  modelCount: number;
+  invalid: boolean;
+}): React.ReactElement | null {
+  const { t } = useTranslation('members');
+  let message = '';
+  if (loading) message = t('agentRuntime.runtimeSelection.loading');
+  else if (!workerSelected) message = t('agentRuntime.runtimeSelection.noWorker');
+  else if (cliCount === 0) message = t('agentRuntime.runtimeSelection.noCLI');
+  else if (modelCount === 0) message = t('agentRuntime.runtimeSelection.noModel');
+  else if (invalid) message = t('agentRuntime.runtimeSelection.unsupportedLegacy');
+  if (!message) return null;
+  return (
+    <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-create-runtime-hint">
+      {message}
+    </p>
+  );
+}
+
+function runtimeOptionLabel(displayName: string | undefined, key: string): string {
+  return displayName && displayName !== key ? `${displayName} (${key})` : key;
 }
 
 function Field({

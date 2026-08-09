@@ -110,7 +110,14 @@ describe('Agents page', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json({
           tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
+          workers: [
+            {
+              worker_id: 'w-7',
+              name: 'box-7',
+              status: 'online',
+              capabilities: [{ agent_cli: 'codex', detected: true, enabled: true }],
+            },
+          ],
           pending_issues: [],
         }),
       ),
@@ -132,7 +139,14 @@ describe('Agents page', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json({
           tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
+          workers: [
+            {
+              worker_id: 'w-7',
+              name: 'box-7',
+              status: 'online',
+              capabilities: [{ agent_cli: 'codex', detected: true, enabled: true }],
+            },
+          ],
           pending_issues: [],
         }),
       ),
@@ -151,19 +165,17 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
-    // v2.7.1 #232: Model is pre-filled with the explicit default (not a
-    // placeholder) so leaving it untouched still submits a concrete value.
-    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe('claude-opus-4-8');
     // v2.7 #191: pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
-    // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
+    // Runtime choices are sourced from AI Runtime and filtered by the selected worker.
+    await waitFor(() => expect(screen.getByTestId('agent-create-model')).toHaveValue('gpt-5'));
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
-    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
+    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['codex']);
     // T728: the include-description switch defaults ON.
     expect(screen.getByTestId('agent-create-include-description')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('agent-create-submit'));
@@ -171,7 +183,7 @@ describe('Agents page', () => {
     await waitFor(() => expect(posted).not.toBeNull());
     // Unified create payload: display_name (not name) + role + worker_id + cli.
     // T728: default-on switch is carried as include_description_in_system_prompt=true.
-    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8', include_description_in_system_prompt: true });
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'codex', model: 'gpt-5', include_description_in_system_prompt: true });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );
@@ -183,7 +195,14 @@ describe('Agents page', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json({
           tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
+          workers: [
+            {
+              worker_id: 'w-7',
+              name: 'box-7',
+              status: 'online',
+              capabilities: [{ agent_cli: 'codex', detected: true, enabled: true }],
+            },
+          ],
           pending_issues: [],
         }),
       ),
@@ -204,6 +223,7 @@ describe('Agents page', () => {
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
+    await waitFor(() => expect(screen.getByTestId('agent-create-model')).toHaveValue('gpt-5'));
     fireEvent.click(screen.getByTestId('agent-create-include-description')); // turn OFF
     fireEvent.click(screen.getByTestId('agent-create-submit'));
     await waitFor(() => expect(posted).not.toBeNull());
