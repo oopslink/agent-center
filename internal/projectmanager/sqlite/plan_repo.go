@@ -513,6 +513,39 @@ func (r *PlanRepo) ListReviewVerdicts(ctx context.Context, planID pm.PlanID) ([]
 	return out, rows.Err()
 }
 
+// ListReviewVerdictsByPlans is the batch form of ListReviewVerdicts (one
+// `WHERE plan_id IN (...)` query), so plan summary/read-model derivation can apply
+// verdict-aware dependency semantics without an N+1 loop. Empty planIDs → nil.
+func (r *PlanRepo) ListReviewVerdictsByPlans(ctx context.Context, planIDs []pm.PlanID) ([]pm.ReviewVerdict, error) {
+	if len(planIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := planIDPlaceholders(planIDs)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, task_id, verdict, blocking, reason, sha, round FROM pm_plan_review_verdicts WHERE plan_id IN (`+in+`) ORDER BY plan_id, task_id`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ReviewVerdict
+	for rows.Next() {
+		v := pm.ReviewVerdict{}
+		var pid, tid string
+		var blocking, round int
+		if err := rows.Scan(&pid, &tid, &v.Verdict, &blocking, &v.Reason, &v.SHA, &round); err != nil {
+			return nil, err
+		}
+		v.PlanID = pm.PlanID(pid)
+		v.TaskID = pm.TaskID(tid)
+		v.Blocking = blocking != 0
+		v.Round = round
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // --- Stage gate extra-round request ledger ---------------------------------
 
 func (r *PlanRepo) RecordStageGateReopenRequest(ctx context.Context, req pm.StageGateReopenRequest) (bool, error) {

@@ -759,11 +759,15 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
+	reviewVerdicts, err := s.plans.ListReviewVerdicts(ctx, p.ID())
+	if err != nil {
+		return nil, err
+	}
 	// T807 ④: read the plan view off DerivePlanView (the graph-era read-view derivation)
 	// — the reader path no longer references DerivePlanView. Also covers the runnable
 	// gate (planNodeStatus reads this detail's View). Byte-for-byte with the prior
 	// DerivePlanView (same pure algorithm), over LIVE task/dep/outcome/dispatch state.
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.DerivePlanView(tasks, edges, records, outcomes, paused)}, nil
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.DerivePlanViewWithReviewVerdicts(tasks, edges, records, outcomes, reviewVerdicts, paused)}, nil
 }
 
 // pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
@@ -1010,6 +1014,14 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	for _, o := range allOutcomes {
 		outcomesByPlan[o.PlanID] = append(outcomesByPlan[o.PlanID], o)
 	}
+	allReviewVerdicts, err := s.plans.ListReviewVerdictsByPlans(ctx, planIDs)
+	if err != nil {
+		return nil, 0, err
+	}
+	reviewVerdictsByPlan := make(map[pm.PlanID][]pm.ReviewVerdict, len(plans))
+	for _, v := range allReviewVerdicts {
+		reviewVerdictsByPlan[v.PlanID] = append(reviewVerdictsByPlan[v.PlanID], v)
+	}
 
 	// 1 query (T53): which of ALL project tasks have a paused work item — one map
 	// reused across every plan's pure derivation, so the N+1-free guarantee holds
@@ -1034,7 +1046,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		tasks := tasksByPlan[p.ID()]
 		// T807 ④: list enrich reads the plan view off DerivePlanView (no DerivePlanView
 		// in the reader path); byte-for-byte with the prior derivation.
-		view := pm.DerivePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
+		view := pm.DerivePlanViewWithReviewVerdicts(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], reviewVerdictsByPlan[p.ID()], paused)
 		detail := &PlanDetail{Plan: p, Tasks: tasks, View: view}
 		// issue-77cda494: make the summary view stage-aware — a barrier-held entry
 		// shows blocked (not ready), matching get_plan detail's enrichStageView. Pure

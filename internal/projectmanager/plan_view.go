@@ -238,6 +238,16 @@ type PlanView struct {
 // correct. (T810 ⑤: the old ComputePlanView shell was deleted — DerivePlanView is the
 // single read-view derivation; the graph is the DISPATCH authority.)
 func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+	return DerivePlanViewWithReviewVerdicts(tasks, edges, dispatch, outcomes, nil, paused)
+}
+
+// DerivePlanViewWithReviewVerdicts is DerivePlanView plus verdict-aware dependency
+// satisfaction for Review/final-acceptance nodes. A task with status=completed still
+// derives NodeDone, preserving the immutable execution record, but a recorded
+// blocking/reject ReviewVerdict means that completion does NOT satisfy downstream
+// seq/conditional dependencies. Passing nil reviewVerdicts preserves the legacy
+// no-verdict semantics exactly: completed == dependency-satisfied.
+func DerivePlanViewWithReviewVerdicts(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, reviewVerdicts []ReviewVerdict, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
@@ -259,6 +269,16 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 		if _, ok := inPlan[o.TaskID]; ok {
 			outcomeOf[o.TaskID] = o.Outcome
 		}
+	}
+	reviewVerdictOf := make(map[TaskID]ReviewVerdict, len(reviewVerdicts))
+	for _, v := range reviewVerdicts {
+		if _, ok := inPlan[v.TaskID]; ok {
+			reviewVerdictOf[v.TaskID] = v
+		}
+	}
+	dependencySatisfied := func(id TaskID) bool {
+		v, ok := reviewVerdictOf[id]
+		return CompletedTaskSatisfiesPlanDependency(statusOf[id], v, ok)
 	}
 
 	// FORWARD edges only (loopback excluded — §5: back-edges never gate forward
@@ -316,7 +336,7 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 			continue
 		}
 		for decisionTo, whens := range condUp[id] {
-			if !taskIsDone(statusOf[decisionTo]) {
+			if !dependencySatisfied(decisionTo) {
 				continue // decision not resolved yet → pending, not pruned.
 			}
 			oc := outcomeOf[decisionTo]
@@ -393,14 +413,14 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 			// an unfinished seq upstream → blocked.
 			forwardReady := true
 			for _, up := range seqUp[id] {
-				if !taskIsDone(statusOf[up]) {
+				if !dependencySatisfied(up) {
 					forwardReady = false
 					break
 				}
 			}
 			if forwardReady {
 				for decisionTo, whens := range condUp[id] {
-					if !taskIsDone(statusOf[decisionTo]) {
+					if !dependencySatisfied(decisionTo) {
 						forwardReady = false // decision pending → blocked.
 						break
 					}

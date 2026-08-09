@@ -260,9 +260,13 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 	if uerr := s.plans.Update(txCtx, p); uerr != nil {
 		return uerr
 	}
+	reviewVerdicts, err := s.plans.ListReviewVerdicts(txCtx, p.ID())
+	if err != nil {
+		return err
+	}
 	// Pre-done tasks (§9.6): reflect their terminal state onto the freshly-built
 	// nodes so the first dispatch's ready-set / IsAutoDone are accurate.
-	return s.syncGraphToTasks(txCtx, p, tasks)
+	return s.syncGraphToTasks(txCtx, p, tasks, reviewVerdicts)
 }
 
 // driveGraphDecisions is the T805 ③ engine-driven decision/loopback driver for a
@@ -458,7 +462,7 @@ func nodeTitle(t *pm.Task) string {
 // needed to reach the task's terminal/running state, so re-running is a no-op.
 // Run at the top of graph dispatch so GetReadyNodes/IsAutoDone always reflect the
 // live task states regardless of which caller triggered dispatch.
-func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*pm.Task) error {
+func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*pm.Task, reviewVerdicts []pm.ReviewVerdict) error {
 	// Load the plan's dispatch records once so advanceNodeTo can tell a genuinely-running
 	// node (dispatched → started) from a RECONCILED node awaiting re-dispatch (issue-77d9beff
 	// ①: reopenStuckPlanNode reopened it + cleared its record while its task stays running —
@@ -471,6 +475,10 @@ func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*p
 	for _, r := range records {
 		dispatched[r.TaskID] = struct{}{}
 	}
+	reviewVerdictOf := make(map[pm.TaskID]pm.ReviewVerdict, len(reviewVerdicts))
+	for _, verdict := range reviewVerdicts {
+		reviewVerdictOf[verdict.TaskID] = verdict
+	}
 	for _, t := range tasks {
 		if t.NodeID() == "" {
 			continue // task not mapped to a node (shouldn't happen for a graphed plan).
@@ -480,7 +488,9 @@ func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*p
 			return err
 		}
 		_, isDispatched := dispatched[t.ID()]
-		if err := s.advanceNodeTo(txCtx, n, t.Status(), isDispatched); err != nil {
+		verdict, hasVerdict := reviewVerdictOf[t.ID()]
+		satisfiesDependency := pm.CompletedTaskSatisfiesPlanDependency(t.Status(), verdict, hasVerdict)
+		if err := s.advanceNodeTo(txCtx, n, t.Status(), isDispatched, satisfiesDependency); err != nil {
 			return err
 		}
 	}
@@ -494,9 +504,20 @@ func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*p
 // intermediate event: a node still `open` whose task jumped straight to completed
 // is walked open→running→completed. It never moves a node backwards (a completed
 // node whose task is somehow running is left alone — no illegal reverse).
-func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus pm.TaskStatus, dispatched bool) error {
+func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus pm.TaskStatus, dispatched bool, satisfiesDependency bool) error {
 	switch {
 	case pm.TaskIsDone(taskStatus):
+		if !satisfiesDependency {
+			// The task completion remains immutable history, but a structured blocking
+			// Review REJECT must not satisfy graph dependencies. If a previous sync (or an
+			// older process before this guard) already completed the graph node, reopen only
+			// the graph projection so downstream seq nodes stay blocked. The dispatch record
+			// is intentionally preserved; completed review work must not be dispatched again.
+			if n.Status() == orch.NodeCompleted {
+				return s.orch.ReopenNode(txCtx, orch.NodeID(n.ID()), "blocking review verdict")
+			}
+			return nil
+		}
 		// Walk to completed: open/reopen → running → completed.
 		if n.Status() == orch.NodeOpen || n.Status() == orch.NodeReopen {
 			if err := s.orch.StartNode(txCtx, orch.NodeID(n.ID())); err != nil {
@@ -624,17 +645,15 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 	for _, r := range records {
 		dispatched[r.TaskID] = struct{}{}
 	}
-	// A FAILED (discarded) task is never ready — advanceNodeTo deliberately leaves its
-	// node OPEN (§9.7: NodeDiscarded is satisfied-terminal, which would wrongly release
-	// downstream), so GetReadyNodes can surface a failed ROOT (no unsatisfied upstream).
-	// Exclude it here so a failed task is not (re)dispatched — matching DerivePlanView,
-	// which derives NodeFailed from task status directly (never NodeReady). Production
-	// relies on the dispatch-record skip for this, but a task discarded BEFORE dispatch
-	// (no record) would otherwise re-enter the ready-set.
-	failed := make(map[pm.TaskID]bool, len(tasks))
+	// Terminal task records are never ready. A FAILED (discarded) task is left
+	// non-satisfying in the graph (§9.7), so GetReadyNodes can surface a failed root.
+	// A completed task with a blocking Review REJECT is also intentionally left
+	// non-completed in the graph so it does not satisfy downstream deps. Neither case
+	// should re-dispatch the terminal task itself.
+	terminal := make(map[pm.TaskID]bool, len(tasks))
 	for _, t := range tasks {
-		if pm.TaskIsFailed(t.Status()) {
-			failed[t.ID()] = true
+		if pm.TaskIsDone(t.Status()) || pm.TaskIsFailed(t.Status()) {
+			terminal[t.ID()] = true
 		}
 	}
 	var ready []pm.TaskID
@@ -646,8 +665,8 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.T
 		if _, done := dispatched[taskID]; done {
 			continue // already dispatched — idempotent skip.
 		}
-		if failed[taskID] {
-			continue // failed task is terminal-failed, never ready (§9.7 parity).
+		if terminal[taskID] {
+			continue // terminal task records are immutable, never ready.
 		}
 		if ready, isGate := gateReady[taskID]; isGate && !ready {
 			continue
@@ -1000,13 +1019,17 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 	if err != nil {
 		return err
 	}
+	reviewVerdicts, err := s.plans.ListReviewVerdicts(txCtx, planID)
+	if err != nil {
+		return err
+	}
 	paused, err := s.pausedSet(txCtx, tasks)
 	if err != nil {
 		return err
 	}
 	// The derived view is the SAME read model the dispatcher/run-gate consult, so the
 	// classification agrees with the engine's own notion of blocked/ready/running.
-	view := pm.DerivePlanView(tasks, edges, records, outcomes, paused)
+	view := pm.DerivePlanViewWithReviewVerdicts(tasks, edges, records, outcomes, reviewVerdicts, paused)
 	taskByID := make(map[pm.TaskID]*pm.Task, len(tasks))
 	for _, t := range tasks {
 		taskByID[t.ID()] = t
@@ -1021,13 +1044,22 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 	for _, n := range view.Nodes {
 		nodeStatusByID[n.TaskID] = n.NodeStatus
 	}
+	reviewVerdictOf := make(map[pm.TaskID]pm.ReviewVerdict, len(reviewVerdicts))
+	for _, verdict := range reviewVerdicts {
+		reviewVerdictOf[verdict.TaskID] = verdict
+	}
+	dependencySatisfiedByID := make(map[pm.TaskID]bool, len(tasks))
+	for _, task := range tasks {
+		verdict, hasVerdict := reviewVerdictOf[task.ID()]
+		dependencySatisfiedByID[task.ID()] = pm.CompletedTaskSatisfiesPlanDependency(task.Status(), verdict, hasVerdict)
+	}
 	now := s.clock.Now()
 	for _, n := range view.Nodes {
 		t := taskByID[n.TaskID]
 		if t == nil {
 			continue // node without a loaded task (defensive) — nothing to classify.
 		}
-		cls, clear, cerr := s.classifyBlockedOn(txCtx, p, t, n, edges, hasOutcome, nodeStatusByID)
+		cls, clear, cerr := s.classifyBlockedOn(txCtx, p, t, n, edges, hasOutcome, nodeStatusByID, dependencySatisfiedByID)
 		if cerr != nil {
 			return cerr
 		}
@@ -1100,7 +1132,7 @@ type blockedOnClass struct {
 //
 // external_event is intentionally NOT derived here — no current graph state maps to
 // it (external_event subscription is a downstream I103 task); the enum reserves it.
-func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task, n pm.PlanNodeView, edges []pm.Dependency, hasOutcome map[pm.TaskID]bool, nodeStatusByID map[pm.TaskID]pm.NodeStatus) (blockedOnClass, bool, error) {
+func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task, n pm.PlanNodeView, edges []pm.Dependency, hasOutcome map[pm.TaskID]bool, nodeStatusByID map[pm.TaskID]pm.NodeStatus, dependencySatisfiedByID map[pm.TaskID]bool) (blockedOnClass, bool, error) {
 	switch n.NodeStatus {
 	case pm.NodeDone, pm.NodeFailed, pm.NodeSkipped:
 		return blockedOnClass{}, true, nil // settled — clear any snapshot.
@@ -1145,8 +1177,12 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 			}
 			up := e.ToTaskID
 			switch nodeStatusByID[up] {
-			case pm.NodeDone, pm.NodeSkipped:
+			case pm.NodeSkipped:
 				continue // satisfied — not waited on.
+			case pm.NodeDone:
+				if dependencySatisfiedByID == nil || dependencySatisfiedByID[up] {
+					continue // satisfied, including legacy callers with no verdict map.
+				}
 			}
 			unmet = append(unmet, string(up))
 			if pm.IsDecisionNode(edges, up) && !hasOutcome[up] {

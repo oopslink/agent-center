@@ -38,6 +38,30 @@ const (
 // ValidReviewVerdict reports whether v is a recognised review verdict label.
 func ValidReviewVerdict(v string) bool { return v == ReviewPass || v == ReviewReject }
 
+// ReviewVerdictBlocksDependency reports whether a structured Review verdict must
+// prevent downstream plan dependencies from treating the Review task's completed
+// status as a successful pass. Compatibility rule: this is consulted ONLY when a
+// verdict row exists; legacy completed Review tasks with no structured verdict
+// continue to satisfy seq dependencies.
+func ReviewVerdictBlocksDependency(v ReviewVerdict) bool {
+	return v.Blocking || v.Verdict == ReviewReject
+}
+
+// CompletedTaskSatisfiesPlanDependency is the verdict-aware success predicate for
+// plan routing. The Task's completed status remains immutable execution history;
+// this only decides whether downstream dependencies may consume that completion as
+// a PASS. No verdict is legacy-compatible success; a recorded verdict must be an
+// explicit non-blocking pass.
+func CompletedTaskSatisfiesPlanDependency(status TaskStatus, verdict ReviewVerdict, hasVerdict bool) bool {
+	if !TaskIsDone(status) {
+		return false
+	}
+	if !hasVerdict {
+		return true
+	}
+	return verdict.Verdict == ReviewPass && !ReviewVerdictBlocksDependency(verdict)
+}
+
 // ReviewVerdict is a Review node's structured, SINGLE-SLOT, ROUND-TAGGED verdict
 // (T468 / issue-f7ad5a54). It replaces B3's "open review comment count" proxy: a
 // reviewer records ONE verdict per review round (latest-wins overwrite, keyed by

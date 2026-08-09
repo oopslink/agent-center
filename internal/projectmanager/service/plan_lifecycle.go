@@ -259,13 +259,17 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
+	reviewVerdicts, err := s.plans.ListReviewVerdicts(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
 	// T810 ⑤: a structured plan is dispatched off the orchestration engine — the SINGLE
 	// dispatch path (the old DerivePlanView fallback + graphDispatchEnabled switch were
 	// deleted; every running plan is graphed by StartPlan). graphReadySet syncs the graph
 	// to task state then reads GetReadyNodes (dispatch-record-idempotent) + IsAutoDone.
 	var readySet []pm.TaskID
 	var allDone bool
-	if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
+	if serr := s.syncGraphToTasks(txCtx, p, tasks, reviewVerdicts); serr != nil {
 		return nil, serr
 	}
 	// T805 ③: drive decision adjudication + bounded loopback through the engine. PASS

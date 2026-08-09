@@ -244,10 +244,13 @@ type PlanRepository interface {
 	// RecordReviewVerdict upserts (latest-wins per plan_id,task_id — each round
 	// overwrites); GetReviewVerdict returns one node's verdict (ok=false when none);
 	// ListReviewVerdicts returns a plan's verdicts (PD read path — see the verdict
-	// without entering the Review conversation).
+	// without entering the Review conversation). ListReviewVerdictsByPlans is the
+	// batch form used by plan-summary/read-model derivation so verdict-aware routing
+	// stays N+1-free.
 	RecordReviewVerdict(ctx context.Context, planID PlanID, v ReviewVerdict, at time.Time) error
 	GetReviewVerdict(ctx context.Context, planID PlanID, taskID TaskID) (ReviewVerdict, bool, error)
 	ListReviewVerdicts(ctx context.Context, planID PlanID) ([]ReviewVerdict, error)
+	ListReviewVerdictsByPlans(ctx context.Context, planIDs []PlanID) ([]ReviewVerdict, error)
 
 	// Stage gate extra-round requests are the idempotency ledger for the supported
 	// owner/PD recovery action after an acceptance gate exhausts. The PK is

@@ -486,15 +486,15 @@ func TestBlockedOn_Classify_Fallbacks(t *testing.T) {
 	task, _ := pm.NewTask(pm.NewTaskInput{ID: "T1", ProjectID: "P1", Title: "t", CreatedBy: "user:a", CreatedAt: t0svc})
 
 	// terminal → clear.
-	if _, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeDone}, nil, nil, nil); err != nil || !clear {
+	if _, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeDone}, nil, nil, nil, nil); err != nil || !clear {
 		t.Fatalf("NodeDone classify = (clear=%v, err=%v), want clear", clear, err)
 	}
 	// ready → clear (runnable, awaiting pickup).
-	if _, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeReady}, nil, nil, nil); err != nil || !clear {
+	if _, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeReady}, nil, nil, nil, nil); err != nil || !clear {
 		t.Fatalf("NodeReady classify = (clear=%v, err=%v), want clear", clear, err)
 	}
 	// unknown non-terminal state → timeout_only fallback (defensive).
-	cls, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeStatus("weird")}, nil, nil, nil)
+	cls, clear, err := h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodeStatus("weird")}, nil, nil, nil, nil)
 	if err != nil || clear {
 		t.Fatalf("unknown status classify = (clear=%v, err=%v), want a snapshot", clear, err)
 	}
@@ -504,7 +504,7 @@ func TestBlockedOn_Classify_Fallbacks(t *testing.T) {
 
 	// paused (a running task holds a lease too) → executor_liveness; with no assignee
 	// the wait_keys are empty (the empty-assignee branch).
-	cls, clear, err = h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodePaused}, nil, nil, nil)
+	cls, clear, err = h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodePaused}, nil, nil, nil, nil)
 	if err != nil || clear {
 		t.Fatalf("NodePaused classify = (clear=%v, err=%v), want a snapshot", clear, err)
 	}

@@ -29,10 +29,12 @@ import (
 // Same production-completeness family as the #266 outboxProjectors class-guard.
 type countingPlanRepo struct {
 	pm.PlanRepository
-	depsByPlans     int
-	dispatchByPlans int
-	perPlanDeps     int
-	perPlanDispatch int
+	depsByPlans          int
+	dispatchByPlans      int
+	reviewVerdictsByPlan int
+	perPlanDeps          int
+	perPlanDispatch      int
+	perPlanReviewVerdict int
 }
 
 func (c *countingPlanRepo) ListDependenciesByPlans(ctx context.Context, ids []pm.PlanID) ([]pm.Dependency, error) {
@@ -45,6 +47,11 @@ func (c *countingPlanRepo) ListDispatchRecordsByPlans(ctx context.Context, ids [
 	return c.PlanRepository.ListDispatchRecordsByPlans(ctx, ids)
 }
 
+func (c *countingPlanRepo) ListReviewVerdictsByPlans(ctx context.Context, ids []pm.PlanID) ([]pm.ReviewVerdict, error) {
+	c.reviewVerdictsByPlan++
+	return c.PlanRepository.ListReviewVerdictsByPlans(ctx, ids)
+}
+
 func (c *countingPlanRepo) ListDependencies(ctx context.Context, id pm.PlanID) ([]pm.Dependency, error) {
 	c.perPlanDeps++
 	return c.PlanRepository.ListDependencies(ctx, id)
@@ -53,6 +60,11 @@ func (c *countingPlanRepo) ListDependencies(ctx context.Context, id pm.PlanID) (
 func (c *countingPlanRepo) ListDispatchRecords(ctx context.Context, id pm.PlanID) ([]pm.DispatchRecord, error) {
 	c.perPlanDispatch++
 	return c.PlanRepository.ListDispatchRecords(ctx, id)
+}
+
+func (c *countingPlanRepo) ListReviewVerdicts(ctx context.Context, id pm.PlanID) ([]pm.ReviewVerdict, error) {
+	c.perPlanReviewVerdict++
+	return c.PlanRepository.ListReviewVerdicts(ctx, id)
 }
 
 // TestListPlanSummaries_NoNPlus1_QueryCountGuard is the deterministic standing
@@ -124,7 +136,8 @@ func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
 
 	// Reset AFTER seeding (AddPlanDependency's cycle-check uses per-plan reads);
 	// the guard is about the single ListPlanSummaries call below.
-	spy.depsByPlans, spy.dispatchByPlans, spy.perPlanDeps, spy.perPlanDispatch = 0, 0, 0, 0
+	spy.depsByPlans, spy.dispatchByPlans, spy.reviewVerdictsByPlan = 0, 0, 0
+	spy.perPlanDeps, spy.perPlanDispatch, spy.perPlanReviewVerdict = 0, 0, 0
 
 	sums, lerr := svc.ListPlanSummaries(h.ctx, pid)
 	if lerr != nil {
@@ -141,10 +154,16 @@ func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
 	if spy.dispatchByPlans != 1 {
 		t.Errorf("ListDispatchRecordsByPlans called %d times over %d plans — want exactly 1 (single batched IN-query). >1 = N+1 regression.", spy.dispatchByPlans, N)
 	}
+	if spy.reviewVerdictsByPlan != 1 {
+		t.Errorf("ListReviewVerdictsByPlans called %d times over %d plans — want exactly 1 (single batched IN-query). >1 = N+1 regression.", spy.reviewVerdictsByPlan, N)
+	}
 	if spy.perPlanDeps != 0 {
 		t.Errorf("per-plan ListDependencies called %d times during ListPlanSummaries — must be 0 (that per-plan read IS the N+1 the batch avoids).", spy.perPlanDeps)
 	}
 	if spy.perPlanDispatch != 0 {
 		t.Errorf("per-plan ListDispatchRecords called %d times during ListPlanSummaries — must be 0.", spy.perPlanDispatch)
+	}
+	if spy.perPlanReviewVerdict != 0 {
+		t.Errorf("per-plan ListReviewVerdicts called %d times during ListPlanSummaries — must be 0.", spy.perPlanReviewVerdict)
 	}
 }

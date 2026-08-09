@@ -201,3 +201,57 @@ func TestDerivePlanView_AllDone(t *testing.T) {
 		}
 	})
 }
+
+func TestDerivePlanView_ReviewVerdictAwareDependencySatisfaction(t *testing.T) {
+	review := newTaskWithStatus(t, "Review", TaskCompleted)
+	ship := newTaskWithStatus(t, "Ship", TaskOpen)
+	tasks := []*Task{review, ship}
+	edges := []Dependency{{PlanID: "pl", FromTaskID: "Ship", ToTaskID: "Review", Kind: EdgeSeq}}
+
+	t.Run("legacy no verdict treats completed as satisfied", func(t *testing.T) {
+		view := DerivePlanViewWithReviewVerdicts(tasks, edges, nil, nil, nil, nil)
+		st := nodeStatusByID(view)
+		if st["Ship"] != NodeReady {
+			t.Fatalf("Ship = %s, want ready for legacy completed Review without verdict", st["Ship"])
+		}
+	})
+
+	t.Run("non-blocking pass satisfies dependency", func(t *testing.T) {
+		view := DerivePlanViewWithReviewVerdicts(tasks, edges, nil, nil, []ReviewVerdict{{
+			PlanID: "pl", TaskID: "Review", Verdict: ReviewPass,
+		}}, nil)
+		st := nodeStatusByID(view)
+		if st["Ship"] != NodeReady {
+			t.Fatalf("Ship = %s, want ready after Review PASS", st["Ship"])
+		}
+	})
+
+	t.Run("blocking reject preserves Review done but blocks downstream", func(t *testing.T) {
+		view := DerivePlanViewWithReviewVerdicts(tasks, edges, nil, nil, []ReviewVerdict{{
+			PlanID: "pl", TaskID: "Review", Verdict: ReviewReject, Blocking: true,
+		}}, nil)
+		st := nodeStatusByID(view)
+		if st["Review"] != NodeDone {
+			t.Fatalf("Review = %s, want done immutable execution record", st["Review"])
+		}
+		if st["Ship"] != NodeBlocked {
+			t.Fatalf("Ship = %s, want blocked behind blocking Review REJECT", st["Ship"])
+		}
+		if len(view.ReadySet) != 0 {
+			t.Fatalf("ready set = %v, want empty", view.ReadySet)
+		}
+		if view.AllDone {
+			t.Fatal("AllDone = true, want false while downstream is blocked by Review REJECT")
+		}
+	})
+
+	t.Run("blocking pass also blocks downstream", func(t *testing.T) {
+		view := DerivePlanViewWithReviewVerdicts(tasks, edges, nil, nil, []ReviewVerdict{{
+			PlanID: "pl", TaskID: "Review", Verdict: ReviewPass, Blocking: true,
+		}}, nil)
+		st := nodeStatusByID(view)
+		if st["Ship"] != NodeBlocked {
+			t.Fatalf("Ship = %s, want blocked when Review marks blocking=true", st["Ship"])
+		}
+	})
+}
