@@ -318,6 +318,11 @@
       },
       "cancel": "取消",
       "save": "保存",
+      "runtimeCatalog": {
+        "invalidSelection": "保存前请选择 AI Runtime 中已启用且兼容的 CLI/模型组合。",
+        "invalidExecutors": "请移除或替换已不再启用、或与当前 AI Runtime 不兼容的执行器单元配置。",
+        "unavailable": "不可用"
+      },
       "confirm": {
         "titleRestart": "重启以应用更改？",
         "titleSave": "保存配置更改？",
@@ -545,6 +550,9 @@
       "workerSearchPlaceholder": "搜索工作节点…",
       "workerEmptyLabel": "没有匹配的工作节点。",
       "noWorkers": "环境中尚无工作节点 — 请先注册一台工作节点。",
+      "workerRequired": "创建前必须把智能体绑定到一台 Environment 工作节点。",
+      "runtimeSelectionRequired": "创建前请选择 AI Runtime 中已启用且兼容的 CLI/模型组合。",
+      "runtimeCatalogUnavailable": "AI Runtime catalog 不可用，无法校验 CLI/模型候选。",
       "cancel": "取消",
       "submit": "创建智能体",
       "submitting": "正在创建...",
@@ -653,6 +661,9 @@
       "modelOptional": "模型",
       "cli": "CLI",
       "cliHint": "来源于 AI Runtime CLI 定义。",
+      "workerRequired": "创建前必须把智能体绑定到一台 Environment 工作节点。",
+      "runtimeSelectionRequired": "创建前请选择 AI Runtime 中已启用且兼容的 CLI/模型组合。",
+      "runtimeCatalogUnavailable": "AI Runtime catalog 不可用，无法校验 CLI/模型候选。",
       "role": "角色",
       "cancel": "取消",
       "creating": "正在创建…",

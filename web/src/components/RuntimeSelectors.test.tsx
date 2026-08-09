@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type React from 'react';
 import {
   firstRuntimeModelValue,
+  isSelectableRuntimeModelValue,
+  isSelectableRuntimePair,
   RuntimeCLISelector,
   RuntimeModelCombobox,
   type RuntimeModelValueMode,
@@ -88,6 +90,16 @@ describe('RuntimeModelCombobox', () => {
 
   it('falls back to a compatible model when the preferred value is not selectable', () => {
     expect(firstRuntimeModelValue(catalog, 'claude-code', 'gpt-5', 'catalog-key')).toBe('sonnet-5');
+  });
+
+  it('does not treat a model as selectable when its CLI is disabled or missing', () => {
+    const disabledCLI: AIRuntimeCatalog = {
+      ...catalog,
+      clis: catalog.clis.map((cli) => cli.key === 'codex' ? { ...cli, enabled: false } : cli),
+    };
+    expect(isSelectableRuntimeModelValue(disabledCLI, 'codex', 'gpt-5')).toBe(false);
+    expect(isSelectableRuntimePair(disabledCLI, 'codex', 'gpt-5')).toBe(false);
+    expect(firstRuntimeModelValue(disabledCLI, 'codex', 'gpt-5')).toBe('');
   });
 
   it('shows display name and metadata, and typing filters without changing the selected value', () => {

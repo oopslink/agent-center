@@ -318,6 +318,11 @@
       },
       "cancel": "Cancel",
       "save": "Save",
+      "runtimeCatalog": {
+        "invalidSelection": "Select an enabled AI Runtime CLI/model combination before saving.",
+        "invalidExecutors": "Remove or replace executor unit profiles that are no longer enabled or compatible in AI Runtime.",
+        "unavailable": "Unavailable"
+      },
       "confirm": {
         "titleRestart": "Restart to apply changes?",
         "titleSave": "Save config changes?",
@@ -545,6 +550,9 @@
       "workerSearchPlaceholder": "Search workers…",
       "workerEmptyLabel": "No matching workers.",
       "noWorkers": "No workers in Environment yet — enroll a worker first.",
+      "workerRequired": "Bind the agent to an Environment worker before creating it.",
+      "runtimeSelectionRequired": "Select an enabled AI Runtime CLI/model combination before creating this agent.",
+      "runtimeCatalogUnavailable": "AI Runtime catalog is unavailable; CLI/model choices cannot be validated.",
       "cancel": "Cancel",
       "submit": "Create agent",
       "submitting": "Creating...",
@@ -653,6 +661,9 @@
       "modelOptional": "Model",
       "cli": "CLI",
       "cliHint": "Sourced from AI Runtime CLI definitions.",
+      "workerRequired": "Bind the agent to an Environment worker before creating it.",
+      "runtimeSelectionRequired": "Select an enabled AI Runtime CLI/model combination before creating this agent.",
+      "runtimeCatalogUnavailable": "AI Runtime catalog is unavailable; CLI/model choices cannot be validated.",
       "role": "Role",
       "cancel": "Cancel",
       "creating": "Creating…",

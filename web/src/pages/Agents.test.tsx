@@ -200,6 +200,7 @@ describe('Agents page', () => {
     await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
     fireEvent.click(screen.getByTestId('agents-add-btn'));
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
+    await waitFor(() => expect(screen.getByTestId('agent-create-model')).toHaveValue('Claude Opus 4.8'));
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),

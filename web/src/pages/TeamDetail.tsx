@@ -24,6 +24,7 @@ import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
+import { isSelectableRuntimePair, useRuntimeSelectorCatalog } from '@/components/RuntimeSelectors';
 import { Skeleton } from '@/components/Skeleton';
 import { AddMemberModal } from '@/components/teams/AddMemberModal';
 import { MemoryPane } from '@/components/teams/MemoryPane';
@@ -185,6 +186,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
 function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void }): React.ReactElement {
   const { t } = useTranslation('teams');
   const update = useUpdateTeamRoles();
+  const runtimeCatalog = useRuntimeSelectorCatalog();
   const [roles, setRoles] = useState<RoleInput[]>(() => team.roles.map((role) => ({
     role: role.role,
     cli: role.cli,
@@ -195,18 +197,32 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
   })));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
+  const hasRuntimeRoles = roles.length > 0;
+  const runtimeSelectionValid = !hasRuntimeRoles || roles.every((role) =>
+    isSelectableRuntimePair(runtimeCatalog.catalog, role.cli, role.model, 'model-key'),
+  );
+  const runtimeInvalid = hasRuntimeRoles && (runtimeCatalog.isLoading || Boolean(runtimeCatalog.error) || !runtimeSelectionValid);
   const save = async () => {
-    if (invalid) return;
+    if (invalid || runtimeInvalid) return;
     await update.mutateAsync({ team_id: team.id, roles: roles.map((role) => ({ ...role, role: role.role.trim(), tags: role.tags.trim() })) });
     onClose();
   };
   return <ModalShell open onClose={onClose} wide testId="edit-team-roles-modal" title={t('teamDetail.roles.title')}
     subtitle={t('teamDetail.roles.subtitle')} footer={<div className="ml-auto flex gap-2.5">
       <button type="button" className={btnGhost} onClick={onClose}>{t('common.cancel')}</button>
-      <button type="button" className={btnSmPrimary} disabled={invalid || update.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
+      <button type="button" className={btnSmPrimary} disabled={invalid || runtimeInvalid || update.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
     </div>}>
     <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" />
     {invalid && <p className="mt-3 text-xs text-danger" role="alert">{t('teamDetail.roles.invalid')}</p>}
+    {runtimeInvalid && (
+      <p className="mt-3 text-xs text-danger" role="alert" data-testid="edit-team-runtime-validation-error">
+        {runtimeCatalog.isLoading
+          ? t('roleBuilder.runtimeCatalogLoading')
+          : runtimeCatalog.error
+            ? t('roleBuilder.runtimeCatalogUnavailable')
+            : t('roleBuilder.runtimeSelectionRequired')}
+      </p>
+    )}
     {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
   </ModalShell>;
 }

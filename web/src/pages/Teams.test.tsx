@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
 import Teams from './Teams';
 import { resetTeamsStore } from '@/api/teamsFixtures';
+import { server } from '@/test/mswServer';
 
 function Loc(): React.ReactElement {
   const l = useLocation();
@@ -62,8 +64,33 @@ describe('Teams list', () => {
     expect(within(modal).getByTestId('new-team-role-2')).toBeInTheDocument();
     fireEvent.click(within(modal).getByTestId('new-team-role-2-remove'));
 
+    await waitFor(() => expect(within(modal).getByTestId('new-team-submit')).not.toBeDisabled());
     fireEvent.click(within(modal).getByTestId('new-team-submit'));
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toMatch(/^\/teams\/team-/));
+  });
+
+  it('blocks team creation when role runtime selection is not in the AI Runtime catalog', async () => {
+    server.use(
+      http.get('/api/ai-runtime', () =>
+        HttpResponse.json({
+          revision: 1,
+          clis: [{ id: 'cli-codex', key: 'codex', display_name: 'Codex', executable: 'codex', enabled: true }],
+          models: [{ id: 'model-gpt', key: 'gpt', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true }],
+          profiles: [],
+        }),
+      ),
+    );
+    renderPage();
+    fireEvent.click(await screen.findByTestId('teams-new'));
+    const modal = await screen.findByTestId('new-team-modal');
+
+    fireEvent.change(within(modal).getByTestId('new-team-name'), { target: { value: 'runtime-blocked' } });
+
+    await waitFor(() =>
+      expect(within(modal).getByTestId('new-team-runtime-validation-error')).toHaveTextContent(/enabled AI Runtime CLI\/model/i),
+    );
+    expect(within(modal).getByTestId('new-team-role-0-runtime-error')).toBeInTheDocument();
+    expect(within(modal).getByTestId('new-team-submit')).toBeDisabled();
   });
 
   it('prevents creating a team when any role has no name', async () => {

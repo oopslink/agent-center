@@ -58,6 +58,33 @@ describe('MemberNew — Add agent runtime selectors', () => {
     await waitFor(() => expect(posted).not.toBeNull());
     expect(posted).toMatchObject({ display_name: 'newbot', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8' });
   });
+
+  it('blocks agent creation when AI Runtime catalog validation is unavailable', async () => {
+    let posted = false;
+    server.use(
+      http.get('/api/workers', () =>
+        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
+      ),
+      http.get('/api/ai-runtime', () =>
+        HttpResponse.json({ error: 'runtime_catalog_down', message: 'down' }, { status: 503 }),
+      ),
+      http.post('/api/members/agent', () => {
+        posted = true;
+        return HttpResponse.json({ id: 'a-new' }, { status: 201 });
+      }),
+    );
+    wrap();
+
+    await waitFor(() => expect(screen.getByTestId('mn-runtime-selection-error')).toHaveTextContent(/catalog is unavailable/i));
+    await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
+    fireEvent.click(screen.getByTestId('mn-worker-trigger'));
+    await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
+    fireEvent.click(screen.getByTestId('mn-worker-option'));
+
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(posted).toBe(false);
+  });
 });
 
 // dev2/v281: Add-agent's Cancel + post-create fallback target the canonical
@@ -90,6 +117,7 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
     );
     wrap();
     await userEvent.type(await screen.findByLabelText('Display name'), 'newbot');
+    await waitFor(() => expect(screen.getByLabelText(/Model/i)).toHaveValue('Claude Opus 4.8'));
     fireEvent.click(screen.getByTestId('mn-worker-trigger'));
     await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
     fireEvent.click(screen.getByTestId('mn-worker-option'));

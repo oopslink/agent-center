@@ -14,6 +14,7 @@ import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
 import {
   firstRuntimeModelValue,
+  isSelectableRuntimePair,
   RuntimeCLISelector,
   RuntimeModelCombobox,
   useRuntimeSelectorCatalog,
@@ -44,7 +45,14 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const workers = fleet.data?.workers ?? [];
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && model.trim().length > 0 && !create.isPending;
+  const runtimeCatalogAvailable = !runtimeCatalog.isLoading && !runtimeCatalog.error;
+  const runtimeSelectionValid =
+    runtimeCatalogAvailable && isSelectableRuntimePair(runtimeCatalog.catalog, cli, model, 'model-key');
+  const canSubmit =
+    trimmedName.length > 0 &&
+    workerId.length > 0 &&
+    runtimeSelectionValid &&
+    !create.isPending;
 
   React.useEffect(() => {
     const next = firstRuntimeModelValue(runtimeCatalog.catalog, cli, model, 'model-key');
@@ -152,13 +160,21 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             value={cli}
             onChange={(nextCli) => {
               setCli(nextCli);
-              setModel(firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key'));
+              const nextModel = firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key');
+              setModel(nextModel);
             }}
             ariaLabel={t('agents.create.cliLabel')}
             includeUnknownValue={false}
             {...runtimeCatalog}
           />
         </Field>
+        {!runtimeCatalog.isLoading && !runtimeSelectionValid && (
+          <p className="mb-3 text-xs text-danger" data-testid="agent-create-runtime-selection-error">
+            {runtimeCatalog.error
+              ? t('agents.create.runtimeCatalogUnavailable')
+              : t('agents.create.runtimeSelectionRequired')}
+          </p>
+        )}
 
         <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>
           {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
@@ -179,6 +195,11 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           {fleet.isSuccess && workers.length === 0 && (
             <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-create-no-workers">
               {t('agents.create.noWorkers')}
+            </p>
+          )}
+          {fleet.isSuccess && workers.length === 0 && (
+            <p className="mt-1 text-[0.6875rem] text-danger" data-testid="agent-create-worker-required">
+              {t('agents.create.workerRequired')}
             </p>
           )}
         </Field>

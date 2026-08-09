@@ -77,4 +77,28 @@ describe('AgentCreateModal — model field', () => {
     expect(postBody).toMatchObject({ display_name: 'bot-x', worker_id: 'w-1', model: 'claude-opus-4-8' });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  it('blocks create when the AI Runtime catalog cannot validate the CLI/model pair', async () => {
+    let posted = false;
+    server.use(
+      fleetWithWorker(),
+      http.get('/api/ai-runtime', () =>
+        HttpResponse.json({ error: 'runtime_catalog_down', message: 'down' }, { status: 503 }),
+      ),
+      http.post('/api/members/agent', () => {
+        posted = true;
+        return HttpResponse.json({ id: 'mem-1' }, { status: 201 });
+      }),
+    );
+    wrap();
+
+    await waitFor(() => expect(screen.getByTestId('agent-create-runtime-selection-error')).toHaveTextContent(/catalog is unavailable/i));
+    fireEvent.click(await screen.findByTestId('agent-create-worker-trigger'));
+    fireEvent.click(await screen.findByTestId('agent-create-worker-option'));
+    fireEvent.change(screen.getByTestId('agent-create-name'), { target: { value: 'bot-x' } });
+
+    expect(screen.getByTestId('agent-create-submit')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('agent-create-submit'));
+    expect(posted).toBe(false);
+  });
 });

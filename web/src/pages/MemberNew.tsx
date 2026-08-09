@@ -9,6 +9,7 @@ import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { useTranslation } from 'react-i18next';
 import {
   firstRuntimeModelValue,
+  isSelectableRuntimePair,
   RuntimeCLISelector,
   RuntimeModelCombobox,
   useRuntimeSelectorCatalog,
@@ -45,6 +46,14 @@ export default function MemberNew(): React.ReactElement {
   const workers = useWorkers();
   const runtimeCatalog = useRuntimeSelectorCatalog();
   const pending = addUser.isPending || addAgent.isPending;
+  const trimmedDisplayName = displayName.trim();
+  const runtimeCatalogAvailable = !runtimeCatalog.isLoading && !runtimeCatalog.error;
+  const runtimeSelectionValid =
+    kind !== 'agent' || (runtimeCatalogAvailable && isSelectableRuntimePair(runtimeCatalog.catalog, cli, model, 'model-key'));
+  const canSubmit =
+    !pending &&
+    trimmedDisplayName.length > 0 &&
+    (kind !== 'agent' || (workerID.length > 0 && runtimeSelectionValid));
 
   React.useEffect(() => {
     if (kind !== 'agent') return;
@@ -55,10 +64,11 @@ export default function MemberNew(): React.ReactElement {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!canSubmit) return;
     if (kind === 'agent') {
       addAgent.mutate(
         {
-          display_name: displayName.trim(),
+          display_name: trimmedDisplayName,
           description: description.trim(),
           role,
           model: model.trim() || undefined,
@@ -78,7 +88,7 @@ export default function MemberNew(): React.ReactElement {
       );
     } else {
       addUser.mutate(
-        { display_name: displayName.trim(), role },
+        { display_name: trimmedDisplayName, role },
         {
           onSuccess: (res) => {
             if (res.temp_passcode) setTempPasscode(res.temp_passcode);
@@ -161,6 +171,11 @@ export default function MemberNew(): React.ReactElement {
                 searchPlaceholder={t('humans.new.workerSearchPlaceholder')}
                 ariaLabel={t('humans.new.runOnWorker')}
               />
+              {workers.isSuccess && (workers.data ?? []).length === 0 && (
+                <p className="text-xs text-danger" data-testid="mn-no-workers">
+                  {t('humans.new.workerRequired')}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <span className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</span>
@@ -182,7 +197,8 @@ export default function MemberNew(): React.ReactElement {
                 value={cli}
                 onChange={(nextCli) => {
                   setCli(nextCli);
-                  setModel(firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key'));
+                  const nextModel = firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key');
+                  setModel(nextModel);
                 }}
                 ariaLabel={t('humans.new.cli')}
                 includeUnknownValue={false}
@@ -190,6 +206,13 @@ export default function MemberNew(): React.ReactElement {
               />
               <p className="text-xs text-text-muted">{t('humans.new.cliHint')}</p>
             </div>
+            {!runtimeCatalog.isLoading && !runtimeSelectionValid && (
+              <p className="text-xs text-danger" data-testid="mn-runtime-selection-error">
+                {Boolean(runtimeCatalog.error)
+                  ? t('humans.new.runtimeCatalogUnavailable')
+                  : t('humans.new.runtimeSelectionRequired')}
+              </p>
+            )}
           </>
         )}
         <div className="space-y-1">
@@ -215,7 +238,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim() || (kind === 'agent' && (!workerID || !model.trim()))}
+            disabled={!canSubmit}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? t('humans.new.creating') : t('humans.new.create')}
