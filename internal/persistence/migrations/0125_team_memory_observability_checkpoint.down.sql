@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS team_memory_observability_checkpoints;

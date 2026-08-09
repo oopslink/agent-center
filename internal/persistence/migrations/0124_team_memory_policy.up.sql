@@ -1,4 +1,4 @@
--- 0123_team_memory_policy.up.sql — ADR-0057 controlled Team Memory writes.
+-- 0124_team_memory_policy.up.sql — ADR-0057 controlled Team Memory writes.
 --
 -- The Team aggregate owns the write policy: default proposal_only, with an
 -- explicit set of agent member refs that may review as curator when mode is

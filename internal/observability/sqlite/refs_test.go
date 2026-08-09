@@ -13,6 +13,7 @@ import (
 func TestRefsLikeMap_AllFieldsRoundtrip(t *testing.T) {
 	f := observability.EventRefsFilter{
 		WorkerID:       "w",
+		TeamID:         "team",
 		ProjectID:      "p",
 		ProposalID:     "pr",
 		MappingID:      "m",
@@ -25,7 +26,7 @@ func TestRefsLikeMap_AllFieldsRoundtrip(t *testing.T) {
 	}
 	m := refsLikeMap(f)
 	expectedKeys := []string{
-		"worker_id", "project_id", "proposal_id", "mapping_id",
+		"worker_id", "team_id", "project_id", "proposal_id", "mapping_id",
 		"conversation_id", "message_id", "task_id", "execution_id",
 		"input_request_id", "issue_id",
 	}
@@ -66,6 +67,7 @@ func TestEventRepo_Find_FilterByEachRef(t *testing.T) {
 	g := idgen.NewGenerator(fc)
 	// One event per ref kind.
 	refs := []observability.EventRefs{
+		{TeamID: "team"},
 		{ProjectID: "p"},
 		{ProposalID: "pr"},
 		{MappingID: "m"},
@@ -86,6 +88,7 @@ func TestEventRepo_Find_FilterByEachRef(t *testing.T) {
 	}
 	// Each filter should match exactly one.
 	for _, f := range []observability.EventRefsFilter{
+		{TeamID: "team"},
 		{ProjectID: "p"},
 		{ProposalID: "pr"},
 		{MappingID: "m"},

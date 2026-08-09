@@ -7,12 +7,19 @@ import (
 
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
+
+type teamPolicyStore interface {
+	FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error)
+	GetMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error)
+	GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error)
+}
 
 // TeamPolicyAuthorization adapts Team membership/policy and Identity org roles
 // to the Team Memory application service authorization port.
 type TeamPolicyAuthorization struct {
-	teams   team.Repository
+	teams   teamPolicyStore
 	members identity.MemberRepository
 }
 
@@ -23,7 +30,32 @@ func NewTeamPolicyAuthorization(teams team.Repository, members identity.MemberRe
 	return &TeamPolicyAuthorization{teams: teams, members: members}
 }
 
+// NewTeamPolicyAuthorizationFromService adapts the Team application service for
+// transports that intentionally do not expose the raw Team repository.
+func NewTeamPolicyAuthorizationFromService(teams *teamservice.Service, members identity.MemberRepository) *TeamPolicyAuthorization {
+	if teams == nil {
+		return &TeamPolicyAuthorization{members: members}
+	}
+	return &TeamPolicyAuthorization{teams: teamServicePolicyStore{svc: teams}, members: members}
+}
+
 var _ AuthorizationPort = (*TeamPolicyAuthorization)(nil)
+
+type teamServicePolicyStore struct {
+	svc *teamservice.Service
+}
+
+func (s teamServicePolicyStore) FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error) {
+	return s.svc.FindAgentTeam(ctx, ref)
+}
+
+func (s teamServicePolicyStore) GetMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	return s.svc.GetTeamMemoryPolicy(ctx, id)
+}
+
+func (s teamServicePolicyStore) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) {
+	return s.svc.GetTeam(ctx, id)
+}
 
 // ResolveActorTeam resolves the agent-facing MCP scope. Human users may belong
 // to multiple teams and must use a trusted adapter that passes teamID explicitly.
