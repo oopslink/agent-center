@@ -288,8 +288,11 @@
         "error": "AI Runtime 目录不可用。",
         "empty": "AI Runtime 目录没有已启用的 CLI/模型组合。",
         "refresh": "刷新",
+        "modelSearch": "搜索模型",
+        "executorModelSearch": "搜索执行器模型",
         "unavailable": "（不可用）",
-        "invalidSelection": "请选择 AI Runtime 中已启用的 CLI/模型组合。"
+        "invalidSelection": "请选择 AI Runtime 中已启用的 CLI/模型组合。",
+        "invalidExecutors": "请移除不可用的执行器组合，或从 AI Runtime 中选择已启用的替代组合。"
       },
       "env": {
         "heading": "环境变量",

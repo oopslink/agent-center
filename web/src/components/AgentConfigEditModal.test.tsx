@@ -28,7 +28,6 @@ function runtimeCatalog() {
   return {
     org_id: 'O-1',
     revision: 8,
-    default_runtime_profile_id: 'profile-default',
     clis: [
       { id: 'cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
       { id: 'cli-codex', key: 'codex', display_name: 'Codex', executable: 'codex', enabled: true },
@@ -38,9 +37,6 @@ function runtimeCatalog() {
       { id: 'model-claude-sonnet', key: 'claude-sonnet', model_key: 'claude-sonnet-4-6', display_name: 'Claude Sonnet', compatible_cli_keys: ['claude-code'], enabled: true },
       { id: 'model-opus-short', key: 'opus-short', model_key: 'opus-4-8', display_name: 'Opus executor', compatible_cli_keys: ['claude-code'], enabled: true },
       { id: 'model-gpt', key: 'gpt-5-5', model_key: 'gpt-5.5', display_name: 'GPT-5.5', compatible_cli_keys: ['codex'], enabled: true },
-    ],
-    profiles: [
-      { id: 'profile-default', key: 'default-coding', name: 'Default coding', cli_key: 'claude-code', model_key: 'claude-opus', enabled: true, parameters: {} },
     ],
   };
 }
@@ -296,6 +292,16 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(values).not.toContain('gpt-5.5');
   });
 
+  it('model: search narrows compatible catalog options', async () => {
+    wrap(base);
+    await waitRuntimeReady();
+    fireEvent.change(screen.getByTestId('agent-config-model-search'), { target: { value: 'sonnet' } });
+    const values = Array.from(screen.getByTestId('agent-config-model').querySelectorAll('option'))
+      .map((o) => (o as HTMLOptionElement).value);
+    expect(values).toContain('claude-sonnet-4-6');
+    expect(values).not.toContain('opus-4-8');
+  });
+
   it('model: changing CLI clears an incompatible model instead of replacing it', async () => {
     wrap(base);
     await waitRuntimeReady();
@@ -312,6 +318,20 @@ describe('AgentConfigEditModal (T236)', () => {
     await waitFor(() => expect(screen.getByTestId('agent-config-runtime-catalog-state')).toHaveAttribute('data-empty', 'false'));
     expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe('deleted-model');
     expect(screen.getByTestId('agent-config-runtime-selection-error')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-config-edit-save')).toBeDisabled();
+  });
+
+  it('concurrency: stale executor pairs remain visible as unavailable and block save', async () => {
+    wrap({
+      ...base,
+      max_concurrent_tasks: 2,
+      allowed_executors: [{ cli: 'codex', model: 'deleted-executor-model' }],
+    });
+    await waitFor(() => expect(screen.getByTestId('agent-config-runtime-catalog-state')).toHaveAttribute('data-empty', 'false'));
+    const chip = screen.getByTestId('agent-config-executor-chip');
+    expect(chip).toHaveAttribute('data-selectable', 'false');
+    expect(chip).toHaveTextContent(/unavailable/i);
+    expect(screen.getByTestId('agent-config-executor-selection-error')).toBeInTheDocument();
     expect(screen.getByTestId('agent-config-edit-save')).toBeDisabled();
   });
 

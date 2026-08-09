@@ -1,65 +1,69 @@
 import { describe, expect, it } from 'vitest';
-import type { AIRuntimeCatalog } from '@/api/aiRuntime';
 import {
   buildRuntimeSelectorModel,
   defaultModelForCLI,
+  invalidRuntimeExecutorProfiles,
   isRuntimeCLISelectable,
   isRuntimeModelSelectable,
   normalizeExecutorProfiles,
   runtimeModelChoicesForCLI,
+  searchRuntimeCLIChoices,
+  type RuntimeSelectorCatalog,
 } from './runtimeSelector';
 
-function catalog(overrides: Partial<AIRuntimeCatalog> = {}): AIRuntimeCatalog {
+function catalog(overrides: Partial<RuntimeSelectorCatalog> = {}): RuntimeSelectorCatalog {
   return {
-    org_id: 'org',
     revision: 7,
-    default_runtime_profile_id: 'profile-default',
     clis: [
-      { id: 'cli-codex', key: 'codex', display_name: 'Codex', executable: 'codex', enabled: true },
-      { id: 'cli-codex-dup', key: 'codex', display_name: 'Codex duplicate', executable: 'codex', enabled: false },
-      { id: 'cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
+      { key: 'codex', display_name: 'Codex', enabled: true },
+      { key: 'codex', display_name: 'Codex duplicate', enabled: false },
+      { key: 'claude-code', display_name: 'Claude Code', enabled: true },
     ],
     models: [
-      { id: 'model-gpt', key: 'gpt', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
-      { id: 'model-opus', key: 'opus', model_key: 'claude-opus-4-8', display_name: 'Opus', compatible_cli_keys: ['claude-code'], enabled: true },
-      { id: 'model-old', key: 'old', model_key: 'old-disabled', display_name: 'Old', compatible_cli_keys: ['codex'], enabled: false },
-    ],
-    profiles: [
-      { id: 'profile-default', key: 'default-coding', name: 'Default', cli_key: 'codex', model_key: 'gpt', enabled: true, parameters: {} },
+      { key: 'gpt', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
+      { key: 'opus', model_key: 'claude-opus-4-8', display_name: 'Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+      { key: 'old', model_key: 'old-disabled', display_name: 'Old', compatible_cli_keys: ['codex'], enabled: false },
     ],
     ...overrides,
   };
 }
 
 describe('runtime selector model', () => {
-  it('dedupes CLI keys and resolves the default profile to the legacy model string', () => {
+  it('dedupes CLI keys and resolves deterministic defaults from CLI/Model catalog order', () => {
     const model = buildRuntimeSelectorModel(catalog());
     expect(model.cliChoices.map((choice) => choice.key)).toEqual(['codex', 'claude-code']);
     expect(model.defaultCLI).toBe('codex');
     expect(model.defaultModel).toBe('gpt-5');
     expect(defaultModelForCLI(model, 'codex')).toBe('gpt-5');
+    expect(model.selectablePairCount).toBe(2);
   });
 
-  it('uses the default profile model even when it is not the first compatible model', () => {
-    const cat = catalog({
-      models: [
-        { id: 'model-fast', key: 'fast', model_key: 'gpt-5-mini', display_name: 'GPT-5 Mini', compatible_cli_keys: ['codex'], enabled: true },
-        { id: 'model-default', key: 'default', model_key: 'gpt-5-pro', display_name: 'GPT-5 Pro', compatible_cli_keys: ['codex'], enabled: true },
-      ],
+  it('does not consult Runtime Profile fields even if an older API response still includes them', () => {
+    const cat = {
+      ...catalog({
+        models: [
+          { key: 'fast', model_key: 'gpt-5-mini', display_name: 'GPT-5 Mini', compatible_cli_keys: ['codex'], enabled: true },
+          { key: 'default', model_key: 'gpt-5-pro', display_name: 'GPT-5 Pro', compatible_cli_keys: ['codex'], enabled: true },
+        ],
+      }),
+      default_runtime_profile_id: 'profile-default',
       profiles: [
-        { id: 'profile-default', key: 'default-coding', name: 'Default', cli_key: 'codex', model_key: 'default', enabled: true, parameters: {} },
+        { id: 'profile-default', cli_key: 'codex', model_key: 'default', enabled: true },
       ],
-    });
+    };
     const model = buildRuntimeSelectorModel(cat);
     expect(runtimeModelChoicesForCLI(model, 'codex').map((choice) => choice.value)).toEqual(['gpt-5-mini', 'gpt-5-pro']);
-    expect(model.defaultModel).toBe('gpt-5-pro');
-    expect(defaultModelForCLI(model, 'codex', cat)).toBe('gpt-5-pro');
+    expect(model.defaultModel).toBe('gpt-5-mini');
+    expect(defaultModelForCLI(model, 'codex')).toBe('gpt-5-mini');
   });
 
-  it('filters models by CLI compatibility', () => {
+  it('filters models by CLI compatibility and search text', () => {
     const model = buildRuntimeSelectorModel(catalog());
     expect(runtimeModelChoicesForCLI(model, 'codex').map((choice) => choice.value)).toEqual(['gpt-5']);
     expect(runtimeModelChoicesForCLI(model, 'claude-code').map((choice) => choice.value)).toEqual(['claude-opus-4-8']);
+    expect(runtimeModelChoicesForCLI(model, 'claude-code', undefined, { search: 'opus' }).map((choice) => choice.value)).toEqual(['claude-opus-4-8']);
+    expect(runtimeModelChoicesForCLI(model, 'claude-code', undefined, { search: 'gpt' })).toEqual([]);
+    expect(searchRuntimeCLIChoices(model, 'claude').map((choice) => choice.key)).toEqual(['claude-code']);
     expect(isRuntimeModelSelectable(model, 'codex', 'claude-opus-4-8')).toBe(false);
     expect(isRuntimeModelSelectable(model, 'codex', 'gpt-5')).toBe(true);
   });
@@ -81,12 +85,16 @@ describe('runtime selector model', () => {
       expect.objectContaining({ value: 'gpt-5', selectable: true }),
       expect.objectContaining({ value: 'executor-gone', selectable: false }),
     ]);
+    expect(invalidRuntimeExecutorProfiles(model, [{ cli: 'codex', model: 'executor-gone' }])).toEqual([
+      { cli: 'codex', model: 'executor-gone' },
+    ]);
     expect(isRuntimeCLISelectable(model, 'missing-cli')).toBe(false);
   });
 
   it('marks an empty catalog as empty and normalizes executor pairs', () => {
-    const model = buildRuntimeSelectorModel(catalog({ clis: [], models: [], profiles: [] }));
+    const model = buildRuntimeSelectorModel(catalog({ clis: [], models: [] }));
     expect(model.isEmpty).toBe(true);
+    expect(model.selectablePairCount).toBe(0);
     expect(normalizeExecutorProfiles([
       { cli: ' codex ', model: ' gpt-5 ' },
       { cli: 'codex', model: 'gpt-5' },

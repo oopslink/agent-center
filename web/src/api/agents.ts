@@ -134,9 +134,9 @@ export interface UpdateAgentConfigInput {
   provider: string;
   env_vars?: Record<string, string>;
   // v2.18.1 (issue-8746a5b9) executor concurrency. allowed_executors is the
-  // authoritative {cli,model} candidate list (server hard-validates cli ∈
-  // {claude-code,codex}); max_concurrent_tasks gates parallelism (0/1 = single
-  // active). Both optional so non-concurrency edits keep the legacy body shape.
+  // authoritative {cli,model} candidate list selected from Runtime CLI/Model
+  // catalog; max_concurrent_tasks gates parallelism (0/1 = single active).
+  // Both optional so non-concurrency edits keep the legacy body shape.
   max_concurrent_tasks?: number;
   allowed_executors?: ExecutorProfile[];
   // T566 (issue-577a7b0e): per-agent opt-out of auto-assignment (default true).

@@ -288,8 +288,11 @@
         "error": "AI Runtime catalog is unavailable.",
         "empty": "AI Runtime catalog has no enabled CLI/model pairs.",
         "refresh": "Refresh",
+        "modelSearch": "Search models",
+        "executorModelSearch": "Search executor models",
         "unavailable": "(unavailable)",
-        "invalidSelection": "Choose an enabled CLI/model pair from AI Runtime."
+        "invalidSelection": "Choose an enabled CLI/model pair from AI Runtime.",
+        "invalidExecutors": "Remove unavailable executor pairs or choose enabled replacements from AI Runtime."
       },
       "env": {
         "heading": "Environment variables",
