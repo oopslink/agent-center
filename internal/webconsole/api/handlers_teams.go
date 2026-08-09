@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -283,12 +284,25 @@ func mapTeamWebError(w http.ResponseWriter, err error) {
 // teamGuard runs the shared nil-check + org auth for a team endpoint, returning the
 // resolved orgID (and false when a response was already written).
 func teamGuard(w http.ResponseWriter, r *http.Request, d HandlerDeps) (string, bool) {
+	_, _, orgID, ok := teamGuardMember(w, r, d)
+	return orgID, ok
+}
+
+func teamGuardMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*identity.Identity, *identity.Member, string, bool) {
 	if d.TeamService == nil {
 		writeError(w, http.StatusNotImplemented, "not_configured", "team service not wired")
-		return "", false
+		return nil, nil, "", false
 	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	return orgID, ok
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	return caller, member, orgID, ok
+}
+
+func withMemoryPermissions(view map[string]any, role identity.MemberRole, configured bool) map[string]any {
+	view["memory_permissions"] = map[string]any{
+		"web_edit":   configured,
+		"can_manage": configured && role.AtLeast(identity.RoleAdmin),
+	}
+	return view
 }
 
 // getTeamInOrg loads a team and enforces it belongs to the request's org (a team id
@@ -309,7 +323,7 @@ func getTeamInOrg(r *http.Request, d HandlerDeps, orgID, id string) (*team.Team,
 // listTeamsHandler serves GET /api/orgs/{slug}/teams → TeamView[].
 func (s *Server) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	_, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -330,7 +344,7 @@ func (s *Server) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			mapTeamWebError(w, perr)
 			return
 		}
-		out = append(out, teamViewMap(t, members, len(projects)))
+		out = append(out, withMemoryPermissions(teamViewMap(t, members, len(projects)), member.Role(), d.TeamGitHost != nil))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -338,7 +352,7 @@ func (s *Server) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 // getTeamHandler serves GET /api/orgs/{slug}/teams/{id} → TeamView.
 func (s *Server) getTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	_, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -357,7 +371,7 @@ func (s *Server) getTeamHandler(w http.ResponseWriter, r *http.Request) {
 		mapTeamWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, teamViewMap(t, members, len(projects)))
+	writeJSON(w, http.StatusOK, withMemoryPermissions(teamViewMap(t, members, len(projects)), member.Role(), d.TeamGitHost != nil))
 }
 
 // createTeamReq is the CreateTeamInput body (teams.ts). visibility is accepted but not
@@ -382,7 +396,7 @@ type roleInputReq struct {
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
 func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	_, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -409,7 +423,7 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// fresh team → no members, no projects.
-	writeJSON(w, http.StatusCreated, teamViewMap(t, nil, 0))
+	writeJSON(w, http.StatusCreated, withMemoryPermissions(teamViewMap(t, nil, 0), member.Role(), d.TeamGitHost != nil))
 }
 
 // deleteTeamHandler serves DELETE /api/orgs/{slug}/teams/{id}.

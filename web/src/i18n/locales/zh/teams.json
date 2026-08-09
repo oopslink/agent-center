@@ -229,6 +229,7 @@
     "pinned": "常驻",
     "lazy": "lazy",
     "manage": "管理 memory",
+    "newProposal": "新建 proposal",
     "raw": "原始",
     "rendered": "渲染",
     "copyPath": "复制路径",
@@ -247,7 +248,8 @@
       "aria": "Team memory 筛选",
       "all": "全部 {{count}}",
       "entries": "Entries {{count}}",
-      "rules": "Rules {{count}}"
+      "rules": "Rules {{count}}",
+      "proposals": "Proposals {{count}}"
     },
     "section": {
       "index": "index"
@@ -258,12 +260,66 @@
       "entriesTitle": "还没有 entries",
       "entriesBody": "team memory repo 写入共享经验后，会显示在 entries/ 下。",
       "rulesTitle": "还没有 rules",
-      "rulesBody": "team memory repo 写入团队规约后，会显示在 rules/ 下。"
+      "rulesBody": "team memory repo 写入团队规约后，会显示在 rules/ 下。",
+      "proposalsTitle": "还没有 proposals",
+      "proposalsBody": "待审和已审的 memory proposals 会显示在这里。"
     },
     "error": {
       "index": "Team memory 加载失败。",
       "doc": "该 memory 文档加载失败。",
       "permission": "你没有权限查看该 memory 文档。"
+    },
+    "meta": {
+      "sourcePath": "路径",
+      "uuid": "UUID",
+      "blob": "Blob"
+    },
+    "proposalStatus": {
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "rejected": "REJECTED",
+      "superseded": "SUPERSEDED"
+    },
+    "operation": {
+      "add": "新增",
+      "update": "更新",
+      "disable": "停用",
+      "delete": "删除"
+    },
+    "proposal": {
+      "operation": "操作",
+      "author": "作者",
+      "repoCommit": "Repo commit",
+      "sourcePath": "源路径",
+      "promotionCommit": "Promotion commit",
+      "reviewComment": "评审备注",
+      "rationale": "原因",
+      "warnings": "警告",
+      "diff": "Diff 预览",
+      "noDiff": "暂无 diff 预览。",
+      "promote": "Promote",
+      "reject": "Reject",
+      "readOnly": "需要 owner/admin 权限才能评审 proposal。",
+      "rejectPlaceholder": "Reject comment",
+      "promoteComment": "从 Web console promote"
+    },
+    "create": {
+      "title": "发起 team memory 变更",
+      "subtitle": "Web 的所有变更都会写为 pending proposal，并通过共享 Team Memory service promote。",
+      "submit": "创建 proposal",
+      "operation": "操作",
+      "kind": "目标类型",
+      "entry": "Entry",
+      "rule": "Rule",
+      "target": "目标",
+      "chooseTarget": "选择目标",
+      "slug": "Slug",
+      "titleLabel": "标题",
+      "description": "描述",
+      "enabled": "启用",
+      "appliesTo": "适用阶段",
+      "body": "正文",
+      "rationale": "原因"
     }
   }
 }

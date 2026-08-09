@@ -177,7 +177,7 @@ func MigrateV1ToV2Command() *Command {
 // 0117 added messages.reply_to_message_id for primary-reply binding.
 // 0119-0121 add AssignmentPool, monotonic Plan lifecycle, and remediation ledgers;
 // 0122 adds the explicit task delivery contract.
-const targetSchemaVersion = 122
+const targetSchemaVersion = 123
 
 func runMigrateV1ToV2(
 	ctx context.Context,

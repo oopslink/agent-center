@@ -50,6 +50,7 @@ type HandlerDeps struct {
 	// EventSink emits observability/audit events (v2.8.1: agent/worker
 	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
 	EventSink          *observability.EventSink
+	EventRepo          observability.EventRepository
 	ConvRepo           conversation.ConversationRepository
 	MsgRepo            conversation.MessageRepository
 	MessageWriter      *convservice.MessageWriter

@@ -87,6 +87,7 @@ type EventRefs struct {
 	OrganizationID string `json:"organization_id,omitempty"`
 	MemberID       string `json:"member_id,omitempty"`
 	WorkerID       string `json:"worker_id,omitempty"`
+	TeamID         string `json:"team_id,omitempty"`
 	ProjectID      string `json:"project_id,omitempty"`
 	ProposalID     string `json:"proposal_id,omitempty"`
 	MappingID      string `json:"mapping_id,omitempty"`

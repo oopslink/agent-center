@@ -296,6 +296,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate", s.instantiateTeamHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/extract", s.extractFromTeamHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory", s.teamMemoryIndexHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/memory/proposals", s.createTeamMemoryProposalHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/memory/proposals/{proposal_id}/review", s.reviewTeamMemoryProposalHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory/{entry}", s.teamMemoryDocHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates", s.listTeamTemplatesHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/team-templates", s.createTeamTemplateHandler)

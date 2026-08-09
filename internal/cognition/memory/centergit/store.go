@@ -64,6 +64,12 @@ type Entry struct {
 	Body string
 	// Type is an optional classification (user/feedback/project/reference…).
 	Type string
+	// UUID is the file identity persisted in frontmatter.
+	UUID string
+	// SourcePath is populated by readers with the repo-relative path.
+	SourcePath string
+	// BlobHash is populated by repo readers with the current git blob id.
+	BlobHash string
 }
 
 // Rule is one team-scoped operational rule. Rules live under rules/; that
@@ -83,8 +89,12 @@ type Rule struct {
 	// all phases when writing; accepted values are plan, execute, review,
 	// recovery, or all.
 	AppliesTo []string
+	// UUID is the file identity persisted in frontmatter.
+	UUID string
 	// SourcePath is populated by readers with the repo-relative path.
 	SourcePath string
+	// BlobHash is populated by repo readers with the current git blob id.
+	BlobHash string
 }
 
 // entryFrontmatter is the YAML header persisted at the top of every entry file
@@ -442,6 +452,7 @@ func (s *Store) ReadEntries() (entries []Entry, skipped []string, err error) {
 		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
 			continue
 		}
+		rel := filepath.ToSlash(filepath.Join(entriesDir, de.Name()))
 		fm, body, perr := parseEntry(filepath.Join(dir, de.Name()))
 		if perr != nil {
 			if errors.Is(perr, errMalformedEntry) {
@@ -452,7 +463,7 @@ func (s *Store) ReadEntries() (entries []Entry, skipped []string, err error) {
 		}
 		recs = append(recs, rec{
 			file:  de.Name(),
-			entry: Entry{Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body, Type: fm.Type},
+			entry: Entry{Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body, Type: fm.Type, UUID: fm.UUID, SourcePath: rel},
 		})
 	}
 	sort.Slice(recs, func(i, j int) bool {
@@ -507,6 +518,7 @@ func (s *Store) ReadRules() (rules []Rule, skipped []string, err error) {
 				Body:        body,
 				Enabled:     fm.Enabled,
 				AppliesTo:   fm.AppliesTo,
+				UUID:        fm.UUID,
 				SourcePath:  rel,
 			},
 		})

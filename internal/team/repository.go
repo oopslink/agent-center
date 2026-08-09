@@ -15,6 +15,12 @@ type Repository interface {
 	UpdateTeam(ctx context.Context, t *Team) error
 	// ReplaceRoles persists the aggregate's complete declared role set.
 	ReplaceRoles(ctx context.Context, t *Team) error
+	// SetMemoryPolicy persists the aggregate's Team Memory policy and replaces
+	// the complete curator grant set.
+	SetMemoryPolicy(ctx context.Context, t *Team) error
+	// GetMemoryPolicy loads a team's policy. Missing policy rows return the
+	// ADR-0057 default proposal_only.
+	GetMemoryPolicy(ctx context.Context, id TeamID) (TeamMemoryPolicy, error)
 	// DeleteTeam removes a team and cascades its roles/members/projects.
 	// Idempotent: a missing id is a no-op.
 	DeleteTeam(ctx context.Context, id TeamID) error

@@ -188,7 +188,7 @@ export function teamHandlers() {
       return json({ ok: true, team_id: id, project_id: projectId });
     }),
 
-    // ---- P2: team memory (read-only) ----
+    // ---- P2: team memory ----
     http.get('/api/teams/:id/memory', () => json(teamsStore().memoryIndex)),
 
     http.get('/api/teams/:id/memory/:entry', ({ params }) => {
@@ -196,6 +196,96 @@ export function teamHandlers() {
       return doc
         ? json(doc)
         : HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
+    }),
+
+    http.post('/api/teams/:id/memory/proposals', async ({ params, request }) => {
+      const input = (await request.json()) as {
+        operation: 'add' | 'update' | 'disable' | 'delete';
+        target_kind: 'entry' | 'rule';
+        target?: { source_path: string; uuid: string; expected_blob_hash: string };
+        candidate?: { slug?: string; title?: string; description?: string; body?: string; enabled?: boolean; applies_to?: string[] };
+        rationale: string;
+        idempotency_key: string;
+      };
+      const s = teamsStore();
+      const proposalId = `proposal-${s.memoryIndex.filter((item) => item.kind === 'proposal').length + 1}`;
+      const repoCommit = `commit-${proposalId}`;
+      const slug = input.candidate?.slug || input.target?.source_path?.split('/').pop()?.replace(/\.md$/, '') || proposalId;
+      const doc = {
+        slug: proposalId,
+        path: `proposals/${proposalId}.yaml`,
+        source_path: `proposals/${proposalId}.yaml`,
+        title: proposalId,
+        kind: 'proposal' as const,
+        frontmatter: `proposal_id: ${proposalId}\nstatus: pending\nrepo_commit: ${repoCommit}`,
+        body: `## ${input.operation} ${input.target_kind}\n\n${input.rationale}`,
+        repo_commit: repoCommit,
+        proposal: {
+          team_id: String(params.id),
+          proposal_id: proposalId,
+          operation: input.operation,
+          target_kind: input.target_kind,
+          target: input.target,
+          candidate: input.candidate,
+          rationale: input.rationale,
+          evidence_refs: [],
+          author_ref: 'user:owner',
+          created_at: '2026-08-09T00:00:00Z',
+          idempotency_key: input.idempotency_key,
+          status: 'pending' as const,
+          warnings: [],
+          source_path: `proposals/${proposalId}.yaml`,
+          repo_commit: repoCommit,
+          diff_preview: `+++ ${input.target_kind}/${slug}.md\n+${input.candidate?.body ?? ''}`,
+        },
+      };
+      s.memoryDocs[proposalId] = doc;
+      s.memoryIndex.push({
+        slug: proposalId,
+        kind: 'proposal',
+        proposal_id: proposalId,
+        status: 'pending',
+        operation: input.operation,
+        target_kind: input.target_kind,
+        repo_commit: repoCommit,
+        source_path: `proposals/${proposalId}.yaml`,
+      });
+      return json({ team_id: String(params.id), proposal_id: proposalId, status: 'pending', repo_commit: repoCommit }, 201);
+    }),
+
+    http.post('/api/teams/:id/memory/proposals/:proposalId/review', async ({ params, request }) => {
+      const input = (await request.json()) as {
+        action: 'promote' | 'reject';
+        expected_repo_commit: string;
+        expected_proposal_status: 'pending';
+        comment: string;
+        acknowledge_warnings?: string[];
+      };
+      const s = teamsStore();
+      const proposalId = String(params.proposalId);
+      const doc = s.memoryDocs[proposalId];
+      if (!doc?.proposal) {
+        return HttpResponse.json({ error: 'not_found', message: 'proposal_not_found' }, { status: 404 });
+      }
+      doc.proposal.status = input.action === 'promote' ? 'promoted' : 'rejected';
+      doc.proposal.review_comment = input.comment;
+      doc.proposal.reviewer_ref = 'user:owner';
+      doc.proposal.repo_commit = `commit-${input.action}-${proposalId}`;
+      doc.proposal.promotion_commit = input.action === 'promote' ? doc.proposal.repo_commit : undefined;
+      doc.repo_commit = doc.proposal.repo_commit;
+      const row = s.memoryIndex.find((item) => item.proposal_id === proposalId || item.slug === proposalId);
+      if (row) {
+        row.status = doc.proposal.status;
+        row.repo_commit = doc.proposal.repo_commit;
+      }
+      return json({
+        team_id: String(params.id),
+        proposal_id: proposalId,
+        status: doc.proposal.status,
+        repo_commit: doc.proposal.repo_commit,
+        source_path: doc.proposal.source_path,
+        effective_for: input.action === 'promote' ? 'new_sessions_and_forks' : '',
+      });
     }),
 
     // ---- P2: templates (Phase-1 in-memory; list + get only — save/import are residual) ----

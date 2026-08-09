@@ -65,6 +65,10 @@ var AgentFacingToolNames = []string{
 	"fork_executor",
 	"get_issue",
 	"get_team_rules",
+	"propose_team_memory_change",
+	"list_team_memory_proposals",
+	"get_team_memory_proposal",
+	"review_team_memory_proposal",
 	"get_my_profile",
 	"get_my_unread",
 	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)

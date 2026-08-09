@@ -99,17 +99,93 @@ export interface TeamTemplate {
 export interface MemoryIndexEntry {
   slug?: string;
   path?: string;
+  source_path?: string;
   pinned?: boolean;
   group?: string;
+  kind?: 'index' | 'entry' | 'rule' | 'proposal';
+  title?: string;
+  description?: string;
+  uuid?: string;
+  blob_hash?: string;
+  commit?: string;
+  repo_commit?: string;
+  status?: TeamMemoryProposalStatus;
+  target_kind?: 'entry' | 'rule';
+  operation?: TeamMemoryOperation;
+  proposal_id?: string;
+  current_target_blob_hash?: string;
 }
 
-/** A rendered team-memory document (Phase-1: read-only). */
+export type TeamMemoryOperation = 'add' | 'update' | 'disable' | 'delete';
+export type TeamMemoryProposalStatus = 'pending' | 'promoted' | 'rejected' | 'superseded';
+export type TeamMemoryTargetKind = 'entry' | 'rule';
+
+export interface TeamMemoryTargetRef {
+  source_path: string;
+  uuid: string;
+  expected_blob_hash: string;
+}
+
+export interface TeamMemoryCandidate {
+  slug?: string;
+  title?: string;
+  description: string;
+  body?: string;
+  type?: string;
+  enabled?: boolean;
+  applies_to?: string[];
+}
+
+export interface TeamMemoryProposal {
+  team_id: string;
+  proposal_id: string;
+  operation: TeamMemoryOperation;
+  target_kind: TeamMemoryTargetKind;
+  target?: TeamMemoryTargetRef;
+  candidate?: TeamMemoryCandidate;
+  rationale: string;
+  evidence_refs?: string[];
+  author_ref: string;
+  created_at: string;
+  idempotency_key: string;
+  status: TeamMemoryProposalStatus;
+  warnings?: string[];
+  reviewer_ref?: string;
+  review_comment?: string;
+  reviewed_at?: string;
+  promotion_commit?: string;
+  source_path?: string;
+  repo_commit: string;
+  current_target_blob_hash?: string;
+  diff_preview?: string;
+}
+
+export interface TeamMemoryResult {
+  team_id: string;
+  proposal_id: string;
+  status: TeamMemoryProposalStatus;
+  repo_commit: string;
+  source_path?: string;
+  warnings?: string[];
+  effective_for?: string;
+  old_commit?: string;
+  new_commit?: string;
+}
+
+/** A rendered team-memory document. */
 export interface MemoryDoc {
   slug: string;
   path: string;
+  source_path?: string;
   title: string;
   frontmatter: string | null;
   body: string;
+  uuid?: string;
+  blob_hash?: string;
+  repo_commit?: string;
+  current_target_blob_hash?: string;
+  kind?: MemoryIndexEntry['kind'];
+  proposal?: TeamMemoryProposal;
 }
 
 /** Curation finding kind — mirrors internal/team ScrubKind. */
@@ -218,7 +294,7 @@ export const teamKeys = {
   members: (id: string) => key('members', id),
   projects: (id: string) => key('projects', id),
   memoryIndex: (id: string) => key('memory', id),
-  memoryDoc: (id: string, slug: string) => key('memory', id, slug),
+  memoryDoc: (id: string, slug: string, kind?: string) => key('memory', id, kind ?? 'auto', slug),
   templates: () => key('templates'),
   template: (id: string) => key('template', id),
   templateInstances: (id: string) => key('template', id, 'instances'),
@@ -377,7 +453,7 @@ export function useDisassociateProject() {
 }
 
 // ---------------------------------------------------------------------------
-// Team memory (read-only)
+// Team memory
 // ---------------------------------------------------------------------------
 
 export function useTeamMemoryIndex(id: string) {
@@ -388,11 +464,72 @@ export function useTeamMemoryIndex(id: string) {
   });
 }
 
-export function useTeamMemoryDoc(id: string, slug: string) {
+export function useTeamMemoryDoc(id: string, slug: string, kind?: MemoryIndexEntry['kind']) {
   return useQuery({
-    queryKey: teamKeys.memoryDoc(id, slug),
-    queryFn: () => api.get<MemoryDoc>(`/teams/${id}/memory/${encodeURIComponent(slug)}`),
+    queryKey: teamKeys.memoryDoc(id, slug, kind),
+    queryFn: () => {
+      const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+      return api.get<MemoryDoc>(`/teams/${id}/memory/${encodeURIComponent(slug)}${qs}`);
+    },
     enabled: !!id && !!slug,
+  });
+}
+
+export interface CreateTeamMemoryProposalInput {
+  team_id: string;
+  operation: TeamMemoryOperation;
+  target_kind: TeamMemoryTargetKind;
+  target?: TeamMemoryTargetRef;
+  candidate?: TeamMemoryCandidate;
+  rationale: string;
+  evidence_refs?: string[];
+  idempotency_key: string;
+}
+
+export function useCreateTeamMemoryProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTeamMemoryProposalInput) =>
+      api.post<TeamMemoryResult>(`/teams/${input.team_id}/memory/proposals`, {
+        operation: input.operation,
+        target_kind: input.target_kind,
+        target: input.target,
+        candidate: input.candidate,
+        rationale: input.rationale,
+        evidence_refs: input.evidence_refs ?? [],
+        idempotency_key: input.idempotency_key,
+      }),
+    onSuccess: (_d, input) => {
+      qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(input.team_id) });
+    },
+  });
+}
+
+export interface ReviewTeamMemoryProposalInput {
+  team_id: string;
+  proposal_id: string;
+  action: 'promote' | 'reject';
+  expected_repo_commit: string;
+  expected_proposal_status?: 'pending';
+  comment: string;
+  acknowledge_warnings?: string[];
+}
+
+export function useReviewTeamMemoryProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ReviewTeamMemoryProposalInput) =>
+      api.post<TeamMemoryResult>(`/teams/${input.team_id}/memory/proposals/${encodeURIComponent(input.proposal_id)}/review`, {
+        action: input.action,
+        expected_repo_commit: input.expected_repo_commit,
+        expected_proposal_status: input.expected_proposal_status ?? 'pending',
+        comment: input.comment,
+        acknowledge_warnings: input.acknowledge_warnings ?? [],
+      }),
+    onSuccess: (_d, input) => {
+      qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(input.team_id) });
+      qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(input.team_id, input.proposal_id, 'proposal') });
+    },
   });
 }
 

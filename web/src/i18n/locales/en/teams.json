@@ -229,6 +229,7 @@
     "pinned": "pinned",
     "lazy": "lazy",
     "manage": "Manage memory",
+    "newProposal": "New proposal",
     "raw": "Raw",
     "rendered": "Rendered",
     "copyPath": "Copy path",
@@ -247,7 +248,8 @@
       "aria": "Team memory filters",
       "all": "All {{count}}",
       "entries": "Entries {{count}}",
-      "rules": "Rules {{count}}"
+      "rules": "Rules {{count}}",
+      "proposals": "Proposals {{count}}"
     },
     "section": {
       "index": "index"
@@ -258,12 +260,66 @@
       "entriesTitle": "No entries yet",
       "entriesBody": "Shared experience entries will appear under entries/ after the team memory repo receives them.",
       "rulesTitle": "No rules yet",
-      "rulesBody": "Team-level rules will appear under rules/ after they are added to the team memory repo."
+      "rulesBody": "Team-level rules will appear under rules/ after they are added to the team memory repo.",
+      "proposalsTitle": "No proposals yet",
+      "proposalsBody": "Pending and reviewed memory proposals will appear here."
     },
     "error": {
       "index": "Couldn't load team memory.",
       "doc": "Couldn't load this memory document.",
       "permission": "You don't have permission to view this memory document."
+    },
+    "meta": {
+      "sourcePath": "Path",
+      "uuid": "UUID",
+      "blob": "Blob"
+    },
+    "proposalStatus": {
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "rejected": "REJECTED",
+      "superseded": "SUPERSEDED"
+    },
+    "operation": {
+      "add": "Add",
+      "update": "Update",
+      "disable": "Disable",
+      "delete": "Delete"
+    },
+    "proposal": {
+      "operation": "Operation",
+      "author": "Author",
+      "repoCommit": "Repo commit",
+      "sourcePath": "Source path",
+      "promotionCommit": "Promotion commit",
+      "reviewComment": "Review comment",
+      "rationale": "Rationale",
+      "warnings": "Warnings",
+      "diff": "Diff preview",
+      "noDiff": "No diff preview available.",
+      "promote": "Promote",
+      "reject": "Reject",
+      "readOnly": "Owner/admin access is required to review proposals.",
+      "rejectPlaceholder": "Reject comment",
+      "promoteComment": "Promoted from Web console"
+    },
+    "create": {
+      "title": "Propose team memory change",
+      "subtitle": "All Web changes are written as pending proposals and promoted through the shared Team Memory service.",
+      "submit": "Create proposal",
+      "operation": "Operation",
+      "kind": "Target kind",
+      "entry": "Entry",
+      "rule": "Rule",
+      "target": "Target",
+      "chooseTarget": "Choose target",
+      "slug": "Slug",
+      "titleLabel": "Title",
+      "description": "Description",
+      "enabled": "Enabled",
+      "appliesTo": "Applies to phases",
+      "body": "Body",
+      "rationale": "Rationale"
     }
   }
 }

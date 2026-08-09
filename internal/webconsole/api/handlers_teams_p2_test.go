@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -348,6 +350,70 @@ func TestTeamMemory_DocNotFound(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("memory doc = %d, want 404 (git unwired)", resp.StatusCode)
+	}
+}
+
+func TestTeamMemoryWebProposalReviewPromotesRule(t *testing.T) {
+	deps, _, sess := setupTeamsAPI(t)
+	deps.TeamGitHost = centergit.NewHost(t.TempDir(), nil)
+	tm := seedTeam(t, deps, sess.OrgID, "Agent Core", implRole)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	createBody := `{
+		"operation":"add",
+		"target_kind":"rule",
+		"candidate":{
+			"slug":"review-web-contract",
+			"title":"Review Web Contract",
+			"description":"Web-created rule proposal",
+			"body":"Review Web changes through proposals.",
+			"enabled":true,
+			"applies_to":["review"]
+		},
+		"rationale":"Verify Web proposal path uses TeamMemoryService.",
+		"idempotency_key":"web-test-rule"
+	}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/"+tm.ID().String()+"/memory/proposals", createBody, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create proposal = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	created := decodeBody(t, resp)
+	proposalID, _ := created["proposal_id"].(string)
+	repoCommit, _ := created["repo_commit"].(string)
+	if proposalID == "" || repoCommit == "" {
+		t.Fatalf("proposal response missing ids: %#v", created)
+	}
+
+	snap, err := centergit.NewTeamMemoryConsumer(deps.TeamGitHost, nil).ReadTeamRules(context.Background(), tm.ID().String(), "review")
+	if err != nil {
+		t.Fatalf("ReadTeamRules pending proposal: %v", err)
+	}
+	if len(snap.Rules) != 0 {
+		t.Fatalf("pending proposal leaked into get_team_rules: %#v", snap.Rules)
+	}
+
+	reviewBody := fmt.Sprintf(`{
+		"action":"promote",
+		"expected_repo_commit":%q,
+		"expected_proposal_status":"pending",
+		"comment":"promote from web test"
+	}`, repoCommit)
+	resp = orgScopedPost(t, ts.URL+"/api/teams/"+tm.ID().String()+"/memory/proposals/"+proposalID+"/review", reviewBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("review proposal = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	reviewed := decodeBody(t, resp)
+	if reviewed["status"] != "promoted" {
+		t.Fatalf("review status = %v, want promoted", reviewed["status"])
+	}
+
+	snap, err = centergit.NewTeamMemoryConsumer(deps.TeamGitHost, nil).ReadTeamRules(context.Background(), tm.ID().String(), "review")
+	if err != nil {
+		t.Fatalf("ReadTeamRules promoted proposal: %v", err)
+	}
+	if len(snap.Rules) != 1 || snap.Rules[0].Slug != "review-web-contract" {
+		t.Fatalf("promoted rules = %#v, want review-web-contract", snap.Rules)
 	}
 }
 

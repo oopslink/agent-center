@@ -14,14 +14,15 @@ const maxTeamNameLen = 80
 // Fields are unexported with accessors so the invariants (non-empty name, valid
 // roles) can only be established through NewTeam / the mutators.
 type Team struct {
-	id          TeamID
-	orgID       string
-	name        string
-	description string
-	roles       []RoleConfig
-	createdAt   time.Time
-	updatedAt   time.Time
-	version     int
+	id           TeamID
+	orgID        string
+	name         string
+	description  string
+	roles        []RoleConfig
+	memoryPolicy TeamMemoryPolicy
+	createdAt    time.Time
+	updatedAt    time.Time
+	version      int
 }
 
 // NewTeamInput carries the fields needed to construct a fresh Team.
@@ -52,14 +53,15 @@ func NewTeam(in NewTeamInput) (*Team, error) {
 	}
 	ts := in.CreatedAt
 	return &Team{
-		id:          in.ID,
-		orgID:       strings.TrimSpace(in.OrgID),
-		name:        name,
-		description: in.Description,
-		roles:       roles,
-		createdAt:   ts,
-		updatedAt:   ts,
-		version:     1,
+		id:           in.ID,
+		orgID:        strings.TrimSpace(in.OrgID),
+		name:         name,
+		description:  in.Description,
+		roles:        roles,
+		memoryPolicy: DefaultTeamMemoryPolicy(),
+		createdAt:    ts,
+		updatedAt:    ts,
+		version:      1,
 	}, nil
 }
 
@@ -126,6 +128,19 @@ func (t *Team) SetRoles(roles []RoleConfig, now time.Time) error {
 	return nil
 }
 
+// SetMemoryPolicy replaces the Team Memory controlled-write policy and bumps
+// updatedAt. Membership validation is performed by the application service so
+// the aggregate stays persistence-agnostic.
+func (t *Team) SetMemoryPolicy(policy TeamMemoryPolicy, now time.Time) error {
+	normalized, err := policy.Normalize()
+	if err != nil {
+		return err
+	}
+	t.memoryPolicy = normalized
+	t.touch(now)
+	return nil
+}
+
 func (t *Team) touch(now time.Time) {
 	if !now.IsZero() {
 		t.updatedAt = now
@@ -144,38 +159,45 @@ func (t *Team) HasRole(role string) bool {
 }
 
 // Accessors.
-func (t *Team) ID() TeamID           { return t.id }
-func (t *Team) OrgID() string        { return t.orgID }
-func (t *Team) Name() string         { return t.name }
-func (t *Team) Description() string  { return t.description }
-func (t *Team) Roles() []RoleConfig  { return t.roles }
-func (t *Team) CreatedAt() time.Time { return t.createdAt }
-func (t *Team) UpdatedAt() time.Time { return t.updatedAt }
-func (t *Team) Version() int         { return t.version }
+func (t *Team) ID() TeamID                     { return t.id }
+func (t *Team) OrgID() string                  { return t.orgID }
+func (t *Team) Name() string                   { return t.name }
+func (t *Team) Description() string            { return t.description }
+func (t *Team) Roles() []RoleConfig            { return t.roles }
+func (t *Team) MemoryPolicy() TeamMemoryPolicy { return t.memoryPolicy }
+func (t *Team) CreatedAt() time.Time           { return t.createdAt }
+func (t *Team) UpdatedAt() time.Time           { return t.updatedAt }
+func (t *Team) Version() int                   { return t.version }
 
 // RehydrateInput reconstructs a Team from persisted state (repository use only).
 type RehydrateInput struct {
-	ID          TeamID
-	OrgID       string
-	Name        string
-	Description string
-	Roles       []RoleConfig
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Version     int
+	ID           TeamID
+	OrgID        string
+	Name         string
+	Description  string
+	Roles        []RoleConfig
+	MemoryPolicy TeamMemoryPolicy
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Version      int
 }
 
 // Rehydrate rebuilds a Team from storage without re-running creation
 // validation. Used by repositories when loading rows.
 func Rehydrate(in RehydrateInput) *Team {
+	policy, err := in.MemoryPolicy.Normalize()
+	if err != nil {
+		policy = DefaultTeamMemoryPolicy()
+	}
 	return &Team{
-		id:          in.ID,
-		orgID:       in.OrgID,
-		name:        in.Name,
-		description: in.Description,
-		roles:       in.Roles,
-		createdAt:   in.CreatedAt,
-		updatedAt:   in.UpdatedAt,
-		version:     in.Version,
+		id:           in.ID,
+		orgID:        in.OrgID,
+		name:         in.Name,
+		description:  in.Description,
+		roles:        in.Roles,
+		memoryPolicy: policy,
+		createdAt:    in.CreatedAt,
+		updatedAt:    in.UpdatedAt,
+		version:      in.Version,
 	}
 }

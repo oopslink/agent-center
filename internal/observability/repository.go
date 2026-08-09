@@ -67,6 +67,7 @@ const MaxEventQueryLimit = 1000
 // fields are wildcards.
 type EventRefsFilter struct {
 	WorkerID       string
+	TeamID         string
 	ProjectID      string
 	ProposalID     string
 	MappingID      string

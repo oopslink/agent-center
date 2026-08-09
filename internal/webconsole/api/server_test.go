@@ -74,6 +74,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps := HandlerDeps{
 		DB:                 db,
 		Actor:              observability.Actor("user:hayang"),
+		EventSink:          sink,
+		EventRepo:          er,
 		ConvRepo:           convRepo,
 		MsgRepo:            msgRepo,
 		MessageWriter:      writer,

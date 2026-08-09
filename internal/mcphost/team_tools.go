@@ -39,6 +39,22 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 		Description: "Read the enabled Team Memory rules for the current agent's team and phase (plan, execute, review, recovery). The response includes the team memory commit used for audit. In-flight executors keep their snapshotted rules; fresh forks reload.",
 	}, makeGetTeamRules(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "propose_team_memory_change",
+		Description: "Propose an add/update/disable/delete change to your current Team Memory. The team is resolved from your membership; do not pass team_id. A proposal does not affect get_team_rules or runtime until promoted. Promotion affects only new planning generations and new executor forks; in-flight snapshots keep their old commit.",
+	}, makeProposeTeamMemory(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_team_memory_proposals",
+		Description: "List Team Memory proposals for your current team. Defaults to pending. Proposals are audit workflow records and are not loaded by get_team_rules.",
+	}, makeListTeamMemoryProposals(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_team_memory_proposal",
+		Description: "Get one Team Memory proposal with current target blob hash and a diff preview. Use the returned repo_commit as expected_repo_commit when reviewing.",
+	}, makeGetTeamMemoryProposal(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "review_team_memory_proposal",
+		Description: "Promote or reject a pending Team Memory proposal. Only a Team policy Curator agent may use this MCP review path. You must pass expected_repo_commit, expected_proposal_status=pending, and a review comment; warning codes must be acknowledged before promotion. Promotion affects only new planning generations and new executor forks.",
+	}, makeReviewTeamMemoryProposal(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_member",
 		Description: "Add a member to a team under a role the team declared. member_ref is an identity ref: agent:<id> or user:<id>. An agent belongs to at most one team (exclusivity); a human may join many.",
 	}, makeAddMember(cfg))
@@ -162,6 +178,90 @@ type getTeamRulesArgs struct {
 func makeGetTeamRules(cfg Config) mcp.ToolHandlerFor[getTeamRulesArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamRulesArgs) (*mcp.CallToolResult, any, error) {
 		return callAdmin(ctx, cfg, "get_team_rules", map[string]any{"agent_id": cfg.AgentID, "phase": args.Phase})
+	}
+}
+
+// ---- controlled Team Memory writes ----------------------------------------
+
+type teamMemoryTargetArg struct {
+	SourcePath       string `json:"source_path,omitempty" jsonschema:"repo-relative canonical path returned by get_team_memory_proposal or get_team_rules source_path"`
+	UUID             string `json:"uuid,omitempty" jsonschema:"canonical file uuid from target frontmatter"`
+	ExpectedBlobHash string `json:"expected_blob_hash,omitempty" jsonschema:"git blob hash of the canonical file you expect to update/disable/delete"`
+}
+
+type teamMemoryCandidateArg struct {
+	Slug        string   `json:"slug,omitempty" jsonschema:"path-safe slug; required for add and omitted for update because rename is not allowed"`
+	Title       string   `json:"title,omitempty" jsonschema:"optional title"`
+	Description string   `json:"description,omitempty" jsonschema:"required one-line description used in MEMORY.md"`
+	Body        string   `json:"body,omitempty" jsonschema:"markdown body; do not include YAML frontmatter"`
+	Type        string   `json:"type,omitempty" jsonschema:"entries only; optional entry type"`
+	Enabled     *bool    `json:"enabled,omitempty" jsonschema:"rules only; defaults true on add and preserves current value on update when omitted"`
+	AppliesTo   []string `json:"applies_to,omitempty" jsonschema:"rules only; phases: plan, execute, review, recovery, or all"`
+}
+
+type proposeTeamMemoryArgs struct {
+	Operation      string                  `json:"operation" jsonschema:"add, update, disable, or delete"`
+	TargetKind     string                  `json:"target_kind" jsonschema:"entry or rule"`
+	Target         *teamMemoryTargetArg    `json:"target,omitempty" jsonschema:"required for update/disable/delete"`
+	Candidate      *teamMemoryCandidateArg `json:"candidate,omitempty" jsonschema:"required for add/update"`
+	Rationale      string                  `json:"rationale" jsonschema:"why this should become shared Team Memory"`
+	EvidenceRefs   []string                `json:"evidence_refs,omitempty" jsonschema:"bounded refs such as task:..., issue:..., commit:..."`
+	IdempotencyKey string                  `json:"idempotency_key" jsonschema:"stable key for safe retry of the same proposal"`
+}
+
+func makeProposeTeamMemory(cfg Config) mcp.ToolHandlerFor[proposeTeamMemoryArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args proposeTeamMemoryArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "propose_team_memory_change", map[string]any{
+			"agent_id": cfg.AgentID, "operation": args.Operation, "target_kind": args.TargetKind,
+			"target": args.Target, "candidate": args.Candidate, "rationale": args.Rationale,
+			"evidence_refs": args.EvidenceRefs, "idempotency_key": args.IdempotencyKey,
+		})
+	}
+}
+
+type listTeamMemoryProposalsArgs struct {
+	Status   string   `json:"status,omitempty" jsonschema:"pending, promoted, rejected, or superseded; defaults to pending"`
+	Statuses []string `json:"statuses,omitempty" jsonschema:"optional list of statuses; combines with status"`
+	Kind     string   `json:"kind,omitempty" jsonschema:"entry or rule"`
+	Limit    int      `json:"limit,omitempty" jsonschema:"page size"`
+	Offset   int      `json:"offset,omitempty" jsonschema:"offset for pagination"`
+}
+
+func makeListTeamMemoryProposals(cfg Config) mcp.ToolHandlerFor[listTeamMemoryProposalsArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listTeamMemoryProposalsArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_team_memory_proposals", map[string]any{
+			"agent_id": cfg.AgentID, "status": args.Status, "statuses": args.Statuses,
+			"kind": args.Kind, "limit": args.Limit, "offset": args.Offset,
+		})
+	}
+}
+
+type getTeamMemoryProposalArgs struct {
+	ProposalID string `json:"proposal_id" jsonschema:"proposal id, e.g. tmprop-..."`
+}
+
+func makeGetTeamMemoryProposal(cfg Config) mcp.ToolHandlerFor[getTeamMemoryProposalArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamMemoryProposalArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_team_memory_proposal", map[string]any{"agent_id": cfg.AgentID, "proposal_id": args.ProposalID})
+	}
+}
+
+type reviewTeamMemoryProposalArgs struct {
+	ProposalID             string   `json:"proposal_id" jsonschema:"proposal id"`
+	Action                 string   `json:"action" jsonschema:"promote or reject"`
+	ExpectedRepoCommit     string   `json:"expected_repo_commit" jsonschema:"repo_commit returned by get/list/propose"`
+	ExpectedProposalStatus string   `json:"expected_proposal_status,omitempty" jsonschema:"must be pending; defaults pending"`
+	Comment                string   `json:"comment" jsonschema:"review rationale; required"`
+	AcknowledgeWarnings    []string `json:"acknowledge_warnings,omitempty" jsonschema:"warning codes returned by the proposal that you explicitly accept for promotion"`
+}
+
+func makeReviewTeamMemoryProposal(cfg Config) mcp.ToolHandlerFor[reviewTeamMemoryProposalArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args reviewTeamMemoryProposalArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "review_team_memory_proposal", map[string]any{
+			"agent_id": cfg.AgentID, "proposal_id": args.ProposalID, "action": args.Action,
+			"expected_repo_commit": args.ExpectedRepoCommit, "expected_proposal_status": args.ExpectedProposalStatus,
+			"comment": args.Comment, "acknowledge_warnings": args.AcknowledgeWarnings,
+		})
 	}
 }
 

@@ -81,7 +81,14 @@ func (c *TeamMemoryConsumer) ReadTeam(ctx context.Context, teamID string) (entri
 		return nil, nil, fmt.Errorf("%w: clone %s: %v: %s", ErrGitOpFailed, bareDir, cErr, out)
 	}
 	store := NewStore(repoDir, c.runner, WithHomeOverride(work))
-	return store.ReadEntries()
+	entries, skipped, err = store.ReadEntries()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := c.annotateEntryBlobHashes(ctx, repoDir, env, entries); err != nil {
+		return nil, nil, err
+	}
+	return entries, skipped, nil
 }
 
 // ReadTeamRules clones team teamID's bare repo into a throwaway working copy and
@@ -133,6 +140,9 @@ func (c *TeamMemoryConsumer) ReadTeamRules(ctx context.Context, teamID, phase st
 	if err != nil {
 		return snap, err
 	}
+	if err := c.annotateRuleBlobHashes(ctx, repoDir, env, rules); err != nil {
+		return snap, err
+	}
 	snap.Skipped = skipped
 	for _, r := range rules {
 		if RuleAppliesToPhase(r, snap.Phase) {
@@ -174,7 +184,14 @@ func (c *TeamMemoryConsumer) ReadTeamAllRules(ctx context.Context, teamID string
 		return nil, nil, fmt.Errorf("%w: clone %s: %v: %s", ErrGitOpFailed, bareDir, cErr, out)
 	}
 	store := NewStore(repoDir, c.runner, WithHomeOverride(work))
-	return store.ReadRules()
+	rules, skipped, err = store.ReadRules()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := c.annotateRuleBlobHashes(ctx, repoDir, env, rules); err != nil {
+		return nil, nil, err
+	}
+	return rules, skipped, nil
 }
 
 func normalizeSnapshotPhase(phase string) string {
@@ -182,4 +199,38 @@ func normalizeSnapshotPhase(phase string) string {
 		return p
 	}
 	return "execute"
+}
+
+func (c *TeamMemoryConsumer) annotateEntryBlobHashes(ctx context.Context, repoDir string, env []string, entries []Entry) error {
+	for i := range entries {
+		hash, err := c.blobHash(ctx, repoDir, env, entries[i].SourcePath)
+		if err != nil {
+			return err
+		}
+		entries[i].BlobHash = hash
+	}
+	return nil
+}
+
+func (c *TeamMemoryConsumer) annotateRuleBlobHashes(ctx context.Context, repoDir string, env []string, rules []Rule) error {
+	for i := range rules {
+		hash, err := c.blobHash(ctx, repoDir, env, rules[i].SourcePath)
+		if err != nil {
+			return err
+		}
+		rules[i].BlobHash = hash
+	}
+	return nil
+}
+
+func (c *TeamMemoryConsumer) blobHash(ctx context.Context, repoDir string, env []string, rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "", nil
+	}
+	out, err := c.runner.Run(ctx, repoDir, env, "hash-object", "--", rel)
+	if err != nil {
+		return "", fmt.Errorf("%w: hash-object %s: %v: %s", ErrGitOpFailed, rel, err, out)
+	}
+	return strings.TrimSpace(out), nil
 }
