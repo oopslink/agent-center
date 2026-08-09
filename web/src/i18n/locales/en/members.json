@@ -267,8 +267,9 @@
       "close": "Close",
       "fields": {
         "cli": "CLI",
+        "cliPlaceholder": "Select a CLI",
         "model": "Model",
-        "modelPlaceholder": "e.g. claude-opus-4-8",
+        "modelPlaceholder": "Select a compatible model",
         "reasoning": "Reasoning",
         "reasoningHint": "Reasoning effort. Default = the runtime default.",
         "reasoningDefault": "Default",
@@ -280,6 +281,15 @@
         "provider": "Provider",
         "providerHint": "Optional. Empty = center default.",
         "providerPlaceholder": "default"
+      },
+      "runtimeCatalog": {
+        "loading": "Loading AI Runtime catalog…",
+        "ready": "AI Runtime catalog revision {{revision}}",
+        "error": "AI Runtime catalog is unavailable.",
+        "empty": "AI Runtime catalog has no enabled CLI/model pairs.",
+        "refresh": "Refresh",
+        "unavailable": "(unavailable)",
+        "invalidSelection": "Choose an enabled CLI/model pair from AI Runtime."
       },
       "env": {
         "heading": "Environment variables",
