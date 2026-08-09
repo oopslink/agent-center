@@ -89,9 +89,10 @@ func (s *Service) CreateTeam(ctx context.Context, in CreateTeamInput) (*team.Tea
 
 // UpdateTeamInput is the update_team tool payload. Nil fields are left unchanged.
 type UpdateTeamInput struct {
-	Name        *string
-	Description *string
-	Roles       *[]team.RoleConfig
+	Name         *string
+	Description  *string
+	Roles        *[]team.RoleConfig
+	MemoryPolicy *team.TeamMemoryPolicy
 }
 
 // UpdateTeam mutates name/description of an existing team.
@@ -129,11 +130,28 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 				}
 			}
 		}
+		if in.MemoryPolicy != nil {
+			members, err := s.repo.ListMembers(ctx, id)
+			if err != nil {
+				return err
+			}
+			if err := team.ValidateCuratorRefs(*in.MemoryPolicy, members); err != nil {
+				return err
+			}
+			if err := t.SetMemoryPolicy(*in.MemoryPolicy, now); err != nil {
+				return err
+			}
+		}
 		if err := s.repo.UpdateTeam(ctx, t); err != nil {
 			return err
 		}
 		if in.Roles != nil {
 			if err := s.repo.ReplaceRoles(ctx, t); err != nil {
+				return err
+			}
+		}
+		if in.MemoryPolicy != nil {
+			if err := s.repo.SetMemoryPolicy(ctx, t); err != nil {
 				return err
 			}
 		}
@@ -144,6 +162,43 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 		return nil, err
 	}
 	return updated, nil
+}
+
+// SetTeamMemoryPolicy replaces the controlled-write policy for a team. Curator
+// grants must name current agent members of the same team.
+func (s *Service) SetTeamMemoryPolicy(ctx context.Context, id team.TeamID, policy team.TeamMemoryPolicy) (*team.Team, error) {
+	var updated *team.Team
+	err := persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		t, err := s.repo.GetTeam(ctx, id)
+		if err != nil {
+			return err
+		}
+		members, err := s.repo.ListMembers(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := team.ValidateCuratorRefs(policy, members); err != nil {
+			return err
+		}
+		if err := t.SetMemoryPolicy(policy, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.repo.SetMemoryPolicy(ctx, t); err != nil {
+			return err
+		}
+		updated = t
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// GetTeamMemoryPolicy returns a team's policy. Missing policy rows are exposed
+// as proposal_only by the repository.
+func (s *Service) GetTeamMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	return s.repo.GetMemoryPolicy(ctx, id)
 }
 
 // DeleteTeam removes a team (cascading its roles/members/projects). Idempotent.

@@ -209,6 +209,40 @@ func TestService_UpdateTeam(t *testing.T) {
 	}
 }
 
+func TestService_SetTeamMemoryPolicyRequiresCurrentAgentMemberAndRevokesOnRemove(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	tm := createTeam(t, svc, "Policy", devRole(), reviewRole())
+	if _, err := svc.AddMember(ctx, tm.ID(), "agent:curator", "dev"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	policy := team.TeamMemoryPolicy{
+		Mode:             team.TeamMemoryCuratorAuto,
+		CuratorAgentRefs: []team.MemberRef{"agent:curator"},
+	}
+	updated, err := svc.SetTeamMemoryPolicy(ctx, tm.ID(), policy)
+	if err != nil {
+		t.Fatalf("SetTeamMemoryPolicy: %v", err)
+	}
+	if !updated.MemoryPolicy().IsCurator("agent:curator") {
+		t.Fatalf("curator grant missing: %+v", updated.MemoryPolicy())
+	}
+	bad := team.TeamMemoryPolicy{Mode: team.TeamMemoryCuratorAuto, CuratorAgentRefs: []team.MemberRef{"agent:missing"}}
+	if _, err := svc.SetTeamMemoryPolicy(ctx, tm.ID(), bad); !errors.Is(err, team.ErrMemberNotFound) {
+		t.Fatalf("missing curator err=%v", err)
+	}
+	if err := svc.RemoveMember(ctx, tm.ID(), "agent:curator"); err != nil {
+		t.Fatalf("RemoveMember: %v", err)
+	}
+	got, err := svc.GetTeamMemoryPolicy(ctx, tm.ID())
+	if err != nil {
+		t.Fatalf("GetTeamMemoryPolicy: %v", err)
+	}
+	if got.IsCurator("agent:curator") {
+		t.Fatalf("curator grant survived removal: %+v", got)
+	}
+}
+
 func TestService_UpdateTeam_DuplicateName(t *testing.T) {
 	svc, _ := newService(t)
 	ctx := context.Background()

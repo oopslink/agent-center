@@ -55,6 +55,9 @@ func (r *Repo) CreateTeam(ctx context.Context, t *team.Team) error {
 			return err
 		}
 	}
+	if err := replaceMemoryPolicy(ctx, exec, t.ID(), t.MemoryPolicy(), t.CreatedAt()); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -136,6 +139,53 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 	return err
 }
 
+// SetMemoryPolicy persists a team's controlled Team Memory write policy.
+func (r *Repo) SetMemoryPolicy(ctx context.Context, t *team.Team) error {
+	if t == nil {
+		return errors.New("team repo: nil team")
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	if err := replaceMemoryPolicy(ctx, exec, t.ID(), t.MemoryPolicy(), t.UpdatedAt()); err != nil {
+		return err
+	}
+	const stmt = `UPDATE teams SET updated_at=?, version=? WHERE id=?`
+	res, err := exec.ExecContext(ctx, stmt, t.UpdatedAt().UTC().Format(tsLayout), t.Version(), t.ID().String())
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return team.ErrTeamNotFound
+	}
+	return nil
+}
+
+func replaceMemoryPolicy(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID, policy team.TeamMemoryPolicy, now time.Time) error {
+	normalized, err := policy.Normalize()
+	if err != nil {
+		return err
+	}
+	ts := now.UTC().Format(tsLayout)
+	if _, err := exec.ExecContext(ctx, `INSERT INTO team_memory_policies (team_id, mode, updated_at)
+		VALUES (?,?,?) ON CONFLICT(team_id) DO UPDATE SET mode=excluded.mode, updated_at=excluded.updated_at`,
+		id.String(), string(normalized.Mode), ts); err != nil {
+		return err
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM team_memory_policy_curators WHERE team_id=?`, id.String()); err != nil {
+		return err
+	}
+	for _, ref := range normalized.CuratorAgentRefs {
+		if _, err := exec.ExecContext(ctx, `INSERT INTO team_memory_policy_curators (team_id, agent_ref, created_at)
+			VALUES (?,?,?)`, id.String(), ref.String(), ts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DeleteTeam removes the team; FK ON DELETE CASCADE clears roles/members/
 // projects. Idempotent.
 func (r *Repo) DeleteTeam(ctx context.Context, id team.TeamID) error {
@@ -171,6 +221,10 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 	if err != nil {
 		return nil, err
 	}
+	policy, err := r.loadMemoryPolicy(ctx, exec, id)
+	if err != nil {
+		return nil, err
+	}
 	ct, err := time.Parse(tsLayout, createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -181,7 +235,7 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 	}
 	return team.Rehydrate(team.RehydrateInput{
 		ID: id, OrgID: orgID, Name: name, Description: desc,
-		Roles: roles, CreatedAt: ct, UpdatedAt: ut, Version: version,
+		Roles: roles, MemoryPolicy: policy, CreatedAt: ct, UpdatedAt: ut, Version: version,
 	}), nil
 }
 
@@ -214,6 +268,46 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 		})
 	}
 	return out, rows.Err()
+}
+
+// GetMemoryPolicy loads the Team Memory policy for id, defaulting when no
+// explicit row has been written yet.
+func (r *Repo) GetMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	if _, err := r.GetTeam(ctx, id); err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	return r.loadMemoryPolicy(ctx, exec, id)
+}
+
+func (r *Repo) loadMemoryPolicy(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	mode := string(team.TeamMemoryProposalOnly)
+	row := exec.QueryRowContext(ctx, `SELECT mode FROM team_memory_policies WHERE team_id=?`, id.String())
+	switch err := row.Scan(&mode); {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return team.TeamMemoryPolicy{}, err
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT agent_ref FROM team_memory_policy_curators WHERE team_id=? ORDER BY agent_ref`, id.String())
+	if err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	defer rows.Close()
+	var refs []team.MemberRef
+	for rows.Next() {
+		var ref string
+		if err := rows.Scan(&ref); err != nil {
+			return team.TeamMemoryPolicy{}, err
+		}
+		refs = append(refs, team.MemberRef(ref))
+	}
+	if err := rows.Err(); err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	return team.TeamMemoryPolicy{Mode: team.TeamMemoryPolicyMode(mode), CuratorAgentRefs: refs}.Normalize()
 }
 
 // ListTeams returns teams in an org (all orgs when orgID == "").
@@ -261,6 +355,10 @@ func (r *Repo) ListTeams(ctx context.Context, orgID string) ([]*team.Team, error
 		if err != nil {
 			return nil, err
 		}
+		policy, err := r.loadMemoryPolicy(ctx, exec, ids[i])
+		if err != nil {
+			return nil, err
+		}
 		ct, err := time.Parse(tsLayout, rc.created)
 		if err != nil {
 			return nil, fmt.Errorf("parse created_at: %w", err)
@@ -271,7 +369,7 @@ func (r *Repo) ListTeams(ctx context.Context, orgID string) ([]*team.Team, error
 		}
 		out = append(out, team.Rehydrate(team.RehydrateInput{
 			ID: ids[i], OrgID: rc.org, Name: rc.name, Description: rc.desc,
-			Roles: roles, CreatedAt: ct, UpdatedAt: ut, Version: rc.version,
+			Roles: roles, MemoryPolicy: policy, CreatedAt: ct, UpdatedAt: ut, Version: rc.version,
 		}))
 	}
 	return out, nil
@@ -341,6 +439,10 @@ func (r *Repo) RemoveMember(ctx context.Context, id team.TeamID, ref team.Member
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return team.ErrMemberNotFound
+	}
+	if _, err := exec.ExecContext(ctx,
+		`DELETE FROM team_memory_policy_curators WHERE team_id=? AND agent_ref=?`, id.String(), ref.String()); err != nil {
+		return err
 	}
 	return nil
 }

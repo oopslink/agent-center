@@ -67,6 +67,9 @@ func TestCreateAndGetTeam_RoundTrip(t *testing.T) {
 	if !got.HasRole("dev") || !got.HasRole("review") {
 		t.Fatalf("missing declared roles: %+v", got.Roles())
 	}
+	if got.MemoryPolicy().Mode != team.TeamMemoryProposalOnly || len(got.MemoryPolicy().CuratorAgentRefs) != 0 {
+		t.Fatalf("default memory policy: %+v", got.MemoryPolicy())
+	}
 	// capability tags round-trip through JSON.
 	for _, rc := range got.Roles() {
 		if rc.Role == "dev" {
@@ -77,6 +80,47 @@ func TestCreateAndGetTeam_RoundTrip(t *testing.T) {
 				t.Fatalf("dev concurrency: got %d want 2", rc.MaxConcurrency)
 			}
 		}
+	}
+}
+
+func TestTeamMemoryPolicy_RoundTripAndRemoveMemberRevokes(t *testing.T) {
+	db := openTestDB(t)
+	r := NewRepo(db)
+	ctx := context.Background()
+	tm := newTeam(t, "team-policy", "org", "Policy", devRole(), reviewRole())
+	if err := r.CreateTeam(ctx, tm); err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+	for _, role := range []string{"dev", "review"} {
+		if err := r.AddMember(ctx, &team.TeamMember{TeamID: tm.ID(), Ref: "agent:curator", Kind: team.MemberKindAgent, Role: role, CreatedAt: fixedTS}); err != nil {
+			t.Fatalf("AddMember %s: %v", role, err)
+		}
+	}
+	if err := tm.SetMemoryPolicy(team.TeamMemoryPolicy{
+		Mode:             team.TeamMemoryCuratorAuto,
+		CuratorAgentRefs: []team.MemberRef{"agent:curator"},
+	}, fixedTS.Add(time.Minute)); err != nil {
+		t.Fatalf("SetMemoryPolicy: %v", err)
+	}
+	if err := r.SetMemoryPolicy(ctx, tm); err != nil {
+		t.Fatalf("repo SetMemoryPolicy: %v", err)
+	}
+	got, err := r.GetTeam(ctx, tm.ID())
+	if err != nil {
+		t.Fatalf("GetTeam: %v", err)
+	}
+	if got.MemoryPolicy().Mode != team.TeamMemoryCuratorAuto || !got.MemoryPolicy().IsCurator("agent:curator") {
+		t.Fatalf("policy did not round-trip: %+v", got.MemoryPolicy())
+	}
+	if err := r.RemoveMember(ctx, tm.ID(), "agent:curator"); err != nil {
+		t.Fatalf("RemoveMember: %v", err)
+	}
+	policy, err := r.GetMemoryPolicy(ctx, tm.ID())
+	if err != nil {
+		t.Fatalf("GetMemoryPolicy: %v", err)
+	}
+	if policy.IsCurator("agent:curator") || len(policy.CuratorAgentRefs) != 0 {
+		t.Fatalf("curator grant survived removal: %+v", policy)
 	}
 }
 
