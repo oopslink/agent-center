@@ -14,6 +14,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
@@ -81,6 +82,11 @@ const (
 	EvtPlanCompleted = "pm.plan.completed"
 	EvtPlanStopped   = "pm.plan.stopped"
 	EvtPlanFailed    = "pm.plan.failed"
+	// Plan liveness watchdog diagnostic. Emitted by ReconcileRunningPlans only after
+	// the normal dispatch + blocked_on timeout paths have found no reachable frontier
+	// for a still-running structured plan. The payload names the reason and the
+	// recovery/escalation action taken by the watchdog.
+	EvtPlanLivenessWatchdog = "pm.plan.liveness_watchdog"
 	// ADR-0055 append-only remediation facts. Both events are written through the
 	// local outbox in the same transaction as their corresponding ledger/topology
 	// commit so replay can reconcile without process-local callbacks.
@@ -320,6 +326,13 @@ type Service struct {
 	// sweep). See stuck_node_reconcile.go.
 	stuckMu       sync.Mutex
 	stuckTrackers map[pm.TaskID]*stuckNodeTracker
+
+	// planWatchdogAlerts dedupes liveness diagnostics in-memory so a still-dead-ended
+	// plan does not post a message on every sweep. The durable facts remain the plan
+	// state itself; losing this map on restart is safe because the next daemon can
+	// re-diagnose and recover/escalate again.
+	planWatchdogMu     sync.Mutex
+	planWatchdogAlerts map[string]time.Time
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed

@@ -334,6 +334,11 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			continue
 		}
 		if stageID, _ := meta["stage_gate"].(string); stageID != "" {
+			if ok, rerr := s.stageRejectHasOpenContinuation(txCtx, p.ID(), pm.TaskID(decisionID)); rerr != nil {
+				return rerr
+			} else if ok {
+				continue
+			}
 			// ADR-0055: a stage reject is not an engine loopback. The immutable
 			// verdict command must first append a new remediation generation and
 			// rewire the boundary. Seeing a raw reject outcome here therefore means

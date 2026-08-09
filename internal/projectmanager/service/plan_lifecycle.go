@@ -640,6 +640,15 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		if rerr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("route blocked_on timeouts: %w", rerr))
 		}
+		// Plan liveness watchdog: only after dispatch, BlockedOn materialization, and
+		// timeout routing all had their chance do we diagnose a still-running structured
+		// plan with no reachable frontier. It is best-effort like the observational
+		// BlockedOn path: a diagnostic/recovery failure must not abort the sweep.
+		if perr == nil && merr == nil && rerr == nil {
+			if werr := s.watchPlanLiveness(ctx, p.ID()); werr != nil && errFn != nil {
+				errFn(p.ID(), fmt.Errorf("plan liveness watchdog: %w", werr))
+			}
+		}
 	}
 	return firstErr
 }
