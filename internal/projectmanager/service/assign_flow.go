@@ -939,6 +939,15 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		// audit §5: record the status transition (shared闸 for Discard/SetStatus/
 		// Complete/Reopen/Reset — every taskStateOp caller). No-op when status didn't move.
 		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		if t.PlanID() != "" && s.plans != nil {
+			p, perr := s.plans.FindByID(txCtx, t.PlanID())
+			if perr != nil {
+				return perr
+			}
+			if _, cerr := s.completePlanIfEligible(txCtx, p); cerr != nil {
+				return cerr
+			}
+		}
 		// T464: if this transition just concluded a derived task and that makes ALL of
 		// its issue's derived tasks terminal, nudge the issue owner to review + close.
 		return s.maybeNotifyIssueDerivedTasksDone(txCtx, t, prevStatus)

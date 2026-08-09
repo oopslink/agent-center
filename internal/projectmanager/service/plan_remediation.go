@@ -108,6 +108,11 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 			if prior.Outcome == pm.GateVerdictPass || result.Continuation == nil ||
 				result.Continuation.Status != pm.ContinuationAwaitingRemediation || plan.Status() == pm.PlanPaused {
+				if prior.Outcome == pm.GateVerdictPass {
+					if _, cerr := s.completePlanIfEligible(txCtx, plan); cerr != nil {
+						return cerr
+					}
+				}
 				return nil
 			}
 		}
@@ -180,6 +185,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 					return pm.ErrPlanVersionConflict
 				}
 				result.Continuation = continuation
+			}
+			if _, cerr := s.completePlanIfEligible(txCtx, plan); cerr != nil {
+				return cerr
 			}
 			return nil
 		}

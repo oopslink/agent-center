@@ -199,6 +199,13 @@ type PlanNodeView struct {
 	Dispatched        bool
 	DispatchedAt      time.Time
 	DispatchMessageID string
+	// Effective is false when this node has been superseded by a follow-up /
+	// remediation node and now exists only as immutable audit history. Its task
+	// status and derived node status are still reported, but it no longer
+	// contributes to current progress, ready_set, or completion.
+	Effective        bool
+	SupersededBy     []TaskID
+	SupersededReason string
 }
 
 // PlanProgress is the derived {done,total} progress indicator (§9.1).
@@ -207,16 +214,32 @@ type PlanProgress struct {
 	Total int
 }
 
+// PlanNodeReplacement records why a task node is historical-only in the current
+// plan view and which current node(s) took over its work.
+type PlanNodeReplacement struct {
+	By     []TaskID
+	Reason string
+}
+
+// PlanViewOptions carries optional current-topology overlays into the pure view
+// derivation. A nil/empty InactiveTasks map preserves the historical behavior:
+// every selected task is part of the current effective node set.
+type PlanViewOptions struct {
+	InactiveTasks map[TaskID]PlanNodeReplacement
+}
+
 // PlanView is the whole-Plan DERIVED read model (§9.2): per-node status, the
 // ready-set (nodes that are `ready` — advance dispatches exactly these), a
 // derived has_failed indicator (§9.1), and {done,total} progress. AllDone reports
 // the §9.1 Plan-done condition (every node `done`).
 type PlanView struct {
-	Nodes     []PlanNodeView
-	ReadySet  []TaskID
-	HasFailed bool
-	Progress  PlanProgress
-	AllDone   bool
+	Nodes              []PlanNodeView
+	ReadySet           []TaskID
+	HasFailed          bool
+	Progress           PlanProgress
+	AllDone            bool
+	HistoricalFailures []TaskID
+	ActiveFailures     []TaskID
 }
 
 // DerivePlanView derives the whole-Plan read model from the selected tasks, the DAG
@@ -238,9 +261,21 @@ type PlanView struct {
 // correct. (T810 ⑤: the old ComputePlanView shell was deleted — DerivePlanView is the
 // single read-view derivation; the graph is the DISPATCH authority.)
 func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+	return DerivePlanViewWithOptions(tasks, edges, dispatch, outcomes, paused, PlanViewOptions{})
+}
+
+// DerivePlanViewWithOptions is DerivePlanView plus the current effective-node
+// overlay. Superseded/remediated nodes remain visible with their original task
+// status and historical failure facts, but are ignored for current gating,
+// ready_set, progress, and AllDone.
+func DerivePlanViewWithOptions(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool, opts PlanViewOptions) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
+	inactive := make(map[TaskID]PlanNodeReplacement, len(opts.InactiveTasks))
+	for id, replacement := range opts.InactiveTasks {
+		inactive[id] = replacement
+	}
 	for _, t := range tasks {
 		statusOf[t.ID()] = t.Status()
 		inPlan[t.ID()] = struct{}{}
@@ -272,6 +307,7 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 	seqUp := make(map[TaskID][]TaskID, len(tasks))
 	condUp := make(map[TaskID]map[TaskID][]string, len(tasks))
 	allUp := make(map[TaskID][]TaskID, len(tasks))
+	displayUp := make(map[TaskID][]TaskID, len(tasks))
 	for _, e := range edges {
 		if _, ok := inPlan[e.FromTaskID]; !ok {
 			continue
@@ -281,6 +317,13 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 		}
 		if e.IsLoopback() {
 			continue // §5: loopback is a back-edge, not a forward prerequisite.
+		}
+		displayUp[e.FromTaskID] = append(displayUp[e.FromTaskID], e.ToTaskID)
+		if _, old := inactive[e.FromTaskID]; old {
+			continue // historical node: keep display dependency, exclude from current gating.
+		}
+		if _, old := inactive[e.ToTaskID]; old {
+			continue // superseded upstream no longer blocks the current effective chain.
 		}
 		allUp[e.FromTaskID] = append(allUp[e.FromTaskID], e.ToTaskID)
 		if NormalizeEdgeKind(e.Kind) == EdgeConditional {
@@ -359,10 +402,15 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 		}
 	}
 
-	view := PlanView{Progress: PlanProgress{Total: len(tasks)}}
-	allDone := len(tasks) > 0
+	view := PlanView{}
+	activeCount := 0
 	for _, t := range tasks {
 		id := t.ID()
+		replacement, inactiveNode := inactive[id]
+		effective := !inactiveNode
+		if effective {
+			activeCount++
+		}
 		var ns NodeStatus
 		switch {
 		case taskIsDone(t.Status()):
@@ -426,24 +474,42 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 			TaskID:            id,
 			TaskStatus:        t.Status(),
 			NodeStatus:        ns,
-			DependsOn:         allUp[id],
+			DependsOn:         displayUp[id],
 			Dispatched:        func() bool { _, d := dispatchedSet[id]; return d }(),
 			DispatchedAt:      dispatchedAt[id],
 			DispatchMessageID: dispatchedMsg[id],
+			Effective:         effective,
+			SupersededBy:      append([]TaskID(nil), replacement.By...),
+			SupersededReason:  replacement.Reason,
 		})
+		if ns == NodeFailed {
+			view.HasFailed = true
+			view.HistoricalFailures = append(view.HistoricalFailures, id)
+			if effective {
+				view.ActiveFailures = append(view.ActiveFailures, id)
+			}
+		}
+		if !effective {
+			continue
+		}
+		view.Progress.Total++
 		switch ns {
 		case NodeReady:
 			view.ReadySet = append(view.ReadySet, id)
 		case NodeDone:
 			view.Progress.Done++
-		case NodeFailed:
-			view.HasFailed = true
 		}
-		// §3.1: a Plan completes when every node is DONE or SKIPPED (a not-taken branch
-		// is "settled"). Without conditional branches there are no skipped nodes, so this
-		// reduces to the pre-B1 "every node done".
-		if ns != NodeDone && ns != NodeSkipped {
-			allDone = false
+	}
+	allDone := activeCount > 0
+	if allDone {
+		for _, n := range view.Nodes {
+			if !n.Effective {
+				continue
+			}
+			if n.NodeStatus != NodeDone && n.NodeStatus != NodeSkipped {
+				allDone = false
+				break
+			}
 		}
 	}
 	view.AllDone = allDone

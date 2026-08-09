@@ -69,6 +69,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"start_plan", "start a pending plan (the center dispatches ready nodes)"},
 	{"pause_plan", "pause new dispatch without rewriting history"},
 	{"resume_plan", "resume a paused plan from the same frontier"},
+	{"complete_plan", "complete a plan whose current effective nodes are all settled"},
 	{"discard_plan", "permanently abandon an active plan while preserving terminal history"},
 	{"get_plan", "read a plan and its nodes"},
 	{"list_plans", "list a project's plans"},

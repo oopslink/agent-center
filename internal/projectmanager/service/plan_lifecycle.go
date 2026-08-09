@@ -191,6 +191,10 @@ func (s *Service) AdvancePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		if p.Status() == pm.PlanDone {
+			dispatched = nil
+			return nil
+		}
 		dispatched, err = s.dispatchReadyNodes(txCtx, p)
 		return err
 	})
@@ -264,7 +268,6 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	// deleted; every running plan is graphed by StartPlan). graphReadySet syncs the graph
 	// to task state then reads GetReadyNodes (dispatch-record-idempotent) + IsAutoDone.
 	var readySet []pm.TaskID
-	var allDone bool
 	if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
 		return nil, serr
 	}
@@ -292,7 +295,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if rerr != nil {
 		return nil, rerr
 	}
-	readySet, allDone, err = s.graphReadySet(txCtx, p, tasks, freshRecords)
+	readySet, _, err = s.graphReadySet(txCtx, p, tasks, freshRecords)
 	if err != nil {
 		return nil, err
 	}
@@ -389,35 +392,11 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		dispatched = append(dispatched, taskID)
 	}
 
-	// An open Continuation is executable plan state even if a stale projection
-	// momentarily reports every task terminal. It must close on a later pass (or be
-	// explicitly discarded) before the Plan can become done.
-	if allDone && s.remediation != nil {
-		continuations, cerr := s.remediation.ListContinuationsByPlan(txCtx, p.ID())
-		if cerr != nil {
-			return nil, cerr
-		}
-		for _, continuation := range continuations {
-			if continuation.Status != pm.ContinuationClosed {
-				allDone = false
-				break
-			}
-		}
-	}
-	// §9.1: a Plan is done iff EVERY node is done and no continuation is open. Mark it here so a final
-	// advance (after the last task completes) transitions running→done.
-	if allDone {
-		if merr := p.MarkDone(now); merr != nil {
-			return nil, merr
-		}
-		if uerr := s.plans.Update(txCtx, p); uerr != nil {
-			return nil, uerr
-		}
-		// reminder-event: emit pm.plan.completed so on_event reminders watching this
-		// plan (event=completed) are armed. Additive marker — no other consumer.
-		if eerr := s.emitPlanLifecycle(txCtx, p, EvtPlanCompleted); eerr != nil {
-			return nil, eerr
-		}
+	// §9.1: completion is derived from the current effective node set. The same
+	// evaluator backs the explicit complete_plan API, so remediation/superseded
+	// failures cannot diverge between automatic and manual completion.
+	if _, cerr := s.completePlanIfEligible(txCtx, p); cerr != nil {
+		return nil, cerr
 	}
 	return dispatched, nil
 }
