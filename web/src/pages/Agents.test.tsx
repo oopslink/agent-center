@@ -151,19 +151,20 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
-    // v2.7.1 #232: Model is pre-filled with the explicit default (not a
-    // placeholder) so leaving it untouched still submits a concrete value.
-    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe('claude-opus-4-8');
+    // Model is pre-filled from the explicit default and displayed through the
+    // AI Runtime combobox.
+    await waitFor(() => expect(screen.getByTestId('agent-create-model')).toHaveValue('Claude Opus 4.8'));
     // v2.7 #191: pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
-    // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
+    // CLI options come from the AI Runtime catalog, while the selected value is
+    // still the submitted CLI key.
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
-    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
+    expect(Array.from(cliSelect.options).map((o) => o.value)).toContain('claude-code');
     // T728: the include-description switch defaults ON.
     expect(screen.getByTestId('agent-create-include-description')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('agent-create-submit'));

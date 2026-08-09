@@ -311,9 +311,9 @@ export interface Agent {
   executor_git_worktree?: boolean;
 }
 
-// v2.18.1/T1305: one executor candidate = a {cli, model} pair selected from the
-// Runtime CLI/Model catalog. The server still canonicalizes the pair and rejects
-// non-catalog, disabled, or incompatible combinations when RuntimeCatalog is wired.
+// v2.18.1: one executor candidate = a {cli, model} pair. The UI now selects
+// both values from the AI Runtime catalog; backend validation remains the final
+// authority.
 export interface ExecutorProfile {
   cli: string;
   model: string;

@@ -30,6 +30,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+} from '@/components/RuntimeSelectors';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { useSystemSegments } from './useSystemSegments';
 
@@ -558,28 +563,36 @@ function RuntimeProfileForm({
       </Field>
       <div className="grid gap-3 md:grid-cols-2">
         <Field label={t('aiRuntime.profile.cli')}>
-          <select className={inputClass} value={fields.cli_key} onChange={(e) => setFields({ ...fields, cli_key: e.target.value })} data-testid="ai-runtime-profile-cli">
-            {catalog.clis.map((cli) => <option key={cli.key} value={cli.key}>{cli.key}</option>)}
-          </select>
+          <RuntimeCLISelector
+            catalog={catalog}
+            value={fields.cli_key}
+            onChange={(nextCli) => setFields({
+              ...fields,
+              cli_key: nextCli,
+              model_key: firstRuntimeModelValue(catalog, nextCli, fields.model_key, 'catalog-key'),
+            })}
+            testId="ai-runtime-profile-cli"
+            ariaLabel={t('aiRuntime.profile.cli')}
+            includeUnknownValue={!!entry}
+          />
         </Field>
         <Field label={t('aiRuntime.profile.model')}>
-          <select
-            className={inputClass}
+          <RuntimeModelCombobox
+            catalog={catalog}
             value={fields.model_key}
-            onChange={(e) => {
-              const modelKey = e.target.value;
-              setFields({
-                ...fields,
-                model_key: modelKey,
-                cli_key: modelAllowsCLI(catalog, modelKey, fields.cli_key)
-                  ? fields.cli_key
-                  : compatibleCLIForModel(catalog, modelKey) ?? fields.cli_key,
-              });
-            }}
-            data-testid="ai-runtime-profile-model"
-          >
-            {catalog.models.map((model) => <option key={model.key} value={model.key}>{model.key}</option>)}
-          </select>
+            onChange={(modelKey) => setFields({
+              ...fields,
+              model_key: modelKey,
+              cli_key: modelAllowsCLI(catalog, modelKey, fields.cli_key)
+                ? fields.cli_key
+                : compatibleCLIForModel(catalog, modelKey) ?? fields.cli_key,
+            })}
+            cliKey={fields.cli_key}
+            valueMode="catalog-key"
+            testId="ai-runtime-profile-model"
+            ariaLabel={t('aiRuntime.profile.model')}
+            includeUnknownValue={!!entry}
+          />
         </Field>
       </div>
       <Field label={t('aiRuntime.form.parameters')}>
