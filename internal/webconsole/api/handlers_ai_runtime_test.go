@@ -34,26 +34,27 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&modelResult)
 	resp.Body.Close()
 
-	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/profiles", fmt.Sprintf(`{"expected_revision":%d,"value":{"key":"default-coding","name":"Default coding","cli_key":"codex","model_key":"%s","parameters":{},"enabled":true}}`, modelResult.Revision, modelResult.Entry.Key), owner)
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("create profile status=%d", resp.StatusCode)
+	retired := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/api/ai-runtime/profiles", ""},
+		{http.MethodPost, "/api/ai-runtime/profiles", fmt.Sprintf(`{"expected_revision":%d,"value":{"key":"default-coding","name":"Default coding","cli_key":"codex","model_key":"%s","parameters":{},"enabled":true}}`, modelResult.Revision, modelResult.Entry.Key)},
+		{http.MethodPatch, "/api/ai-runtime/profiles/runtime-profile-default", `{"expected_revision":1,"value":{"key":"default-coding"}}`},
+		{http.MethodPut, "/api/ai-runtime/default-profile", `{"expected_revision":1,"profile_id":"runtime-profile-default"}`},
 	}
-	var profileResult struct {
-		Revision int64                    `json:"revision"`
-		Entry    airuntime.RuntimeProfile `json:"entry"`
+	for _, tc := range retired {
+		url := orgScopedURL(server.URL+tc.path, owner.OrgSlug)
+		req, _ := http.NewRequest(tc.method, url, strings.NewReader(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(owner.Cookie)
+		resp, _ = http.DefaultClient.Do(req)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("retired %s %s status=%d want 404", tc.method, tc.path, resp.StatusCode)
+		}
+		resp.Body.Close()
 	}
-	_ = json.NewDecoder(resp.Body).Decode(&profileResult)
-	resp.Body.Close()
-
-	url := orgScopedURL(server.URL+"/api/ai-runtime/default-profile", owner.OrgSlug)
-	req, _ := http.NewRequest(http.MethodPut, url, strings.NewReader(fmt.Sprintf(`{"expected_revision":%d,"profile_id":"%s"}`, profileResult.Revision, profileResult.Entry.ID)))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(owner.Cookie)
-	resp, _ = http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("set default status=%d", resp.StatusCode)
-	}
-	resp.Body.Close()
 
 	member := memberSessionInOrg(t, db, owner.OrgID, owner.OrgSlug)
 	resp = orgScopedGet(t, server.URL+"/api/ai-runtime", member)
@@ -61,7 +62,7 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 		t.Fatalf("member read status=%d", resp.StatusCode)
 	}
 	resp.Body.Close()
-	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/clis", `{"expected_revision":3,"value":{"key":"custom","display_name":"Custom","executable":"custom","enabled":true}}`, member)
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/clis", `{"expected_revision":1,"value":{"key":"custom","display_name":"Custom","executable":"custom","enabled":true}}`, member)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("member write status=%d want 403", resp.StatusCode)
 	}
@@ -181,7 +182,7 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	}
 }
 
-func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
+func TestAIRuntimeModelsOnlyImportPreservesCLIsHTTP(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	nextID := 0
 	deps.RuntimeCatalog = airuntime.NewServiceWithValidationKey(
@@ -198,22 +199,11 @@ func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
 
 	ctx := context.Background()
 	actor := "user:" + owner.IdentityID
-	model, rev, err := deps.RuntimeCatalog.CreateModel(ctx, owner.OrgID, actor, 0, airuntime.ModelDefinition{
+	if _, _, err := deps.RuntimeCatalog.CreateModel(ctx, owner.OrgID, actor, 0, airuntime.ModelDefinition{
 		Key: "gpt-5", ModelKey: "gpt-5", DisplayName: "GPT-5",
 		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
 		ContextWindow: 400000, InputCost: 1.25, OutputCost: 10, Tier: "frontier",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile, rev, err := deps.RuntimeCatalog.CreateProfile(ctx, owner.OrgID, actor, rev, airuntime.RuntimeProfile{
-		Key: "default-coding", Name: "Default coding", Description: "Default runtime",
-		CLIKey: "codex", ModelKey: model.Key, Parameters: map[string]any{"reasoning": "medium"}, Enabled: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := deps.RuntimeCatalog.SetDefaultProfile(ctx, owner.OrgID, actor, profile.ID, rev); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 	before, err := deps.RuntimeCatalog.Catalog(ctx, owner.OrgID)
@@ -223,10 +213,6 @@ func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
 	beforeCLIState := map[string]bool{}
 	for _, cli := range before.CLIs {
 		beforeCLIState[cli.Key] = cli.Enabled
-	}
-	beforeProfiles := map[string]string{}
-	for _, p := range before.Profiles {
-		beforeProfiles[p.Key] = p.ModelKey
 	}
 
 	resp := orgScopedGet(t, server.URL+"/api/ai-runtime/export?format=json", owner)
@@ -259,9 +245,8 @@ func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
 	if !hasImportItem(preview.Report.Items, "model", "gpt-5-mini", "create") {
 		t.Fatalf("preview did not show model create: %+v", preview.Report.Items)
 	}
-	if !hasImportItem(preview.Report.Items, "cli", "codex", "unchanged") ||
-		!hasImportItem(preview.Report.Items, "profile", "default-coding", "unchanged") {
-		t.Fatalf("preview did not make preserved CLI/Profile explicit: %+v", preview.Report.Items)
+	if !hasImportItem(preview.Report.Items, "cli", "codex", "unchanged") {
+		t.Fatalf("preview did not make preserved CLI explicit: %+v", preview.Report.Items)
 	}
 
 	applyPayload, _ := json.Marshal(airuntime.ApplyRequest{
@@ -279,23 +264,12 @@ func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.DefaultProfileID != before.DefaultProfileID {
-		t.Fatalf("default profile changed: before=%s after=%s", before.DefaultProfileID, after.DefaultProfileID)
-	}
 	if len(after.CLIs) != len(before.CLIs) {
 		t.Fatalf("CLI count changed: before=%d after=%d", len(before.CLIs), len(after.CLIs))
 	}
 	for _, cli := range after.CLIs {
 		if beforeCLIState[cli.Key] != cli.Enabled {
 			t.Fatalf("CLI state changed for %s: before=%v after=%v", cli.Key, beforeCLIState[cli.Key], cli.Enabled)
-		}
-	}
-	if len(after.Profiles) != len(before.Profiles) {
-		t.Fatalf("profile count changed: before=%d after=%d", len(before.Profiles), len(after.Profiles))
-	}
-	for _, p := range after.Profiles {
-		if beforeProfiles[p.Key] != p.ModelKey {
-			t.Fatalf("profile changed for %s: before model=%s after model=%s", p.Key, beforeProfiles[p.Key], p.ModelKey)
 		}
 	}
 	var imported *airuntime.ModelDefinition
@@ -308,6 +282,49 @@ func TestAIRuntimeModelsOnlyImportPreservesProfilesAndCLIsHTTP(t *testing.T) {
 	if imported == nil || !imported.Enabled || imported.ContextWindow != 128000 {
 		t.Fatalf("imported model missing or malformed: %+v", after.Models)
 	}
+
+	retiredDoc := doc
+	retiredPayload, _ := json.Marshal(map[string]any{
+		"strategy": "merge",
+		"document": map[string]any{
+			"schema_version": retiredDoc.SchemaVersion,
+			"kind":           retiredDoc.Kind,
+			"exported_at":    retiredDoc.ExportedAt,
+			"runtime": map[string]any{
+				"clis":                retiredDoc.Runtime.CLIs,
+				"models":              retiredDoc.Runtime.Models,
+				"default_profile_key": "default-coding",
+			},
+		},
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(retiredPayload), owner)
+	if resp.StatusCode != http.StatusBadRequest {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("retired default_profile_key preview status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+
+	retiredPayload, _ = json.Marshal(map[string]any{
+		"strategy": "merge",
+		"document": map[string]any{
+			"schema_version": retiredDoc.SchemaVersion,
+			"kind":           retiredDoc.Kind,
+			"exported_at":    retiredDoc.ExportedAt,
+			"runtime": map[string]any{
+				"clis":     retiredDoc.Runtime.CLIs,
+				"models":   retiredDoc.Runtime.Models,
+				"profiles": []any{},
+			},
+		},
+	})
+	resp = orgScopedPost(t, server.URL+"/api/ai-runtime/import/preview", string(retiredPayload), owner)
+	if resp.StatusCode != http.StatusBadRequest {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("retired profiles preview status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
 }
 
 func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
@@ -442,8 +459,7 @@ func TestAIRuntimePreviewWarnsOnUnknownJSONAndYAMLFields(t *testing.T) {
 							"enabled":          true,
 							"unknown_cli":      true,
 						}},
-						"models":   []any{},
-						"profiles": []any{},
+						"models": []any{},
 					},
 				},
 			}

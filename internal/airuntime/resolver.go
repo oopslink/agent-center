@@ -29,19 +29,11 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 	if mode == "" {
 		mode = SelectionInherit
 	}
-	var cliID, modelID, profileID, source string
+	var cliID, modelID, source string
 	parameters := map[string]any{}
 	switch mode {
 	case SelectionInherit:
-		if catalog.DefaultProfileID == "" {
-			return RuntimeSnapshot{}, runtimeError(ReasonDefaultMissing, "organization runtime default is not configured", map[string]any{"org_id": catalog.OrgID})
-		}
-		profileID, source = catalog.DefaultProfileID, "org_default"
-	case SelectionProfile:
-		if selection.ProfileID == "" {
-			return RuntimeSnapshot{}, runtimeError(ReasonSelectionInvalid, "profile selection requires profile_id", nil)
-		}
-		profileID, source = selection.ProfileID, "profile"
+		return RuntimeSnapshot{}, runtimeError(ReasonDefaultMissing, "organization runtime default is not configured", map[string]any{"org_id": catalog.OrgID})
 	case SelectionOverride:
 		if selection.CLIID == "" || selection.ModelID == "" {
 			return RuntimeSnapshot{}, runtimeError(ReasonSelectionInvalid, "override selection requires cli_id and model_id", nil)
@@ -52,17 +44,6 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 		return RuntimeSnapshot{}, runtimeError(ReasonSelectionInvalid, "runtime selection mode is invalid", map[string]any{"mode": mode})
 	}
 
-	if profileID != "" {
-		profile := findProfile(catalog.Profiles, profileID)
-		if profile == nil {
-			return RuntimeSnapshot{}, runtimeError(ReasonProfileNotFound, "runtime profile not found", map[string]any{"profile_id": profileID})
-		}
-		if !profile.Enabled {
-			return RuntimeSnapshot{}, runtimeError(ReasonProfileDisabled, "runtime profile is disabled", map[string]any{"profile_id": profileID})
-		}
-		cliID, modelID = profile.CLIKey, profile.ModelKey
-		parameters = cloneMap(profile.Parameters)
-	}
 	cli := findCLI(catalog.CLIs, cliID)
 	if cli == nil {
 		return RuntimeSnapshot{}, runtimeError(ReasonCLINotFound, "runtime CLI not found", map[string]any{"cli": cliID})
@@ -93,7 +74,7 @@ func (r *RuntimeResolver) ResolveCatalog(catalog Catalog, selection RuntimeSelec
 		SchemaVersion: 1, CLIKey: cli.Key, CLIExecutable: cli.Executable,
 		CLIVersionConstraint: cli.VersionConstraint, RequiredFeatures: append([]string(nil), cli.RequiredFeatures...),
 		ModelKey: model.ModelKey, Parameters: cloneMap(merged), Source: source,
-		ProfileID: profileID, ResolvedAt: r.now().UTC(),
+		ResolvedAt: r.now().UTC(),
 	}, nil
 }
 
@@ -108,14 +89,6 @@ func findCLI(items []CLIDefinition, id string) *CLIDefinition {
 func findModel(items []ModelDefinition, id string) *ModelDefinition {
 	for i := range items {
 		if items[i].ID == id || items[i].Key == id {
-			return &items[i]
-		}
-	}
-	return nil
-}
-func findProfile(items []RuntimeProfile, id string) *RuntimeProfile {
-	for i := range items {
-		if items[i].ID == id {
 			return &items[i]
 		}
 	}

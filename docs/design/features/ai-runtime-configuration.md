@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Proposed（2026-07-29 重新基线） |
-| 日期 | 2026-07-22；2026-07-29 更新 |
-| 范围 | Organization CLI Catalog、Model Catalog、Runtime Profile、默认值、Worker 能力匹配、批量导入导出 |
+| 状态 | Revised（2026-08-09：Runtime Profile 已退役） |
+| 日期 | 2026-07-22；2026-07-29 更新；2026-08-09 Profile 清退 |
+| 范围 | Organization CLI Catalog、Model Catalog、Worker 能力匹配、批量导入导出；Runtime Profile、默认 Profile 已移除 |
 
 ## 1. 背景
 
@@ -39,13 +39,11 @@
 
 ### 2.1 目标
 
-1. 用户只在 `Organization Settings > AI Runtime` 定义 CLI、模型、运行参数和组织默认值。
-2. Agent、Executor、Team Role 复用同一个选择组件，不再维护本地候选列表。
-3. 默认场景零配置：业务对象默认继承组织默认 Runtime Profile。
-4. 高级场景可选择其他 Profile 或创建对象级 override。
-5. CLI / Model 定义不依赖当前 Worker；调度时才匹配 Worker 实际能力。
-6. 配置可批量导入、导出、审阅、审计，并可跨环境迁移。
-7. 历史配置和执行记录可解释，不因 Catalog 后续变化而漂移。
+1. 用户只在 `Organization Settings > AI Runtime` 定义组织级 CLI 和模型目录。
+2. Agent 的 desired runtime config、Runtime effective config 和 `allowed_executors` 继续直接保存在 Agent 配置中，不经 Runtime Profile 间接绑定。
+3. CLI / Model 定义不依赖当前 Worker；调度时才匹配 Worker 实际能力。
+4. 配置可批量导入、导出、审阅、审计，并可跨环境迁移。
+5. 历史配置和执行记录可解释，不因 Catalog 后续变化而漂移。
 
 ### 2.2 非目标
 
@@ -61,7 +59,7 @@
 
 | 层 | 权威信息 | 生命周期 |
 |---|---|---|
-| Runtime Catalog | 组织希望使用的 CLI、Model、Profile 和默认值 | 长期、用户管理 |
+| Runtime Catalog | 组织希望使用的 CLI 和 Model 定义 | 长期、用户管理 |
 | Worker Capability Scan | Worker 实际安装的 CLI、版本、feature 和健康状态 | 动态、机器上报 |
 | Scheduler | Runtime 要求与 Worker 能力的匹配结果 | 每次调度计算 |
 
@@ -79,9 +77,7 @@ Catalog（期望状态） + Worker Scan（实际能力） -> Scheduler（运行�
 |---|---|
 | CLI Definition | 组织允许配置的一类 agent CLI，例如 `codex`、`claude-code` |
 | Model Definition | 模型的权威定义，包括传给 CLI 的真实标识及兼容 CLI |
-| Runtime Profile | 一个命名的 `CLI + Model + Parameters` 可复用组合 |
-| Organization Default Profile | Organization 唯一的默认 Runtime Profile |
-| Runtime Selection | Agent、Executor 或 Team Role 对继承、Profile 引用或 override 的选择 |
+| Runtime Selection | 对直接 CLI / Model override 的解析输入；Profile 引用已退役 |
 | Runtime Snapshot | 一次执行实际采用的不可变 CLI、Model 和 Parameters 快照 |
 | Worker CLI Capability | Worker 扫描上报的 CLI 安装、版本和 feature |
 | Basic Capability Coverage | 仅按 CLI、version、features 和健康窗口计算的基础能力覆盖，不代表某个 execution 一定可调度 |
@@ -140,43 +136,23 @@ type ModelDefinition = {
 
 - `model_key` 是运行时真实参数，不使用展示别名替代。
 - 一个 Model 可兼容多个 CLI；至少关联一个 CLI。
-- Model 默认参数必须通过每个关联 CLI 的 `parameter_schema` 校验；存在差异时由 Profile 覆盖。
+- Model 默认参数必须通过每个关联 CLI 的 `parameter_schema` 校验；对象级参数差异由 Agent 直接运行时配置承载。
 - Model Catalog 是唯一模型定义源。业务页面不得接受未入 Catalog 的自由文本模型。
 - 管理员需要未知模型时，先创建 Model Definition，再在业务配置中选择。
 
-### 5.3 Runtime Profile
+### 5.3 Runtime Profile（已退役）
 
-```ts
-type RuntimeProfile = {
-  id: string
-  key: string                 // 稳定键，如 default-coding
-  name: string
-  description?: string
-  cli_key: string
-  model_key: string           // 引用 ModelDefinition.key
-  parameters: Record<string, unknown>
-  enabled: boolean
-  created_at: string
-  updated_at: string
-}
-```
-
-Profile 保存可复用的有效组合。Organization 另存一个 `default_runtime_profile_id`，并满足：
-
-1. 必须引用启用的 Profile；
-2. Organization 必须且只能有一个默认 Profile；
-3. Profile 的 Model 必须兼容其 CLI；
-4. 合并后的参数必须符合 CLI schema；
-5. Profile 可在当前没有匹配 Worker 时创建或设为默认，但 UI 必须展示 coverage warning。
+T1310 起不再提供 Runtime Profile、Organization default Profile、Profile coverage 或 Profile API。
+删除迁移会在发现 `ai_runtime_profiles` 行或 `ai_runtime_catalogs.default_profile_id` 绑定时失败，
+避免在无法证明安全时破坏真实绑定。
 
 ### 5.4 Runtime Selection
 
-Agent、Executor candidate、Team Role 统一保存：
+Runtime Selection 不再接受 Profile 引用：
 
 ```ts
 type RuntimeSelection =
   | { mode: "inherit" }
-  | { mode: "profile"; profile_id: string }
   | {
       mode: "override"
       cli_id: string
@@ -187,11 +163,10 @@ type RuntimeSelection =
 
 语义：
 
-- `inherit`：执行时解析 Organization 当前默认 Profile；这是创建对象时的默认值。
-- `profile`：显式引用一个 Runtime Profile。
+- `inherit`：不再解析 Organization default Profile；没有直接配置时返回 `runtime_default_missing`。
 - `override`：高级用户对当前对象显式指定组合，仍然只能引用 Catalog 条目。
 
-对象级 override 不成为新的 Catalog 定义。用户可选择“另存为 Profile”，但这是一个明确且受权限控制的 Catalog 写操作。
+Agent CLI / Model 与 `allowed_executors` 是当前生产运行路径的权威配置；Catalog 只提供可管理的 CLI / Model 定义。
 
 ### 5.5 Runtime Snapshot
 
@@ -208,17 +183,14 @@ type RuntimeSnapshot = {
   model_key: string              // 传给 CLI 的真实值
   parameters: Record<string, unknown>
   parameters_digest: string      // canonical parameters 的摘要，不含 Secret 明文
-  source: "org_default" | "profile" | "override"
-  profile_id?: string
-  profile_key?: string
-  profile_version?: number
+  source: "override"
   resolved_at: string
 }
 ```
 
-Snapshot 在 **TaskExecution 首次创建时**与 execution record 原子写入。Catalog、Profile 或默认值后续变化只影响新 execution，
+Snapshot 在 **TaskExecution 首次创建时**与 execution record 原子写入。Catalog 后续变化只影响新 execution，
 不修改已创建 execution 的语义和审计结果。retry、resume 和保留同一 execution 语义的 reassign 必须复用已保存 Snapshot，
-不得重新读取可变 Profile 或 Organization default；只有创建新的 TaskExecution 才重新解析。
+不得重新读取可变默认值；只有创建新的 TaskExecution 才重新解析。
 
 Snapshot 中的参数必须是 canonical、确定性编码。Secret 参数只保存 Secret reference，摘要基于脱敏后的 canonical representation
 计算；DB 导出、API、审计和日志均不得出现 Secret 明文。
@@ -229,25 +201,24 @@ Snapshot 中的参数必须是 canonical、确定性编码。Secret 参数只保
 
 ```text
 RuntimeSelection
-  -> 找到 Organization default / Profile / override
+  -> 读取直接 override
   -> 校验 CLI 与 Model 均存在且 enabled
   -> 校验 Model compatible_cli_keys 包含 CLI
-  -> 参数合并：CLI schema defaults < Model defaults < Profile/override
+  -> 参数合并：CLI schema defaults < Model defaults < override
   -> 按 CLI parameter_schema 校验最终参数
   -> 生成 RuntimeSnapshot
 ```
 
 第一条纵向链只接 Agent，配置来源优先级固定为：
 
-1. Agent 对象级 override；
-2. Agent 显式 Profile；
-3. Organization default。
+1. Agent 直接 runtime config / override；
+2. 无直接配置时返回 `runtime_default_missing`。
 
 Team Role 和 Executor candidate 不在第一条链中隐式加入优先级；它们必须在后续各自接入时单独定义继承与覆盖语义。
 既有 `task.model` / F3 modelrouter 在迁移期继续兼容，但新 Resolver 切流前必须明确选择以下之一并形成 ADR：
 
 - 保留 Task override，并定义它相对 Agent selection 的优先级及 Snapshot provenance；
-- 映射为 Model Definition / Runtime Profile 引用；
+- 映射为 Model Definition 引用；
 - 只读兼容并明确退场条件。
 
 在该决定落地前，不删除旧字段，不让新旧路由同时静默生效。
@@ -310,7 +281,7 @@ Scheduler 使用 Runtime Snapshot 匹配 Worker：
 - UI 展示具体缺失条件；
 - Worker 上线或 capability 更新后触发重新调度；
 - 不创建一个随后立即失败的 executor；
-- 不静默降级到其他 CLI、模型或 Profile。
+- 不静默降级到其他 CLI 或模型。
 
 `waiting_for_capability` 是 TaskExecution 的持久化状态，不是临时队列标签。状态机必须定义：
 
@@ -326,70 +297,39 @@ Scheduler 使用 Runtime Snapshot 匹配 Worker：
 
 重新驱动必须使用 durable idempotency key（至少包含 execution id 与 snapshot identity），并在 executor 创建前以原子状态转换守门。
 
-### 7.4 Coverage
+### 7.4 Capability Diagnostics
 
-Basic Capability Coverage 是动态只读 projection：
-
-```ts
-type RuntimeCoverage = {
-  profile_id: string
-  online_worker_count: number
-  eligible_worker_count: number
-  status: "available" | "degraded" | "unavailable"
-  reasons: Array<{ code: string; count: number; message: string }>
-  calculated_at: string
-}
-```
-
-Basic Capability Coverage 用于配置页提示和调度诊断，不参与 Catalog 的保存准入。它只回答 Worker 是否具备基础 CLI 能力，
-不能承诺某个 execution 可调度。面向具体 execution 的页面和 API 必须使用 Effective Schedulability，
+Profile coverage projection 已退役。面向具体 execution 的页面和 API 必须使用 Effective Schedulability，
 叠加 team、project、workspace、权限、并发量和其它现有调度约束，并明确展示阻断 reason。
 
 ## 8. Web Console 设计
 
 ### 8.1 唯一入口
 
-将现有 Model Catalog 升级为 `Organization Settings > AI Runtime`，包含三个 Tab：
+将现有 Model Catalog 升级为 `Organization Settings > AI Runtime`，包含两个 Tab：
 
 | Tab | 用途 |
 |---|---|
-| Profiles | 默认首页；管理 Runtime Profile、默认值和 coverage |
 | Models | 现有 Model Catalog；增加稳定 key、兼容 CLI、默认参数、启停状态 |
 | CLIs | 管理 CLI Definition、版本约束、feature 和参数 schema |
 
-顶部提供 `Import`、`Export`。权限沿用 Organization 管理权限；无管理权限用户只读。
-
-### 8.2 Profile 编辑
-
-编辑顺序固定：
-
-1. 选择 CLI；
-2. 选择与该 CLI 兼容且启用的 Model；
-3. 根据 CLI `parameter_schema` 渲染参数控件；
-4. 展示当前 Worker coverage；
-5. 保存，可选设为 Organization default。
-
-CLI 变化后，若当前 Model 不兼容则清空 Model 并要求重新选择，不做隐式替换。
+顶部提供 `Import`、`Export`。权限沿用 Organization 管理权限；无管理权限用户只读。旧 `tab=profiles` URL 不再渲染 Profile UI。
 
 ### 8.3 业务选择器
 
-Agent、Executor candidate、Team Role 共用 `RuntimeProfileSelector`：
+Agent、Executor candidate、Team Role 不再共用 Runtime Profile 选择器。Agent 配置继续直接编辑 CLI、Model、reasoning、mode、
+provider 与 `allowed_executors`。
 
 ```text
 运行配置
-  继承组织默认值（默认编码 / codex / gpt-5.2-codex）
-  默认编码
-  高质量评审
-  低成本任务
-  自定义...
+  CLI
+  Model
+  allowed_executors
 ```
 
-- 默认选中“继承组织默认值”；
-- Profile 行同时展示 CLI / Model，避免只凭名称误选；
-- “自定义”位于折叠的高级区域；
-- 历史已停用或已删除引用继续可见，并显示“不可用于新执行”；
-- 无 coverage 时允许保存，但在选择器和详情页显示 warning；
-- 不在业务页面提供自由文本 CLI / Model。
+- 不在业务页面提供 Runtime Profile 选择；
+- `allowed_executors` 是 Agent CLI/Model 选择和执行路由的权威候选池；
+- 不在业务页面提供未受控的 Runtime Profile 绑定。
 
 ## 9. 批量导入与导出
 
@@ -416,24 +356,16 @@ runtime:
       compatible_cli_keys: [codex]
       enabled: true
       default_parameters: {}
-  profiles:
-    - key: default-coding
-      name: 默认编码
-      cli_key: codex
-      model_key: gpt-5-2-codex
-      enabled: true
-      parameters: {}
-  default_profile_key: default-coding
 ```
 
-数据库 ID、Secret、Worker capability、coverage、绝对路径和健康状态不得导出。
+数据库 ID、Secret、Worker capability、绝对路径和健康状态不得导出。`profiles` 与 `default_profile_key` 字段已退役，导入时拒绝。
 
 ### 9.2 导出范围
 
 支持：
 
 - 完整 Runtime Catalog；
-- 仅 CLI、Model 或 Profile；
+- 仅 CLI 或 Model；
 - 列表勾选条目；
 - YAML 或 JSON。
 
@@ -447,7 +379,7 @@ runtime:
 Upload -> Preview -> Confirm -> Atomic Apply
 ```
 
-Preview 返回逐项 diff：`create`、`update`、`unchanged`、`conflict`、`invalid`、`disable`，并单独突出默认 Profile 变化。
+Preview 返回逐项 diff：`create`、`update`、`unchanged`、`conflict`、`invalid`、`disable`。
 
 导入策略：
 
@@ -464,7 +396,7 @@ Preview 返回逐项 diff：`create`、`update`、`unchanged`、`conflict`、`in
 - Preview 返回短期 `validation_token`，Apply 必须携带该 token；
 - token 绑定 Organization、文件摘要、策略和 Catalog revision，避免预览后并发覆盖；
 - 不支持的更高 schema version 拒绝导入；未知可忽略字段产生 warning；
-- 导入不因当前无匹配 Worker 失败，但 Preview 展示导入后的 coverage；
+- 导入不因当前无匹配 Worker 失败；
 - 每次导入记录操作者、文件 SHA-256、策略、变更摘要和结果。
 
 ## 10. API 契约
@@ -479,21 +411,14 @@ PATCH  /api/orgs/{org_id}/ai-runtime/clis/{id}
 GET    /api/orgs/{org_id}/ai-runtime/models
 POST   /api/orgs/{org_id}/ai-runtime/models
 PATCH  /api/orgs/{org_id}/ai-runtime/models/{id}
-
-GET    /api/orgs/{org_id}/ai-runtime/profiles
-POST   /api/orgs/{org_id}/ai-runtime/profiles
-PATCH  /api/orgs/{org_id}/ai-runtime/profiles/{id}
-PUT    /api/orgs/{org_id}/ai-runtime/default-profile
 ```
 
-删除使用受约束的 `DELETE` 或统一停用：被引用项不可硬删除，API 返回引用数量与替换建议。默认 Profile 在切换默认值前不可停用或删除。
+旧 `/ai-runtime/profiles` 与 `/ai-runtime/default-profile` 路由不注册，返回 404。
 
-### 10.2 解析与 Coverage
+### 10.2 解析
 
 ```text
 POST /api/orgs/{org_id}/ai-runtime/resolve
-GET  /api/orgs/{org_id}/ai-runtime/coverage
-GET  /api/orgs/{org_id}/ai-runtime/profiles/{id}/coverage
 ```
 
 `resolve` 主要供服务端应用层复用；若暴露给前端，只返回校验和预览结果，不包含 Secret。
@@ -511,14 +436,13 @@ POST /api/orgs/{org_id}/ai-runtime/import/apply
 ## 11. 一致性、并发与审计
 
 - Catalog 聚合维护单调递增 `revision`；所有更新支持 optimistic concurrency。
-- 设置默认 Profile 与清除旧默认值在同一事务完成。
 - Import Apply 锁定或 CAS Catalog revision，避免 lost update。
-- Profile、Model、CLI 停用是软状态变化；历史 Snapshot 永不被反向修改。
+- Model、CLI 停用是软状态变化；历史 Snapshot 永不被反向修改。
 - 配置变更产生审计事件，至少包含 actor、organization、entity key、before / after 深拷贝摘要和时间；
   `before` 与 `after` 不得共享可变 map / slice，也不得因写后修改互相覆盖。
 - 参数中标记为 secret 的字段不进入 Catalog；应保存 Secret reference，并由执行环境解析。
-- 修改 Organization default、Profile、Model 或 CLI 前返回引用数量和影响预览；批量切换支持灰度范围与审计。
-- 停用 Profile、Model 或 CLI 时，已冻结 Snapshot 可继续按原语义重试 / resume；尚未创建 execution 的排队工作按新 Catalog
+- 修改 Model 或 CLI 前返回引用数量和影响预览；批量切换支持灰度范围与审计。
+- 停用 Model 或 CLI 时，已冻结 Snapshot 可继续按原语义重试 / resume；尚未创建 execution 的排队工作按新 Catalog
   重新解析并在不可用时 fail closed，不得一部分读旧值、一部分读新值。
 
 ## 12. 错误模型
@@ -531,8 +455,7 @@ POST /api/orgs/{org_id}/ai-runtime/import/apply
 | `runtime_model_not_found` | Model 引用不存在 |
 | `runtime_model_cli_incompatible` | Model 与 CLI 不兼容 |
 | `runtime_parameters_invalid` | 参数不符合 CLI schema |
-| `runtime_profile_disabled` | 新执行引用停用 Profile |
-| `runtime_default_missing` | Organization 无有效默认 Profile |
+| `runtime_default_missing` | 未提供直接 override 且没有可继承默认运行时 |
 | `runtime_catalog_revision_conflict` | 并发修改冲突 |
 | `runtime_import_schema_unsupported` | 导入文件版本不支持 |
 | `runtime_import_validation_failed` | 导入预检失败 |
@@ -544,12 +467,10 @@ POST /api/orgs/{org_id}/ai-runtime/import/apply
 
 | 操作 | Organization admin | 普通成员 | Agent runtime |
 |---|---:|---:|---:|
-| 查看 Catalog / Profile | 是 | 是 | 按需只读 |
-| 查看 coverage | 是 | 是 | 是 |
-| 修改 Catalog / 默认值 | 是 | 否 | 否 |
+| 查看 Catalog | 是 | 是 | 按需只读 |
+| 修改 Catalog | 是 | 否 | 否 |
 | 导入配置 | 是 | 否 | 否 |
 | 导出非敏感配置 | 是 | 可按现有组织策略开放 | 否 |
-| 选择已有 Profile | 是 | 是 | 否 |
 | 创建对象级 override | 是 | 按组织策略 | 否 |
 
 MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的校验和审计。
@@ -559,19 +480,19 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 ### Phase 1：新模型与兼容层
 
 1. 扩展现有 Model Catalog，增加稳定 `key`、`compatible_cli_keys`、默认参数和 `enabled`。
-2. 新增 CLI Definition、Runtime Profile、Organization default 和 RuntimeResolver。
-3. 用现有硬编码值生成系统预置 CLI / Model / Profile。
+2. 新增 CLI Definition 和 RuntimeResolver。
+3. 用现有硬编码值生成系统预置 CLI / Model。
 4. 保留旧 API，转调新应用服务；读取仍兼容旧字段。
 
 ### Phase 2：统一管理界面
 
-1. 将 Model Catalog 页面升级为 AI Runtime 三 Tab。
-2. 实现 Profile、默认值、coverage、导入预览和完整导出。
+1. 将 Model Catalog 页面升级为 AI Runtime 两 Tab。
+2. 实现 Model / CLI、导入预览和完整导出。
 3. 现有 JSON Model import 迁移到 versioned bundle；继续接受旧数组格式并显示 deprecated warning。
 
 ### Phase 3：Agent 单入口纵向接入
 
-1. 只为 Agent 增加 `runtime_selection` 并接入共享 `RuntimeProfileSelector`。
+1. Agent 保持直接 runtime config 与 `allowed_executors`，不接入 Runtime Profile。
 2. 在 feature flag 下完成 Agent selection 到 TaskExecution Snapshot，再到 scheduler 和 supervisor / executor 启动参数的真实链路。
 3. legacy 路径继续可用，同时 shadow resolve 新旧结果并记录差异；不双写两套独立语义。
 4. Team Role 与 Executor candidate 留到运行闭环通过后分别接入。
@@ -587,8 +508,8 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 ### Phase 5：扩入口、迁移与切换
 
 1. 运行闭环通过后，先接 Team Role，再接 Executor candidate；每个入口单独真验。
-2. 对生产等价数据 dry-run：精确映射、按内容哈希去重 Profile、对象 override、无法映射四类报告。
-3. 先 shadow compare，再小范围切新 Resolver，最后切 Organization default；每一步均可通过 flag 回旧读路径。
+2. 对生产等价数据 dry-run：精确映射、对象 override、无法映射三类报告。
+3. 先 shadow compare，再小范围切新 Resolver；每一步均可通过 flag 回旧读路径。
 4. 既有 `task.model` / modelrouter 按已确认 ADR 迁移。
 
 ### Phase 6：清理
@@ -606,7 +527,7 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 ```text
 runtime_selection 存在 -> RuntimeResolver
 runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> RuntimeSnapshot
-两者均不存在 -> Organization default
+两者均不存在 -> runtime_default_missing
 ```
 
 写路径在短迁移期可双写，但必须由单一应用服务完成；前端不得自行维护两套值。所有 legacy fallback 计数进入 observability，计数归零后才能删除兼容代码。
@@ -615,11 +536,10 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 
 ### 16.1 Domain / API
 
-- CLI / Model / Profile 唯一 key 与启停约束；
+- CLI / Model 唯一 key 与启停约束；
 - Model / CLI 兼容校验；
-- 参数三层合并与 schema 校验；
-- 默认 Profile 唯一性与事务切换；
-- Runtime Selection 三种模式解析；
+- 参数合并与 schema 校验；
+- Runtime Selection override / inherit 解析；
 - Snapshot 不受后续 Catalog 修改影响；
 - Import preview / apply 一致、原子回滚、revision 冲突；
 - merge / create_only / replace 三种策略；
@@ -636,20 +556,19 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 
 ### 16.3 Web
 
-- 三个业务入口只使用共享 Selector；
-- 默认继承、Profile 选择和 override 行为一致；
+- AI Runtime 管理面只展示 Models / CLIs；
+- 旧 Profile tab URL 不再展示 Profile UI；
 - CLI 变化清理不兼容 Model；
-- coverage warning 不阻止保存；
 - 停用 / 历史引用可解释；
-- 导入逐项 diff、默认值变更确认和导出范围正确；
+- 导入逐项 diff 和导出范围正确；
 - 不再从前端硬编码 CLI / Model 候选项。
 
 ### 16.4 核心验收场景
 
-1. 在没有任何在线 Worker 时，管理员可导入完整 Runtime Catalog 并设置默认 Profile。
-2. 新建 Team Role 不配置 runtime，创建出的 Agent 继承 Organization default。
+1. 在没有任何在线 Worker 时，管理员可导入完整 Runtime Catalog。
+2. Agent 直接 runtime config 与 `allowed_executors` 不受 AI Runtime Profile 清退影响。
 3. Worker 上线并上报匹配 CLI 后，等待中的 execution 自动进入调度。
-4. 修改 Organization default 后，新 execution 使用新值，旧 execution Snapshot 保持不变。
+4. 修改 Agent direct runtime config 后，新 reconcile 使用新值，旧 execution Snapshot 保持不变。
 5. 导出 Organization A 配置后可预检并导入 Organization B，不依赖数据库 ID。
 6. 导入 replace 不硬删被引用项，而是停用并在 diff 中明确展示。
 
@@ -660,33 +579,29 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 - `runtime_resolution_total{source,result}`
 - `runtime_legacy_fallback_total{object_type}`
 - `runtime_waiting_for_capability{reason,cli_key}`
-- `runtime_profile_eligible_workers{profile_key}`
 - `runtime_import_total{mode,result}`
 - `runtime_catalog_revision_conflict_total`
 
-日志和 activity 记录 `profile_key`、`cli_key`、Snapshot source 和失败 reason；不得记录 Secret 参数值。
+日志和 activity 记录 `cli_key`、Snapshot source 和失败 reason；不得记录 Secret 参数值。
 
 ## 18. 风险与处理
 
 | 风险 | 处理 |
 |---|---|
-| 组织默认 Profile 当前无 Worker 支持 | 允许保存并强提示；执行进入可恢复等待状态 |
 | Catalog 标注兼容但 CLI 实际不支持模型 | adapter 返回结构化启动错误；管理员修正 Catalog，不自动换模型 |
-| Profile 修改影响运行中任务 | execution 创建时冻结 Snapshot |
 | replace 导入误删配置 | 缺失项仅停用；Preview 单列；原子提交和审计 |
-| 历史模型字符串无法映射 | 生成迁移报告和对象显式 override；Profile 按内容哈希去重，不批量制造一次性 `migrated-*` Profile |
-| 参数 schema 演进 | schema version + Profile 重新校验；旧 Snapshot 保持原样 |
+| 历史模型字符串无法映射 | 生成迁移报告和对象显式 override |
+| 参数 schema 演进 | schema version + Model 重新校验；旧 Snapshot 保持原样 |
 | Worker 状态抖动 | Catalog 不受影响；Scheduler 基于 TTL、健康窗口、幂等重驱动和原子 executor 创建处理 |
 | 任意 CLI / 参数注入 | 受控 adapter registry + 结构化 argv + schema 支持子集 fail closed |
-| Profile / 默认值变更影响过大 | 保存前影响预览、引用计数、审计和可选灰度；历史 Snapshot 不变 |
 | Coverage 数字被误读为可调度承诺 | 文案区分 Basic Capability Coverage 与 Effective Schedulability |
 
 ## 19. 关键决策摘要
 
 1. **配置定义不依赖 Worker。** Worker 是动态资源，不应决定长期配置能否存在。
 2. **Model Catalog 保留并成为唯一模型源。** 它不再是孤立页面，而是 AI Runtime 的基础数据。
-3. **Runtime Profile 是主要用户接口。** 普通用户选择有业务名称的组合，而不是重复理解 CLI / Model 参数。
-4. **默认采用继承。** Organization 可集中切换新 execution 的默认 runtime。
+3. **Runtime Profile 已退役。** Agent 直接持有 desired runtime config 和 `allowed_executors`。
+4. **不再维护 Organization default Profile。** 没有直接配置时 fail closed，不静默选择。
 5. **执行必须冻结 Snapshot。** 保证可审计与可复现。
 6. **导入先预检后原子应用。** 跨环境配置使用稳定 key，不使用数据库 ID。
 7. **无匹配 Worker 是可恢复调度状态。** 不属于 executor 执行失败，也不触发静默降级。
@@ -703,7 +618,7 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 | 2. Agent 纵向链 | Agent selection -> Snapshot -> scheduler -> supervisor / executor 参数 | flag ON 真执行，flag OFF 可回旧路径 |
 | 3. 能力与等待闭环 | capability 身份 / TTL；matching；`waiting_for_capability`；exactly-once re-drive | executor 0 -> 1，重启 / 抖动不重复 |
 | 4. UI 与其它入口 | AI Runtime 管理面；Team Role；Executor candidate；影响预览 | 每扩一个入口单独真验 |
-| 5. 迁移与切换 | dry-run、Profile 去重、shadow compare、灰度切读源 | 可回退且无静默替换 |
+| 5. 迁移与切换 | dry-run、shadow compare、灰度切读源 | 可回退且无静默替换 |
 | 6. 清理 | fallback 归零后删旧字段、API、常量和 adapter | 历史 execution 与恢复路径仍可用 |
 
 详细任务、依赖、测试和回滚门见

@@ -3,21 +3,9 @@ package airuntime
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 )
-
-type recordingCoverageProvider struct {
-	catalog Catalog
-	result  []RuntimeCoverage
-	err     error
-}
-
-func (p *recordingCoverageProvider) Coverage(_ context.Context, catalog Catalog) ([]RuntimeCoverage, error) {
-	p.catalog = catalog
-	return p.result, p.err
-}
 
 func TestPreviewApplyTokenBindsAllClaimsAndExpires(t *testing.T) {
 	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a", Revision: 7}}
@@ -59,7 +47,10 @@ func TestPreviewApplyTokenBindsAllClaimsAndExpires(t *testing.T) {
 			name: "document", org: "org-a",
 			req: func() ApplyRequest {
 				changed := doc
-				changed.Runtime.DefaultProfileKey = "changed"
+				changed.Runtime.CLIs = []ExportCLI{{
+					Key: "changed", DisplayName: "Changed", Executable: "changed",
+					ParameterSchema: []byte(`{"type":"object"}`), Enabled: true,
+				}}
 				return ApplyRequest{Strategy: StrategyMerge, Document: changed, ValidationToken: preview.ValidationToken}
 			}(),
 			want: ReasonImportConflict,
@@ -95,64 +86,8 @@ func TestPreviewApplyTokenBindsAllClaimsAndExpires(t *testing.T) {
 	}
 }
 
-func TestPreviewCalculatesCoverageAgainstCandidateCatalog(t *testing.T) {
-	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a", Revision: 4}}
-	provider := &recordingCoverageProvider{result: []RuntimeCoverage{
-		{ProfileID: "profile-b", Status: "partial"},
-		{ProfileID: "profile-a", Status: "full"},
-	}}
-	svc := NewServiceWithValidationKey(repo, func() string { return "generated-id" }, []byte("0123456789abcdef0123456789abcdef"))
-	svc.SetCoverageProvider(provider)
-	doc := ExportDocument{
-		SchemaVersion: ExportVersion,
-		Kind:          ExportKind,
-		Runtime: ExportCatalog{
-			CLIs: []ExportCLI{{
-				Key: "custom", DisplayName: "Custom", Executable: "custom",
-				ParameterSchema: []byte(`{"type":"object"}`), Enabled: true,
-			}},
-		},
-	}
-	preview, err := svc.PreviewImport(context.Background(), "org-a", PreviewRequest{
-		Strategy: StrategyMerge,
-		Document: doc,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := cliByKey(provider.catalog.CLIs)["custom"]; !ok {
-		t.Fatalf("coverage provider received pre-import catalog: %+v", provider.catalog.CLIs)
-	}
-	if got := []string{preview.Coverage[0].ProfileID, preview.Coverage[1].ProfileID}; !reflect.DeepEqual(got, []string{"profile-a", "profile-b"}) {
-		t.Fatalf("coverage order=%v", got)
-	}
-}
-
-func TestPreviewReportsUnavailableCoverageAsWarning(t *testing.T) {
-	repo := &resolveRepo{catalog: Catalog{OrgID: "org-a"}}
-	svc := NewServiceWithValidationKey(repo, func() string { return "id" }, []byte("0123456789abcdef0123456789abcdef"))
-	doc := ExportDocument{SchemaVersion: ExportVersion, Kind: ExportKind, Runtime: ExportCatalog{}}
-	preview, err := svc.PreviewImport(context.Background(), "org-a", PreviewRequest{Strategy: StrategyMerge, Document: doc})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preview.Coverage == nil || len(preview.Coverage) != 0 {
-		t.Fatalf("coverage=%+v want explicit empty list", preview.Coverage)
-	}
-	found := false
-	for _, diagnostic := range preview.Report.Diagnostics {
-		if diagnostic.Code == Reason("runtime_coverage_unavailable") && diagnostic.Severity == "warning" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("diagnostics=%+v", preview.Report.Diagnostics)
-	}
-}
-
 func TestFilterExportDependencyClosureAndPartialWarning(t *testing.T) {
 	catalog := ExportCatalog{
-		DefaultProfileKey: "coding",
 		CLIs: []ExportCLI{
 			{Key: "codex"}, {Key: "other"},
 		},
@@ -160,29 +95,24 @@ func TestFilterExportDependencyClosureAndPartialWarning(t *testing.T) {
 			{Key: "gpt", CompatibleCLIKeys: []string{"codex"}},
 			{Key: "other", CompatibleCLIKeys: []string{"other"}},
 		},
-		Profiles: []ExportProfile{
-			{Key: "coding", CLIKey: "codex", ModelKey: "gpt"},
-			{Key: "other", CLIKey: "other", ModelKey: "other"},
-		},
 	}
 	got, warnings, err := filterExport(catalog, ExportOptions{
-		Scope: ExportScopeProfile, ProfileKeys: []string{"coding"}, IncludeDependencies: true,
+		Scope: ExportScopeModel, ModelKeys: []string{"gpt"}, IncludeDependencies: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(warnings) != 0 || len(got.Profiles) != 1 || len(got.Models) != 1 || len(got.CLIs) != 1 ||
-		got.Profiles[0].Key != "coding" || got.Models[0].Key != "gpt" || got.CLIs[0].Key != "codex" ||
-		got.DefaultProfileKey != "coding" {
+	if len(warnings) != 0 || len(got.Models) != 1 || len(got.CLIs) != 1 ||
+		got.Models[0].Key != "gpt" || got.CLIs[0].Key != "codex" {
 		t.Fatalf("dependency closure=%+v warnings=%v", got, warnings)
 	}
 	partial, warnings, err := filterExport(catalog, ExportOptions{
-		Scope: ExportScopeProfile, ProfileKeys: []string{"coding"}, IncludeDependencies: false,
+		Scope: ExportScopeModel, ModelKeys: []string{"gpt"}, IncludeDependencies: false,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(partial.Profiles) != 1 || len(partial.Models) != 0 || len(partial.CLIs) != 0 || len(warnings) != 1 {
+	if len(partial.Models) != 1 || len(partial.CLIs) != 0 || len(warnings) != 1 {
 		t.Fatalf("partial=%+v warnings=%v", partial, warnings)
 	}
 }

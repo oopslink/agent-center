@@ -1,5 +1,9 @@
 # AI Runtime 统一配置实施 Plan
 
+> 2026-08-09 / T1310 update: Runtime Profile、Organization default Profile、Profile API 和 Profile coverage 已清退。
+> 本 Plan 中关于 Profile 的历史拆分仅保留为背景；当前实现只保留 CLI / Model Catalog，并且不得影响 Agent 直接持有的 runtime config、
+> Runtime effective config、`allowed_executors` 和 reconcile 路径。
+
 > 设计文档：[AI Runtime 统一配置技术方案](../design/features/ai-runtime-configuration.md)
 >
 > 初稿：2026-07-22；重新基线：2026-07-29
@@ -305,7 +309,7 @@ UI 约束：
 - `runtime_capability_redrive_total{result}`;
 - `runtime_executor_dedup_total{result}`;
 - `runtime_catalog_revision_conflict_total`;
-- `runtime_profile_eligible_workers{profile_key}`。
+- `runtime_profile_eligible_workers{profile_key}`（T1310 后退役，不再作为当前验收项）。
 
 每个阶段的独立验收报告必须包含：
 
