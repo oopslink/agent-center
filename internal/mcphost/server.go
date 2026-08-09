@@ -467,6 +467,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makePlanID(cfg, "resume_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "complete_plan",
+		Description: "Complete a running or paused plan only when the current effective node set is settled: no active/ready work, all effective leaves completed or skipped, and no unreplaced failed nodes. Idempotent if already done.",
+	}, makePlanID(cfg, "complete_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "discard_plan",
 		Description: "Permanently abandon a pending, running, or paused plan. Non-terminal member tasks become discarded; completed history remains immutable.",
 	}, makePlanID(cfg, "discard_plan"))

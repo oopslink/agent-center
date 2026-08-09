@@ -45,6 +45,9 @@ export interface PlanNode {
   task_status: string;
   node_status: PlanNodeStatus;
   depends_on: string[];
+  effective?: boolean;
+  superseded_by?: string[];
+  superseded_reason?: string;
   // The underlying task's creation time (RFC3339). Always emitted by the backend
   // node DTO (pmPlanNodeMap); optional here for legacy payloads. The Plan detail
   // task list shows it in a "Created" column (full local timestamp + tz).
@@ -115,6 +118,8 @@ export interface Plan {
   org_ref?: string;
   target_date?: string | null;
   has_failed: boolean;
+  historical_failures?: string[];
+  active_failures?: string[];
   progress: { done: number; total: number };
   created_at: string;
   // The backend plan map (pmPlanMap) serializes updated_at; the base Plan DTO had
@@ -674,6 +679,12 @@ export const useStopPlan = usePausePlan;
 export function useResumePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/resume`),
+  );
+}
+
+export function useCompletePlan(projectId: string, planId: string) {
+  return usePlanWrite<void, Plan>(projectId, planId, () =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/complete`),
   );
 }
 

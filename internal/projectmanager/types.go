@@ -257,6 +257,10 @@ var (
 	ErrPlanUnresolvableAssignee = errors.New("projectmanager: a plan task's assignee is unresolvable (identity missing or agent archived/deleted)")
 	// ErrPlanNotRunning rejects advance on a Plan that is not running (§9.6/§3).
 	ErrPlanNotRunning = errors.New("projectmanager: plan is not running")
+	// ErrPlanNotComplete rejects an explicit plan completion request when the
+	// current effective node set still has runnable/active work, unreplaced
+	// failures, or open remediation continuations.
+	ErrPlanNotComplete = errors.New("projectmanager: plan is not complete")
 	// Live topology edit (2026-07-05 plan-live-topology-edit design).
 	// ErrPlanVersionConflict is the edit_plan_topology CAS failure (§4.1): the
 	// commit tx rejects when plan.version != base_version — a concurrent edit already

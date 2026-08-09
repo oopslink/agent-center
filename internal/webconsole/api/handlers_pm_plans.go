@@ -63,6 +63,7 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		"task_status":  string(n.TaskStatus),
 		"node_status":  string(n.NodeStatus),
 		"depends_on":   depends,
+		"effective":    n.Effective,
 		// The task's creation time (always present) so the Plan detail task list
 		// can show a "Created" column with a full local timestamp. RFC3339Nano.
 		"created_at": l.createdAtOf[n.TaskID],
@@ -93,6 +94,16 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 	}
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
+	}
+	if len(n.SupersededBy) > 0 {
+		by := make([]string, 0, len(n.SupersededBy))
+		for _, id := range n.SupersededBy {
+			by = append(by, string(id))
+		}
+		node["superseded_by"] = by
+	}
+	if n.SupersededReason != "" {
+		node["superseded_reason"] = n.SupersededReason
 	}
 	// T570 (+ follow-up): a completed task carries its authoritative completion
 	// time (task.CompletedAt, set on →completed and cleared on reopen). Emitted
@@ -176,6 +187,12 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	if len(detail.View.HistoricalFailures) > 0 {
+		m["historical_failures"] = taskIDsToStrings(detail.View.HistoricalFailures)
+	}
+	if len(detail.View.ActiveFailures) > 0 {
+		m["active_failures"] = taskIDsToStrings(detail.View.ActiveFailures)
+	}
 	if len(detail.GateVerdicts) > 0 {
 		m["gate_verdicts"] = detail.GateVerdicts
 	}
@@ -212,9 +229,23 @@ func pmPlanSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
 	m["has_failed"] = detail.View.HasFailed
+	if len(detail.View.HistoricalFailures) > 0 {
+		m["historical_failures"] = taskIDsToStrings(detail.View.HistoricalFailures)
+	}
+	if len(detail.View.ActiveFailures) > 0 {
+		m["active_failures"] = taskIDsToStrings(detail.View.ActiveFailures)
+	}
 	m["node_count"] = len(nodes)
 	m["nodes_preview"] = preview
 	return m
+}
+
+func taskIDsToStrings(ids []pm.TaskID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
 }
 
 // mapPlanError extends mapPMError with the Plan-specific status mappings.
@@ -226,7 +257,7 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
-		errors.Is(err, pm.ErrPlanHasRunningTasks):
+		errors.Is(err, pm.ErrPlanHasRunningTasks), errors.Is(err, pm.ErrPlanNotComplete):
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
 		// can't delete/archive; already-archived can't re-archive; not-draft can't
 		// edit task-set/DAG; not-running can't advance/stop). v2.9 #297: a plan op on
@@ -737,6 +768,20 @@ func (s *Server) pmResumePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := d.PM.ResumePlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmCompletePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.CompletePlan(r.Context(), pl.ID(), caller); err != nil {
 		mapPlanError(w, err)
 		return
 	}

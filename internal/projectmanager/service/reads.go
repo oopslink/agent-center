@@ -759,11 +759,15 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
+	opts, err := s.planViewOptions(ctx, p, tasks)
+	if err != nil {
+		return nil, err
+	}
 	// T807 ④: read the plan view off DerivePlanView (the graph-era read-view derivation)
 	// — the reader path no longer references DerivePlanView. Also covers the runnable
 	// gate (planNodeStatus reads this detail's View). Byte-for-byte with the prior
 	// DerivePlanView (same pure algorithm), over LIVE task/dep/outcome/dispatch state.
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.DerivePlanView(tasks, edges, records, outcomes, paused)}, nil
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.DerivePlanViewWithOptions(tasks, edges, records, outcomes, paused, opts)}, nil
 }
 
 // pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
@@ -1034,7 +1038,11 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		tasks := tasksByPlan[p.ID()]
 		// T807 ④: list enrich reads the plan view off DerivePlanView (no DerivePlanView
 		// in the reader path); byte-for-byte with the prior derivation.
-		view := pm.DerivePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
+		opts, err := s.planViewOptions(ctx, p, tasks)
+		if err != nil {
+			return nil, 0, err
+		}
+		view := pm.DerivePlanViewWithOptions(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused, opts)
 		detail := &PlanDetail{Plan: p, Tasks: tasks, View: view}
 		// issue-77cda494: make the summary view stage-aware — a barrier-held entry
 		// shows blocked (not ready), matching get_plan detail's enrichStageView. Pure

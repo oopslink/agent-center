@@ -30,7 +30,7 @@ func dtoPlan(t *testing.T) *pm.Plan {
 
 // nodeView is a terse PlanNodeView factory (only the fields planDetailMap reads).
 func nodeView(task string, ns pm.NodeStatus) pm.PlanNodeView {
-	return pm.PlanNodeView{TaskID: pm.TaskID(task), TaskStatus: pm.TaskOpen, NodeStatus: ns}
+	return pm.PlanNodeView{TaskID: pm.TaskID(task), TaskStatus: pm.TaskOpen, NodeStatus: ns, Effective: true}
 }
 
 // nodeByTaskID finds the rendered node map with the given task_id.

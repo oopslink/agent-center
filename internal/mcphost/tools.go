@@ -826,7 +826,7 @@ func makeUpdateReminder(cfg Config) mcp.ToolHandlerFor[updateReminderArgs, any] 
 //   - remove_task_from_plan : {plan_id, task_id}
 //   - add_plan_dependency    : {plan_id, from_task_id, to_task_id}
 //   - remove_plan_dependency : {plan_id, from_task_id, to_task_id}
-//   - start_plan / pause_plan / resume_plan / discard_plan : {plan_id}
+//   - start_plan / pause_plan / resume_plan / complete_plan / discard_plan : {plan_id}
 //   - delete_plan / archive_plan : {plan_id}
 //   - get_plan               : {project_id, plan_id}
 //   - list_plans             : {project_id}
