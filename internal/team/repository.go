@@ -39,6 +39,15 @@ type Repository interface {
 	// FindAgentTeam returns the team an agent currently belongs to, if any.
 	FindAgentTeam(ctx context.Context, ref MemberRef) (TeamID, bool, error)
 
+	// GetMemoryPolicy loads the Team-owned memory promotion policy. Missing policy
+	// rows return DefaultTeamMemoryPolicy after verifying the team exists.
+	GetMemoryPolicy(ctx context.Context, id TeamID) (TeamMemoryPolicy, error)
+	// SetMemoryPolicy replaces the policy mode and curator refs atomically.
+	SetMemoryPolicy(ctx context.Context, id TeamID, policy TeamMemoryPolicy) error
+	// RemoveMemoryCurator revokes one curator grant. It is idempotent and is used
+	// when a member leaves a team.
+	RemoveMemoryCurator(ctx context.Context, id TeamID, ref MemberRef) error
+
 	// AssociateProject links a project to a team. Returns
 	// ErrProjectAlreadyAssociated on a duplicate.
 	AssociateProject(ctx context.Context, id TeamID, projectID string) error

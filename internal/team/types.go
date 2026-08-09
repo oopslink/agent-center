@@ -116,3 +116,60 @@ type TeamProject struct {
 	ProjectID string
 	CreatedAt time.Time
 }
+
+// TeamMemoryPolicyMode names how canonical Team Memory writes are governed.
+type TeamMemoryPolicyMode string
+
+const (
+	// TeamMemoryPolicyProposalOnly is the default: agents may propose, but only
+	// human owner/admin surfaces may review unless explicit curator refs are set.
+	TeamMemoryPolicyProposalOnly TeamMemoryPolicyMode = "proposal_only"
+	// TeamMemoryPolicyCuratorAuto enables explicitly granted curator agents to
+	// review proposals through the MCP surface.
+	TeamMemoryPolicyCuratorAuto TeamMemoryPolicyMode = "curator_auto"
+)
+
+// IsValid reports whether m is a supported policy mode.
+func (m TeamMemoryPolicyMode) IsValid() bool {
+	switch m {
+	case "", TeamMemoryPolicyProposalOnly, TeamMemoryPolicyCuratorAuto:
+		return true
+	default:
+		return false
+	}
+}
+
+// Normalized returns the defaulted mode.
+func (m TeamMemoryPolicyMode) Normalized() TeamMemoryPolicyMode {
+	if m == "" {
+		return TeamMemoryPolicyProposalOnly
+	}
+	return m
+}
+
+// TeamMemoryPolicy is the Team-owned authorization policy for controlled memory
+// promotion. Capability tags are deliberately not used for this grant.
+type TeamMemoryPolicy struct {
+	Mode             TeamMemoryPolicyMode
+	CuratorAgentRefs []MemberRef
+	UpdatedAt        time.Time
+}
+
+// DefaultTeamMemoryPolicy returns the zero-config policy.
+func DefaultTeamMemoryPolicy() TeamMemoryPolicy {
+	return TeamMemoryPolicy{Mode: TeamMemoryPolicyProposalOnly, CuratorAgentRefs: []MemberRef{}}
+}
+
+// IsCurator reports whether ref has an explicit curator grant.
+func (p TeamMemoryPolicy) IsCurator(ref MemberRef) bool {
+	ref = MemberRef(strings.TrimSpace(ref.String()))
+	if ref == "" {
+		return false
+	}
+	for _, cur := range p.CuratorAgentRefs {
+		if cur == ref {
+			return true
+		}
+	}
+	return false
+}

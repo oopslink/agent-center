@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -437,6 +438,99 @@ func (r *Repo) FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.Team
 	default:
 		return team.TeamID(id), true, nil
 	}
+}
+
+// GetMemoryPolicy loads the Team Memory promotion policy. Missing policy rows
+// default to proposal_only after confirming the team exists.
+func (r *Repo) GetMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	var exists int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(1) FROM teams WHERE id=?`, id.String()).Scan(&exists); err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	if exists == 0 {
+		return team.TeamMemoryPolicy{}, team.ErrTeamNotFound
+	}
+	policy := team.DefaultTeamMemoryPolicy()
+	var mode, updated string
+	row := exec.QueryRowContext(ctx, `SELECT mode, updated_at FROM team_memory_policies WHERE team_id=?`, id.String())
+	switch err := row.Scan(&mode, &updated); {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return team.TeamMemoryPolicy{}, err
+	default:
+		policy.Mode = team.TeamMemoryPolicyMode(mode).Normalized()
+		if updated != "" {
+			if ts, perr := time.Parse(tsLayout, updated); perr == nil {
+				policy.UpdatedAt = ts
+			}
+		}
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT agent_ref FROM team_memory_curators WHERE team_id=? ORDER BY agent_ref`, id.String())
+	if err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ref string
+		if err := rows.Scan(&ref); err != nil {
+			return team.TeamMemoryPolicy{}, err
+		}
+		policy.CuratorAgentRefs = append(policy.CuratorAgentRefs, team.MemberRef(ref))
+	}
+	if policy.CuratorAgentRefs == nil {
+		policy.CuratorAgentRefs = []team.MemberRef{}
+	}
+	return policy, rows.Err()
+}
+
+// SetMemoryPolicy replaces a team's mode and curator refs.
+func (r *Repo) SetMemoryPolicy(ctx context.Context, id team.TeamID, policy team.TeamMemoryPolicy) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	mode := policy.Mode.Normalized()
+	updated := policy.UpdatedAt
+	if updated.IsZero() {
+		updated = time.Now().UTC()
+	}
+	if _, err := exec.ExecContext(ctx, `INSERT INTO team_memory_policies (team_id, mode, updated_at)
+		VALUES (?,?,?) ON CONFLICT(team_id) DO UPDATE SET mode=excluded.mode, updated_at=excluded.updated_at`,
+		id.String(), string(mode), updated.UTC().Format(tsLayout)); err != nil {
+		if isForeignKeyViolation(err) {
+			return team.ErrTeamNotFound
+		}
+		return err
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM team_memory_curators WHERE team_id=?`, id.String()); err != nil {
+		return err
+	}
+	curators := append([]team.MemberRef(nil), policy.CuratorAgentRefs...)
+	sort.Slice(curators, func(i, j int) bool { return curators[i] < curators[j] })
+	for _, ref := range curators {
+		if _, err := exec.ExecContext(ctx, `INSERT INTO team_memory_curators (team_id, agent_ref, created_at)
+			VALUES (?,?,?)`, id.String(), ref.String(), updated.UTC().Format(tsLayout)); err != nil {
+			if isForeignKeyViolation(err) {
+				return team.ErrTeamNotFound
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// RemoveMemoryCurator revokes one curator grant. It is idempotent.
+func (r *Repo) RemoveMemoryCurator(ctx context.Context, id team.TeamID, ref team.MemberRef) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `DELETE FROM team_memory_curators WHERE team_id=? AND agent_ref=?`, id.String(), ref.String())
+	return err
 }
 
 // ---- Projects ---------------------------------------------------------------
