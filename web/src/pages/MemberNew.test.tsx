@@ -27,7 +27,7 @@ function wrap(path = '/members/new?kind=agent') {
   );
 }
 
-describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
+describe('MemberNew — Add agent runtime selectors', () => {
   afterEach(() => cleanup());
 
   it('prefills Model with the explicit default and submits it when untouched', async () => {
@@ -43,10 +43,10 @@ describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
     );
     wrap();
 
-    // Model is pre-filled with the explicit default (was an empty input → null
-    // model → blank Profile, the original dogfood pain that #232 missed here).
+    // Model is pre-filled with the explicit default, but displayed through the
+    // AI Runtime combobox rather than a free text input.
     const model = screen.getByLabelText(/Model/i) as HTMLInputElement;
-    await waitFor(() => expect(model.value).toBe('claude-opus-4-8'));
+    await waitFor(() => expect(model.value).toBe('Claude Opus 4.8'));
 
     await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
     // Pick the worker via the EntitySelect (open → click option).

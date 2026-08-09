@@ -7,6 +7,12 @@ import { useOptionalOrgContext } from '@/OrgContext';
 import { EntitySelect } from '@/components/EntitySelect';
 import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { useTranslation } from 'react-i18next';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+  useRuntimeSelectorCatalog,
+} from '@/components/RuntimeSelectors';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
 // Acceptance plan §3 references /members/new?kind=agent as the Add Agent entry.
@@ -27,8 +33,8 @@ export default function MemberNew(): React.ReactElement {
   // path was missed by #232's AgentCreateModal-only fix — leaving it empty
   // stored a null model → blank Profile, the original dogfood pain).
   const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable — single-option
-  // select (codex/opencode become selectable in v2.8 #180).
+  // CLI/model are selected from AI Runtime catalog options; model typing only
+  // filters and never creates a free-text value.
   const [cli, setCli] = useState('claude-code');
   const [workerID, setWorkerID] = useState('');
   const [error, setError] = useState('');
@@ -37,7 +43,14 @@ export default function MemberNew(): React.ReactElement {
   const addUser = useAddMember();
   const addAgent = useAddAgentMember();
   const workers = useWorkers();
+  const runtimeCatalog = useRuntimeSelectorCatalog();
   const pending = addUser.isPending || addAgent.isPending;
+
+  React.useEffect(() => {
+    if (kind !== 'agent') return;
+    const next = firstRuntimeModelValue(runtimeCatalog.catalog, cli, model, 'model-key');
+    if (next && next !== model) setModel(next);
+  }, [cli, kind, model, runtimeCatalog.catalog]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,25 +163,31 @@ export default function MemberNew(): React.ReactElement {
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-model" className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</label>
-              <input
-                id="mn-model"
-                type="text"
+              <span className="block text-sm text-text-primary">{t('humans.new.modelOptional')}</span>
+              <RuntimeModelCombobox
+                testId="mn-model"
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                onChange={setModel}
+                cliKey={cli}
+                valueMode="model-key"
+                includeUnknownValue={false}
+                ariaLabel={t('humans.new.modelOptional')}
+                {...runtimeCatalog}
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-cli" className="block text-sm text-text-primary">{t('humans.new.cli')}</label>
-              <select
-                id="mn-cli"
+              <span className="block text-sm text-text-primary">{t('humans.new.cli')}</span>
+              <RuntimeCLISelector
+                testId="mn-cli"
                 value={cli}
-                onChange={(e) => setCli(e.target.value)}
-                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-              >
-                <option value="claude-code">claude-code</option>
-              </select>
+                onChange={(nextCli) => {
+                  setCli(nextCli);
+                  setModel(firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key'));
+                }}
+                ariaLabel={t('humans.new.cli')}
+                includeUnknownValue={false}
+                {...runtimeCatalog}
+              />
               <p className="text-xs text-text-muted">{t('humans.new.cliHint')}</p>
             </div>
           </>
@@ -196,7 +215,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim() || (kind === 'agent' && !workerID)}
+            disabled={pending || !displayName.trim() || (kind === 'agent' && (!workerID || !model.trim()))}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? t('humans.new.creating') : t('humans.new.create')}

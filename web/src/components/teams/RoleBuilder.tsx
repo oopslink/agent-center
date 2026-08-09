@@ -3,9 +3,15 @@
 // team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+  useRuntimeSelectorCatalog,
+} from '@/components/RuntimeSelectors';
 
 export function newRole(role = ''): RoleInput {
   return {
@@ -17,28 +23,6 @@ export function newRole(role = ''): RoleInput {
     tags: '',
     description: role ? ROLE_DESC[role] || '' : '',
   };
-}
-
-function Select({
-  value,
-  options,
-  onChange,
-  testId,
-}: {
-  value: string;
-  options: readonly string[];
-  onChange: (v: string) => void;
-  testId?: string;
-}): React.ReactElement {
-  return (
-    <select className={inputCls} value={value} data-testid={testId} onChange={(e) => onChange(e.target.value)}>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 export function RoleBuilder({
@@ -55,6 +39,7 @@ export function RoleBuilder({
   idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const runtimeCatalog = useRuntimeSelectorCatalog();
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
@@ -132,11 +117,28 @@ export function RoleBuilder({
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
             <div>
               <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
-              <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
+              <RuntimeCLISelector
+                value={r.cli}
+                onChange={(nextCli) => patch(i, {
+                  cli: nextCli,
+                  model: firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, r.model, 'model-key'),
+                })}
+                testId={`${idPrefix}-role-${i}-cli`}
+                ariaLabel={t('roleBuilder.cliLabel')}
+                {...runtimeCatalog}
+              />
             </div>
             <div>
               <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
-              <Select value={r.model} options={MODELS} testId={`${idPrefix}-role-${i}-model`} onChange={(v) => patch(i, { model: v })} />
+              <RuntimeModelCombobox
+                value={r.model}
+                onChange={(model) => patch(i, { model })}
+                cliKey={r.cli}
+                valueMode="model-key"
+                testId={`${idPrefix}-role-${i}-model`}
+                ariaLabel={t('roleBuilder.modelLabel')}
+                {...runtimeCatalog}
+              />
             </div>
             <div>
               <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>

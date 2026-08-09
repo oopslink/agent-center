@@ -10,17 +10,20 @@ import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
 import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
-import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
+import { executorBadgeClass } from './executorProfiles';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+  useRuntimeSelectorCatalog,
+} from './RuntimeSelectors';
 
 interface Props {
   agent: Agent;
   onClose: () => void;
 }
 
-// CLI options mirror the runtime allowlist (agent.IsSupportedExecutionCLI).
-const CLI_OPTIONS = ['claude-code', 'codex'];
 // Reasoning effort allowlist (backend agent.SupportedReasoningEfforts); "" = the
 // runtime default.
 const REASONING_OPTIONS = ['', 'minimal', 'low', 'medium', 'high'];
@@ -75,6 +78,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const update = useUpdateAgentConfig(agent.id);
   const restart = useRestartAgent(agent.id);
   const containerRef = useModalA11y({ open: true, onClose });
+  const runtimeCatalog = useRuntimeSelectorCatalog();
 
   const isRunning = agent.lifecycle === 'running';
   const busy = update.isPending || restart.isPending;
@@ -166,39 +170,31 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             />
           </Field>
 
-          <Field label={t('agentRuntime.configModal.fields.cli')} htmlFor="agent-config-cli-input">
-            <select
-              id="agent-config-cli-input"
-              data-testid="agent-config-cli"
-              className={inputClass}
+          <Field label={t('agentRuntime.configModal.fields.cli')}>
+            <RuntimeCLISelector
+              testId="agent-config-cli"
               value={cli}
-              onChange={(e) => setCli(e.target.value)}
-            >
-              {CLI_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(nextCli) => {
+                setCli(nextCli);
+                const nextModel = firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key');
+                if (nextModel) setModel(nextModel);
+              }}
+              ariaLabel={t('agentRuntime.configModal.fields.cli')}
+              {...runtimeCatalog}
+            />
           </Field>
 
-          <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
-            {/* Editable dropdown: preset models as <datalist> suggestions while
-                the field stays free text (backend accepts any model string). */}
-            <input
-              id="agent-config-model-input"
-              data-testid="agent-config-model"
-              className={inputClass}
+          <Field label={t('agentRuntime.configModal.fields.model')}>
+            <RuntimeModelCombobox
+              testId="agent-config-model"
               value={model}
-              onChange={(e) => setModel(e.target.value)}
-              list="agent-config-model-list"
+              onChange={setModel}
+              cliKey={cli}
+              valueMode="model-key"
+              ariaLabel={t('agentRuntime.configModal.fields.model')}
               placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
+              {...runtimeCatalog}
             />
-            <datalist id="agent-config-model-list" data-testid="agent-config-model-list">
-              {KNOWN_MODELS.map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.reasoning')} hint={t('agentRuntime.configModal.fields.reasoningHint')} htmlFor="agent-config-reasoning-input">
@@ -319,40 +315,29 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="flex gap-2">
-                <select
-                  className={`${inputClass} w-auto`}
+              <div className="grid gap-2 sm:grid-cols-[11rem_1fr_auto]">
+                <RuntimeCLISelector
+                  testId="agent-config-executor-cli"
                   value={draftCli}
-                  onChange={(e) => setDraftCli(e.target.value)}
-                  data-testid="agent-config-executor-cli"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
-                >
-                  {CLI_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className={inputClass}
-                  value={draftModel}
-                  onChange={(e) => setDraftModel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addExecutor();
-                    }
+                  onChange={(nextCli) => {
+                    setDraftCli(nextCli);
+                    setDraftModel('');
                   }}
-                  list={`executor-models-${draftCli}`}
-                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
-                  data-testid="agent-config-executor-model"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
+                  ariaLabel={t('agentRuntime.configModal.concurrency.executorCli')}
+                  includeUnknownValue={false}
+                  {...runtimeCatalog}
                 />
-                <datalist id={`executor-models-${draftCli}`}>
-                  {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
+                <RuntimeModelCombobox
+                  testId="agent-config-executor-model"
+                  value={draftModel}
+                  onChange={setDraftModel}
+                  cliKey={draftCli}
+                  valueMode="model-key"
+                  includeUnknownValue={false}
+                  ariaLabel={t('agentRuntime.configModal.concurrency.executorModel')}
+                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
+                  {...runtimeCatalog}
+                />
                 <button
                   type="button"
                   className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"
