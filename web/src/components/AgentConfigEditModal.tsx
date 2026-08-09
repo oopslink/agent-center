@@ -20,6 +20,12 @@ import {
   isRuntimeModelSelectable,
   normalizeExecutorProfiles,
 } from '@/lib/runtimeSelector';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+  useRuntimeSelectorCatalog,
+} from './RuntimeSelectors';
 
 interface Props {
   agent: Agent;
@@ -48,8 +54,6 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   // The pending "add a profile" row (committed via the Add button).
   const [draftCli, setDraftCli] = useState(agent.cli || '');
   const [draftModel, setDraftModel] = useState('');
-  const [modelSearch, setModelSearch] = useState('');
-  const [draftModelSearch, setDraftModelSearch] = useState('');
   const runtimeDefaultsApplied = useRef(false);
   const runtimeSelector = useRuntimeSelector({
     currentCLI: cli,
@@ -91,9 +95,6 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
     setExecutors((xs) => xs.filter((_, idx) => idx !== i));
 
   const trulyParallel = maxConcurrent >= 2 && executors.length > 0;
-  const cliChoices = runtimeSelector.cliChoicesForSearch();
-  const modelChoices = runtimeSelector.modelChoicesForCLI(cli, model, { search: modelSearch });
-  const draftModelChoices = runtimeSelector.modelChoicesForCLI(draftCli, draftModel, { search: draftModelSearch });
   const invalidExecutors = invalidRuntimeExecutorProfiles(runtimeSelector, executors);
   const runtimeSelectionValid =
     isRuntimeCLISelectable(runtimeSelector, cli) &&
@@ -115,6 +116,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const update = useUpdateAgentConfig(agent.id);
   const restart = useRestartAgent(agent.id);
   const containerRef = useModalA11y({ open: true, onClose });
+  const runtimeCatalog = useRuntimeSelectorCatalog();
 
   const isRunning = agent.lifecycle === 'running';
   const busy = update.isPending || restart.isPending;
@@ -206,87 +208,31 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             />
           </Field>
 
-          <div
-            className="mb-3 flex items-center justify-between gap-3 rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-muted"
-            data-testid="agent-config-runtime-catalog-state"
-            data-empty={runtimeSelector.isEmpty}
-            data-error={runtimeSelector.isError}
-          >
-            <span>
-              {runtimeSelector.isLoading
-                ? t('agentRuntime.configModal.runtimeCatalog.loading')
-                : runtimeSelector.isError
-                  ? t('agentRuntime.configModal.runtimeCatalog.error')
-                  : runtimeSelector.isEmpty
-                    ? t('agentRuntime.configModal.runtimeCatalog.empty')
-                    : t('agentRuntime.configModal.runtimeCatalog.ready', { revision: runtimeSelector.revision ?? '-' })}
-            </span>
-            <button
-              type="button"
-              className="shrink-0 rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-elevated"
-              onClick={runtimeSelector.refresh}
-              data-testid="agent-config-runtime-refresh"
-            >
-              {t('agentRuntime.configModal.runtimeCatalog.refresh')}
-            </button>
-          </div>
-
-          <Field label={t('agentRuntime.configModal.fields.cli')} htmlFor="agent-config-cli-input">
-            <select
-              id="agent-config-cli-input"
-              data-testid="agent-config-cli"
-              className={inputClass}
+          <Field label={t('agentRuntime.configModal.fields.cli')}>
+            <RuntimeCLISelector
+              testId="agent-config-cli"
               value={cli}
-              disabled={runtimeSelector.isLoading || runtimeSelector.isEmpty}
-              onChange={(e) => {
-                const next = e.target.value;
-                setCli(next);
-                setModelSearch('');
-                if (!isRuntimeModelSelectable(runtimeSelector, next, model)) {
-                  setModel('');
-                }
+              onChange={(nextCli) => {
+                setCli(nextCli);
+                const nextModel = firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key');
+                if (nextModel) setModel(nextModel);
               }}
-            >
-              <option value="" disabled>
-                {t('agentRuntime.configModal.fields.cliPlaceholder')}
-              </option>
-              {cliChoices.map((choice) => (
-                <option key={choice.key} value={choice.key} disabled={!choice.selectable}>
-                  {choice.label}
-                  {!choice.selectable ? ` ${t('agentRuntime.configModal.runtimeCatalog.unavailable')}` : ''}
-                </option>
-              ))}
-            </select>
+              ariaLabel={t('agentRuntime.configModal.fields.cli')}
+              {...runtimeCatalog}
+            />
           </Field>
 
-          <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
-            <input
-              type="search"
-              data-testid="agent-config-model-search"
-              className={`${inputClass} mb-2`}
-              value={modelSearch}
-              onChange={(e) => setModelSearch(e.target.value)}
-              placeholder={t('agentRuntime.configModal.runtimeCatalog.modelSearch')}
-              disabled={!cli || runtimeSelector.isEmpty}
-            />
-            <select
-              id="agent-config-model-input"
-              data-testid="agent-config-model"
-              className={inputClass}
+          <Field label={t('agentRuntime.configModal.fields.model')}>
+            <RuntimeModelCombobox
+              testId="agent-config-model"
               value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={!cli || modelChoices.length === 0}
-            >
-              <option value="" disabled>
-                {t('agentRuntime.configModal.fields.modelPlaceholder')}
-              </option>
-              {modelChoices.map((choice) => (
-                <option key={choice.value} value={choice.value} disabled={!choice.selectable}>
-                  {choice.label}
-                  {!choice.selectable ? ` ${t('agentRuntime.configModal.runtimeCatalog.unavailable')}` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setModel}
+              cliKey={cli}
+              valueMode="model-key"
+              ariaLabel={t('agentRuntime.configModal.fields.model')}
+              placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
+              {...runtimeCatalog}
+            />
             {!runtimeSelector.isLoading && !runtimeSelectionValid && (
               <p className="mt-1 text-[0.6875rem] text-danger" data-testid="agent-config-runtime-selection-error">
                 {t('agentRuntime.configModal.runtimeCatalog.invalidSelection')}
@@ -421,65 +367,29 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </p>
               )}
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                <select
-                  className={`${inputClass} w-auto`}
+              <div className="grid gap-2 sm:grid-cols-[11rem_1fr_auto]">
+                <RuntimeCLISelector
+                  testId="agent-config-executor-cli"
                   value={draftCli}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setDraftCli(next);
-                    setDraftModelSearch('');
-                    if (!isRuntimeModelSelectable(runtimeSelector, next, draftModel)) {
-                      setDraftModel('');
-                    }
+                  onChange={(nextCli) => {
+                    setDraftCli(nextCli);
+                    setDraftModel('');
                   }}
-                  data-testid="agent-config-executor-cli"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
-                  disabled={runtimeSelector.isLoading || runtimeSelector.isEmpty}
-                >
-                  <option value="" disabled>
-                    {t('agentRuntime.configModal.fields.cliPlaceholder')}
-                  </option>
-                  {runtimeSelector.cliChoices.map((choice) => (
-                    <option key={choice.key} value={choice.key} disabled={!choice.selectable}>
-                      {choice.key}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="search"
-                  className={inputClass}
-                  value={draftModelSearch}
-                  onChange={(e) => setDraftModelSearch(e.target.value)}
-                  placeholder={t('agentRuntime.configModal.runtimeCatalog.executorModelSearch')}
-                  disabled={!draftCli || runtimeSelector.isEmpty}
-                  data-testid="agent-config-executor-model-search"
-                  aria-label={t('agentRuntime.configModal.runtimeCatalog.executorModelSearch')}
+                  ariaLabel={t('agentRuntime.configModal.concurrency.executorCli')}
+                  includeUnknownValue={false}
+                  {...runtimeCatalog}
                 />
-                <select
-                  className={inputClass}
+                <RuntimeModelCombobox
+                  testId="agent-config-executor-model"
                   value={draftModel}
-                  onChange={(e) => setDraftModel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addExecutor();
-                    }
-                  }}
-                  disabled={!draftCli || draftModelChoices.length === 0}
-                  data-testid="agent-config-executor-model"
-                  aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
-                >
-                  <option value="" disabled>
-                    {t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
-                  </option>
-                  {draftModelChoices.map((choice) => (
-                    <option key={choice.value} value={choice.value} disabled={!choice.selectable}>
-                      {choice.label}
-                      {!choice.selectable ? ` ${t('agentRuntime.configModal.runtimeCatalog.unavailable')}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setDraftModel}
+                  cliKey={draftCli}
+                  valueMode="model-key"
+                  includeUnknownValue={false}
+                  ariaLabel={t('agentRuntime.configModal.concurrency.executorModel')}
+                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
+                  {...runtimeCatalog}
+                />
                 <button
                   type="button"
                   className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"

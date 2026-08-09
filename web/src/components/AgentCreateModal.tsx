@@ -9,9 +9,15 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
-import { DEFAULT_AGENT_MODEL, KNOWN_MODELS } from '@/config/agent-defaults';
+import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import {
+  firstRuntimeModelValue,
+  RuntimeCLISelector,
+  RuntimeModelCombobox,
+  useRuntimeSelectorCatalog,
+} from './RuntimeSelectors';
 
 interface Props {
   onClose: () => void;
@@ -25,9 +31,8 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   // untouched form still submits a concrete value — store = Profile = runtime
   // stay consistent instead of persisting an empty model.
   const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
-  // option select (no free text) so the form can't create an agent bound to a
-  // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
+  // CLI and model are selected from the AI Runtime catalog. The model combobox
+  // input filters only; it never creates a free-text model value.
   const [cli, setCli] = useState('claude-code');
   const [workerId, setWorkerId] = useState('');
   // T728 (issue-0619f315): inject the description into the agent's system prompt.
@@ -35,10 +40,16 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const [includeDescription, setIncludeDescription] = useState(true);
   const create = useAddAgentMember();
   const fleet = useFleet();
+  const runtimeCatalog = useRuntimeSelectorCatalog();
   const workers = fleet.data?.workers ?? [];
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && !create.isPending;
+  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && model.trim().length > 0 && !create.isPending;
+
+  React.useEffect(() => {
+    const next = firstRuntimeModelValue(runtimeCatalog.catalog, cli, model, 'model-key');
+    if (next && next !== model) setModel(next);
+  }, [cli, model, runtimeCatalog.catalog]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,34 +133,31 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </span>
         </div>
 
-        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
-          {/* Editable dropdown: preset models as <datalist> suggestions while
-              the field stays free text (backend accepts any model string). */}
-          <input
-            id="agent-create-model-input"
-            data-testid="agent-create-model"
+        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')}>
+          <RuntimeModelCombobox
+            testId="agent-create-model"
             value={model}
-            onChange={(e) => setModel(e.target.value)}
-            list="agent-create-model-list"
-            className={inputClass}
+            onChange={setModel}
+            cliKey={cli}
+            valueMode="model-key"
+            includeUnknownValue={false}
+            ariaLabel={t('agents.create.modelLabel')}
+            {...runtimeCatalog}
           />
-          <datalist id="agent-create-model-list" data-testid="agent-create-model-list">
-            {KNOWN_MODELS.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
         </Field>
 
-        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
-          <select
-            id="agent-create-cli-input"
-            data-testid="agent-create-cli"
+        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')}>
+          <RuntimeCLISelector
+            testId="agent-create-cli"
             value={cli}
-            onChange={(e) => setCli(e.target.value)}
-            className={inputClass}
-          >
-            <option value="claude-code">claude-code</option>
-          </select>
+            onChange={(nextCli) => {
+              setCli(nextCli);
+              setModel(firstRuntimeModelValue(runtimeCatalog.catalog, nextCli, model, 'model-key'));
+            }}
+            ariaLabel={t('agents.create.cliLabel')}
+            includeUnknownValue={false}
+            {...runtimeCatalog}
+          />
         </Field>
 
         <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>
