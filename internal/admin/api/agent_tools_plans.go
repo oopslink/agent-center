@@ -63,7 +63,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
-		errors.Is(err, pm.ErrPlanHasRunningTasks):
+		errors.Is(err, pm.ErrPlanHasRunningTasks), errors.Is(err, pm.ErrPlanNotComplete):
 		// Live-topology edit conflicts (§4): a stale base_version (rebase & retry) and
 		// an in-flight node whose structure can't be live-edited are both STATE
 		// conflicts → 409 plan_conflict, consistent with the other plan-state guards.
@@ -368,7 +368,7 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out, "team_rules": planRulesView(planningRules)})
 }
 
-// --- start_plan / pause_plan / resume_plan / discard_plan -------------------
+// --- start_plan / pause_plan / resume_plan / complete_plan / discard_plan ----
 
 type planIDReq struct {
 	AgentID string `json:"agent_id"`
@@ -422,6 +422,19 @@ func (s *Server) resumePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
+func (s *Server) completePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.CompletePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "done"})
 }
 
 func (s *Server) discardPlanHandler(w http.ResponseWriter, r *http.Request) {
@@ -939,6 +952,7 @@ func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]stri
 		"task_status":  string(n.TaskStatus),
 		"node_status":  string(n.NodeStatus),
 		"depends_on":   depends,
+		"effective":    n.Effective,
 		// ADR-0047: the DERIVED claimable predicate, computed where the plan view is
 		// available (the node already carries node_status; the lookups supply the
 		// archived/assignee inputs). True iff the task can be claimed (open→running)
@@ -950,6 +964,16 @@ func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]stri
 	// without a second resolver). Omitted when unallocated (orgNumber 0).
 	if ref := orgRefOf[n.TaskID]; ref != "" {
 		node["org_ref"] = ref
+	}
+	if len(n.SupersededBy) > 0 {
+		by := make([]string, 0, len(n.SupersededBy))
+		for _, id := range n.SupersededBy {
+			by = append(by, string(id))
+		}
+		node["superseded_by"] = by
+	}
+	if n.SupersededReason != "" {
+		node["superseded_reason"] = n.SupersededReason
 	}
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
@@ -1055,6 +1079,12 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	if len(detail.View.HistoricalFailures) > 0 {
+		m["historical_failures"] = planTaskIDsToStrings(detail.View.HistoricalFailures)
+	}
+	if len(detail.View.ActiveFailures) > 0 {
+		m["active_failures"] = planTaskIDsToStrings(detail.View.ActiveFailures)
+	}
 	if len(detail.GateVerdicts) > 0 {
 		m["gate_verdicts"] = detail.GateVerdicts
 	}
@@ -1106,9 +1136,23 @@ func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	}
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
 	m["has_failed"] = detail.View.HasFailed
+	if len(detail.View.HistoricalFailures) > 0 {
+		m["historical_failures"] = planTaskIDsToStrings(detail.View.HistoricalFailures)
+	}
+	if len(detail.View.ActiveFailures) > 0 {
+		m["active_failures"] = planTaskIDsToStrings(detail.View.ActiveFailures)
+	}
 	m["node_count"] = len(nodes)
 	m["nodes_preview"] = preview
 	return m
+}
+
+func planTaskIDsToStrings(ids []pm.TaskID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
 }
 
 // --- claim_task (T83: open-claim of a built-in assignment-pool task) ---------

@@ -170,6 +170,74 @@ func TestDerivePlanView_FailureIsolation(t *testing.T) {
 	}
 }
 
+func TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly(t *testing.T) {
+	old := newTaskWithStatus(t, "T1286", TaskDiscarded)
+	fix := newTaskWithStatus(t, "Fix1286", TaskCompleted)
+	verify := newTaskWithStatus(t, "MainAcceptance", TaskCompleted)
+	tasks := []*Task{old, fix, verify}
+	edges := []Dependency{
+		{PlanID: "plan-5a432139", FromTaskID: "MainAcceptance", ToTaskID: "T1286"},
+		{PlanID: "plan-5a432139", FromTaskID: "MainAcceptance", ToTaskID: "Fix1286"},
+	}
+	view := DerivePlanViewWithOptions(tasks, edges, nil, nil, nil, PlanViewOptions{
+		InactiveTasks: map[TaskID]PlanNodeReplacement{
+			"T1286": {By: []TaskID{"Fix1286"}, Reason: "follows_task"},
+		},
+	})
+
+	if !view.HasFailed {
+		t.Fatal("HasFailed should preserve historical failed/discarded facts")
+	}
+	if len(view.HistoricalFailures) != 1 || view.HistoricalFailures[0] != "T1286" {
+		t.Fatalf("historical_failures=%v want [T1286]", view.HistoricalFailures)
+	}
+	if len(view.ActiveFailures) != 0 {
+		t.Fatalf("active_failures=%v want none", view.ActiveFailures)
+	}
+	if view.Progress.Done != 2 || view.Progress.Total != 2 {
+		t.Fatalf("progress=%+v want {Done:2 Total:2}", view.Progress)
+	}
+	if !view.AllDone {
+		t.Fatal("AllDone should ignore superseded historical failures")
+	}
+	byID := map[TaskID]PlanNodeView{}
+	for _, n := range view.Nodes {
+		byID[n.TaskID] = n
+	}
+	if byID["T1286"].NodeStatus != NodeFailed || byID["T1286"].Effective {
+		t.Fatalf("old node=%+v want failed and ineffective", byID["T1286"])
+	}
+	if len(byID["T1286"].SupersededBy) != 1 || byID["T1286"].SupersededBy[0] != "Fix1286" {
+		t.Fatalf("superseded_by=%v want [Fix1286]", byID["T1286"].SupersededBy)
+	}
+}
+
+func TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned(t *testing.T) {
+	decision := newTaskWithStatus(t, "Decision", TaskCompleted)
+	old := newTaskWithStatus(t, "OldFailure", TaskDiscarded)
+	view := DerivePlanViewWithOptions(
+		[]*Task{decision, old},
+		[]Dependency{{PlanID: "P", FromTaskID: old.ID(), ToTaskID: decision.ID(), Kind: EdgeConditional, When: "pass"}},
+		nil,
+		[]DecisionOutcome{{PlanID: "P", TaskID: decision.ID(), Outcome: "reject"}},
+		nil,
+		PlanViewOptions{InactiveTasks: map[TaskID]PlanNodeReplacement{
+			old.ID(): {By: []TaskID{decision.ID()}, Reason: "follows_task"},
+		}},
+	)
+
+	nodes := map[TaskID]PlanNodeView{}
+	for _, node := range view.Nodes {
+		nodes[node.TaskID] = node
+	}
+	if nodes[old.ID()].NodeStatus != NodeFailed || nodes[old.ID()].TaskStatus != TaskDiscarded {
+		t.Fatalf("historical node=%+v want failed/discarded audit state", nodes[old.ID()])
+	}
+	if !view.HasFailed || len(view.HistoricalFailures) != 1 || view.HistoricalFailures[0] != old.ID() {
+		t.Fatalf("has_failed=%v historical_failures=%v", view.HasFailed, view.HistoricalFailures)
+	}
+}
+
 // §9.1: AllDone only when EVERY node done; a failed node keeps it not-done.
 func TestDerivePlanView_AllDone(t *testing.T) {
 	t.Run("all done", func(t *testing.T) {
@@ -192,6 +260,12 @@ func TestDerivePlanView_AllDone(t *testing.T) {
 		}
 		if !view.HasFailed {
 			t.Fatal("HasFailed should be true")
+		}
+		if len(view.HistoricalFailures) != 0 {
+			t.Fatalf("HistoricalFailures=%v want none for an effective failure", view.HistoricalFailures)
+		}
+		if len(view.ActiveFailures) != 1 || view.ActiveFailures[0] != "B" {
+			t.Fatalf("ActiveFailures=%v want [B]", view.ActiveFailures)
 		}
 	})
 	t.Run("empty plan is not all-done", func(t *testing.T) {

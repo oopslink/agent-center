@@ -816,6 +816,7 @@ func (s *Service) forkLoopSubgraph(txCtx context.Context, p *pm.Plan, condition 
 			ProjectID: original.ProjectID(), Title: loopRoundTitle(original.Title(), round+1),
 			Description: original.Description(), DerivedFromIssue: original.DerivedFromIssue(), CreatedBy: original.CreatedBy(),
 			Assignee: original.Assignee(), Model: original.Model(), DispatchMode: original.DispatchMode(), RequiredCapabilities: original.RequiredCapabilities(),
+			FollowsTaskID: original.ID(),
 		})
 		if err != nil {
 			return err

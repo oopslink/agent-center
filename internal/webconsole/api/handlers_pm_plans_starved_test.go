@@ -10,7 +10,7 @@ import (
 // carries a `starved` bool — true when the node is in the lookup's starved set,
 // false (always present, never omitted) otherwise.
 func TestPmPlanNodeMap_StarvedField(t *testing.T) {
-	n := pm.PlanNodeView{TaskID: "t1", TaskStatus: pm.TaskOpen, NodeStatus: pm.NodeDispatched}
+	n := pm.PlanNodeView{TaskID: "t1", TaskStatus: pm.TaskOpen, NodeStatus: pm.NodeDispatched, Effective: true}
 	base := planNodeLookup{
 		planID:       "pool",
 		titleOf:      map[pm.TaskID]string{"t1": "x"},
