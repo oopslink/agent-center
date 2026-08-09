@@ -192,7 +192,7 @@ var wantTools = []string{
 	// T206 Cognition reminders
 	"create_reminder", "list_reminders", "get_reminder", "update_reminder",
 	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)
-	"unblock_task", "rerun_failed_node",
+	"unblock_task", "rerun_failed_node", "supersede_plan_node",
 	// T862 tier-3 recovery: reset a dead-executor task back to the pool
 	"reset_task",
 	// T53: operator resume of a paused plan node

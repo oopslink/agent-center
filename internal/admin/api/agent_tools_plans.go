@@ -85,6 +85,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
 		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		errors.Is(err, pm.ErrPlanSupersessionInvalid),
 		// Plan Stage authoring/build guards (2026-07-03 design §5/§6) — validation class.
 		errors.Is(err, pm.ErrEmptyStageName), errors.Is(err, pm.ErrStageExists),
 		errors.Is(err, pm.ErrStageCycle), errors.Is(err, pm.ErrStageSelfDependency),

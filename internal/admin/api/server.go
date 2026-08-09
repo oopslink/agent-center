@@ -436,6 +436,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reset_task", s.resetTaskHandler) // T862 tier-3 recovery
 	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/supersede_plan_node", s.supersedePlanNodeHandler)
 	// T53: operator resume of a paused plan node (un-stick a set-aside node).
 	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_node", s.resumePausedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)

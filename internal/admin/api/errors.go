@@ -176,7 +176,8 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, convservice.ErrParticipantNotActive),
 		errors.Is(err, convservice.ErrParticipantNotOwner),
 		errors.Is(err, pm.ErrIllegalTransition),
-		errors.Is(err, pm.ErrInvalidStatus):
+		errors.Is(err, pm.ErrInvalidStatus),
+		errors.Is(err, pm.ErrPlanSupersessionInvalid):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 
 	// ---- derived_issue_project_mismatch (409) — T192: a task may only be derived

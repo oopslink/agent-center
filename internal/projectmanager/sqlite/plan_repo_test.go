@@ -211,6 +211,44 @@ func TestPlanRepo_DependencyIsolation(t *testing.T) {
 	}
 }
 
+func TestPlanRepo_SupersessionRoundTripAndBatchList(t *testing.T) {
+	ctx, pr, _ := planSetup(t)
+	_ = pr.Save(ctx, newPlanFixture("PL-A", "P-1"))
+	_ = pr.Save(ctx, newPlanFixture("PL-B", "P-1"))
+
+	a := pm.PlanSupersession{
+		PlanID: "PL-A", SupersededTaskID: "old-a", SuccessorTaskID: "new-a",
+		Reason: "new-a covers old-a", ActorRef: "user:a", CreatedAt: t0,
+	}
+	b := pm.PlanSupersession{
+		PlanID: "PL-B", SupersededTaskID: "old-b", SuccessorTaskID: "new-b",
+		Reason: "new-b covers old-b", ActorRef: "user:b", CreatedAt: t0.Add(time.Minute),
+	}
+	if err := pr.RecordSupersession(ctx, a); err != nil {
+		t.Fatalf("RecordSupersession A: %v", err)
+	}
+	if err := pr.RecordSupersession(ctx, b); err != nil {
+		t.Fatalf("RecordSupersession B: %v", err)
+	}
+
+	got, err := pr.ListSupersessions(ctx, "PL-A")
+	if err != nil || len(got) != 1 {
+		t.Fatalf("ListSupersessions PL-A = %+v, %v", got, err)
+	}
+	if got[0].SupersededTaskID != a.SupersededTaskID || got[0].SuccessorTaskID != a.SuccessorTaskID ||
+		got[0].Reason != a.Reason || got[0].ActorRef != a.ActorRef || !got[0].CreatedAt.Equal(a.CreatedAt) {
+		t.Fatalf("round-trip = %+v, want %+v", got[0], a)
+	}
+
+	batch, err := pr.ListSupersessionsByPlans(ctx, []pm.PlanID{"PL-B", "PL-A"})
+	if err != nil {
+		t.Fatalf("ListSupersessionsByPlans: %v", err)
+	}
+	if len(batch) != 2 || batch[0].PlanID != "PL-A" || batch[1].PlanID != "PL-B" {
+		t.Fatalf("batch order/content = %+v", batch)
+	}
+}
+
 // TestTaskRepo_PlanMembership pins Task↔Plan = 0..1 round-trip: SetPlan persists,
 // ListByPlan returns it, ClearPlan removes it from the plan.
 func TestTaskRepo_PlanMembership(t *testing.T) {

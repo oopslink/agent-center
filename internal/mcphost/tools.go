@@ -551,6 +551,23 @@ func makeRerunFailedNode(cfg Config) mcp.ToolHandlerFor[rerunFailedNodeArgs, any
 	}
 }
 
+type supersedePlanNodeArgs struct {
+	PlanID          string `json:"plan_id" jsonschema:"the running plan the nodes belong to"`
+	TaskID          string `json:"task_id" jsonschema:"the failed/discarded historical node being covered"`
+	SuccessorTaskID string `json:"successor_task_id" jsonschema:"the later same-plan successor node that covers the failed work"`
+	Reason          string `json:"reason" jsonschema:"why the successor covers this failed generation"`
+}
+
+func makeSupersedePlanNode(cfg Config) mcp.ToolHandlerFor[supersedePlanNodeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args supersedePlanNodeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID, "plan_id": args.PlanID, "task_id": args.TaskID,
+			"successor_task_id": args.SuccessorTaskID, "reason": args.Reason,
+		}
+		return callAdmin(ctx, cfg, "supersede_plan_node", body)
+	}
+}
+
 type resumePausedNodeArgs struct {
 	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
 	TaskID string `json:"task_id" jsonschema:"the paused plan node's task to resume"`

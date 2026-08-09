@@ -297,6 +297,9 @@ var (
 	// Compatibility error for legacy archival paths that encounter an inconsistent
 	// active member. Canonical archive already requires a terminal Plan.
 	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — finish or discard it before archiving")
+	// ErrPlanSupersessionInvalid rejects attempts to make a failed historical node
+	// disappear without an explicit same-plan successor.
+	ErrPlanSupersessionInvalid = errors.New("projectmanager: invalid plan supersession — a discarded node may only be covered by a distinct successor node in the same plan")
 	// Plan Shared Findings (v2.10, ADR-0053 — DeLM shared verified context).
 	ErrPlanFindingNotFound = errors.New("projectmanager: plan finding not found")
 	ErrPlanFindingNoPlan   = errors.New("projectmanager: plan finding requires a plan_id")

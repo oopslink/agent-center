@@ -55,6 +55,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"unsubscribe", "unsubscribe from a conversation or entity"},
 	// plan node recovery
 	{"rerun_failed_node", "rerun a failed plan node"},
+	{"supersede_plan_node", "record that a failed plan node is covered by a successor generation"},
 	{"resume_paused_node", "resume a paused plan node"},
 	// tier-3 task recovery (T862): reset a task stranded running under a dead executor
 	{"reset_task", "reset a dead-executor task back to the pool for a fresh executor"},

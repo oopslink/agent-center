@@ -296,6 +296,24 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
+	outcomes, err = s.plans.ListDecisionOutcomes(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	supersessions, err := s.plans.ListSupersessions(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	activeView := pm.DerivePlanViewWithSupersessions(tasks, edges, freshRecords, outcomes, nil, supersessions)
+	if len(supersessions) > 0 {
+		readySet = mergeReadySets(readySet, activeView.ReadySet)
+		gateReady, gerr := s.stageGateReadiness(txCtx, planID, tasks)
+		if gerr != nil {
+			return nil, gerr
+		}
+		readySet = filterGateReady(readySet, gateReady)
+	}
+	allDone = activeView.AllDone
 
 	// v2.10 (ADR-0053): load the Plan's shared findings ONCE and format them into a
 	// compact block appended to every newly-dispatched node's @mention, so a
@@ -402,6 +420,15 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 				allDone = false
 				break
 			}
+		}
+	}
+	if allDone {
+		acceptanceOK, aerr := s.planAcceptanceResolved(txCtx, p.ID())
+		if aerr != nil {
+			return nil, aerr
+		}
+		if !acceptanceOK {
+			allDone = false
 		}
 	}
 	// §9.1: a Plan is done iff EVERY node is done and no continuation is open. Mark it here so a final
@@ -644,6 +671,118 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 	return firstErr
 }
 
+func mergeReadySets(a, b []pm.TaskID) []pm.TaskID {
+	if len(b) == 0 {
+		return a
+	}
+	seen := make(map[pm.TaskID]bool, len(a)+len(b))
+	out := make([]pm.TaskID, 0, len(a)+len(b))
+	for _, id := range a {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	for _, id := range b {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+func filterGateReady(ids []pm.TaskID, gateReady map[pm.TaskID]bool) []pm.TaskID {
+	if len(gateReady) == 0 || len(ids) == 0 {
+		return ids
+	}
+	out := ids[:0]
+	for _, id := range ids {
+		if ready, isGate := gateReady[id]; isGate && !ready {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+// planAcceptanceResolved is the final acceptance guard for stage-aware plans. A
+// stage gate must have an immutable PASS verdict, or a REJECT verdict whose
+// continuation was later closed by a PASS verdict. This keeps reject history
+// visible while preventing a completed gate task from masquerading as acceptance.
+func (s *Service) planAcceptanceResolved(ctx context.Context, planID pm.PlanID) (bool, error) {
+	if s.plans != nil {
+		outcomes, err := s.plans.ListDecisionOutcomes(ctx, planID)
+		if err != nil {
+			return false, err
+		}
+		for _, outcome := range outcomes {
+			if strings.HasSuffix(outcome.Outcome, exhaustedOutcomeSuffix) {
+				return false, nil
+			}
+		}
+	}
+	if s.stages == nil || s.remediation == nil {
+		return true, nil
+	}
+	stages, err := s.stages.ListByPlan(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	if len(stages) == 0 {
+		return true, nil
+	}
+	verdicts, err := s.remediation.ListVerdictsByPlan(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	byGate := make(map[pm.TaskID]pm.GateVerdict, len(verdicts))
+	byID := make(map[pm.GateVerdictID]pm.GateVerdict, len(verdicts))
+	for _, v := range verdicts {
+		byGate[v.GateTaskID] = v
+		byID[v.ID] = v
+	}
+	continuations, err := s.remediation.ListContinuationsByPlan(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	closedReject := make(map[pm.GateVerdictID]bool, len(continuations))
+	for _, c := range continuations {
+		if c.Status != pm.ContinuationClosed {
+			return false, nil
+		}
+		closeVerdict, ok := byID[c.ClosedByVerdictID]
+		if !ok || closeVerdict.Outcome != pm.GateVerdictPass {
+			return false, nil
+		}
+		closedReject[c.TriggerVerdictID] = true
+	}
+	for _, st := range stages {
+		gateTaskID := st.GateTaskID()
+		if gateTaskID == "" {
+			continue
+		}
+		verdict, ok := byGate[gateTaskID]
+		if !ok {
+			return false, nil
+		}
+		switch verdict.Outcome {
+		case pm.GateVerdictPass:
+			continue
+		case pm.GateVerdictReject:
+			if closedReject[verdict.ID] {
+				continue
+			}
+			return false, nil
+		default:
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // dispatchFindingsCap bounds how many findings ride a single node @mention so the
 // dispatch message stays bounded as the shared context grows (ADR-0053 — no silent
 // truncation: when capped, the block says so).
@@ -702,6 +841,74 @@ func (s *Service) RerunFailedNode(ctx context.Context, planID pm.PlanID, taskID 
 			return err
 		}
 		return s.plans.ClearDispatch(txCtx, planID, taskID)
+	})
+}
+
+// SupersedePlanNode is the sanctioned generation-aware recovery/resolve action:
+// it records that a failed historical node is explicitly covered by a later
+// same-plan successor. It never rewrites the failed task or marks it completed.
+func (s *Service) SupersedePlanNode(ctx context.Context, planID pm.PlanID, supersededTaskID, successorTaskID pm.TaskID, reason string, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return pm.ErrPlanSupersessionInvalid
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
+			return pm.ErrPlanNotRunning
+		}
+		oldTask, err := s.tasks.FindByID(txCtx, supersededTaskID)
+		if err != nil {
+			return err
+		}
+		successor, err := s.tasks.FindByID(txCtx, successorTaskID)
+		if err != nil {
+			return err
+		}
+		if oldTask.PlanID() != planID || successor.PlanID() != planID ||
+			oldTask.ProjectID() != p.ProjectID() || successor.ProjectID() != p.ProjectID() ||
+			supersededTaskID == successorTaskID ||
+			oldTask.Status() != pm.TaskDiscarded || successor.Status() == pm.TaskDiscarded {
+			return pm.ErrPlanSupersessionInvalid
+		}
+		existing, err := s.plans.ListSupersessions(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		for _, cur := range existing {
+			if cur.SupersededTaskID != supersededTaskID {
+				continue
+			}
+			if cur.SuccessorTaskID == successorTaskID {
+				return nil
+			}
+			return pm.ErrPlanSupersessionInvalid
+		}
+		if err := s.plans.RecordSupersession(txCtx, pm.PlanSupersession{
+			PlanID: planID, SupersededTaskID: supersededTaskID, SuccessorTaskID: successorTaskID,
+			Reason: reason, ActorRef: actor, CreatedAt: now,
+		}); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanNodeSuperseded, actor, map[string]any{
+			"superseded_task_id": string(supersededTaskID),
+			"successor_task_id":  string(successorTaskID),
+			"reason":             reason,
+		})
+		if p.Status() == pm.PlanRunning {
+			_, err = s.dispatchReadyNodes(txCtx, p)
+		}
+		return err
 	})
 }
 

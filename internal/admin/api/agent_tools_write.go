@@ -890,6 +890,49 @@ func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// --- supersede_plan_node -----------------------------------------------------
+
+type supersedePlanNodeReq struct {
+	AgentID         string `json:"agent_id"`
+	PlanID          string `json:"plan_id"`
+	TaskID          string `json:"task_id"`
+	SuccessorTaskID string `json:"successor_task_id"`
+	Reason          string `json:"reason"`
+}
+
+// supersedePlanNodeHandler records the legal generation-aware recovery fact that
+// a failed/discarded historical plan node is covered by a later same-plan
+// successor. It preserves the failed node audit/status and only affects active
+// completion derivation; discard_plan is not a success/resolve path.
+func (s *Server) supersedePlanNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req supersedePlanNodeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.SupersedePlanNode(
+		r.Context(),
+		pm.PlanID(req.PlanID),
+		pm.TaskID(req.TaskID),
+		pm.TaskID(req.SuccessorTaskID),
+		req.Reason,
+		pm.IdentityRef(agentActor(a)),
+	); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "superseded": true})
+}
+
 // --- resume_paused_node (T53) -----------------------------------------------
 
 type resumePausedNodeReq struct {

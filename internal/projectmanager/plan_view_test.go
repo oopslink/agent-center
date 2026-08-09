@@ -201,3 +201,42 @@ func TestDerivePlanView_AllDone(t *testing.T) {
 		}
 	})
 }
+
+func TestDerivePlanViewWithSupersessions_PreservesFailedAuditButCompletesActiveGraph(t *testing.T) {
+	old := newTaskWithStatus(t, "old", TaskDiscarded)
+	successor := newTaskWithStatus(t, "successor", TaskCompleted)
+	final := newTaskWithStatus(t, "final", TaskCompleted)
+
+	view := DerivePlanViewWithSupersessions(
+		[]*Task{old, successor, final},
+		[]Dependency{{PlanID: "pl", FromTaskID: "final", ToTaskID: "old"}},
+		nil,
+		nil,
+		nil,
+		[]PlanSupersession{{
+			PlanID:           "pl",
+			SupersededTaskID: "old",
+			SuccessorTaskID:  "successor",
+			Reason:           "successor generation delivered the same acceptance scope",
+			ActorRef:         "user:a",
+			CreatedAt:        time.Now(),
+		}},
+	)
+
+	byID := map[TaskID]PlanNodeView{}
+	for _, n := range view.Nodes {
+		byID[n.TaskID] = n
+	}
+	if got := byID["old"]; got.NodeStatus != NodeFailed || !got.Superseded || got.SupersededBy != "successor" {
+		t.Fatalf("old node=%+v, want failed+superseded by successor", got)
+	}
+	if view.HasFailed {
+		t.Fatal("superseded failed node must not keep active has_failed=true")
+	}
+	if view.Progress.Done != 2 || view.Progress.Total != 2 {
+		t.Fatalf("progress=%+v want active {Done:2,Total:2}", view.Progress)
+	}
+	if !view.AllDone {
+		t.Fatal("active graph should be all-done once the successor generation is done")
+	}
+}

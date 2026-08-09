@@ -43,6 +43,7 @@ var AgentFacingToolNames = []string{
 	"unblock_task",
 	"reset_task", // T862 tier-3 recovery: reset a dead-executor task back to the pool
 	"rerun_failed_node",
+	"supersede_plan_node",
 	"resume_paused_node",
 	"create_task",
 	// v2.10.3 T170 — full agent issue management (create/update/close/reopen/

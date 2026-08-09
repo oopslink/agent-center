@@ -679,6 +679,175 @@ func TestRerunFailedNode_ReDispatches(t *testing.T) {
 	}
 }
 
+func TestAdvancePlan_SupersededFailedGenerationsCanComplete(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: "user:a"})
+	h.drain(t)
+
+	oldA := h.seedAssignedTask(t, pid, planID, "old A", "user:a1")
+	oldB := h.seedAssignedTask(t, pid, planID, "old B", "user:a2")
+	nextA := h.seedAssignedTask(t, pid, planID, "next A", "user:b1")
+	nextB := h.seedAssignedTask(t, pid, planID, "next B", "user:b2")
+	final := h.seedAssignedTask(t, pid, planID, "final acceptance", "user:qa")
+	mustAddDep(t, h, planID, pm.Dependency{PlanID: planID, FromTaskID: final, ToTaskID: oldA, Kind: pm.EdgeSeq})
+	mustAddDep(t, h, planID, pm.Dependency{PlanID: planID, FromTaskID: final, ToTaskID: oldB, Kind: pm.EdgeSeq})
+
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.setTaskStatus(t, oldA, pm.TaskDiscarded)
+	h.setTaskStatus(t, oldB, pm.TaskDiscarded)
+	h.setTaskStatus(t, nextA, pm.TaskCompleted)
+	h.setTaskStatus(t, nextB, pm.TaskCompleted)
+	h.setTaskStatus(t, final, pm.TaskCompleted)
+
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan before supersede: %v", err)
+	}
+	p, _ := h.plans.FindByID(h.ctx, planID)
+	if p.Status() != pm.PlanRunning {
+		t.Fatalf("plan status before supersede=%s want running", p.Status())
+	}
+	before, err := h.svc.GetPlanDetail(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.View.HasFailed || before.View.AllDone {
+		t.Fatalf("before supersede view=%+v want failed/not all-done", before.View)
+	}
+
+	if err := h.svc.SupersedePlanNode(h.ctx, planID, oldA, nextA, "next A delivered the same acceptance scope", "user:a"); err != nil {
+		t.Fatalf("SupersedePlanNode oldA: %v", err)
+	}
+	p, _ = h.plans.FindByID(h.ctx, planID)
+	if p.Status() != pm.PlanRunning {
+		t.Fatalf("plan status after one supersede=%s want running", p.Status())
+	}
+	if err := h.svc.SupersedePlanNode(h.ctx, planID, oldB, nextB, "next B delivered the same acceptance scope", "user:a"); err != nil {
+		t.Fatalf("SupersedePlanNode oldB: %v", err)
+	}
+
+	p, _ = h.plans.FindByID(h.ctx, planID)
+	if p.Status() != pm.PlanDone {
+		t.Fatalf("plan status after superseded generations=%s want done", p.Status())
+	}
+	detail, err := h.svc.GetPlanDetail(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.View.HasFailed || !detail.View.AllDone || detail.View.Progress.Done != 3 || detail.View.Progress.Total != 3 {
+		t.Fatalf("active view=%+v want no active failure and 3/3 done", detail.View)
+	}
+	nodes := map[pm.TaskID]pm.PlanNodeView{}
+	for _, n := range detail.View.Nodes {
+		nodes[n.TaskID] = n
+	}
+	for old, successor := range map[pm.TaskID]pm.TaskID{oldA: nextA, oldB: nextB} {
+		n := nodes[old]
+		if n.NodeStatus != pm.NodeFailed || !n.Superseded || n.SupersededBy != successor {
+			t.Fatalf("old node %s=%+v want failed superseded by %s", old, n, successor)
+		}
+		task, err := h.tasks.FindByID(h.ctx, old)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.Status() != pm.TaskDiscarded {
+			t.Fatalf("historical task %s status=%s want discarded", old, task.Status())
+		}
+	}
+	entries, _, err := h.audit.ListByObject(h.ctx, pm.AuditObjectPlan, string(planID), "", 100)
+	if err != nil {
+		t.Fatalf("audit list: %v", err)
+	}
+	var supersededAudits int
+	for _, e := range entries {
+		if e.ChangeType == pm.AuditPlanNodeSuperseded {
+			supersededAudits++
+		}
+	}
+	if supersededAudits != 2 {
+		t.Fatalf("superseded audit entries=%d want 2", supersededAudits)
+	}
+}
+
+func TestSupersedePlanNode_RejectsInvalidCoverage(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "invalid coverage", CreatedBy: "user:a"})
+	h.drain(t)
+	old := h.seedAssignedTask(t, pid, planID, "old", "user:a1")
+	successor := h.seedAssignedTask(t, pid, planID, "successor", "user:a2")
+	failedSuccessor := h.seedAssignedTask(t, pid, planID, "failed successor", "user:a3")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.setTaskStatus(t, successor, pm.TaskCompleted)
+	if err := h.svc.SupersedePlanNode(h.ctx, planID, old, successor, "source has not failed", "user:a"); !errors.Is(err, pm.ErrPlanSupersessionInvalid) {
+		t.Fatalf("non-failed source error=%v want ErrPlanSupersessionInvalid", err)
+	}
+	h.setTaskStatus(t, old, pm.TaskDiscarded)
+	h.setTaskStatus(t, failedSuccessor, pm.TaskDiscarded)
+	if err := h.svc.SupersedePlanNode(h.ctx, planID, old, failedSuccessor, "successor also failed", "user:a"); !errors.Is(err, pm.ErrPlanSupersessionInvalid) {
+		t.Fatalf("failed successor error=%v want ErrPlanSupersessionInvalid", err)
+	}
+	if err := h.svc.SupersedePlanNode(h.ctx, planID, old, successor, "", "user:a"); !errors.Is(err, pm.ErrPlanSupersessionInvalid) {
+		t.Fatalf("empty reason error=%v want ErrPlanSupersessionInvalid", err)
+	}
+}
+
+func TestAdvancePlan_StageGateNeedsPassVerdictToComplete(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "acceptance", CreatedBy: "user:a"})
+	h.drain(t)
+
+	stageID, err := h.svc.CreateStage(h.ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", Actor: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateStage: %v", err)
+	}
+	work := h.seedAssignedTask(t, pid, planID, "work", "user:dev")
+	if err := h.svc.AssignTaskToStage(h.ctx, planID, work, stageID, "user:a"); err != nil {
+		t.Fatalf("AssignTaskToStage: %v", err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan dispatch work: %v", err)
+	}
+	h.setTaskStatus(t, work, pm.TaskCompleted)
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan dispatch gate: %v", err)
+	}
+	stageDetail, err := h.svc.GetStage(h.ctx, stageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateTaskID := stageDetail.Stage.GateTaskID()
+	h.setTaskStatus(t, gateTaskID, pm.TaskCompleted)
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan before verdict: %v", err)
+	}
+	p, _ := h.plans.FindByID(h.ctx, planID)
+	if p.Status() != pm.PlanRunning {
+		t.Fatalf("plan status before verdict=%s want running", p.Status())
+	}
+	if _, err := h.svc.RecordStageGateVerdict(h.ctx, RecordStageGateVerdictCommand{
+		GateTaskID: gateTaskID, Outcome: pm.GateVerdictPass, Evidence: "accepted",
+		ReviewedSHA: "abc123", IdempotencyKey: "gate-pass", Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("RecordStageGateVerdict: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after verdict: %v", err)
+	}
+	p, _ = h.plans.FindByID(h.ctx, planID)
+	if p.Status() != pm.PlanDone {
+		t.Fatalf("plan status after PASS verdict=%s want done", p.Status())
+	}
+}
+
 // planTestDisplayName mirrors the production resolver (strip the agent:/user:
 // scheme → display_name). The harness has no IdentityRepo, so the bare id stands
 // in for the display_name — enough to exercise the @<display_name> prepend +

@@ -361,6 +361,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeRerunFailedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "supersede_plan_node",
+		Description: "Operator recovery for generation-aware plan completion: record that a failed/discarded historical node is explicitly covered by a later same-plan successor. This preserves the failed node audit/status and lets active completion proceed only when the successor generation is settled.",
+	}, makeSupersedePlanNode(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "resume_paused_node",
 		Description: "Operator recovery for a PAUSED plan node (the cross-agent counterpart of resume_task): a node whose agent paused its task and went idle shows `paused` — this resumes it and wakes that agent so it continues. Use rerun_failed_node instead for a failed/undispatched node.",
 	}, makeResumePausedNode(cfg))

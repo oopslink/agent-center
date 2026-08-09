@@ -199,6 +199,8 @@ type PlanNodeView struct {
 	Dispatched        bool
 	DispatchedAt      time.Time
 	DispatchMessageID string
+	Superseded        bool
+	SupersededBy      TaskID
 }
 
 // PlanProgress is the derived {done,total} progress indicator (§9.1).
@@ -238,12 +240,39 @@ type PlanView struct {
 // correct. (T810 ⑤: the old ComputePlanView shell was deleted — DerivePlanView is the
 // single read-view derivation; the graph is the DISPATCH authority.)
 func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+	return DerivePlanViewWithSupersessions(tasks, edges, dispatch, outcomes, paused, nil)
+}
+
+// DerivePlanViewWithSupersessions is DerivePlanView plus generation-aware
+// completion semantics. A superseded node keeps its original derived node status
+// (usually failed/discarded) in Nodes for audit/readback, but it is removed from
+// the active progress/has_failed/AllDone calculations once it has an explicit
+// same-plan successor.
+func DerivePlanViewWithSupersessions(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool, supersessions []PlanSupersession) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
 	for _, t := range tasks {
 		statusOf[t.ID()] = t.Status()
 		inPlan[t.ID()] = struct{}{}
+	}
+	supersededBy := make(map[TaskID]TaskID, len(supersessions))
+	for _, s := range supersessions {
+		if s.SupersededTaskID == "" || s.SuccessorTaskID == "" || s.SupersededTaskID == s.SuccessorTaskID {
+			continue
+		}
+		if _, ok := inPlan[s.SupersededTaskID]; !ok {
+			continue
+		}
+		if _, ok := inPlan[s.SuccessorTaskID]; !ok {
+			continue
+		}
+		// Supersession is only a completion override for failed historical nodes. A
+		// successful task already counts as done on its own, and an open/running node
+		// cannot be papered over.
+		if taskIsFailed(statusOf[s.SupersededTaskID]) {
+			supersededBy[s.SupersededTaskID] = s.SuccessorTaskID
+		}
 	}
 	dispatchedMsg := make(map[TaskID]string, len(dispatch))
 	dispatchedAt := make(map[TaskID]time.Time, len(dispatch))
@@ -359,10 +388,31 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 		}
 	}
 
-	view := PlanView{Progress: PlanProgress{Total: len(tasks)}}
-	allDone := len(tasks) > 0
+	var supersededSatisfied func(TaskID, map[TaskID]bool) bool
+	supersededSatisfied = func(id TaskID, seen map[TaskID]bool) bool {
+		next := supersededBy[id]
+		if next == "" || seen[id] {
+			return false
+		}
+		seen[id] = true
+		if taskIsDone(statusOf[next]) || skipped[next] {
+			return true
+		}
+		if supersededBy[next] != "" {
+			return supersededSatisfied(next, seen)
+		}
+		return false
+	}
+	upstreamSatisfied := func(id TaskID) bool {
+		return taskIsDone(statusOf[id]) || skipped[id] || supersededSatisfied(id, map[TaskID]bool{})
+	}
+
+	view := PlanView{}
+	allDone := true
+	activeNodes := 0
 	for _, t := range tasks {
 		id := t.ID()
+		isSuperseded := supersededBy[id] != ""
 		var ns NodeStatus
 		switch {
 		case taskIsDone(t.Status()):
@@ -393,7 +443,7 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 			// an unfinished seq upstream → blocked.
 			forwardReady := true
 			for _, up := range seqUp[id] {
-				if !taskIsDone(statusOf[up]) {
+				if !upstreamSatisfied(up) {
 					forwardReady = false
 					break
 				}
@@ -430,22 +480,32 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 			Dispatched:        func() bool { _, d := dispatchedSet[id]; return d }(),
 			DispatchedAt:      dispatchedAt[id],
 			DispatchMessageID: dispatchedMsg[id],
+			Superseded:        isSuperseded,
+			SupersededBy:      supersededBy[id],
 		})
+		if !isSuperseded {
+			view.Progress.Total++
+			activeNodes++
+		}
 		switch ns {
 		case NodeReady:
 			view.ReadySet = append(view.ReadySet, id)
 		case NodeDone:
-			view.Progress.Done++
+			if !isSuperseded {
+				view.Progress.Done++
+			}
 		case NodeFailed:
-			view.HasFailed = true
+			if !isSuperseded {
+				view.HasFailed = true
+			}
 		}
 		// §3.1: a Plan completes when every node is DONE or SKIPPED (a not-taken branch
 		// is "settled"). Without conditional branches there are no skipped nodes, so this
 		// reduces to the pre-B1 "every node done".
-		if ns != NodeDone && ns != NodeSkipped {
+		if !isSuperseded && ns != NodeDone && ns != NodeSkipped {
 			allDone = false
 		}
 	}
-	view.AllDone = allDone
+	view.AllDone = activeNodes > 0 && allDone
 	return view
 }

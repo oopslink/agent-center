@@ -254,6 +254,12 @@ type LocalRuntime struct {
 	// (degraded/test). nextPendingReconcileAt rate-limits the per-Tick reconcile sweep.
 	pending                *pendingStore
 	nextPendingReconcileAt time.Time
+
+	// controlRecoveryGeneration is the per-supervisor-generation idempotency key for
+	// the control_loaded recovery hook. A reload/restart advances generation and must
+	// run another check; duplicate control_loaded reports in one generation must not.
+	controlRecoveryGeneration int
+	controlRecoveryTriggered  bool
 }
 
 // SetAgentRef seeds the agent's stable identity-member ref (from ResumeState at Boot).
@@ -792,14 +798,15 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 
 	r.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, spec.Version, epochState.Epoch, generation, spec.ForkResume, spec.Resume, home)
 	r.reportControlLoaded(agentID, spec, controlLoadedInfo{
-		Session:   "claude",
-		Home:      home,
-		TasksDir:  tasksDir,
-		MCP:       "preflight_ok",
-		Memory:    "progressive",
-		Executor:  executorStatus(spec.ConcurrencyEnabled),
-		Resume:    resumeFrom != "",
-		SessionID: sessionID,
+		Session:    "claude",
+		Home:       home,
+		TasksDir:   tasksDir,
+		MCP:        "preflight_ok",
+		Memory:     "progressive",
+		Executor:   executorStatus(spec.ConcurrencyEnabled),
+		Resume:     resumeFrom != "",
+		SessionID:  sessionID,
+		Generation: generation,
 	})
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path so a
 	// slow disk scan / center never blocks session start). force=true bypasses the scan
@@ -959,16 +966,17 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	r.mu.Unlock()
 	r.log("started codex agent=%s version=%d home=%s", agentID, spec.Version, home)
 	r.reportControlLoaded(agentID, spec, controlLoadedInfo{
-		Session:   "codex",
-		Home:      home,
-		TasksDir:  tasksDir,
-		MCP:       "preflight_ok",
-		CodexHome: codexHome,
-		CodexAuth: authStatus,
-		Memory:    "progressive",
-		Executor:  executorStatus(spec.ConcurrencyEnabled),
-		Resume:    resumeThreadID != "",
-		SessionID: resumeThreadID,
+		Session:    "codex",
+		Home:       home,
+		TasksDir:   tasksDir,
+		MCP:        "preflight_ok",
+		CodexHome:  codexHome,
+		CodexAuth:  authStatus,
+		Memory:     "progressive",
+		Executor:   executorStatus(spec.ConcurrencyEnabled),
+		Resume:     resumeThreadID != "",
+		SessionID:  resumeThreadID,
+		Generation: plannedGeneration,
 	})
 	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path).
 	r.kickInstalledSkillsReport()
@@ -976,16 +984,17 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 }
 
 type controlLoadedInfo struct {
-	Session   string
-	Home      string
-	TasksDir  string
-	MCP       string
-	CodexHome string
-	CodexAuth string
-	Memory    string
-	Executor  string
-	Resume    bool
-	SessionID string
+	Session    string
+	Home       string
+	TasksDir   string
+	MCP        string
+	CodexHome  string
+	CodexAuth  string
+	Memory     string
+	Executor   string
+	Resume     bool
+	SessionID  string
+	Generation int
 }
 
 func executorStatus(enabled bool) string {
@@ -1034,6 +1043,29 @@ func (r *LocalRuntime) reportControlLoaded(agentID string, spec StartSpec, info 
 	); err != nil {
 		r.log("agent=%s control_loaded report: %v", agentID, err)
 	}
+	r.triggerControlLoadedRecovery(info.Generation)
+}
+
+// triggerControlLoadedRecovery binds unfinished-work recovery to the semantic
+// control_loaded boundary instead of process boot. It is once per generation, so a
+// duplicate report is harmless while every reload/restart generation checks again.
+func (r *LocalRuntime) triggerControlLoadedRecovery(generation int) {
+	r.mu.Lock()
+	if r.controlRecoveryTriggered && r.controlRecoveryGeneration == generation {
+		r.mu.Unlock()
+		return
+	}
+	r.controlRecoveryGeneration = generation
+	r.controlRecoveryTriggered = true
+	r.mu.Unlock()
+
+	r.bg.Add(1)
+	go func() {
+		defer r.bg.Done()
+		if err := r.RecoverUnfinishedWork(context.Background()); err != nil {
+			r.log("agent=%s control_loaded unfinished-work recover: %v (continuing)", r.cfg.AgentID, err)
+		}
+	}()
 }
 
 func controlLoadedSummary(spec StartSpec, info controlLoadedInfo) string {

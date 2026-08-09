@@ -160,6 +160,9 @@ func (r *PlanRepo) DeletePlan(ctx context.Context, id pm.PlanID) error {
 	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_dispatch_records WHERE plan_id = ?`, string(id)); err != nil {
 		return err
 	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_supersessions WHERE plan_id = ?`, string(id)); err != nil {
+		return err
+	}
 	// I103: cascade the plan's旁路 BlockedOn snapshots (observational, no gate reads
 	// them — but they must not outlive the plan).
 	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_blocked_on WHERE plan_id = ?`, string(id)); err != nil {
@@ -346,6 +349,74 @@ func (r *PlanRepo) ClearDispatch(ctx context.Context, planID pm.PlanID, taskID p
 		`DELETE FROM pm_plan_dispatch_records WHERE plan_id = ? AND task_id = ?`,
 		string(planID), string(taskID))
 	return err
+}
+
+// --- Supersessions ----------------------------------------------------------
+
+func (r *PlanRepo) RecordSupersession(ctx context.Context, s pm.PlanSupersession) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT INTO pm_plan_supersessions
+		 (plan_id, superseded_task_id, successor_task_id, reason, actor_ref, created_at)
+		 VALUES (?,?,?,?,?,?)`,
+		string(s.PlanID), string(s.SupersededTaskID), string(s.SuccessorTaskID),
+		s.Reason, string(s.ActorRef), ts(s.CreatedAt))
+	return err
+}
+
+func (r *PlanRepo) ListSupersessions(ctx context.Context, planID pm.PlanID) ([]pm.PlanSupersession, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, superseded_task_id, successor_task_id, reason, actor_ref, created_at
+		 FROM pm_plan_supersessions WHERE plan_id = ? ORDER BY superseded_task_id`,
+		string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.PlanSupersession
+	for rows.Next() {
+		s, err := scanSupersession(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) ListSupersessionsByPlans(ctx context.Context, planIDs []pm.PlanID) ([]pm.PlanSupersession, error) {
+	if len(planIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := planIDPlaceholders(planIDs)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, superseded_task_id, successor_task_id, reason, actor_ref, created_at
+		 FROM pm_plan_supersessions WHERE plan_id IN (`+in+`) ORDER BY plan_id, superseded_task_id`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.PlanSupersession
+	for rows.Next() {
+		s, err := scanSupersession(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func scanSupersession(scan func(...any) error) (pm.PlanSupersession, error) {
+	var pid, oldID, successorID, reason, actor, createdAt string
+	err := scan(&pid, &oldID, &successorID, &reason, &actor, &createdAt)
+	return pm.PlanSupersession{
+		PlanID: pm.PlanID(pid), SupersededTaskID: pm.TaskID(oldID), SuccessorTaskID: pm.TaskID(successorID),
+		Reason: reason, ActorRef: pm.IdentityRef(actor), CreatedAt: parseTime(createdAt),
+	}, err
 }
 
 // --- Decision outcomes (v2.13.0 I18/B1, control-flow §2.3) ------------------

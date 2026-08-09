@@ -223,6 +223,13 @@ type PlanRepository interface {
 	ListDispatchRecordsByPlans(ctx context.Context, planIDs []PlanID) ([]DispatchRecord, error)
 	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
 
+	// Supersessions are explicit generation-aware recovery facts. They do not edit
+	// historical task rows; read/completion derivation uses them to exclude covered
+	// failed nodes from active progress while preserving the failed node audit.
+	RecordSupersession(ctx context.Context, s PlanSupersession) error
+	ListSupersessions(ctx context.Context, planID PlanID) ([]PlanSupersession, error)
+	ListSupersessionsByPlans(ctx context.Context, planIDs []PlanID) ([]PlanSupersession, error)
+
 	// Decision outcomes (v2.13.0 I18/B1, control-flow §2.3) — a decision node's
 	// recorded outcome (latest-wins per plan_id,task_id), routing its conditional/
 	// loopback out-edges. RecordDecisionOutcome upserts (overwrite on re-decision);

@@ -39,6 +39,7 @@ const (
 	AuditPlanDependencyRemvd AuditChangeType = "dependency_removed"
 	AuditPlanNodeAdded       AuditChangeType = "node_added"
 	AuditPlanNodeRemoved     AuditChangeType = "node_removed"
+	AuditPlanNodeSuperseded  AuditChangeType = "node_superseded"
 	AuditPlanDecisionOutcome AuditChangeType = "decision_outcome"
 	AuditPlanLoopback        AuditChangeType = "loopback"
 	// AuditPlanTopologyCommit is one whole edit_plan_topology batch (2026-07-05
