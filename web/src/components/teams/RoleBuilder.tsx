@@ -8,6 +8,7 @@ import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
 import {
   firstRuntimeModelValue,
+  isSelectableRuntimePair,
   RuntimeCLISelector,
   RuntimeModelCombobox,
   useRuntimeSelectorCatalog,
@@ -48,12 +49,16 @@ export function RoleBuilder({
 
   return (
     <div data-testid={`${idPrefix}-rolebuilder`}>
-      {roles.map((r, i) => (
-        <div
-          key={i}
-          data-testid={`${idPrefix}-role-${i}`}
-          className="mb-3 rounded-lg border border-border-base bg-bg-subtle p-3.5"
-        >
+      {roles.map((r, i) => {
+        const runtimeInvalid =
+          !runtimeCatalog.isLoading &&
+          (Boolean(runtimeCatalog.error) || !isSelectableRuntimePair(runtimeCatalog.catalog, r.cli, r.model, 'model-key'));
+        return (
+          <div
+            key={i}
+            data-testid={`${idPrefix}-role-${i}`}
+            className="mb-3 rounded-lg border border-border-base bg-bg-subtle p-3.5"
+          >
           <div className="mb-3 flex items-center gap-2.5">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: roleColor(r.role) }} aria-hidden="true" />
             <input
@@ -139,6 +144,13 @@ export function RoleBuilder({
                 ariaLabel={t('roleBuilder.modelLabel')}
                 {...runtimeCatalog}
               />
+              {runtimeInvalid && (
+                <p className="mt-1 text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-runtime-error`}>
+                  {Boolean(runtimeCatalog.error)
+                    ? t('roleBuilder.runtimeCatalogUnavailable')
+                    : t('roleBuilder.runtimeSelectionRequired')}
+                </p>
+              )}
             </div>
             <div>
               <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>
@@ -165,7 +177,8 @@ export function RoleBuilder({
             />
           </div>
         </div>
-      ))}
+        );
+      })}
       <button
         type="button"
         className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong px-3 py-3 text-sm font-semibold text-text-muted hover:border-accent hover:bg-brand/5 hover:text-brand"

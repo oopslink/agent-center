@@ -231,9 +231,6 @@ export interface RoleInput {
   description?: string;
 }
 
-export const CLIS = ['claude-code', 'codex', 'gemini-cli'] as const;
-export const MODELS = ['opus-4.8', 'sonnet-5', 'haiku-4.5', 'gpt-5'] as const;
-
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
 export const ROLE_COLORS: Record<string, string> = {
   planner: '#7C3AED',

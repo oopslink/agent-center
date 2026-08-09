@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useCreateTeam, type RoleInput } from '@/api/teams';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell } from './kit';
 import { newRole, RoleBuilder, totalSlots } from './RoleBuilder';
+import { isSelectableRuntimePair, useRuntimeSelectorCatalog } from '@/components/RuntimeSelectors';
 
 export function NewTeamModal({
   open,
@@ -22,16 +23,30 @@ export function NewTeamModal({
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<RoleInput[]>([newRole('planner'), { ...newRole('coder'), count: 2 }]);
   const create = useCreateTeam();
+  const runtimeCatalog = useRuntimeSelectorCatalog();
 
   const roleNames = roles.map((r) => r.role.trim());
   const hasBlankRole = roleNames.some((role) => role.length === 0);
   const hasDuplicateRole = new Set(roleNames).size !== roleNames.length;
+  const hasRuntimeRoles = roles.length > 0;
+  const runtimeSelectionValid = !hasRuntimeRoles || roles.every((role) =>
+    isSelectableRuntimePair(runtimeCatalog.catalog, role.cli, role.model, 'model-key'),
+  );
+  const runtimeValidationError = !hasRuntimeRoles
+    ? ''
+    : runtimeCatalog.isLoading
+      ? t('roleBuilder.runtimeCatalogLoading')
+      : Boolean(runtimeCatalog.error)
+        ? t('roleBuilder.runtimeCatalogUnavailable')
+        : !runtimeSelectionValid
+          ? t('roleBuilder.runtimeSelectionRequired')
+          : '';
   const roleValidationError = hasBlankRole
     ? t('newTeamModal.errRoleNameRequired')
     : hasDuplicateRole
       ? t('newTeamModal.errRoleNameDuplicate')
       : '';
-  const canSubmit = name.trim().length > 0 && !roleValidationError && !create.isPending;
+  const canSubmit = name.trim().length > 0 && !roleValidationError && !runtimeValidationError && !create.isPending;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -111,6 +126,11 @@ export function NewTeamModal({
       {roleValidationError && (
         <p className="mt-3 text-xs text-danger" data-testid="new-team-validation-error">
           {roleValidationError}
+        </p>
+      )}
+      {runtimeValidationError && (
+        <p className="mt-3 text-xs text-danger" data-testid="new-team-runtime-validation-error">
+          {runtimeValidationError}
         </p>
       )}
 

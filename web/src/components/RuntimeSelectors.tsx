@@ -87,7 +87,7 @@ export function runtimeModelAllowsCLI(model: RuntimeModel, cliKey: string | unde
 export function firstRuntimeCLIKey(catalog: AIRuntimeCatalog | undefined, preferred?: string): string {
   const enabled = selectableRuntimeCLIs(catalog);
   if (preferred && enabled.some((cli) => cli.key === preferred)) return preferred;
-  return enabled[0]?.key ?? preferred ?? '';
+  return enabled[0]?.key ?? '';
 }
 
 export function firstRuntimeModelValue(
@@ -98,7 +98,15 @@ export function firstRuntimeModelValue(
 ): string {
   const choices = selectableRuntimeModelChoices(catalog, cliKey, '', false, mode);
   if (preferred && choices.some((choice) => choice.value === preferred)) return preferred;
-  return choices[0]?.value ?? preferred ?? '';
+  return choices[0]?.value ?? '';
+}
+
+export function isSelectableRuntimeCLIKey(
+  catalog: AIRuntimeCatalog | undefined,
+  value: string,
+): boolean {
+  const key = value.trim();
+  return !!key && selectableRuntimeCLIs(catalog).some((cli) => cli.key === key);
 }
 
 export function isSelectableRuntimeModelValue(
@@ -108,7 +116,18 @@ export function isSelectableRuntimeModelValue(
   mode: RuntimeModelValueMode = 'catalog-key',
 ): boolean {
   if (!value) return false;
+  if (cliKey && !isSelectableRuntimeCLIKey(catalog, cliKey)) return false;
   return selectableRuntimeModelChoices(catalog, cliKey, '', false, mode).some((choice) => choice.value === value);
+}
+
+export function isSelectableRuntimePair(
+  catalog: AIRuntimeCatalog | undefined,
+  cliKey: string,
+  modelValue: string,
+  mode: RuntimeModelValueMode = 'catalog-key',
+): boolean {
+  return isSelectableRuntimeCLIKey(catalog, cliKey) &&
+    isSelectableRuntimeModelValue(catalog, cliKey, modelValue, mode);
 }
 
 export function RuntimeCLISelector({
@@ -390,7 +409,7 @@ export function RuntimeModelCombobox({
                 Loading runtime models...
               </li>
             )}
-            {error && (
+            {Boolean(error) && (
               <li className="px-3 py-2 text-xs text-danger" role="alert" data-testid={`${testId}-error`}>
                 Runtime model catalog failed to load.
               </li>
@@ -466,8 +485,9 @@ function selectableRuntimeModelChoices(
   mode: RuntimeModelValueMode,
 ): ModelChoice[] {
   const models = catalog?.models ?? [];
+  const cliSelectable = !cliKey || isSelectableRuntimeCLIKey(catalog, cliKey);
   const choices: ModelChoice[] = models
-    .filter((model) => model.enabled && runtimeModelAllowsCLI(model, cliKey))
+    .filter((model) => cliSelectable && model.enabled && runtimeModelAllowsCLI(model, cliKey))
     .map((model) => ({ value: runtimeModelValue(model, mode), model }));
   const knownSelected = selectedValue
     ? models.find((model) => runtimeModelValue(model, mode) === selectedValue)
