@@ -7,6 +7,12 @@ import { useOrgPlans } from '@/api/plans';
 import { useOptionalOrgContext, orgPath } from '@/OrgContext';
 import { taskDetailPath } from './TaskTitleLink';
 import { refLabel } from './workItemDisplay';
+import {
+  EntityRefInline,
+  tokenizeEntityRefs,
+  type EntityRefToken,
+  type ResolvedEntityRef,
+} from './entityRefCore';
 
 // v2.8.1 #281 (mention-sidebar) entry ②: @mention tokens in message content.
 //
@@ -225,35 +231,10 @@ export function useIssueRefResolver(): (ref: string) => ResolvedIssueRef | null 
   }, [issues.data, slug]);
 }
 
-// TOKEN_RE matches an @handle (group 1), a `task-<id>` reference (group 2), a
-// `T<number>` org_ref (group 3), a `plan-<id>` reference (group 4), a
-// `P<number>` org_ref (group 5), an `issue-<id>` reference (group 6), OR an
-// `I<number>` org_ref (group 7) in one ordered pass, so a string carrying any mix
-// linkifies correctly. The plan groups (T99) and issue groups mirror the task
-// groups exactly (same boundary guards); `P\d+` / `I\d+` are case-sensitive so
-// lowercase "plan" / "issue" never match them, and "I" must be followed by digits
-// (so the English pronoun "I" never matches).
-//   - @handle: @ + word/.-/_ chars. A leading boundary is enforced by the
-//     surrounding split so we don't match an email's local-part-ish "@" mid-word.
-//   - task-<id>: a NEGATIVE LOOKBEHIND `(?<![A-Za-z0-9])` guards the left
-//     boundary so "subtask-1" does NOT match (only a standalone `task-…` does).
-//     The id is [A-Za-z0-9]+ (hash tail / ULID), terminated by any other char
-//     (so "task-x." stops at the dot). v2.9.2 (task-82915d7c).
-//   - T<number> org_ref (T76 / task-c780999a): "T" + digits, guarded by BOTH a
-//     negative lookbehind AND lookahead on [A-Za-z0-9] so it only matches a
-//     STANDALONE token (not "T1" inside "PART1", "ROUTE53", "T12ab", etc.).
-//     Resolution is still gated on a real org_ref (resolveTask returns null for
-//     an unknown T-number → stays plain text), so a bare "T1" that is not a task
-//     never becomes a (wrong) link.
-//   - agent-<id> (group 8, T317): a bare agent identity reference (e.g.
-//     "agent-584e0bdd") becomes a clickable token that opens the agent's
-//     SenderDetailSidebar (same target as an @mention). The id tail resolves
-//     through the SAME member resolver as @handles; only a KNOWN agent linkifies
-//     (an unknown agent-… stays plain text — verify-not-trust). Same boundary
-//     guards as task-/issue-/plan- (lookbehind so "myagent-1" doesn't match;
-//     "@agent-x" is captured by the @handle branch first, so this is the bare form).
-const TOKEN_RE =
-  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(plan-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(P\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(issue-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(I\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(agent-[A-Za-z0-9][A-Za-z0-9-]*)/g;
+// @mention stays chat-specific; task/plan/issue/agent/executor entity refs are
+// tokenized by entityRefCore so chat, Activity and executor status share one
+// boundary/URL/code policy.
+const MENTION_RE = /@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 
 interface MentionTextProps {
   text: string;
@@ -302,24 +283,84 @@ export function MentionText({
   const { t } = useTranslation('chat');
   const parts: React.ReactNode[] = [];
   let last = 0;
-  let match: RegExpExecArray | null;
-  TOKEN_RE.lastIndex = 0;
   let key = 0;
-  while ((match = TOKEN_RE.exec(text)) !== null) {
-    const handle = match[1];
-    // A task reference in either form: the bare `task-<id>` (group 2) or the
-    // `T<number>` org_ref (group 3). Both resolve through the same resolveTask.
-    const taskRef = match[2] ?? match[3];
-    // A plan reference in either form: the bare `plan-<id>` (group 4) or the
-    // `P<number>` org_ref (group 5). Both resolve through resolvePlan (T99).
-    const planRef = match[4] ?? match[5];
-    // An issue reference in either form: the bare `issue-<id>` (group 6) or the
-    // `I<number>` org_ref (group 7). Both resolve through resolveIssue.
-    const issueRef = match[6] ?? match[7];
-    // T317: a bare `agent-<id>` identity reference (group 8) → agent sidebar.
-    const agentRef = match[8];
+
+  const mentionTokens: Array<{ type: 'mention'; index: number; length: number; handle: string }> = [];
+  MENTION_RE.lastIndex = 0;
+  let mentionMatch: RegExpExecArray | null;
+  while ((mentionMatch = MENTION_RE.exec(text)) !== null) {
+    const prev = mentionMatch.index > 0 ? text[mentionMatch.index - 1] : '';
+    // Avoid email/local-part matches such as alice@example.com.
+    if (/[A-Za-z0-9._-]/.test(prev)) continue;
+    mentionTokens.push({
+      type: 'mention',
+      index: mentionMatch.index,
+      length: mentionMatch[0].length,
+      handle: mentionMatch[1],
+    });
+  }
+  const mentionRanges = mentionTokens.map((m) => ({ start: m.index, end: m.index + m.length }));
+  const entityTokens = tokenizeEntityRefs(text)
+    .filter((e) => !mentionRanges.some((r) => e.index >= r.start && e.index < r.end))
+    .map((entity) => ({ type: 'entity' as const, index: entity.index, length: entity.length, entity }));
+  const tokens = [...mentionTokens, ...entityTokens].sort((a, b) => a.index - b.index);
+
+  const resolveEntity = (entity: EntityRefToken): ResolvedEntityRef | null => {
+    if (entity.kind === 'task' && resolveTask) {
+      const tk = resolveTask(entity.token);
+      return tk
+        ? {
+            kind: 'task',
+            token: entity.token,
+            label: tk.label,
+            href: tk.href,
+            dataAttrs: { 'data-task-id': entity.token },
+          }
+        : null;
+    }
+    if (entity.kind === 'plan' && resolvePlan) {
+      const pl = resolvePlan(entity.token);
+      return pl
+        ? {
+            kind: 'plan',
+            token: entity.token,
+            label: pl.label,
+            href: pl.href,
+            dataAttrs: { 'data-plan-id': entity.token },
+          }
+        : null;
+    }
+    if (entity.kind === 'issue' && resolveIssue) {
+      const is = resolveIssue(entity.token);
+      return is
+        ? {
+            kind: 'issue',
+            token: entity.token,
+            label: is.label,
+            href: is.href,
+            dataAttrs: { 'data-issue-id': entity.token },
+          }
+        : null;
+    }
+    if (entity.kind === 'agent' && resolveAgent) {
+      const a = resolveAgent(entity.token);
+      return a && a.ref.startsWith('agent:')
+        ? {
+            kind: 'agent',
+            token: entity.token,
+            label: a.label,
+            onClick: () => onMention(a.ref),
+            dataAttrs: { 'data-agent-ref': a.ref },
+          }
+        : null;
+    }
+    return null;
+  };
+
+  for (const token of tokens) {
+    if (token.index < last) continue;
     let node: React.ReactNode = null;
-    if (handle !== undefined && handle.toLowerCase() === 'all') {
+    if (token.type === 'mention' && token.handle.toLowerCase() === 'all') {
       // @all broadcast (per @oopslink): a non-clickable but visually distinct
       // mention token. It addresses everyone in the conversation and is effective
       // only when a human sends it (the backend gates @all on a human sender).
@@ -330,11 +371,11 @@ export function MentionText({
           className={`rounded font-medium ${linkClass}`}
           title={t('mention.broadcastTitle')}
         >
-          @{handle}
+          @{token.handle}
         </span>
       );
-    } else if (handle !== undefined) {
-      const ref = resolve(handle);
+    } else if (token.type === 'mention') {
+      const ref = resolve(token.handle);
       if (ref) {
         node = (
           <button
@@ -348,111 +389,37 @@ export function MentionText({
             }}
             data-testid="mention-token"
             data-mention-ref={ref}
-            aria-label={t('mention.viewDetails', { name: handle })}
+            aria-label={t('mention.viewDetails', { name: token.handle })}
             // both-mode: the mention reads as a link and uses the SAME context-aware
             // linkClass as MarkdownMessage's links — text-accent on theme surfaces, but a
             // FIXED-dark color (text-chatbubble-link) on the own #D1E3FF bubble (avoids the
             // blue-on-blue <4.5 命门). NO alpha-tint fill (would render transparent).
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >
-            @{handle}
+            @{token.handle}
           </button>
         );
       }
-    } else if (taskRef !== undefined && resolveTask) {
-      const tk = resolveTask(taskRef);
-      if (tk) {
+    } else {
+      const resolved = resolveEntity(token.entity);
+      if (resolved) {
         node = (
-          <a
+          <EntityRefInline
             key={key++}
-            href={tk.href}
-            // New tab + opener/referrer guards, mirroring TaskTitleLink — opening
-            // the task detail without losing the conversation. stopPropagation so a
-            // ref click never bubbles to the message-row handlers (#281).
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            data-testid="task-ref-token"
-            data-task-id={taskRef}
-            title={t('mention.openInNewTab', { label: tk.label })}
-            // Same context-aware linkClass as mentions (both-mode AA on theme +
-            // own-bubble surfaces); keyboard-accessible as a native anchor.
-            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-          >
-            {tk.label}
-          </a>
-        );
-      }
-    } else if (planRef !== undefined && resolvePlan) {
-      const pl = resolvePlan(planRef);
-      if (pl) {
-        node = (
-          <a
-            key={key++}
-            href={pl.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            data-testid="plan-ref-token"
-            data-plan-id={planRef}
-            title={t('mention.openInNewTab', { label: pl.label })}
-            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-          >
-            {pl.label}
-          </a>
-        );
-      }
-    } else if (issueRef !== undefined && resolveIssue) {
-      const is = resolveIssue(issueRef);
-      if (is) {
-        node = (
-          <a
-            key={key++}
-            href={is.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            data-testid="issue-ref-token"
-            data-issue-id={issueRef}
-            title={t('mention.openInNewTab', { label: is.label })}
-            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-          >
-            {is.label}
-          </a>
-        );
-      }
-    } else if (agentRef !== undefined && resolveAgent) {
-      // T336/T337: resolve the FULL "agent-<id>" token (it IS the bare member
-      // identity id) → prefixed ref + display NAME. Only a KNOWN agent linkifies;
-      // the token shows the agent's NAME (not the raw id), the raw id on hover;
-      // the click opens the agent's SenderDetailSidebar (onMention with the ref).
-      const a = resolveAgent(agentRef);
-      if (a && a.ref.startsWith('agent:')) {
-        node = (
-          <button
-            key={key++}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMention(a.ref);
-            }}
-            data-testid="agent-ref-token"
-            data-agent-ref={a.ref}
-            aria-label={t('mention.viewDetails', { name: a.label })}
-            title={agentRef}
-            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-          >
-            {a.label}
-          </button>
+            refInfo={resolved}
+            variant="label"
+            surface="message"
+            linkClass={linkClass}
+          />
         );
       }
     }
     // Unresolved (or task/plan/issue linkify disabled) → leave the token as plain text: skip
     // without advancing `last`, so the matched chars stay in the next text slice.
     if (node === null) continue;
-    if (match.index > last) parts.push(<Fragment key={key++}>{text.slice(last, match.index)}</Fragment>);
+    if (token.index > last) parts.push(<Fragment key={key++}>{text.slice(last, token.index)}</Fragment>);
     parts.push(node);
-    last = match.index + match[0].length;
+    last = token.index + token.length;
   }
   if (last < text.length) parts.push(<Fragment key={key++}>{text.slice(last)}</Fragment>);
   return <>{parts}</>;

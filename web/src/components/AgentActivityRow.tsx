@@ -364,6 +364,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   // same way the grouped executor row does (agent-activity-executor-detail-full).
   const executorDetailFull = isExecutorEvent(event.event_type, payload) ? str(payload.detail) : '';
   const executorDescriptor = isExecutorEvent(event.event_type, payload) ? executorFullLabel(payload) : '';
+  const previewText = preview(event.event_type, payload, t);
 
   return (
     <li
@@ -372,9 +373,16 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
       data-activity-id={event.id}
       data-event-type={event.event_type}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
         aria-expanded={open}
         className="flex w-full items-start gap-2 py-2 text-left"
         data-testid="agent-activity-toggle"
@@ -423,10 +431,10 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             </span>
           )}
           <span className="min-w-0 truncate text-text-secondary" data-testid="agent-activity-preview">
-            {preview(event.event_type, payload, t)}
+            <ActivityRefText variant="label" text={previewText} />
           </span>
         </span>
-      </button>
+      </div>
 
       {open && (
         <div className="mb-2 ml-[4.75rem] space-y-2" data-testid="agent-activity-detail">
@@ -461,7 +469,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             <div data-testid="agent-activity-executor-detail-full">
               <div className="text-[0.6875rem] text-text-muted">{t('activity.detail.executorDetail')}</div>
               <p className="whitespace-pre-wrap break-words font-mono text-[0.6875rem] text-text-secondary">
-                {executorDetailFull}
+                <ActivityRefText text={executorDetailFull} />
               </p>
             </div>
           )}
@@ -611,8 +619,9 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
   const detail = truncate(detailFull, 120);
   return (
     <li data-testid="agent-activity-executor-group" data-count={n} data-executor-id={str(p.executor_id)}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs font-semibold text-status-violet-fg hover:bg-bg-subtle"
         data-testid="agent-activity-executor-toggle"
         aria-expanded={expanded}
@@ -622,6 +631,12 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
           state: expanded ? t('activity.checkingGroup.expanded') : t('activity.checkingGroup.collapsed'),
         })}
         onClick={() => setExpanded((e) => !e)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
       >
         <span className="flex min-w-0 items-center gap-1">
           <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-violet-solid" />
@@ -639,7 +654,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
             {detail ? (
               <span className="font-normal text-text-muted" data-testid="agent-activity-executor-detail">
                 {' · '}
-                {detail}
+                <ActivityRefText variant="label" text={detail} />
               </span>
             ) : null}{' '}
             × {n}
@@ -648,7 +663,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
         <span className="shrink-0 tabular-nums font-normal text-text-muted">
           {timeOf(earliest?.occurred_at ?? '')}–{timeOf(latest?.occurred_at ?? '')}
         </span>
-      </button>
+      </div>
       {expanded && (
         <div id={regionId} data-testid="agent-activity-executor-expanded">
           {/* v2.31.2 (oopslink DM 2026-07-05): the latest heartbeat's FULL
@@ -661,7 +676,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
               className="ml-4 whitespace-pre-wrap break-words border-l border-border-base py-1 pl-2 text-[0.6875rem] text-text-secondary"
               data-testid="agent-activity-executor-detail-full"
             >
-              {detailFull}
+              <ActivityRefText text={detailFull} />
             </p>
           )}
           <ul className="ml-4 border-l border-border-base pl-2">

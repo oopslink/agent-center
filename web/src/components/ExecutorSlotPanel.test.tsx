@@ -1,7 +1,49 @@
+import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render as rtlRender, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { OrgContext } from '@/OrgContext';
+import { server } from '@/test/mswServer';
 import { ExecutorSlotPanel, AgentSlotMetricBadge } from './ExecutorSlotPanel';
 import type { AgentConcurrency } from '@/api/concurrency';
+
+function render(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
+
+function renderInOrg(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(
+    <QueryClientProvider client={qc}>
+      <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>{ui}</OrgContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
+function mockEntityRefLists() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/plans', () =>
+      HttpResponse.json({
+        items: [
+          { id: 'plan-86', org_ref: 'P86', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' },
+        ],
+        total: 1,
+      }),
+    ),
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/tasks', () =>
+      HttpResponse.json({
+        items: [
+          { id: 'task-5ea6a6e8', org_ref: 'T86', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'running', assignee: null, updated_at: 'x', created_at: 'x' },
+        ],
+        total: 1,
+      }),
+    ),
+  );
+}
 
 function conc(overrides: Partial<AgentConcurrency> = {}): AgentConcurrency {
   return {
@@ -136,6 +178,34 @@ describe('ExecutorSlotPanel', () => {
     );
     expect(screen.getByLabelText('Live executor slots')).toBeInTheDocument();
     expect(screen.getByLabelText('Executor slot 0 is Running')).toBeInTheDocument();
+  });
+
+  it('renders task refs in executor slot status through the shared EntityRef renderer', async () => {
+    mockEntityRefLists();
+    renderInOrg(
+      <ExecutorSlotPanel
+        data={conc({
+          active: 1,
+          slots: [
+            {
+              slot_index: 0,
+              state: 'running',
+              executor_id: 'exec-0',
+              task_id: 'task-5ea6a6e8',
+              current_activity: 'working on P86 and task-5ea6a6e8',
+            },
+          ],
+        })}
+      />,
+    );
+    const links = await screen.findAllByTestId('executor-task-ref-token');
+    const slotTask = links[0];
+    expect(slotTask).toHaveTextContent('T86');
+    expect(slotTask).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5ea6a6e8');
+    const planLink = await screen.findByTestId('executor-plan-ref-token');
+    expect(planLink).toHaveTextContent('P86');
+    expect(planLink).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/plans/plan-86');
+    expect(screen.getByTestId('executor-slot-current-activity')).toHaveTextContent('T86');
   });
 });
 

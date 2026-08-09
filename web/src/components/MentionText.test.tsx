@@ -492,6 +492,33 @@ describe('MentionText plan-ref linkify (T99)', () => {
     expect(await screen.findByTestId('task-ref-token')).toHaveTextContent('T123');
     expect(await screen.findByTestId('plan-ref-token')).toHaveTextContent('P42');
   });
+
+  it('linkifies a short plan ref and a stable task id in the same chat message', async () => {
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [{ id: 'task-5ea6a6e8', org_ref: 'T86', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+          total: 1,
+        }),
+      ),
+      http.get('/api/plans', () =>
+        HttpResponse.json({
+          items: [{ id: 'plan-86', org_ref: 'P86', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+          total: 1,
+        }),
+      ),
+    );
+    renderInOrg(<MarkdownMessage content={'Plan P86 dispatched task-5ea6a6e8'} />);
+    const plan = await screen.findByTestId('plan-ref-token');
+    const task = await screen.findByTestId('task-ref-token');
+    expect(plan).toHaveTextContent('P86');
+    expect(plan).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/plans/plan-86');
+    expect(task).toHaveTextContent('T86');
+    expect(task).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5ea6a6e8');
+    expect(task).toHaveAttribute('title', 'task-5ea6a6e8');
+  });
 });
 
 // an `issue-<id>` or `I<number>` reference in a message linkifies to the issue

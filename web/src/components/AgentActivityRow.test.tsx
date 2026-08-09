@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
@@ -396,7 +396,8 @@ describe('AgentActivityRow ref-link wiring (oopslink 2026-07-04)', () => {
     );
     fireEvent.click(screen.getByTestId('agent-activity-toggle'));
     // Both the structured task field and the JSON payload resolve to task links.
-    const links = await screen.findAllByTestId('activity-task-ref-link');
+    const detail = await screen.findByTestId('agent-activity-detail');
+    const links = await within(detail).findAllByTestId('activity-task-ref-link');
     expect(links.length).toBeGreaterThanOrEqual(2);
     for (const link of links) {
       expect(link.tagName).toBe('A');
@@ -407,5 +408,35 @@ describe('AgentActivityRow ref-link wiring (oopslink 2026-07-04)', () => {
     // exec-<id> has no detail page → stays plain text (never a dangling link).
     expect(screen.queryByTestId('activity-agent-ref-link')).toBeNull();
     expect(screen.getByTestId('agent-activity-payload-json')).toHaveTextContent('exec-86303eb9');
+  });
+
+  it('linkifies P86 and task-5ea6a6e8 in the collapsed activity preview', async () => {
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [{ id: 'task-5ea6a6e8', org_ref: 'T86', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'running', assignee: null, updated_at: 'x', created_at: 'x' }],
+          total: 1,
+        }),
+      ),
+      http.get('/api/plans', () =>
+        HttpResponse.json({
+          items: [{ id: 'plan-86', org_ref: 'P86', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+          total: 1,
+        }),
+      ),
+    );
+    rowInOrg(
+      ev('message_delivered', {
+        sender_display: 'System',
+        content_preview: 'Plan P86 dispatched task-5ea6a6e8',
+      }),
+    );
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(await within(preview).findByTestId('activity-plan-ref-link')).toHaveTextContent('P86');
+    const task = await within(preview).findByTestId('activity-task-ref-link');
+    expect(task).toHaveTextContent('T86');
+    expect(task).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5ea6a6e8');
   });
 });

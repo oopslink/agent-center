@@ -2,9 +2,12 @@ import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render as rtlRender, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { MessageList } from './MessageList';
 import { useAppStore } from '@/store/app';
 import type { Message } from '@/api/types';
+import { OrgContext } from '@/OrgContext';
+import { server } from '@/test/mswServer';
 
 // jsdom does not implement scrollIntoView — the quote card's jump-to-original
 // calls it, so stub it (per the harness contract) and spy on invocations.
@@ -15,6 +18,34 @@ beforeEach(() => {
 function renderFresh(ui: React.ReactElement) {
   const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+}
+
+function renderFreshInOrg(ui: React.ReactElement) {
+  const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(
+    <QueryClientProvider client={c}>
+      <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>{ui}</OrgContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
+function mockRefs() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/tasks', () =>
+      HttpResponse.json({
+        items: [{ id: 'task-5ea6a6e8', org_ref: 'T86', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+        total: 1,
+      }),
+    ),
+    http.get('/api/plans', () =>
+      HttpResponse.json({
+        items: [{ id: 'plan-86', org_ref: 'P86', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+        total: 1,
+      }),
+    ),
+  );
 }
 
 const sample = (id: string, content: string): Message => ({
@@ -58,6 +89,25 @@ describe('MessageList quote card (引用)', () => {
     // unresolved sender (no members loaded) → clean handle, never the raw ref.
     expect(card).toHaveTextContent('arch1');
     expect(card.textContent).not.toContain('agent:arch1');
+  });
+
+  it('linkifies entity refs inside quote snippets through the shared renderer', async () => {
+    mockRefs();
+    const quoting: Message = {
+      ...sample('M2', 'a reply that quotes'),
+      quoted_message_id: 'M1',
+      quoted_message: {
+        id: 'M1',
+        is_deleted: false,
+        sender_identity_id: 'user:hayang',
+        content_snippet: 'Plan P86 dispatched task-5ea6a6e8',
+      },
+    };
+    renderFreshInOrg(<MessageList messages={[quoting]} />);
+    expect(await screen.findByTestId('plan-ref-token')).toHaveTextContent('P86');
+    const task = await screen.findByTestId('task-ref-token');
+    expect(task).toHaveTextContent('T86');
+    expect(task).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5ea6a6e8');
   });
 
   it('clicking the quote card scrolls to + highlights the original message', () => {

@@ -2,9 +2,12 @@ import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { MessageList } from './MessageList';
 import { useAppStore } from '@/store/app';
 import type { Message } from '@/api/types';
+import { OrgContext } from '@/OrgContext';
+import { server } from '@/test/mswServer';
 
 // v2.7 #160: MessageList now resolves sender display names via useMembers
 // (react-query), so renders need a QueryClient. With no /api/members data the
@@ -17,6 +20,34 @@ function render(ui: React.ReactElement) {
     rerender: (next: React.ReactElement) =>
       utils.rerender(<QueryClientProvider client={qc}>{next}</QueryClientProvider>),
   };
+}
+
+function renderInOrg(ui: React.ReactElement) {
+  const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(
+    <QueryClientProvider client={c}>
+      <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>{ui}</OrgContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
+function mockRefs() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/tasks', () =>
+      HttpResponse.json({
+        items: [{ id: 'task-5ea6a6e8', org_ref: 'T86', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+        total: 1,
+      }),
+    ),
+    http.get('/api/plans', () =>
+      HttpResponse.json({
+        items: [{ id: 'plan-86', org_ref: 'P86', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+        total: 1,
+      }),
+    ),
+  );
 }
 
 const sample = (id: string, content: string): Message => ({
@@ -71,6 +102,21 @@ describe('MessageList', () => {
     fireEvent.click(toggle);
     expect(screen.getByTestId('message-system-detail')).toHaveTextContent('rate_limit exceeded');
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('linkifies entity refs in system notification previews', async () => {
+    mockRefs();
+    const sys: Message = {
+      ...sample('S2', 'Plan P86 dispatched task-5ea6a6e8'),
+      sender_identity_id: 'system',
+      content_kind: 'text',
+    };
+    renderInOrg(<MessageList messages={[sys]} />);
+    const preview = screen.getByTestId('message-system-preview');
+    expect(await within(preview).findByTestId('plan-ref-token')).toHaveTextContent('P86');
+    const task = await within(preview).findByTestId('task-ref-token');
+    expect(task).toHaveTextContent('T86');
+    expect(task).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5ea6a6e8');
   });
 
   it('renders one row per message with sender + content', () => {

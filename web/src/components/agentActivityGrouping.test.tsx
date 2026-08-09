@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -35,6 +35,15 @@ const prog = (
 // expected text the same way — keeps the assertion timezone-independent.
 const localHM = (time: string): string =>
   new Date(`2026-05-24T${time}:00Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+beforeEach(() => {
+  server.use(http.get('/api/members', () => HttpResponse.json([])));
+});
+
+function renderWithQuery(ui: Parameters<typeof render>[0]) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 describe('groupActivity (#274 Checking fold)', () => {
   it('folds consecutive checking events into a group; keeps non-checking separate', () => {
@@ -138,7 +147,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
       prog('2', 'exec-2b8d4fe9', { time: '02:00' }),
       prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
     ];
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={events} />
       </ul>,
@@ -168,7 +177,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
       prog('2', 'exec-2b8d4fe9', { time: '02:00', detail: '读 task.go' }),
       prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
     ];
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={events} />
       </ul>,
@@ -179,7 +188,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
   });
 
   it('omits the detail chip when the latest heartbeat has no activity note', () => {
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9')]} />
       </ul>,
@@ -193,7 +202,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
   it('shows the folded detail at top-level granularity — no crude 40-char "…" cut', () => {
     const long = '跑 go test ./internal/workerdaemon/executor -run TestProgressDetail -count=1';
     expect(long.length).toBeGreaterThan(40);
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9', { detail: long })]} />
       </ul>,
@@ -212,7 +221,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
       prog('2', 'exec-2b8d4fe9', { time: '02:00', detail: veryLong }), // latest
       prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
     ];
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={events} />
       </ul>,
@@ -228,7 +237,7 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
   });
 
   it('renders no full-detail block on expand when the latest heartbeat has no note', () => {
-    render(
+    renderWithQuery(
       <ul>
         <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9')]} />
       </ul>,
@@ -263,17 +272,14 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
         }),
       ),
     );
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={qc}>
-        <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>
-          <ul>
-            <ExecutorProgressGroup
-              events={[prog('1', 'exec-2b8d4fe9', { taskRef: 'task-4b2339ec' })]}
-            />
-          </ul>
-        </OrgContext.Provider>
-      </QueryClientProvider>,
+    renderWithQuery(
+      <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>
+        <ul>
+          <ExecutorProgressGroup
+            events={[prog('1', 'exec-2b8d4fe9', { taskRef: 'task-4b2339ec' })]}
+          />
+        </ul>
+      </OrgContext.Provider>,
     );
     const link = await screen.findByTestId('activity-executor-task-link');
     expect(link.tagName).toBe('A');
@@ -295,7 +301,7 @@ describe('CheckingGroup (#274)', () => {
   it('shows "× N" + time range + a disclosure that expands to the raw events', () => {
     // newest-first (ULID DESC): [0]=03:00 latest, [2]=01:00 earliest.
     const events = [ev('3', 'system_init', '03:00'), ev('2', 'system_init', '02:00'), ev('1', 'system_init', '01:00')];
-    render(
+    renderWithQuery(
       <ul>
         <CheckingGroup events={events} />
       </ul>,

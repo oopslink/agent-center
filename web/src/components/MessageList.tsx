@@ -18,6 +18,7 @@ import { ThreadButton } from './ThreadButton';
 import { ThreadSidebar } from './ThreadSidebar';
 import { useThreadSidebar } from './ThreadSidebarContext';
 import { ThreadPreview } from './ThreadPreview';
+import { EntityRefText } from './EntityRefText';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -684,7 +685,7 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
             data-testid="message-system-preview"
             title={preview}
           >
-            {preview}
+            <EntityRefText text={preview} surface="message" variant="label" linkClass="text-accent" />
           </div>
         )}
       </div>
@@ -711,6 +712,7 @@ function QuotedPreviewCard({
   isOwn: boolean;
 }): React.ReactElement {
   const { t } = useTranslation('chat');
+  const openSender = useSenderSidebar();
   const barClass = isOwn ? 'border-chatbubble-fg/40' : 'border-accent';
   const nameClass = isOwn ? 'text-chatbubble-fg' : 'text-text-secondary';
   const snippetClass = isOwn ? 'text-chatbubble-fg/80' : 'text-text-muted';
@@ -736,14 +738,21 @@ function QuotedPreviewCard({
     ? isResolvedName(quoted.sender_identity_id, senderName)
     : false;
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onJump(quoted.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onJump(quoted.id);
+        }
+      }}
       aria-label={t('message.quote.jumpToOriginal')}
       title={t('message.quote.jumpToOriginal')}
       data-testid="message-quote-card"
       data-quote-target={quoted.id}
-      className={`mb-1.5 flex w-full flex-col items-start rounded-r border-l-2 pl-2 text-left hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-opacity ${barClass}`}
+      className={`mb-1.5 flex w-full cursor-pointer flex-col items-start rounded-r border-l-2 pl-2 text-left hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-opacity ${barClass}`}
     >
       {/* Resolved name, else the CLEAN handle (prefix stripped) — never the raw
           `agent:agent-xxx` ref (#192); the full ref stays on the title below. */}
@@ -754,9 +763,16 @@ function QuotedPreviewCard({
         {resolved ? senderName : senderHandle}
       </span>
       <span className={`max-w-full truncate text-xs ${snippetClass}`} title={quoted.content_snippet}>
-        {quoted.content_snippet}
+        <EntityRefText
+          text={quoted.content_snippet ?? ''}
+          surface="message"
+          variant="label"
+          linkClass={isOwn ? 'text-chatbubble-link' : 'text-accent'}
+          agentMode={openSender ? 'sidebar' : 'link'}
+          onAgentRef={openSender ?? undefined}
+        />
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -805,7 +821,7 @@ function SystemMessageRow({ content }: { content: string }): React.ReactElement 
             className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words text-left text-[0.625rem] text-text-muted"
             data-testid="message-system-detail"
           >
-            {content}
+            <EntityRefText text={content} surface="message" variant="label" linkClass="text-accent" />
           </pre>
         )}
       </div>

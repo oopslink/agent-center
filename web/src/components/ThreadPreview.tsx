@@ -5,6 +5,7 @@ import { useThreadReplies } from '@/api/conversations';
 import { isResolvedName, normalizeIdentityRef, useDisplayNameResolver } from '@/api/members';
 import { formatChatTime, formatLocalTime } from '@/utils/time';
 import { Avatar } from './Avatar';
+import { EntityRefText } from './EntityRefText';
 
 interface Props {
   rootMessage: Message;
@@ -47,13 +48,20 @@ export function ThreadPreview({
       data-root-id={rootMessage.id}
       data-align={align}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onOpenThread}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenThread();
+          }
+        }}
         data-testid="thread-preview-panel"
         aria-label={t('threadPreview.openThread', { count: replyCount })}
         title={t('threadPreview.openThread', { count: replyCount })}
-        className={`block w-full rounded-b-lg rounded-t-sm border border-border-base bg-bg-base px-3 py-2 text-left hover:border-border-strong hover:bg-bg-subtle focus-visible:ring-2 focus-visible:ring-accent ${
+        className={`block w-full cursor-pointer rounded-b-lg rounded-t-sm border border-border-base bg-bg-base px-3 py-2 text-left hover:border-border-strong hover:bg-bg-subtle focus-visible:ring-2 focus-visible:ring-accent ${
           align === 'right'
             ? 'border-r-2 border-r-border-strong text-right'
             : 'border-l-2 border-l-border-strong'
@@ -135,7 +143,9 @@ export function ThreadPreview({
                     <span className="font-semibold text-text-primary">
                       {senderResolved ? resolvedName : t('threadPreview.deletedSender')}
                     </span>{' '}
-                    <span>{compactPreview(reply.content)}</span>
+                    <span>
+                      <EntityRefText text={compactPreview(reply.content)} surface="message" variant="label" />
+                    </span>
                   </span>
                   <time
                     className="shrink-0 text-[0.625rem] text-text-muted"
@@ -149,7 +159,7 @@ export function ThreadPreview({
             })}
           </ul>
         )}
-      </button>
+      </div>
     </section>
   );
 }

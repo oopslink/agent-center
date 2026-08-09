@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { AgentConcurrency, AgentConcurrencySlot, ConcurrencyExecutor } from '@/api/concurrency';
 import type { Agent } from '@/api/types';
+import { EntityRefText } from './EntityRefText';
 
 export type ConcurrencyMode = 'live' | 'offline' | 'expired' | 'disabled' | 'nodata';
 
@@ -310,7 +311,11 @@ function LegacyExecutorList({ data }: { data: AgentConcurrency }): React.ReactEl
             <li key={exec.executor_id} className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
               <span className="font-mono text-text-primary">{t('agentRuntime.executorSlots.execShort', { id: shortExecutorId(exec.executor_id) })}</span>
               <span className={stateClass(exec.state)}>{stateLabel(exec.state, t)}</span>
-              {exec.task_id && <span className="truncate text-text-muted">{exec.task_id}</span>}
+              {exec.task_id && (
+                <span className="truncate text-text-muted">
+                  <EntityRefText text={exec.task_id} surface="executor" variant="label" />
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -356,7 +361,11 @@ function ExecutorSlotRow({
         </span>
       </div>
       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-text-muted">
-        {slot.task_id && <span className="truncate text-text-secondary" data-testid="executor-slot-task">{slot.task_id}</span>}
+        {slot.task_id && (
+          <span className="truncate text-text-secondary" data-testid="executor-slot-task">
+            <EntityRefText text={slot.task_id} surface="executor" variant="label" />
+          </span>
+        )}
         {slot.cli && <span data-testid="executor-slot-cli-model">{[slot.cli, slot.model].filter(Boolean).join(' · ')}</span>}
         {elapsed && <span data-testid="executor-slot-elapsed">{elapsed}</span>}
         {slot.pid ? <span>{t('agentRuntime.executorSlots.pid', { pid: slot.pid })}</span> : null}
@@ -368,7 +377,11 @@ function ExecutorSlotRow({
         )}
         {slot.current_activity && (
           <span className="basis-full truncate text-text-secondary" data-testid="executor-slot-current-activity" title={slot.current_activity}>
-            {t('agentRuntime.executorSlots.currentActivity', { activity: slot.current_activity })}
+            <EntityRefText
+              text={t('agentRuntime.executorSlots.currentActivity', { activity: slot.current_activity })}
+              surface="executor"
+              variant="label"
+            />
           </span>
         )}
       </div>
@@ -434,7 +447,11 @@ export function ExecutorTaskOverlay({
           data-testid="agent-task-current-activity"
           title={exec.current_activity}
         >
-          {t('agentRuntime.executorSlots.currentActivity', { activity: exec.current_activity })}
+          <EntityRefText
+            text={t('agentRuntime.executorSlots.currentActivity', { activity: exec.current_activity })}
+            surface="executor"
+            variant="label"
+          />
         </span>
       )}
     </div>

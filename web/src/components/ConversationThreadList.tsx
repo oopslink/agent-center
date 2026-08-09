@@ -4,6 +4,7 @@ import { useConversationThreads } from '@/api/conversations';
 import { isResolvedName, useDisplayNameResolver } from '@/api/members';
 import type { ThreadSummary } from '@/api/types';
 import { useThreadSidebar } from './ThreadSidebarContext';
+import { EntityRefText } from './EntityRefText';
 
 // ConversationThreadList (v2.9.1 Threads P2) — the Participants-sidebar thread
 // list: one row per thread in the conversation (root sender + content preview +
@@ -76,12 +77,19 @@ export function ConversationThreadList({ conversationId, embedded = false }: Pro
               const hasActivity = !!t.has_new_activity;
               return (
                 <li key={t.root.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openThread?.(t.root)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openThread?.(t.root);
+                      }
+                    }}
                     data-testid="thread-list-row"
                     data-root-id={t.root.id}
-                    className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-bg-base focus-visible:ring-2 focus-visible:ring-accent"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-bg-base focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <span className="min-w-0 flex-1">
                       <span
@@ -94,7 +102,7 @@ export function ConversationThreadList({ conversationId, embedded = false }: Pro
                           (slate-600 ≈6.92), NOT text-text-muted (slate-500 on the
                           slate-100 panel = 4.34 < 4.5 AA FAIL in light). §5.5. */}
                       <span className="block truncate text-text-secondary" data-testid="thread-list-preview">
-                        {t.root.content}
+                        <EntityRefText text={t.root.content} surface="message" variant="label" />
                       </span>
                     </span>
                     {t.reply_count > 0 && (
@@ -112,7 +120,7 @@ export function ConversationThreadList({ conversationId, embedded = false }: Pro
                         aria-hidden="true"
                       />
                     )}
-                  </button>
+                  </div>
                 </li>
               );
             })}
