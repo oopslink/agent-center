@@ -68,6 +68,19 @@ describe('runtime selector model', () => {
     expect(isRuntimeModelSelectable(model, 'codex', 'gpt-5')).toBe(true);
   });
 
+  it('does not offer models for a disabled current CLI', () => {
+    const model = buildRuntimeSelectorModel(catalog({
+      clis: [{ key: 'codex', display_name: 'Codex', enabled: false }],
+      models: [{ key: 'gpt', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true }],
+    }), { cli: 'codex', model: 'gpt-5' });
+    expect(runtimeModelChoicesForCLI(model, 'codex', 'gpt-5')).toEqual([
+      expect.objectContaining({ value: 'gpt-5', selectable: false }),
+    ]);
+    expect(isRuntimeCLISelectable(model, 'codex')).toBe(false);
+    expect(isRuntimeModelSelectable(model, 'codex', 'gpt-5')).toBe(false);
+    expect(model.isEmpty).toBe(true);
+  });
+
   it('keeps current deleted values visible but not selectable after catalog refresh', () => {
     const model = buildRuntimeSelectorModel(catalog(), {
       cli: 'missing-cli',
