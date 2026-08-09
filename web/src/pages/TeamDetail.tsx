@@ -1,7 +1,7 @@
 // Team detail (/organizations/:slug/teams/:teamId) — 4 tabs:
 // Overview / Members / Linked projects / Team Memory. Team Memory is the only
 // product surface for team entries/rules; templates are not a routed product.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
@@ -9,16 +9,20 @@ import { useOptionalOrgContext } from '@/OrgContext';
 import {
   useAssociateProject,
   useDisassociateProject,
+  useDirectoryAgents,
   useRemoveMember,
   useTeam,
   useTeamMemoryIndex,
+  useTeamMemorySettings,
   useTeamMembers,
   useTeamProjects,
+  useUpdateTeamMemorySettings,
   useUpdateTeamRoles,
   type RoleInput,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { AddMemberModal } from '@/components/teams/AddMemberModal';
@@ -62,6 +66,7 @@ export default function TeamDetail(): React.ReactElement {
     { key: 'mm', label: t('teamDetail.tabs.members') },
     { key: 'pj', label: t('teamDetail.tabs.projects') },
     { key: 'tm', label: t('teamDetail.tabs.memory') },
+    { key: 'st', label: t('teamDetail.tabs.settings') },
   ] as const;
 
   if (team.isLoading) {
@@ -114,13 +119,14 @@ export default function TeamDetail(): React.ReactElement {
         {/* panes below */}
         {tab === 'pj' && <ProjectsPane teamId={tv.id} />}
         {tab === 'tm' && <MemoryPane teamId={tv.id} heading={t('teamDetail.memoryHeading')} team={tv} currentUserRole={org?.role} />}
+        {tab === 'st' && <TeamSettingsPane team={tv} />}
       </div>
 
     </section>
   );
 }
 
-const TABS_KEYS = ['ov', 'mm', 'pj', 'tm'] as const;
+const TABS_KEYS = ['ov', 'mm', 'pj', 'tm', 'st'] as const;
 type TabKey = (typeof TABS_KEYS)[number];
 
 function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
@@ -506,5 +512,92 @@ function ProjectPickerModal({
       )}
       {associate.isError && <p className="mt-2 text-xs text-danger">{(associate.error as Error).message}</p>}
     </ModalShell>
+  );
+}
+
+function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const settings = useTeamMemorySettings(team.id);
+  const agents = useDirectoryAgents();
+  const update = useUpdateTeamMemorySettings(team.id);
+  const canManage = team.memory_permissions?.can_manage === true;
+  const [policy, setPolicy] = useState<'owner_admin_review' | 'curator_review' | 'read_only'>('owner_admin_review');
+  const [curators, setCurators] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!settings.data) return;
+    setPolicy(settings.data.policy);
+    setCurators(settings.data.curator_agents ?? []);
+  }, [settings.data]);
+
+  const save = async () => {
+    await update.mutateAsync({ policy, curator_agents: curators });
+  };
+  const curatorOptions = (agents.data ?? []).map((agent) => ({
+    value: agent.ref,
+    label: `${agent.name} · ${agent.ref}`,
+  }));
+
+  return (
+    <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+      <Card testId="team-memory-settings">
+        <SectionHead title={t('teamDetail.settings.title')} hint={canManage ? t('teamDetail.settings.manageHint') : t('teamDetail.settings.readOnlyHint')} />
+        <Note testId="team-settings-effect-hint">
+          {settings.data?.effect_hint || t('memoryPane.effectHint')}
+        </Note>
+        {settings.isLoading && <Skeleton height="8rem" />}
+        {settings.isSuccess && (
+          <>
+            <Field label={t('teamDetail.settings.policy')}>
+              <select
+                className={inputCls}
+                value={policy}
+                disabled={!canManage}
+                onChange={(e) => setPolicy(e.target.value as typeof policy)}
+                data-testid="team-memory-policy"
+              >
+                <option value="owner_admin_review">{t('teamDetail.settings.policyOwnerAdmin')}</option>
+                <option value="curator_review">{t('teamDetail.settings.policyCurator')}</option>
+                <option value="read_only">{t('teamDetail.settings.policyReadOnly')}</option>
+              </select>
+            </Field>
+            <Field label={t('teamDetail.settings.curators')}>
+              {agents.isLoading && <Skeleton height="4rem" />}
+              {agents.isSuccess && agents.data.length === 0 && (
+                <div className="rounded border border-border-base bg-bg-subtle p-3 text-sm text-text-muted">{t('teamDetail.settings.noAgents')}</div>
+              )}
+              {agents.isSuccess && agents.data.length > 0 && (
+                <EntityMultiSelect
+                  testId="team-memory-curator-picker"
+                  options={curatorOptions}
+                  values={curators}
+                  onChange={(values) => setCurators([...values].sort())}
+                  ariaLabel={t('teamDetail.settings.curators')}
+                  placeholder={t('teamDetail.settings.curators')}
+                  disabled={!canManage}
+                />
+              )}
+            </Field>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="text-xs text-text-muted" data-testid="team-memory-settings-meta">
+                {settings.data?.commit ? t('teamDetail.settings.commit', { commit: settings.data.commit.slice(0, 12) }) : t('teamDetail.settings.noCommit')}
+              </div>
+              <button type="button" className={btnSmPrimary} disabled={!canManage || update.isPending} onClick={() => void save()} data-testid="team-memory-settings-save">
+                {t('teamDetail.settings.save')}
+              </button>
+            </div>
+          </>
+        )}
+        {settings.isError && <p className="text-sm text-danger">{(settings.error as Error).message}</p>}
+        {update.isError && <p className="mt-3 text-sm text-danger" role="alert">{(update.error as Error).message}</p>}
+      </Card>
+      <Card>
+        <SectionHead title={t('teamDetail.settings.guardrails')} />
+        <div className="space-y-2 text-sm text-text-secondary">
+          <p>{t('teamDetail.settings.agentSelfGrant')}</p>
+          <p>{t('teamDetail.settings.reviewSurface')}</p>
+        </div>
+      </Card>
+    </div>
   );
 }

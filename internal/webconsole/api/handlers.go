@@ -216,6 +216,10 @@ type HandlerDeps struct {
 	// the extract experience read. Optional — nil degrades memory to empty and
 	// extract to a roles-only draft (mirrors the /admin team tools).
 	TeamGitHost *centergit.Host
+	// TeamMemory is the single Web/API service for team memory entries, rules,
+	// proposals, and curator settings. Handlers must use this service instead of
+	// constructing git consumers/producers directly.
+	TeamMemory *centergit.TeamMemoryService
 }
 
 // hd retrieves the typed dep bag from the request context.

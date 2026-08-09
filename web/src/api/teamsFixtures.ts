@@ -20,6 +20,8 @@ import type {
   MemoryDoc,
   MemoryIndexEntry,
   ScrubFinding,
+  TeamMemoryProposal,
+  TeamMemorySettings,
   TeamTemplate,
   TeamView,
 } from './teams';
@@ -32,6 +34,8 @@ export interface TeamsData {
   templateInstances: Record<string, Array<{ id: string; name: string }>>;
   memoryIndex: MemoryIndexEntry[];
   memoryDocs: Record<string, MemoryDoc>;
+  memoryProposals: Record<string, TeamMemoryProposal>;
+  memorySettings: Record<string, TeamMemorySettings>;
   scrub: ScrubFinding[];
   agents: DirectoryAgent[];
   humans: DirectoryHuman[];
@@ -132,6 +136,8 @@ function seed(): TeamsData {
     { group: 'rules/' },
     { slug: 'review-conventions' },
     { slug: 'merge-gate' },
+    { group: 'proposals/' },
+    { slug: 'proposal-pending-1', kind: 'proposal', path: 'proposals/proposal-pending-1.md', source_path: 'proposals/proposal-pending-1.md', title: 'Add deploy rollback note', status: 'pending', target_kind: 'entry', uuid: 'uuid-proposal-1', commit: 'abc123def456' },
   ];
 
   const memoryDocs: Record<string, MemoryDoc> = {
@@ -184,6 +190,42 @@ function seed(): TeamsData {
       title: '发布清单',
       frontmatter: 'name: release-checklist\ntype: project\nupdated: 2026-07-12',
       body: '- migration 已跑 + 可回滚\n- coverage ≥ 基线\n- CHANGELOG 更新\n- owner 签发\n',
+    },
+  };
+
+  const memoryProposals: Record<string, TeamMemoryProposal> = {
+    'proposal-pending-1': {
+      id: 'proposal-pending-1',
+      uuid: 'uuid-proposal-1',
+      status: 'pending',
+      target_kind: 'entry',
+      slug: 'deploy-rollback',
+      title: 'Add deploy rollback note',
+      description: 'Capture deploy rollback steps',
+      body: 'Use the release dashboard rollback button, then record the incident link.',
+      author_ref: 'user:user-oops',
+      created_at: '2026-08-08T12:00:00Z',
+      updated_at: '2026-08-08T12:00:00Z',
+      source_path: 'proposals/proposal-pending-1.md',
+      promoted_path: '',
+      target_uuid: '',
+      commit: 'abc123def456',
+      enabled: true,
+      applies_to: [],
+      warning_acknowledged: true,
+      reject_reason: '',
+      diff: '+++ entries/deploy-rollback-uuid-proposal-1.md\n+---\n+name: deploy-rollback\n+description: Capture deploy rollback steps\n+uuid: uuid-proposal-1\n+---\n+\n+Use the release dashboard rollback button.',
+    },
+  };
+
+  const memorySettings: Record<string, TeamMemorySettings> = {
+    'team-7c19b0': {
+      curator_agents: ['agent:agent-t1'],
+      policy: 'owner_admin_review',
+      updated_at: '2026-08-08T12:00:00Z',
+      updated_by: 'user:user-oops',
+      commit: 'abc123def456',
+      effect_hint: 'New sessions and fresh forks load promoted team memory from the current commit; in-flight sessions keep their snapshotted rules until restarted or forked again.',
     },
   };
 
@@ -284,6 +326,8 @@ function seed(): TeamsData {
     templateInstances,
     memoryIndex,
     memoryDocs,
+    memoryProposals,
+    memorySettings,
     scrub,
     agents,
     humans,

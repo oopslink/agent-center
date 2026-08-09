@@ -278,6 +278,97 @@ describe('TeamDetail', () => {
     expect(screen.getByTestId('memory-raw-view')).not.toHaveTextContent(/(?:kind|type): rule/);
   });
 
+  it('reviews and promotes team-memory proposals with metadata and diff', async () => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true, can_manage: true },
+    }))));
+    renderAt('team-7c19b0', 'owner');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    fireEvent.click(await screen.findByTestId('memory-filter-proposals'));
+    const proposalNode = await screen.findByTestId('memory-node-proposal-pending-1');
+    expect(proposalNode).toHaveTextContent('proposals/proposal-pending-1.md');
+    expect(screen.getByTestId('memory-proposal-badge-proposal-pending-1')).toHaveTextContent('PENDING');
+    fireEvent.click(proposalNode);
+    const detail = await screen.findByTestId('memory-proposal-detail');
+    expect(detail).toHaveTextContent('warning ack');
+    expect(screen.getByTestId('memory-doc-meta')).toHaveTextContent('uuid-proposal-1');
+    expect(screen.getByTestId('memory-proposal-diff')).toHaveTextContent('+++ entries/deploy-rollback');
+    fireEvent.click(screen.getByTestId('memory-proposal-promote'));
+    await waitFor(() => expect(screen.getByTestId('memory-proposal-detail')).toHaveTextContent('entries/deploy-rollback-targetuuid.md'));
+  });
+
+  it('creates a team-memory proposal only after warning acknowledgement', async () => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true, can_manage: true },
+    }))));
+    renderAt('team-7c19b0', 'admin');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    fireEvent.click(await screen.findByTestId('memory-manage'));
+    const modal = await screen.findByTestId('memory-create-proposal-modal');
+    fireEvent.change(within(modal).getByTestId('memory-create-slug'), { target: { value: 'new-note' } });
+    fireEvent.change(within(modal).getByTestId('memory-create-description'), { target: { value: 'New note' } });
+    fireEvent.change(within(modal).getByTestId('memory-create-body'), { target: { value: 'Remember this.' } });
+    expect(within(modal).getByTestId('memory-create-proposal-submit')).toBeDisabled();
+    fireEvent.click(within(modal).getByTestId('memory-create-ack'));
+    fireEvent.click(within(modal).getByTestId('memory-create-proposal-submit'));
+    await waitFor(() => expect(screen.queryByTestId('memory-create-proposal-modal')).not.toBeInTheDocument());
+  });
+
+  it('filters unsafe markdown URLs in memory documents', async () => {
+    server.use(
+      http.get('/api/teams/:id/memory/:entry', ({ params }) => HttpResponse.json({
+        slug: String(params.entry),
+        path: 'team-memory/entries/url-test.md',
+        source_path: 'entries/url-test.md',
+        title: 'URL test',
+        frontmatter: null,
+        body: '[bad](javascript:alert(1)) [ok](https://example.com)',
+        uuid: 'uuid-url',
+        commit: 'abc123def456',
+        kind: 'entry',
+      })),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-tm'));
+    fireEvent.click(await screen.findByTestId('memory-node-ci-runbook'));
+    await waitFor(() => expect(screen.getByTestId('memory-view')).toHaveTextContent('URL test'));
+    const links = screen.getByTestId('memory-view').querySelectorAll('a');
+    expect(links[0].getAttribute('href') ?? '').not.toContain('javascript:');
+    expect(links[1]).toHaveAttribute('href', 'https://example.com');
+  });
+
+  it('manages curator agents and policy in team settings for owner/admin only', async () => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true, can_manage: true },
+    }))));
+    renderAt('team-7c19b0', 'owner');
+    fireEvent.click(await screen.findByTestId('tab-st'));
+    const panel = await screen.findByTestId('team-memory-settings');
+    expect(await within(panel).findByTestId('team-memory-policy')).toHaveValue('owner_admin_review');
+    await waitFor(() => {
+      expect(panel.querySelector('[data-testid="team-memory-curator-picker-chip"][data-value="agent:agent-t1"]')).not.toBeNull();
+    });
+    fireEvent.change(within(panel).getByTestId('team-memory-policy'), { target: { value: 'curator_review' } });
+    fireEvent.click(within(panel).getByTestId('team-memory-curator-picker-trigger'));
+    const options = await screen.findAllByTestId('team-memory-curator-picker-option');
+    const dataMiner = options.find((option) => option.getAttribute('data-value') === 'agent:agent-d5');
+    expect(dataMiner).toBeTruthy();
+    fireEvent.click(dataMiner!);
+    fireEvent.click(within(panel).getByTestId('team-memory-settings-save'));
+    await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-meta')).toHaveTextContent('settings commit'));
+  });
+
+  it('keeps team settings read-only for regular members', async () => {
+    server.use(http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+      memory_permissions: { web_edit: true, can_manage: false },
+    }))));
+    renderAt('team-7c19b0', 'member');
+    fireEvent.click(await screen.findByTestId('tab-st'));
+    const panel = await screen.findByTestId('team-memory-settings');
+    expect(await within(panel).findByTestId('team-memory-policy')).toBeDisabled();
+    expect(within(panel).getByTestId('team-memory-settings-save')).toBeDisabled();
+  });
+
   it('does not infer rules from entry names that merely contain rule text', async () => {
     server.use(
       http.get('/api/teams/:id/memory', () => HttpResponse.json([

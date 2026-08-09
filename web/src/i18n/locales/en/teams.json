@@ -98,7 +98,8 @@
       "overview": "Overview",
       "members": "Members",
       "projects": "Linked projects",
-      "memory": "Team Memory"
+      "memory": "Team Memory",
+      "settings": "Settings"
     },
     "membersRoles": "{{members}} members · {{roles}} roles",
     "projectsCount": "{{count}} projects",
@@ -156,6 +157,23 @@
       "selectOption": "{{name}} ({{id}})",
       "pickerEmptyTitle": "No projects to associate",
       "pickerEmptyBody": "Every active project in the org is already linked, or there are none yet."
+    },
+    "settings": {
+      "title": "Team memory settings",
+      "manageHint": "owner/admin write access",
+      "readOnlyHint": "read-only for your role",
+      "policy": "Review policy",
+      "policyOwnerAdmin": "Owners/admins approve proposals",
+      "policyCurator": "Listed curator agents prepare proposals; owners/admins approve",
+      "policyReadOnly": "Read-only; proposals disabled",
+      "curators": "Curator agents",
+      "noAgents": "No agents in the directory yet.",
+      "save": "Save settings",
+      "commit": "settings commit {{commit}}",
+      "noCommit": "no settings commit yet",
+      "guardrails": "Guardrails",
+      "agentSelfGrant": "Agents cannot grant themselves curator permissions. Owner/admin review is required for settings changes.",
+      "reviewSurface": "Promoted memory affects new sessions and fresh forks; in-flight sessions keep their snapshotted rules."
     }
   },
   "newTeamModal": {
@@ -229,6 +247,8 @@
     "pinned": "pinned",
     "lazy": "lazy",
     "manage": "Manage memory",
+    "newProposal": "New proposal",
+    "effectHint": "Promoted memory affects new sessions and fresh forks; in-flight sessions keep their snapshotted rules.",
     "raw": "Raw",
     "rendered": "Rendered",
     "copyPath": "Copy path",
@@ -247,7 +267,8 @@
       "aria": "Team memory filters",
       "all": "All {{count}}",
       "entries": "Entries {{count}}",
-      "rules": "Rules {{count}}"
+      "rules": "Rules {{count}}",
+      "proposals": "Proposals {{count}}"
     },
     "section": {
       "index": "index"
@@ -258,12 +279,54 @@
       "entriesTitle": "No entries yet",
       "entriesBody": "Shared experience entries will appear under entries/ after the team memory repo receives them.",
       "rulesTitle": "No rules yet",
-      "rulesBody": "Team-level rules will appear under rules/ after they are added to the team memory repo."
+      "rulesBody": "Team-level rules will appear under rules/ after they are added to the team memory repo.",
+      "proposalsTitle": "No proposals yet",
+      "proposalsBody": "Owners and admins can create proposals for entries or rules here."
     },
     "error": {
       "index": "Couldn't load team memory.",
       "doc": "Couldn't load this memory document.",
       "permission": "You don't have permission to view this memory document."
+    },
+    "meta": {
+      "sourcePath": "source_path",
+      "uuid": "UUID",
+      "commit": "commit"
+    },
+    "proposalStatus": {
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "rejected": "REJECTED"
+    },
+    "proposal": {
+      "target": "target",
+      "author": "author",
+      "ack": "warning ack",
+      "created": "created",
+      "promotedPath": "promoted path",
+      "rejectReason": "reject reason",
+      "diff": "Diff",
+      "promote": "Promote",
+      "reject": "Reject",
+      "readOnly": "Read-only for your role.",
+      "rejectPlaceholder": "Reason for rejection",
+      "yes": "yes",
+      "no": "no"
+    },
+    "create": {
+      "title": "Create memory proposal",
+      "subtitle": "Proposals are reviewed before they become team memory.",
+      "kind": "Target",
+      "entry": "Entry",
+      "rule": "Rule",
+      "slug": "Slug",
+      "titleLabel": "Title",
+      "description": "Description",
+      "enabled": "Enabled",
+      "appliesTo": "Applies to",
+      "body": "Markdown body",
+      "warningAck": "I reviewed this content for secrets, private URLs, proprietary names, and unsafe instructions.",
+      "submit": "Create proposal"
     }
   }
 }

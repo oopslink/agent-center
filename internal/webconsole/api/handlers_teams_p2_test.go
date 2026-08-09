@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -23,6 +25,15 @@ func setupTeamsAPI(t *testing.T) (HandlerDeps, *sql.DB, testSession) {
 	deps, db := setupAPIWithAuth(t)
 	deps.TeamService = teamservice.New(teamsql.NewRepo(db), db, idgen.NewGenerator(clock.SystemClock{}), clock.SystemClock{})
 	sess := setupTestSession(t, db, deps)
+	return deps, db, sess
+}
+
+func setupTeamsMemoryAPI(t *testing.T) (HandlerDeps, *sql.DB, testSession) {
+	t.Helper()
+	deps, db, sess := setupTeamsAPI(t)
+	host := centergit.NewHost(t.TempDir(), nil)
+	deps.TeamGitHost = host
+	deps.TeamMemory = centergit.NewTeamMemoryService(host, nil)
 	return deps, db, sess
 }
 
@@ -110,6 +121,10 @@ func TestTeamFacade_AuthGate(t *testing.T) {
 		{http.MethodPost, "/api/orgs/" + sess.OrgSlug + "/teams/instantiate"},
 		{http.MethodGet, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/extract"},
 		{http.MethodGet, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/memory"},
+		{http.MethodPost, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/memory/proposals"},
+		{http.MethodPost, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/memory/proposals/proposal-1/promote"},
+		{http.MethodPost, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/memory/proposals/proposal-1/reject"},
+		{http.MethodPut, "/api/orgs/" + sess.OrgSlug + "/teams/" + string(tm.ID()) + "/memory/settings"},
 		{http.MethodGet, "/api/orgs/" + sess.OrgSlug + "/team-templates"},
 	}
 	for _, c := range cases {
@@ -348,6 +363,169 @@ func TestTeamMemory_DocNotFound(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("memory doc = %d, want 404 (git unwired)", resp.StatusCode)
+	}
+}
+
+func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
+	deps, db, owner := setupTeamsMemoryAPI(t)
+	tm := seedTeam(t, deps, owner.OrgID, "Agent Core", implRole)
+	memberSess := addOrgMemberSession(t, db, owner, identity.RoleMember, "regular-member")
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	detail := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID()), owner)
+	if detail.StatusCode != http.StatusOK {
+		t.Fatalf("detail = %d body=%v", detail.StatusCode, decodeBody(t, detail))
+	}
+	view := decodeBody(t, detail)
+	perms := view["memory_permissions"].(map[string]any)
+	if perms["web_edit"] != true || perms["can_manage"] != true {
+		t.Fatalf("owner memory permissions = %#v", perms)
+	}
+
+	noAck := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals", `{
+		"target_kind":"entry","slug":"ci-runbook","description":"CI notes","body":"Use CI"
+	}`, owner)
+	if noAck.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create without ack = %d, want 400", noAck.StatusCode)
+	}
+	if code := errorCodeOf(t, noAck); code != "warning_ack_required" {
+		t.Fatalf("error code = %q", code)
+	}
+
+	memberWrite := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals", `{
+		"target_kind":"entry","slug":"member-note","description":"no","body":"no","warning_acknowledged":true
+	}`, memberSess)
+	if memberWrite.StatusCode != http.StatusForbidden {
+		t.Fatalf("member create proposal = %d, want 403", memberWrite.StatusCode)
+	}
+	memberWrite.Body.Close()
+
+	create := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals", `{
+		"target_kind":"entry",
+		"slug":"ci-runbook",
+		"title":"CI Runbook",
+		"description":"CI notes",
+		"body":"Use CI and keep rollback notes.",
+		"warning_acknowledged":true
+	}`, owner)
+	if create.StatusCode != http.StatusCreated {
+		t.Fatalf("create proposal = %d body=%v", create.StatusCode, decodeBody(t, create))
+	}
+	created := decodeBody(t, create)
+	proposalID := created["id"].(string)
+	if proposalID == "" || created["status"] != "pending" || created["source_path"] == "" || created["uuid"] == "" || created["commit"] == "" {
+		t.Fatalf("created proposal metadata = %#v", created)
+	}
+	if created["diff"] == "" {
+		t.Fatalf("created proposal missing diff: %#v", created)
+	}
+
+	index := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory", owner)
+	if index.StatusCode != http.StatusOK {
+		t.Fatalf("memory index = %d body=%v", index.StatusCode, decodeBody(t, index))
+	}
+	arr := decodeArray(t, index)
+	var sawProposal bool
+	for _, item := range arr {
+		m, _ := item.(map[string]any)
+		if m["slug"] == proposalID {
+			sawProposal = m["kind"] == "proposal" && m["status"] == "pending" && m["source_path"] != ""
+		}
+	}
+	if !sawProposal {
+		t.Fatalf("proposal not present in index: %#v", arr)
+	}
+
+	docResp := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals/"+proposalID, owner)
+	if docResp.StatusCode != http.StatusOK {
+		t.Fatalf("proposal doc = %d body=%v", docResp.StatusCode, decodeBody(t, docResp))
+	}
+	doc := decodeBody(t, docResp)
+	if doc["kind"] != "proposal" || doc["diff"] == "" || doc["uuid"] == "" || doc["commit"] == "" {
+		t.Fatalf("proposal doc metadata = %#v", doc)
+	}
+
+	promote := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals/"+proposalID+"/promote", `{}`, owner)
+	if promote.StatusCode != http.StatusOK {
+		t.Fatalf("promote = %d body=%v", promote.StatusCode, decodeBody(t, promote))
+	}
+	promoted := decodeBody(t, promote)
+	if promoted["status"] != "promoted" || promoted["promoted_path"] == "" || promoted["target_uuid"] == "" {
+		t.Fatalf("promoted = %#v", promoted)
+	}
+
+	entryDoc := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/ci-runbook?kind=entry", owner)
+	if entryDoc.StatusCode != http.StatusOK {
+		t.Fatalf("entry doc = %d body=%v", entryDoc.StatusCode, decodeBody(t, entryDoc))
+	}
+	entry := decodeBody(t, entryDoc)
+	if entry["source_path"] == "" || entry["uuid"] == "" || entry["commit"] == "" {
+		t.Fatalf("entry metadata = %#v", entry)
+	}
+
+	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner.OrgSlug), strings.NewReader(`{"policy":"curator_review","curator_agents":["agent:agent-b","agent:agent-a","user:not-agent"]}`))
+	req.AddCookie(owner.Cookie)
+	putResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT settings: %v", err)
+	}
+	if putResp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT settings = %d body=%v", putResp.StatusCode, decodeBody(t, putResp))
+	}
+	settings := decodeBody(t, putResp)
+	if settings["policy"] != "curator_review" || settings["commit"] == "" || settings["effect_hint"] == "" {
+		t.Fatalf("settings = %#v", settings)
+	}
+	agents := settings["curator_agents"].([]any)
+	if len(agents) != 2 || agents[0] != "agent:agent-a" || agents[1] != "agent:agent-b" {
+		t.Fatalf("curator_agents = %#v", agents)
+	}
+}
+
+func TestTeamMemory_AgentCannotSelfGrantSettings(t *testing.T) {
+	deps, _, owner := setupTeamsMemoryAPI(t)
+	tm := seedTeam(t, deps, owner.OrgID, "Agent Core", implRole)
+
+	ctx := context.Background()
+	agentIdent, err := identity.IdentityFactory{}.NewAgent("curator-agent", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.IdentityRepo.Save(ctx, agentIdent); err != nil {
+		t.Fatal(err)
+	}
+	member, err := identity.MemberFactory{}.New(owner.OrgID, agentIdent.ID(), identity.RoleAdmin, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.MemberRepo.Save(ctx, member); err != nil {
+		t.Fatal(err)
+	}
+	jwt, err := identity.MintJWT(agentIdent.ID(), testSigningKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentSess := testSession{
+		IdentityID: agentIdent.ID(),
+		OrgID:      owner.OrgID,
+		OrgSlug:    owner.OrgSlug,
+		Cookie:     &http.Cookie{Name: jwtCookieName, Value: jwt},
+	}
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", agentSess.OrgSlug), strings.NewReader(`{"policy":"curator_review","curator_agents":["agent:`+agentIdent.ID()+`"]}`))
+	req.AddCookie(agentSess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT settings as agent: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("agent self-grant = %d, want 403", resp.StatusCode)
+	}
+	if code := errorCodeOf(t, resp); code != "agent_self_grant_forbidden" {
+		t.Fatalf("code = %q", code)
 	}
 }
 
