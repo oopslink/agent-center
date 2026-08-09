@@ -32,17 +32,18 @@ var (
 )
 
 type GateVerdict struct {
-	ID             GateVerdictID      `json:"id"`
-	ProjectID      ProjectID          `json:"project_id"`
-	PlanID         PlanID             `json:"plan_id"`
-	StageID        StageID            `json:"stage_id"`
-	GateTaskID     TaskID             `json:"gate_task_id"`
-	Outcome        GateVerdictOutcome `json:"outcome"`
-	Evidence       string             `json:"evidence"`
-	ReviewedSHA    string             `json:"reviewed_sha"`
-	ActorRef       IdentityRef        `json:"actor_ref"`
-	IdempotencyKey string             `json:"idempotency_key"`
-	CreatedAt      time.Time          `json:"created_at"`
+	ID               GateVerdictID          `json:"id"`
+	ProjectID        ProjectID              `json:"project_id"`
+	PlanID           PlanID                 `json:"plan_id"`
+	StageID          StageID                `json:"stage_id"`
+	GateTaskID       TaskID                 `json:"gate_task_id"`
+	Outcome          GateVerdictOutcome     `json:"outcome"`
+	Evidence         string                 `json:"evidence"`
+	ReviewedSHA      string                 `json:"reviewed_sha"`
+	TargetRefLineage *TargetRefLineageProof `json:"target_ref_lineage,omitempty"`
+	ActorRef         IdentityRef            `json:"actor_ref"`
+	IdempotencyKey   string                 `json:"idempotency_key"`
+	CreatedAt        time.Time              `json:"created_at"`
 }
 
 func NewGateVerdict(v GateVerdict) (GateVerdict, error) {
@@ -54,6 +55,13 @@ func NewGateVerdict(v GateVerdict) (GateVerdict, error) {
 	}
 	if strings.TrimSpace(v.Evidence) == "" || strings.TrimSpace(v.ReviewedSHA) == "" || strings.TrimSpace(v.IdempotencyKey) == "" {
 		return GateVerdict{}, errors.New("projectmanager: verdict evidence, reviewed_sha and idempotency_key required")
+	}
+	if normalized, reasons := ValidateTargetRefLineageProof(v.TargetRefLineage, v.ReviewedSHA, v.Outcome == GateVerdictPass); len(reasons) != 0 {
+		if v.Outcome == GateVerdictPass || v.TargetRefLineage != nil {
+			return GateVerdict{}, fmt.Errorf("projectmanager: invalid target-ref lineage proof: %s", targetRefLineageReasonString(reasons))
+		}
+	} else {
+		v.TargetRefLineage = normalized
 	}
 	if err := v.ActorRef.Validate(); err != nil {
 		return GateVerdict{}, err

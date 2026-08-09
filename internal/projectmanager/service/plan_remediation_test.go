@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -116,7 +117,8 @@ func TestStageReject_AppendsIncrementalStageWithoutReopeningHistory(t *testing.T
 	h.setTaskStatus(t, newGateTaskID, pm.TaskCompleted)
 	pass, err := h.svc.RecordStageGateVerdict(ctx, RecordStageGateVerdictCommand{
 		GateTaskID: newGateTaskID, Outcome: pm.GateVerdictPass, Evidence: "fix verified",
-		ReviewedSHA: "feedface", IdempotencyKey: "pass-remediation-1", Actor: "user:a",
+		ReviewedSHA: "feedface", TargetRefLineage: testTargetRefLineage("feedface", "origin/main"),
+		IdempotencyKey: "pass-remediation-1", Actor: "user:a",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -211,4 +213,11 @@ func hasOrchEdge(edges []orch.Edge, from, to orch.NodeID) bool {
 		}
 	}
 	return false
+}
+
+func testTargetRefLineage(candidate, targetRef string) *pm.TargetRefLineageProof {
+	return &pm.TargetRefLineageProof{
+		TargetRef: targetRef, LSRemoteRef: "refs/heads/" + strings.TrimPrefix(targetRef, "origin/"),
+		LSRemoteSHA: candidate + "00000000000000000000000000000000", CandidateSHA: candidate, Ancestor: true,
+	}
 }

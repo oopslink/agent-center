@@ -146,9 +146,18 @@ export interface GateVerdict {
   outcome: 'pass' | 'reject';
   evidence: string;
   reviewed_sha: string;
+  target_ref_lineage?: TargetRefLineageProof;
   actor_ref: string;
   idempotency_key: string;
   created_at: string;
+}
+
+export interface TargetRefLineageProof {
+  target_ref: string;
+  ls_remote_ref: string;
+  ls_remote_sha: string;
+  candidate_sha: string;
+  ancestor: boolean;
 }
 
 export type ContinuationStatus = 'awaiting_remediation' | 'executing' | 'budget_exhausted' | 'closed';

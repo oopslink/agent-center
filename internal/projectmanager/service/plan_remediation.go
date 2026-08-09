@@ -16,13 +16,14 @@ import (
 // carries (or deterministically synthesizes) the next incremental stage; it never
 // edits or reopens the completed generation.
 type RecordStageGateVerdictCommand struct {
-	GateTaskID     pm.TaskID
-	Outcome        pm.GateVerdictOutcome
-	Evidence       string
-	ReviewedSHA    string
-	IdempotencyKey string
-	Actor          pm.IdentityRef
-	Proposal       *pm.RemediationProposalPayload
+	GateTaskID       pm.TaskID
+	Outcome          pm.GateVerdictOutcome
+	Evidence         string
+	ReviewedSHA      string
+	TargetRefLineage *pm.TargetRefLineageProof
+	IdempotencyKey   string
+	Actor            pm.IdentityRef
+	Proposal         *pm.RemediationProposalPayload
 }
 
 type RecordStageGateVerdictResult struct {
@@ -128,7 +129,8 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 				ID: pm.GateVerdictID(s.idgen.NewEntityID("verdict")), ProjectID: plan.ProjectID(),
 				PlanID: plan.ID(), StageID: stage.ID(), GateTaskID: cmd.GateTaskID,
 				Outcome: cmd.Outcome, Evidence: cmd.Evidence, ReviewedSHA: cmd.ReviewedSHA,
-				ActorRef: cmd.Actor, IdempotencyKey: cmd.IdempotencyKey, CreatedAt: now,
+				TargetRefLineage: cmd.TargetRefLineage,
+				ActorRef:         cmd.Actor, IdempotencyKey: cmd.IdempotencyKey, CreatedAt: now,
 			})
 			if err != nil {
 				return err
@@ -274,7 +276,8 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 
 func sameVerdictCommand(v pm.GateVerdict, cmd RecordStageGateVerdictCommand) bool {
 	return v.GateTaskID == cmd.GateTaskID && v.Outcome == cmd.Outcome &&
-		v.Evidence == strings.TrimSpace(cmd.Evidence) && v.ReviewedSHA == strings.TrimSpace(cmd.ReviewedSHA) && v.ActorRef == cmd.Actor
+		v.Evidence == strings.TrimSpace(cmd.Evidence) && v.ReviewedSHA == strings.TrimSpace(cmd.ReviewedSHA) &&
+		pm.SameTargetRefLineage(v.TargetRefLineage, cmd.TargetRefLineage) && v.ActorRef == cmd.Actor
 }
 
 func (s *Service) findContinuationForVerdict(ctx context.Context, verdict pm.GateVerdict) (*pm.PlanContinuation, bool, error) {

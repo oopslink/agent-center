@@ -16,14 +16,18 @@ type RemediationRepo struct{ db *sql.DB }
 func NewRemediationRepo(db *sql.DB) *RemediationRepo { return &RemediationRepo{db: db} }
 
 const verdictSelect = `SELECT id, project_id, plan_id, stage_id, gate_task_id, outcome,
-	evidence, reviewed_sha, actor_ref, idempotency_key, created_at FROM pm_gate_verdicts`
+	evidence, reviewed_sha, target_ref_lineage_json, actor_ref, idempotency_key, created_at FROM pm_gate_verdicts`
 
 func (r *RemediationRepo) SaveVerdict(ctx context.Context, v pm.GateVerdict) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	_, err := exec.ExecContext(ctx, `INSERT INTO pm_gate_verdicts
-		(id, project_id, plan_id, stage_id, gate_task_id, outcome, evidence, reviewed_sha, actor_ref, idempotency_key, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`, string(v.ID), string(v.ProjectID), string(v.PlanID), string(v.StageID),
-		string(v.GateTaskID), string(v.Outcome), v.Evidence, v.ReviewedSHA, string(v.ActorRef), v.IdempotencyKey, ts(v.CreatedAt))
+	lineageJSON, err := pm.MarshalTargetRefLineage(v.TargetRefLineage)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO pm_gate_verdicts
+		(id, project_id, plan_id, stage_id, gate_task_id, outcome, evidence, reviewed_sha, target_ref_lineage_json, actor_ref, idempotency_key, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, string(v.ID), string(v.ProjectID), string(v.PlanID), string(v.StageID),
+		string(v.GateTaskID), string(v.Outcome), v.Evidence, v.ReviewedSHA, lineageJSON, string(v.ActorRef), v.IdempotencyKey, ts(v.CreatedAt))
 	if isUnique(err) {
 		return pm.ErrGateAlreadyVerdicted
 	}
@@ -31,11 +35,16 @@ func (r *RemediationRepo) SaveVerdict(ctx context.Context, v pm.GateVerdict) err
 }
 
 func scanVerdict(scan func(...any) error) (pm.GateVerdict, error) {
-	var id, projectID, planID, stageID, gateTaskID, outcome, evidence, sha, actor, key, createdAt string
-	err := scan(&id, &projectID, &planID, &stageID, &gateTaskID, &outcome, &evidence, &sha, &actor, &key, &createdAt)
+	var id, projectID, planID, stageID, gateTaskID, outcome, evidence, sha, lineageJSON, actor, key, createdAt string
+	err := scan(&id, &projectID, &planID, &stageID, &gateTaskID, &outcome, &evidence, &sha, &lineageJSON, &actor, &key, &createdAt)
+	lineage, lerr := pm.UnmarshalTargetRefLineage(lineageJSON)
+	if err == nil {
+		err = lerr
+	}
 	return pm.GateVerdict{ID: pm.GateVerdictID(id), ProjectID: pm.ProjectID(projectID), PlanID: pm.PlanID(planID),
 		StageID: pm.StageID(stageID), GateTaskID: pm.TaskID(gateTaskID), Outcome: pm.GateVerdictOutcome(outcome),
-		Evidence: evidence, ReviewedSHA: sha, ActorRef: pm.IdentityRef(actor), IdempotencyKey: key, CreatedAt: parseTime(createdAt)}, err
+		Evidence: evidence, ReviewedSHA: sha, TargetRefLineage: lineage,
+		ActorRef: pm.IdentityRef(actor), IdempotencyKey: key, CreatedAt: parseTime(createdAt)}, err
 }
 
 func (r *RemediationRepo) FindVerdictByGate(ctx context.Context, gateTaskID pm.TaskID) (pm.GateVerdict, bool, error) {

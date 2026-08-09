@@ -578,17 +578,19 @@ type completeTaskArgs struct {
 	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
 	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
 	// T468 structured review verdict (Review nodes only).
-	ReviewVerdict  string                    `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
-	ReviewBlocking bool                      `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
-	ReviewReason   string                    `json:"review_reason,omitempty" jsonschema:"with review_verdict: a short rationale for the verdict"`
-	ReviewSHA      string                    `json:"review_sha,omitempty" jsonschema:"with review_verdict: the reviewed commit SHA (audit / staleness context)"`
-	Delivery       *completeTaskDeliveryArgs `json:"delivery,omitempty" jsonschema:"optional structured delivery information; preferred over the legacy flat summary/outcome/review_* fields"`
+	ReviewVerdict    string                    `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
+	ReviewBlocking   bool                      `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
+	ReviewReason     string                    `json:"review_reason,omitempty" jsonschema:"with review_verdict: a short rationale for the verdict"`
+	ReviewSHA        string                    `json:"review_sha,omitempty" jsonschema:"with review_verdict: the reviewed commit SHA (audit / staleness context)"`
+	TargetRefLineage *targetRefLineageArgs     `json:"target_ref_lineage,omitempty" jsonschema:"for a final stage/release gate pass: proof that review_sha/candidate_sha is contained by the remote target ref, not just pushed to a feature branch"`
+	Delivery         *completeTaskDeliveryArgs `json:"delivery,omitempty" jsonschema:"optional structured delivery information; preferred over the legacy flat summary/outcome/review_* fields"`
 }
 
 type completeTaskDeliveryArgs struct {
-	Summary string                 `json:"summary,omitempty" jsonschema:"completion summary posted to the task"`
-	Outcome string                 `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject')"`
-	Review  completeTaskReviewArgs `json:"review,omitempty" jsonschema:"for a REVIEW node only: structured review verdict"`
+	Summary          string                 `json:"summary,omitempty" jsonschema:"completion summary posted to the task"`
+	Outcome          string                 `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject')"`
+	Review           completeTaskReviewArgs `json:"review,omitempty" jsonschema:"for a REVIEW node only: structured review verdict"`
+	TargetRefLineage *targetRefLineageArgs  `json:"target_ref_lineage,omitempty" jsonschema:"required for stage/release gate pass: ls-remote/ref/SHA/ancestor evidence that the reviewed SHA has shipped to origin/main or a declared target_ref"`
 }
 
 type completeTaskReviewArgs struct {
@@ -598,18 +600,27 @@ type completeTaskReviewArgs struct {
 	SHA      string `json:"sha,omitempty" jsonschema:"reviewed commit SHA"`
 }
 
+type targetRefLineageArgs struct {
+	TargetRef    string `json:"target_ref" jsonschema:"declared remote target ref for final delivery, normally origin/main; custom release refs are allowed"`
+	LSRemoteRef  string `json:"ls_remote_ref" jsonschema:"ref returned by git ls-remote for target_ref, e.g. refs/heads/main"`
+	LSRemoteSHA  string `json:"ls_remote_sha" jsonschema:"SHA returned by git ls-remote for the target ref"`
+	CandidateSHA string `json:"candidate_sha" jsonschema:"the reviewed candidate SHA checked against the target ref; must match review.sha/review_sha"`
+	Ancestor     bool   `json:"ancestor" jsonschema:"true only after git merge-base --is-ancestor candidate_sha ls_remote_sha succeeds"`
+}
+
 func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args completeTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":        cfg.AgentID,
-			"task_id":         args.TaskID,
-			"summary":         args.Summary,
-			"outcome":         args.Outcome,
-			"review_verdict":  args.ReviewVerdict,
-			"review_blocking": args.ReviewBlocking,
-			"review_reason":   args.ReviewReason,
-			"review_sha":      args.ReviewSHA,
-			"delivery":        args.Delivery,
+			"agent_id":           cfg.AgentID,
+			"task_id":            args.TaskID,
+			"summary":            args.Summary,
+			"outcome":            args.Outcome,
+			"review_verdict":     args.ReviewVerdict,
+			"review_blocking":    args.ReviewBlocking,
+			"review_reason":      args.ReviewReason,
+			"review_sha":         args.ReviewSHA,
+			"target_ref_lineage": args.TargetRefLineage,
+			"delivery":           args.Delivery,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
 	}

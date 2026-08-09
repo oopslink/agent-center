@@ -210,6 +210,7 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 - [ ] 多工具流程串了真实链路；finding 暴露的类扫全了（§ 2）
 - [ ] 上线前有一次全产品整合走查跑在 owner 之前（§ 3）
 - [ ] 证据已 commit 进被 tag 的 commit，并 `git ls-tree` 实证在 tree 里（§ 4）
+- [ ] 终验 / release gate 已记录 target-ref lineage：`git ls-remote origin <target-ref>` 的 ref+SHA、reviewed SHA、`merge-base --is-ancestor reviewed target` 的 `ancestor=true`；否则先补 Ship 节点，不把 feature branch PASS 当作 main 交付
 - [ ] 每个功能模块 / 验收点旁边 **inline 内嵌**了可视证据（FE=真实例截图、后端=test/SQL/API artifact），both-mode 点附 light+dark，非只文字引用路径（§ 4.1）
 - [ ] 验的页面是**点真实导航 / 链接**到达的（非只直接 URL），nav 入口/快捷键/面包屑链到的确实是被改的页、无未删的可达重复旧页（§ 4.2 reachability）
 - [ ] 发布验收报告含从**用户视角端到端**走查的**关键步骤截图**（配 步骤/期望/实测），且可用**提交进仓库的 capture 脚本**复现（§ 4.3）

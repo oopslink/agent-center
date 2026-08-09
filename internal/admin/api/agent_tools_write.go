@@ -962,21 +962,23 @@ type completeTaskReq struct {
 	// blocking objection (forces auto-reject even with verdict=pass); ReviewReason is
 	// a short rationale; ReviewSHA is the reviewed commit. B3 reads the CURRENT-round
 	// verdict to auto-decide the downstream Decision.
-	ReviewVerdict  string                         `json:"review_verdict"`
-	ReviewBlocking bool                           `json:"review_blocking"`
-	ReviewReason   string                         `json:"review_reason"`
-	ReviewSHA      string                         `json:"review_sha"`
-	IdempotencyKey string                         `json:"idempotency_key"`
-	Remediation    *pm.RemediationProposalPayload `json:"remediation,omitempty"`
-	Delivery       *completeTaskDeliveryReq       `json:"delivery"`
+	ReviewVerdict    string                         `json:"review_verdict"`
+	ReviewBlocking   bool                           `json:"review_blocking"`
+	ReviewReason     string                         `json:"review_reason"`
+	ReviewSHA        string                         `json:"review_sha"`
+	TargetRefLineage *pm.TargetRefLineageProof      `json:"target_ref_lineage,omitempty"`
+	IdempotencyKey   string                         `json:"idempotency_key"`
+	Remediation      *pm.RemediationProposalPayload `json:"remediation,omitempty"`
+	Delivery         *completeTaskDeliveryReq       `json:"delivery"`
 }
 
 type completeTaskDeliveryReq struct {
-	Summary        string                         `json:"summary"`
-	Outcome        string                         `json:"outcome"`
-	Review         completeTaskReviewReq          `json:"review"`
-	IdempotencyKey string                         `json:"idempotency_key"`
-	Remediation    *pm.RemediationProposalPayload `json:"remediation,omitempty"`
+	Summary          string                         `json:"summary"`
+	Outcome          string                         `json:"outcome"`
+	Review           completeTaskReviewReq          `json:"review"`
+	TargetRefLineage *pm.TargetRefLineageProof      `json:"target_ref_lineage,omitempty"`
+	IdempotencyKey   string                         `json:"idempotency_key"`
+	Remediation      *pm.RemediationProposalPayload `json:"remediation,omitempty"`
 }
 
 type completeTaskReviewReq struct {
@@ -1014,6 +1016,7 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	reviewBlocking := req.ReviewBlocking
 	reviewReason := req.ReviewReason
 	reviewSHA := req.ReviewSHA
+	targetRefLineage := req.TargetRefLineage
 	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
 	remediation := req.Remediation
 	if req.Delivery != nil {
@@ -1028,6 +1031,9 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			reviewBlocking = req.Delivery.Review.Blocking
 			reviewReason = req.Delivery.Review.Reason
 			reviewSHA = req.Delivery.Review.SHA
+		}
+		if req.Delivery.TargetRefLineage != nil {
+			targetRefLineage = req.Delivery.TargetRefLineage
 		}
 		if strings.TrimSpace(req.Delivery.IdempotencyKey) != "" {
 			idempotencyKey = strings.TrimSpace(req.Delivery.IdempotencyKey)
@@ -1069,6 +1075,11 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "missing_gate_reviewed_sha", "stage gate completion requires delivery.review.sha")
 			return
 		}
+		if proof, ok := validateStageGateTargetRefLineage(w, manualOutcome, reviewSHA, targetRefLineage); !ok {
+			return
+		} else {
+			targetRefLineage = proof
+		}
 	}
 	if stageGate {
 		reviewVerdict = manualOutcome
@@ -1086,7 +1097,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if gateTask.Status() == pm.TaskCompleted {
 			_, err := d.PMService.RecordStageGateVerdict(r.Context(), pmservice.RecordStageGateVerdictCommand{
 				GateTaskID: pm.TaskID(req.TaskID), Outcome: pm.GateVerdictOutcome(manualOutcome), Evidence: deliverySummary,
-				ReviewedSHA: reviewSHA, IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
+				ReviewedSHA: reviewSHA, TargetRefLineage: targetRefLineage,
+				IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
 			})
 			if err != nil {
 				mapDomainError(w, err)
@@ -1173,7 +1185,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			if stageGate {
 				if _, err := d.PMService.RecordStageGateVerdict(txCtx, pmservice.RecordStageGateVerdictCommand{
 					GateTaskID: pm.TaskID(req.TaskID), Outcome: pm.GateVerdictOutcome(manualOutcome), Evidence: deliverySummary,
-					ReviewedSHA: reviewSHA, IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
+					ReviewedSHA: reviewSHA, TargetRefLineage: targetRefLineage,
+					IdempotencyKey: idempotencyKey, Actor: pm.IdentityRef(agentActor(a)), Proposal: remediation,
 				}); err != nil {
 					return err
 				}
@@ -1199,6 +1212,38 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		_ = d.PMService.NotifyDecisionDeferred(r.Context(), pm.TaskID(req.TaskID))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+}
+
+func validateStageGateTargetRefLineage(w http.ResponseWriter, outcome, reviewedSHA string, proof *pm.TargetRefLineageProof) (*pm.TargetRefLineageProof, bool) {
+	requireAncestor := outcome == string(pm.GateVerdictPass)
+	if !requireAncestor && proof == nil {
+		return nil, true
+	}
+	normalized, reasons := pm.ValidateTargetRefLineageProof(proof, reviewedSHA, requireAncestor)
+	if len(reasons) == 0 {
+		return normalized, true
+	}
+	if requireAncestor {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":         "target_ref_lineage_gate",
+			"message":       "stage/release gate pass requires proof that the reviewed SHA is already contained by the remote target ref; feature branch PASS is not main delivery",
+			"reason_codes":  pm.TargetRefLineageReasonCodes(reasons),
+			"reasons":       reasons,
+			"reviewed_sha":  strings.TrimSpace(reviewedSHA),
+			"lineage":       normalized,
+			"required_gate": "ls-remote target ref + candidate SHA + merge-base ancestor=true",
+			"next_action":   "add and complete a Ship node that moves the reviewed SHA into origin/main or the declared target_ref, then rerun final acceptance with target_ref_lineage evidence",
+		})
+		return nil, false
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]any{
+		"error":        "invalid_target_ref_lineage",
+		"message":      "target_ref_lineage evidence is malformed",
+		"reason_codes": pm.TargetRefLineageReasonCodes(reasons),
+		"reasons":      reasons,
+		"lineage":      normalized,
+	})
+	return nil, false
 }
 
 // --- discard_task (T119) -----------------------------------------------------
