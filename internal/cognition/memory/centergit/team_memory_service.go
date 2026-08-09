@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	proposalsDir = "proposals"
-	settingsDir  = "settings"
-	settingsFile = "settings/team-memory.yml"
+	legacyProposalsDir = "proposals"
+	settingsDir        = "settings"
+	settingsFile       = "settings/team-memory.yml"
 
 	ProposalStatusPending  = "pending"
 	ProposalStatusPromoted = "promoted"
@@ -191,7 +191,7 @@ type UpdateTeamMemorySettingsInput struct {
 	Author        Author
 }
 
-type proposalFrontmatter struct {
+type legacyProposalFrontmatter struct {
 	ID                  string   `yaml:"id"`
 	UUID                string   `yaml:"uuid"`
 	Status              string   `yaml:"status"`
@@ -349,7 +349,7 @@ func (s *TeamMemoryService) CreateProposal(ctx context.Context, teamID string, i
 	if err := validateSegment(id); err != nil {
 		return MemoryProposal{}, err
 	}
-	fm := proposalFrontmatter{
+	fm := legacyProposalFrontmatter{
 		ID:                  id,
 		UUID:                s.newID(),
 		Status:              ProposalStatusPending,
@@ -371,7 +371,7 @@ func (s *TeamMemoryService) CreateProposal(ctx context.Context, teamID string, i
 		}
 		fm.AppliesTo = applies
 	}
-	path := filepath.ToSlash(filepath.Join(proposalsDir, id+".md"))
+	path := filepath.ToSlash(filepath.Join(legacyProposalsDir, id+".md"))
 	if err := writeProposalFile(wc.repoDir, fm, in.Body); err != nil {
 		return MemoryProposal{}, err
 	}
@@ -397,7 +397,7 @@ func (s *TeamMemoryService) PromoteProposal(ctx context.Context, teamID string, 
 		return MemoryProposal{}, err
 	}
 	defer wc.cleanup()
-	fm, body, sourcePath, err := parseProposalFile(wc.repoDir, in.ProposalID)
+	fm, body, sourcePath, err := parseLegacyProposalFile(wc.repoDir, in.ProposalID)
 	if err != nil {
 		return MemoryProposal{}, err
 	}
@@ -454,7 +454,7 @@ func (s *TeamMemoryService) RejectProposal(ctx context.Context, teamID string, i
 		return MemoryProposal{}, err
 	}
 	defer wc.cleanup()
-	fm, body, sourcePath, err := parseProposalFile(wc.repoDir, in.ProposalID)
+	fm, body, sourcePath, err := parseLegacyProposalFile(wc.repoDir, in.ProposalID)
 	if err != nil {
 		return MemoryProposal{}, err
 	}
@@ -673,7 +673,7 @@ func matchingMarkdownFiles(dir string) ([]string, error) {
 }
 
 func readProposals(repoDir, commit string) ([]MemoryProposal, []string, error) {
-	files, err := matchingMarkdownFiles(filepath.Join(repoDir, proposalsDir))
+	files, err := matchingMarkdownFiles(filepath.Join(repoDir, legacyProposalsDir))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -702,7 +702,7 @@ func readProposals(repoDir, commit string) ([]MemoryProposal, []string, error) {
 }
 
 func readProposalByID(repoDir, commit, id string) (MemoryProposal, error) {
-	fm, body, sourcePath, err := parseProposalFile(repoDir, id)
+	fm, body, sourcePath, err := parseLegacyProposalFile(repoDir, id)
 	if err != nil {
 		return MemoryProposal{}, err
 	}
@@ -711,12 +711,12 @@ func readProposalByID(repoDir, commit, id string) (MemoryProposal, error) {
 	return p, nil
 }
 
-func parseProposalFile(repoDir, id string) (proposalFrontmatter, string, string, error) {
+func parseLegacyProposalFile(repoDir, id string) (legacyProposalFrontmatter, string, string, error) {
 	if err := validateSegment(id); err != nil {
-		return proposalFrontmatter{}, "", "", err
+		return legacyProposalFrontmatter{}, "", "", err
 	}
-	rel := filepath.ToSlash(filepath.Join(proposalsDir, id+".md"))
-	var fm proposalFrontmatter
+	rel := filepath.ToSlash(filepath.Join(legacyProposalsDir, id+".md"))
+	var fm legacyProposalFrontmatter
 	body, err := parseMarkdown(filepath.Join(repoDir, filepath.FromSlash(rel)), &fm)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -730,11 +730,11 @@ func parseProposalFile(repoDir, id string) (proposalFrontmatter, string, string,
 	return fm, body, rel, nil
 }
 
-func writeProposalFile(repoDir string, fm proposalFrontmatter, body string) error {
-	return writeProposalFileWithPath(repoDir, filepath.ToSlash(filepath.Join(proposalsDir, fm.ID+".md")), fm, body)
+func writeProposalFile(repoDir string, fm legacyProposalFrontmatter, body string) error {
+	return writeProposalFileWithPath(repoDir, filepath.ToSlash(filepath.Join(legacyProposalsDir, fm.ID+".md")), fm, body)
 }
 
-func writeProposalFileWithPath(repoDir, rel string, fm proposalFrontmatter, body string) error {
+func writeProposalFileWithPath(repoDir, rel string, fm legacyProposalFrontmatter, body string) error {
 	if err := validateSegment(strings.TrimSuffix(filepath.Base(rel), ".md")); err != nil {
 		return err
 	}
@@ -749,7 +749,7 @@ func writeProposalFileWithPath(repoDir, rel string, fm proposalFrontmatter, body
 	return os.WriteFile(abs, []byte(content), 0o600)
 }
 
-func proposalFromFrontmatter(fm proposalFrontmatter, body, sourcePath, commit string) MemoryProposal {
+func proposalFromFrontmatter(fm legacyProposalFrontmatter, body, sourcePath, commit string) MemoryProposal {
 	status := strings.TrimSpace(fm.Status)
 	if status == "" {
 		status = ProposalStatusPending
@@ -766,7 +766,7 @@ func proposalFromFrontmatter(fm proposalFrontmatter, body, sourcePath, commit st
 }
 
 func proposalDocument(p MemoryProposal) MemoryDocument {
-	fm := proposalFrontmatter{
+	fm := legacyProposalFrontmatter{
 		ID: p.ID, UUID: p.UUID, Status: p.Status, TargetKind: p.TargetKind, Slug: p.Slug,
 		Title: p.Title, Description: p.Description, AuthorRef: p.AuthorRef, CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt, PromotedPath: p.PromotedPath, TargetUUID: p.TargetUUID,

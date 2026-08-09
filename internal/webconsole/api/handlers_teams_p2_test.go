@@ -10,6 +10,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
@@ -34,6 +35,9 @@ func setupTeamsMemoryAPI(t *testing.T) (HandlerDeps, *sql.DB, testSession) {
 	host := centergit.NewHost(t.TempDir(), nil)
 	deps.TeamGitHost = host
 	deps.TeamMemory = centergit.NewTeamMemoryService(host, nil)
+	repo := centergit.NewTeamMemoryRepository(host, nil)
+	deps.TeamMemoryWrite = teammemory.NewService(repo, teammemory.NewTeamPolicyAuthorizationFromService(deps.TeamService, deps.MemberRepo))
+	deps.TeamMemoryProjector = teammemory.NewProjector(nil, nil, nil, nil)
 	return deps, db, sess
 }
 
@@ -389,7 +393,7 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 	if noAck.StatusCode != http.StatusBadRequest {
 		t.Fatalf("create without ack = %d, want 400", noAck.StatusCode)
 	}
-	if code := errorCodeOf(t, noAck); code != "warning_ack_required" {
+	if code := errorCodeOf(t, noAck); code != "invalid_candidate" {
 		t.Fatalf("error code = %q", code)
 	}
 
@@ -402,19 +406,22 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 	memberWrite.Body.Close()
 
 	create := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals", `{
+		"idempotency_key":"web-test-create-1",
+		"operation":"add",
 		"target_kind":"entry",
 		"slug":"ci-runbook",
 		"title":"CI Runbook",
 		"description":"CI notes",
 		"body":"Use CI and keep rollback notes.",
-		"warning_acknowledged":true
+		"warning_acknowledged":true,
+		"rationale":"record the CI runbook"
 	}`, owner)
 	if create.StatusCode != http.StatusCreated {
 		t.Fatalf("create proposal = %d body=%v", create.StatusCode, decodeBody(t, create))
 	}
 	created := decodeBody(t, create)
 	proposalID := created["id"].(string)
-	if proposalID == "" || created["status"] != "pending" || created["source_path"] == "" || created["uuid"] == "" || created["commit"] == "" {
+	if proposalID == "" || created["status"] != "pending" || created["source_path"] == "" || created["commit"] == "" {
 		t.Fatalf("created proposal metadata = %#v", created)
 	}
 	if created["diff"] == "" {
@@ -442,16 +449,16 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 		t.Fatalf("proposal doc = %d body=%v", docResp.StatusCode, decodeBody(t, docResp))
 	}
 	doc := decodeBody(t, docResp)
-	if doc["kind"] != "proposal" || doc["diff"] == "" || doc["uuid"] == "" || doc["commit"] == "" {
+	if doc["kind"] != "proposal" || doc["diff"] == "" || doc["commit"] == "" || doc["proposal"] == nil {
 		t.Fatalf("proposal doc metadata = %#v", doc)
 	}
 
-	promote := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals/"+proposalID+"/promote", `{}`, owner)
+	promote := orgScopedPost(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/proposals/"+proposalID+"/promote", `{"expected_repo_commit":"`+created["commit"].(string)+`","expected_proposal_status":"pending","comment":"approved"}`, owner)
 	if promote.StatusCode != http.StatusOK {
 		t.Fatalf("promote = %d body=%v", promote.StatusCode, decodeBody(t, promote))
 	}
 	promoted := decodeBody(t, promote)
-	if promoted["status"] != "promoted" || promoted["promoted_path"] == "" || promoted["target_uuid"] == "" {
+	if promoted["status"] != "promoted" || promoted["new_commit"] == "" || promoted["effective_for"] != "new_sessions_and_forks" {
 		t.Fatalf("promoted = %#v", promoted)
 	}
 
@@ -464,7 +471,7 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 		t.Fatalf("entry metadata = %#v", entry)
 	}
 
-	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner.OrgSlug), strings.NewReader(`{"policy":"curator_review","curator_agents":["agent:agent-b","agent:agent-a","user:not-agent"]}`))
+	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner.OrgSlug), strings.NewReader(`{"policy":"proposal_only","curator_agents":[]}`))
 	req.AddCookie(owner.Cookie)
 	putResp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -474,11 +481,11 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 		t.Fatalf("PUT settings = %d body=%v", putResp.StatusCode, decodeBody(t, putResp))
 	}
 	settings := decodeBody(t, putResp)
-	if settings["policy"] != "curator_review" || settings["commit"] == "" || settings["effect_hint"] == "" {
+	if settings["policy"] != "proposal_only" || settings["effect_hint"] == "" {
 		t.Fatalf("settings = %#v", settings)
 	}
 	agents := settings["curator_agents"].([]any)
-	if len(agents) != 2 || agents[0] != "agent:agent-a" || agents[1] != "agent:agent-b" {
+	if len(agents) != 0 {
 		t.Fatalf("curator_agents = %#v", agents)
 	}
 }

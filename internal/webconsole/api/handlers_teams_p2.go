@@ -10,6 +10,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
@@ -301,7 +302,7 @@ func (s *Server) teamMemoryExperiences(r *http.Request, d HandlerDeps, teamID st
 // is empty, not an error — matches centergit.ReadTeam's contract).
 func (s *Server) teamMemoryIndexHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -320,6 +321,22 @@ func (s *Server) teamMemoryIndexHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	out := memoryIndexView(snap)
+	if d.TeamMemoryWrite != nil {
+		// Git is authoritative; every read is also a restart-safe opportunity to
+		// backfill observability transitions missed before a crash.
+		_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+		proposals, perr := d.TeamMemoryWrite.List(r.Context(), teammemory.ListCommand{
+			ActorRef: actorRefForIdentity(caller), TeamID: t.ID().String(),
+			Status: []teammemory.ProposalStatus{teammemory.StatusPending, teammemory.StatusPromoted, teammemory.StatusRejected, teammemory.StatusSuperseded}, Limit: 100,
+		})
+		if perr != nil {
+			mapTeamMemoryWebError(w, perr)
+			return
+		}
+		for _, view := range proposals.Proposals {
+			out = append(out, controlledProposalIndexView(view))
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -352,7 +369,7 @@ func (s *Server) teamMemoryDocHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) teamMemoryProposalDocHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -361,20 +378,37 @@ func (s *Server) teamMemoryProposalDocHandler(w http.ResponseWriter, r *http.Req
 		mapTeamWebError(w, err)
 		return
 	}
-	if d.TeamMemory == nil || !d.TeamMemory.Configured() {
+	if d.TeamMemoryWrite == nil {
 		writeError(w, http.StatusNotFound, "memory_not_found", "memory proposal not found")
 		return
 	}
-	doc, err := d.TeamMemory.GetDocument(r.Context(), t.ID().String(), centergit.MemoryItemProposal, r.PathValue("proposal_id"))
+	view, err := d.TeamMemoryWrite.Get(r.Context(), teammemory.GetCommand{
+		ActorRef: actorRefForIdentity(caller), TeamID: t.ID().String(), ProposalID: r.PathValue("proposal_id"),
+	})
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, memoryDocView(doc))
+	p := controlledProposalView(view)
+	body := ""
+	if view.Proposal.Candidate != nil {
+		body = view.Proposal.Candidate.Body
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"slug": view.Proposal.ProposalID, "path": view.Proposal.SourcePath,
+		"source_path": view.Proposal.SourcePath, "title": proposalTitle(view.Proposal),
+		"body": body, "commit": view.RepoCommit, "kind": centergit.MemoryItemProposal,
+		"diff": view.DiffPreview, "proposal": p, "effect_hint": teammemory.EffectiveForNewSessionsAndForks,
+	})
 }
 
 type createMemoryProposalReq struct {
+	IdempotencyKey      string   `json:"idempotency_key"`
+	Operation           string   `json:"operation"`
 	TargetKind          string   `json:"target_kind"`
+	TargetSourcePath    string   `json:"target_source_path"`
+	TargetUUID          string   `json:"target_uuid"`
+	ExpectedBlobHash    string   `json:"expected_blob_hash"`
 	Slug                string   `json:"slug"`
 	Title               string   `json:"title"`
 	Description         string   `json:"description"`
@@ -382,11 +416,13 @@ type createMemoryProposalReq struct {
 	Enabled             bool     `json:"enabled"`
 	AppliesTo           []string `json:"applies_to"`
 	WarningAcknowledged bool     `json:"warning_acknowledged"`
+	Rationale           string   `json:"rationale"`
+	EvidenceRefs        []string `json:"evidence_refs"`
 }
 
 func (s *Server) createTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, member, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
 	if !ok {
 		return
 	}
@@ -395,27 +431,44 @@ func (s *Server) createTeamMemoryProposalHandler(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	p, err := d.TeamMemory.CreateProposal(r.Context(), t.ID().String(), centergit.CreateMemoryProposalInput{
-		TargetKind: req.TargetKind, Slug: req.Slug, Title: req.Title, Description: req.Description,
-		Body: req.Body, Enabled: req.Enabled, AppliesTo: req.AppliesTo,
-		WarningAcknowledged: req.WarningAcknowledged,
-		AuthorRef:           actorRefForIdentity(caller),
-		Author:              gitAuthorForIdentity(caller, member),
-	})
+	op := teammemory.Operation(strings.ToLower(strings.TrimSpace(req.Operation)))
+	if op == "" {
+		op = teammemory.OperationAdd
+	}
+	enabled := req.Enabled
+	cmd := teammemory.ProposeCommand{
+		ActorRef: actorRefForIdentity(caller), IdempotencyKey: req.IdempotencyKey,
+		Operation: op, TargetKind: teammemory.TargetKind(req.TargetKind),
+		Candidate: &teammemory.Candidate{Slug: req.Slug, Title: req.Title, Description: req.Description, Body: req.Body, Enabled: &enabled, AppliesTo: req.AppliesTo},
+		Rationale: req.Rationale, EvidenceRefs: req.EvidenceRefs,
+	}
+	if req.TargetSourcePath != "" || req.TargetUUID != "" || req.ExpectedBlobHash != "" {
+		cmd.Target = &teammemory.TargetRef{SourcePath: req.TargetSourcePath, UUID: req.TargetUUID, ExpectedBlobHash: req.ExpectedBlobHash}
+	}
+	result, err := d.TeamMemoryWrite.ProposeForTeam(r.Context(), t.ID().String(), cmd)
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, memoryProposalView(p))
+	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	view, err := d.TeamMemoryWrite.Get(r.Context(), teammemory.GetCommand{ActorRef: actorRefForIdentity(caller), TeamID: t.ID().String(), ProposalID: result.ProposalID})
+	if err != nil {
+		mapTeamMemoryWebError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, controlledProposalView(view))
 }
 
 type promoteMemoryProposalReq struct {
-	WarningAcknowledged bool `json:"warning_acknowledged"`
+	ExpectedRepoCommit     string   `json:"expected_repo_commit"`
+	ExpectedProposalStatus string   `json:"expected_proposal_status"`
+	Comment                string   `json:"comment"`
+	AcknowledgeWarnings    []string `json:"acknowledge_warnings"`
 }
 
 func (s *Server) promoteTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, member, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
 	if !ok {
 		return
 	}
@@ -423,26 +476,28 @@ func (s *Server) promoteTeamMemoryProposalHandler(w http.ResponseWriter, r *http
 	if r.Body != nil {
 		_ = decodeJSON(r, &req)
 	}
-	p, err := d.TeamMemory.PromoteProposal(r.Context(), t.ID().String(), centergit.PromoteMemoryProposalInput{
-		ProposalID:          r.PathValue("proposal_id"),
-		WarningAcknowledged: req.WarningAcknowledged,
-		ActorRef:            actorRefForIdentity(caller),
-		Author:              gitAuthorForIdentity(caller, member),
+	result, err := d.TeamMemoryWrite.Review(r.Context(), t.ID().String(), teammemory.ReviewCommand{
+		ActorRef: actorRefForIdentity(caller), ProposalID: r.PathValue("proposal_id"), Action: teammemory.ActionPromote,
+		ExpectedRepoCommit: req.ExpectedRepoCommit, ExpectedProposalStatus: teammemory.ProposalStatus(req.ExpectedProposalStatus),
+		Comment: req.Comment, AcknowledgeWarnings: req.AcknowledgeWarnings,
 	})
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, memoryProposalView(p))
+	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	writeJSON(w, http.StatusOK, controlledResultView(result))
 }
 
 type rejectMemoryProposalReq struct {
-	Reason string `json:"reason"`
+	ExpectedRepoCommit     string `json:"expected_repo_commit"`
+	ExpectedProposalStatus string `json:"expected_proposal_status"`
+	Comment                string `json:"comment"`
 }
 
 func (s *Server) rejectTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, member, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
 	if !ok {
 		return
 	}
@@ -451,17 +506,16 @@ func (s *Server) rejectTeamMemoryProposalHandler(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	p, err := d.TeamMemory.RejectProposal(r.Context(), t.ID().String(), centergit.RejectMemoryProposalInput{
-		ProposalID: r.PathValue("proposal_id"),
-		Reason:     req.Reason,
-		ActorRef:   actorRefForIdentity(caller),
-		Author:     gitAuthorForIdentity(caller, member),
+	result, err := d.TeamMemoryWrite.Review(r.Context(), t.ID().String(), teammemory.ReviewCommand{
+		ActorRef: actorRefForIdentity(caller), ProposalID: r.PathValue("proposal_id"), Action: teammemory.ActionReject,
+		ExpectedRepoCommit: req.ExpectedRepoCommit, ExpectedProposalStatus: teammemory.ProposalStatus(req.ExpectedProposalStatus), Comment: req.Comment,
 	})
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, memoryProposalView(p))
+	_ = d.TeamMemoryProjector.ReconcileTeam(r.Context(), t.ID().String())
+	writeJSON(w, http.StatusOK, controlledResultView(result))
 }
 
 func (s *Server) getTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Request) {
@@ -475,7 +529,7 @@ func (s *Server) getTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Req
 		mapTeamWebError(w, err)
 		return
 	}
-	if d.TeamMemory == nil || !d.TeamMemory.Configured() {
+	if d.TeamMemoryWrite == nil {
 		writeJSON(w, http.StatusOK, memorySettingsView(centergit.TeamMemorySettings{
 			CuratorAgents: []string{},
 			Policy:        "owner_admin_review",
@@ -483,12 +537,12 @@ func (s *Server) getTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Req
 		}))
 		return
 	}
-	settings, err := d.TeamMemory.GetSettings(r.Context(), t.ID().String())
-	if err != nil && !errors.Is(err, centergit.ErrTeamMemoryNotConfigured) {
+	policy, err := d.TeamService.GetTeamMemoryPolicy(r.Context(), t.ID())
+	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, memorySettingsView(settings))
+	writeJSON(w, http.StatusOK, memoryPolicyView(policy))
 }
 
 type updateMemorySettingsReq struct {
@@ -498,7 +552,7 @@ type updateMemorySettingsReq struct {
 
 func (s *Server) putTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, member, t, ok := s.requireTeamMemoryManage(w, r, d)
+	_, _, t, ok := s.requireTeamMemoryManage(w, r, d)
 	if !ok {
 		return
 	}
@@ -507,18 +561,25 @@ func (s *Server) putTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	settings, err := d.TeamMemory.UpdateSettings(r.Context(), t.ID().String(), centergit.UpdateTeamMemorySettingsInput{
-		CuratorAgents: req.CuratorAgents,
-		Policy:        req.Policy,
-		ActorRef:      actorRefForIdentity(caller),
-		ActorKind:     caller.Kind().String(),
-		Author:        gitAuthorForIdentity(caller, member),
-	})
+	mode := team.TeamMemoryPolicyMode(req.Policy)
+	if mode == "owner_admin_review" || mode == "" {
+		mode = team.TeamMemoryProposalOnly
+	}
+	refs := make([]team.MemberRef, 0, len(req.CuratorAgents))
+	for _, ref := range req.CuratorAgents {
+		refs = append(refs, team.MemberRef(ref))
+	}
+	_, err := d.TeamService.SetTeamMemoryPolicy(r.Context(), t.ID(), team.TeamMemoryPolicy{Mode: mode, CuratorAgentRefs: refs})
 	if err != nil {
 		mapTeamMemoryWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, memorySettingsView(settings))
+	policy, err := d.TeamService.GetTeamMemoryPolicy(r.Context(), t.ID())
+	if err != nil {
+		mapTeamMemoryWebError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, memoryPolicyView(policy))
 }
 
 func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*identity.Identity, *identity.Member, *team.Team, bool) {
@@ -526,7 +587,7 @@ func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request,
 	if !ok {
 		return nil, nil, nil, false
 	}
-	if d.TeamMemory == nil || !d.TeamMemory.Configured() {
+	if d.TeamMemoryWrite == nil || d.TeamService == nil {
 		writeError(w, http.StatusNotImplemented, "not_configured", "team memory service not wired")
 		return nil, nil, nil, false
 	}
@@ -548,6 +609,16 @@ func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request,
 
 func mapTeamMemoryWebError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, teammemory.ErrNotWired):
+		writeError(w, http.StatusNotImplemented, "not_configured", "team memory service not wired")
+	case errors.Is(err, teammemory.ErrNotTeamMember), errors.Is(err, teammemory.ErrNotMemoryCurator):
+		writeError(w, http.StatusForbidden, teammemory.Reason(err), err.Error())
+	case errors.Is(err, teammemory.ErrProposalNotFound):
+		writeError(w, http.StatusNotFound, teammemory.Reason(err), err.Error())
+	case errors.Is(err, teammemory.ErrProposalNotPending), errors.Is(err, teammemory.ErrTargetChanged), errors.Is(err, teammemory.ErrIdempotencyConflict), errors.Is(err, teammemory.ErrTeamMemoryVersionConflict):
+		writeError(w, http.StatusConflict, teammemory.Reason(err), err.Error())
+	case errors.Is(err, teammemory.ErrInvalidCandidate), errors.Is(err, teammemory.ErrSecretDetected), errors.Is(err, teammemory.ErrWarningUnacknowledged):
+		writeError(w, http.StatusBadRequest, teammemory.Reason(err), err.Error())
 	case errors.Is(err, centergit.ErrTeamMemoryNotConfigured):
 		writeError(w, http.StatusNotImplemented, "not_configured", "team memory service not wired")
 	case errors.Is(err, centergit.ErrTeamMemoryNotFound):
@@ -562,6 +633,62 @@ func mapTeamMemoryWebError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "agent_self_grant_forbidden", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "an internal error occurred")
+	}
+}
+
+func controlledProposalView(view teammemory.ProposalView) map[string]any {
+	p := view.Proposal
+	sourcePath := p.SourcePath
+	if sourcePath == "" {
+		sourcePath = "proposals/" + p.ProposalID + ".md"
+	}
+	out := map[string]any{
+		"id": p.ProposalID, "status": p.Status, "operation": p.Operation,
+		"target_kind": p.TargetKind, "author_ref": p.AuthorRef, "created_at": p.CreatedAt,
+		"source_path": sourcePath, "commit": view.RepoCommit, "warnings": p.Warnings,
+		"reviewer_ref": p.ReviewerRef, "review_comment": p.ReviewComment,
+		"promotion_commit": p.PromotionCommit, "diff": view.DiffPreview,
+		"candidate": p.Candidate, "target": p.Target, "rationale": p.Rationale,
+	}
+	if p.Candidate != nil {
+		out["slug"] = p.Candidate.Slug
+		out["title"] = p.Candidate.Title
+		out["description"] = p.Candidate.Description
+		out["body"] = p.Candidate.Body
+		out["enabled"] = p.Candidate.Enabled != nil && *p.Candidate.Enabled
+		out["applies_to"] = p.Candidate.AppliesTo
+	}
+	if p.Target != nil {
+		out["target_uuid"] = p.Target.UUID
+	}
+	return out
+}
+
+func proposalTitle(p teammemory.Proposal) string {
+	if p.Candidate != nil && p.Candidate.Title != "" {
+		return p.Candidate.Title
+	}
+	return p.ProposalID
+}
+
+func controlledResultView(result teammemory.Result) map[string]any {
+	return map[string]any{
+		"id": result.ProposalID, "status": result.Status, "commit": result.RepoCommit,
+		"source_path": result.SourcePath, "warnings": result.Warnings,
+		"effective_for": result.EffectiveFor, "old_commit": result.OldCommit, "new_commit": result.NewCommit,
+	}
+}
+
+func controlledProposalIndexView(view teammemory.ProposalView) map[string]any {
+	p := view.Proposal
+	sourcePath := p.SourcePath
+	if sourcePath == "" {
+		sourcePath = "proposals/" + p.ProposalID + ".md"
+	}
+	return map[string]any{
+		"slug": p.ProposalID, "path": sourcePath, "source_path": sourcePath,
+		"title": proposalTitle(p), "description": p.Rationale, "commit": view.RepoCommit,
+		"kind": centergit.MemoryItemProposal, "status": p.Status, "target_kind": p.TargetKind,
 	}
 }
 
@@ -681,6 +808,17 @@ func memorySettingsView(s centergit.TeamMemorySettings) map[string]any {
 		"updated_by":     s.UpdatedBy,
 		"commit":         s.Commit,
 		"effect_hint":    s.EffectHint,
+	}
+}
+
+func memoryPolicyView(policy team.TeamMemoryPolicy) map[string]any {
+	agents := make([]string, 0, len(policy.CuratorAgentRefs))
+	for _, ref := range policy.CuratorAgentRefs {
+		agents = append(agents, ref.String())
+	}
+	return map[string]any{
+		"curator_agents": agents, "policy": policy.Mode,
+		"effect_hint": centergit.TeamMemoryEffectHint,
 	}
 }
 

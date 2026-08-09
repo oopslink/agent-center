@@ -17,6 +17,7 @@ import (
 	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -149,6 +150,11 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// tools use. nil in test/client mode → memory degrades to empty (design §6).
 		TeamGitHost: buildTeamGitHost(a),
 		TeamMemory:  centergit.NewTeamMemoryService(buildTeamGitHost(a), nil),
+		TeamMemoryWrite: teammemory.NewService(
+			centergit.NewTeamMemoryRepository(buildTeamGitHost(a), nil),
+			teammemory.NewTeamPolicyAuthorizationFromService(newHardenedTeamService(a), a.IdentityMemberRepo),
+		),
+		TeamMemoryProjector: teammemory.NewProjector(a.DB, centergit.NewTeamMemoryRepository(buildTeamGitHost(a), nil), a.EventRepo, a.EventRepo),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -580,6 +586,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// tools use. nil in test/client mode → memory degrades to empty (design §6).
 		TeamGitHost: buildTeamGitHost(a),
 		TeamMemory:  centergit.NewTeamMemoryService(buildTeamGitHost(a), nil),
+		TeamMemoryWrite: teammemory.NewService(
+			centergit.NewTeamMemoryRepository(buildTeamGitHost(a), nil),
+			teammemory.NewTeamPolicyAuthorizationFromService(newHardenedTeamService(a), a.IdentityMemberRepo),
+		),
+		TeamMemoryProjector: teammemory.NewProjector(a.DB, centergit.NewTeamMemoryRepository(buildTeamGitHost(a), nil), a.EventRepo, a.EventRepo),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

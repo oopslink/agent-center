@@ -391,7 +391,7 @@ function ProposalDetail({
               type="button"
               className={btnSmPrimary}
               disabled={!canManage || promote.isPending}
-              onClick={() => promote.mutate(proposal.id)}
+			  onClick={() => promote.mutate({ proposal_id: proposal.id, expected_repo_commit: proposal.commit, comment: reason, acknowledge_warnings: proposal.warnings })}
               data-testid="memory-proposal-promote"
             >
               {t('memoryPane.proposal.promote')}
@@ -400,7 +400,7 @@ function ProposalDetail({
               type="button"
               className={btnSmDanger}
               disabled={!canManage || reject.isPending}
-              onClick={() => reject.mutate({ proposal_id: proposal.id, reason })}
+			  onClick={() => reject.mutate({ proposal_id: proposal.id, expected_repo_commit: proposal.commit, comment: reason })}
               data-testid="memory-proposal-reject"
             >
               {t('memoryPane.proposal.reject')}

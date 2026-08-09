@@ -19,6 +19,7 @@ import (
 	"github.com/oopslink/agent-center/internal/airuntime"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -220,6 +221,11 @@ type HandlerDeps struct {
 	// proposals, and curator settings. Handlers must use this service instead of
 	// constructing git consumers/producers directly.
 	TeamMemory *centergit.TeamMemoryService
+	// TeamMemoryWrite is the ADR-0057 application service shared with MCP. Web
+	// mutation handlers must use it; TeamMemory above is retained as a read-only
+	// adapter for canonical entries/rules.
+	TeamMemoryWrite     *teammemory.Service
+	TeamMemoryProjector *teammemory.Projector
 }
 
 // hd retrieves the typed dep bag from the request context.

@@ -135,6 +135,9 @@ export interface TeamMemoryProposal {
   warning_acknowledged: boolean;
   reject_reason: string;
   diff: string;
+  warnings?: string[];
+  operation?: 'add' | 'update' | 'disable' | 'delete';
+  review_comment?: string;
 }
 
 /** A rendered team-memory document. */
@@ -463,6 +466,8 @@ export interface CreateTeamMemoryProposalInput {
   enabled: boolean;
   applies_to: string[];
   warning_acknowledged: boolean;
+  operation?: 'add' | 'update' | 'disable' | 'delete';
+  rationale?: string;
 }
 
 export function useCreateTeamMemoryProposal() {
@@ -470,6 +475,8 @@ export function useCreateTeamMemoryProposal() {
   return useMutation({
     mutationFn: (input: CreateTeamMemoryProposalInput) =>
       api.post<TeamMemoryProposal>(`/teams/${input.team_id}/memory/proposals`, {
+		idempotency_key: crypto.randomUUID(),
+		operation: input.operation ?? 'add',
         target_kind: input.target_kind,
         slug: input.slug,
         title: input.title,
@@ -478,6 +485,7 @@ export function useCreateTeamMemoryProposal() {
         enabled: input.enabled,
         applies_to: input.applies_to,
         warning_acknowledged: input.warning_acknowledged,
+		rationale: input.rationale ?? input.description,
       }),
     onSuccess: (_d, input) => {
       qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(input.team_id) });
@@ -488,11 +496,16 @@ export function useCreateTeamMemoryProposal() {
 export function usePromoteTeamMemoryProposal(teamId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (proposalId: string) =>
-      api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(proposalId)}/promote`, {}),
-    onSuccess: (_d, proposalId) => {
+	mutationFn: (input: { proposal_id: string; expected_repo_commit: string; comment: string; acknowledge_warnings?: string[] }) =>
+	  api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(input.proposal_id)}/promote`, {
+		expected_repo_commit: input.expected_repo_commit,
+		expected_proposal_status: 'pending',
+		comment: input.comment,
+		acknowledge_warnings: input.acknowledge_warnings ?? [],
+	  }),
+	onSuccess: (_d, input) => {
       qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(teamId) });
-      qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(teamId, proposalId, 'proposal') });
+	  qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(teamId, input.proposal_id, 'proposal') });
     },
   });
 }
@@ -500,8 +513,12 @@ export function usePromoteTeamMemoryProposal(teamId: string) {
 export function useRejectTeamMemoryProposal(teamId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { proposal_id: string; reason: string }) =>
-      api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(input.proposal_id)}/reject`, { reason: input.reason }),
+	mutationFn: (input: { proposal_id: string; expected_repo_commit: string; comment: string }) =>
+	  api.post<TeamMemoryProposal>(`/teams/${teamId}/memory/proposals/${encodeURIComponent(input.proposal_id)}/reject`, {
+		expected_repo_commit: input.expected_repo_commit,
+		expected_proposal_status: 'pending',
+		comment: input.comment,
+	  }),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.memoryIndex(teamId) });
       qc.invalidateQueries({ queryKey: teamKeys.memoryDoc(teamId, v.proposal_id, 'proposal') });
