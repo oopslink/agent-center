@@ -10,6 +10,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/observability"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/runtimefs"
@@ -45,6 +46,65 @@ type agentActivityReq struct {
 	TaskRef        string `json:"task_ref,omitempty"`
 	InteractionRef string `json:"interaction_ref,omitempty"`
 	OccurredAt     string `json:"occurred_at,omitempty"`
+}
+
+type agentControlCommandStatusReq struct {
+	AgentID     string `json:"agent_id"`
+	CommandID   string `json:"command_id"`
+	TaskID      string `json:"task_id,omitempty"`
+	Status      string `json:"status"`
+	Reason      string `json:"reason,omitempty"`
+	Detail      string `json:"detail,omitempty"`
+	ExecutionID string `json:"execution_id,omitempty"`
+	At          string `json:"at,omitempty"`
+}
+
+func (s *Server) envAgentControlCommandStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.EnvControlSvc == nil {
+		writeError(w, http.StatusNotImplemented, "env_control_svc_not_wired", "")
+		return
+	}
+	var req agentControlCommandStatusReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	req.Status = strings.TrimSpace(req.Status)
+	if req.CommandID == "" {
+		writeError(w, http.StatusBadRequest, "missing_command_id", "")
+		return
+	}
+	if req.Status == "" {
+		writeError(w, http.StatusBadRequest, "missing_status", "")
+		return
+	}
+	at, err := parseOptionalTime(req.At)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_at", err.Error())
+		return
+	}
+	evt, err := d.EnvControlSvc.UpdateCommandStatus(r.Context(), environment.UpdateCommandStatusInput{
+		WorkerID:        environment.WorkerID(a.WorkerID()),
+		CommandID:       req.CommandID,
+		AgentID:         string(a.ID()),
+		TaskID:          strings.TrimSpace(req.TaskID),
+		Status:          req.Status,
+		StatusReason:    strings.TrimSpace(req.Reason),
+		StatusDetail:    req.Detail,
+		ExecutionID:     strings.TrimSpace(req.ExecutionID),
+		StatusUpdatedAt: at,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "command": controlEventMap(evt)})
 }
 
 // envAgentActivityHandler is the stdout→activity sink: it appends an

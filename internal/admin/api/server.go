@@ -346,6 +346,7 @@ func (s *Server) routes() {
 	// feedback is PERSIST-ONLY (never emits agent.lifecycle_changed → no
 	// reconcile loop). Nothing is activated; the legacy path is untouched.
 	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/control-command-status", s.envAgentControlCommandStatusHandler)
 	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
 	// v2.14.0 F7 (issue I14): the work-item-state feedback route was removed —
 	// AgentWorkItem retired (the daemon pulls/advances work via list_my_tasks/
@@ -546,6 +547,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/get_team", s.getTeamHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_teams", s.listTeamsHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_team_rules", s.getTeamRulesHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/propose_team_memory_change", s.proposeTeamMemoryHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_team_memory_proposals", s.listTeamMemoryHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_team_memory_proposal", s.getTeamMemoryHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/review_team_memory_proposal", s.reviewTeamMemoryHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_member", s.addMemberHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/remove_member", s.removeMemberHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/associate_project", s.associateProjectHandler)

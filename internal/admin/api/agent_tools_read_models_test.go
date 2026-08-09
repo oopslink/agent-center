@@ -7,8 +7,13 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/environment"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
@@ -16,6 +21,77 @@ import (
 
 type readModelActivityRepo struct {
 	events []*agent.AgentActivityEvent
+}
+
+func TestTaskExecutionsIncludesPendingForkCommand(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	clk := clock.NewFakeClock(time.Now().UTC())
+	envSvc := envservice.New(envservice.Deps{
+		DB: db, Workers: envsqlite.NewWorkerRepo(db), Events: envsqlite.NewControlEventRepo(db),
+		IDGen: idgen.NewGenerator(clk), Clock: clk,
+	})
+	if _, err := envSvc.ConnectWorker(ctx, "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := envSvc.EnqueueCommand(ctx, environment.AppendCommandInput{
+		WorkerID: "worker-1", CommandType: cmdTypeAgentForkExecutor, IdempotencyKey: "fork-1",
+		AgentID: "agent-1", TaskID: "task-1", Status: environment.CommandStatusPending,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs, err := taskExecutions(ctx, HandlerDeps{EnvControlSvc: envSvc}, "agent-1", "worker-1", "task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs=%d, want pending command row", len(runs))
+	}
+	if runs[0].CommandID != cmd.ID() || runs[0].State != "pending" || runs[0].HealthStatus != "pending" {
+		t.Fatalf("pending command run = %+v", runs[0])
+	}
+}
+
+func TestTaskExecutionsExpiresOldPendingForkCommand(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	clk := clock.NewFakeClock(time.Now().Add(-forkCommandExpireAfter - time.Minute).UTC())
+	envSvc := envservice.New(envservice.Deps{
+		DB: db, Workers: envsqlite.NewWorkerRepo(db), Events: envsqlite.NewControlEventRepo(db),
+		IDGen: idgen.NewGenerator(clk), Clock: clk,
+	})
+	if _, err := envSvc.ConnectWorker(ctx, "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := envSvc.EnqueueCommand(ctx, environment.AppendCommandInput{
+		WorkerID: "worker-1", CommandType: cmdTypeAgentForkExecutor, IdempotencyKey: "fork-old",
+		AgentID: "agent-1", TaskID: "task-1", Status: environment.CommandStatusPending,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := taskExecutions(ctx, HandlerDeps{EnvControlSvc: envSvc}, "agent-1", "worker-1", "task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0].State != "terminal" || runs[0].CommandStatus != environment.CommandStatusExpired ||
+		runs[0].HealthStatus != environment.CommandStatusExpired || !runs[0].RecoveryRequired {
+		t.Fatalf("expired command run = %+v", runs)
+	}
 }
 
 func (r readModelActivityRepo) Append(context.Context, *agent.AgentActivityEvent) error { return nil }
@@ -55,7 +131,7 @@ func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
 		readModelEvent(t, "01", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, start),
 		readModelEvent(t, "02", `{"event":"executor.stop","outcome":"failed","reason":"repo_source_unavailable","detail":"token=must-not-leak","recovered":true,"git":{"branch":"feat/x","head_sha":"abc","probed":true,"pushed":false,"dirty":false,"base_ref":"origin/main","base_known":true,"ahead_of_base":1}}`, start.Add(time.Minute)),
 	}}
-	runs, err := taskExecutions(context.Background(), HandlerDeps{AgentActivityRepo: repo}, "task-1")
+	runs, err := taskExecutions(context.Background(), HandlerDeps{AgentActivityRepo: repo}, "agent-1", "worker-1", "task-1")
 	if err != nil {
 		t.Fatal(err)
 	}

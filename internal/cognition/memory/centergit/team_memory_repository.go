@@ -207,6 +207,9 @@ func (r *TeamMemoryRepository) List(ctx context.Context, teamID string, filter t
 	}
 	views := make([]teammemory.ProposalView, 0, len(props))
 	for _, p := range props {
+		if p.TeamID == "" {
+			p.TeamID = teamID
+		}
 		if _, ok := statusSet[p.Status]; !ok {
 			continue
 		}
@@ -269,6 +272,9 @@ func (r *TeamMemoryRepository) Get(ctx context.Context, teamID, proposalID strin
 	if err != nil {
 		return teammemory.ProposalView{}, err
 	}
+	if p.TeamID == "" {
+		p.TeamID = teamID
+	}
 	return proposalView(ctx, r.runner, repoDir, env, p, head), nil
 }
 
@@ -320,6 +326,9 @@ func (r *TeamMemoryRepository) Review(ctx context.Context, teamID string, cmd te
 	p, err := readProposal(repoDir, cmd.ProposalID)
 	if err != nil {
 		return teammemory.Result{}, err
+	}
+	if p.TeamID == "" {
+		p.TeamID = teamID
 	}
 	if p.Status != teammemory.StatusPending {
 		return teammemory.Result{}, teammemory.ErrProposalNotPending

@@ -60,7 +60,8 @@ func (r *LocalRuntime) discardPreparedClone(taskID string) bool {
 // deferForClone starts one independent clone per task and returns immediately. A
 // control command has a five-second transport deadline, so network clone work can
 // never execute synchronously in SpawnExecutor.
-func (r *LocalRuntime) deferForClone(agentID, taskID string, target reporepo.RepoTarget, req reporepo.CloneRequest) {
+func (r *LocalRuntime) deferForClone(agentID string, waiter deferredSpawn, target reporepo.RepoTarget, req reporepo.CloneRequest) {
+	taskID := waiter.TaskID
 	r.clones.mu.Lock()
 	if r.clones.entries == nil {
 		r.clones.entries = make(map[string]*cloneEntry)
@@ -90,6 +91,7 @@ func (r *LocalRuntime) deferForClone(agentID, taskID string, target reporepo.Rep
 			r.log("fork_executor agent=%s task=%s prepare independent clone: %v — executor NOT forked; failing task loud",
 				agentID, taskID, err)
 			r.failTaskRepoUnavailable(agentID, taskID, err)
+			r.reportDeferredForkFailure(agentID, waiter, string(CauseRepoSourceUnavailable), err)
 			return
 		}
 
@@ -104,17 +106,19 @@ func (r *LocalRuntime) deferForClone(agentID, taskID string, target reporepo.Rep
 		r.clones.mu.Unlock()
 
 		r.log("agent=%s task=%s: independent clone ready — re-driving deferred task", agentID, taskID)
-		r.redriveDeferredClone(agentID, taskID)
+		r.redriveDeferredClone(agentID, waiter)
 	}()
 }
 
-func (r *LocalRuntime) redriveDeferredClone(agentID, taskID string) {
+func (r *LocalRuntime) redriveDeferredClone(agentID string, waiter deferredSpawn) {
+	taskID := waiter.TaskID
 	ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
-	res, err := r.SpawnExecutor(ctx, SpawnRequest{TaskID: taskID, redrive: true})
+	res, err := r.SpawnExecutor(ctx, waiter.spawnRequest())
 	cancel()
 	if err != nil {
 		r.discardPreparedClone(taskID)
 		r.log("agent=%s task=%s re-drive after independent clone ready: %v", agentID, taskID, err)
+		r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_failed", err)
 		return
 	}
 	if res == nil {
@@ -128,10 +132,19 @@ func (r *LocalRuntime) redriveDeferredClone(agentID, taskID string) {
 			r.log("agent=%s task=%s re-drive after independent clone ready: not forked — prepared clone was cleaned; waiting for a new fork_executor request",
 				agentID, taskID)
 		}
+		r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_not_started", nil)
 		return
 	}
-	r.log("agent=%s task=%s re-drive after independent clone ready: forked executor=%s",
-		agentID, taskID, res.ExecutorID)
+	if !r.reportDeferredForkStatusWithRetry(agentID, waiter, res) {
+		return
+	}
+	if res.ExecutorID != "" {
+		r.log("agent=%s task=%s re-drive after independent clone ready: forked executor=%s",
+			agentID, taskID, res.ExecutorID)
+	} else {
+		r.log("agent=%s task=%s re-drive after independent clone ready: completed command status=%s reason=%s",
+			agentID, taskID, res.CommandStatus, res.Reason)
+	}
 }
 
 func (r *LocalRuntime) waitClonePrewarm() {

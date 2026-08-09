@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -26,10 +27,15 @@ func (r *ControlEventRepo) Append(ctx context.Context, e *env.WorkerControlEvent
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO worker_control_events
-		 (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
-		 VALUES (?,?,?,?,?,?,?)`,
+		 (id, worker_id, "offset", idempotency_key, command_type, payload,
+		  agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at,
+		  created_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.ID(), string(e.WorkerID()), e.Offset(), e.IdempotencyKey(),
-		e.CommandType(), nullString(e.Payload()), ts(e.CreatedAt()))
+		e.CommandType(), nullString(e.Payload()),
+		nullString(e.AgentID()), nullString(e.TaskID()), nullString(e.Status()),
+		nullString(e.StatusReason()), nullString(e.StatusDetail()), nullString(e.ExecutionID()),
+		tsZeroNull(e.StatusUpdatedAt()), ts(e.CreatedAt()))
 	if persistence.IsUniqueViolation(err) {
 		// Distinguish the idempotency-key clash (race backstop) from an
 		// offset clash. The constraint name appears in the modernc.org/sqlite
@@ -80,6 +86,30 @@ func (r *ControlEventRepo) FindByIdempotencyKey(ctx context.Context, workerID en
 	return e, err
 }
 
+func (r *ControlEventRepo) FindByID(ctx context.Context, id string) (*env.WorkerControlEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, eventSelect+` WHERE id = ?`, id)
+	e, err := scanEvent(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return e, err
+}
+
+func (r *ControlEventRepo) LatestNonTerminalByAgentTask(ctx context.Context, workerID env.WorkerID, commandType, agentID, taskID string) (*env.WorkerControlEvent, error) {
+	events, err := r.ListByAgentTask(ctx, workerID, commandType, agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		status := strings.TrimSpace(e.Status())
+		if status == "" || status == env.CommandStatusPending || status == env.CommandStatusStarted {
+			return e, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *ControlEventRepo) ListAfter(ctx context.Context, workerID env.WorkerID, offset int64) ([]*env.WorkerControlEvent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
@@ -98,6 +128,91 @@ func (r *ControlEventRepo) ListAfter(ctx context.Context, workerID env.WorkerID,
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+func (r *ControlEventRepo) ListByAgentTask(ctx context.Context, workerID env.WorkerID, commandType, agentID, taskID string) ([]*env.WorkerControlEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		eventSelect+` WHERE worker_id = ? AND command_type = ?
+			AND ((agent_id = ? AND task_id = ?)
+			  OR COALESCE(agent_id, '') = ''
+			  OR COALESCE(task_id, '') = '')
+			ORDER BY "offset" DESC`,
+		string(workerID), commandType, agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*env.WorkerControlEvent
+	for rows.Next() {
+		e, err := scanEvent(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		if controlEventMatchesAgentTask(e, agentID, taskID) {
+			out = append(out, e)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (r *ControlEventRepo) UpdateStatus(ctx context.Context, in env.UpdateCommandStatusInput) (*env.WorkerControlEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE worker_control_events
+		   SET agent_id = CASE WHEN COALESCE(agent_id, '') = '' THEN NULLIF(?, '') ELSE agent_id END,
+		       task_id = CASE WHEN COALESCE(task_id, '') = '' THEN NULLIF(?, '') ELSE task_id END,
+		       status = ?,
+		       status_reason = ?,
+		       status_detail = ?,
+		       execution_id = CASE WHEN ? = '' THEN execution_id ELSE ? END,
+		       status_updated_at = ?
+		 WHERE id = ?
+		   AND worker_id = ?
+		   AND (? = '' OR COALESCE(agent_id, '') = '' OR agent_id = ?)
+		   AND (? = '' OR COALESCE(task_id, '') = '' OR task_id = ?)`,
+		in.AgentID, in.TaskID,
+		nullString(in.Status), nullString(in.StatusReason), nullString(in.StatusDetail),
+		in.ExecutionID, in.ExecutionID, ts(in.StatusUpdatedAt.UTC()),
+		in.CommandID, string(in.WorkerID),
+		in.AgentID, in.AgentID,
+		in.TaskID, in.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, env.ErrWorkerNotFound
+	}
+	return r.FindByID(ctx, in.CommandID)
+}
+
+func controlEventMatchesAgentTask(e *env.WorkerControlEvent, agentID, taskID string) bool {
+	if e == nil {
+		return false
+	}
+	gotAgentID := strings.TrimSpace(e.AgentID())
+	gotTaskID := strings.TrimSpace(e.TaskID())
+	if gotAgentID == agentID && gotTaskID == taskID {
+		return true
+	}
+	payloadAgentID, payloadTaskID := controlEventPayloadAgentTask(e.Payload())
+	if gotAgentID == "" {
+		gotAgentID = payloadAgentID
+	}
+	if gotTaskID == "" {
+		gotTaskID = payloadTaskID
+	}
+	return gotAgentID == agentID && gotTaskID == taskID
+}
+
+func controlEventPayloadAgentTask(payloadJSON string) (string, string) {
+	var payload struct {
+		AgentID string `json:"agent_id"`
+		TaskID  string `json:"task_id"`
+	}
+	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(payload.AgentID), strings.TrimSpace(payload.TaskID)
 }
 
 // DeleteAckedBefore prunes up to `limit` command-stream rows that are SAFE to GC
@@ -137,21 +252,39 @@ func (r *ControlEventRepo) DeleteAckedBefore(ctx context.Context, cutoff time.Ti
 	return n, nil
 }
 
-const eventSelect = `SELECT id, worker_id, "offset", idempotency_key, command_type, payload, created_at FROM worker_control_events`
+const eventSelect = `SELECT id, worker_id, "offset", idempotency_key, command_type, payload,
+	COALESCE(agent_id, ''), COALESCE(task_id, ''), COALESCE(status, ''),
+	COALESCE(status_reason, ''), COALESCE(status_detail, ''), COALESCE(execution_id, ''),
+	COALESCE(status_updated_at, ''), created_at FROM worker_control_events`
 
 func scanEvent(scan func(...any) error) (*env.WorkerControlEvent, error) {
 	var (
 		id, workerID, idempotencyKey, commandType, createdAt string
+		agentID, taskID, status, statusReason, statusDetail  string
+		executionID, statusUpdatedAt                         string
 		offset                                               int64
 		payload                                              sql.NullString
 	)
-	if err := scan(&id, &workerID, &offset, &idempotencyKey, &commandType, &payload, &createdAt); err != nil {
+	if err := scan(&id, &workerID, &offset, &idempotencyKey, &commandType, &payload,
+		&agentID, &taskID, &status, &statusReason, &statusDetail, &executionID,
+		&statusUpdatedAt, &createdAt); err != nil {
 		return nil, err
+	}
+	if agentID == "" || taskID == "" {
+		payloadAgentID, payloadTaskID := controlEventPayloadAgentTask(payload.String)
+		if agentID == "" {
+			agentID = payloadAgentID
+		}
+		if taskID == "" {
+			taskID = payloadTaskID
+		}
 	}
 	return env.NewWorkerControlEvent(env.NewWorkerControlEventInput{
 		ID: id, WorkerID: env.WorkerID(workerID), Offset: offset,
 		IdempotencyKey: idempotencyKey, CommandType: commandType,
-		Payload: payload.String, CreatedAt: parseTime(createdAt),
+		Payload: payload.String, AgentID: agentID, TaskID: taskID, Status: status,
+		StatusReason: statusReason, StatusDetail: statusDetail, ExecutionID: executionID,
+		StatusUpdatedAt: parseTime(statusUpdatedAt), CreatedAt: parseTime(createdAt),
 	})
 }
 

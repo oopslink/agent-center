@@ -26,11 +26,14 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 	"github.com/oopslink/agent-center/internal/workerdaemon/workercontroller"
 )
+
+const forkCommandExpireAfter = 15 * time.Minute
 
 // controllerHandler is the CommandHandler that proxies each center control command to
 // its target agent PROCESS. It returns the delivery error unchanged so the control
@@ -55,6 +58,10 @@ type lifecycleReporter interface {
 	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
 }
 
+type commandStatusReporter interface {
+	ReportControlCommandStatus(ctx context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error
+}
+
 // runtimeFsPoster is the subset of *AdminClient the runtime_fs local handler needs.
 type runtimeFsPoster interface {
 	ReportRuntimeFsResponse(ctx context.Context, resp runtimefs.Response) error
@@ -71,6 +78,7 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	}
 	var idp struct {
 		AgentID             string `json:"agent_id"`
+		TaskID              string `json:"task_id"`
 		DesiredLifecycle    string `json:"desired_lifecycle"`
 		ExecutorGitWorktree bool   `json:"executor_git_worktree"`
 		ResetScope          string `json:"reset_scope"`
@@ -82,6 +90,28 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		// wedge the cursor forever; log for visibility.
 		h.log(fmt.Sprintf("controller: command type=%s offset=%d has no agent_id — skipping", cmd.CommandType, cmd.Offset))
 		return nil
+	}
+	if cmd.CommandType == cmdTypeAgentForkExec {
+		taskID := strings.TrimSpace(cmd.TaskID)
+		if taskID == "" {
+			taskID = strings.TrimSpace(idp.TaskID)
+		}
+		if shouldSkipForkCommand(cmd) {
+			h.log(fmt.Sprintf("controller: fork_executor command id=%s offset=%d status=%s already terminal — skipping",
+				cmd.ID, cmd.Offset, cmd.Status))
+			return nil
+		}
+		if forkControlCommandExpired(cmd, time.Now()) {
+			if rep, ok := h.reporter.(commandStatusReporter); ok && rep != nil && cmd.ID != "" {
+				if err := rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, taskID,
+					environment.CommandStatusExpired, "runtime_command_timeout",
+					"fork_executor command was not started before its pending timeout", "", time.Now()); err != nil {
+					return err
+				}
+			}
+			h.log(fmt.Sprintf("controller: fork_executor command id=%s offset=%d expired before delivery — skipping", cmd.ID, cmd.Offset))
+			return nil
+		}
 	}
 	// A reconcile to a stopping/resetting/stopped agent tears its process down
 	// at the launcher level. Do not proxy these into the agent-runtime process:
@@ -116,11 +146,36 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	// agent process — reconcile-running also ensures the process is up + brings up the
 	// session via the agent's rt.Start.
 	return h.ctrl.Deliver(ctx, agentcontrol.Command{
-		Type:    cmd.CommandType,
-		AgentID: agentID,
-		Seq:     cmd.Offset,
-		Payload: json.RawMessage(cmd.Payload),
+		Type:           cmd.CommandType,
+		AgentID:        agentID,
+		Seq:            cmd.Offset,
+		ID:             cmd.ID,
+		IdempotencyKey: cmd.IdempotencyKey,
+		Status:         cmd.Status,
+		CreatedAt:      cmd.CreatedAt,
+		Payload:        json.RawMessage(cmd.Payload),
 	})
+}
+
+func shouldSkipForkCommand(cmd ControlCommand) bool {
+	switch strings.TrimSpace(cmd.Status) {
+	case environment.CommandStatusRejected, environment.CommandStatusFailed, environment.CommandStatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
+func forkControlCommandExpired(cmd ControlCommand, now time.Time) bool {
+	status := strings.TrimSpace(cmd.Status)
+	if status != "" && status != environment.CommandStatusPending {
+		return false
+	}
+	created, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(cmd.CreatedAt))
+	if err != nil || created.IsZero() {
+		return false
+	}
+	return now.Sub(created) > forkCommandExpireAfter
 }
 
 func (h controllerHandler) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {

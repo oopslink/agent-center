@@ -349,12 +349,19 @@ func (c *AdminClient) doRaw(ctx context.Context, method, path string, body any) 
 // cursor the worker acks against; IdempotencyKey lets D2 skip re-executing a
 // command it already applied after a reconnect.
 type ControlCommand struct {
-	ID             string `json:"id"`
-	Offset         int64  `json:"offset"`
-	IdempotencyKey string `json:"idempotency_key"`
-	CommandType    string `json:"command_type"`
-	Payload        string `json:"payload"`
-	CreatedAt      string `json:"created_at"`
+	ID              string `json:"id"`
+	Offset          int64  `json:"offset"`
+	IdempotencyKey  string `json:"idempotency_key"`
+	CommandType     string `json:"command_type"`
+	Payload         string `json:"payload"`
+	AgentID         string `json:"agent_id,omitempty"`
+	TaskID          string `json:"task_id,omitempty"`
+	Status          string `json:"status,omitempty"`
+	StatusReason    string `json:"status_reason,omitempty"`
+	StatusDetail    string `json:"status_detail,omitempty"`
+	ExecutionID     string `json:"execution_id,omitempty"`
+	StatusUpdatedAt string `json:"status_updated_at,omitempty"`
+	CreatedAt       string `json:"created_at"`
 }
 
 // ConnectControl POSTs to /admin/environment/worker/connect and returns the
@@ -571,6 +578,39 @@ func (c *AdminClient) ReportAgentActivity(ctx context.Context, agentID, eventTyp
 		body["occurred_at"] = at.UTC().Format(time.RFC3339Nano)
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/activity", body, nil)
+}
+
+// ReportControlCommandStatus updates the durable outcome row for a worker control
+// command accepted earlier by fork_executor. A failure is delivery-significant: the
+// caller must not ack the command until this write succeeds.
+func (c *AdminClient) ReportControlCommandStatus(ctx context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(commandID) == "" {
+		return errors.New("adminclient: command_id required")
+	}
+	body := map[string]any{
+		"agent_id":   agentID,
+		"command_id": commandID,
+		"status":     status,
+	}
+	if taskID != "" {
+		body["task_id"] = taskID
+	}
+	if reason != "" {
+		body["reason"] = reason
+	}
+	if detail != "" {
+		body["detail"] = detail
+	}
+	if executionID != "" {
+		body["execution_id"] = executionID
+	}
+	if !at.IsZero() {
+		body["at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/control-command-status", body, nil)
 }
 
 // ReportAgentLifecycle POSTs to /admin/environment/agent/lifecycle-feedback.

@@ -44,6 +44,33 @@ func (r *fakeEventRepo) FindByIdempotencyKey(_ context.Context, w WorkerID, key 
 	return nil, nil
 }
 
+func (r *fakeEventRepo) FindByID(_ context.Context, id string) (*WorkerControlEvent, error) {
+	for _, events := range r.byWorker {
+		for _, e := range events {
+			if e.ID() == id {
+				return e, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeEventRepo) LatestNonTerminalByAgentTask(_ context.Context, w WorkerID, commandType, agentID, taskID string) (*WorkerControlEvent, error) {
+	var out *WorkerControlEvent
+	for _, e := range r.byWorker[w] {
+		if e.CommandType() != commandType || e.AgentID() != agentID || e.TaskID() != taskID {
+			continue
+		}
+		if e.Status() != CommandStatusPending && e.Status() != CommandStatusStarted {
+			continue
+		}
+		if out == nil || e.Offset() > out.Offset() {
+			out = e
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeEventRepo) ListAfter(_ context.Context, w WorkerID, offset int64) ([]*WorkerControlEvent, error) {
 	var out []*WorkerControlEvent
 	for _, e := range r.byWorker[w] {
@@ -53,6 +80,39 @@ func (r *fakeEventRepo) ListAfter(_ context.Context, w WorkerID, offset int64) (
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Offset() < out[j].Offset() })
 	return out, nil
+}
+
+func (r *fakeEventRepo) ListByAgentTask(_ context.Context, w WorkerID, commandType, agentID, taskID string) ([]*WorkerControlEvent, error) {
+	var out []*WorkerControlEvent
+	for _, e := range r.byWorker[w] {
+		if e.CommandType() == commandType && e.AgentID() == agentID && e.TaskID() == taskID {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Offset() > out[j].Offset() })
+	return out, nil
+}
+
+func (r *fakeEventRepo) UpdateStatus(_ context.Context, in UpdateCommandStatusInput) (*WorkerControlEvent, error) {
+	for i, e := range r.byWorker[in.WorkerID] {
+		if e.ID() != in.CommandID {
+			continue
+		}
+		updated, err := NewWorkerControlEvent(NewWorkerControlEventInput{
+			ID: e.ID(), WorkerID: e.WorkerID(), Offset: e.Offset(),
+			IdempotencyKey: e.IdempotencyKey(), CommandType: e.CommandType(), Payload: e.Payload(),
+			AgentID: e.AgentID(), TaskID: e.TaskID(), Status: in.Status,
+			StatusReason: in.StatusReason, StatusDetail: in.StatusDetail,
+			ExecutionID: in.ExecutionID, StatusUpdatedAt: in.StatusUpdatedAt,
+			CreatedAt: e.CreatedAt(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		r.byWorker[in.WorkerID][i] = updated
+		return updated, nil
+	}
+	return nil, ErrWorkerNotFound
 }
 
 func newControlLog() *ControlLog {

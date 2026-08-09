@@ -21,6 +21,19 @@ func mustEvent(t *testing.T, id, workerID string, offset int64, key, cmd string)
 	return e
 }
 
+func mustForkEvent(t *testing.T, id string, offset int64, payload string, status string) *env.WorkerControlEvent {
+	t.Helper()
+	e, err := env.NewWorkerControlEvent(env.NewWorkerControlEventInput{
+		ID: id, WorkerID: "w1", Offset: offset, IdempotencyKey: id,
+		CommandType: "agent.fork_executor", Payload: payload, Status: status,
+		CreatedAt: time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerControlEvent: %v", err)
+	}
+	return e
+}
+
 func TestControlEventRepo_AppendAndMaxOffset(t *testing.T) {
 	ctx, db := newTestDB(t)
 	repo := NewControlEventRepo(db)
@@ -184,5 +197,54 @@ func TestControlEventRepo_Append_DuplicateOffset(t *testing.T) {
 	}
 	if errors.Is(err, env.ErrDuplicateIdempotencyKey) {
 		t.Fatalf("offset clash must not map to ErrDuplicateIdempotencyKey, got %v", err)
+	}
+}
+
+func TestControlEventRepo_CommandStatusTracksLegacyForkRows(t *testing.T) {
+	ctx, db := newTestDB(t)
+	repo := NewControlEventRepo(db)
+
+	legacy := mustForkEvent(t, "cmd-legacy", 1, `{"agent_id":"agent-1","task_id":"task-1"}`, "")
+	if err := repo.Append(ctx, legacy); err != nil {
+		t.Fatalf("Append legacy: %v", err)
+	}
+	if err := repo.Append(ctx, mustForkEvent(t, "cmd-other", 2, `{"agent_id":"agent-1","task_id":"task-2"}`, "")); err != nil {
+		t.Fatalf("Append other: %v", err)
+	}
+
+	list, err := repo.ListByAgentTask(ctx, "w1", "agent.fork_executor", "agent-1", "task-1")
+	if err != nil {
+		t.Fatalf("ListByAgentTask: %v", err)
+	}
+	if len(list) != 1 || list[0].ID() != "cmd-legacy" || list[0].AgentID() != "agent-1" || list[0].TaskID() != "task-1" {
+		t.Fatalf("legacy command lookup = %+v", list)
+	}
+	latest, err := repo.LatestNonTerminalByAgentTask(ctx, "w1", "agent.fork_executor", "agent-1", "task-1")
+	if err != nil {
+		t.Fatalf("LatestNonTerminalByAgentTask: %v", err)
+	}
+	if latest == nil || latest.ID() != "cmd-legacy" {
+		t.Fatalf("latest legacy command = %+v", latest)
+	}
+
+	updatedAt := time.Date(2026, 5, 29, 12, 15, 0, 0, time.UTC)
+	updated, err := repo.UpdateStatus(ctx, env.UpdateCommandStatusInput{
+		WorkerID: "w1", CommandID: "cmd-legacy", AgentID: "agent-1", TaskID: "task-1",
+		Status: env.CommandStatusExpired, StatusReason: "runtime_command_timeout",
+		StatusUpdatedAt: updatedAt,
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus legacy: %v", err)
+	}
+	if updated.Status() != env.CommandStatusExpired || updated.AgentID() != "agent-1" || updated.TaskID() != "task-1" ||
+		!updated.StatusUpdatedAt().Equal(updatedAt) {
+		t.Fatalf("updated legacy command = %+v", updated)
+	}
+	latest, err = repo.LatestNonTerminalByAgentTask(ctx, "w1", "agent.fork_executor", "agent-1", "task-1")
+	if err != nil {
+		t.Fatalf("Latest after terminal: %v", err)
+	}
+	if latest != nil {
+		t.Fatalf("terminal command must not remain non-terminal: %+v", latest)
 	}
 }

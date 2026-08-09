@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/environment"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -78,7 +79,6 @@ func (s *Server) getTaskAuditHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	start, end := readPage(req.PageSize, req.Offset, total)
 	items := make([]map[string]any, 0, len(logs))
 	for _, lg := range logs {
 		items = append(items, map[string]any{
@@ -87,14 +87,67 @@ func (s *Server) getTaskAuditHandler(w http.ResponseWriter, r *http.Request) {
 			"occurred_at": lg.OccurredAt.UTC().Format(time.RFC3339Nano),
 		})
 	}
+	if cmdItems, err := forkCommandAuditItems(r.Context(), d, string(a.ID()), a.WorkerID(), req.TaskID); err == nil {
+		items = append(items, cmdItems...)
+		total += len(cmdItems)
+	}
+	start, end := readPage(req.PageSize, req.Offset, total)
+	if len(items) > pageSize {
+		items = items[:pageSize]
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"task_id": req.TaskID, "items": items, "total": total,
 		"offset": start, "has_more": end < total,
 	})
 }
 
+func forkCommandAuditItems(ctx context.Context, d HandlerDeps, agentID, workerID, taskID string) ([]map[string]any, error) {
+	if d.EnvControlSvc == nil || agentID == "" || workerID == "" || taskID == "" {
+		return nil, nil
+	}
+	cmds, err := d.EnvControlSvc.CommandsByAgentTask(ctx, environment.WorkerID(workerID), cmdTypeAgentForkExecutor, agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(cmds))
+	now := time.Now()
+	for _, cmd := range cmds {
+		status := forkCommandStatus(cmd)
+		reason := cmd.StatusReason()
+		detail := cmd.StatusDetail()
+		at := cmd.StatusUpdatedAt()
+		if at.IsZero() {
+			at = cmd.CreatedAt()
+		}
+		if status == environment.CommandStatusPending && forkCommandExpired(cmd, now) {
+			status = environment.CommandStatusExpired
+			reason = "runtime_command_timeout"
+			detail = "fork_executor command was not started before its pending timeout"
+			at = now
+		}
+		note := "command_status=" + status
+		if reason != "" {
+			note += " reason=" + reason
+		}
+		if detail != "" {
+			note += " detail=" + redactAuditNote(detail)
+		}
+		out = append(out, map[string]any{
+			"id":          cmd.ID(),
+			"action":      "fork_executor." + status,
+			"actor_ref":   "system:environment",
+			"agent_ref":   "agent:" + agentID,
+			"note":        note,
+			"occurred_at": at.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	return out, nil
+}
+
 type executionReadModel struct {
 	ExecutionID             string              `json:"execution_id"`
+	CommandID               string              `json:"command_id,omitempty"`
+	CommandStatus           string              `json:"command_status,omitempty"`
 	TaskID                  string              `json:"task_id"`
 	AgentID                 string              `json:"agent_id"`
 	CLI                     string              `json:"cli,omitempty"`
@@ -116,9 +169,10 @@ type executionReadModel struct {
 	Events                  int                 `json:"event_count"`
 }
 
-func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]executionReadModel, error) {
+func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskID string) ([]executionReadModel, error) {
+	now := time.Now()
 	if d.AgentActivityRepo == nil {
-		return []executionReadModel{}, nil
+		return forkCommandExecutions(ctx, d, agentID, workerID, taskID, nil, now)
 	}
 	events, err := d.AgentActivityRepo.ListByTask(ctx, taskID)
 	if err != nil {
@@ -181,14 +235,100 @@ func taskExecutions(ctx context.Context, d HandlerDeps, taskID string) ([]execut
 			run.HealthStatus = executionStopHealth(run.Outcome, run.ErrorKind, run.NonDeliveryReasons)
 		}
 	}
-	now := time.Now()
 	out := make([]executionReadModel, 0, len(order))
 	for i := len(order) - 1; i >= 0; i-- {
 		run := *byID[order[i]]
 		finalizeExecutionHealth(&run, now)
 		out = append(out, run)
 	}
-	return out, nil
+	return forkCommandExecutions(ctx, d, agentID, workerID, taskID, out, now)
+}
+
+func forkCommandExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskID string, runs []executionReadModel, now time.Time) ([]executionReadModel, error) {
+	if d.EnvControlSvc == nil || agentID == "" || workerID == "" || taskID == "" {
+		if runs == nil {
+			return []executionReadModel{}, nil
+		}
+		return runs, nil
+	}
+	byExec := map[string]struct{}{}
+	for _, run := range runs {
+		if run.ExecutionID != "" {
+			byExec[run.ExecutionID] = struct{}{}
+		}
+	}
+	cmds, err := d.EnvControlSvc.CommandsByAgentTask(ctx, environment.WorkerID(workerID), cmdTypeAgentForkExecutor, agentID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	added := make([]executionReadModel, 0, len(cmds))
+	for _, cmd := range cmds {
+		status := forkCommandStatus(cmd)
+		execID := cmd.ExecutionID()
+		if status == environment.CommandStatusStarted && execID != "" {
+			if _, ok := byExec[execID]; ok {
+				continue
+			}
+		}
+		run := forkCommandExecution(cmd, now)
+		if run.ExecutionID != "" {
+			if _, dup := byExec[run.ExecutionID]; dup {
+				continue
+			}
+			byExec[run.ExecutionID] = struct{}{}
+		}
+		added = append(added, run)
+	}
+	return append(added, runs...), nil
+}
+
+func forkCommandExecution(cmd *environment.WorkerControlEvent, now time.Time) executionReadModel {
+	status := forkCommandStatus(cmd)
+	reason := cmd.StatusReason()
+	detail := redactAuditNote(cmd.StatusDetail())
+	updated := cmd.StatusUpdatedAt()
+	if updated.IsZero() {
+		updated = cmd.CreatedAt()
+	}
+	if status == environment.CommandStatusPending && forkCommandExpired(cmd, now) {
+		status = environment.CommandStatusExpired
+		reason = "runtime_command_timeout"
+		detail = "fork_executor command was not started before its pending timeout"
+		updated = now
+	}
+	execID := cmd.ExecutionID()
+	if execID == "" {
+		execID = "command:" + cmd.ID()
+	}
+	run := executionReadModel{
+		ExecutionID:             execID,
+		CommandID:               cmd.ID(),
+		CommandStatus:           status,
+		TaskID:                  cmd.TaskID(),
+		AgentID:                 cmd.AgentID(),
+		State:                   "pending",
+		HealthStatus:            "pending",
+		StartedAt:               cmd.CreatedAt().UTC().Format(time.RFC3339Nano),
+		LastEffectiveActivityAt: updated.UTC().Format(time.RFC3339Nano),
+		Events:                  1,
+	}
+	switch status {
+	case environment.CommandStatusStarted:
+		run.State = "running"
+		run.HealthStatus = "active"
+	case environment.CommandStatusRejected, environment.CommandStatusFailed, environment.CommandStatusExpired:
+		run.State = "terminal"
+		run.Outcome = status
+		run.ErrorKind = reason
+		run.ErrorDetail = detail
+		run.FinishedAt = updated.UTC().Format(time.RFC3339Nano)
+		run.LastEffectiveActivityAt = run.FinishedAt
+		run.HealthStatus = status
+		if status == environment.CommandStatusFailed || status == environment.CommandStatusExpired {
+			run.RecoveryRequired = true
+		}
+	}
+	return run
 }
 
 const executionStaleAfter = 15 * time.Minute
@@ -303,7 +443,7 @@ func (s *Server) taskExecutionHandler(single bool) http.HandlerFunc {
 		if !ok || !s.requireTaskAccess(w, r, d, a, req.TaskID) {
 			return
 		}
-		runs, err := taskExecutions(r.Context(), d, req.TaskID)
+		runs, err := taskExecutions(r.Context(), d, string(a.ID()), a.WorkerID(), req.TaskID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "execution_read_failed", err.Error())
 			return
@@ -349,10 +489,37 @@ func (s *Server) getAgentRuntimeEffectiveConfigHandler(w http.ResponseWriter, r 
 		"max_concurrent_tasks":   p.MaxConcurrentTasks, "judge_enabled": p.JudgeEnabled,
 		"executor_git_worktree": p.ExecutorGitWorktree, "allowed_executors": p.AllowedExecutors,
 	}
+	effective := map[string]any{"status": "unknown", "reason": "worker has not reported an effective-config snapshot"}
+	lastReconcileAt := any(nil)
+	if d.LiveState != nil {
+		if snap, age, ok := d.LiveState.Get(string(a.ID()), time.Now()); ok {
+			effective = map[string]any{
+				"status":                "applied",
+				"config_version":        snap.ConfigVersion,
+				"admission_cap":         snap.AdmissionCap,
+				"slot_count":            snap.SlotCount,
+				"active":                snap.Active,
+				"snapshot_age_ms":       age.Milliseconds(),
+				"executor_engine_ready": snap.AdmissionCap > 0,
+			}
+			switch {
+			case age > forkCommandExpireAfter:
+				effective["status"] = "stale"
+				effective["reason"] = "agent runtime snapshot is stale"
+			case snap.AdmissionCap <= 0 || snap.ConfigVersion <= 0:
+				effective["status"] = "not_ready"
+				effective["reason"] = "runtime has not attached an executor engine"
+			case snap.ConfigVersion < a.Version():
+				effective["status"] = "stale_version"
+				effective["reason"] = "runtime has not applied desired config version"
+			}
+			lastReconcileAt = time.Now().Add(-age).UTC().Format(time.RFC3339Nano)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agent_id": string(a.ID()), "desired_version": a.Version(), "desired": desired,
-		"effective": map[string]any{"status": "unknown", "reason": "worker has not reported an effective-config snapshot"},
-		"binary":    map[string]any{"status": "unknown"}, "last_reconcile_at": nil,
+		"effective": effective,
+		"binary":    map[string]any{"status": "unknown"}, "last_reconcile_at": lastReconcileAt,
 		"secrets_redacted": true, "env_var_count": len(p.EnvVars),
 	})
 }

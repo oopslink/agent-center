@@ -94,8 +94,29 @@ type sourceEntry struct {
 	inflight bool
 
 	// waiters are task ids that deferred on this key and must be re-driven when the
-	// source lands. A set: repeated fork_executor for the same task coalesces.
-	waiters map[string]struct{}
+	// source lands. Repeated fork_executor for the same task coalesces, while carrying
+	// the original command id/model/context so the accepted command can be completed.
+	waiters map[string]deferredSpawn
+}
+
+type deferredSpawn struct {
+	TaskID    string
+	CommandID string
+	Model     string
+	Context   string
+}
+
+func deferredSpawnFromRequest(req SpawnRequest, taskID string) deferredSpawn {
+	return deferredSpawn{
+		TaskID: taskID, CommandID: req.CommandID, Model: req.Model, Context: req.Context,
+	}
+}
+
+func (w deferredSpawn) spawnRequest() SpawnRequest {
+	return SpawnRequest{
+		TaskID: w.TaskID, CommandID: w.CommandID, Model: w.Model, Context: w.Context,
+		redrive: true,
+	}
 }
 
 // sourceGate holds the per-repo_key prewarm state for one runtime.
@@ -184,20 +205,21 @@ func (r *LocalRuntime) anySource(key string) (reporepo.SourceRepo, bool) {
 // none is already running for it. It returns immediately — that immediacy is the whole
 // point: the control command it is called from acks now instead of dying on a 5s
 // deadline and wedging the worker's shared control cursor.
-func (r *LocalRuntime) deferForSource(agentID, taskID, key string, target reporepo.RepoTarget) {
+func (r *LocalRuntime) deferForSource(agentID string, waiter deferredSpawn, key string, target reporepo.RepoTarget) {
+	taskID := waiter.TaskID
 	r.sources.mu.Lock()
 	if r.sources.entries == nil {
 		r.sources.entries = map[string]*sourceEntry{}
 	}
 	e := r.sources.entries[key]
 	if e == nil {
-		e = &sourceEntry{waiters: map[string]struct{}{}}
+		e = &sourceEntry{waiters: map[string]deferredSpawn{}}
 		r.sources.entries[key] = e
 	}
 	if e.waiters == nil {
-		e.waiters = map[string]struct{}{}
+		e.waiters = map[string]deferredSpawn{}
 	}
-	e.waiters[taskID] = struct{}{}
+	e.waiters[taskID] = waiter
 	if e.inflight {
 		// A clone for this repo is already running; this task just joined its waiters
 		// and will be re-driven with the rest. Do NOT start a second clone.
@@ -291,11 +313,11 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 		// the gate and failed inline too. Drop the cache and take the fail-loud path.
 		e.ready = nil
 	}
-	waiters := make([]string, 0, len(e.waiters))
-	for id := range e.waiters {
-		waiters = append(waiters, id)
+	waiters := make([]deferredSpawn, 0, len(e.waiters))
+	for _, waiter := range e.waiters {
+		waiters = append(waiters, waiter)
 	}
-	e.waiters = map[string]struct{}{}
+	e.waiters = map[string]deferredSpawn{}
 	usable := e.ready != nil
 	if !usable {
 		// Nothing materialized and nothing cached: drop the entry so a later
@@ -310,12 +332,13 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 			agentID, key, failure)
 	}
 
-	for _, taskID := range waiters {
+	for _, waiter := range waiters {
 		if usable {
-			r.redriveDeferredSpawn(agentID, taskID)
+			r.redriveDeferredSpawn(agentID, waiter)
 			continue
 		}
-		r.failTaskRepoUnavailable(agentID, taskID, failure)
+		r.failTaskRepoUnavailable(agentID, waiter.TaskID, failure)
+		r.reportDeferredForkFailure(agentID, waiter, repoPrewarmFailureCause(failure), failure)
 	}
 }
 
@@ -333,15 +356,24 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 // blip strand the task permanently, so we retry a bounded number of times and give up
 // loudly. Re-attempting a task that was legitimately un-forkable is harmless: SpawnExecutor
 // re-checks status and simply declines again.
-func (r *LocalRuntime) redriveDeferredSpawn(agentID, taskID string) {
+func (r *LocalRuntime) redriveDeferredSpawn(agentID string, waiter deferredSpawn) {
+	taskID := waiter.TaskID
 	attempts := r.sourcePrewarmAttempts()
 	for attempt := 1; attempt <= attempts; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
-		res, err := r.SpawnExecutor(ctx, SpawnRequest{TaskID: taskID, redrive: true})
+		res, err := r.SpawnExecutor(ctx, waiter.spawnRequest())
 		cancel()
 
 		if err == nil && res != nil {
-			r.log("agent=%s task=%s re-drive after repo source ready: forked executor=%s", agentID, taskID, res.ExecutorID)
+			if !r.reportDeferredForkStatusWithRetry(agentID, waiter, res) {
+				return
+			}
+			if res.ExecutorID != "" {
+				r.log("agent=%s task=%s re-drive after repo source ready: forked executor=%s", agentID, taskID, res.ExecutorID)
+			} else {
+				r.log("agent=%s task=%s re-drive after repo source ready: completed command status=%s reason=%s",
+					agentID, taskID, res.CommandStatus, res.Reason)
+			}
 			return
 		}
 		if err != nil {
@@ -362,6 +394,52 @@ func (r *LocalRuntime) redriveDeferredSpawn(agentID, taskID string) {
 	// deferred on a repo source and never forked.
 	r.log("fork_executor agent=%s task=%s: repo source is READY but the task did not fork after %d re-drive attempt(s) — NOT retrying further; if the task is still open it needs a new fork_executor request",
 		agentID, taskID, attempts)
+	r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_not_started", nil)
+}
+
+func repoPrewarmFailureCause(cause error) string {
+	if errors.Is(cause, reporepo.ErrCacheRefUnavailable) {
+		return string(CauseRepoRefUnavailable)
+	}
+	return string(CauseRepoSourceUnavailable)
+}
+
+func (r *LocalRuntime) reportDeferredForkFailure(agentID string, waiter deferredSpawn, reason string, cause error) {
+	detail := ""
+	if cause != nil {
+		detail = cause.Error()
+	}
+	r.reportDeferredForkStatusWithRetry(agentID, waiter, &SpawnResult{
+		CommandStatus: controlCommandStatusFailed,
+		Reason:        reason,
+		Detail:        detail,
+	})
+}
+
+func (r *LocalRuntime) reportDeferredForkStatusWithRetry(agentID string, waiter deferredSpawn, res *SpawnResult) bool {
+	if waiter.CommandID == "" || res == nil {
+		return true
+	}
+	attempts := r.sourcePrewarmAttempts()
+	if attempts < 1 {
+		attempts = 1
+	}
+	for attempt := 1; attempt <= attempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := r.ReportForkCommandStatus(ctx, waiter.CommandID, waiter.TaskID, res)
+		cancel()
+		if err == nil {
+			return true
+		}
+		r.log("fork_executor agent=%s task=%s command=%s deferred status report attempt %d/%d failed: %v",
+			agentID, waiter.TaskID, waiter.CommandID, attempt, attempts, err)
+		if attempt < attempts {
+			if d := r.sourcePrewarmBackoff(); d > 0 {
+				time.Sleep(d)
+			}
+		}
+	}
+	return false
 }
 
 // failTaskRepoUnavailable surfaces a permanently un-materializable repo LOUDLY instead of
@@ -378,10 +456,7 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 	ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
 	defer cancel()
 
-	failureCause := CauseRepoSourceUnavailable
-	if errors.Is(cause, reporepo.ErrCacheRefUnavailable) {
-		failureCause = CauseRepoRefUnavailable
-	}
+	failureCause := ForkFailureCause(repoPrewarmFailureCause(cause))
 	r.log("fork_executor agent=%s task=%s REPO SOURCE UNAVAILABLE [cause=%s] after %d attempt(s): %v — admitting + blocking the task (fail-loud; NOT left silently queued)",
 		agentID, taskID, failureCause, r.sourcePrewarmAttempts(), cause)
 

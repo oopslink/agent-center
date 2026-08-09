@@ -601,12 +601,16 @@ func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Comman
 		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		_, err := h.rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{
-			TaskID:  pl.TaskID,
-			Model:   pl.Model,
-			Context: pl.Context,
+		res, err := h.rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{
+			TaskID:    pl.TaskID,
+			CommandID: cmd.ID,
+			Model:     pl.Model,
+			Context:   pl.Context,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		return h.rt.ReportForkCommandStatus(ctx, cmd.ID, pl.TaskID, res)
 	default:
 		return fmt.Errorf("agent-runtime: unknown control command type %q", cmd.Type)
 	}

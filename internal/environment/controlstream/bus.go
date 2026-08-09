@@ -32,24 +32,45 @@ import (
 // the OFFSET (resume source-of-truth) plus the same fields the poll endpoint's
 // controlEventMap projects, so the daemon tracks OFFSET (not the SSE seq).
 type Command struct {
-	Offset         int64  `json:"offset"`
-	ID             string `json:"id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	CommandType    string `json:"command_type"`
-	Payload        string `json:"payload"`
-	CreatedAt      string `json:"created_at"` // RFC3339Nano, matches the poll projection.
+	Offset          int64  `json:"offset"`
+	ID              string `json:"id"`
+	IdempotencyKey  string `json:"idempotency_key"`
+	CommandType     string `json:"command_type"`
+	Payload         string `json:"payload"`
+	AgentID         string `json:"agent_id,omitempty"`
+	TaskID          string `json:"task_id,omitempty"`
+	Status          string `json:"status,omitempty"`
+	StatusReason    string `json:"status_reason,omitempty"`
+	StatusDetail    string `json:"status_detail,omitempty"`
+	ExecutionID     string `json:"execution_id,omitempty"`
+	StatusUpdatedAt string `json:"status_updated_at,omitempty"`
+	CreatedAt       string `json:"created_at"` // RFC3339Nano, matches the poll projection.
 }
 
 // CommandFromEvent projects a domain WorkerControlEvent to the wire Command.
 func CommandFromEvent(e *environment.WorkerControlEvent) Command {
 	return Command{
-		Offset:         e.Offset(),
-		ID:             e.ID(),
-		IdempotencyKey: e.IdempotencyKey(),
-		CommandType:    e.CommandType(),
-		Payload:        e.Payload(),
-		CreatedAt:      e.CreatedAt().Format(time.RFC3339Nano),
+		Offset:          e.Offset(),
+		ID:              e.ID(),
+		IdempotencyKey:  e.IdempotencyKey(),
+		CommandType:     e.CommandType(),
+		Payload:         e.Payload(),
+		AgentID:         e.AgentID(),
+		TaskID:          e.TaskID(),
+		Status:          e.Status(),
+		StatusReason:    e.StatusReason(),
+		StatusDetail:    e.StatusDetail(),
+		ExecutionID:     e.ExecutionID(),
+		StatusUpdatedAt: formatTime(e.StatusUpdatedAt()),
+		CreatedAt:       e.CreatedAt().Format(time.RFC3339Nano),
 	}
+}
+
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 // DefaultHeartbeat matches the webconsole SSE cadence (30s data-frame).

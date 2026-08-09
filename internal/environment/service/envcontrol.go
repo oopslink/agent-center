@@ -131,6 +131,18 @@ func (c *EnvControl) CommandsAfter(ctx context.Context, workerID environment.Wor
 	return c.log.CommandsAfter(ctx, workerID, offset)
 }
 
+func (c *EnvControl) LatestNonTerminalByAgentTask(ctx context.Context, workerID environment.WorkerID, commandType, agentID, taskID string) (*environment.WorkerControlEvent, error) {
+	return c.log.LatestNonTerminalByAgentTask(ctx, workerID, commandType, agentID, taskID)
+}
+
+func (c *EnvControl) CommandsByAgentTask(ctx context.Context, workerID environment.WorkerID, commandType, agentID, taskID string) ([]*environment.WorkerControlEvent, error) {
+	return c.log.ListByAgentTask(ctx, workerID, commandType, agentID, taskID)
+}
+
+func (c *EnvControl) UpdateCommandStatus(ctx context.Context, in environment.UpdateCommandStatusInput) (*environment.WorkerControlEvent, error) {
+	return c.log.UpdateStatus(ctx, in)
+}
+
 // EnqueueCommand appends a command to a Worker's stream (idempotent on
 // idempotency key). This is the SYNTHETIC enqueue path for D1 tests; in
 // production the command source is the D2 agent.lifecycle→command projector,
