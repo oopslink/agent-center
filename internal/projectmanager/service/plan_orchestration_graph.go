@@ -334,6 +334,13 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			continue
 		}
 		if stageID, _ := meta["stage_gate"].(string); stageID != "" {
+			exhausted, eerr := s.stageGateRejectAlreadyEscalated(txCtx, p.ID(), pm.StageID(stageID))
+			if eerr != nil {
+				return eerr
+			}
+			if exhausted {
+				continue
+			}
 			// ADR-0055: a stage reject is not an engine loopback. The immutable
 			// verdict command must first append a new remediation generation and
 			// rewire the boundary. Seeing a raw reject outcome here therefore means
@@ -398,6 +405,23 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 		})
 	}
 	return nil
+}
+
+func (s *Service) stageGateRejectAlreadyEscalated(ctx context.Context, planID pm.PlanID, stageID pm.StageID) (bool, error) {
+	if s.remediation == nil {
+		return false, nil
+	}
+	continuations, err := s.remediation.ListContinuationsByPlan(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	for _, continuation := range continuations {
+		if continuation.Status == pm.ContinuationBudgetExhausted &&
+			(continuation.CurrentStageID == stageID || continuation.RootStageID == stageID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // exhaustedOutcomeSuffix tags a decision outcome whose bounded reject-loopback has

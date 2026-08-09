@@ -238,6 +238,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "gate_already_verdicted", err.Error())
 	case errors.Is(err, pm.ErrRemediationBudgetExhausted):
 		writeError(w, http.StatusConflict, "remediation_budget_exhausted", err.Error())
+	case errors.Is(err, pm.ErrIdempotencyConflict):
+		writeError(w, http.StatusConflict, "idempotency_conflict", err.Error())
 	case errors.Is(err, pm.ErrRemediationProposalStale):
 		writeError(w, http.StatusConflict, "remediation_proposal_stale", err.Error())
 	case errors.Is(err, pm.ErrRemediationUnavailable):
@@ -505,6 +507,7 @@ func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
 		"gate_reviewed_sha":    det.GateReviewedSHA,
 		"origin_verdict_id":    string(st.OriginVerdictID()),
 		"continuation_id":      string(st.ContinuationID()),
+		"supersedes_stage_id":  string(st.SupersedesStageID()),
 		"generation":           st.Generation(),
 		"acceptance_contract":  st.AcceptanceContract(),
 		"topology_fingerprint": st.TopologyFingerprint(),

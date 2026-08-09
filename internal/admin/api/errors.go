@@ -89,6 +89,24 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskParked):
 		writeError(w, http.StatusConflict, "task_parked", err.Error())
 
+	case errors.Is(err, pm.ErrGateAlreadyVerdicted):
+		writeError(w, http.StatusConflict, "gate_already_verdicted", err.Error())
+
+	case errors.Is(err, pm.ErrRemediationBudgetExhausted):
+		writeError(w, http.StatusConflict, "remediation_budget_exhausted", err.Error())
+
+	case errors.Is(err, pm.ErrIdempotencyConflict):
+		writeError(w, http.StatusConflict, "idempotency_conflict", err.Error())
+
+	case errors.Is(err, pm.ErrRemediationProposalStale):
+		writeError(w, http.StatusConflict, "remediation_proposal_stale", err.Error())
+
+	case errors.Is(err, pm.ErrRemediationProposalInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_remediation_proposal", err.Error())
+
+	case errors.Is(err, pm.ErrRemediationUnavailable):
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
+
 	case errors.Is(err, pm.ErrTaskNoValidDelivery):
 		var nd *pm.TaskNoValidDeliveryError
 		if errors.As(err, &nd) {

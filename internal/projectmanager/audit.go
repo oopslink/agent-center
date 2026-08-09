@@ -32,15 +32,16 @@ const (
 	AuditTaskReviewVerdict AuditChangeType = "review_verdict"
 
 	// plan
-	AuditPlanCreated         AuditChangeType = "created"
-	AuditPlanStarted         AuditChangeType = "started"
-	AuditPlanStopped         AuditChangeType = "stopped"
-	AuditPlanDependencyAdded AuditChangeType = "dependency_added"
-	AuditPlanDependencyRemvd AuditChangeType = "dependency_removed"
-	AuditPlanNodeAdded       AuditChangeType = "node_added"
-	AuditPlanNodeRemoved     AuditChangeType = "node_removed"
-	AuditPlanDecisionOutcome AuditChangeType = "decision_outcome"
-	AuditPlanLoopback        AuditChangeType = "loopback"
+	AuditPlanCreated              AuditChangeType = "created"
+	AuditPlanStarted              AuditChangeType = "started"
+	AuditPlanStopped              AuditChangeType = "stopped"
+	AuditPlanDependencyAdded      AuditChangeType = "dependency_added"
+	AuditPlanDependencyRemvd      AuditChangeType = "dependency_removed"
+	AuditPlanNodeAdded            AuditChangeType = "node_added"
+	AuditPlanNodeRemoved          AuditChangeType = "node_removed"
+	AuditPlanDecisionOutcome      AuditChangeType = "decision_outcome"
+	AuditPlanLoopback             AuditChangeType = "loopback"
+	AuditPlanRemediationExhausted AuditChangeType = "remediation_exhausted"
 	// AuditPlanTopologyCommit is one whole edit_plan_topology batch (2026-07-05
 	// live-topology design §5 layer 2): the from_version→to_version commit plus the
 	// ops/diff, recorded ONCE per commit (not per-op) so a plan's edit history is

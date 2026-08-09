@@ -84,8 +84,9 @@ const (
 	// ADR-0055 append-only remediation facts. Both events are written through the
 	// local outbox in the same transaction as their corresponding ledger/topology
 	// commit so replay can reconcile without process-local callbacks.
-	EvtStageGateVerdictRecorded = "pm.stage_gate.verdict_recorded"
-	EvtRemediationStageAppended = "pm.remediation_stage.appended"
+	EvtStageGateVerdictRecorded   = "pm.stage_gate.verdict_recorded"
+	EvtRemediationStageAppended   = "pm.remediation_stage.appended"
+	EvtRemediationBudgetExhausted = "pm.plan.remediation_budget_exhausted"
 	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1). Emitted by the
 	// PlanOrchestratorProjector's notifyCreatorOnFailure — IN THE SAME TX as the
 	// failure @mention PostMention — ONLY when the Plan creator is an AGENT

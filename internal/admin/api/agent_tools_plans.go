@@ -693,6 +693,7 @@ func stageDetailMap(detail *pmservice.StageDetail) map[string]any {
 		"gate_reviewed_sha":    detail.GateReviewedSHA,
 		"origin_verdict_id":    string(st.OriginVerdictID()),
 		"continuation_id":      string(st.ContinuationID()),
+		"supersedes_stage_id":  string(st.SupersedesStageID()),
 		"generation":           st.Generation(),
 		"acceptance_contract":  st.AcceptanceContract(),
 		"topology_fingerprint": st.TopologyFingerprint(),

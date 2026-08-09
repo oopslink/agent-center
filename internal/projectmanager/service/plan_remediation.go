@@ -14,7 +14,9 @@ import (
 
 // RecordStageGateVerdictCommand closes one immutable stage generation. Reject
 // carries (or deterministically synthesizes) the next incremental stage; it never
-// edits or reopens the completed generation.
+// edits or reopens the completed generation. This route applies only to persisted
+// Stage gate tasks; plain graph decision rejects continue through
+// RecordDecisionOutcome and the graph loopback driver.
 type RecordStageGateVerdictCommand struct {
 	GateTaskID     pm.TaskID
 	Outcome        pm.GateVerdictOutcome
@@ -31,6 +33,7 @@ type RecordStageGateVerdictResult struct {
 	Proposal     *pm.RemediationProposal
 	StageID      pm.StageID
 	Duplicate    bool
+	Escalated    bool
 }
 
 func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGateVerdictCommand) (RecordStageGateVerdictResult, error) {
@@ -89,7 +92,15 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 			if found {
 				result.Continuation = continuation
-				result.StageID = continuation.CurrentStageID
+				if prior.Outcome == pm.GateVerdictReject {
+					stageID, _, serr := s.findRemediationStageForVerdict(txCtx, prior)
+					if serr != nil {
+						return serr
+					}
+					result.StageID = stageID
+				} else {
+					result.StageID = continuation.CurrentStageID
+				}
 			}
 			if proposal, found, perr := s.remediation.FindProposalByKey(txCtx, cmd.IdempotencyKey+":proposal"); perr != nil {
 				return perr
@@ -224,18 +235,32 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 		}
 		result.Continuation = continuation
+		if continuation.Status == pm.ContinuationBudgetExhausted {
+			escalated, eerr := s.escalateRemediationBudgetExhausted(txCtx, plan, stage, verdict, continuation, cmd.Actor)
+			if eerr != nil {
+				return eerr
+			}
+			result.Escalated = escalated
+		}
 		if plan.Status() == pm.PlanPaused {
 			return nil
 		}
 		if continuation.RemainingBudget <= 0 {
-			continuation.Status = pm.ContinuationBudgetExhausted
-			expected := continuation.Version
-			continuation.Version++
-			continuation.UpdatedAt = now.UTC()
-			if updated, err := s.remediation.UpdateContinuation(txCtx, continuation, expected); err != nil {
-				return err
-			} else if !updated {
-				return pm.ErrPlanVersionConflict
+			if continuation.Status != pm.ContinuationBudgetExhausted {
+				expected := continuation.Version
+				continuation.Status = pm.ContinuationBudgetExhausted
+				continuation.Version++
+				continuation.UpdatedAt = now.UTC()
+				if updated, err := s.remediation.UpdateContinuation(txCtx, continuation, expected); err != nil {
+					return err
+				} else if !updated {
+					return pm.ErrPlanVersionConflict
+				}
+				escalated, eerr := s.escalateRemediationBudgetExhausted(txCtx, plan, stage, verdict, continuation, cmd.Actor)
+				if eerr != nil {
+					return eerr
+				}
+				result.Escalated = escalated
 			}
 			return nil
 		}
@@ -244,7 +269,15 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		if replayProposal != nil {
 			proposal = *replayProposal
 		} else {
-			payload := defaultRemediationProposal(stage, gateTask, verdict, cmd.Actor)
+			var stageTasks []*pm.Task
+			if cmd.Proposal == nil {
+				var lerr error
+				stageTasks, lerr = s.tasks.ListByPlan(txCtx, plan.ID())
+				if lerr != nil {
+					return lerr
+				}
+			}
+			payload := defaultRemediationProposal(stage, gateTask, verdict, cmd.Actor, stageTasks)
 			if cmd.Proposal != nil {
 				payload = *cmd.Proposal
 			}
@@ -282,19 +315,39 @@ func (s *Service) findContinuationForVerdict(ctx context.Context, verdict pm.Gat
 	if err != nil {
 		return nil, false, err
 	}
+	var rootMatch *pm.PlanContinuation
 	for _, continuation := range continuations {
-		if continuation.TriggerVerdictID == verdict.ID || continuation.RootStageID == verdict.StageID {
+		if continuation.TriggerVerdictID == verdict.ID || continuation.CurrentStageID == verdict.StageID {
 			return continuation, true, nil
 		}
+		if continuation.RootStageID == verdict.StageID {
+			rootMatch = continuation
+		}
+	}
+	if rootMatch != nil {
+		return rootMatch, true, nil
 	}
 	return nil, false, nil
 }
 
-func defaultRemediationProposal(stage *pm.Stage, gateTask *pm.Task, verdict pm.GateVerdict, actor pm.IdentityRef) pm.RemediationProposalPayload {
-	assignee := actor
-	if gateTask.Assignee() != "" {
-		assignee = gateTask.Assignee()
+func (s *Service) findRemediationStageForVerdict(ctx context.Context, verdict pm.GateVerdict) (pm.StageID, bool, error) {
+	if s.stages == nil {
+		return "", false, nil
 	}
+	stages, err := s.stages.ListByPlan(ctx, verdict.PlanID)
+	if err != nil {
+		return "", false, err
+	}
+	for _, stage := range stages {
+		if stage.OriginVerdictID() == verdict.ID {
+			return stage.ID(), true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func defaultRemediationProposal(stage *pm.Stage, gateTask *pm.Task, verdict pm.GateVerdict, actor pm.IdentityRef, planTasks []*pm.Task) pm.RemediationProposalPayload {
+	assignee := remediationRepairAssignee(stage, gateTask, actor, planTasks)
 	base := strings.TrimSpace(stage.GateSpec().AcceptanceContract)
 	contract := base + "\n\nReject evidence to address:\n" + verdict.Evidence
 	return pm.RemediationProposalPayload{
@@ -302,6 +355,68 @@ func defaultRemediationProposal(stage *pm.Stage, gateTask *pm.Task, verdict pm.G
 		Tasks: []pm.RemediationTaskSpec{{Ref: "fix", Title: "Address rejection for " + stage.Name(), Description: verdict.Evidence, AssigneeRef: assignee, DispatchMode: pm.DispatchExecutorFork, FollowsTaskID: gateTask.ID()}},
 		Gate:  pm.RemediationGateSpec{AssigneeRef: actor, AcceptanceContract: contract},
 	}
+}
+
+func remediationRepairAssignee(stage *pm.Stage, gateTask *pm.Task, actor pm.IdentityRef, planTasks []*pm.Task) pm.IdentityRef {
+	for _, task := range planTasks {
+		if task.StageID() != stage.ID() || task.ID() == stage.GateTaskID() || task.Assignee() == "" || task.Assignee() == actor {
+			continue
+		}
+		return task.Assignee()
+	}
+	for _, task := range planTasks {
+		if task.StageID() != stage.ID() || task.ID() == stage.GateTaskID() || task.Assignee() == "" {
+			continue
+		}
+		return task.Assignee()
+	}
+	if gateTask.Assignee() != "" {
+		return gateTask.Assignee()
+	}
+	return actor
+}
+
+func (s *Service) escalateRemediationBudgetExhausted(
+	ctx context.Context, plan *pm.Plan, stage *pm.Stage, verdict pm.GateVerdict, continuation *pm.PlanContinuation,
+	actor pm.IdentityRef,
+) (bool, error) {
+	if continuation == nil || continuation.Status != pm.ContinuationBudgetExhausted {
+		return false, nil
+	}
+	s.auditPlanByID(ctx, plan.ProjectID(), plan.ID(), pm.AuditPlanRemediationExhausted, actor, map[string]any{
+		"stage_id":            string(stage.ID()),
+		"stage_name":          stage.Name(),
+		"verdict_id":          string(verdict.ID),
+		"gate_task_id":        string(verdict.GateTaskID),
+		"continuation_id":     string(continuation.ID),
+		"generation":          continuation.Generation,
+		"remaining_budget":    continuation.RemainingBudget,
+		"triggered_by_reject": string(verdict.ID),
+	})
+	if err := s.emit(ctx, EvtRemediationBudgetExhausted,
+		refsJSON(map[string]string{
+			"plan_id": string(plan.ID()), "stage_id": string(stage.ID()), "verdict_id": string(verdict.ID),
+			"continuation_id": string(continuation.ID),
+		}),
+		map[string]any{
+			"plan_id": plan.ID(), "stage_id": stage.ID(), "stage_name": stage.Name(), "verdict_id": verdict.ID,
+			"gate_task_id": verdict.GateTaskID, "continuation_id": continuation.ID, "generation": continuation.Generation,
+			"remaining_budget": continuation.RemainingBudget, "status": continuation.Status,
+		}); err != nil {
+		return false, err
+	}
+	if s.planDispatcher == nil || strings.TrimSpace(plan.ConversationID()) == "" {
+		return true, nil
+	}
+	target := string(plan.CreatorRef())
+	if target == "" {
+		target = string(actor)
+	}
+	content := fmt.Sprintf("remediation for stage %q exhausted its reject remediation budget after verdict %s. The plan will not advance until the owner extends the plan, supplies a manual remediation, or discards it.", stage.Name(), verdict.ID)
+	if _, err := s.planDispatcher.PostMention(ctx, plan.ConversationID(), target, content); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func outgoingNodeIDs(edges []orch.Edge, from orch.NodeID) []orch.NodeID {
@@ -463,7 +578,7 @@ func (s *Service) appendRemediationStage(
 	stage, err := pm.NewStage(pm.NewStageInput{
 		ID: stageID, PlanID: plan.ID(), Name: proposal.Payload.Name, DependsOnStages: []pm.StageID{priorStage.ID()},
 		MaxRounds: priorStage.MaxRounds(), GateTaskID: gateTaskID, GateSpec: gateSpec,
-		OriginVerdictID: verdict.ID, ContinuationID: continuation.ID, Generation: continuation.Generation + 1,
+		OriginVerdictID: verdict.ID, ContinuationID: continuation.ID, SupersedesStageID: priorStage.ID(), Generation: continuation.Generation + 1,
 		AcceptanceContract: gateSpec.AcceptanceContract, TopologyFingerprint: nextBoundary, CreatedAt: now,
 	})
 	if err != nil {

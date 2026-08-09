@@ -171,8 +171,9 @@ func TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent(t *
 		"agent_id": atAgent1,
 		"task_id":  string(gateTaskID),
 		"delivery": map[string]any{
-			"summary": "blocking regression remains",
-			"outcome": "reject",
+			"summary":         "blocking regression remains",
+			"outcome":         "reject",
+			"idempotency_key": "handler-stage-reject-1",
 			"review": map[string]any{
 				"verdict": "reject", "blocking": true,
 				"reason": "blocking regression remains", "sha": "3f956f29",
@@ -213,6 +214,26 @@ func TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent(t *
 	if remediation == nil || remediation.Stage.OriginVerdictID() == "" || len(remediation.Members) == 0 {
 		t.Fatalf("missing lineage-bearing remediation stage: %+v", remediation)
 	}
+	if remediation.Stage.SupersedesStageID() != stageID || remediation.Stage.ContinuationID() == "" {
+		t.Fatalf("remediation supersedes/continuation = %s/%s, want %s/non-empty", remediation.Stage.SupersedesStageID(), remediation.Stage.ContinuationID(), stageID)
+	}
+	var repairTaskID pm.TaskID
+	for _, member := range remediation.Members {
+		if member.TaskID != remediation.Stage.GateTaskID() {
+			repairTaskID = member.TaskID
+			break
+		}
+	}
+	if repairTaskID == "" {
+		t.Fatalf("remediation stage has no repair member: %+v", remediation.Members)
+	}
+	repairTask, err := f.pmSvc.GetTask(ctx, repairTaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repairTask.OriginVerdictID() != remediation.Stage.OriginVerdictID() || repairTask.FollowsTaskID() != gateTaskID {
+		t.Fatalf("repair lineage verdict/follows=%s/%s, want %s/%s", repairTask.OriginVerdictID(), repairTask.FollowsTaskID(), remediation.Stage.OriginVerdictID(), gateTaskID)
+	}
 
 	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1", payload)
 	if status != http.StatusOK {
@@ -224,5 +245,33 @@ func TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent(t *
 	}
 	if len(stages) != 2 {
 		t.Fatalf("identical replay appended duplicate remediation stages: %d", len(stages))
+	}
+
+	conflictPayload := map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  string(gateTaskID),
+		"delivery": map[string]any{
+			"summary":         "different blocking regression with same key",
+			"outcome":         "reject",
+			"idempotency_key": "handler-stage-reject-1",
+			"review": map[string]any{
+				"verdict": "reject", "blocking": true,
+				"reason": "different blocking regression with same key", "sha": "3f956f29",
+			},
+		},
+	}
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1", conflictPayload)
+	if status != http.StatusConflict {
+		t.Fatalf("conflicting duplicate status=%d body=%v, want 409", status, body)
+	}
+	if body["error"] != "idempotency_conflict" {
+		t.Fatalf("conflicting duplicate body=%v, want idempotency_conflict", body)
+	}
+	stages, err = f.pmSvc.ListStagesForPlan(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stages) != 2 {
+		t.Fatalf("conflicting duplicate mutated remediation topology: stages=%d", len(stages))
 	}
 }

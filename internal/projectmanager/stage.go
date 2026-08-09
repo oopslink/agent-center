@@ -44,6 +44,7 @@ type Stage struct {
 	// Append-only remediation provenance. Base stages leave these empty/zero.
 	originVerdictID     GateVerdictID
 	continuationID      ContinuationID
+	supersedesStageID   StageID
 	generation          int
 	acceptanceContract  string
 	topologyFingerprint string
@@ -128,6 +129,7 @@ type NewStageInput struct {
 	GateSpec            GateSpec
 	OriginVerdictID     GateVerdictID
 	ContinuationID      ContinuationID
+	SupersedesStageID   StageID
 	Generation          int
 	AcceptanceContract  string
 	TopologyFingerprint string
@@ -170,6 +172,7 @@ func NewStage(in NewStageInput) (*Stage, error) {
 		gateSpec:            in.GateSpec,
 		originVerdictID:     in.OriginVerdictID,
 		continuationID:      in.ContinuationID,
+		supersedesStageID:   in.SupersedesStageID,
 		generation:          in.Generation,
 		acceptanceContract:  strings.TrimSpace(in.AcceptanceContract),
 		topologyFingerprint: strings.TrimSpace(in.TopologyFingerprint),
@@ -191,6 +194,7 @@ type RehydrateStageInput struct {
 	GateSpec            GateSpec
 	OriginVerdictID     GateVerdictID
 	ContinuationID      ContinuationID
+	SupersedesStageID   StageID
 	Generation          int
 	AcceptanceContract  string
 	TopologyFingerprint string
@@ -218,6 +222,7 @@ func RehydrateStage(in RehydrateStageInput) (*Stage, error) {
 		gateSpec:            in.GateSpec,
 		originVerdictID:     in.OriginVerdictID,
 		continuationID:      in.ContinuationID,
+		supersedesStageID:   in.SupersedesStageID,
 		generation:          in.Generation,
 		acceptanceContract:  in.AcceptanceContract,
 		topologyFingerprint: in.TopologyFingerprint,
@@ -269,6 +274,7 @@ func (s *Stage) UpdatedAt() time.Time           { return s.updatedAt }
 func (s *Stage) Version() int                   { return s.version }
 func (s *Stage) OriginVerdictID() GateVerdictID { return s.originVerdictID }
 func (s *Stage) ContinuationID() ContinuationID { return s.continuationID }
+func (s *Stage) SupersedesStageID() StageID     { return s.supersedesStageID }
 func (s *Stage) Generation() int                { return s.generation }
 func (s *Stage) AcceptanceContract() string     { return s.acceptanceContract }
 func (s *Stage) TopologyFingerprint() string    { return s.topologyFingerprint }

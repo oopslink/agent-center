@@ -20,18 +20,18 @@ type StageRepo struct{ db *sql.DB }
 func NewStageRepo(db *sql.DB) *StageRepo { return &StageRepo{db: db} }
 
 const stageSelect = `SELECT id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec,
-	origin_verdict_id, continuation_id, generation, acceptance_contract, topology_fingerprint,
+	origin_verdict_id, continuation_id, supersedes_stage_id, generation, acceptance_contract, topology_fingerprint,
 	created_at, updated_at, version FROM pm_stages`
 
 func (r *StageRepo) Save(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_stages (id, plan_id, name, depends_on_stages, gate_node_id, max_rounds, gate_task_id, gate_spec,
-		 origin_verdict_id, continuation_id, generation, acceptance_contract, topology_fingerprint, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 origin_verdict_id, continuation_id, supersedes_stage_id, generation, acceptance_contract, topology_fingerprint, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(s.ID()), string(s.PlanID()), s.Name(), marshalStageDeps(s.DependsOnStages()),
 		s.GateNodeID(), s.MaxRounds(), string(s.GateTaskID()), marshalGateSpec(s.GateSpec()),
-		string(s.OriginVerdictID()), string(s.ContinuationID()), s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(),
+		string(s.OriginVerdictID()), string(s.ContinuationID()), string(s.SupersedesStageID()), s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(),
 		ts(s.CreatedAt()), ts(s.UpdatedAt()), s.Version())
 	if isUnique(err) {
 		return pm.ErrStageExists
@@ -43,10 +43,10 @@ func (r *StageRepo) Update(ctx context.Context, s *pm.Stage) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_stages SET name=?, depends_on_stages=?, gate_node_id=?, max_rounds=?, gate_task_id=?, gate_spec=?,
-		 origin_verdict_id=?, continuation_id=?, generation=?, acceptance_contract=?, topology_fingerprint=?, updated_at=?, version=? WHERE id=?`,
+		 origin_verdict_id=?, continuation_id=?, supersedes_stage_id=?, generation=?, acceptance_contract=?, topology_fingerprint=?, updated_at=?, version=? WHERE id=?`,
 		s.Name(), marshalStageDeps(s.DependsOnStages()), s.GateNodeID(), s.MaxRounds(),
 		string(s.GateTaskID()), marshalGateSpec(s.GateSpec()), string(s.OriginVerdictID()), string(s.ContinuationID()),
-		s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(), ts(s.UpdatedAt()), s.Version(), string(s.ID()))
+		string(s.SupersedesStageID()), s.Generation(), s.AcceptanceContract(), s.TopologyFingerprint(), ts(s.UpdatedAt()), s.Version(), string(s.ID()))
 	if err != nil {
 		return err
 	}
@@ -97,10 +97,10 @@ func (r *StageRepo) DeleteByPlan(ctx context.Context, planID pm.PlanID) error {
 }
 
 func scanStage(scan func(...any) error) (*pm.Stage, error) {
-	var id, planID, name, dependsJSON, gateNodeID, gateTaskID, gateSpecJSON, originVerdictID, continuationID, acceptanceContract, topologyFingerprint, createdAt, updatedAt string
+	var id, planID, name, dependsJSON, gateNodeID, gateTaskID, gateSpecJSON, originVerdictID, continuationID, supersedesStageID, acceptanceContract, topologyFingerprint, createdAt, updatedAt string
 	var maxRounds, generation, version int
 	if err := scan(&id, &planID, &name, &dependsJSON, &gateNodeID, &maxRounds, &gateTaskID, &gateSpecJSON,
-		&originVerdictID, &continuationID, &generation, &acceptanceContract, &topologyFingerprint, &createdAt, &updatedAt, &version); err != nil {
+		&originVerdictID, &continuationID, &supersedesStageID, &generation, &acceptanceContract, &topologyFingerprint, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateStage(pm.RehydrateStageInput{
@@ -114,6 +114,7 @@ func scanStage(scan func(...any) error) (*pm.Stage, error) {
 		GateSpec:            unmarshalGateSpec(gateSpecJSON),
 		OriginVerdictID:     pm.GateVerdictID(originVerdictID),
 		ContinuationID:      pm.ContinuationID(continuationID),
+		SupersedesStageID:   pm.StageID(supersedesStageID),
 		Generation:          generation,
 		AcceptanceContract:  acceptanceContract,
 		TopologyFingerprint: topologyFingerprint,
