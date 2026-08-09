@@ -69,6 +69,7 @@ func mapTeamError(w http.ResponseWriter, err error) {
 	case errors.Is(err, team.ErrRoleNotDeclared),
 		errors.Is(err, team.ErrInvalidRole),
 		errors.Is(err, team.ErrInvalidTeam),
+		errors.Is(err, team.ErrInvalidTeamMemoryPolicy),
 		errors.Is(err, team.ErrInvalidMemberRef),
 		errors.Is(err, team.ErrInvalidProject),
 		errors.Is(err, team.ErrInvalidTemplate),

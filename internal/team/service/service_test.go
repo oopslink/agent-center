@@ -136,6 +136,35 @@ func TestService_AgentExclusivity(t *testing.T) {
 	}
 }
 
+func TestService_TeamMemoryPolicyCuratorGrantRevokedOnRemoveMember(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	tm := createTeam(t, svc, "Memory", devRole())
+	if _, err := svc.AddMember(ctx, tm.ID(), "agent:curator", "dev"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	policy, err := svc.SetMemoryPolicy(ctx, tm.ID(), team.TeamMemoryPolicy{
+		Mode:             team.TeamMemoryPolicyCuratorAuto,
+		CuratorAgentRefs: []team.MemberRef{"agent:curator"},
+	})
+	if err != nil {
+		t.Fatalf("SetMemoryPolicy: %v", err)
+	}
+	if !policy.IsCurator("agent:curator") {
+		t.Fatalf("curator grant missing: %+v", policy)
+	}
+	if err := svc.RemoveMember(ctx, tm.ID(), "agent:curator"); err != nil {
+		t.Fatalf("RemoveMember: %v", err)
+	}
+	policy, err = svc.GetMemoryPolicy(ctx, tm.ID())
+	if err != nil {
+		t.Fatalf("GetMemoryPolicy: %v", err)
+	}
+	if policy.IsCurator("agent:curator") || len(policy.CuratorAgentRefs) != 0 {
+		t.Fatalf("curator grant was not revoked: %+v", policy)
+	}
+}
+
 // TestService_HumanMultiTeam is the paired requirement: a human may join many
 // teams.
 func TestService_HumanMultiTeam(t *testing.T) {

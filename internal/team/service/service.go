@@ -7,6 +7,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -330,7 +331,10 @@ func (s *Service) MoveMemberRoles(ctx context.Context, fromTeam, toTeam team.Tea
 // RemoveMember removes a member from a team. ErrMemberNotFound if absent.
 func (s *Service) RemoveMember(ctx context.Context, id team.TeamID, ref team.MemberRef) error {
 	return persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
-		return s.repo.RemoveMember(ctx, id, ref)
+		if err := s.repo.RemoveMember(ctx, id, ref); err != nil {
+			return err
+		}
+		return s.repo.RemoveMemoryCurator(ctx, id, ref)
 	})
 }
 
@@ -349,6 +353,68 @@ func (s *Service) ListMembersByTeams(ctx context.Context, ids []team.TeamID) ([]
 // FindAgentTeam returns the team an agent currently belongs to, if any.
 func (s *Service) FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error) {
 	return s.repo.FindAgentTeam(ctx, ref)
+}
+
+// GetMemoryPolicy returns the Team-owned memory promotion policy. A team with no
+// explicit policy row uses proposal_only and no curator grants.
+func (s *Service) GetMemoryPolicy(ctx context.Context, id team.TeamID) (team.TeamMemoryPolicy, error) {
+	return s.repo.GetMemoryPolicy(ctx, id)
+}
+
+// SetMemoryPolicy replaces a team's memory policy. Curator grants must name
+// agent members currently on this team; capability tags are not authorization.
+func (s *Service) SetMemoryPolicy(ctx context.Context, id team.TeamID, policy team.TeamMemoryPolicy) (team.TeamMemoryPolicy, error) {
+	if !policy.Mode.IsValid() {
+		return team.TeamMemoryPolicy{}, team.ErrInvalidTeamMemoryPolicy
+	}
+	policy.Mode = policy.Mode.Normalized()
+	var saved team.TeamMemoryPolicy
+	err := persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		if _, err := s.repo.GetTeam(ctx, id); err != nil {
+			return err
+		}
+		members, err := s.repo.ListMembers(ctx, id)
+		if err != nil {
+			return err
+		}
+		memberRefs := make(map[team.MemberRef]struct{}, len(members))
+		for _, m := range members {
+			if m.Kind == team.MemberKindAgent {
+				memberRefs[m.Ref] = struct{}{}
+			}
+		}
+		seen := map[team.MemberRef]struct{}{}
+		curators := make([]team.MemberRef, 0, len(policy.CuratorAgentRefs))
+		for _, ref := range policy.CuratorAgentRefs {
+			ref = team.MemberRef(strings.TrimSpace(ref.String()))
+			if ref == "" {
+				continue
+			}
+			kind, err := ref.Kind()
+			if err != nil || kind != team.MemberKindAgent {
+				return team.ErrInvalidMemberRef
+			}
+			if _, ok := memberRefs[ref]; !ok {
+				return team.ErrMemberNotFound
+			}
+			if _, dup := seen[ref]; dup {
+				continue
+			}
+			seen[ref] = struct{}{}
+			curators = append(curators, ref)
+		}
+		policy.CuratorAgentRefs = curators
+		policy.UpdatedAt = s.clock.Now()
+		if err := s.repo.SetMemoryPolicy(ctx, id, policy); err != nil {
+			return err
+		}
+		saved = policy
+		return nil
+	})
+	if err != nil {
+		return team.TeamMemoryPolicy{}, err
+	}
+	return saved, nil
 }
 
 // AssociateProject links a project to a team.

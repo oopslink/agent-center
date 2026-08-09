@@ -11,6 +11,9 @@ var (
 	ErrTeamNameTaken = errors.New("team: name already taken in org")
 	// ErrInvalidTeam is returned when a Team fails validation (empty org/name).
 	ErrInvalidTeam = errors.New("team: invalid team")
+	// ErrInvalidTeamMemoryPolicy is returned when Team Memory policy fields are
+	// malformed.
+	ErrInvalidTeamMemoryPolicy = errors.New("team: invalid team memory policy")
 
 	// ErrInvalidMemberRef is returned for a malformed member ref (no
 	// "agent:"/"user:" prefix, or an empty id).

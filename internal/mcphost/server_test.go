@@ -219,6 +219,8 @@ var wantTools = []string{
 	// Team Phase-1 wiring (design §4/§6/§7/§9): CRUD + membership + project
 	// association (S1), template authoring / instantiation / role→agent (S3).
 	"create_team", "update_team", "delete_team", "get_team", "list_teams",
+	"propose_team_memory_change", "list_team_memory_proposals",
+	"get_team_memory_proposal", "review_team_memory_proposal",
 	"add_member", "remove_member", "associate_project",
 	"create_team_template", "curate_team_template", "export_team_template", "import_team_template",
 	"instantiate_team", "extract_from_team", "assign_roles",

@@ -176,8 +176,8 @@ func MigrateV1ToV2Command() *Command {
 // 0115 added first-class stage gates; 0116 added the AI runtime catalog.
 // 0117 added messages.reply_to_message_id for primary-reply binding.
 // 0119-0121 add AssignmentPool, monotonic Plan lifecycle, and remediation ledgers;
-// 0122 adds the explicit task delivery contract.
-const targetSchemaVersion = 122
+// 0124 adds Team Memory curator policy and projection checkpoints.
+const targetSchemaVersion = 124
 
 func runMigrateV1ToV2(
 	ctx context.Context,
