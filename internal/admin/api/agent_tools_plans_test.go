@@ -289,15 +289,26 @@ func TestEditPlanTopology_UsesFrozenPlanningRulesFromRequest(t *testing.T) {
 func TestEvolvePlanGeneration_AsMemberIdempotentAPI(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	_, planID := f.seedPlanMember(t)
+	pid, planID := f.seedPlanMember(t)
+	f.seedPlanTask(t, pid, planID)
+	if err := f.pmSvc.StartPlan(context.Background(), pm.PlanID(planID), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.PausePlan(context.Background(), pm.PlanID(planID), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("PausePlan: %v", err)
+	}
 	srv := f.server(t)
 	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
 	if err != nil {
 		t.Fatal(err)
 	}
+	if p.ActiveGenerationID() == "" {
+		t.Fatal("started plan has no G0 active generation")
+	}
 
 	req := map[string]any{
-		"agent_id": atAgent1, "plan_id": planID, "parent_generation_id": "",
+		"agent_id": atAgent1, "plan_id": planID, "parent_generation_id": string(p.ActiveGenerationID()),
 		"base_version": p.Version(), "idempotency_key": "api-evo-1",
 		"reason": "add api task", "evidence": "route test",
 		"diff": map[string]any{
@@ -333,7 +344,13 @@ func TestEvolvePlanGeneration_AsMemberIdempotentAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.CreatorRef != pm.IdentityRef("agent:"+atAgent1) || len(stored.Snapshot.Tasks) != 1 || stored.Snapshot.Tasks[0].Title != "API C" {
+	var apiTaskFound bool
+	for _, task := range stored.Snapshot.Tasks {
+		if task.Title == "API C" {
+			apiTaskFound = true
+		}
+	}
+	if stored.CreatorRef != pm.IdentityRef("agent:"+atAgent1) || len(stored.Snapshot.Tasks) != 2 || !apiTaskFound {
 		t.Fatalf("stored generation = %+v", stored)
 	}
 

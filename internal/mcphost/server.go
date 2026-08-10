@@ -458,7 +458,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",
-		Description: "Validate and start a pending plan (move it to running). The center dispatches each node once its dependencies complete.",
+		Description: "Validate and start a pending plan (move it to running), atomically freezing its immutable G0 generation and exposing it through get_plan.active_generation_id. The center dispatches each node once its dependencies complete.",
 	}, makePlanID(cfg, "start_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{

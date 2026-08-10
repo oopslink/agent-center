@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -104,6 +108,14 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := s.buildPlanGraph(txCtx, p, tasks, edges, now); err != nil {
 			return err
 		}
+		// G0 is the immutable activation baseline for every structured Plan. Freeze it
+		// only after graph materialization has assigned stable node ids, and before the
+		// start event can make any node dispatchable. The generation insert and Plan's
+		// active_generation_id update share this transaction with the status/graph
+		// writes, so observers can never see a running Plan without its G0 snapshot.
+		if err := s.freezeInitialPlanGeneration(txCtx, p, tasks, edges, actor, now); err != nil {
+			return err
+		}
 		// v2.9 P2-1 auto-advance: emit pm.plan.started so the orchestrator projector
 		// dispatches the Plan's INITIAL ready nodes (no manual Advance). The project's
 		// org is carried so the payload mirrors planEventPayload (the orchestrator
@@ -125,6 +137,68 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		s.auditPlan(txCtx, p, pm.AuditPlanStarted, actor, map[string]any{"status": string(p.Status())})
 		return nil
 	})
+}
+
+const (
+	initialPlanGenerationReason         = "initial plan activation"
+	initialPlanGenerationEvidence       = "validated topology frozen at plan start"
+	initialPlanGenerationIdempotencyKey = "plan-activation:g0"
+)
+
+// freezeInitialPlanGeneration persists the Plan's G0 snapshot and switches the
+// aggregate's active generation pointer. It must only be called from StartPlan's
+// transaction, after buildPlanGraph has finished assigning graph/node ids and
+// before EvtPlanStarted is emitted.
+func (s *Service) freezeInitialPlanGeneration(
+	txCtx context.Context,
+	p *pm.Plan,
+	tasks []*pm.Task,
+	edges []pm.Dependency,
+	actor pm.IdentityRef,
+	now time.Time,
+) error {
+	if p.ActiveGenerationID() != "" {
+		return fmt.Errorf("%w: pending plan %s already has active generation %s",
+			pm.ErrPlanGenerationConflict, p.ID(), p.ActiveGenerationID())
+	}
+	records, err := s.plans.ListDispatchRecords(txCtx, p.ID())
+	if err != nil {
+		return err
+	}
+	generationID := pm.PlanGenerationID(s.idgen.NewEntityID("generation"))
+	// Activating G0 is one aggregate mutation and therefore one version step. Do
+	// this before building the snapshot so its embedded version/pointer exactly
+	// match the Plan row committed alongside it.
+	p.SetActiveGenerationID(generationID, now)
+	fingerprintBody, err := json.Marshal(struct {
+		PlanID       pm.PlanID           `json:"plan_id"`
+		GenerationID pm.PlanGenerationID `json:"generation_id"`
+		PlanVersion  int                 `json:"plan_version"`
+	}{p.ID(), generationID, p.Version()})
+	if err != nil {
+		return err
+	}
+	fingerprintSum := sha256.Sum256(fingerprintBody)
+	generation, err := pm.NewPlanGeneration(pm.PlanGeneration{
+		ID:                 generationID,
+		PlanID:             p.ID(),
+		ParentGenerationID: "",
+		Reason:             initialPlanGenerationReason,
+		Evidence:           initialPlanGenerationEvidence,
+		CreatorRef:         actor,
+		Diff:               pm.PlanGenerationDiff{},
+		Snapshot:           planGenerationSnapshot(p.ID(), generationID, p.Version(), tasks, edges, records),
+		IdempotencyKey:     initialPlanGenerationIdempotencyKey,
+		RequestFingerprint: "sha256:" + hex.EncodeToString(fingerprintSum[:]),
+		CreatedAt:          now,
+	})
+	if err != nil {
+		return err
+	}
+	if err := s.plans.SaveGeneration(txCtx, generation); err != nil {
+		return err
+	}
+	return s.plans.Update(txCtx, p)
 }
 
 // validateResolvableAssignee enforces §9.6(c): the task must have an assignee,
