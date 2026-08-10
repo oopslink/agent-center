@@ -1145,7 +1145,7 @@ function buildModelsOnlyImportDocument(catalog: AIRuntimeCatalog, raw: unknown):
   const existingModels = new Map(catalog.models.map((model) => [model.key, exportModel(model)]));
   const mergedModels = new Map(existingModels);
   const seen = new Set<string>();
-  const fallbackCLI = catalog.clis.find((cli) => cli.key === 'codex')?.key ?? catalog.clis[0]?.key;
+  const fallbackCLI = catalog.clis[0]?.key;
 
   raw.forEach((item, index) => {
     if (!isPlainRecord(item)) {

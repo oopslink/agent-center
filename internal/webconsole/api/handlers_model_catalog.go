@@ -46,12 +46,12 @@ func validateLegacyModelCatalogFields(req catalogFieldsReq) error {
 	return nil
 }
 
-func modelDefinitionFromLegacy(req catalogFieldsReq) airuntime.ModelDefinition {
+func modelDefinitionFromLegacy(req catalogFieldsReq, compatibleCLIKeys []string) airuntime.ModelDefinition {
 	return airuntime.ModelDefinition{
 		Key:               req.ModelID,
 		ModelKey:          req.ModelID,
 		DisplayName:       req.DisplayName,
-		CompatibleCLIKeys: []string{"codex"},
+		CompatibleCLIKeys: compatibleCLIKeys,
 		DefaultParameters: map[string]any{},
 		Enabled:           true,
 		ContextWindow:     req.ContextWindow,
@@ -59,6 +59,17 @@ func modelDefinitionFromLegacy(req catalogFieldsReq) airuntime.ModelDefinition {
 		OutputCost:        req.OutputCost,
 		Tier:              req.Tier,
 	}
+}
+
+func legacyModelCatalogCompatibleCLIKeys(catalog airuntime.Catalog) []string {
+	keys := make([]string, 0, len(catalog.CLIs))
+	for _, cli := range catalog.CLIs {
+		if cli.Enabled {
+			keys = append(keys, cli.Key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // listModelCatalogHandler serves GET /api/orgs/{slug}/model-catalog.
@@ -101,7 +112,7 @@ func (s *Server) createModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		writeRuntimeError(w, err)
 		return
 	}
-	model, _, err := d.RuntimeCatalog.CreateModel(r.Context(), orgID, "user:"+callerID.ID(), catalog.Revision, modelDefinitionFromLegacy(req))
+	model, _, err := d.RuntimeCatalog.CreateModel(r.Context(), orgID, "user:"+callerID.ID(), catalog.Revision, modelDefinitionFromLegacy(req, legacyModelCatalogCompatibleCLIKeys(catalog)))
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -219,6 +230,12 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	catalog, err := d.RuntimeCatalog.Catalog(r.Context(), orgID)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	compatibleCLIKeys := legacyModelCatalogCompatibleCLIKeys(catalog)
 	seen := make(map[string]struct{}, len(dtos))
 	models := make([]airuntime.ExportModel, 0, len(dtos))
 	for i, dto := range dtos {
@@ -233,7 +250,7 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		seen[dto.ModelID] = struct{}{}
 		models = append(models, airuntime.ExportModel{
 			Key: dto.ModelID, ModelKey: dto.ModelID, DisplayName: dto.DisplayName,
-			CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{},
+			CompatibleCLIKeys: compatibleCLIKeys, DefaultParameters: map[string]any{},
 			Enabled: true, ContextWindow: dto.ContextWindow, InputCost: dto.InputCost,
 			OutputCost: dto.OutputCost, Tier: dto.Tier,
 		})

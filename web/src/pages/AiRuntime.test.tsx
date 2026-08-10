@@ -44,14 +44,14 @@ describe('AiRuntime page', () => {
     expect(screen.getAllByTestId('ai-runtime-edit-profile')).toHaveLength(2);
 
     fireEvent.click(screen.getByTestId('ai-runtime-tab-models'));
-    expect(await screen.findByTestId('ai-runtime-model-row')).toHaveTextContent('GPT-5');
+    expect((await screen.findAllByTestId('ai-runtime-model-row')).some((row) => row.textContent?.includes('GPT-5'))).toBe(true);
     expect(screen.getByTestId('ai-runtime-create-model')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-import-models')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-runtime-edit-model')).toBeInTheDocument();
+    expect(screen.getAllByTestId('ai-runtime-edit-model')).toHaveLength(3);
     fireEvent.click(screen.getByTestId('ai-runtime-tab-clis'));
-    expect(await screen.findByTestId('ai-runtime-cli-row')).toHaveTextContent('Codex CLI');
+    expect((await screen.findAllByTestId('ai-runtime-cli-row')).some((row) => row.textContent?.includes('Codex CLI'))).toBe(true);
     expect(screen.getByTestId('ai-runtime-create-cli')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-runtime-edit-cli')).toBeInTheDocument();
+    expect(screen.getAllByTestId('ai-runtime-edit-cli')).toHaveLength(2);
   });
 
   it('keeps organization members read-only while leaving the page visible', async () => {
@@ -123,8 +123,8 @@ describe('AiRuntime page', () => {
             key: 'planning',
             name: 'Planning',
             description: '',
-            cli_key: 'codex',
-            model_key: 'gpt-5',
+            cli_key: 'claude-code',
+            model_key: 'claude-opus-4-8',
             parameters: {},
             enabled: false,
           },
@@ -142,8 +142,9 @@ describe('AiRuntime page', () => {
       }),
     );
     renderPage('/organizations/test/ai-runtime?tab=models');
-    expect(await screen.findByTestId('ai-runtime-model-row')).toHaveTextContent('GPT-5');
-    fireEvent.click(await screen.findByTestId('ai-runtime-edit-model'));
+    const gptRow = (await screen.findAllByTestId('ai-runtime-model-row')).find((row) => row.textContent?.includes('GPT-5'));
+    expect(gptRow).toBeTruthy();
+    fireEvent.click(within(gptRow as HTMLElement).getByTestId('ai-runtime-edit-model'));
     fireEvent.change(screen.getByTestId('ai-runtime-model-display-name'), { target: { value: 'GPT-5 Updated' } });
     fireEvent.click(screen.getByTestId('ai-runtime-form-save'));
     await waitFor(() =>
@@ -179,8 +180,8 @@ describe('AiRuntime page', () => {
       ),
     );
     renderPage('/organizations/test/ai-runtime?tab=models');
-    expect(await screen.findByTestId('ai-runtime-model-row')).toBeInTheDocument();
-    fireEvent.click(await screen.findByTestId('ai-runtime-edit-model'));
+    const rows = await screen.findAllByTestId('ai-runtime-model-row');
+    fireEvent.click(within(rows[0]).getByTestId('ai-runtime-edit-model'));
     fireEvent.change(screen.getByTestId('ai-runtime-model-display-name'), { target: { value: 'Stale edit' } });
     fireEvent.click(screen.getByTestId('ai-runtime-form-save'));
     expect(await screen.findByTestId('ai-runtime-form-error')).toHaveTextContent('runtime_catalog_revision_conflict');
@@ -188,8 +189,9 @@ describe('AiRuntime page', () => {
 
   it('shows system CLI edit constraints in the CLI editor', async () => {
     renderPage('/organizations/test/ai-runtime?tab=clis');
-    expect(await screen.findByTestId('ai-runtime-cli-row')).toHaveTextContent('Codex CLI');
-    fireEvent.click(await screen.findByTestId('ai-runtime-edit-cli'));
+    const codexRow = (await screen.findAllByTestId('ai-runtime-cli-row')).find((row) => row.textContent?.includes('Codex CLI'));
+    expect(codexRow).toBeTruthy();
+    fireEvent.click(within(codexRow as HTMLElement).getByTestId('ai-runtime-edit-cli'));
     expect(screen.getByTestId('ai-runtime-system-hint')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-immutable-key-hint')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-cli-key')).toBeDisabled();
@@ -239,7 +241,7 @@ describe('AiRuntime page', () => {
       }),
     );
     renderPage('/organizations/test/ai-runtime?tab=models');
-    expect(await screen.findByTestId('ai-runtime-model-row')).toBeInTheDocument();
+    expect(await screen.findAllByTestId('ai-runtime-model-row')).toHaveLength(3);
     fireEvent.click(await screen.findByTestId('ai-runtime-import-models'));
     fireEvent.change(screen.getByTestId('ai-runtime-model-import-json'), {
       target: {
@@ -275,6 +277,7 @@ describe('AiRuntime page', () => {
                 ]),
                 models: expect.arrayContaining([
                   expect.objectContaining({ key: 'gpt-5' }),
+                  expect.objectContaining({ key: 'claude-opus-4-8' }),
                   expect.objectContaining({ key: 'gpt-5-mini' }),
                 ]),
               }),

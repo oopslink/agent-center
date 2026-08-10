@@ -126,11 +126,12 @@ func TestSaveTemplate_CuratedThenListed(t *testing.T) {
 }
 
 func TestImportTemplate_UncuratedWithDefaults(t *testing.T) {
-	deps, _, sess := setupTeamsAPI(t)
+	deps, db, sess := setupTeamsAPI(t)
+	wireRuntimeCatalogForTest(t, db, &deps, sess.OrgID)
 	ts := newTestServer(t, deps)
 	defer ts.Close()
 
-	// a partial envelope — missing fields fall back to defaults.
+	// a partial envelope — missing runtime fields fall back to the org AI Runtime default profile.
 	body := `{"name":"Imported","roles":[{"role":"reviewer"}],"workflow_template_ref":"plan-x"}`
 	resp := orgScopedPost(t, ts.URL+"/api/team-templates/import", body, sess)
 	if resp.StatusCode != http.StatusCreated {
@@ -145,7 +146,7 @@ func TestImportTemplate_UncuratedWithDefaults(t *testing.T) {
 	}
 	roles := imported["roles"].([]any)
 	r0 := roles[0].(map[string]any)
-	if r0["cli"] != "claude-code" || r0["model"] != "sonnet-5" || r0["count"].(float64) != 1 {
+	if r0["cli"] != "claude-code" || r0["model"] != "claude-opus-4-8" || r0["count"].(float64) != 1 {
 		t.Errorf("role defaults not applied: %v", r0)
 	}
 }

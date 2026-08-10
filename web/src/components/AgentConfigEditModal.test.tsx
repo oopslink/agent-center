@@ -6,7 +6,6 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentConfigEditModal } from './AgentConfigEditModal';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
 import type { Agent } from '@/api/types';
 
 const base: Agent = {
@@ -29,9 +28,9 @@ afterEach(() => cleanup());
 
 describe('AgentConfigEditModal (T236)', () => {
   it('prefills the form from the agent config', () => {
-    wrap({ ...base, model: 'claude-sonnet-4-6', cli: 'codex', reasoning: 'high', mode: 'plan', provider: 'anthropic' });
-    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe('claude-sonnet-4-6');
-    expect((screen.getByTestId('agent-config-cli') as HTMLSelectElement).value).toBe('codex');
+    wrap({ ...base, model: 'claude-sonnet-4-6', cli: 'claude-code', reasoning: 'high', mode: 'plan', provider: 'anthropic' });
+    expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe('claude-sonnet-4-6');
+    expect((screen.getByTestId('agent-config-cli') as HTMLSelectElement).value).toBe('claude-code');
     expect((screen.getByTestId('agent-config-reasoning') as HTMLSelectElement).value).toBe('high');
     expect((screen.getByTestId('agent-config-mode') as HTMLInputElement).value).toBe('plan');
     expect((screen.getByTestId('agent-config-provider') as HTMLInputElement).value).toBe('anthropic');
@@ -90,7 +89,9 @@ describe('AgentConfigEditModal (T236)', () => {
 
     // edit a couple of fields
     fireEvent.change(screen.getByTestId('agent-config-reasoning'), { target: { value: 'high' } });
-    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: 'claude-sonnet-4-6' } });
+    const model = screen.getByTestId('agent-config-model') as HTMLSelectElement;
+    await waitFor(() => expect([...model.options].map((o) => o.value)).toContain('claude-sonnet-4-6'));
+    fireEvent.change(model, { target: { value: 'claude-sonnet-4-6' } });
     // Save → confirm dialog (running → restart warning)
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
     const confirm = await screen.findByTestId('confirm-modal');
@@ -129,8 +130,8 @@ describe('AgentConfigEditModal (T236)', () => {
       ...base,
       max_concurrent_tasks: 3,
       allowed_executors: [
-        { cli: 'claude-code', model: 'opus-4-8' },
-        { cli: 'codex', model: 'gpt-5.5' },
+        { cli: 'claude-code', model: 'claude-opus-4-8' },
+        { cli: 'codex', model: 'gpt-5' },
       ],
     });
     expect((screen.getByTestId('agent-config-max-concurrent') as HTMLInputElement).value).toBe('3');
@@ -148,14 +149,17 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(screen.getByTestId('agent-config-executors-empty')).toBeInTheDocument();
   });
 
-  it('concurrency: add then remove an executor profile updates the chips', () => {
+  it('concurrency: add then remove an executor profile updates the chips', async () => {
     wrap(base);
     expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
-    fireEvent.change(screen.getByTestId('agent-config-executor-cli'), { target: { value: 'codex' } });
-    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'gpt-5.5' } });
+    const cli = screen.getByTestId('agent-config-executor-cli') as HTMLSelectElement;
+    const model = screen.getByTestId('agent-config-executor-model') as HTMLSelectElement;
+    await waitFor(() => expect(cli.value).toBe('claude-code'));
+    fireEvent.change(cli, { target: { value: 'codex' } });
+    await waitFor(() => expect(model.value).toBe('gpt-5'));
     fireEvent.click(screen.getByTestId('agent-config-executor-add'));
     expect(screen.getAllByTestId('agent-config-executor-chip')).toHaveLength(1);
-    expect(screen.getByTestId('agent-config-executor-chip')).toHaveTextContent('gpt-5.5');
+    expect(screen.getByTestId('agent-config-executor-chip')).toHaveTextContent('gpt-5');
     fireEvent.click(screen.getByTestId('agent-config-executor-remove'));
     expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
   });
@@ -171,14 +175,14 @@ describe('AgentConfigEditModal (T236)', () => {
     );
     wrap(base);
     fireEvent.change(screen.getByTestId('agent-config-max-concurrent'), { target: { value: '4' } });
-    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'opus-4-8' } });
+    await waitFor(() => expect((screen.getByTestId('agent-config-executor-model') as HTMLSelectElement).value).toBe('claude-opus-4-8'));
     fireEvent.click(screen.getByTestId('agent-config-executor-add'));
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
     fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(patchBody).toBeDefined());
     expect(patchBody).toMatchObject({
       max_concurrent_tasks: 4,
-      allowed_executors: [{ cli: 'claude-code', model: 'opus-4-8' }],
+      allowed_executors: [{ cli: 'claude-code', model: 'claude-opus-4-8' }],
     });
   });
 
@@ -249,18 +253,18 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(screen.getByTestId('agent-config-include-description')).toHaveAttribute('aria-checked', 'false');
   });
 
-  // Editable model dropdown: preset <datalist> suggestions + free text.
-  it('model: renders the KNOWN_MODELS presets as a datalist bound to the input', () => {
+  it('model: renders catalog models compatible with the selected CLI', async () => {
     wrap(base);
-    const input = screen.getByTestId('agent-config-model') as HTMLInputElement;
-    expect(input.getAttribute('list')).toBe('agent-config-model-list');
-    const list = screen.getByTestId('agent-config-model-list');
-    const values = Array.from(list.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(KNOWN_MODELS);
-    expect(values).toContain('claude-opus-4-8');
+    const input = screen.getByTestId('agent-config-model') as HTMLSelectElement;
+    await waitFor(() => expect([...input.options].map((o) => o.value)).toEqual(['claude-opus-4-8', 'claude-sonnet-4-6']));
+    expect([...input.options].map((o) => o.value)).toEqual(['claude-opus-4-8', 'claude-sonnet-4-6']);
+
+    fireEvent.change(screen.getByTestId('agent-config-cli'), { target: { value: 'codex' } });
+    await waitFor(() => expect(input.value).toBe('gpt-5'));
+    expect([...input.options].map((o) => o.value)).toEqual(['gpt-5']);
   });
 
-  it('model: a free-typed non-preset value is NOT restricted and PATCHes through', async () => {
+  it('model: PATCHes only the selected catalog model value', async () => {
     let patchBody: Record<string, unknown> | undefined;
     server.use(
       http.patch('/api/agents/:id/config', async ({ request }) => {
@@ -270,14 +274,13 @@ describe('AgentConfigEditModal (T236)', () => {
       http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
     );
     wrap(base);
-    const custom = 'my-org/custom-model-2099';
-    expect(KNOWN_MODELS).not.toContain(custom);
-    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: custom } });
-    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe(custom);
+    const model = screen.getByTestId('agent-config-model') as HTMLSelectElement;
+    await waitFor(() => expect([...model.options].map((o) => o.value)).toContain('claude-sonnet-4-6'));
+    fireEvent.change(model, { target: { value: 'claude-sonnet-4-6' } });
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
     fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(patchBody).toBeDefined());
-    expect(patchBody).toMatchObject({ model: custom });
+    expect(patchBody).toMatchObject({ cli: 'claude-code', model: 'claude-sonnet-4-6' });
   });
 
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {

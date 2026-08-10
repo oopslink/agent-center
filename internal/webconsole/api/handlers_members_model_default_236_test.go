@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-// v2.7.1 #236: POST /api/members/agent is the single agent-create path (both the
+// POST /api/members/agent is the single agent-create path (both the
 // AgentCreateModal and MemberNew UIs, plus any direct API caller). An empty model
-// must be defaulted at this API boundary so the stored model is never null — the
-// bulletproof floor for @oopslink's "AgentDetail Profile renders blank" dogfood
-// pain, which recurred via the MemberNew path the #232 frontend prefill missed.
+// is resolved through the org AI Runtime default profile so the stored model is
+// never null and the API no longer owns a hardcoded model fallback.
 func TestAPI_AddAgentMember_236_EmptyModelDefaults(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
+	wireRuntimeCatalogForTest(t, db, &deps, sess.OrgID)
 	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
 	s := newTestServer(t, deps)
 	defer s.Close()
@@ -40,8 +40,8 @@ func TestAPI_AddAgentMember_236_EmptyModelDefaults(t *testing.T) {
 			if err != nil {
 				t.Fatalf("agent not resolvable: %v", err)
 			}
-			if got := a.Profile().Model; got != defaultAgentModel {
-				t.Fatalf("empty-model create stored model=%q, want %q (#236 backend floor)", got, defaultAgentModel)
+			if got := a.Profile().Model; got != "claude-opus-4-8" {
+				t.Fatalf("empty-model create stored model=%q, want claude-opus-4-8 (#236 runtime default)", got)
 			}
 		})
 	}
@@ -51,6 +51,7 @@ func TestAPI_AddAgentMember_236_EmptyModelDefaults(t *testing.T) {
 func TestAPI_AddAgentMember_236_ExplicitModelPreserved(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
+	wireRuntimeCatalogForTest(t, db, &deps, sess.OrgID)
 	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
 	s := newTestServer(t, deps)
 	defer s.Close()

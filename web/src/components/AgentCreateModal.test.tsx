@@ -1,15 +1,10 @@
-// AgentCreateModal — the "Model" field is an editable dropdown (<input list> +
-// <datalist>): preset KNOWN_MODELS are offered as suggestions while any custom
-// value can still be typed and submitted (the backend accepts any model string).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentCreateModal } from './AgentCreateModal';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
 
-// A fleet snapshot carrying one worker so the required Worker picker is fillable.
 function fleetWithWorker() {
   return http.get('/api/fleet', () =>
     HttpResponse.json({
@@ -32,18 +27,20 @@ function wrap(onClose = () => {}) {
 
 afterEach(() => cleanup());
 
-describe('AgentCreateModal — model field', () => {
-  it('renders the KNOWN_MODELS presets as a datalist bound to the model input', () => {
+describe('AgentCreateModal runtime catalog contract', () => {
+  it('prefills the organization default runtime profile from AI Runtime', async () => {
     wrap();
-    const input = screen.getByTestId('agent-create-model') as HTMLInputElement;
-    expect(input.getAttribute('list')).toBe('agent-create-model-list');
-    const list = screen.getByTestId('agent-create-model-list');
-    const values = Array.from(list.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(KNOWN_MODELS);
-    expect(values).toContain('claude-opus-4-8');
+    const cli = await screen.findByTestId('agent-create-cli') as HTMLSelectElement;
+    const model = screen.getByTestId('agent-create-model') as HTMLSelectElement;
+
+    await waitFor(() => expect(cli.value).toBe('claude-code'));
+    expect(model.value).toBe('claude-opus-4-8');
+    expect([...cli.options].map((o) => o.value)).toEqual(['claude-code', 'codex']);
+    expect([...model.options].map((o) => o.value)).toEqual(['claude-opus-4-8', 'claude-sonnet-4-6']);
+    expect(screen.getByTestId('agent-create-model-description')).toHaveTextContent(/context/i);
   });
 
-  it('accepts a free-typed non-preset model value and submits it unchanged', async () => {
+  it('filters models by CLI and submits the selected catalog pair', async () => {
     let postBody: Record<string, unknown> | undefined;
     server.use(
       fleetWithWorker(),
@@ -58,21 +55,19 @@ describe('AgentCreateModal — model field', () => {
     const onClose = vi.fn();
     wrap(onClose);
 
-    // Wait for the fleet worker to load into the picker.
     fireEvent.click(await screen.findByTestId('agent-create-worker-trigger'));
     fireEvent.click(await screen.findByTestId('agent-create-worker-option'));
-
     fireEvent.change(screen.getByTestId('agent-create-name'), { target: { value: 'bot-x' } });
 
-    const custom = 'my-org/custom-model-2099';
-    expect(KNOWN_MODELS).not.toContain(custom);
-    fireEvent.change(screen.getByTestId('agent-create-model'), { target: { value: custom } });
-    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe(custom);
+    fireEvent.change(await screen.findByTestId('agent-create-cli'), { target: { value: 'codex' } });
+    const model = screen.getByTestId('agent-create-model') as HTMLSelectElement;
+    await waitFor(() => expect(model.value).toBe('gpt-5'));
+    expect([...model.options].map((o) => o.value)).toEqual(['gpt-5']);
 
     fireEvent.click(screen.getByTestId('agent-create-submit'));
 
     await waitFor(() => expect(postBody).toBeDefined());
-    expect(postBody).toMatchObject({ display_name: 'bot-x', worker_id: 'w-1', model: custom });
+    expect(postBody).toMatchObject({ display_name: 'bot-x', worker_id: 'w-1', cli: 'codex', model: 'gpt-5' });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });

@@ -311,9 +311,8 @@ export interface Agent {
   executor_git_worktree?: boolean;
 }
 
-// v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,
-// codex} (hard-validated server-side); model is free text (the UI offers
-// suggestions but allows custom values).
+// v2.18.1: one executor candidate = a {cli, model} pair. Runtime choices are
+// catalog-backed and hard-validated server-side.
 export interface ExecutorProfile {
   cli: string;
   model: string;

@@ -1,17 +1,26 @@
 // Team WebUI — the declarative role-card builder shared by New Team,
 // Instantiate, and role-definition edits. Count is team composition; existing
 // team role definition edits can hide it while keeping per-agent defaults.
-import type React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
+import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import {
+  enabledRuntimeCLIs,
+  normalizeRuntimeChoice,
+  runtimeCLIName,
+  runtimeDefaultChoice,
+  runtimeModelName,
+  runtimeModelsForCLI,
+} from '@/utils/runtimeCatalog';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
 
 export function newRole(role = ''): RoleInput {
   return {
     role,
-    cli: 'claude-code',
-    model: 'sonnet-5',
+    cli: '',
+    model: '',
     max_concurrency: 1,
     count: 1,
     tags: '',
@@ -24,17 +33,19 @@ function Select({
   options,
   onChange,
   testId,
+  disabled,
 }: {
   value: string;
-  options: readonly string[];
+  options: readonly { value: string; label: string }[];
   onChange: (v: string) => void;
   testId?: string;
+  disabled?: boolean;
 }): React.ReactElement {
   return (
-    <select className={inputCls} value={value} data-testid={testId} onChange={(e) => onChange(e.target.value)}>
+    <select className={inputCls} value={value} data-testid={testId} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
       {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
+        <option key={o.value} value={o.value}>
+          {o.label}
         </option>
       ))}
     </select>
@@ -55,6 +66,26 @@ export function RoleBuilder({
   idPrefix: string;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const runtimeCatalog = useAIRuntimeCatalog();
+  const cliOptions = enabledRuntimeCLIs(runtimeCatalog.data).map((cli) => ({
+    value: cli.key,
+    label: runtimeCLIName(cli),
+  }));
+  const defaultChoice = runtimeDefaultChoice(runtimeCatalog.data);
+
+  useEffect(() => {
+    if (!runtimeCatalog.data) return;
+    let changed = false;
+    const next = roles.map((role) => {
+      const choice = normalizeRuntimeChoice(runtimeCatalog.data, { cli: role.cli, model: role.model }) ?? defaultChoice;
+      if (!choice) return role;
+      if (choice.cli === role.cli && choice.model === role.model) return role;
+      changed = true;
+      return { ...role, cli: choice.cli, model: choice.model };
+    });
+    if (changed) onChange(next);
+  }, [defaultChoice, onChange, roles, runtimeCatalog.data]);
+
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
@@ -132,11 +163,32 @@ export function RoleBuilder({
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
             <div>
               <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
-              <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
+              <Select
+                value={r.cli}
+                options={withCurrentOption(cliOptions, r.cli)}
+                disabled={cliOptions.length === 0}
+                testId={`${idPrefix}-role-${i}-cli`}
+                onChange={(v) => {
+                  const nextModel = runtimeModelsForCLI(runtimeCatalog.data, v)[0]?.model_key ?? '';
+                  patch(i, { cli: v, model: nextModel });
+                }}
+              />
             </div>
             <div>
               <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
-              <Select value={r.model} options={MODELS} testId={`${idPrefix}-role-${i}-model`} onChange={(v) => patch(i, { model: v })} />
+              <Select
+                value={r.model}
+                options={withCurrentOption(
+                  runtimeModelsForCLI(runtimeCatalog.data, r.cli).map((model) => ({
+                    value: model.model_key,
+                    label: runtimeModelName(model),
+                  })),
+                  r.model,
+                )}
+                disabled={runtimeModelsForCLI(runtimeCatalog.data, r.cli).length === 0}
+                testId={`${idPrefix}-role-${i}-model`}
+                onChange={(v) => patch(i, { model: v })}
+              />
             </div>
             <div>
               <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>
@@ -178,4 +230,14 @@ export function RoleBuilder({
 
 export function totalSlots(roles: RoleInput[]): number {
   return roles.reduce((s, r) => s + r.count, 0);
+}
+
+function withCurrentOption(
+  options: readonly { value: string; label: string }[],
+  current: string,
+): { value: string; label: string }[] {
+  if (!current || options.some((option) => option.value === current)) {
+    return [...options];
+  }
+  return [{ value: current, label: current }, ...options];
 }
