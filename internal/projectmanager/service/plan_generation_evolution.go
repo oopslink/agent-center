@@ -86,12 +86,15 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			return pm.ErrBuiltinPlanNoEdges
 		}
 		switch p.Status() {
-		case pm.PlanPending, pm.PlanRunning, pm.PlanPaused:
+		case pm.PlanRunning, pm.PlanPaused:
 		default:
 			return pm.ErrPlanNotRunning
 		}
 		if p.Version() != cmd.BaseVersion {
 			return fmt.Errorf("%w: base_version=%d current=%d", pm.ErrPlanVersionConflict, cmd.BaseVersion, p.Version())
+		}
+		if p.ActiveGenerationID() == "" {
+			return fmt.Errorf("%w: plan %s has no active G0 baseline", pm.ErrPlanGenerationConflict, p.ID())
 		}
 		if p.ActiveGenerationID() != cmd.ParentGenerationID {
 			return fmt.Errorf("%w: parent_generation_id=%s active_generation_id=%s",

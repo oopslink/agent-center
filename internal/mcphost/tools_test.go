@@ -191,7 +191,7 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
 	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
 	callOK(t, cs, "evolve_plan_generation", map[string]any{
-		"plan_id": "plan-1", "parent_generation_id": "", "base_version": 2,
+		"plan_id": "plan-1", "parent_generation_id": "generation-g0", "base_version": 2,
 		"idempotency_key": "evo-1", "reason": "scope changed", "evidence": "review",
 		"diff": map[string]any{
 			"node_decisions": []any{map[string]any{"task_id": "task-a", "action": "preserve", "reason": "in flight"}},

@@ -1016,7 +1016,7 @@ type evolveDiffArgs struct {
 
 type evolvePlanGenerationArgs struct {
 	PlanID             string         `json:"plan_id" jsonschema:"plan to evolve"`
-	ParentGenerationID string         `json:"parent_generation_id,omitempty" jsonschema:"active generation id read from get_plan; empty for the first generation"`
+	ParentGenerationID string         `json:"parent_generation_id" jsonschema:"required active generation id read from get_plan; the first evolution must name the G0 created by start_plan"`
 	BaseVersion        int            `json:"base_version" jsonschema:"plan version read from get_plan"`
 	IdempotencyKey     string         `json:"idempotency_key" jsonschema:"stable key for retrying this exact evolution payload"`
 	Reason             string         `json:"reason" jsonschema:"human-readable reason for creating this generation"`
