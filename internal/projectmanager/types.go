@@ -26,6 +26,7 @@ type (
 	TaskID                string
 	MemberID              string
 	PlanID                string
+	PlanGenerationID      string
 	AssignmentPoolID      string
 	GateVerdictID         string
 	ContinuationID        string
@@ -44,6 +45,7 @@ func (id IssueID) String() string               { return string(id) }
 func (id TaskID) String() string                { return string(id) }
 func (id MemberID) String() string              { return string(id) }
 func (id PlanID) String() string                { return string(id) }
+func (id PlanGenerationID) String() string      { return string(id) }
 func (id AssignmentPoolID) String() string      { return string(id) }
 func (id GateVerdictID) String() string         { return string(id) }
 func (id ContinuationID) String() string        { return string(id) }
@@ -197,14 +199,17 @@ var (
 	ErrConditionalNeedsWhen = errors.New("projectmanager: conditional edge needs a When (outcome label)")
 	// ErrInvalidEdgeKind (T802): edge kind must be one of seq/conditional/loopback
 	// (empty normalizes to seq).
-	ErrInvalidEdgeKind       = errors.New("projectmanager: invalid edge kind (want seq/conditional/loopback)")
-	ErrIllegalPlanTransition = errors.New("projectmanager: illegal plan status transition")
-	ErrInvalidPlanStatus     = errors.New("projectmanager: invalid plan status")
-	ErrPlanNotPending        = errors.New("projectmanager: plan dependencies/tasks editable only while pending")
-	ErrPlanNotPaused         = errors.New("projectmanager: plan is not paused")
-	ErrPlanNotTerminal       = errors.New("projectmanager: plan must be done or discarded")
-	ErrPlanNotFound          = errors.New("projectmanager: plan not found")
-	ErrPlanExists            = errors.New("projectmanager: plan already exists")
+	ErrInvalidEdgeKind        = errors.New("projectmanager: invalid edge kind (want seq/conditional/loopback)")
+	ErrIllegalPlanTransition  = errors.New("projectmanager: illegal plan status transition")
+	ErrInvalidPlanStatus      = errors.New("projectmanager: invalid plan status")
+	ErrPlanNotPending         = errors.New("projectmanager: plan dependencies/tasks editable only while pending")
+	ErrPlanNotPaused          = errors.New("projectmanager: plan is not paused")
+	ErrPlanNotTerminal        = errors.New("projectmanager: plan must be done or discarded")
+	ErrPlanNotFound           = errors.New("projectmanager: plan not found")
+	ErrPlanExists             = errors.New("projectmanager: plan already exists")
+	ErrPlanGenerationNotFound = errors.New("projectmanager: plan generation not found")
+	ErrPlanGenerationExists   = errors.New("projectmanager: plan generation already exists")
+	ErrPlanGenerationConflict = errors.New("projectmanager: plan generation conflict: parent or in-flight boundary is stale")
 	// ErrTaskInOtherPlan rejects selecting a task into a Plan when it already
 	// belongs to a DIFFERENT Plan (Task ↔ Plan = 0..1, design §2). Re-selecting
 	// into the SAME plan is a no-op (not an error).

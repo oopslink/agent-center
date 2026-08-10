@@ -181,22 +181,33 @@ func TestJSONToolsForwarding(t *testing.T) {
 
 func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 	fake := &fakeAdmin{cannedByTool: map[string]json.RawMessage{
-		"get_team_rules":     json.RawMessage(`{"team_id":"team-1","phase":"plan","commit":"c1","rules":[{"slug":"plan-dag","description":"plan shape","body":"Use a DAG.","enabled":true,"applies_to":["plan"],"source_path":"rules/plan-dag.md"}]}`),
-		"create_plan":        json.RawMessage(`{"plan_id":"plan-1"}`),
-		"edit_plan_topology": json.RawMessage(`{"ok":true,"version":2,"dispatched":[]}`),
+		"get_team_rules":         json.RawMessage(`{"team_id":"team-1","phase":"plan","commit":"c1","rules":[{"slug":"plan-dag","description":"plan shape","body":"Use a DAG.","enabled":true,"applies_to":["plan"],"source_path":"rules/plan-dag.md"}]}`),
+		"create_plan":            json.RawMessage(`{"plan_id":"plan-1"}`),
+		"edit_plan_topology":     json.RawMessage(`{"ok":true,"version":2,"dispatched":[]}`),
+		"evolve_plan_generation": json.RawMessage(`{"ok":true,"generation":{"id":"generation-1"},"dispatched":["task-c"]}`),
 	}}
 	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 7})
 
 	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
 	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
+	callOK(t, cs, "evolve_plan_generation", map[string]any{
+		"plan_id": "plan-1", "parent_generation_id": "", "base_version": 2,
+		"idempotency_key": "evo-1", "reason": "scope changed", "evidence": "review",
+		"diff": map[string]any{
+			"node_decisions": []any{map[string]any{"task_id": "task-a", "action": "preserve", "reason": "in flight"}},
+			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c"}},
+			"edges":          []any{},
+		},
+	})
 
 	if got := len(fake.callsFor("get_team_rules")); got != 1 {
 		t.Fatalf("get_team_rules calls = %d, want 1 frozen load per MCP session; calls=%+v", got, fake.calls)
 	}
 	createCalls := fake.callsFor("create_plan")
 	editCalls := fake.callsFor("edit_plan_topology")
-	if len(createCalls) != 1 || len(editCalls) != 1 {
-		t.Fatalf("plan tool calls create=%d edit=%d; calls=%+v", len(createCalls), len(editCalls), fake.calls)
+	evolveCalls := fake.callsFor("evolve_plan_generation")
+	if len(createCalls) != 1 || len(editCalls) != 1 || len(evolveCalls) != 1 {
+		t.Fatalf("plan tool calls create=%d edit=%d evolve=%d; calls=%+v", len(createCalls), len(editCalls), len(evolveCalls), fake.calls)
 	}
 	createRules, _ := createCalls[0].body["planning_rules"].(map[string]any)
 	if createRules["commit"] != "c1" || createRules["phase"] != "plan" || createRules["source"] != "mcp_plan_tool" {
@@ -218,6 +229,13 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 	editRules, _ := editCalls[0].body["planning_rules"].(map[string]any)
 	if editRules["commit"] != "c1" || editRules["planning_generation"] != float64(7) {
 		t.Fatalf("edit planning_rules should reuse frozen c1 generation 7 snapshot, got %v", editRules)
+	}
+	evolveRules, _ := evolveCalls[0].body["planning_rules"].(map[string]any)
+	if evolveRules["commit"] != "c1" || evolveRules["planning_generation"] != float64(7) {
+		t.Fatalf("evolve planning_rules should reuse frozen c1 generation 7 snapshot, got %v", evolveRules)
+	}
+	if evolveCalls[0].body["agent_id"] != "agent-1" || evolveCalls[0].body["idempotency_key"] != "evo-1" {
+		t.Fatalf("evolve body missing fixed agent/idempotency: %v", evolveCalls[0].body)
 	}
 
 	fake2 := &fakeAdmin{cannedByTool: map[string]json.RawMessage{

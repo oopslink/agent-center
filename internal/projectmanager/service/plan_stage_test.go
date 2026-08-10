@@ -102,6 +102,27 @@ func TestCreateStage_RejectsEmptyHumanGateContract(t *testing.T) {
 	}
 }
 
+func TestCreateStage_RunningPausedFailClosed(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	h.seedAssignedTask(t, pid, planID, "work", "user:a1")
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if _, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "late", Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("CreateStage running err=%v, want ErrPlanNotPending", err)
+	}
+	if err := h.svc.PausePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("PausePlan: %v", err)
+	}
+	if _, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "paused", Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("CreateStage paused err=%v, want ErrPlanNotPending", err)
+	}
+}
+
 func TestLegacyBareStageGate_RejectsThenReconciles(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx

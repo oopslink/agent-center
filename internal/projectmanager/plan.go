@@ -72,12 +72,16 @@ type Plan struct {
 	orgNumber int
 	// graphID is the orchestration engine graph ID that this plan maps to (v2.2.8).
 	// "" when not wired to an orchestration graph.
-	graphID    string
-	archivedAt *time.Time
-	archivedBy IdentityRef
-	createdAt  time.Time
-	updatedAt  time.Time
-	version    int
+	graphID string
+	// activeGenerationID points at the immutable PlanGeneration snapshot the Plan is
+	// currently executing/authoring against. The generation row is append-only; this
+	// pointer is the mutable Plan aggregate state switched by Evolution CAS commits.
+	activeGenerationID PlanGenerationID
+	archivedAt         *time.Time
+	archivedBy         IdentityRef
+	createdAt          time.Time
+	updatedAt          time.Time
+	version            int
 }
 
 // NewPlanInput captures constructor args.
@@ -93,8 +97,9 @@ type NewPlanInput struct {
 	// the service from the org sequence within the create tx. 0 ⇒ no org_ref.
 	OrgNumber int
 	// GraphID is the orchestration engine graph ID (v2.2.8); "" when not wired.
-	GraphID   string
-	CreatedAt time.Time
+	GraphID            string
+	ActiveGenerationID PlanGenerationID
+	CreatedAt          time.Time
 }
 
 // NewPlan constructs a fresh pending Plan. A Plan must belong to a Project.
@@ -116,19 +121,20 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 	}
 	at := in.CreatedAt.UTC()
 	return &Plan{
-		id:          in.ID,
-		projectID:   in.ProjectID,
-		name:        in.Name,
-		description: in.Description,
-		status:      PlanPending,
-		creatorRef:  in.CreatorRef,
-		targetDate:  normalizeTargetDate(in.TargetDate),
-		builtin:     in.Builtin,
-		orgNumber:   in.OrgNumber,
-		graphID:     in.GraphID,
-		createdAt:   at,
-		updatedAt:   at,
-		version:     1,
+		id:                 in.ID,
+		projectID:          in.ProjectID,
+		name:               in.Name,
+		description:        in.Description,
+		status:             PlanPending,
+		creatorRef:         in.CreatorRef,
+		targetDate:         normalizeTargetDate(in.TargetDate),
+		builtin:            in.Builtin,
+		orgNumber:          in.OrgNumber,
+		graphID:            in.GraphID,
+		activeGenerationID: in.ActiveGenerationID,
+		createdAt:          at,
+		updatedAt:          at,
+		version:            1,
 	}, nil
 }
 
@@ -145,12 +151,13 @@ type RehydratePlanInput struct {
 	Builtin        bool
 	OrgNumber      int
 	// GraphID is the orchestration engine graph ID (v2.2.8); "" when not wired.
-	GraphID    string
-	ArchivedAt *time.Time
-	ArchivedBy IdentityRef
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	Version    int
+	GraphID            string
+	ActiveGenerationID PlanGenerationID
+	ArchivedAt         *time.Time
+	ArchivedBy         IdentityRef
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Version            int
 }
 
 // RehydratePlan reconstructs without invariant checks (only enum + version).
@@ -162,22 +169,23 @@ func RehydratePlan(in RehydratePlanInput) (*Plan, error) {
 		return nil, errors.New("projectmanager: version must be >= 1")
 	}
 	return &Plan{
-		id:             in.ID,
-		projectID:      in.ProjectID,
-		name:           in.Name,
-		description:    in.Description,
-		status:         in.Status,
-		creatorRef:     in.CreatorRef,
-		conversationID: in.ConversationID,
-		targetDate:     normalizeTargetDate(in.TargetDate),
-		builtin:        in.Builtin,
-		orgNumber:      in.OrgNumber,
-		graphID:        in.GraphID,
-		archivedAt:     normalizeTargetDate(in.ArchivedAt),
-		archivedBy:     in.ArchivedBy,
-		createdAt:      in.CreatedAt.UTC(),
-		updatedAt:      in.UpdatedAt.UTC(),
-		version:        in.Version,
+		id:                 in.ID,
+		projectID:          in.ProjectID,
+		name:               in.Name,
+		description:        in.Description,
+		status:             in.Status,
+		creatorRef:         in.CreatorRef,
+		conversationID:     in.ConversationID,
+		targetDate:         normalizeTargetDate(in.TargetDate),
+		builtin:            in.Builtin,
+		orgNumber:          in.OrgNumber,
+		graphID:            in.GraphID,
+		activeGenerationID: in.ActiveGenerationID,
+		archivedAt:         normalizeTargetDate(in.ArchivedAt),
+		archivedBy:         in.ArchivedBy,
+		createdAt:          in.CreatedAt.UTC(),
+		updatedAt:          in.UpdatedAt.UTC(),
+		version:            in.Version,
 	}, nil
 }
 
@@ -205,6 +213,9 @@ func (p *Plan) Version() int            { return p.version }
 func (p *Plan) IsBuiltin() bool         { return p.builtin }
 func (p *Plan) OrgNumber() int          { return p.orgNumber }
 func (p *Plan) GraphID() string         { return p.graphID }
+func (p *Plan) ActiveGenerationID() PlanGenerationID {
+	return p.activeGenerationID
+}
 func (p *Plan) ArchivedAt() *time.Time  { return normalizeTargetDate(p.archivedAt) }
 func (p *Plan) ArchivedBy() IdentityRef { return p.archivedBy }
 func (p *Plan) IsArchived() bool        { return p.archivedAt != nil }
@@ -212,6 +223,12 @@ func (p *Plan) IsArchived() bool        { return p.archivedAt != nil }
 // SetGraphID wires this plan to an orchestration engine graph (v2.2.8).
 func (p *Plan) SetGraphID(id string, at time.Time) {
 	p.graphID = id
+	p.touch(at)
+}
+
+// SetActiveGenerationID switches the Plan to an immutable generation snapshot.
+func (p *Plan) SetActiveGenerationID(id PlanGenerationID, at time.Time) {
+	p.activeGenerationID = id
 	p.touch(at)
 }
 

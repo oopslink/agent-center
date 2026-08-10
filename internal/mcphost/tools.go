@@ -952,7 +952,7 @@ type topologyOpArgs struct {
 }
 
 type editPlanTopologyArgs struct {
-	PlanID      string           `json:"plan_id" jsonschema:"the plan whose DAG to edit (draft or running)"`
+	PlanID      string           `json:"plan_id" jsonschema:"the pending plan whose DAG to edit"`
 	BaseVersion int              `json:"base_version" jsonschema:"the plan version read from get_plan — the commit is rejected if it is stale (a concurrent edit landed)"`
 	Ops         []topologyOpArgs `json:"ops" jsonschema:"ordered list of topology ops to apply as one atomic batch"`
 }
@@ -979,6 +979,90 @@ func makeEditPlanTopology(cfg Config, planRules *planningRuleCache) mcp.ToolHand
 			body["planning_rules"] = planRules.Snapshot(ctx)
 		}
 		return callAdmin(ctx, cfg, "edit_plan_topology", body)
+	}
+}
+
+// --- evolve_plan_generation -------------------------------------------------
+
+type evolveNodeDecisionArgs struct {
+	TaskID string `json:"task_id" jsonschema:"existing task/node id"`
+	Action string `json:"action" jsonschema:"one of preserve | hold_at_gate | supersede"`
+	Reason string `json:"reason,omitempty" jsonschema:"why this existing node is treated this way"`
+}
+
+type evolveTaskArgs struct {
+	Ref              string `json:"ref" jsonschema:"local ref used by edges in this diff"`
+	Title            string `json:"title" jsonschema:"new task title"`
+	Description      string `json:"description,omitempty" jsonschema:"new task description"`
+	AssigneeRef      string `json:"assignee_ref" jsonschema:"identity ref assigned to the new task"`
+	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"executor_fork (default) or supervisor_inline"`
+	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"code_change (default) or evidence_only"`
+	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"existing task this new task follows/remediates"`
+}
+
+type evolveEdgeArgs struct {
+	From      string `json:"from" jsonschema:"dependent task id or new task ref"`
+	To        string `json:"to" jsonschema:"prerequisite task id or new task ref"`
+	Kind      string `json:"kind,omitempty" jsonschema:"seq only for running incremental graph evolution"`
+	When      string `json:"when,omitempty" jsonschema:"reserved for conditional edges"`
+	MaxRounds int    `json:"max_rounds,omitempty" jsonschema:"reserved for loopback edges"`
+}
+
+type evolveDiffArgs struct {
+	NodeDecisions []evolveNodeDecisionArgs `json:"node_decisions,omitempty" jsonschema:"treatment of existing nodes: preserve, hold_at_gate, or supersede"`
+	Tasks         []evolveTaskArgs         `json:"tasks,omitempty" jsonschema:"new task nodes to create"`
+	Edges         []evolveEdgeArgs         `json:"edges,omitempty" jsonschema:"new dependency edges"`
+}
+
+type evolvePlanGenerationArgs struct {
+	PlanID             string         `json:"plan_id" jsonschema:"plan to evolve"`
+	ParentGenerationID string         `json:"parent_generation_id,omitempty" jsonschema:"active generation id read from get_plan; empty for the first generation"`
+	BaseVersion        int            `json:"base_version" jsonschema:"plan version read from get_plan"`
+	IdempotencyKey     string         `json:"idempotency_key" jsonschema:"stable key for retrying this exact evolution payload"`
+	Reason             string         `json:"reason" jsonschema:"human-readable reason for creating this generation"`
+	Evidence           string         `json:"evidence" jsonschema:"evidence supporting this evolution"`
+	Diff               evolveDiffArgs `json:"diff" jsonschema:"generation diff"`
+}
+
+func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.ToolHandlerFor[evolvePlanGenerationArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args evolvePlanGenerationArgs) (*mcp.CallToolResult, any, error) {
+		nodeDecisions := make([]map[string]any, 0, len(args.Diff.NodeDecisions))
+		for _, d := range args.Diff.NodeDecisions {
+			nodeDecisions = append(nodeDecisions, map[string]any{"task_id": d.TaskID, "action": d.Action, "reason": d.Reason})
+		}
+		tasks := make([]map[string]any, 0, len(args.Diff.Tasks))
+		for _, t := range args.Diff.Tasks {
+			tasks = append(tasks, map[string]any{
+				"ref": t.Ref, "title": t.Title, "description": t.Description,
+				"assignee_ref": t.AssigneeRef, "dispatch_mode": t.DispatchMode,
+				"delivery_contract": t.DeliveryContract, "follows_task_id": t.FollowsTaskID,
+			})
+		}
+		edges := make([]map[string]any, 0, len(args.Diff.Edges))
+		for _, e := range args.Diff.Edges {
+			edges = append(edges, map[string]any{
+				"from": e.From, "to": e.To, "kind": e.Kind,
+				"when": e.When, "max_rounds": e.MaxRounds,
+			})
+		}
+		body := map[string]any{
+			"agent_id":             cfg.AgentID,
+			"plan_id":              args.PlanID,
+			"parent_generation_id": args.ParentGenerationID,
+			"base_version":         args.BaseVersion,
+			"idempotency_key":      args.IdempotencyKey,
+			"reason":               args.Reason,
+			"evidence":             args.Evidence,
+			"diff": map[string]any{
+				"node_decisions": nodeDecisions,
+				"tasks":          tasks,
+				"edges":          edges,
+			},
+		}
+		if planRules != nil {
+			body["planning_rules"] = planRules.Snapshot(ctx)
+		}
+		return callAdmin(ctx, cfg, "evolve_plan_generation", body)
 	}
 }
 
