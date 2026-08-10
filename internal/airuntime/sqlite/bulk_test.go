@@ -129,7 +129,7 @@ func TestBulkImportRejectsMalformedUnsupportedAndInvalidDocuments(t *testing.T) 
 	assertCatalogState(t, db, "org", 0, 0)
 }
 
-func TestBulkImportRejectsReferentialIntegrityAndSchemaFailuresAtomically(t *testing.T) {
+func TestBulkImportRejectsSchemaFailuresAtomically(t *testing.T) {
 	svc, db := newBulkService(t)
 	doc := airuntime.ExportDocument{
 		Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion,
@@ -146,13 +146,52 @@ func TestBulkImportRejectsReferentialIntegrityAndSchemaFailuresAtomically(t *tes
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonImportInvalid {
 		t.Fatalf("error = %v", err)
 	}
-	if len(report.Diagnostics) < 2 {
+	if len(report.Diagnostics) < 1 {
 		t.Fatalf("diagnostics = %+v", report.Diagnostics)
 	}
 	assertCatalogState(t, db, "org", 0, 0)
 	cat, _ := svc.Catalog(context.Background(), "org")
 	if _, ok := cliByKeyForTest(cat.CLIs)["valid"]; ok {
 		t.Fatal("valid prefix was partially persisted")
+	}
+}
+
+func TestBulkImportAllowsModelsReferencingMissingCLIsUntilRuntimeUse(t *testing.T) {
+	svc, db := newBulkService(t)
+	doc := airuntime.ExportDocument{
+		Kind: airuntime.ExportKind, SchemaVersion: airuntime.ExportVersion,
+		Runtime: airuntime.ExportCatalog{
+			Models: []airuntime.ExportModel{{
+				Key: "future", ModelKey: "future-model", DisplayName: "Future Model",
+				CompatibleCLIKeys: []string{"future-cli"}, DefaultParameters: map[string]any{}, Enabled: true,
+			}},
+		},
+	}
+	report, err := importRuntime(context.Background(), svc, "org", "user:owner", airuntime.ImportRequest{Strategy: airuntime.StrategyMerge, Document: doc})
+	if err != nil || !report.Applied {
+		t.Fatalf("report=%+v err=%v", report, err)
+	}
+	cat, err := svc.Catalog(context.Background(), "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imported *airuntime.ModelDefinition
+	for i := range cat.Models {
+		if cat.Models[i].Key == "future" {
+			imported = &cat.Models[i]
+			break
+		}
+	}
+	if imported == nil || !reflect.DeepEqual(imported.CompatibleCLIKeys, []string{"future-cli"}) {
+		t.Fatalf("missing-CLI model was not imported as-is: %+v", cat.Models)
+	}
+	resolver := airuntime.NewRuntimeResolver(airuntimesql.NewRepository(db))
+	_, err = resolver.Resolve(context.Background(), "org", airuntime.RuntimeSelection{
+		Mode: airuntime.SelectionOverride, CLIID: "future-cli", ModelID: "future",
+	})
+	var runtimeErr *airuntime.Error
+	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonCLINotFound {
+		t.Fatalf("runtime use error=%v", err)
 	}
 }
 

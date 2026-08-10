@@ -380,7 +380,7 @@ func (s *Service) planImport(orgID string, current Catalog, in ExportCatalog, st
 
 	candidate := candidateCatalog(current, m)
 	for _, model := range candidate.Models {
-		if err := validateModel(candidate, model); err != nil {
+		if err := validateImportedModelRuntimeParameters(candidate, model); err != nil {
 			diags = append(diags, diagnostic(ReasonImportInvalid, "catalog.models", "model", model.Key, err.Error()))
 		}
 	}
@@ -432,6 +432,19 @@ func validateModelImport(x ModelDefinition) error {
 	keys, err := normalizeStrings(x.CompatibleCLIKeys)
 	if err != nil || len(keys) == 0 {
 		return errors.New("at least one compatible_cli_key is required")
+	}
+	return nil
+}
+func validateImportedModelRuntimeParameters(cat Catalog, model ModelDefinition) error {
+	clis := cliByKey(cat.CLIs)
+	for _, key := range model.CompatibleCLIKeys {
+		cli, ok := clis[key]
+		if !ok {
+			continue
+		}
+		if err := validateParameters(cli.ParameterSchema, model.DefaultParameters); err != nil {
+			return err
+		}
 	}
 	return nil
 }

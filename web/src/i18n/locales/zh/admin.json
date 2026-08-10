@@ -357,7 +357,9 @@
       "importModels": "导入 Models",
       "edit": "编辑",
       "disable": "停用",
-      "enable": "启用"
+      "enable": "启用",
+      "disableSelected": "批量停用",
+      "enableSelected": "批量启用"
     },
     "permissions": {
       "unknownRole": "成员",
@@ -369,6 +371,13 @@
     },
     "common": {
       "actions": "操作"
+    },
+    "bulk": {
+      "selectedCount": "已选择 {{count}} 项",
+      "selectAllModels": "选择全部 Runtime Model",
+      "selectModel": "选择 Runtime Model {{name}}",
+      "selectAllCLIs": "选择全部 Runtime CLI",
+      "selectCLI": "选择 Runtime CLI {{name}}"
     },
     "tabs": {
       "aria": "AI Runtime 目录分区",
@@ -404,8 +413,12 @@
     "disableConfirm": {
       "modelTitle": "停用 Runtime Model？",
       "modelMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但新的运行时选择不会再提供该模型。",
+      "modelsTitle": "停用选中的 Runtime Models？",
+      "modelsMessage": "确定要停用选中的 {{count}} 个 Runtime Models 吗？已有保存引用仍可见，但新的运行时选择不会再提供这些模型。",
       "cliTitle": "停用 Runtime CLI？",
-      "cliMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供该 CLI。"
+      "cliMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供该 CLI。",
+      "clisTitle": "停用选中的 Runtime CLIs？",
+      "clisMessage": "确定要停用选中的 {{count}} 个 Runtime CLIs 吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供这些 CLI。"
     },
     "form": {
       "newModel": "新建 Model",

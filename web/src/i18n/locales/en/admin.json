@@ -357,7 +357,9 @@
       "importModels": "Import models",
       "edit": "Edit",
       "disable": "Disable",
-      "enable": "Enable"
+      "enable": "Enable",
+      "disableSelected": "Disable selected",
+      "enableSelected": "Enable selected"
     },
     "permissions": {
       "unknownRole": "member",
@@ -369,6 +371,13 @@
     },
     "common": {
       "actions": "Actions"
+    },
+    "bulk": {
+      "selectedCount": "{{count}} selected",
+      "selectAllModels": "Select all runtime models",
+      "selectModel": "Select runtime model {{name}}",
+      "selectAllCLIs": "Select all runtime CLIs",
+      "selectCLI": "Select runtime CLI {{name}}"
     },
     "tabs": {
       "aria": "AI Runtime catalog sections",
@@ -404,8 +413,12 @@
     "disableConfirm": {
       "modelTitle": "Disable runtime model?",
       "modelMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but new runtime selection will not offer this model.",
+      "modelsTitle": "Disable selected runtime models?",
+      "modelsMessage": "Disable {{count}} selected runtime models? Existing saved references stay visible, but new runtime selection will not offer these models.",
       "cliTitle": "Disable runtime CLI?",
-      "cliMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but workers and new runtime selection will not offer this CLI."
+      "cliMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but workers and new runtime selection will not offer this CLI.",
+      "clisTitle": "Disable selected runtime CLIs?",
+      "clisMessage": "Disable {{count}} selected runtime CLIs? Existing saved references stay visible, but workers and new runtime selection will not offer these CLIs."
     },
     "form": {
       "newModel": "New model",

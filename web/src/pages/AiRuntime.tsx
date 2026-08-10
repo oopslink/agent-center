@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useOrgs } from '@/api/auth';
@@ -233,22 +233,92 @@ function ModelsTable({
 }): React.ReactElement {
   const { t } = useTranslation('admin');
   const update = useUpdateRuntimeEntry('models');
-  const [pendingDisable, setPendingDisable] = useState<RuntimeModel | null>(null);
-  const setEnabled = (entry: RuntimeModel, enabled: boolean): void => {
-    update.mutate(
-      { id: entry.id, expectedRevision: revision, value: modelToInput(entry, enabled) },
-      { onSuccess: () => setPendingDisable(null) },
-    );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [pendingDisable, setPendingDisable] = useState<RuntimeModel[] | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  useEffect(() => {
+    setSelectedIds((current) => pruneSelectedIds(current, rows));
+  }, [rows]);
+  const selectedRows = useMemo(() => rows.filter((row) => selectedIds.has(row.id)), [rows, selectedIds]);
+  const selectedEnabled = selectedRows.filter((row) => row.enabled);
+  const selectedDisabled = selectedRows.filter((row) => !row.enabled);
+  const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const busy = update.isPending || batchBusy;
+  const setEnabled = async (entries: RuntimeModel[], enabled: boolean): Promise<void> => {
+    if (entries.length === 0) return;
+    setBatchBusy(true);
+    let nextRevision = revision;
+    try {
+      for (const entry of entries) {
+        const response = await update.mutateAsync({
+          id: entry.id,
+          expectedRevision: nextRevision,
+          value: modelToInput(entry, enabled),
+        });
+        nextRevision = response.revision;
+      }
+      setSelectedIds((current) => removeSelectedIds(current, entries));
+      setPendingDisable(null);
+    } catch {
+      // mutation error is rendered below
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+  const toggleSelection = (id: string, checked: boolean): void => {
+    setSelectedIds((current) => toggleSelectedId(current, id, checked));
+  };
+  const toggleAll = (checked: boolean): void => {
+    setSelectedIds(checked ? new Set(rows.map((row) => row.id)) : new Set());
   };
   if (rows.length === 0) {
     return <EmptyState testId="ai-runtime-empty-models" title={t('aiRuntime.empty.models')} body={t('aiRuntime.empty.modelsBody')} />;
   }
   return (
     <>
+      {canManage && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-border-base bg-bg-subtle px-3 py-2" data-testid="ai-runtime-model-bulk-toolbar">
+          <span className="text-xs text-text-secondary" data-testid="ai-runtime-model-selected-count">
+            {t('aiRuntime.bulk.selectedCount', { count: selectedRows.length })}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-disable-models"
+              disabled={busy || selectedEnabled.length === 0}
+              onClick={() => setPendingDisable(selectedEnabled)}
+            >
+              {t('aiRuntime.actions.disableSelected')}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-accent hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-enable-models"
+              disabled={busy || selectedDisabled.length === 0}
+              onClick={() => void setEnabled(selectedDisabled, true)}
+            >
+              {t('aiRuntime.actions.enableSelected')}
+            </button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[54rem] text-left text-sm">
+        <table className="w-full min-w-[58rem] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-text-muted">
             <tr className="border-b border-border-base">
+              {canManage && (
+                <th className="w-10 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border-base"
+                    aria-label={t('aiRuntime.bulk.selectAllModels')}
+                    data-testid="ai-runtime-select-all-models"
+                    checked={allSelected}
+                    onChange={(event) => toggleAll(event.target.checked)}
+                  />
+                </th>
+              )}
               <th className="px-3 py-2">{t('aiRuntime.model.name')}</th>
               <th className="px-3 py-2">{t('aiRuntime.model.modelKey')}</th>
               <th className="px-3 py-2">{t('aiRuntime.model.compatibleCli')}</th>
@@ -261,6 +331,18 @@ function ModelsTable({
           <tbody>
             {rows.map((m) => (
               <tr key={m.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-model-row">
+                {canManage && (
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border-base"
+                      aria-label={t('aiRuntime.bulk.selectModel', { name: m.display_name || m.key })}
+                      data-testid="ai-runtime-select-model"
+                      checked={selectedIds.has(m.id)}
+                      onChange={(event) => toggleSelection(m.id, event.target.checked)}
+                    />
+                  </td>
+                )}
                 <td className="px-3 py-2">
                   <div className="font-medium text-text-primary">{m.display_name}</div>
                   <div className="font-mono text-xs text-text-muted">{m.key}</div>
@@ -292,8 +374,8 @@ function ModelsTable({
                           type="button"
                           className="text-xs text-danger hover:underline disabled:opacity-50"
                           data-testid="ai-runtime-disable-model"
-                          disabled={update.isPending}
-                          onClick={() => setPendingDisable(m)}
+                          disabled={busy}
+                          onClick={() => setPendingDisable([m])}
                         >
                           {t('aiRuntime.actions.disable')}
                         </button>
@@ -302,8 +384,8 @@ function ModelsTable({
                           type="button"
                           className="text-xs text-accent hover:underline disabled:opacity-50"
                           data-testid="ai-runtime-enable-model"
-                          disabled={update.isPending}
-                          onClick={() => setEnabled(m, true)}
+                          disabled={busy}
+                          onClick={() => void setEnabled([m], true)}
                         >
                           {t('aiRuntime.actions.enable')}
                         </button>
@@ -323,12 +405,12 @@ function ModelsTable({
       )}
       <ConfirmModal
         open={pendingDisable != null}
-        title={t('aiRuntime.disableConfirm.modelTitle')}
-        message={pendingDisable ? t('aiRuntime.disableConfirm.modelMessage', { name: pendingDisable.display_name || pendingDisable.key }) : ''}
+        title={pendingDisable && pendingDisable.length > 1 ? t('aiRuntime.disableConfirm.modelsTitle') : t('aiRuntime.disableConfirm.modelTitle')}
+        message={pendingDisable ? disableModelsMessage(t, pendingDisable) : ''}
         confirmLabel={t('aiRuntime.actions.disable')}
         danger
-        busy={update.isPending}
-        onConfirm={() => pendingDisable && setEnabled(pendingDisable, false)}
+        busy={busy}
+        onConfirm={() => pendingDisable && void setEnabled(pendingDisable, false)}
         onCancel={() => setPendingDisable(null)}
       />
     </>
@@ -348,22 +430,92 @@ function CLIsTable({
 }): React.ReactElement {
   const { t } = useTranslation('admin');
   const update = useUpdateRuntimeEntry('clis');
-  const [pendingDisable, setPendingDisable] = useState<RuntimeCLI | null>(null);
-  const setEnabled = (entry: RuntimeCLI, enabled: boolean): void => {
-    update.mutate(
-      { id: entry.id, expectedRevision: revision, value: cliToInput(entry, enabled) },
-      { onSuccess: () => setPendingDisable(null) },
-    );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [pendingDisable, setPendingDisable] = useState<RuntimeCLI[] | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  useEffect(() => {
+    setSelectedIds((current) => pruneSelectedIds(current, rows));
+  }, [rows]);
+  const selectedRows = useMemo(() => rows.filter((row) => selectedIds.has(row.id)), [rows, selectedIds]);
+  const selectedEnabled = selectedRows.filter((row) => row.enabled);
+  const selectedDisabled = selectedRows.filter((row) => !row.enabled);
+  const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const busy = update.isPending || batchBusy;
+  const setEnabled = async (entries: RuntimeCLI[], enabled: boolean): Promise<void> => {
+    if (entries.length === 0) return;
+    setBatchBusy(true);
+    let nextRevision = revision;
+    try {
+      for (const entry of entries) {
+        const response = await update.mutateAsync({
+          id: entry.id,
+          expectedRevision: nextRevision,
+          value: cliToInput(entry, enabled),
+        });
+        nextRevision = response.revision;
+      }
+      setSelectedIds((current) => removeSelectedIds(current, entries));
+      setPendingDisable(null);
+    } catch {
+      // mutation error is rendered below
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+  const toggleSelection = (id: string, checked: boolean): void => {
+    setSelectedIds((current) => toggleSelectedId(current, id, checked));
+  };
+  const toggleAll = (checked: boolean): void => {
+    setSelectedIds(checked ? new Set(rows.map((row) => row.id)) : new Set());
   };
   if (rows.length === 0) {
     return <EmptyState testId="ai-runtime-empty-clis" title={t('aiRuntime.empty.clis')} body={t('aiRuntime.empty.clisBody')} />;
   }
   return (
     <>
+      {canManage && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-border-base bg-bg-subtle px-3 py-2" data-testid="ai-runtime-cli-bulk-toolbar">
+          <span className="text-xs text-text-secondary" data-testid="ai-runtime-cli-selected-count">
+            {t('aiRuntime.bulk.selectedCount', { count: selectedRows.length })}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-disable-clis"
+              disabled={busy || selectedEnabled.length === 0}
+              onClick={() => setPendingDisable(selectedEnabled)}
+            >
+              {t('aiRuntime.actions.disableSelected')}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-accent hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-enable-clis"
+              disabled={busy || selectedDisabled.length === 0}
+              onClick={() => void setEnabled(selectedDisabled, true)}
+            >
+              {t('aiRuntime.actions.enableSelected')}
+            </button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[48rem] text-left text-sm">
+        <table className="w-full min-w-[52rem] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-text-muted">
             <tr className="border-b border-border-base">
+              {canManage && (
+                <th className="w-10 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border-base"
+                    aria-label={t('aiRuntime.bulk.selectAllCLIs')}
+                    data-testid="ai-runtime-select-all-clis"
+                    checked={allSelected}
+                    onChange={(event) => toggleAll(event.target.checked)}
+                  />
+                </th>
+              )}
               <th className="px-3 py-2">{t('aiRuntime.cli.name')}</th>
               <th className="px-3 py-2">{t('aiRuntime.cli.executable')}</th>
               <th className="px-3 py-2">{t('aiRuntime.cli.version')}</th>
@@ -375,6 +527,18 @@ function CLIsTable({
           <tbody>
             {rows.map((cli) => (
               <tr key={cli.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-cli-row">
+                {canManage && (
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border-base"
+                      aria-label={t('aiRuntime.bulk.selectCLI', { name: cli.display_name || cli.key })}
+                      data-testid="ai-runtime-select-cli"
+                      checked={selectedIds.has(cli.id)}
+                      onChange={(event) => toggleSelection(cli.id, event.target.checked)}
+                    />
+                  </td>
+                )}
                 <td className="px-3 py-2">
                   <div className="font-medium text-text-primary">{cli.display_name}</div>
                   <div className="font-mono text-xs text-text-muted">
@@ -410,8 +574,8 @@ function CLIsTable({
                           type="button"
                           className="text-xs text-danger hover:underline disabled:opacity-50"
                           data-testid="ai-runtime-disable-cli"
-                          disabled={update.isPending}
-                          onClick={() => setPendingDisable(cli)}
+                          disabled={busy}
+                          onClick={() => setPendingDisable([cli])}
                         >
                           {t('aiRuntime.actions.disable')}
                         </button>
@@ -420,8 +584,8 @@ function CLIsTable({
                           type="button"
                           className="text-xs text-accent hover:underline disabled:opacity-50"
                           data-testid="ai-runtime-enable-cli"
-                          disabled={update.isPending}
-                          onClick={() => setEnabled(cli, true)}
+                          disabled={busy}
+                          onClick={() => void setEnabled([cli], true)}
                         >
                           {t('aiRuntime.actions.enable')}
                         </button>
@@ -441,12 +605,12 @@ function CLIsTable({
       )}
       <ConfirmModal
         open={pendingDisable != null}
-        title={t('aiRuntime.disableConfirm.cliTitle')}
-        message={pendingDisable ? t('aiRuntime.disableConfirm.cliMessage', { name: pendingDisable.display_name || pendingDisable.key }) : ''}
+        title={pendingDisable && pendingDisable.length > 1 ? t('aiRuntime.disableConfirm.clisTitle') : t('aiRuntime.disableConfirm.cliTitle')}
+        message={pendingDisable ? disableCLIsMessage(t, pendingDisable) : ''}
         confirmLabel={t('aiRuntime.actions.disable')}
         danger
-        busy={update.isPending}
-        onConfirm={() => pendingDisable && setEnabled(pendingDisable, false)}
+        busy={busy}
+        onConfirm={() => pendingDisable && void setEnabled(pendingDisable, false)}
         onCancel={() => setPendingDisable(null)}
       />
     </>
@@ -937,6 +1101,54 @@ function KeyList({ values }: { values: string[] }): React.ReactElement {
 
 function mutationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '';
+}
+
+type RuntimeTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+function disableModelsMessage(t: RuntimeTranslate, entries: RuntimeModel[]): string {
+  if (entries.length === 1) {
+    const entry = entries[0];
+    return t('aiRuntime.disableConfirm.modelMessage', { name: entry.display_name || entry.key });
+  }
+  return t('aiRuntime.disableConfirm.modelsMessage', { count: entries.length });
+}
+
+function disableCLIsMessage(t: RuntimeTranslate, entries: RuntimeCLI[]): string {
+  if (entries.length === 1) {
+    const entry = entries[0];
+    return t('aiRuntime.disableConfirm.cliMessage', { name: entry.display_name || entry.key });
+  }
+  return t('aiRuntime.disableConfirm.clisMessage', { count: entries.length });
+}
+
+function pruneSelectedIds<T extends { id: string }>(current: Set<string>, rows: T[]): Set<string> {
+  const valid = new Set(rows.map((row) => row.id));
+  let changed = false;
+  const next = new Set<string>();
+  current.forEach((id) => {
+    if (valid.has(id)) {
+      next.add(id);
+    } else {
+      changed = true;
+    }
+  });
+  return changed ? next : current;
+}
+
+function toggleSelectedId(current: Set<string>, id: string, checked: boolean): Set<string> {
+  const next = new Set(current);
+  if (checked) {
+    next.add(id);
+  } else {
+    next.delete(id);
+  }
+  return next;
+}
+
+function removeSelectedIds<T extends { id: string }>(current: Set<string>, rows: T[]): Set<string> {
+  const next = new Set(current);
+  rows.forEach((row) => next.delete(row.id));
+  return next;
 }
 
 function modelToInput(entry: RuntimeModel, enabled = entry.enabled): RuntimeModelInput {

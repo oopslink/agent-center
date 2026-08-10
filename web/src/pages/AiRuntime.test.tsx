@@ -200,6 +200,34 @@ describe('AiRuntime page', () => {
     );
   });
 
+  it('bulk disables selected runtime models with incrementing revisions', async () => {
+    const requests: Array<{ slug: unknown; id: unknown; body: Record<string, unknown> }> = [];
+    server.use(
+      http.patch('/api/orgs/:slug/ai-runtime/models/:id', async ({ params, request }) => {
+        const body = await request.json() as Record<string, unknown>;
+        requests.push({ slug: params.slug, id: params.id, body });
+        const expected = typeof body.expected_revision === 'number' ? body.expected_revision : 3;
+        return HttpResponse.json({ revision: expected + 1, entry: { id: params.id } });
+      }),
+    );
+    renderPage('/organizations/test/ai-runtime?tab=models');
+    expect(await screen.findByText('GPT-5')).toBeInTheDocument();
+    const checkboxes = screen.getAllByTestId('ai-runtime-select-model');
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    expect(screen.getByTestId('ai-runtime-model-selected-count')).toHaveTextContent('2 selected');
+    fireEvent.click(screen.getByTestId('ai-runtime-bulk-disable-models'));
+    expect(await screen.findByTestId('confirm-modal-message')).toHaveTextContent('2');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests.map((item) => item.id)).toEqual([
+      'runtime-model-gpt-5',
+      'runtime-model-claude-opus-4-8',
+    ]);
+    expect(requests.map((item) => item.body.expected_revision)).toEqual([3, 4]);
+    expect(requests.map((item) => (item.body.value as { enabled?: boolean }).enabled)).toEqual([false, false]);
+  });
+
   it('disables a runtime CLI through the revisioned PATCH endpoint', async () => {
     let payload: unknown = null;
     server.use(
@@ -231,6 +259,32 @@ describe('AiRuntime page', () => {
         },
       }),
     );
+  });
+
+  it('bulk disables selected runtime CLIs with incrementing revisions', async () => {
+    const requests: Array<{ slug: unknown; id: unknown; body: Record<string, unknown> }> = [];
+    server.use(
+      http.patch('/api/orgs/:slug/ai-runtime/clis/:id', async ({ params, request }) => {
+        const body = await request.json() as Record<string, unknown>;
+        requests.push({ slug: params.slug, id: params.id, body });
+        const expected = typeof body.expected_revision === 'number' ? body.expected_revision : 3;
+        return HttpResponse.json({ revision: expected + 1, entry: { id: params.id } });
+      }),
+    );
+    renderPage('/organizations/test/ai-runtime?tab=clis');
+    expect(await screen.findByText('Codex CLI')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ai-runtime-select-all-clis'));
+    expect(screen.getByTestId('ai-runtime-cli-selected-count')).toHaveTextContent('2 selected');
+    fireEvent.click(screen.getByTestId('ai-runtime-bulk-disable-clis'));
+    expect(await screen.findByTestId('confirm-modal-message')).toHaveTextContent('2');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests.map((item) => item.id)).toEqual([
+      'runtime-cli-claude-code',
+      'runtime-cli-codex',
+    ]);
+    expect(requests.map((item) => item.body.expected_revision)).toEqual([3, 4]);
+    expect(requests.map((item) => (item.body.value as { enabled?: boolean }).enabled)).toEqual([false, false]);
   });
 
   it('surfaces revision conflicts from create/edit mutations', async () => {
