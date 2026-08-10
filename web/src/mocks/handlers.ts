@@ -365,7 +365,6 @@ function aiRuntimeCatalog() {
   return {
     org_id: 'org-test',
     revision: 3,
-    default_runtime_profile_id: 'runtime-profile-default',
     clis: [
       {
         id: 'runtime-cli-codex',
@@ -394,32 +393,6 @@ function aiRuntimeCatalog() {
         input_cost_per_mtok: 1.25,
         output_cost_per_mtok: 10,
         tier: 'frontier',
-        created_at: '2026-07-01T00:00:00Z',
-        updated_at: '2026-07-01T00:00:00Z',
-      },
-    ],
-    profiles: [
-      {
-        id: 'runtime-profile-default',
-        key: 'default-coding',
-        name: 'Default coding',
-        description: 'Default coding runtime',
-        cli_key: 'codex',
-        model_key: 'gpt-5',
-        parameters: {},
-        enabled: true,
-        created_at: '2026-07-01T00:00:00Z',
-        updated_at: '2026-07-01T00:00:00Z',
-      },
-      {
-        id: 'runtime-profile-review',
-        key: 'review',
-        name: 'Review',
-        description: 'Code review runtime',
-        cli_key: 'codex',
-        model_key: 'gpt-5',
-        parameters: { reasoning: 'high' },
-        enabled: true,
         created_at: '2026-07-01T00:00:00Z',
         updated_at: '2026-07-01T00:00:00Z',
       },
@@ -915,19 +888,6 @@ const baseHandlers = [
     status: 200,
     headers: { 'Content-Type': 'application/yaml; charset=utf-8' },
   })),
-  http.put('/api/ai-runtime/default-profile', async ({ request }) => {
-    const body = (await request.json()) as { profile_id?: string };
-    return ok({ revision: 4, default_runtime_profile_id: body.profile_id ?? 'runtime-profile-default' });
-  }),
-  http.post('/api/ai-runtime/profiles', async ({ request }) => {
-    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
-    const key = typeof body.value?.key === 'string' ? body.value.key : 'new-profile';
-    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: `runtime-profile-${key}`, ...(body.value ?? {}) } }, 201);
-  }),
-  http.patch('/api/ai-runtime/profiles/:id', async ({ params, request }) => {
-    const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
-    return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
-  }),
   http.post('/api/ai-runtime/models', async ({ request }) => {
     const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
     const key = typeof body.value?.key === 'string' ? body.value.key : 'new-model';
@@ -948,17 +908,15 @@ const baseHandlers = [
   }),
   http.post('/api/ai-runtime/import/preview', async ({ request }) => {
     const body = (await request.json()) as {
-      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }>; profiles?: Array<{ key?: string }> } };
+      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }> } };
     };
     const runtime = body.document?.runtime ?? {};
     const items = [
       ...(runtime.clis ?? []).map((cli) => ({ entity_type: 'cli', key: cli.key ?? '', action: 'unchanged' })),
       ...(runtime.models ?? []).map((model) => ({ entity_type: 'model', key: model.key ?? '', action: 'update' })),
-      ...(runtime.profiles ?? []).map((profile) => ({ entity_type: 'profile', key: profile.key ?? '', action: 'unchanged' })),
     ];
     return ok({
       report: { dry_run: true, applied: false, revision: 3, items, diagnostics: [] },
-      coverage: [],
       validation_token: 'mock-runtime-import-token',
       expires_at: '2026-08-08T00:00:00Z',
       document_sha256: 'mock-runtime-import-sha',
@@ -966,13 +924,12 @@ const baseHandlers = [
   }),
   http.post('/api/ai-runtime/import/apply', async ({ request }) => {
     const body = (await request.json()) as {
-      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }>; profiles?: Array<{ key?: string }> } };
+      document?: { runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }> } };
     };
     const runtime = body.document?.runtime ?? {};
     const items = [
       ...(runtime.clis ?? []).map((cli) => ({ entity_type: 'cli', key: cli.key ?? '', action: 'unchanged' })),
       ...(runtime.models ?? []).map((model) => ({ entity_type: 'model', key: model.key ?? '', action: 'update' })),
-      ...(runtime.profiles ?? []).map((profile) => ({ entity_type: 'profile', key: profile.key ?? '', action: 'unchanged' })),
     ];
     return ok({ dry_run: false, applied: true, revision: 4, items, diagnostics: [] });
   }),

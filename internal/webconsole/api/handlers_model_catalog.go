@@ -260,7 +260,7 @@ func (s *Server) importModelCatalogHandler(w http.ResponseWriter, r *http.Reques
 		sort.Slice(doc.Runtime.Models, func(i, j int) bool { return doc.Runtime.Models[i].Key < doc.Runtime.Models[j].Key })
 	}
 	// The legacy replace scope is only the legacy model-catalog projection. It
-	// must not disable unrelated Runtime Catalog models or invalidate profiles.
+	// must not disable unrelated Runtime Catalog models.
 	strategy := airuntime.ImportStrategy(airuntime.StrategyMerge)
 	preview, err := d.RuntimeCatalog.PreviewImport(r.Context(), orgID, airuntime.PreviewRequest{Strategy: strategy, Document: doc})
 	if err != nil {

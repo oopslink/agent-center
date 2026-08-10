@@ -18,7 +18,7 @@ func TestContractJSONRoundTripAndStableReasons(t *testing.T) {
 	if got.Mode != selection.Mode || got.CLIID != selection.CLIID || got.ModelID != selection.ModelID {
 		t.Fatalf("round trip = %+v", got)
 	}
-	want := []Reason{ReasonCLINotFound, ReasonModelNotFound, ReasonIncompatible, ReasonParametersInvalid, ReasonProfileDisabled, ReasonDefaultMissing, ReasonRevisionConflict}
+	want := []Reason{ReasonCLINotFound, ReasonModelNotFound, ReasonIncompatible, ReasonParametersInvalid, ReasonDefaultMissing, ReasonRevisionConflict}
 	seen := map[string]bool{}
 	for _, reason := range want {
 		if reason == "" || seen[string(reason)] {

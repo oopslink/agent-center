@@ -40,10 +40,8 @@ type ExportDocument struct {
 }
 
 type ExportCatalog struct {
-	DefaultProfileKey string          `json:"default_profile_key,omitempty" yaml:"default_profile_key,omitempty"`
-	CLIs              []ExportCLI     `json:"clis" yaml:"clis"`
-	Models            []ExportModel   `json:"models" yaml:"models"`
-	Profiles          []ExportProfile `json:"profiles" yaml:"profiles"`
+	CLIs   []ExportCLI   `json:"clis" yaml:"clis"`
+	Models []ExportModel `json:"models" yaml:"models"`
 }
 
 type ExportCLI struct {
@@ -69,16 +67,6 @@ type ExportModel struct {
 	Tier              string         `json:"tier,omitempty" yaml:"tier,omitempty"`
 }
 
-type ExportProfile struct {
-	Key         string         `json:"key" yaml:"key"`
-	Name        string         `json:"name" yaml:"name"`
-	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
-	CLIKey      string         `json:"cli_key" yaml:"cli_key"`
-	ModelKey    string         `json:"model_key" yaml:"model_key"`
-	Parameters  map[string]any `json:"parameters" yaml:"parameters"`
-	Enabled     bool           `json:"enabled" yaml:"enabled"`
-}
-
 type ImportStrategy string
 
 type ImportRequest struct {
@@ -94,7 +82,6 @@ const (
 	ExportScopeAll      ExportScope = "all"
 	ExportScopeCLI      ExportScope = "cli"
 	ExportScopeModel    ExportScope = "model"
-	ExportScopeProfile  ExportScope = "profile"
 	ExportScopeSelected ExportScope = "selected"
 )
 
@@ -102,7 +89,6 @@ type ExportOptions struct {
 	Scope               ExportScope
 	CLIKeys             []string
 	ModelKeys           []string
-	ProfileKeys         []string
 	IncludeDependencies bool
 }
 
@@ -113,11 +99,10 @@ type PreviewRequest struct {
 }
 
 type PreviewResponse struct {
-	Report          ImportReport      `json:"report" yaml:"report"`
-	Coverage        []RuntimeCoverage `json:"coverage" yaml:"coverage"`
-	ValidationToken string            `json:"validation_token" yaml:"validation_token"`
-	ExpiresAt       time.Time         `json:"expires_at" yaml:"expires_at"`
-	DocumentSHA256  string            `json:"document_sha256" yaml:"document_sha256"`
+	Report          ImportReport `json:"report" yaml:"report"`
+	ValidationToken string       `json:"validation_token" yaml:"validation_token"`
+	ExpiresAt       time.Time    `json:"expires_at" yaml:"expires_at"`
+	DocumentSHA256  string       `json:"document_sha256" yaml:"document_sha256"`
 }
 
 type ApplyRequest struct {
@@ -145,25 +130,6 @@ type Diagnostic struct {
 
 const ReasonImportUnknownField Reason = "runtime_import_unknown_field"
 
-type CoverageReason struct {
-	Code    string `json:"code"`
-	Count   int    `json:"count"`
-	Message string `json:"message"`
-}
-
-type RuntimeCoverage struct {
-	ProfileID           string           `json:"profile_id"`
-	OnlineWorkerCount   int              `json:"online_worker_count"`
-	EligibleWorkerCount int              `json:"eligible_worker_count"`
-	Status              string           `json:"status"`
-	Reasons             []CoverageReason `json:"reasons"`
-	CalculatedAt        time.Time        `json:"calculated_at"`
-}
-
-type CoverageProvider interface {
-	Coverage(context.Context, Catalog) ([]RuntimeCoverage, error)
-}
-
 type ImportItem struct {
 	EntityType string `json:"entity_type"`
 	Key        string `json:"key"`
@@ -179,12 +145,9 @@ type ImportReport struct {
 }
 
 type BulkMutation struct {
-	OrgID             string
-	DefaultProfileKey string
-	SetDefaultProfile bool
-	CLIs              []CLIDefinition
-	Models            []ModelDefinition
-	Profiles          []RuntimeProfile
+	OrgID  string
+	CLIs   []CLIDefinition
+	Models []ModelDefinition
 }
 
 func (s *Service) Export(ctx context.Context, orgID string) (ExportDocument, error) {
@@ -225,26 +188,6 @@ func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRe
 		return PreviewResponse{Report: report}, err
 	}
 	report.Diagnostics = append(report.Diagnostics, req.Warnings...)
-	mutation, _, _ := s.planImport(orgID, current, req.Document.Runtime, strategy)
-	candidate := candidateCatalog(current, mutation)
-	var coverage []RuntimeCoverage
-	if s.coverage == nil {
-		report.Diagnostics = append(report.Diagnostics, Diagnostic{
-			Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
-			Path: "coverage", Message: "scheduler coverage data is unavailable",
-		})
-		coverage = []RuntimeCoverage{}
-	} else {
-		coverage, err = s.coverage.Coverage(ctx, candidate)
-		if err != nil {
-			report.Diagnostics = append(report.Diagnostics, Diagnostic{
-				Code: Reason("runtime_coverage_unavailable"), Severity: "warning",
-				Path: "coverage", Message: "scheduler coverage data is unavailable",
-			})
-			coverage = []RuntimeCoverage{}
-		}
-	}
-	sort.Slice(coverage, func(i, j int) bool { return coverage[i].ProfileID < coverage[j].ProfileID })
 	digest, err := documentDigest(req.Document)
 	if err != nil {
 		return PreviewResponse{}, err
@@ -259,7 +202,7 @@ func (s *Service) PreviewImport(ctx context.Context, orgID string, req PreviewRe
 		return PreviewResponse{}, err
 	}
 	return PreviewResponse{
-		Report: report, Coverage: coverage, ValidationToken: token, ExpiresAt: expires, DocumentSHA256: digest,
+		Report: report, ValidationToken: token, ExpiresAt: expires, DocumentSHA256: digest,
 	}, nil
 }
 
@@ -326,15 +269,11 @@ func (s *Service) validateImport(orgID string, current Catalog, doc ExportDocume
 }
 
 func (s *Service) planImport(orgID string, current Catalog, in ExportCatalog, strategy ImportStrategy) (BulkMutation, []ImportItem, []Diagnostic) {
-	m := BulkMutation{
-		OrgID:             orgID,
-		DefaultProfileKey: strings.TrimSpace(in.DefaultProfileKey),
-		SetDefaultProfile: strategy == StrategyReplace || (strategy != StrategyCreate && strings.TrimSpace(in.DefaultProfileKey) != ""),
-	}
-	items := make([]ImportItem, 0, len(in.CLIs)+len(in.Models)+len(in.Profiles))
+	m := BulkMutation{OrgID: orgID}
+	items := make([]ImportItem, 0, len(in.CLIs)+len(in.Models))
 	diags := make([]Diagnostic, 0)
-	existingCLI, existingModel, existingProfile := cliByKey(current.CLIs), modelByKey(current.Models), profileByKey(current.Profiles)
-	seenCLI, seenModel, seenProfile := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	existingCLI, existingModel := cliByKey(current.CLIs), modelByKey(current.Models)
+	seenCLI, seenModel := map[string]bool{}, map[string]bool{}
 
 	for i, x := range in.CLIs {
 		path := fmt.Sprintf("catalog.clis[%d]", i)
@@ -421,55 +360,8 @@ func (s *Service) planImport(orgID string, current Catalog, in ExportCatalog, st
 		}
 		m.Models = append(m.Models, entity)
 	}
-	for i, x := range in.Profiles {
-		path := fmt.Sprintf("catalog.profiles[%d]", i)
-		x.Key, x.Name, x.CLIKey, x.ModelKey = strings.TrimSpace(x.Key), strings.TrimSpace(x.Name), strings.TrimSpace(x.CLIKey), strings.TrimSpace(x.ModelKey)
-		if seenProfile[x.Key] {
-			diags = append(diags, diagnostic(ReasonImportInvalid, path+".key", "profile", x.Key, "duplicate profile key"))
-			continue
-		}
-		seenProfile[x.Key] = true
-		if x.Parameters == nil {
-			x.Parameters = map[string]any{}
-		}
-		entity := RuntimeProfile{OrgID: orgID, Key: x.Key, Name: x.Name, Description: x.Description, CLIKey: x.CLIKey, ModelKey: x.ModelKey, Parameters: x.Parameters, Enabled: x.Enabled}
-		if old, conflict := existingProfile[x.Key]; conflict {
-			if strategy == StrategyCreate {
-				items = append(items, ImportItem{"profile", x.Key, "unchanged"})
-				continue
-			}
-			var secretDiags []Diagnostic
-			entity.Parameters, secretDiags = preserveRedactedMap(entity.Parameters, old.Parameters, path+".parameters", "profile", x.Key)
-			diags = append(diags, secretDiags...)
-			entity.ID, entity.CreatedAt = old.ID, old.CreatedAt
-			if equalProfileImport(old, entity) {
-				items = append(items, ImportItem{"profile", x.Key, "unchanged"})
-				continue
-			}
-			items = append(items, ImportItem{"profile", x.Key, "update"})
-		} else {
-			items = append(items, ImportItem{"profile", x.Key, "create"})
-			diags = append(diags, rejectUnresolvedRedacted(entity.Parameters, path+".parameters", "profile", x.Key)...)
-		}
-		entity.UpdatedAt = s.now()
-		if entity.CreatedAt.IsZero() {
-			entity.CreatedAt = entity.UpdatedAt
-		}
-		if err := validateProfileImport(entity); err != nil {
-			diags = append(diags, diagnostic(ReasonImportInvalid, path, "profile", x.Key, err.Error()))
-		}
-		m.Profiles = append(m.Profiles, entity)
-	}
-
 	if strategy == StrategyReplace {
 		now := s.now()
-		for _, x := range current.Profiles {
-			if !seenProfile[x.Key] && x.Enabled {
-				x.Enabled, x.UpdatedAt = false, now
-				m.Profiles = append(m.Profiles, x)
-				items = append(items, ImportItem{"profile", x.Key, "disable"})
-			}
-		}
 		for _, x := range current.Models {
 			if !seenModel[x.Key] && x.Enabled {
 				x.Enabled, x.UpdatedAt = false, now
@@ -492,42 +384,20 @@ func (s *Service) planImport(orgID string, current Catalog, in ExportCatalog, st
 			diags = append(diags, diagnostic(ReasonImportInvalid, "catalog.models", "model", model.Key, err.Error()))
 		}
 	}
-	for _, profile := range candidate.Profiles {
-		if profile.Enabled {
-			if err := validateProfile(candidate, profile); err != nil {
-				diags = append(diags, diagnostic(ReasonImportInvalid, "catalog.profiles", "profile", profile.Key, err.Error()))
-			}
-		}
-	}
-	if m.SetDefaultProfile && m.DefaultProfileKey != "" {
-		p, ok := profileByKey(candidate.Profiles)[m.DefaultProfileKey]
-		if !ok || !p.Enabled {
-			diags = append(diags, diagnostic(ReasonImportInvalid, "catalog.default_profile_key", "profile", m.DefaultProfileKey, "default profile must reference an enabled profile"))
-		}
-	}
 	sortReport(items, diags)
 	return m, items, dedupeDiagnostics(diags)
 }
 
 func exportCatalog(cat Catalog) ExportDocument {
-	out := ExportDocument{Kind: ExportKind, SchemaVersion: ExportVersion, Runtime: ExportCatalog{CLIs: []ExportCLI{}, Models: []ExportModel{}, Profiles: []ExportProfile{}}}
-	for _, p := range cat.Profiles {
-		if p.ID == cat.DefaultProfileID {
-			out.Runtime.DefaultProfileKey = p.Key
-		}
-	}
+	out := ExportDocument{Kind: ExportKind, SchemaVersion: ExportVersion, Runtime: ExportCatalog{CLIs: []ExportCLI{}, Models: []ExportModel{}}}
 	for _, x := range cat.CLIs {
 		out.Runtime.CLIs = append(out.Runtime.CLIs, ExportCLI{Key: x.Key, DisplayName: x.DisplayName, Executable: x.Executable, VersionConstraint: x.VersionConstraint, RequiredFeatures: append([]string(nil), x.RequiredFeatures...), ParameterSchema: append(json.RawMessage(nil), x.ParameterSchema...), Enabled: x.Enabled})
 	}
 	for _, x := range cat.Models {
 		out.Runtime.Models = append(out.Runtime.Models, ExportModel{Key: x.Key, ModelKey: x.ModelKey, DisplayName: x.DisplayName, CompatibleCLIKeys: append([]string(nil), x.CompatibleCLIKeys...), DefaultParameters: redactMap(x.DefaultParameters), Enabled: x.Enabled, ContextWindow: x.ContextWindow, InputCost: x.InputCost, OutputCost: x.OutputCost, Tier: x.Tier})
 	}
-	for _, x := range cat.Profiles {
-		out.Runtime.Profiles = append(out.Runtime.Profiles, ExportProfile{Key: x.Key, Name: x.Name, Description: x.Description, CLIKey: x.CLIKey, ModelKey: x.ModelKey, Parameters: redactMap(x.Parameters), Enabled: x.Enabled})
-	}
 	sort.Slice(out.Runtime.CLIs, func(i, j int) bool { return out.Runtime.CLIs[i].Key < out.Runtime.CLIs[j].Key })
 	sort.Slice(out.Runtime.Models, func(i, j int) bool { return out.Runtime.Models[i].Key < out.Runtime.Models[j].Key })
-	sort.Slice(out.Runtime.Profiles, func(i, j int) bool { return out.Runtime.Profiles[i].Key < out.Runtime.Profiles[j].Key })
 	return out
 }
 
@@ -535,13 +405,6 @@ func candidateCatalog(current Catalog, m BulkMutation) Catalog {
 	out := current
 	out.CLIs = mergeCLIs(current.CLIs, m.CLIs)
 	out.Models = mergeModels(current.Models, m.Models)
-	out.Profiles = mergeProfiles(current.Profiles, m.Profiles)
-	if m.SetDefaultProfile {
-		out.DefaultProfileID = ""
-		if m.DefaultProfileKey != "" {
-			out.DefaultProfileID = profileByKey(out.Profiles)[m.DefaultProfileKey].ID
-		}
-	}
 	return out
 }
 
@@ -572,16 +435,6 @@ func validateModelImport(x ModelDefinition) error {
 	}
 	return nil
 }
-func validateProfileImport(x RuntimeProfile) error {
-	if err := validateKey("key", x.Key); err != nil {
-		return err
-	}
-	if x.Name == "" {
-		return errors.New("name is required")
-	}
-	return nil
-}
-
 func importError(reason Reason, path, message string) error {
 	d := diagnostic(reason, path, "", "", message)
 	return &Error{Reason: reason, Message: message, Details: map[string]any{"diagnostics": []Diagnostic{d}}}
@@ -610,11 +463,6 @@ func equalModelImport(a, b ModelDefinition) bool {
 		reflect.DeepEqual(a.DefaultParameters, b.DefaultParameters) && a.Enabled == b.Enabled &&
 		a.ContextWindow == b.ContextWindow && a.InputCost == b.InputCost &&
 		a.OutputCost == b.OutputCost && a.Tier == b.Tier
-}
-
-func equalProfileImport(a, b RuntimeProfile) bool {
-	return a.Name == b.Name && a.Description == b.Description && a.CLIKey == b.CLIKey &&
-		a.ModelKey == b.ModelKey && reflect.DeepEqual(a.Parameters, b.Parameters) && a.Enabled == b.Enabled
 }
 
 func preserveRedactedMap(in, existing map[string]any, path, entityType, key string) (map[string]any, []Diagnostic) {
@@ -678,11 +526,6 @@ func assignImportIDs(m *BulkMutation, id IDGenerator) {
 			m.Models[i].ID = id()
 		}
 	}
-	for i := range m.Profiles {
-		if m.Profiles[i].ID == "" {
-			m.Profiles[i].ID = id()
-		}
-	}
 }
 func sortReport(items []ImportItem, diagnostics []Diagnostic) {
 	sort.Slice(items, func(i, j int) bool {
@@ -727,13 +570,6 @@ func modelByKey(xs []ModelDefinition) map[string]ModelDefinition {
 	}
 	return out
 }
-func profileByKey(xs []RuntimeProfile) map[string]RuntimeProfile {
-	out := map[string]RuntimeProfile{}
-	for _, x := range xs {
-		out[x.Key] = x
-	}
-	return out
-}
 func mergeCLIs(base, changes []CLIDefinition) []CLIDefinition {
 	m := cliByKey(base)
 	for _, x := range changes {
@@ -752,18 +588,6 @@ func mergeModels(base, changes []ModelDefinition) []ModelDefinition {
 		m[x.Key] = x
 	}
 	out := make([]ModelDefinition, 0, len(m))
-	for _, x := range m {
-		out = append(out, x)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
-	return out
-}
-func mergeProfiles(base, changes []RuntimeProfile) []RuntimeProfile {
-	m := profileByKey(base)
-	for _, x := range changes {
-		m[x.Key] = x
-	}
-	out := make([]RuntimeProfile, 0, len(m))
 	for _, x := range m {
 		out = append(out, x)
 	}
@@ -868,10 +692,10 @@ func (s *Service) verifyValidationToken(token string) (validationClaims, error) 
 }
 
 func filterExport(in ExportCatalog, opts ExportOptions) (ExportCatalog, []string, error) {
-	if opts.Scope != ExportScopeCLI && opts.Scope != ExportScopeModel && opts.Scope != ExportScopeProfile && opts.Scope != ExportScopeSelected {
-		return ExportCatalog{}, nil, importError(ReasonImportMalformed, "scope", "scope must be all, cli, model, profile, or selected")
+	if opts.Scope != ExportScopeCLI && opts.Scope != ExportScopeModel && opts.Scope != ExportScopeSelected {
+		return ExportCatalog{}, nil, importError(ReasonImportMalformed, "scope", "scope must be all, cli, model, or selected")
 	}
-	cliWanted, modelWanted, profileWanted := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	cliWanted, modelWanted := map[string]bool{}, map[string]bool{}
 	add := func(dst map[string]bool, keys []string) {
 		for _, key := range keys {
 			if key = strings.TrimSpace(key); key != "" {
@@ -894,29 +718,15 @@ func filterExport(in ExportCatalog, opts ExportOptions) (ExportCatalog, []string
 				modelWanted[item.Key] = true
 			}
 		}
-	case ExportScopeProfile:
-		add(profileWanted, opts.ProfileKeys)
-		if len(profileWanted) == 0 {
-			for _, item := range in.Profiles {
-				profileWanted[item.Key] = true
-			}
-		}
 	case ExportScopeSelected:
 		add(cliWanted, opts.CLIKeys)
 		add(modelWanted, opts.ModelKeys)
-		add(profileWanted, opts.ProfileKeys)
-		if len(cliWanted)+len(modelWanted)+len(profileWanted) == 0 {
+		if len(cliWanted)+len(modelWanted) == 0 {
 			return ExportCatalog{}, nil, importError(ReasonImportMalformed, "scope", "selected scope requires at least one key")
 		}
 	}
 
 	if opts.IncludeDependencies {
-		for _, profile := range in.Profiles {
-			if profileWanted[profile.Key] {
-				cliWanted[profile.CLIKey] = true
-				modelWanted[profile.ModelKey] = true
-			}
-		}
 		for _, model := range in.Models {
 			if modelWanted[model.Key] {
 				for _, cliKey := range model.CompatibleCLIKeys {
@@ -926,7 +736,7 @@ func filterExport(in ExportCatalog, opts ExportOptions) (ExportCatalog, []string
 		}
 	}
 
-	out := ExportCatalog{CLIs: []ExportCLI{}, Models: []ExportModel{}, Profiles: []ExportProfile{}}
+	out := ExportCatalog{CLIs: []ExportCLI{}, Models: []ExportModel{}}
 	for _, item := range in.CLIs {
 		if cliWanted[item.Key] {
 			out.CLIs = append(out.CLIs, item)
@@ -939,16 +749,7 @@ func filterExport(in ExportCatalog, opts ExportOptions) (ExportCatalog, []string
 			delete(modelWanted, item.Key)
 		}
 	}
-	for _, item := range in.Profiles {
-		if profileWanted[item.Key] {
-			out.Profiles = append(out.Profiles, item)
-			delete(profileWanted, item.Key)
-			if item.Key == in.DefaultProfileKey {
-				out.DefaultProfileKey = item.Key
-			}
-		}
-	}
-	if len(cliWanted)+len(modelWanted)+len(profileWanted) != 0 {
+	if len(cliWanted)+len(modelWanted) != 0 {
 		return ExportCatalog{}, nil, importError(ReasonImportInvalid, "scope", "one or more selected stable keys do not exist")
 	}
 	if opts.IncludeDependencies {
