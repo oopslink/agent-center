@@ -8,7 +8,6 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
-	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -132,12 +131,6 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 
 // addAgentMemberHandler handles POST /api/members/agent(org via /api/orgs/{slug} path).
 // Creates a new agent identity + member.
-// defaultAgentModel is the API-layer fallback applied when an agent is created
-// without an explicit model (v2.7.1 #236). Mirrors the frontend
-// DEFAULT_AGENT_MODEL constant — kept in sync so the visible prefill and the
-// backend floor agree.
-const defaultAgentModel = "claude-opus-4-8"
-
 func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.AgentProvisionSvc == nil {
@@ -194,18 +187,6 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if body.Role == "" {
 		body.Role = "member"
 	}
-	// v2.7.1 #236: API-layer model default. An empty model stores null → the
-	// AgentDetail Profile renders blank (@oopslink dogfood; recurred via the
-	// MemberNew create path that the #232 frontend prefill missed). BOTH create
-	// UIs (AgentCreateModal + MemberNew) POST here — the v2.7 single create path
-	// — so defaulting at this one boundary is the bulletproof floor for every
-	// caller (both UIs + direct API + any future entry), complementing the
-	// frontend prefill that supplies the visible UX. Mirrors the worker_id policy
-	// below: an API-LAYER choice, deliberately NOT a new domain invariant
-	// (don't push an implementation constraint across the model boundary).
-	if strings.TrimSpace(body.Model) == "" {
-		body.Model = defaultAgentModel
-	}
 	// v2.6 ship-block fix (X1 §3): admin cannot create owner-role agent.
 	if string(callerMember.Role()) == "admin" && body.Role == "owner" {
 		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role agents")
@@ -224,15 +205,20 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			"worker_id is required (v2.7: an execution agent must bind a worker)")
 		return
 	}
-	if d.RuntimeCatalog != nil {
-		if err := d.RuntimeCatalog.ValidateLegacyAgentRuntimeConfig(r.Context(), orgID, airuntime.LegacyAgentRuntimeConfig{
-			CLI:              body.CLI,
-			Model:            body.Model,
-			AllowedExecutors: legacyRuntimeExecutors(body.AllowedExecutors),
-		}); err != nil {
-			mapAgentError(w, err)
-			return
-		}
+	var valid bool
+	body.CLI, body.Model, body.AllowedModels, body.AllowedExecutors, valid = s.validateAgentRuntimeConfig(
+		w, r, d, orgID, body.CLI, body.Model, body.AllowedModels, body.AllowedExecutors,
+	)
+	if !valid {
+		return
+	}
+	body.OrchestratorModel, valid = s.validateRuntimeModelValue(w, r, d, orgID, body.OrchestratorModel)
+	if !valid {
+		return
+	}
+	body.DefaultExecutorModel, valid = s.validateRuntimeModelValue(w, r, d, orgID, body.DefaultExecutorModel)
+	if !valid {
+		return
 	}
 
 	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)

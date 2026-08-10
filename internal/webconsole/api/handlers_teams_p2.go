@@ -84,6 +84,11 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 			converted = append(converted, team.RoleConfig{Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
 				CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency})
 		}
+		var valid bool
+		converted, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, converted)
+		if !valid {
+			return
+		}
 		configs = &converted
 	}
 	t, err := d.TeamService.UpdateTeam(r.Context(), team.TeamID(r.PathValue("id")), teamservice.UpdateTeamInput{
@@ -166,6 +171,11 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 			count = 1
 		}
 		countByRole[ri.Role] = count
+	}
+	var valid bool
+	configs, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, configs)
+	if !valid {
+		return
 	}
 
 	name := req.TeamName
@@ -1070,6 +1080,11 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 			},
 			Count: rr.Count,
 		})
+	}
+	var valid bool
+	slots, valid = s.validateTeamRuntimeSlots(w, r, d, orgID, slots)
+	if !valid {
+		return
 	}
 	// Create authors an UN-curated template (curate/export is the /admin cross-org
 	// path, not a Phase-1 UI flow). team.NewTemplate validates + normalizes.

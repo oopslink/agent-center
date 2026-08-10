@@ -677,8 +677,8 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
 }
 
 /** import_team_template — re-home an exported envelope into this org
- *  (POST /team-templates/import). The backend applies the same field defaults
- *  the fixture path used (role→coder, cli→claude-code, model→sonnet-5, etc). */
+ *  (POST /team-templates/import). The backend applies envelope defaults and
+ *  resolves missing runtime fields through the org AI Runtime default profile. */
 export function useImportTemplate() {
   const qc = useQueryClient();
   return useMutation({

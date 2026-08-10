@@ -419,6 +419,11 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
 		})
 	}
+	var valid bool
+	roles, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, roles)
+	if !valid {
+		return
+	}
 	t, err := d.TeamService.CreateTeam(r.Context(), teamservice.CreateTeamInput{
 		OrgID: orgID, Name: req.Name, Description: req.Description, Roles: roles,
 	})

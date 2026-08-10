@@ -11,7 +11,6 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
-	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -53,15 +52,7 @@ func agentCallerRef(id *identity.Identity) agentbc.IdentityRef {
 
 // mapAgentError translates Agent-BC errors to HTTP responses.
 func mapAgentError(w http.ResponseWriter, err error) {
-	var runtimeErr *airuntime.Error
 	switch {
-	case errors.As(err, &runtimeErr):
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":   string(runtimeErr.Reason),
-			"reason":  runtimeErr.Reason,
-			"message": runtimeErr.Message,
-			"details": runtimeErr.Details,
-		})
 	case errors.Is(err, agentbc.ErrAgentNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, agentbc.ErrResetRequiresStopped):
@@ -742,15 +733,20 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if d.RuntimeCatalog != nil {
-		if err := d.RuntimeCatalog.ValidateLegacyAgentRuntimeConfig(r.Context(), a.OrganizationID(), airuntime.LegacyAgentRuntimeConfig{
-			CLI:              req.CLI,
-			Model:            req.Model,
-			AllowedExecutors: legacyRuntimeExecutors(req.AllowedExecutors),
-		}); err != nil {
-			mapAgentError(w, err)
-			return
-		}
+	var valid bool
+	req.CLI, req.Model, req.AllowedModels, req.AllowedExecutors, valid = s.validateAgentRuntimeConfig(
+		w, r, d, a.OrganizationID(), req.CLI, req.Model, req.AllowedModels, req.AllowedExecutors,
+	)
+	if !valid {
+		return
+	}
+	req.OrchestratorModel, valid = s.validateRuntimeModelValue(w, r, d, a.OrganizationID(), req.OrchestratorModel)
+	if !valid {
+		return
+	}
+	req.DefaultExecutorModel, valid = s.validateRuntimeModelValue(w, r, d, a.OrganizationID(), req.DefaultExecutorModel)
+	if !valid {
+		return
 	}
 	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
@@ -769,14 +765,6 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	}
 	got, _ := d.AgentSvc.GetAgent(r.Context(), a.ID())
 	s.agentWriteJSON(w, r, d, got)
-}
-
-func legacyRuntimeExecutors(execs []agentbc.ExecutorProfile) []airuntime.LegacyRuntime {
-	out := make([]airuntime.LegacyRuntime, 0, len(execs))
-	for _, exec := range execs {
-		out = append(out, airuntime.LegacyRuntime{CLI: exec.CLI, Model: exec.Model})
-	}
-	return out
 }
 
 // agentUpdateTagsHandler replaces an agent's capability tags (T461) — the
