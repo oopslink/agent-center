@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -45,6 +46,8 @@ func setupPlanGraphAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
 		Plans:        plans,
 		Stages:       pmsql.NewStageRepo(db), // T981: wire the Stage aggregate so stage-level reads work
+		Remediation:  pmsql.NewRemediationRepo(db),
+		Audit:        pmsql.NewAuditLogRepo(db, gen),
 		Outbox:       ob,
 		IDGen:        gen,
 		Clock:        clk,
@@ -312,5 +315,134 @@ func TestPlanStagesAPI_NoStage_EmptyShape(t *testing.T) {
 	stages, ok := body["stages"].([]any)
 	if !ok || len(stages) != 0 {
 		t.Fatalf("stages=%v want empty array (§8 zero-regression)", body["stages"])
+	}
+}
+
+func TestPlanGenerationsAPI_ServesActiveGenerationAndNodeOwnership(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generation-read", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+	tid, err := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	who := "user:a1"
+	if err := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &who}, caller); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.SelectTaskIntoPlan(ctx, planID, tid, caller); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/generations", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("generations status=%d want 200", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	if body["active_generation"].(float64) != 0 {
+		t.Fatalf("active_generation=%v want 0; body=%v", body["active_generation"], body)
+	}
+	gens, _ := body["generations"].([]any)
+	if len(gens) != 1 {
+		t.Fatalf("generations len=%d want 1; body=%v", len(gens), body)
+	}
+	gen0 := gens[0].(map[string]any)
+	if gen0["label"] != "R1" || gen0["active"] != true {
+		t.Fatalf("generation row=%v want active R1", gen0)
+	}
+	progress := gen0["progress"].(map[string]any)
+	if progress["total"].(float64) != 1 {
+		t.Fatalf("generation progress=%v want total 1", progress)
+	}
+	nodes, _ := body["nodes"].([]any)
+	if len(nodes) != 1 {
+		t.Fatalf("nodes len=%d want 1; body=%v", len(nodes), body)
+	}
+	node := nodes[0].(map[string]any)
+	if node["task_id"] != string(tid) || node["generation"].(float64) != 0 || node["revision"].(float64) != 1 {
+		t.Fatalf("node generation row=%v", node)
+	}
+
+	detailResp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID), sess)
+	detail := decodeBody(t, detailResp)
+	detailNodes := detail["nodes"].([]any)
+	n0 := detailNodes[0].(map[string]any)
+	if n0["generation"].(float64) != 0 || n0["revision"].(float64) != 1 {
+		t.Fatalf("detail node generation fields missing: %v", n0)
+	}
+}
+
+func TestPlanEvolutionAPI_PausedCommitAndStaleConflict(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+	tid, err := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	who := "user:a1"
+	if err := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &who}, caller); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.SelectTaskIntoPlan(ctx, planID, tid, caller); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.StartPlan(ctx, planID, caller); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if err := fx.deps.PM.PausePlan(ctx, planID, caller); err != nil {
+		t.Fatalf("PausePlan: %v", err)
+	}
+	pl, err := fx.deps.PM.GetPlan(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := pl.Version()
+	body := fmt.Sprintf(`{"base_version":%d,"reason":"rebalance paused topology","evidence":"owner note","idempotency_key":"evo-key-1","in_flight_policy":"reject_conflicts","ops":[]}`, base)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/evolution", body, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("evolution status=%d want 200 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	okBody := decodeBody(t, resp)
+	if okBody["ok"] != true || okBody["version"].(float64) != float64(base+1) {
+		t.Fatalf("evolution body=%v want ok/version %d", okBody, base+1)
+	}
+
+	stale := fmt.Sprintf(`{"base_version":%d,"reason":"stale retry","evidence":"old view","idempotency_key":"evo-key-2","in_flight_policy":"reject_conflicts","ops":[]}`, base)
+	conflict := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/evolution", stale, sess)
+	if conflict.StatusCode != 409 {
+		t.Fatalf("stale evolution status=%d want 409", conflict.StatusCode)
+	}
+	errBody := decodeBody(t, conflict)
+	if errBody["error"] != "plan_conflict" {
+		t.Fatalf("stale evolution error=%v want plan_conflict; body=%v", errBody["error"], errBody)
 	}
 }
