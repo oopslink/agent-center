@@ -25,11 +25,29 @@ type PlanCompletionEvaluation struct {
 // evaluator used by auto-advance says the current effective node set is complete.
 // It is idempotent for already-done plans.
 func (s *Service) CompletePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	return s.CompletePlanWithOptions(ctx, planID, actor, CompletePlanOptions{})
+}
+
+// CompletePlanOptions controls the explicit, human-only completion escape hatch.
+// Automatic completion never supplies these options.
+type CompletePlanOptions struct {
+	Force  bool
+	Reason string
+}
+
+// CompletePlanWithOptions force-completes a plan only when the caller explicitly
+// opts in and supplies an audit reason. Force bypasses completion eligibility,
+// but not identity, membership, existence, or lifecycle-state checks.
+func (s *Service) CompletePlanWithOptions(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef, opts CompletePlanOptions) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
 	if err := actor.Validate(); err != nil {
 		return err
+	}
+	reason := strings.TrimSpace(opts.Reason)
+	if opts.Force && reason == "" {
+		return pm.ErrForceReasonRequired
 	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
@@ -50,10 +68,18 @@ func (s *Service) CompletePlan(ctx context.Context, planID pm.PlanID, actor pm.I
 		if err != nil {
 			return err
 		}
-		if !eval.CanComplete {
+		if !opts.Force && !eval.CanComplete {
 			return fmt.Errorf("%w: %s", pm.ErrPlanNotComplete, strings.Join(eval.Reasons, "; "))
 		}
-		return s.markPlanDone(txCtx, p, now)
+		if err := s.markPlanDone(txCtx, p, now); err != nil {
+			return err
+		}
+		if opts.Force {
+			s.auditPlan(txCtx, p, pm.AuditPlanForceCompleted, actor, map[string]any{
+				"reason": reason, "bypassed_blockers": eval.Reasons,
+			})
+		}
+		return nil
 	})
 }
 

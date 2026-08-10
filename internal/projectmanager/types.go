@@ -107,6 +107,7 @@ var (
 	ErrInvalidStatus       = errors.New("projectmanager: invalid status")
 	ErrIllegalTransition   = errors.New("projectmanager: illegal status transition")
 	ErrTaskNoValidDelivery = errors.New("projectmanager: task has no valid pushed delivery; block or retry it instead of completing")
+	ErrForceReasonRequired = errors.New("projectmanager: force completion requires a reason")
 	// ErrTaskArchived guards an archived Task (v2.9 P3): archival is an ORTHOGONAL
 	// terminal state (does not change task.status) that makes the Task read-only —
 	// every mutator (Rename/SetDescription/status transitions/Assign/…) rejects with

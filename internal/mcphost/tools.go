@@ -1037,6 +1037,19 @@ type planIDArgs struct {
 	PlanID string `json:"plan_id" jsonschema:"the plan to operate on"`
 }
 
+type completePlanArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan to complete"`
+	Force  bool   `json:"force,omitempty" jsonschema:"bypass completion eligibility checks; requires reason"`
+	Reason string `json:"reason,omitempty" jsonschema:"required audit reason when force is true"`
+}
+
+func makeCompletePlan(cfg Config) mcp.ToolHandlerFor[completePlanArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args completePlanArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "plan_id": args.PlanID, "force": args.Force, "reason": args.Reason}
+		return callAdmin(ctx, cfg, "complete_plan", body)
+	}
+}
+
 // makePlanID backs the single-plan-id lifecycle/archive tools. The tool string
 // MUST equal the admin route
 // segment, so it is supplied explicitly.

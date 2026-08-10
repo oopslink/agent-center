@@ -373,6 +373,8 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 type planIDReq struct {
 	AgentID string `json:"agent_id"`
 	PlanID  string `json:"plan_id"`
+	Force   bool   `json:"force,omitempty"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 // startPlanHandler validates + moves a pending Plan to running via pm.StartPlan
@@ -430,7 +432,7 @@ func (s *Server) completePlanHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := d.PMService.CompletePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+	if err := d.PMService.CompletePlanWithOptions(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a)), pmservice.CompletePlanOptions{Force: req.Force, Reason: req.Reason}); err != nil {
 		mapPlanToolError(w, err)
 		return
 	}

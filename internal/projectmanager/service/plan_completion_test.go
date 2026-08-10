@@ -554,6 +554,36 @@ func TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks(t *testi
 	}
 }
 
+func TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual override", CreatedBy: "user:a"})
+	h.drain(t)
+	failed := h.seedAssignedTask(t, pid, planID, "unrecovered failure", "user:dev")
+	h.setTaskStatus(t, failed, pm.TaskDiscarded)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.CompletePlan(ctx, planID, "user:a"); !errors.Is(err, pm.ErrPlanNotComplete) {
+		t.Fatalf("normal completion err=%v want ErrPlanNotComplete", err)
+	}
+	if err := h.svc.CompletePlanWithOptions(ctx, planID, "user:a", CompletePlanOptions{Force: true, Reason: "  "}); !errors.Is(err, pm.ErrForceReasonRequired) {
+		t.Fatalf("blank force reason err=%v want ErrForceReasonRequired", err)
+	}
+	if err := h.svc.CompletePlanWithOptions(ctx, planID, "user:a", CompletePlanOptions{Force: true, Reason: "legacy evolution confirmed by owner"}); err != nil {
+		t.Fatalf("forced completion: %v", err)
+	}
+	p, _ := h.plans.FindByID(ctx, planID)
+	if p.Status() != pm.PlanDone {
+		t.Fatalf("plan status=%s want done", p.Status())
+	}
+	// Done remains idempotent, including an ordinary retry without force.
+	if err := h.svc.CompletePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("idempotent completion: %v", err)
+	}
+}
+
 func TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion(t *testing.T) {
 	cases := []struct {
 		name  string
