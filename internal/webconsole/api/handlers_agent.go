@@ -733,6 +733,21 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	var valid bool
+	req.CLI, req.Model, req.AllowedModels, req.AllowedExecutors, valid = s.validateAgentRuntimeConfig(
+		w, r, d, a.OrganizationID(), req.CLI, req.Model, req.AllowedModels, req.AllowedExecutors,
+	)
+	if !valid {
+		return
+	}
+	req.OrchestratorModel, valid = s.validateRuntimeModelValue(w, r, d, a.OrganizationID(), req.OrchestratorModel)
+	if !valid {
+		return
+	}
+	req.DefaultExecutorModel, valid = s.validateRuntimeModelValue(w, r, d, a.OrganizationID(), req.DefaultExecutorModel)
+	if !valid {
+		return
+	}
 	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		EnvVars:           req.EnvVars,

@@ -118,7 +118,7 @@ test.describe("AI Runtime deployed-binary browser acceptance", () => {
       );
       await page.getByTestId("ai-runtime-model-import-preview-btn").click();
       await expect(page.getByTestId("ai-runtime-model-import-change").filter({ hasText: "gpt-browser" })).toBeVisible();
-      await expect(page.getByTestId("ai-runtime-model-import-scope")).toContainText("Profiles");
+      await expect(page.getByTestId("ai-runtime-model-import-scope")).not.toContainText("Profiles");
       await page.getByTestId("ai-runtime-model-import-apply").click();
       await expect(page.getByTestId("ai-runtime-model-import-applied")).toContainText("New revision");
       await page.getByRole("button", { name: "Close" }).click();
@@ -129,13 +129,8 @@ test.describe("AI Runtime deployed-binary browser acceptance", () => {
       await page.getByTestId("ai-runtime-model-display-name").fill("GPT Browser Updated");
       await page.getByTestId("ai-runtime-form-save").click();
       await expect(page.getByTestId("ai-runtime-model-row").filter({ hasText: "GPT Browser Updated" })).toBeVisible();
-
-      await page.getByTestId("ai-runtime-tab-profiles").click();
-      await page.getByTestId("ai-runtime-create-profile").click();
-      await page.getByTestId("ai-runtime-profile-key").fill("browser-profile");
-      await page.getByTestId("ai-runtime-profile-name").fill("Browser profile");
-      await page.getByTestId("ai-runtime-form-save").click();
-      await expect(page.getByTestId("ai-runtime-profile-row").filter({ hasText: "Browser profile" })).toBeVisible();
+      await expect(page.getByTestId("ai-runtime-tab-profiles")).toHaveCount(0);
+      await expect(page.getByTestId("ai-runtime-create-profile")).toHaveCount(0);
       await test.info().attach("ai-runtime-owner-edit-import.png", {
         body: await page.screenshot({ fullPage: true }),
         contentType: "image/png",
@@ -145,9 +140,9 @@ test.describe("AI Runtime deployed-binary browser acceptance", () => {
       await memberPage.goto(`${agentCenter.baseURL}/organizations/${owner.organization_slug}/ai-runtime`);
       await expect(memberPage.getByTestId("page-AiRuntime")).toBeVisible();
       await expect(memberPage.getByTestId("ai-runtime-permission")).toHaveAttribute("data-can-manage", "false");
+      await expect(memberPage.getByTestId("ai-runtime-tab-profiles")).toHaveCount(0);
       await expect(memberPage.getByTestId("ai-runtime-create-profile")).toHaveCount(0);
       await expect(memberPage.getByTestId("ai-runtime-edit-profile")).toHaveCount(0);
-      await memberPage.getByTestId("ai-runtime-tab-models").click();
       await expect(memberPage.getByTestId("ai-runtime-import-models")).toHaveCount(0);
       await expect(memberPage.getByTestId("ai-runtime-edit-model")).toHaveCount(0);
       await memberPage.getByTestId("ai-runtime-tab-clis").click();

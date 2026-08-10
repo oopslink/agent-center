@@ -10,6 +10,12 @@ type LegacyRuntime struct {
 	Model string `json:"model,omitempty"`
 }
 
+type LegacyAgentRuntimeConfig struct {
+	CLI              string
+	Model            string
+	AllowedExecutors []LegacyRuntime
+}
+
 type MigrationIssue struct {
 	Reason   Reason         `json:"reason"`
 	Message  string         `json:"message"`
@@ -28,6 +34,28 @@ type LegacyAdapter struct {
 
 func NewLegacyAdapter(resolver *RuntimeResolver, counter LegacyFallbackCounter) *LegacyAdapter {
 	return &LegacyAdapter{resolver: resolver, counter: counter}
+}
+
+// ValidateLegacyAgentRuntimeConfig is the server-side contract for migration-window
+// Agent config writes that still persist legacy cli/model/allowed_executors fields.
+// It uses the AI Runtime catalog as the selectable source of truth while preserving
+// the legacy storage shape: Model is the runtime model string (ModelDefinition.model_key).
+func (s *Service) ValidateLegacyAgentRuntimeConfig(ctx context.Context, orgID string, cfg LegacyAgentRuntimeConfig) error {
+	catalog, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.Model) != "" {
+		if err := validateLegacyRuntimePair(catalog, cfg.CLI, cfg.Model); err != nil {
+			return err
+		}
+	}
+	for _, exec := range cfg.AllowedExecutors {
+		if err := validateLegacyRuntimePair(catalog, exec.CLI, exec.Model); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Resolve applies the migration-window precedence: explicit new selection, exact
@@ -77,6 +105,27 @@ func findLegacyModel(items []ModelDefinition, raw string) *ModelDefinition {
 		if raw == items[i].Key || raw == items[i].ModelKey {
 			return &items[i]
 		}
+	}
+	return nil
+}
+
+func validateLegacyRuntimePair(catalog Catalog, cliRaw, modelRaw string) error {
+	cli := findLegacyCLI(catalog.CLIs, cliRaw)
+	if cli == nil {
+		return runtimeError(ReasonCLINotFound, "runtime CLI not found", map[string]any{"cli_key": strings.TrimSpace(cliRaw)})
+	}
+	if !cli.Enabled {
+		return runtimeError(ReasonCLIDisabled, "runtime CLI is disabled", map[string]any{"cli_key": cli.Key})
+	}
+	model := findLegacyModel(catalog.Models, modelRaw)
+	if model == nil {
+		return runtimeError(ReasonModelNotFound, "runtime model not found", map[string]any{"model": strings.TrimSpace(modelRaw)})
+	}
+	if !model.Enabled {
+		return runtimeError(ReasonModelDisabled, "runtime model is disabled", map[string]any{"model_key": model.ModelKey})
+	}
+	if !containsString(model.CompatibleCLIKeys, cli.Key) {
+		return runtimeError(ReasonIncompatible, "model is not compatible with CLI", map[string]any{"cli_key": cli.Key, "model_key": model.ModelKey})
 	}
 	return nil
 }

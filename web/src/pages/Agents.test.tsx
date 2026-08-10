@@ -60,9 +60,48 @@ const seed = [
   agent('bot-3', { name: 'bot-3', lifecycle: 'error', availability: 'unavailable', worker_id: '' }),
 ];
 
+function runtimeCatalog() {
+  return http.get('/api/ai-runtime', () =>
+    HttpResponse.json({
+      org_id: 'org-test',
+      revision: 1,
+      default_runtime_profile_id: 'runtime-profile-default',
+      clis: [
+        { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
+        { id: 'runtime-cli-codex', key: 'codex', display_name: 'Codex CLI', executable: 'codex', enabled: true },
+      ],
+      models: [
+        { id: 'runtime-model-claude-opus', key: 'claude-opus-4-8', model_key: 'claude-opus-4-8', display_name: 'Claude Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+        { id: 'runtime-model-gpt', key: 'gpt-5', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
+      ],
+      profiles: [
+        { id: 'runtime-profile-default', key: 'default', name: 'Default', cli_key: 'claude-code', model_key: 'claude-opus-4-8', parameters: {}, enabled: true },
+      ],
+    }),
+  );
+}
+
+function fleetWithCreateWorker() {
+  return http.get('/api/fleet', () =>
+    HttpResponse.json({
+      tasks: [],
+      workers: [
+        {
+          worker_id: 'w-7',
+          name: 'box-7',
+          status: 'online',
+          active_count: 0,
+          capabilities: [{ agent_cli: 'claude-code', detected: true, enabled: true }],
+        },
+      ],
+      pending_issues: [],
+    }),
+  );
+}
+
 describe('Agents page', () => {
   beforeEach(() => {
-    server.use(http.get('/api/agents', () => HttpResponse.json({ agents: seed })));
+    server.use(runtimeCatalog(), http.get('/api/agents', () => HttpResponse.json({ agents: seed })));
   });
   afterEach(() => cleanup());
 
@@ -106,15 +145,7 @@ describe('Agents page', () => {
   });
 
   it('opens the create modal with a worker picker sourced from the fleet', async () => {
-    server.use(
-      http.get('/api/fleet', () =>
-        HttpResponse.json({
-          tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
-          pending_issues: [],
-        }),
-      ),
-    );
+    server.use(fleetWithCreateWorker());
     wrap(<Agents />);
     await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
     fireEvent.click(screen.getByTestId('agents-add-btn'));
@@ -129,13 +160,7 @@ describe('Agents page', () => {
   it('creates an agent through the modal', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/fleet', () =>
-        HttpResponse.json({
-          tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
-          pending_issues: [],
-        }),
-      ),
+      fleetWithCreateWorker(),
       // v2.7 #186/#77: POST /api/agents removed; Add Agent now posts to the
       // unified /api/members/agent (atomic identity-member + execution Agent).
       http.post('/api/members/agent', async ({ request }) => {
@@ -151,16 +176,16 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
-    // v2.7.1 #232: Model is pre-filled with the explicit default (not a
-    // placeholder) so leaving it untouched still submits a concrete value.
-    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe('claude-opus-4-8');
     // v2.7 #191: pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
-    // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
+    await waitFor(() =>
+      expect((screen.getByTestId('agent-create-model') as HTMLSelectElement).value).toBe('claude-opus-4-8'),
+    );
+    // CLI/model choices are sourced from Runtime catalog ∩ worker capabilities.
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
     expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
@@ -180,13 +205,7 @@ describe('Agents page', () => {
   it('T728: toggling the include-description switch off posts false', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/fleet', () =>
-        HttpResponse.json({
-          tasks: [],
-          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
-          pending_issues: [],
-        }),
-      ),
+      fleetWithCreateWorker(),
       http.post('/api/members/agent', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
@@ -204,6 +223,9 @@ describe('Agents page', () => {
       expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
     fireEvent.click(screen.getByTestId('agent-create-worker-option'));
+    await waitFor(() =>
+      expect((screen.getByTestId('agent-create-model') as HTMLSelectElement).value).toBe('claude-opus-4-8'),
+    );
     fireEvent.click(screen.getByTestId('agent-create-include-description')); // turn OFF
     fireEvent.click(screen.getByTestId('agent-create-submit'));
     await waitFor(() => expect(posted).not.toBeNull());

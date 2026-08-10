@@ -776,7 +776,12 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Assignee: pm.IdentityRef(assignee), Dispatch: req.Dispatch, Model: strings.TrimSpace(req.Model), RequiredCapabilities: req.RequiredCapabilities})
+	var valid bool
+	req.Model, valid = s.validateRuntimeModelValue(w, r, d, p.OrganizationID(), req.Model)
+	if !valid {
+		return
+	}
+	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Assignee: pm.IdentityRef(assignee), Dispatch: req.Dispatch, Model: req.Model, RequiredCapabilities: req.RequiredCapabilities})
 	if err != nil {
 		mapPMError(w, err)
 		return

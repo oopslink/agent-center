@@ -231,9 +231,6 @@ export interface RoleInput {
   description?: string;
 }
 
-export const CLIS = ['claude-code', 'codex', 'gemini-cli'] as const;
-export const MODELS = ['opus-4.8', 'sonnet-5', 'haiku-4.5', 'gpt-5'] as const;
-
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
 export const ROLE_COLORS: Record<string, string> = {
   planner: '#7C3AED',
@@ -680,8 +677,8 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
 }
 
 /** import_team_template — re-home an exported envelope into this org
- *  (POST /team-templates/import). The backend applies the same field defaults
- *  the fixture path used (role→coder, cli→claude-code, model→sonnet-5, etc). */
+ *  (POST /team-templates/import). The backend applies envelope defaults and
+ *  resolves missing runtime fields through the org AI Runtime default profile. */
 export function useImportTemplate() {
   const qc = useQueryClient();
   return useMutation({

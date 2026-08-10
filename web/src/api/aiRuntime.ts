@@ -32,37 +32,12 @@ export interface RuntimeModel {
   updated_at?: string;
 }
 
-export interface RuntimeProfile {
-  id: string;
-  key: string;
-  name: string;
-  description?: string;
-  cli_key: string;
-  model_key: string;
-  parameters?: Record<string, unknown>;
-  enabled: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface AIRuntimeCatalog {
   org_id?: string;
   revision: number;
-  default_runtime_profile_id?: string;
   clis: RuntimeCLI[];
   models: RuntimeModel[];
-  profiles: RuntimeProfile[];
 }
-
-export type RuntimeProfileInput = {
-  key: string;
-  name: string;
-  description?: string;
-  cli_key: string;
-  model_key: string;
-  parameters: Record<string, unknown>;
-  enabled: boolean;
-};
 
 export type RuntimeModelInput = {
   key: string;
@@ -87,16 +62,14 @@ export type RuntimeCLIInput = {
   enabled: boolean;
 };
 
-export type RuntimeEntityKind = 'profiles' | 'models' | 'clis';
+export type RuntimeEntityKind = 'models' | 'clis';
 
 export type RuntimeInputByKind = {
-  profiles: RuntimeProfileInput;
   models: RuntimeModelInput;
   clis: RuntimeCLIInput;
 };
 
 export type RuntimeEntryByKind = {
-  profiles: RuntimeProfile;
   models: RuntimeModel;
   clis: RuntimeCLI;
 };
@@ -131,30 +104,18 @@ export interface AIRuntimeExportModel {
   tier?: string;
 }
 
-export interface AIRuntimeExportProfile {
-  key: string;
-  name: string;
-  description?: string;
-  cli_key: string;
-  model_key: string;
-  parameters: Record<string, unknown>;
-  enabled: boolean;
-}
-
 export interface AIRuntimeExportDocument {
   schema_version: number;
   kind: 'agent-center-ai-runtime';
   exported_at: string;
   runtime: {
-    default_profile_key?: string;
     clis: AIRuntimeExportCLI[];
     models: AIRuntimeExportModel[];
-    profiles: AIRuntimeExportProfile[];
   };
 }
 
 export interface RuntimeImportItem {
-  entity_type: 'cli' | 'model' | 'profile' | string;
+  entity_type: 'cli' | 'model' | string;
   key: string;
   action: 'create' | 'update' | 'unchanged' | 'disable' | string;
 }
@@ -178,7 +139,6 @@ export interface RuntimeImportReport {
 
 export interface RuntimeImportPreviewResponse {
   report: RuntimeImportReport;
-  coverage: unknown[];
   validation_token: string;
   expires_at: string;
   document_sha256: string;
@@ -208,18 +168,6 @@ export function useAIRuntimeCatalog() {
   return useQuery({
     queryKey: qk.aiRuntimeCatalog(),
     queryFn: () => api.get<AIRuntimeCatalog>('/ai-runtime'),
-  });
-}
-
-export function useSetDefaultRuntimeProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { profileId: string; expectedRevision: number }) =>
-      api.put<{ revision: number; default_runtime_profile_id: string }>('/ai-runtime/default-profile', {
-        expected_revision: input.expectedRevision,
-        profile_id: input.profileId,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.aiRuntimeCatalog() }),
   });
 }
 

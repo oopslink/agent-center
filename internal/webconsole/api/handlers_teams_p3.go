@@ -99,12 +99,18 @@ func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	slots := templateSlotsFromReq(req.Roles)
+	var valid bool
+	slots, valid = s.validateTeamRuntimeSlots(w, r, d, orgID, slots)
+	if !valid {
+		return
+	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{
 		ID:          facadeIDGen.NewEntityID("teamtmpl"),
 		OrgID:       orgID,
 		Name:        req.Name,
 		Description: req.Description,
-		Roles:       templateSlotsFromReq(req.Roles),
+		Roles:       slots,
 		Curated:     true, // save persists the curated draft (design §9)
 		CreatedAt:   time.Now().UTC(),
 	})
@@ -161,8 +167,8 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	slots := make([]team.RoleSlot, 0, len(req.Roles))
 	for _, rr := range req.Roles {
 		role := firstNonEmpty(rr.Role, "coder")
-		cli := firstNonEmpty(rr.CLI, "claude-code")
-		model := firstNonEmpty(rr.Model, "sonnet-5")
+		cli := rr.CLI
+		model := rr.Model
 		tags := rr.CapabilityTags
 		if tags == nil {
 			tags = []string{}
@@ -179,6 +185,11 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 			Config: team.RoleConfig{Role: role, CLI: cli, Model: model, CapabilityTags: tags, MaxConcurrency: maxConc},
 			Count:  count,
 		})
+	}
+	var valid bool
+	slots, valid = s.validateTeamRuntimeSlots(w, r, d, orgID, slots)
+	if !valid {
+		return
 	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{
 		ID:                  facadeIDGen.NewEntityID("teamtmpl"),

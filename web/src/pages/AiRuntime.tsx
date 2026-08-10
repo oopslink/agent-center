@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useOrgs } from '@/api/auth';
@@ -10,19 +10,15 @@ import {
   useApplyRuntimeImport,
   useCreateRuntimeEntry,
   usePreviewRuntimeImport,
-  useSetDefaultRuntimeProfile,
   useUpdateRuntimeEntry,
   type AIRuntimeCatalog,
   type AIRuntimeExportCLI,
   type AIRuntimeExportDocument,
   type AIRuntimeExportModel,
-  type AIRuntimeExportProfile,
   type RuntimeCLI,
   type RuntimeCLIInput,
   type RuntimeModel,
   type RuntimeModelInput,
-  type RuntimeProfile,
-  type RuntimeProfileInput,
 } from '@/api/aiRuntime';
 import { currentOrgSlug } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
@@ -33,9 +29,9 @@ import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { useSystemSegments } from './useSystemSegments';
 
-type RuntimeTab = 'profiles' | 'models' | 'clis';
+type RuntimeTab = 'models' | 'clis';
 
-const TABS: RuntimeTab[] = ['profiles', 'models', 'clis'];
+const TABS: RuntimeTab[] = ['models', 'clis'];
 
 export default function AiRuntime(): React.ReactElement {
   const { t } = useTranslation('admin');
@@ -48,22 +44,15 @@ export default function AiRuntime(): React.ReactElement {
   const canManage = canManageAIRuntime(role);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as RuntimeTab | null;
-  const tab: RuntimeTab = tabParam && TABS.includes(tabParam) ? tabParam : 'profiles';
+  const tab: RuntimeTab = tabParam && TABS.includes(tabParam) ? tabParam : 'models';
   const systemSegments = useSystemSegments();
-  const [profileForm, setProfileForm] = useState<RuntimeProfile | 'new' | null>(null);
   const [modelForm, setModelForm] = useState<RuntimeModel | 'new' | null>(null);
   const [cliForm, setCLIForm] = useState<RuntimeCLI | 'new' | null>(null);
   const [modelImportOpen, setModelImportOpen] = useState(false);
 
-  const defaultProfile = useMemo(() => {
-    const data = catalog.data;
-    if (!data?.default_runtime_profile_id) return undefined;
-    return data.profiles.find((p) => p.id === data.default_runtime_profile_id);
-  }, [catalog.data]);
-
   const setTab = (next: RuntimeTab): void => {
     const params = new URLSearchParams(searchParams);
-    if (next === 'profiles') {
+    if (next === 'models') {
       params.delete('tab');
     } else {
       params.set('tab', next);
@@ -86,16 +75,6 @@ export default function AiRuntime(): React.ReactElement {
           <p className="max-w-3xl text-sm text-text-muted">{t('aiRuntime.subtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canManage && catalog.data && tab === 'profiles' && (
-            <button
-              type="button"
-              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-              data-testid="ai-runtime-create-profile"
-              onClick={() => setProfileForm('new')}
-            >
-              {t('aiRuntime.actions.newProfile')}
-            </button>
-          )}
           {canManage && catalog.data && tab === 'models' && (
             <>
               <button
@@ -159,9 +138,8 @@ export default function AiRuntime(): React.ReactElement {
       )}
       {catalog.isSuccess && (
         <>
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-3">
             <Summary label={t('aiRuntime.summary.revision')} value={String(catalog.data.revision)} />
-            <Summary label={t('aiRuntime.tabs.profiles')} value={String(catalog.data.profiles.length)} />
             <Summary label={t('aiRuntime.tabs.models')} value={String(catalog.data.models.length)} />
             <Summary label={t('aiRuntime.tabs.clis')} value={String(catalog.data.clis.length)} />
           </div>
@@ -191,16 +169,6 @@ export default function AiRuntime(): React.ReactElement {
               ))}
             </div>
             <div className="p-3">
-              {tab === 'profiles' && (
-                <ProfilesTable
-                  rows={catalog.data.profiles}
-                  defaultProfileId={catalog.data.default_runtime_profile_id}
-                  defaultProfileName={defaultProfile?.name}
-                  revision={catalog.data.revision}
-                  canManage={canManage}
-                  onEdit={setProfileForm}
-                />
-              )}
               {tab === 'models' && (
                 <ModelsTable
                   rows={catalog.data.models}
@@ -217,13 +185,6 @@ export default function AiRuntime(): React.ReactElement {
               )}
             </div>
           </div>
-          {profileForm && (
-            <RuntimeProfileForm
-              catalog={catalog.data}
-              entry={profileForm === 'new' ? undefined : profileForm}
-              onClose={() => setProfileForm(null)}
-            />
-          )}
           {modelForm && (
             <RuntimeModelForm
               catalog={catalog.data}
@@ -256,99 +217,6 @@ function Summary({ label, value }: { label: string; value: string }): React.Reac
   );
 }
 
-function ProfilesTable({
-  rows,
-  defaultProfileId,
-  defaultProfileName,
-  revision,
-  canManage,
-  onEdit,
-}: {
-  rows: RuntimeProfile[];
-  defaultProfileId?: string;
-  defaultProfileName?: string;
-  revision: number;
-  canManage: boolean;
-  onEdit: (entry: RuntimeProfile) => void;
-}): React.ReactElement {
-  const { t } = useTranslation('admin');
-  const setDefault = useSetDefaultRuntimeProfile();
-  if (rows.length === 0) {
-    return <EmptyState testId="ai-runtime-empty-profiles" title={t('aiRuntime.empty.profiles')} body={t('aiRuntime.empty.profilesBody')} />;
-  }
-  return (
-    <div className="overflow-x-auto">
-      {defaultProfileName && (
-        <p className="mb-2 text-xs text-text-muted" data-testid="ai-runtime-default-profile">
-          {t('aiRuntime.defaultProfile', { name: defaultProfileName })}
-        </p>
-      )}
-      <table className="w-full min-w-[48rem] text-left text-sm">
-        <thead className="text-xs uppercase tracking-wide text-text-muted">
-          <tr className="border-b border-border-base">
-            <th className="px-3 py-2">{t('aiRuntime.profile.name')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.profile.cli')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.profile.model')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.profile.parameters')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.profile.status')}</th>
-            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.profile.actions')}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => {
-            const isDefault = p.id === defaultProfileId;
-            return (
-              <tr key={p.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-profile-row">
-                <td className="px-3 py-2">
-                  <div className="font-medium text-text-primary">{p.name}</div>
-                  <div className="font-mono text-xs text-text-muted">{p.key}</div>
-                  {isDefault && (
-                    <span className="mt-1 inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
-                      {t('aiRuntime.profile.default')}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{p.cli_key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{p.model_key}</td>
-                <td className="px-3 py-2 font-mono text-xs text-text-muted">{paramCount(p.parameters)}</td>
-                <td className="px-3 py-2">
-                  <Status enabled={p.enabled} />
-                </td>
-                {canManage && (
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button
-                      type="button"
-                      className="text-xs text-accent hover:underline"
-                      data-testid="ai-runtime-edit-profile"
-                      onClick={() => onEdit(p)}
-                    >
-                      {t('aiRuntime.actions.edit')}
-                    </button>
-                    <button
-                      type="button"
-                      className="ml-3 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline"
-                      disabled={isDefault || !p.enabled || setDefault.isPending}
-                      data-testid="ai-runtime-set-default"
-                      onClick={() => setDefault.mutate({ profileId: p.id, expectedRevision: revision })}
-                    >
-                      {t('aiRuntime.profile.setDefault')}
-                    </button>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {setDefault.isError && (
-        <p className="mt-2 text-xs text-danger" role="alert" data-testid="ai-runtime-set-default-error">
-          {(setDefault.error as Error).message}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function ModelsTable({
   rows,
   canManage,
@@ -373,7 +241,7 @@ function ModelsTable({
             <th className="px-3 py-2">{t('aiRuntime.model.context')}</th>
             <th className="px-3 py-2">{t('aiRuntime.model.cost')}</th>
             <th className="px-3 py-2">{t('aiRuntime.model.status')}</th>
-            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.profile.actions')}</th>}
+            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -437,7 +305,7 @@ function CLIsTable({
             <th className="px-3 py-2">{t('aiRuntime.cli.version')}</th>
             <th className="px-3 py-2">{t('aiRuntime.cli.features')}</th>
             <th className="px-3 py-2">{t('aiRuntime.cli.status')}</th>
-            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.profile.actions')}</th>}
+            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -479,121 +347,6 @@ function CLIsTable({
         </tbody>
       </table>
     </div>
-  );
-}
-
-function RuntimeProfileForm({
-  catalog,
-  entry,
-  onClose,
-}: {
-  catalog: AIRuntimeCatalog;
-  entry?: RuntimeProfile;
-  onClose: () => void;
-}): React.ReactElement {
-  const { t } = useTranslation('admin');
-  const create = useCreateRuntimeEntry('profiles');
-  const update = useUpdateRuntimeEntry('profiles');
-  const initialModelKey = entry?.model_key ?? catalog.models[0]?.key ?? '';
-  const initialCLIKey = entry?.cli_key ?? compatibleCLIForModel(catalog, initialModelKey) ?? catalog.clis[0]?.key ?? '';
-  const [fields, setFields] = useState({
-    key: entry?.key ?? '',
-    name: entry?.name ?? '',
-    description: entry?.description ?? '',
-    cli_key: initialCLIKey,
-    model_key: initialModelKey,
-    parameters: prettyJSON(entry?.parameters ?? {}),
-    enabled: entry?.enabled ?? true,
-  });
-  const [parseError, setParseError] = useState('');
-  const mutation = entry ? update : create;
-
-  const submit = async (): Promise<void> => {
-    setParseError('');
-    let parameters: Record<string, unknown>;
-    try {
-      parameters = parseJSONObject(fields.parameters, t('aiRuntime.form.parameters'));
-    } catch (err) {
-      setParseError((err as Error).message);
-      return;
-    }
-    const value: RuntimeProfileInput = {
-      key: fields.key.trim(),
-      name: fields.name.trim(),
-      description: fields.description.trim(),
-      cli_key: fields.cli_key.trim(),
-      model_key: fields.model_key.trim(),
-      parameters,
-      enabled: fields.enabled,
-    };
-    try {
-      if (entry) {
-        await update.mutateAsync({ id: entry.id, expectedRevision: catalog.revision, value });
-      } else {
-        await create.mutateAsync({ expectedRevision: catalog.revision, value });
-      }
-      onClose();
-    } catch {
-      // surfaced below
-    }
-  };
-
-  return (
-    <Modal testId="ai-runtime-profile-form" title={entry ? t('aiRuntime.form.editProfile') : t('aiRuntime.form.newProfile')} onClose={onClose}>
-      <Field label={t('aiRuntime.form.key')}>
-        <input
-          className={inputClass}
-          value={fields.key}
-          disabled={!!entry}
-          onChange={(e) => setFields({ ...fields, key: e.target.value })}
-          data-testid="ai-runtime-profile-key"
-        />
-      </Field>
-      {entry && <ImmutableKeyHint />}
-      <Field label={t('aiRuntime.profile.name')}>
-        <input className={inputClass} value={fields.name} onChange={(e) => setFields({ ...fields, name: e.target.value })} data-testid="ai-runtime-profile-name" />
-      </Field>
-      <Field label={t('aiRuntime.form.description')}>
-        <textarea className={inputClass} rows={2} value={fields.description} onChange={(e) => setFields({ ...fields, description: e.target.value })} data-testid="ai-runtime-profile-description" />
-      </Field>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label={t('aiRuntime.profile.cli')}>
-          <select className={inputClass} value={fields.cli_key} onChange={(e) => setFields({ ...fields, cli_key: e.target.value })} data-testid="ai-runtime-profile-cli">
-            {catalog.clis.map((cli) => <option key={cli.key} value={cli.key}>{cli.key}</option>)}
-          </select>
-        </Field>
-        <Field label={t('aiRuntime.profile.model')}>
-          <select
-            className={inputClass}
-            value={fields.model_key}
-            onChange={(e) => {
-              const modelKey = e.target.value;
-              setFields({
-                ...fields,
-                model_key: modelKey,
-                cli_key: modelAllowsCLI(catalog, modelKey, fields.cli_key)
-                  ? fields.cli_key
-                  : compatibleCLIForModel(catalog, modelKey) ?? fields.cli_key,
-              });
-            }}
-            data-testid="ai-runtime-profile-model"
-          >
-            {catalog.models.map((model) => <option key={model.key} value={model.key}>{model.key}</option>)}
-          </select>
-        </Field>
-      </div>
-      <Field label={t('aiRuntime.form.parameters')}>
-        <textarea className={`${inputClass} font-mono`} rows={5} value={fields.parameters} onChange={(e) => setFields({ ...fields, parameters: e.target.value })} data-testid="ai-runtime-profile-parameters" />
-      </Field>
-      <Checkbox checked={fields.enabled} label={t('aiRuntime.form.enabled')} onChange={(enabled) => setFields({ ...fields, enabled })} testId="ai-runtime-profile-enabled" />
-      <FormFooter
-        busy={mutation.isPending}
-        error={parseError || mutationErrorMessage(mutation.error)}
-        saveDisabled={!fields.key.trim() || !fields.name.trim() || !fields.cli_key || !fields.model_key}
-        onCancel={onClose}
-        onSave={() => void submit()}
-      />
-    </Modal>
   );
 }
 
@@ -667,7 +420,7 @@ function RuntimeModelForm({
         <Field label={t('aiRuntime.model.modelKey')}>
           <input className={inputClass} value={fields.model_key} onChange={(e) => setFields({ ...fields, model_key: e.target.value })} data-testid="ai-runtime-model-model-key" />
         </Field>
-        <Field label={t('aiRuntime.profile.name')}>
+        <Field label={t('aiRuntime.model.name')}>
           <input className={inputClass} value={fields.display_name} onChange={(e) => setFields({ ...fields, display_name: e.target.value })} data-testid="ai-runtime-model-display-name" />
         </Field>
       </div>
@@ -851,7 +604,6 @@ function ModelImportModal({
   const diagnostics = preview.data?.report.diagnostics ?? importErrorReport(preview.error)?.diagnostics ?? [];
   const modelItems = previewItems.filter((item) => item.entity_type === 'model');
   const preservedCLIs = previewItems.filter((item) => item.entity_type === 'cli' && item.action === 'unchanged').length;
-  const preservedProfiles = previewItems.filter((item) => item.entity_type === 'profile' && item.action === 'unchanged').length;
 
   return (
     <Modal testId="ai-runtime-model-import" title={t('aiRuntime.import.title')} onClose={onClose} wide>
@@ -871,7 +623,7 @@ function ModelImportModal({
         data-testid="ai-runtime-model-import-json"
       />
       <div className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary" data-testid="ai-runtime-model-import-scope">
-        {t('aiRuntime.import.scope', { clis: catalog.clis.length, profiles: catalog.profiles.length })}
+        {t('aiRuntime.import.scope', { clis: catalog.clis.length })}
       </div>
       {(parseError || preview.isError || apply.isError) && (
         <p className="text-xs text-danger" role="alert" data-testid="ai-runtime-model-import-error">
@@ -882,7 +634,7 @@ function ModelImportModal({
         <div className="space-y-2" data-testid="ai-runtime-model-import-preview">
           <div className="flex flex-wrap gap-2 text-xs text-text-muted">
             <span>{t('aiRuntime.import.revision', { revision: preview.data?.report.revision ?? importErrorReport(preview.error)?.revision ?? catalog.revision })}</span>
-            <span>{t('aiRuntime.import.preserved', { clis: preservedCLIs, profiles: preservedProfiles })}</span>
+            <span>{t('aiRuntime.import.preserved', { clis: preservedCLIs })}</span>
             {preview.data?.document_sha256 && <span className="font-mono">{preview.data.document_sha256.slice(0, 12)}</span>}
           </div>
           {modelItems.length === 0 ? (
@@ -1080,22 +832,6 @@ function KeyList({ values }: { values: string[] }): React.ReactElement {
   );
 }
 
-function paramCount(parameters: Record<string, unknown> | undefined): string {
-  const count = Object.keys(parameters ?? {}).length;
-  return count === 0 ? '-' : String(count);
-}
-
-function compatibleCLIForModel(catalog: AIRuntimeCatalog, modelKey: string): string | undefined {
-  const model = catalog.models.find((m) => m.key === modelKey);
-  const cliKeys = new Set(catalog.clis.map((cli) => cli.key));
-  return model?.compatible_cli_keys?.find((key) => cliKeys.has(key));
-}
-
-function modelAllowsCLI(catalog: AIRuntimeCatalog, modelKey: string, cliKey: string): boolean {
-  const model = catalog.models.find((m) => m.key === modelKey);
-  return !!model?.compatible_cli_keys?.includes(cliKey);
-}
-
 function mutationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '';
 }
@@ -1145,7 +881,7 @@ function buildModelsOnlyImportDocument(catalog: AIRuntimeCatalog, raw: unknown):
   const existingModels = new Map(catalog.models.map((model) => [model.key, exportModel(model)]));
   const mergedModels = new Map(existingModels);
   const seen = new Set<string>();
-  const fallbackCLI = catalog.clis.find((cli) => cli.key === 'codex')?.key ?? catalog.clis[0]?.key;
+  const fallbackCLI = catalog.clis[0]?.key;
 
   raw.forEach((item, index) => {
     if (!isPlainRecord(item)) {
@@ -1163,16 +899,13 @@ function buildModelsOnlyImportDocument(catalog: AIRuntimeCatalog, raw: unknown):
     mergedModels.set(key, normalizeImportedModel(item, key, base, fallbackCLI, index));
   });
 
-  const defaultProfile = catalog.profiles.find((profile) => profile.id === catalog.default_runtime_profile_id);
   return {
     schema_version: 1,
     kind: 'agent-center-ai-runtime',
     exported_at: new Date().toISOString(),
     runtime: {
-      default_profile_key: defaultProfile?.key,
       clis: catalog.clis.map(exportCLI),
       models: Array.from(mergedModels.values()).sort((a, b) => a.key.localeCompare(b.key)),
-      profiles: catalog.profiles.map(exportProfile),
     },
   };
 }
@@ -1230,18 +963,6 @@ function exportModel(model: RuntimeModel): AIRuntimeExportModel {
     input_cost_per_mtok: model.input_cost_per_mtok,
     output_cost_per_mtok: model.output_cost_per_mtok,
     tier: model.tier,
-  };
-}
-
-function exportProfile(profile: RuntimeProfile): AIRuntimeExportProfile {
-  return {
-    key: profile.key,
-    name: profile.name,
-    description: profile.description,
-    cli_key: profile.cli_key,
-    model_key: profile.model_key,
-    parameters: profile.parameters ?? {},
-    enabled: profile.enabled,
   };
 }
 
