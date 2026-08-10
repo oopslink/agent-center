@@ -63,7 +63,6 @@ const catalog: AIRuntimeCatalog = {
       enabled: true,
     },
   ],
-  profiles: [],
 };
 
 function renderModel(
