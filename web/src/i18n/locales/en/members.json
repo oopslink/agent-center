@@ -317,6 +317,15 @@
         "enabled": "Concurrency ENABLED — up to {{count}} tasks in parallel.",
         "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor unit profile to run in parallel."
       },
+      "validation": {
+        "catalogLoading": "Loading Runtime and worker capabilities.",
+        "catalogMissing": "Runtime catalog is unavailable. Try again after it loads.",
+        "workerMissing": "The bound worker is not available in the current fleet snapshot.",
+        "cliUnavailable": "CLI {{cli}} is not enabled for the bound worker.",
+        "modelUnavailable": "Model {{model}} is not enabled for CLI {{cli}}.",
+        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled for the bound worker.",
+        "unavailableValue": "{{value}} (unavailable)"
+      },
       "gitWorktree": {
         "heading": "Executor workspace",
         "ariaLabel": "Enable isolated Git worktrees for executors",
@@ -549,15 +558,23 @@
       "descriptionLabel": "Description",
       "descriptionHint": "Optional. Shown in the agent list.",
       "modelLabel": "Model",
-      "modelHint": "Optional.",
+      "modelHint": "From the Runtime catalog, filtered by the selected worker and CLI.",
       "cliLabel": "CLI",
-      "cliHint": "v2.7 runs claude-code only (codex/opencode coming in v2.8).",
+      "cliHint": "From the selected worker's enabled Runtime capabilities.",
       "workerLabel": "Worker",
       "workerHint": "Sourced from Environment.",
       "workerSelectPlaceholder": "Select a worker…",
       "workerSearchPlaceholder": "Search workers…",
       "workerEmptyLabel": "No matching workers.",
       "noWorkers": "No workers in Environment yet — enroll a worker first.",
+      "validation": {
+        "catalogLoading": "Loading Runtime and worker capabilities.",
+        "catalogMissing": "Runtime catalog is unavailable. Try again after it loads.",
+        "workerMissing": "Select a worker before choosing Runtime options.",
+        "cliUnavailable": "CLI {{cli}} is not enabled for the selected worker.",
+        "modelUnavailable": "Model {{model}} is not enabled for CLI {{cli}}.",
+        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled for the selected worker."
+      },
       "cancel": "Cancel",
       "submit": "Create agent",
       "submitting": "Creating...",
