@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -138,6 +140,134 @@ func TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shap
 		if task.Status() != pm.TaskDiscarded {
 			t.Fatalf("historical task %s status=%s want discarded", id, task.Status())
 		}
+	}
+}
+
+func TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	const planID pm.PlanID = "plan-5a432139"
+	p, err := pm.NewPlan(pm.NewPlanInput{
+		ID: planID, ProjectID: pid, Name: "legacy remediation Plan", CreatorRef: "user:a", CreatedAt: h.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.Save(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+
+	prep := make([]pm.TaskID, 0, 8)
+	for _, title := range []string{
+		"T1278 baseline prep",
+		"T1279 executor slot acceptance",
+		"T1280 read model audit",
+		"T1281 deployment prep",
+		"T1282 integration evidence",
+		"T1283 regression sweep",
+		"T1284 release notes",
+		"T1285 branch hygiene",
+	} {
+		prep = append(prep, h.seedAssignedTask(t, pid, planID, title, "user:dev"))
+	}
+	oldT1286 := h.seedAssignedTask(t, pid, planID, "T1286 legacy failed remediation attempt", "user:dev1")
+	oldT1287 := h.seedAssignedTask(t, pid, planID, "T1287 legacy failed verification attempt", "user:qa1")
+	recovery := h.seedAssignedTask(t, pid, planID, "T1288 recovery for T1286/T1287", "user:dev2")
+	remediation := h.seedAssignedTask(t, pid, planID, "T1289 remediation for T1286/T1287", "user:dev3")
+	ship := h.seedAssignedTask(t, pid, planID, "T1290 ship: remediation branch -> main", "user:ship")
+	finalAcceptance := h.seedAssignedTask(t, pid, planID, "T1291 final acceptance", "user:pd")
+
+	for i := 1; i < len(prep); i++ {
+		if err := h.svc.AddPlanDependency(ctx, planID, prep[i], prep[i-1], "user:a"); err != nil {
+			t.Fatalf("AddPlanDependency(prep %d): %v", i, err)
+		}
+	}
+	for _, dep := range []struct {
+		from pm.TaskID
+		to   pm.TaskID
+	}{
+		{oldT1286, prep[2]},
+		{oldT1287, prep[3]},
+		{recovery, prep[len(prep)-1]},
+		{remediation, recovery},
+		{ship, remediation},
+		{finalAcceptance, ship},
+	} {
+		if err := h.svc.AddPlanDependency(ctx, planID, dep.from, dep.to, "user:a"); err != nil {
+			t.Fatalf("AddPlanDependency(%s,%s): %v", dep.from, dep.to, err)
+		}
+	}
+
+	for _, id := range prep {
+		h.setTaskStatus(t, id, pm.TaskCompleted)
+	}
+	h.setTaskStatus(t, oldT1286, pm.TaskDiscarded)
+	h.setTaskStatus(t, oldT1287, pm.TaskDiscarded)
+	h.setTaskStatus(t, recovery, pm.TaskCompleted)
+	h.setTaskStatus(t, remediation, pm.TaskCompleted)
+	h.setTaskStatus(t, ship, pm.TaskCompleted)
+	h.setTaskStatus(t, finalAcceptance, pm.TaskCompleted)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+
+	rawTasks, err := h.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawEdges, err := h.plans.ListDependencies(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawView := pm.DerivePlanView(rawTasks, rawEdges, nil, nil, nil)
+	if !slices.Contains(rawView.ActiveFailures, oldT1286) || !slices.Contains(rawView.ActiveFailures, oldT1287) {
+		t.Fatalf("raw active_failures=%v want T1286/T1287 legacy failures", rawView.ActiveFailures)
+	}
+	rawIncompleteLeaves := incompleteEffectiveLeaves(rawView, rawEdges)
+	if !slices.Contains(rawIncompleteLeaves, oldT1286) || !slices.Contains(rawIncompleteLeaves, oldT1287) {
+		t.Fatalf("raw incomplete_effective_leaf=%v want T1286/T1287", rawIncompleteLeaves)
+	}
+
+	if err := h.svc.CompletePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("CompletePlan legacy plan-5a432139 shape: %v", err)
+	}
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Plan.Status() != pm.PlanDone {
+		t.Fatalf("plan status=%s want done", detail.Plan.Status())
+	}
+	if len(detail.View.Nodes) != 14 {
+		t.Fatalf("nodes=%d want real legacy 14-node shape", len(detail.View.Nodes))
+	}
+	if detail.View.Progress.Done != 12 || detail.View.Progress.Total != 12 {
+		t.Fatalf("progress=%+v want current effective 12/12", detail.View.Progress)
+	}
+	if len(detail.View.ActiveFailures) != 0 || len(detail.View.HistoricalFailures) != 2 {
+		t.Fatalf("active_failures=%v historical_failures=%v want 0 active, 2 historical", detail.View.ActiveFailures, detail.View.HistoricalFailures)
+	}
+	nodes := nodesByID(detail.View.Nodes)
+	for _, id := range []pm.TaskID{oldT1286, oldT1287} {
+		node := nodes[id]
+		if node.NodeStatus != pm.NodeFailed || node.Effective || node.SupersededReason != "legacy_completed_remediation" {
+			t.Fatalf("legacy node %s=%+v want failed historical legacy remediation", id, node)
+		}
+		task, err := h.tasks.FindByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.Status() != pm.TaskDiscarded || task.FollowsTaskID() != "" || task.OriginVerdictID() != "" {
+			t.Fatalf("legacy task %s mutated: status=%s follows=%s origin=%s", id, task.Status(), task.FollowsTaskID(), task.OriginVerdictID())
+		}
+	}
+	edgesAfter, err := h.plans.ListDependencies(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edgesAfter) != len(rawEdges) {
+		t.Fatalf("dependencies changed: before=%d after=%d", len(rawEdges), len(edgesAfter))
 	}
 }
 
@@ -295,6 +425,40 @@ func TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion(t *test
 	}
 	if len(detail.View.HistoricalFailures) != 0 {
 		t.Fatalf("historical_failures=%v want none for unreplaced failure", detail.View.HistoricalFailures)
+	}
+}
+
+func TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy failed leaf without remediation", CreatedBy: "user:a"})
+	h.drain(t)
+	failed := h.seedAssignedTask(t, pid, planID, "T1286 failed implementation", "user:dev")
+	finalAcceptance := h.seedAssignedTask(t, pid, planID, "final acceptance", "user:pd")
+	h.setTaskStatus(t, failed, pm.TaskDiscarded)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.setTaskStatus(t, finalAcceptance, pm.TaskCompleted)
+	p, _ := h.plans.FindByID(ctx, planID)
+	if p.Status() != pm.PlanRunning {
+		t.Fatalf("plan status=%s want running; failed leaf has no recovery chain", p.Status())
+	}
+	err := h.svc.CompletePlan(ctx, planID, "user:a")
+	if !errors.Is(err, pm.ErrPlanNotComplete) {
+		t.Fatalf("CompletePlan err=%v want ErrPlanNotComplete", err)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "unreplaced_failed:") || !strings.Contains(msg, "incomplete_effective_leaf:") {
+		t.Fatalf("CompletePlan err=%q want unreplaced_failed and incomplete_effective_leaf", msg)
+	}
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.View.ActiveFailures) != 1 || detail.View.ActiveFailures[0] != failed {
+		t.Fatalf("active_failures=%v want [%s]", detail.View.ActiveFailures, failed)
 	}
 }
 

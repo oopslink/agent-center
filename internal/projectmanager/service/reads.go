@@ -759,7 +759,7 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
-	opts, err := s.planViewOptions(ctx, p, tasks)
+	opts, err := s.planViewOptions(ctx, p, tasks, edges)
 	if err != nil {
 		return nil, err
 	}
@@ -1038,7 +1038,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		tasks := tasksByPlan[p.ID()]
 		// T807 ④: list enrich reads the plan view off DerivePlanView (no DerivePlanView
 		// in the reader path); byte-for-byte with the prior derivation.
-		opts, err := s.planViewOptions(ctx, p, tasks)
+		opts, err := s.planViewOptions(ctx, p, tasks, edgesByPlan[p.ID()])
 		if err != nil {
 			return nil, 0, err
 		}
