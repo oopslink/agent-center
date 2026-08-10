@@ -46,10 +46,12 @@ describe('AiRuntime page', () => {
     expect(screen.getByTestId('ai-runtime-create-model')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-import-models')).toBeInTheDocument();
     expect(screen.getAllByTestId('ai-runtime-edit-model').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('ai-runtime-disable-model').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByTestId('ai-runtime-tab-clis'));
     expect(await screen.findByText('Codex CLI')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-create-cli')).toBeInTheDocument();
     expect(screen.getAllByTestId('ai-runtime-edit-cli').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('ai-runtime-disable-cli').length).toBeGreaterThan(0);
   });
 
   it('keeps organization members read-only while leaving the page visible', async () => {
@@ -73,9 +75,11 @@ describe('AiRuntime page', () => {
     expect(screen.queryByTestId('ai-runtime-create-model')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-import-models')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-edit-model')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-runtime-disable-model')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('ai-runtime-tab-clis'));
     expect(screen.queryByTestId('ai-runtime-create-cli')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-edit-cli')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-runtime-disable-cli')).not.toBeInTheDocument();
   });
 
   it('ignores the retired profiles tab URL and keeps the Models tab active', async () => {
@@ -154,6 +158,75 @@ describe('AiRuntime page', () => {
             input_cost_per_mtok: 1.25,
             output_cost_per_mtok: 10,
             tier: 'frontier',
+          },
+        },
+      }),
+    );
+  });
+
+  it('disables a runtime model through the revisioned PATCH endpoint', async () => {
+    let payload: unknown = null;
+    server.use(
+      http.patch('/api/orgs/:slug/ai-runtime/models/:id', async ({ params, request }) => {
+        payload = { slug: params.slug, id: params.id, body: await request.json() };
+        return HttpResponse.json({ revision: 4, entry: { id: params.id } });
+      }),
+    );
+    renderPage('/organizations/test/ai-runtime?tab=models');
+    expect(await screen.findByText('GPT-5')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTestId('ai-runtime-disable-model')[0]);
+    expect(await screen.findByTestId('confirm-modal-message')).toHaveTextContent('GPT-5');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() =>
+      expect(payload).toEqual({
+        slug: 'test',
+        id: 'runtime-model-gpt-5',
+        body: {
+          expected_revision: 3,
+          value: {
+            key: 'gpt-5',
+            model_key: 'gpt-5',
+            display_name: 'GPT-5',
+            compatible_cli_keys: ['codex'],
+            default_parameters: {},
+            enabled: false,
+            context_window: 400000,
+            input_cost_per_mtok: 1.25,
+            output_cost_per_mtok: 10,
+            tier: 'frontier',
+          },
+        },
+      }),
+    );
+  });
+
+  it('disables a runtime CLI through the revisioned PATCH endpoint', async () => {
+    let payload: unknown = null;
+    server.use(
+      http.patch('/api/orgs/:slug/ai-runtime/clis/:id', async ({ params, request }) => {
+        payload = { slug: params.slug, id: params.id, body: await request.json() };
+        return HttpResponse.json({ revision: 4, entry: { id: params.id } });
+      }),
+    );
+    renderPage('/organizations/test/ai-runtime?tab=clis');
+    expect(await screen.findByText('Codex CLI')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTestId('ai-runtime-disable-cli')[0]);
+    expect(await screen.findByTestId('confirm-modal-message')).toHaveTextContent('Claude Code');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() =>
+      expect(payload).toEqual({
+        slug: 'test',
+        id: 'runtime-cli-claude-code',
+        body: {
+          expected_revision: 3,
+          value: {
+            key: 'claude-code',
+            display_name: 'Claude Code',
+            executable: 'claude',
+            version_constraint: '>=1.0.0',
+            required_features: ['workspace'],
+            parameter_schema: {},
+            enabled: false,
           },
         },
       }),

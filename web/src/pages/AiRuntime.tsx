@@ -25,6 +25,7 @@ import { useOptionalOrgContext } from '@/OrgContext';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { useSystemSegments } from './useSystemSegments';
@@ -173,6 +174,7 @@ export default function AiRuntime(): React.ReactElement {
                 <ModelsTable
                   rows={catalog.data.models}
                   canManage={canManage}
+                  revision={catalog.data.revision}
                   onEdit={setModelForm}
                 />
               )}
@@ -180,6 +182,7 @@ export default function AiRuntime(): React.ReactElement {
                 <CLIsTable
                   rows={catalog.data.clis}
                   canManage={canManage}
+                  revision={catalog.data.revision}
                   onEdit={setCLIForm}
                 />
               )}
@@ -220,133 +223,233 @@ function Summary({ label, value }: { label: string; value: string }): React.Reac
 function ModelsTable({
   rows,
   canManage,
+  revision,
   onEdit,
 }: {
   rows: RuntimeModel[];
   canManage: boolean;
+  revision: number;
   onEdit: (entry: RuntimeModel) => void;
 }): React.ReactElement {
   const { t } = useTranslation('admin');
+  const update = useUpdateRuntimeEntry('models');
+  const [pendingDisable, setPendingDisable] = useState<RuntimeModel | null>(null);
+  const setEnabled = (entry: RuntimeModel, enabled: boolean): void => {
+    update.mutate(
+      { id: entry.id, expectedRevision: revision, value: modelToInput(entry, enabled) },
+      { onSuccess: () => setPendingDisable(null) },
+    );
+  };
   if (rows.length === 0) {
     return <EmptyState testId="ai-runtime-empty-models" title={t('aiRuntime.empty.models')} body={t('aiRuntime.empty.modelsBody')} />;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[54rem] text-left text-sm">
-        <thead className="text-xs uppercase tracking-wide text-text-muted">
-          <tr className="border-b border-border-base">
-            <th className="px-3 py-2">{t('aiRuntime.model.name')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.model.modelKey')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.model.compatibleCli')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.model.context')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.model.cost')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.model.status')}</th>
-            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((m) => (
-            <tr key={m.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-model-row">
-              <td className="px-3 py-2">
-                <div className="font-medium text-text-primary">{m.display_name}</div>
-                <div className="font-mono text-xs text-text-muted">{m.key}</div>
-              </td>
-              <td className="px-3 py-2 font-mono text-xs text-text-secondary">{m.model_key}</td>
-              <td className="px-3 py-2">
-                <KeyList values={m.compatible_cli_keys ?? []} />
-              </td>
-              <td className="px-3 py-2 text-text-secondary">{m.context_window ? m.context_window.toLocaleString() : '-'}</td>
-              <td className="px-3 py-2 text-text-secondary">
-                {m.input_cost_per_mtok ?? '-'} / {m.output_cost_per_mtok ?? '-'}
-              </td>
-              <td className="px-3 py-2">
-                <Status enabled={m.enabled} />
-              </td>
-              {canManage && (
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    className="text-xs text-accent hover:underline"
-                    data-testid="ai-runtime-edit-model"
-                    onClick={() => onEdit(m)}
-                  >
-                    {t('aiRuntime.actions.edit')}
-                  </button>
-                </td>
-              )}
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[54rem] text-left text-sm">
+          <thead className="text-xs uppercase tracking-wide text-text-muted">
+            <tr className="border-b border-border-base">
+              <th className="px-3 py-2">{t('aiRuntime.model.name')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.model.modelKey')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.model.compatibleCli')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.model.context')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.model.cost')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.model.status')}</th>
+              {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-model-row">
+                <td className="px-3 py-2">
+                  <div className="font-medium text-text-primary">{m.display_name}</div>
+                  <div className="font-mono text-xs text-text-muted">{m.key}</div>
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{m.model_key}</td>
+                <td className="px-3 py-2">
+                  <KeyList values={m.compatible_cli_keys ?? []} />
+                </td>
+                <td className="px-3 py-2 text-text-secondary">{m.context_window ? m.context_window.toLocaleString() : '-'}</td>
+                <td className="px-3 py-2 text-text-secondary">
+                  {m.input_cost_per_mtok ?? '-'} / {m.output_cost_per_mtok ?? '-'}
+                </td>
+                <td className="px-3 py-2">
+                  <Status enabled={m.enabled} />
+                </td>
+                {canManage && (
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        className="text-xs text-accent hover:underline"
+                        data-testid="ai-runtime-edit-model"
+                        onClick={() => onEdit(m)}
+                      >
+                        {t('aiRuntime.actions.edit')}
+                      </button>
+                      {m.enabled ? (
+                        <button
+                          type="button"
+                          className="text-xs text-danger hover:underline disabled:opacity-50"
+                          data-testid="ai-runtime-disable-model"
+                          disabled={update.isPending}
+                          onClick={() => setPendingDisable(m)}
+                        >
+                          {t('aiRuntime.actions.disable')}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-accent hover:underline disabled:opacity-50"
+                          data-testid="ai-runtime-enable-model"
+                          disabled={update.isPending}
+                          onClick={() => setEnabled(m, true)}
+                        >
+                          {t('aiRuntime.actions.enable')}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {update.isError && (
+        <p className="mt-2 text-xs text-danger" role="alert" data-testid="ai-runtime-model-toggle-error">
+          {mutationErrorMessage(update.error)}
+        </p>
+      )}
+      <ConfirmModal
+        open={pendingDisable != null}
+        title={t('aiRuntime.disableConfirm.modelTitle')}
+        message={pendingDisable ? t('aiRuntime.disableConfirm.modelMessage', { name: pendingDisable.display_name || pendingDisable.key }) : ''}
+        confirmLabel={t('aiRuntime.actions.disable')}
+        danger
+        busy={update.isPending}
+        onConfirm={() => pendingDisable && setEnabled(pendingDisable, false)}
+        onCancel={() => setPendingDisable(null)}
+      />
+    </>
   );
 }
 
 function CLIsTable({
   rows,
   canManage,
+  revision,
   onEdit,
 }: {
   rows: RuntimeCLI[];
   canManage: boolean;
+  revision: number;
   onEdit: (entry: RuntimeCLI) => void;
 }): React.ReactElement {
   const { t } = useTranslation('admin');
+  const update = useUpdateRuntimeEntry('clis');
+  const [pendingDisable, setPendingDisable] = useState<RuntimeCLI | null>(null);
+  const setEnabled = (entry: RuntimeCLI, enabled: boolean): void => {
+    update.mutate(
+      { id: entry.id, expectedRevision: revision, value: cliToInput(entry, enabled) },
+      { onSuccess: () => setPendingDisable(null) },
+    );
+  };
   if (rows.length === 0) {
     return <EmptyState testId="ai-runtime-empty-clis" title={t('aiRuntime.empty.clis')} body={t('aiRuntime.empty.clisBody')} />;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[48rem] text-left text-sm">
-        <thead className="text-xs uppercase tracking-wide text-text-muted">
-          <tr className="border-b border-border-base">
-            <th className="px-3 py-2">{t('aiRuntime.cli.name')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.cli.executable')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.cli.version')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.cli.features')}</th>
-            <th className="px-3 py-2">{t('aiRuntime.cli.status')}</th>
-            {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((cli) => (
-            <tr key={cli.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-cli-row">
-              <td className="px-3 py-2">
-                <div className="font-medium text-text-primary">{cli.display_name}</div>
-                <div className="font-mono text-xs text-text-muted">
-                  {cli.key}
-                  {cli.system && (
-                    <span className="ml-2 rounded bg-bg-subtle px-1.5 py-0.5 font-sans text-[0.6875rem] uppercase text-text-muted">
-                      {t('aiRuntime.cli.system')}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className="px-3 py-2 font-mono text-xs text-text-secondary">{cli.executable}</td>
-              <td className="px-3 py-2 text-text-secondary">{cli.version_constraint || '-'}</td>
-              <td className="px-3 py-2">
-                <KeyList values={cli.required_features ?? []} />
-              </td>
-              <td className="px-3 py-2">
-                <Status enabled={cli.enabled} />
-              </td>
-              {canManage && (
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    className="text-xs text-accent hover:underline"
-                    data-testid="ai-runtime-edit-cli"
-                    onClick={() => onEdit(cli)}
-                  >
-                    {t('aiRuntime.actions.edit')}
-                  </button>
-                </td>
-              )}
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[48rem] text-left text-sm">
+          <thead className="text-xs uppercase tracking-wide text-text-muted">
+            <tr className="border-b border-border-base">
+              <th className="px-3 py-2">{t('aiRuntime.cli.name')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.cli.executable')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.cli.version')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.cli.features')}</th>
+              <th className="px-3 py-2">{t('aiRuntime.cli.status')}</th>
+              {canManage && <th className="px-3 py-2 text-right">{t('aiRuntime.common.actions')}</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((cli) => (
+              <tr key={cli.id} className="border-b border-border-base last:border-0" data-testid="ai-runtime-cli-row">
+                <td className="px-3 py-2">
+                  <div className="font-medium text-text-primary">{cli.display_name}</div>
+                  <div className="font-mono text-xs text-text-muted">
+                    {cli.key}
+                    {cli.system && (
+                      <span className="ml-2 rounded bg-bg-subtle px-1.5 py-0.5 font-sans text-[0.6875rem] uppercase text-text-muted">
+                        {t('aiRuntime.cli.system')}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-text-secondary">{cli.executable}</td>
+                <td className="px-3 py-2 text-text-secondary">{cli.version_constraint || '-'}</td>
+                <td className="px-3 py-2">
+                  <KeyList values={cli.required_features ?? []} />
+                </td>
+                <td className="px-3 py-2">
+                  <Status enabled={cli.enabled} />
+                </td>
+                {canManage && (
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        className="text-xs text-accent hover:underline"
+                        data-testid="ai-runtime-edit-cli"
+                        onClick={() => onEdit(cli)}
+                      >
+                        {t('aiRuntime.actions.edit')}
+                      </button>
+                      {cli.enabled ? (
+                        <button
+                          type="button"
+                          className="text-xs text-danger hover:underline disabled:opacity-50"
+                          data-testid="ai-runtime-disable-cli"
+                          disabled={update.isPending}
+                          onClick={() => setPendingDisable(cli)}
+                        >
+                          {t('aiRuntime.actions.disable')}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-accent hover:underline disabled:opacity-50"
+                          data-testid="ai-runtime-enable-cli"
+                          disabled={update.isPending}
+                          onClick={() => setEnabled(cli, true)}
+                        >
+                          {t('aiRuntime.actions.enable')}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {update.isError && (
+        <p className="mt-2 text-xs text-danger" role="alert" data-testid="ai-runtime-cli-toggle-error">
+          {mutationErrorMessage(update.error)}
+        </p>
+      )}
+      <ConfirmModal
+        open={pendingDisable != null}
+        title={t('aiRuntime.disableConfirm.cliTitle')}
+        message={pendingDisable ? t('aiRuntime.disableConfirm.cliMessage', { name: pendingDisable.display_name || pendingDisable.key }) : ''}
+        confirmLabel={t('aiRuntime.actions.disable')}
+        danger
+        busy={update.isPending}
+        onConfirm={() => pendingDisable && setEnabled(pendingDisable, false)}
+        onCancel={() => setPendingDisable(null)}
+      />
+    </>
   );
 }
 
@@ -834,6 +937,33 @@ function KeyList({ values }: { values: string[] }): React.ReactElement {
 
 function mutationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '';
+}
+
+function modelToInput(entry: RuntimeModel, enabled = entry.enabled): RuntimeModelInput {
+  return {
+    key: entry.key,
+    model_key: entry.model_key,
+    display_name: entry.display_name,
+    compatible_cli_keys: entry.compatible_cli_keys ?? [],
+    default_parameters: entry.default_parameters ?? {},
+    enabled,
+    context_window: entry.context_window,
+    input_cost_per_mtok: entry.input_cost_per_mtok,
+    output_cost_per_mtok: entry.output_cost_per_mtok,
+    tier: entry.tier,
+  };
+}
+
+function cliToInput(entry: RuntimeCLI, enabled = entry.enabled): RuntimeCLIInput {
+  return {
+    key: entry.key,
+    display_name: entry.display_name,
+    executable: entry.executable,
+    version_constraint: entry.version_constraint,
+    required_features: entry.required_features ?? [],
+    parameter_schema: entry.parameter_schema,
+    enabled,
+  };
 }
 
 function importErrorReport(error: unknown) {

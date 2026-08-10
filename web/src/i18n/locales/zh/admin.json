@@ -355,7 +355,9 @@
       "newModel": "新建 Model",
       "newCLI": "新建 CLI",
       "importModels": "导入 Models",
-      "edit": "编辑"
+      "edit": "编辑",
+      "disable": "停用",
+      "enable": "启用"
     },
     "permissions": {
       "unknownRole": "成员",
@@ -398,6 +400,12 @@
     "status": {
       "enabled": "启用",
       "disabled": "停用"
+    },
+    "disableConfirm": {
+      "modelTitle": "停用 Runtime Model？",
+      "modelMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但新的运行时选择不会再提供该模型。",
+      "cliTitle": "停用 Runtime CLI？",
+      "cliMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供该 CLI。"
     },
     "form": {
       "newModel": "新建 Model",

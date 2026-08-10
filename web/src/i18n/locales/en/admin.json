@@ -355,7 +355,9 @@
       "newModel": "New model",
       "newCLI": "New CLI",
       "importModels": "Import models",
-      "edit": "Edit"
+      "edit": "Edit",
+      "disable": "Disable",
+      "enable": "Enable"
     },
     "permissions": {
       "unknownRole": "member",
@@ -398,6 +400,12 @@
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "disableConfirm": {
+      "modelTitle": "Disable runtime model?",
+      "modelMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but new runtime selection will not offer this model.",
+      "cliTitle": "Disable runtime CLI?",
+      "cliMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but workers and new runtime selection will not offer this CLI."
     },
     "form": {
       "newModel": "New model",
