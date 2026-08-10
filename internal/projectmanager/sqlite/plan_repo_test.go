@@ -127,6 +127,99 @@ func TestPlanRepo_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestPlanRepo_GenerationRoundTripSnapshotAndActivation(t *testing.T) {
+	ctx, pr, tr := planSetup(t)
+	p := newPlanFixture("PL-gen", "P-1")
+	if err := pr.Save(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	task, err := pm.NewTask(pm.NewTaskInput{
+		ID: "T-gen-1", ProjectID: "P-1", Title: "original", Description: "snapshot me",
+		CreatedBy: "user:alice", CreatedAt: t0, NodeID: "node-original",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Assign("user:dev", t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := task.SetPlan(p.ID(), t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Save(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.RecordDispatch(ctx, p.ID(), task.ID(), t0.Add(time.Minute), "msg-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	g, err := pm.NewPlanGeneration(pm.PlanGeneration{
+		ID:                 "gen-1",
+		PlanID:             p.ID(),
+		Reason:             "scope changed",
+		Evidence:           "review note",
+		CreatorRef:         "user:alice",
+		Diff:               pm.PlanGenerationDiff{NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: task.ID(), Action: pm.EvolutionPreserve}}},
+		Snapshot:           pm.PlanGenerationSnapshot{PlanID: p.ID(), PlanVersion: p.Version() + 1, ActiveGenerationID: "gen-1", Tasks: []pm.PlanGenerationTaskSnapshot{{TaskID: task.ID(), NodeID: task.NodeID(), Title: task.Title(), Description: task.Description(), AssigneeRef: task.Assignee(), Status: task.Status()}}, DispatchRecords: []pm.PlanGenerationDispatchSnapshot{{TaskID: task.ID(), DispatchedAt: t0.Add(time.Minute), DispatchMessageID: "msg-1"}}},
+		IdempotencyKey:     "idem-1",
+		RequestFingerprint: "sha256:test",
+		DispatchedTaskIDs:  []pm.TaskID{task.ID()},
+		CreatedAt:          t0.Add(2 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.SaveGeneration(ctx, g); err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.SaveGeneration(ctx, g); err != pm.ErrPlanGenerationExists {
+		t.Fatalf("duplicate generation save = %v, want ErrPlanGenerationExists", err)
+	}
+
+	byKey, found, err := pr.FindGenerationByIdempotencyKey(ctx, p.ID(), "idem-1")
+	if err != nil || !found || byKey.ID != "gen-1" {
+		t.Fatalf("FindGenerationByIdempotencyKey = %+v found=%v err=%v", byKey, found, err)
+	}
+	loaded, err := pr.FindGenerationByID(ctx, "gen-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Snapshot.Tasks) != 1 || loaded.Snapshot.Tasks[0].Title != "original" || loaded.Snapshot.Tasks[0].NodeID != "node-original" {
+		t.Fatalf("loaded snapshot = %+v, want original task copy", loaded.Snapshot.Tasks)
+	}
+
+	if err := task.Rename("mutated live task", t0.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	task.SetNodeID("node-mutated", t0.Add(3*time.Minute))
+	if err := tr.Update(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = pr.FindGenerationByID(ctx, "gen-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Snapshot.Tasks[0].Title != "original" || loaded.Snapshot.Tasks[0].NodeID != "node-original" {
+		t.Fatalf("generation snapshot drifted after live task mutation: %+v", loaded.Snapshot.Tasks[0])
+	}
+
+	ok, err := pr.ActivateGeneration(ctx, p.ID(), "gen-1", p.Version(), p.Version()+1, t0.Add(4*time.Minute))
+	if err != nil || !ok {
+		t.Fatalf("ActivateGeneration fresh ok=%v err=%v", ok, err)
+	}
+	reloadedPlan, err := pr.FindByID(ctx, p.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloadedPlan.ActiveGenerationID() != "gen-1" || reloadedPlan.Version() != p.Version()+1 {
+		t.Fatalf("active generation/version = %s/%d, want gen-1/%d", reloadedPlan.ActiveGenerationID(), reloadedPlan.Version(), p.Version()+1)
+	}
+	ok, err = pr.ActivateGeneration(ctx, p.ID(), "gen-stale", p.Version(), p.Version()+2, t0.Add(5*time.Minute))
+	if err != nil || ok {
+		t.Fatalf("ActivateGeneration stale ok=%v err=%v, want false/nil", ok, err)
+	}
+}
+
 func TestPlanRepo_Dependencies_AddListRemove(t *testing.T) {
 	ctx, pr, _ := planSetup(t)
 	_ = pr.Save(ctx, newPlanFixture("PL-1", "P-1"))

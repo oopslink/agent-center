@@ -61,7 +61,8 @@ var secondaryTools = []struct{ name, summary string }{
 	{"report_manual_recovery_delivery", "register an already-pushed manual recovery delivery after task_non_delivery; MCP counterpart to recover-delivery without commit/push"},
 	// plan authoring / lifecycle
 	{"create_plan", "create a pending plan (a DAG of tasks)"},
-	{"edit_plan_topology", "atomically edit a plan's DAG (add/remove nodes+edges) on a draft OR running plan — the unified topology-edit tool"},
+	{"edit_plan_topology", "atomically edit a pending plan's DAG (add/remove nodes+edges)"},
+	{"evolve_plan_generation", "commit an immutable generation diff for a running or paused plan"},
 	{"add_task_to_plan", "add a backlog task as a node in a pending plan"},
 	{"remove_task_from_plan", "remove a task node from a pending plan"},
 	{"add_plan_dependency", "wire a plan edge: seq depends_on, or a conditional/loopback control-flow edge (Decision/cycle authoring)"},

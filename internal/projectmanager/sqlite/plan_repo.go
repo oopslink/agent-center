@@ -59,12 +59,12 @@ func parseTimePtr(s string) *time.Time {
 func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, archived_at, archived_by)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, archived_at, archived_by)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(p.ID()), string(p.ProjectID()), p.Name(), p.Description(),
 		string(p.Status()), string(p.CreatorRef()), p.ConversationID(), tsPtr(p.TargetDate()),
 		boolToInt(p.IsBuiltin()), p.OrgNumber(),
-		ts(p.CreatedAt()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()))
+		ts(p.CreatedAt()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()))
 	if isUnique(err) {
 		return pm.ErrPlanExists
 	}
@@ -74,9 +74,9 @@ func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 func (r *PlanRepo) Update(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_plans SET name=?, description=?, status=?, conversation_id=?, target_date=?, is_builtin=?, updated_at=?, version=?, graph_id=?, archived_at=?, archived_by=? WHERE id=?`,
+		`UPDATE pm_plans SET name=?, description=?, status=?, conversation_id=?, target_date=?, is_builtin=?, updated_at=?, version=?, graph_id=?, active_generation_id=?, archived_at=?, archived_by=? WHERE id=?`,
 		p.Name(), p.Description(), string(p.Status()), p.ConversationID(), tsPtr(p.TargetDate()),
-		boolToInt(p.IsBuiltin()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()), string(p.ID()))
+		boolToInt(p.IsBuiltin()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()), string(p.ID()))
 	if err != nil {
 		return err
 	}
@@ -675,7 +675,107 @@ func (r *PlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.Bl
 	return out, rows.Err()
 }
 
-const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, archived_at, archived_by FROM pm_plans`
+// --- Plan generations --------------------------------------------------------
+
+func (r *PlanRepo) SaveGeneration(ctx context.Context, g *pm.PlanGeneration) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	diff, err := json.Marshal(g.Diff)
+	if err != nil {
+		return err
+	}
+	snapshot, err := json.Marshal(g.Snapshot)
+	if err != nil {
+		return err
+	}
+	dispatched, err := json.Marshal(g.DispatchedTaskIDs)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx,
+		`INSERT INTO pm_plan_generations
+		 (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json,
+		  snapshot_json, idempotency_key, request_fingerprint, dispatched_task_ids_json, created_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		string(g.ID), string(g.PlanID), string(g.ParentGenerationID), g.Reason, g.Evidence,
+		string(g.CreatorRef), string(diff), string(snapshot), g.IdempotencyKey,
+		g.RequestFingerprint, string(dispatched), ts(g.CreatedAt))
+	if isUnique(err) {
+		return pm.ErrPlanGenerationExists
+	}
+	return err
+}
+
+const generationSelect = `SELECT id, plan_id, parent_generation_id, reason, evidence, creator_ref,
+	diff_json, snapshot_json, idempotency_key, request_fingerprint, dispatched_task_ids_json, created_at
+	FROM pm_plan_generations`
+
+func scanGeneration(scan func(...any) error) (*pm.PlanGeneration, error) {
+	var id, planID, parentID, reason, evidence, creator, diffJSON, snapshotJSON, key, fp, dispatchedJSON, createdAt string
+	if err := scan(&id, &planID, &parentID, &reason, &evidence, &creator, &diffJSON, &snapshotJSON, &key, &fp, &dispatchedJSON, &createdAt); err != nil {
+		return nil, err
+	}
+	var diff pm.PlanGenerationDiff
+	if err := json.Unmarshal([]byte(diffJSON), &diff); err != nil {
+		return nil, err
+	}
+	var snapshot pm.PlanGenerationSnapshot
+	if err := json.Unmarshal([]byte(snapshotJSON), &snapshot); err != nil {
+		return nil, err
+	}
+	var dispatched []pm.TaskID
+	if strings.TrimSpace(dispatchedJSON) != "" {
+		if err := json.Unmarshal([]byte(dispatchedJSON), &dispatched); err != nil {
+			return nil, err
+		}
+	}
+	return pm.NewPlanGeneration(pm.PlanGeneration{
+		ID:                 pm.PlanGenerationID(id),
+		PlanID:             pm.PlanID(planID),
+		ParentGenerationID: pm.PlanGenerationID(parentID),
+		Reason:             reason,
+		Evidence:           evidence,
+		CreatorRef:         pm.IdentityRef(creator),
+		Diff:               diff,
+		Snapshot:           snapshot,
+		IdempotencyKey:     key,
+		RequestFingerprint: fp,
+		DispatchedTaskIDs:  dispatched,
+		CreatedAt:          parseTime(createdAt),
+	})
+}
+
+func (r *PlanRepo) FindGenerationByID(ctx context.Context, id pm.PlanGenerationID) (*pm.PlanGeneration, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	g, err := scanGeneration(exec.QueryRowContext(ctx, generationSelect+` WHERE id = ?`, string(id)).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, pm.ErrPlanGenerationNotFound
+	}
+	return g, err
+}
+
+func (r *PlanRepo) FindGenerationByIdempotencyKey(ctx context.Context, planID pm.PlanID, key string) (*pm.PlanGeneration, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	g, err := scanGeneration(exec.QueryRowContext(ctx,
+		generationSelect+` WHERE plan_id = ? AND idempotency_key = ?`, string(planID), key).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	return g, err == nil, err
+}
+
+func (r *PlanRepo) ActivateGeneration(ctx context.Context, planID pm.PlanID, generationID pm.PlanGenerationID, expectedVersion, nextVersion int, at time.Time) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plans SET active_generation_id = ?, version = ?, updated_at = ? WHERE id = ? AND version = ?`,
+		string(generationID), nextVersion, ts(at), string(planID), expectedVersion)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, archived_at, archived_by FROM pm_plans`
 
 // boolToInt maps a Go bool to SQLite's 0/1 integer storage convention.
 func boolToInt(b bool) int {
@@ -691,19 +791,20 @@ func scanPlan(scan func(...any) error) (*pm.Plan, error) {
 		isBuiltin                                                                                              int
 		orgNumber                                                                                              sql.NullInt64
 		version                                                                                                int
-		graphID, archivedAt, archivedBy                                                                        string
+		graphID, activeGenerationID, archivedAt, archivedBy                                                    string
 	)
-	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &conversationID, &targetDate, &isBuiltin, &orgNumber, &createdAt, &updatedAt, &version, &graphID, &archivedAt, &archivedBy); err != nil {
+	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &conversationID, &targetDate, &isBuiltin, &orgNumber, &createdAt, &updatedAt, &version, &graphID, &activeGenerationID, &archivedAt, &archivedBy); err != nil {
 		return nil, err
 	}
 	return pm.RehydratePlan(pm.RehydratePlanInput{
 		ID: pm.PlanID(id), ProjectID: pm.ProjectID(projectID), Name: name, Description: description,
 		Status: pm.PlanStatus(status), CreatorRef: pm.IdentityRef(creatorRef), ConversationID: conversationID,
-		TargetDate: parseTimePtr(targetDate),
-		Builtin:    isBuiltin != 0,
-		OrgNumber:  int(orgNumber.Int64),
-		GraphID:    graphID,
-		ArchivedAt: parseTimePtr(archivedAt), ArchivedBy: pm.IdentityRef(archivedBy),
+		TargetDate:         parseTimePtr(targetDate),
+		Builtin:            isBuiltin != 0,
+		OrgNumber:          int(orgNumber.Int64),
+		GraphID:            graphID,
+		ActiveGenerationID: pm.PlanGenerationID(activeGenerationID),
+		ArchivedAt:         parseTimePtr(archivedAt), ArchivedBy: pm.IdentityRef(archivedBy),
 		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
 	})
 }
