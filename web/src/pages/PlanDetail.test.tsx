@@ -64,16 +64,17 @@ function planWith(overrides: Record<string, unknown> = {}) {
 
 function mockPlan(overrides: Record<string, unknown> = {}) {
   const payload = planWith(overrides) as Record<string, unknown>;
+  const generationRead = (overrides.generation_read as Record<string, unknown> | undefined) ?? {
+    plan_id: payload.id,
+    active_generation_id: payload.active_generation_id ?? '',
+    plan_version: payload.version ?? 0,
+    generations: [],
+    nodes: [],
+  };
   server.use(
     http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
     http.get('/api/projects/proj-a/plans/PL-1', () => HttpResponse.json(payload)),
-    http.get('/api/projects/proj-a/plans/PL-1/generations', () =>
-      HttpResponse.json({
-        active_generation: payload.active_generation ?? 0,
-        generations: payload.generations ?? [],
-        nodes: payload.generation_nodes ?? [],
-      }),
-    ),
+    http.get('/api/projects/proj-a/plans/PL-1/generations', () => HttpResponse.json(generationRead)),
   );
 }
 
@@ -1324,18 +1325,19 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
 
   function mockNodes(nodes: unknown[], overrides: Record<string, unknown> = {}) {
     const payload = planWith({ nodes, ...overrides }) as Record<string, unknown>;
+    const generationRead = (overrides.generation_read as Record<string, unknown> | undefined) ?? {
+      plan_id: payload.id,
+      active_generation_id: payload.active_generation_id ?? '',
+      plan_version: payload.version ?? 0,
+      generations: [],
+      nodes: [],
+    };
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans/PL-1', () =>
         HttpResponse.json(payload),
       ),
-      http.get('/api/projects/proj-a/plans/PL-1/generations', () =>
-        HttpResponse.json({
-          active_generation: payload.active_generation ?? 0,
-          generations: payload.generations ?? [],
-          nodes: payload.generation_nodes ?? [],
-        }),
-      ),
+      http.get('/api/projects/proj-a/plans/PL-1/generations', () => HttpResponse.json(generationRead)),
     );
   }
 
@@ -2122,41 +2124,8 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-ref-st-b')).toHaveTextContent('STAGE · S2');
   });
 
-  it('DAG evolution shows revision reasons, filters historical stages, and collapses', async () => {
-    mockPlan({
-      gate_verdicts: [
-        {
-          id: 'verdict-reject-1',
-          project_id: 'proj-a',
-          plan_id: 'PL-1',
-          stage_id: 'st-a',
-          gate_task_id: 'gate-task-a',
-          outcome: 'reject',
-          evidence: 'Reviewer rejected mobile acceptance, so add a focused UI remediation stage.',
-          reviewed_sha: 'abcdef1234567890',
-          actor_ref: 'agent:reviewer',
-          idempotency_key: 'idem-1',
-          created_at: '2026-06-02T01:00:00Z',
-        },
-      ],
-      continuations: [
-        {
-          id: 'cont-1',
-          project_id: 'proj-a',
-          plan_id: 'PL-1',
-          root_stage_id: 'st-a',
-          current_stage_id: 'st-b',
-          trigger_verdict_id: 'verdict-reject-1',
-          status: 'executing',
-          generation: 1,
-          remaining_budget: 2,
-          boundary_fingerprint: 'fp-1',
-          created_at: '2026-06-02T01:00:00Z',
-          updated_at: '2026-06-02T01:00:00Z',
-          version: 1,
-        },
-      ],
-    });
+  it('does not manufacture PlanGeneration history from Stage generation integers', async () => {
+    mockPlan();
     server.use(
       http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
       http.get('/api/projects/proj-a/plans/PL-1/stages', () =>
@@ -2187,77 +2156,66 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-dag'));
 
-    const panel = await screen.findByTestId('plan-dag-evolution');
-    expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
-    expect(within(panel).getByTestId('plan-dag-evolution-reason-2')).toHaveTextContent('Reviewer rejected mobile acceptance');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-detail')).toHaveTextContent('R2');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
-    expect(screen.getByTestId('plan-stage-revision-st-b')).toHaveTextContent('R2');
-
-    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
-    await waitFor(() => expect(screen.queryByTestId('plan-stage-box-st-b')).not.toBeInTheDocument());
-    expect(screen.queryByTestId('plan-stage-mobile-audit-st-b')).not.toBeInTheDocument();
-    expect(within(panel).getByTestId('plan-dag-evolution-current')).not.toBeDisabled();
-
-    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-toggle'));
-    expect(panel).toHaveAttribute('data-collapsed', 'true');
-    expect(within(panel).queryByTestId('plan-dag-evolution-revisions')).not.toBeInTheDocument();
-    expect(within(panel).getByTestId('plan-dag-evolution-summary')).toHaveTextContent('Initial DAG');
+    expect(await screen.findByTestId('plan-stage-box-st-a')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-box-st-b')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-dag-evolution')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-stage-revision-st-b')).not.toBeInTheDocument();
   });
 
   it('Plan generation read model shows active/history progress, diff, and node ownership', async () => {
     mockPlan({
-      active_generation: 1,
+      active_generation_id: 'generation-g1',
       progress: { done: 1, total: 3 },
       nodes: [
-        { task_id: 'n1', title: 'design schema', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], generation: 0, revision: 1 },
-        { task_id: 'n2', title: 'backend api', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: ['n1'], generation: 0, revision: 1 },
-        { task_id: 'n3', title: 'ui remediation', assignee_ref: 'agent:dev2', task_status: 'running', node_status: 'running', depends_on: ['n2'], generation: 1, revision: 2 },
+        { task_id: 'n1', title: 'design schema now', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [] },
+        { task_id: 'n2', title: 'backend api now', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: ['n1'] },
+        { task_id: 'n3', title: 'ui remediation', assignee_ref: 'agent:dev2', task_status: 'running', node_status: 'running', depends_on: ['n2'] },
       ],
-      generations: [
-        {
-          generation: 0,
-          revision: 1,
-          label: 'R1',
-          active: false,
-          status: 'history',
-          stage_ids: [],
-          task_ids: ['n1', 'n2'],
-          progress: { done: 1, total: 2 },
-          reason: 'Initial DAG',
-          diff: { from_generation: 0, to_generation: 0, added_nodes: ['n1', 'n2'], added_stages: [], added_edges: [], removed_nodes: [], removed_edges: [] },
-        },
-        {
-          generation: 1,
-          revision: 2,
-          label: 'R2',
-          active: true,
-          status: 'active',
-          stage_ids: ['st-rem'],
-          task_ids: ['n3'],
-          progress: { done: 0, total: 1 },
-          reason: 'Reviewer reject',
-          evidence: 'Reviewer rejected mobile acceptance, so add a focused UI remediation node.',
-          verdict_id: 'verdict-reject-1',
-          continuation_id: 'cont-1',
-          idempotency_key: 'idem-evo-1',
-          created_at: '2026-06-02T01:00:00Z',
-          diff: {
-            from_generation: 0,
-            to_generation: 1,
-            added_nodes: ['n3'],
-            added_stages: ['st-rem'],
-            added_edges: [{ from_task_id: 'n3', to_task_id: 'n2', kind: 'seq' }],
-            removed_nodes: [],
-            removed_edges: [],
+      generation_read: {
+        plan_id: 'PL-1',
+        active_generation_id: 'generation-g1',
+        plan_version: 7,
+        generations: [
+          {
+            id: 'generation-g0', plan_id: 'PL-1', parent_generation_id: '', revision: 0, active: false,
+            reason: 'initial plan activation', evidence: 'validated topology frozen at plan start', creator_ref: 'user:owner',
+            diff: { node_decisions: [], tasks: [], edges: [] },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 6, active_generation_id: 'generation-g0',
+              tasks: [
+                { task_id: 'n1', node_id: 'node-1', title: 'design schema at G0', assignee_ref: 'agent:dev', status: 'open' },
+                { task_id: 'n2', node_id: 'node-2', title: 'backend api at G0', assignee_ref: 'agent:dev', status: 'open' },
+              ],
+              edges: [{ from_task_id: 'n2', to_task_id: 'n1', kind: 'seq' }], dispatch_records: [],
+            },
+            snapshot_progress: { done: 0, total: 2 }, idempotency_key: 'plan-activation:g0', dispatched_task_ids: [], created_at: '2026-06-01T01:00:00Z',
           },
-        },
-      ],
-      generation_nodes: [
-        { task_id: 'n1', generation: 0, revision: 1, effective: true },
-        { task_id: 'n2', generation: 0, revision: 1, effective: true },
-        { task_id: 'n3', stage_id: 'st-rem', generation: 1, revision: 2, origin_verdict_id: 'verdict-reject-1', continuation_id: 'cont-1', effective: true },
-      ],
+          {
+            id: 'generation-g1', plan_id: 'PL-1', parent_generation_id: 'generation-g0', revision: 1, active: true,
+            reason: 'Reviewer reject', evidence: 'Reviewer rejected mobile acceptance, so add a focused UI remediation node.', creator_ref: 'user:owner',
+            diff: {
+              node_decisions: [{ task_id: 'n2', action: 'preserve', reason: 'keep backend work' }],
+              tasks: [{ ref: 'ui', title: 'ui remediation', assignee_ref: 'agent:dev2' }],
+              edges: [{ from: 'ui', to: 'n2', kind: 'seq' }],
+            },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 7, active_generation_id: 'generation-g1',
+              tasks: [
+                { task_id: 'n1', node_id: 'node-1', title: 'design schema now', assignee_ref: 'agent:dev', status: 'completed' },
+                { task_id: 'n2', node_id: 'node-2', title: 'backend api now', assignee_ref: 'agent:dev', status: 'open' },
+                { task_id: 'n3', node_id: 'node-3', title: 'ui remediation', assignee_ref: 'agent:dev2', status: 'running' },
+              ],
+              edges: [{ from_task_id: 'n2', to_task_id: 'n1', kind: 'seq' }, { from_task_id: 'n3', to_task_id: 'n2', kind: 'seq' }], dispatch_records: [],
+            },
+            snapshot_progress: { done: 1, total: 3 }, idempotency_key: 'idem-evo-1', dispatched_task_ids: [], created_at: '2026-06-02T01:00:00Z',
+          },
+        ],
+        nodes: [
+          { task_id: 'n1', node_id: 'node-1', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'n2', node_id: 'node-2', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'n3', node_id: 'node-3', generation_id: 'generation-g1', revision: 1, present_in_active: true },
+        ],
+      },
     });
     server.use(
       http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
@@ -2269,22 +2227,108 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
 
     const panel = await screen.findByTestId('plan-dag-evolution');
     expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
-    expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('0/1 done');
-    expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 nodes');
+    expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('1/3 done');
+    expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 tasks');
     expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 nodes');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 tasks');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g1');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0');
 
     const node = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
     expect(within(node).getByTestId('plan-node-generation')).toHaveTextContent('R2');
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
+    await waitFor(() => expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0'));
+    expect(screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]')).not.toBeInTheDocument();
+    expect(screen.getAllByText('design schema at G0').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const row = screen.getByTestId('plan-task-list').querySelector('[data-testid="plan-task-row"][data-task-id="n3"]') as HTMLElement;
     expect(within(row).getByTestId('plan-row-generation')).toHaveTextContent('R2');
   });
 
-  it('running/paused plans open Evolution and POST reason, evidence, idempotency, policy, and ops', async () => {
+  it('renders an orchestration-graph history revision from its immutable snapshot', async () => {
+    mockPlan({
+      active_generation_id: 'generation-g1',
+      nodes: [
+        { task_id: 'n1', title: 'live design', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [] },
+        { task_id: 'n2', title: 'live api', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: ['n1'] },
+        { task_id: 'n3', title: 'live follow-up', assignee_ref: 'agent:dev2', task_status: 'open', node_status: 'blocked', depends_on: ['n2'] },
+      ],
+      generation_read: {
+        plan_id: 'PL-1',
+        active_generation_id: 'generation-g1',
+        plan_version: 8,
+        generations: [
+          {
+            id: 'generation-g0', plan_id: 'PL-1', parent_generation_id: '', revision: 0, active: false,
+            reason: 'initial activation', evidence: 'G0 topology frozen', creator_ref: 'user:owner',
+            diff: { node_decisions: [], tasks: [], edges: [] },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 7, active_generation_id: 'generation-g0',
+              tasks: [
+                { task_id: 'n1', node_id: 'snapshot-node-1', title: 'immutable G0 design', assignee_ref: 'agent:dev', status: 'completed' },
+                { task_id: 'n2', title: 'immutable G0 api', assignee_ref: 'agent:dev', status: 'open' },
+              ],
+              edges: [{ from_task_id: 'n2', to_task_id: 'n1', kind: 'seq' }],
+              dispatch_records: [{ task_id: 'n1', dispatched_at: '2026-06-01T00:00:00Z' }],
+            },
+            snapshot_progress: { done: 1, total: 2 }, idempotency_key: 'activate-g0', dispatched_task_ids: ['n1'], created_at: '2026-06-01T01:00:00Z',
+          },
+          {
+            id: 'generation-g1', plan_id: 'PL-1', parent_generation_id: 'generation-g0', revision: 1, active: true,
+            reason: 'add follow-up', evidence: 'review evidence', creator_ref: 'user:owner',
+            diff: { node_decisions: [], tasks: [{ ref: 'follow-up', title: 'live follow-up', assignee_ref: 'agent:dev2' }], edges: [] },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 8, active_generation_id: 'generation-g1',
+              tasks: [
+                { task_id: 'n1', node_id: 'live-node-1', title: 'live design', assignee_ref: 'agent:dev', status: 'completed' },
+                { task_id: 'n2', node_id: 'live-node-2', title: 'live api', assignee_ref: 'agent:dev', status: 'open' },
+                { task_id: 'n3', node_id: 'live-node-3', title: 'live follow-up', assignee_ref: 'agent:dev2', status: 'open' },
+              ],
+              edges: [{ from_task_id: 'n2', to_task_id: 'n1', kind: 'seq' }, { from_task_id: 'n3', to_task_id: 'n2', kind: 'seq' }], dispatch_records: [],
+            },
+            snapshot_progress: { done: 1, total: 3 }, idempotency_key: 'evolve-g1', dispatched_task_ids: [], created_at: '2026-06-02T01:00:00Z',
+          },
+        ],
+        nodes: [
+          { task_id: 'n1', node_id: 'live-node-1', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'n2', node_id: 'live-node-2', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'n3', node_id: 'live-node-3', generation_id: 'generation-g1', revision: 1, present_in_active: true },
+        ],
+      },
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({
+        has_graph: true,
+        graph_id: 'live-graph',
+        status: 'running',
+        nodes: [
+          { id: 'live-node-1', category: 'business', title: 'live design', status: 'completed', task_id: 'n1', task_status: 'completed' },
+          { id: 'live-node-2', category: 'business', title: 'live api', status: 'open', task_id: 'n2', task_status: 'open' },
+          { id: 'live-node-3', category: 'business', title: 'live follow-up', status: 'open', task_id: 'n3', task_status: 'open' },
+        ],
+        edges: [{ from: 'live-node-1', to: 'live-node-2', kind: 'seq' }, { from: 'live-node-2', to: 'live-node-3', kind: 'seq' }],
+      })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({ stages: [] })),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toHaveAttribute('data-graph', 'true'));
+    const dag = screen.getByTestId('plan-dag');
+    expect(dag.querySelector('[data-testid="plan-graph-node"][data-task-id="n3"]')).toBeInTheDocument();
+
+    const panel = screen.getByTestId('plan-dag-evolution');
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
+    await waitFor(() => expect(screen.getAllByText('immutable G0 design').length).toBeGreaterThan(0));
+    expect(dag.querySelector('[data-testid="plan-graph-node"][data-task-id="n3"]')).not.toBeInTheDocument();
+    expect(dag.querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]')).toBeInTheDocument();
+  });
+
+  it('running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff', async () => {
     let body: Record<string, unknown> | null = null;
-    mockPlan({ status: 'paused', has_failed: false, version: 11 });
+    mockPlan({ status: 'paused', has_failed: false, version: 11, active_generation_id: 'generation-parent' });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
@@ -2292,7 +2336,9 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
           ok: true,
           version: 12,
           dispatched: [],
-          plan: planWith({ status: 'paused', version: 12 }),
+          duplicate: false,
+          active_generation_id: 'generation-child',
+          generation: {},
         });
       }),
     );
@@ -2304,24 +2350,28 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Gate reject follow-up' } });
     fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Reviewer asked for an integration test.' } });
     fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-evo-1' } });
-    fireEvent.change(screen.getByTestId('plan-evolution-ops'), {
-      target: { value: '[{"op":"add_edge","from_task_id":"n7","to_task_id":"n3","kind":"seq"}]' },
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), {
+      target: { value: '{"node_decisions":[{"task_id":"n3","action":"preserve"}],"tasks":[{"ref":"verify","title":"Verify fix","assignee_ref":"agent:dev"}],"edges":[{"from":"verify","to":"n3","kind":"seq"}]}' },
     });
     await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
 
     await waitFor(() => expect(body).not.toBeNull());
     expect(body).toEqual({
+      parent_generation_id: 'generation-parent',
       base_version: 11,
       reason: 'Gate reject follow-up',
       evidence: 'Reviewer asked for an integration test.',
       idempotency_key: 'idem-ui-evo-1',
-      in_flight_policy: 'reject_conflicts',
-      ops: [{ op: 'add_edge', from_task_id: 'n7', to_task_id: 'n3', kind: 'seq' }],
+      diff: {
+        node_decisions: [{ task_id: 'n3', action: 'preserve' }],
+        tasks: [{ ref: 'verify', title: 'Verify fix', assignee_ref: 'agent:dev' }],
+        edges: [{ from: 'verify', to: 'n3', kind: 'seq' }],
+      },
     });
   });
 
   it('Evolution shows whole-request rejection and recovery action for in-flight conflicts', async () => {
-    mockPlan({ status: 'running', version: 20 });
+    mockPlan({ status: 'running', version: 20, active_generation_id: 'generation-active' });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/evolution', () =>
         HttpResponse.json(
@@ -2335,6 +2385,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await waitFor(() => expect(screen.getByTestId('plan-evolution-btn')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-evolution-btn'));
     fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Avoid active node' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Node is already dispatched.' } });
     fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-conflict' } });
     await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
 
@@ -2342,6 +2393,45 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(err).toHaveTextContent(/rejected as a whole/i);
     expect(err).toHaveTextContent(/already in flight/i);
     expect(err).toHaveTextContent(/wait for those nodes to settle|add follow-up nodes/i);
+  });
+
+  it('Evolution rejects malformed diffs before POST and distinguishes stale and idempotency conflicts', async () => {
+    let requestCount = 0;
+    let conflict: 'stale' | 'idempotency' = 'stale';
+    mockPlan({ status: 'paused', version: 21, active_generation_id: 'generation-active' });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', () => {
+        requestCount += 1;
+        return conflict === 'stale'
+          ? HttpResponse.json({ error: 'plan_conflict', message: 'parent_generation_id is stale; active_generation_id changed' }, { status: 409 })
+          : HttpResponse.json({ error: 'plan_conflict', message: 'idempotency key has different input' }, { status: 409 });
+      }),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-evolution-btn'));
+    fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Retry review' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Reviewer evidence' } });
+
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), { target: { value: '{' } });
+    fireEvent.click(screen.getByTestId('plan-evolution-submit'));
+    expect(await screen.findByTestId('plan-evolution-error')).toHaveTextContent(/valid JSON/i);
+    expect(requestCount).toBe(0);
+
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), { target: { value: '{}' } });
+    fireEvent.click(screen.getByTestId('plan-evolution-submit'));
+    expect(await screen.findByTestId('plan-evolution-error')).toHaveTextContent(/must contain/i);
+    expect(requestCount).toBe(0);
+
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), { target: { value: '{"node_decisions":[],"tasks":[],"edges":[]}' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+    expect(await screen.findByTestId('plan-evolution-error')).toHaveTextContent(/plan changed before commit/i);
+
+    conflict = 'idempotency';
+    fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'different-key' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+    await waitFor(() => expect(screen.getByTestId('plan-evolution-error')).toHaveTextContent(/already used with different input/i));
+    expect(requestCount).toBe(2);
   });
 
   it('mobile stage audit exposes a visible API error state', async () => {

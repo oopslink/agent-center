@@ -37,20 +37,15 @@ var ErrPlanHasNoGraph = errors.New("projectmanager: plan has no orchestration gr
 // TaskStatus / TaskOrgRef / Assignee are resolved here so the DAG can label the
 // node without a second lookup (§ T769.1 "绑定 task 的状态/org_ref").
 type PlanGraphNode struct {
-	ID              string
-	Category        string
-	ControlKind     string
-	Title           string
-	Status          string // raw engine node status: open|running|completed|reopen|discarded
-	TaskID          string // bound task id ("" for control nodes)
-	TaskStatus      string // bound task status ("" when unbound)
-	TaskOrgRef      string // bound task org_ref "T123" ("" when unallocated / unbound)
-	Assignee        string // bound task assignee ref ("" when unbound / unassigned)
-	StageID         string
-	Generation      int
-	Revision        int
-	OriginVerdictID string
-	ContinuationID  string
+	ID          string
+	Category    string
+	ControlKind string
+	Title       string
+	Status      string // raw engine node status: open|running|completed|reopen|discarded
+	TaskID      string // bound task id ("" for control nodes)
+	TaskStatus  string // bound task status ("" when unbound)
+	TaskOrgRef  string // bound task org_ref "T123" ("" when unallocated / unbound)
+	Assignee    string // bound task assignee ref ("" when unbound / unassigned)
 }
 
 // PlanGraphEdge is one directed edge from→to with its derived kind:
@@ -126,16 +121,6 @@ func (s *Service) planGraph(ctx context.Context, p *pm.Plan) (*PlanGraphView, er
 			nodeIDByTask[t.ID()] = t.NodeID()
 		}
 	}
-	stageByID := map[pm.StageID]*pm.Stage{}
-	if s.stages != nil {
-		stages, err := s.stages.ListByPlan(ctx, p.ID())
-		if err != nil {
-			return nil, err
-		}
-		for _, st := range stages {
-			stageByID[st.ID()] = st
-		}
-	}
 
 	// Category/controlKind per node id — needed for edge-kind derivation below.
 	kindOf := make(map[string]orch.ControlKind, len(nodes))
@@ -156,20 +141,6 @@ func (s *Service) planGraph(ctx context.Context, p *pm.Plan) (*PlanGraphView, er
 					gn.TaskStatus = string(t.Status())
 					gn.TaskOrgRef = orgRef("T", t.OrgNumber())
 					gn.Assignee = string(t.Assignee())
-					gn.StageID = string(t.StageID())
-					gn.OriginVerdictID = string(t.OriginVerdictID())
-					if st := stageByID[t.StageID()]; st != nil {
-						gen := st.Generation()
-						if gen < 0 {
-							gen = 0
-						}
-						gn.Generation = gen
-						gn.Revision = gen + 1
-						gn.OriginVerdictID = string(st.OriginVerdictID())
-						gn.ContinuationID = string(st.ContinuationID())
-					} else {
-						gn.Revision = 1
-					}
 				}
 			}
 		}

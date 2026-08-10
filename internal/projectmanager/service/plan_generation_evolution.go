@@ -126,6 +126,9 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 		if err != nil {
 			return err
 		}
+		if err := validateEvolutionInFlightEdges(cmd.Diff, taskByID, dispatchedSet); err != nil {
+			return err
+		}
 		if err := s.applySupersededNodes(txCtx, p, superseded, taskByID, edges, now); err != nil {
 			return err
 		}
@@ -231,6 +234,39 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 		}
 	}
 	return result, err
+}
+
+// validateEvolutionInFlightEdges runs before any task/edge mutation. An edge's
+// From endpoint is the dependent node whose prerequisite set changes; if that
+// endpoint already dispatched or left open state, the entire Evolution request
+// must fail. To may be immutable because a new mutable node may safely depend on
+// completed history.
+func validateEvolutionInFlightEdges(
+	diff pm.PlanGenerationDiff,
+	taskByID map[pm.TaskID]*pm.Task,
+	dispatched map[pm.TaskID]bool,
+) error {
+	newRefs := make(map[string]bool, len(diff.Tasks))
+	for _, task := range diff.Tasks {
+		ref := strings.TrimSpace(task.Ref)
+		if ref != "" {
+			newRefs[ref] = true
+		}
+	}
+	for _, edge := range diff.Edges {
+		from := strings.TrimSpace(edge.From)
+		if from == "" || newRefs[from] {
+			continue
+		}
+		task := taskByID[pm.TaskID(from)]
+		if task == nil {
+			continue // resolveEvolutionTaskRef reports the scoped reference error.
+		}
+		if !pm.NodeMutable(task.Status(), dispatched[task.ID()]) {
+			return fmt.Errorf("%w: task %s", pm.ErrPlanNodeInFlight, task.ID())
+		}
+	}
+	return nil
 }
 
 func evolutionRequestFingerprint(cmd EvolvePlanGenerationCommand) (string, error) {

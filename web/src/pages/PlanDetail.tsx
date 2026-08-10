@@ -27,6 +27,7 @@ import {
   type PlanNode,
   type PlanNodeStatus,
   type PlanGraphNode,
+  type PlanGraphNodeStatus,
   type PlanGraphEdge,
   type PlanGraphEdgeKind,
   type PatchPlanInput,
@@ -35,8 +36,7 @@ import {
   type GateVerdict,
   type PlanGenerationRead,
   type PlanGeneration,
-  type PlanEvolutionDiff,
-  type TopologyOp,
+  type PlanGenerationDiff,
   type CommitPlanEvolutionInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
@@ -396,7 +396,7 @@ function PlanDetailHeader({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
-  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at && !!plan.active_generation_id;
 
   return (
     <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:px-6 md:py-3" data-testid="plan-detail-header">
@@ -787,7 +787,7 @@ function PlanInfoRail({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
-  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at && !!plan.active_generation_id;
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -1318,31 +1318,35 @@ function planBaseVersion(plan: Plan): number {
 function friendlyEvolutionError(error: unknown, t: TFunction): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const lower = raw.toLowerCase();
+  if (lower.includes('idempotency')) {
+    return t('plan.detail.evolutionModal.errorIdempotency');
+  }
   if (lower.includes('in-flight') || lower.includes('in flight') || lower.includes('dispatched') || lower.includes('running node')) {
     return t('plan.detail.evolutionModal.errorInFlight');
   }
-  if (lower.includes('version') || lower.includes('stale') || lower.includes('conflict')) {
+  if (lower.includes('version') || lower.includes('stale') || lower.includes('parent') || lower.includes('active_generation') || lower.includes('conflict')) {
     return t('plan.detail.evolutionModal.errorVersion');
-  }
-  if (lower.includes('idempotency')) {
-    return t('plan.detail.evolutionModal.errorIdempotency');
   }
   return t('plan.detail.evolutionModal.errorGeneric');
 }
 
-function parseEvolutionOps(raw: string, t: TFunction): TopologyOp[] {
+function parseEvolutionDiff(raw: string, t: TFunction): PlanGenerationDiff {
   const text = raw.trim();
-  if (text === '') return [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
   } catch {
-    throw new Error(t('plan.detail.evolutionModal.errorOpsJson'));
+    throw new Error(t('plan.detail.evolutionModal.errorDiffJson'));
   }
-  if (!Array.isArray(parsed)) {
-    throw new Error(t('plan.detail.evolutionModal.errorOpsArray'));
+  if (
+    !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+    || !Array.isArray((parsed as Record<string, unknown>).node_decisions)
+    || !Array.isArray((parsed as Record<string, unknown>).tasks)
+    || !Array.isArray((parsed as Record<string, unknown>).edges)
+  ) {
+    throw new Error(t('plan.detail.evolutionModal.errorDiffShape'));
   }
-  return parsed as TopologyOp[];
+  return parsed as PlanGenerationDiff;
 }
 
 function PlanEvolutionModal({
@@ -1356,31 +1360,31 @@ function PlanEvolutionModal({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const baseVersion = planBaseVersion(plan);
+  const parentGenerationId = plan.active_generation_id ?? '';
   const [reason, setReason] = useState('');
   const [evidence, setEvidence] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
-  const [inFlightPolicy, setInFlightPolicy] = useState<CommitPlanEvolutionInput['in_flight_policy']>('reject_conflicts');
-  const [opsText, setOpsText] = useState('[]');
+  const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setParseError(null);
-    let ops: TopologyOp[];
+    let diff: PlanGenerationDiff;
     try {
-      ops = parseEvolutionOps(opsText, t);
+      diff = parseEvolutionDiff(diffText, t);
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : t('plan.detail.evolutionModal.errorOpsJson'));
+      setParseError(err instanceof Error ? err.message : t('plan.detail.evolutionModal.errorDiffJson'));
       return;
     }
     const input: CommitPlanEvolutionInput = {
+      parent_generation_id: parentGenerationId,
       base_version: baseVersion,
       reason: reason.trim(),
-      evidence: evidence.trim() || undefined,
+      evidence: evidence.trim(),
       idempotency_key: idempotencyKey.trim(),
-      in_flight_policy: inFlightPolicy,
-      ops,
+      diff,
     };
     try {
       await commit.mutateAsync(input);
@@ -1404,6 +1408,9 @@ function PlanEvolutionModal({
             <h2 className="text-lg font-semibold">{t('plan.detail.evolutionModal.title')}</h2>
             <p className="mt-1 text-xs text-text-muted" data-testid="plan-evolution-base-version">
               {t('plan.detail.evolutionModal.baseVersion', { version: baseVersion })}
+            </p>
+            <p className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" data-testid="plan-evolution-parent-generation" title={parentGenerationId}>
+              {t('plan.detail.evolutionModal.parentGeneration', { id: parentGenerationId })}
             </p>
           </div>
           <span className="rounded bg-status-blue-bg px-2 py-1 font-mono text-[0.6875rem] font-semibold text-status-blue-fg">
@@ -1434,52 +1441,35 @@ function PlanEvolutionModal({
           rows={3}
           className={PLAN_EDIT_MODAL_INPUT}
           data-testid="plan-evolution-evidence"
+          required
         />
 
-        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_14rem]">
-          <div>
-            <label className="block text-xs font-medium" htmlFor="plan-evolution-idempotency">
-              {t('plan.detail.evolutionModal.idempotency')}
-            </label>
-            <input
-              id="plan-evolution-idempotency"
-              value={idempotencyKey}
-              onChange={(e) => setIdempotencyKey(e.target.value)}
-              className={PLAN_EDIT_MODAL_INPUT}
-              data-testid="plan-evolution-idempotency"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium" htmlFor="plan-evolution-policy">
-              {t('plan.detail.evolutionModal.inFlightPolicy')}
-            </label>
-            <select
-              id="plan-evolution-policy"
-              value={inFlightPolicy}
-              onChange={(e) => setInFlightPolicy(e.target.value as CommitPlanEvolutionInput['in_flight_policy'])}
-              className={PLAN_EDIT_MODAL_INPUT}
-              data-testid="plan-evolution-policy"
-            >
-              <option value="reject_conflicts">{t('plan.detail.evolutionModal.policyReject')}</option>
-            </select>
-          </div>
-        </div>
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-evolution-idempotency">
+          {t('plan.detail.evolutionModal.idempotency')}
+        </label>
+        <input
+          id="plan-evolution-idempotency"
+          value={idempotencyKey}
+          onChange={(e) => setIdempotencyKey(e.target.value)}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-evolution-idempotency"
+          required
+        />
 
-        <label className="mt-3 block text-xs font-medium" htmlFor="plan-evolution-ops">
-          {t('plan.detail.evolutionModal.ops')}
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-evolution-diff">
+          {t('plan.detail.evolutionModal.diff')}
         </label>
         <textarea
-          id="plan-evolution-ops"
-          value={opsText}
-          onChange={(e) => setOpsText(e.target.value)}
+          id="plan-evolution-diff"
+          value={diffText}
+          onChange={(e) => setDiffText(e.target.value)}
           rows={8}
           spellCheck={false}
           className={`${PLAN_EDIT_MODAL_INPUT} font-mono`}
-          data-testid="plan-evolution-ops"
+          data-testid="plan-evolution-diff"
         />
         <p className="mt-1 text-[0.6875rem] text-text-muted">
-          {t('plan.detail.evolutionModal.opsHint')}
+          {t('plan.detail.evolutionModal.diffHint')}
         </p>
 
         {(parseError || commit.isError) && (
@@ -1499,7 +1489,7 @@ function PlanEvolutionModal({
           </button>
           <button
             type="submit"
-            disabled={commit.isPending || !reason.trim() || !idempotencyKey.trim()}
+            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim()}
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-evolution-submit"
           >
@@ -1821,13 +1811,12 @@ function TaskIdTag({
   );
 }
 
-function nodeRevisionLabel(node: { generation?: number; revision?: number }): string | null {
-  if (typeof node.revision === 'number' && Number.isFinite(node.revision)) return `R${Math.max(1, Math.trunc(node.revision))}`;
-  if (typeof node.generation === 'number' && Number.isFinite(node.generation)) return `R${Math.max(1, Math.trunc(node.generation) + 1)}`;
+function nodeRevisionLabel(node: { revision?: number }): string | null {
+  if (typeof node.revision === 'number' && Number.isFinite(node.revision)) return `R${Math.max(1, Math.trunc(node.revision) + 1)}`;
   return null;
 }
 
-function NodeGenerationBadge({ node, testId = 'plan-node-generation' }: { node: { generation?: number; revision?: number }; testId?: string }): React.ReactElement | null {
+function NodeGenerationBadge({ node, testId = 'plan-node-generation' }: { node: { revision?: number }; testId?: string }): React.ReactElement | null {
   const label = nodeRevisionLabel(node);
   if (!label) return null;
   return (
@@ -2306,8 +2295,7 @@ function PlanStepper({
         const last = i === ordered.length - 1;
         const generationNode = generationNodeOf?.get(taskId);
         const generationMeta = {
-          generation: p.node.generation ?? generationNode?.generation,
-          revision: p.node.revision ?? generationNode?.revision,
+          revision: generationNode?.revision,
         };
         return (
           <li
@@ -2794,29 +2782,14 @@ interface DagEvolutionRevision {
   taskCount: number;
   active?: boolean;
   progress?: { done: number; total: number };
-  diff?: PlanEvolutionDiff;
+  diff?: PlanGenerationDiff;
   idempotencyKey?: string;
+  generationId?: string;
+  parentGenerationId?: string;
   verdictId?: string;
   verdictOutcome?: GateVerdict['outcome'];
   continuationId?: string;
   createdAt?: string;
-}
-
-function stageGeneration(stage: PlanStage): number {
-  const raw = stage.generation ?? (stage.origin_verdict_id ? 1 : 0);
-  return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 0;
-}
-
-function stageRevision(stage: PlanStage): number {
-  return stageGeneration(stage) + 1;
-}
-
-function latestStageGeneration(stages: PlanStage[]): number {
-  return stages.reduce((max, stage) => Math.max(max, stageGeneration(stage)), 0);
-}
-
-function visibleStagesForGeneration(stages: PlanStage[], generation: number): PlanStage[] {
-  return stages.filter((stage) => stageGeneration(stage) <= generation);
 }
 
 function stageTaskIdSet(stages: PlanStage[]): Set<string> {
@@ -2831,144 +2804,50 @@ function shortLineageId(id?: string): string {
   return id ? id.slice(0, 8) : '';
 }
 
-function planGenerationsFromPlan(plan: Plan): PlanGenerationRead | undefined {
-  const generations = plan.generations ?? [];
-  const nodes = plan.generation_nodes ?? [];
-  if (generations.length === 0 && nodes.length === 0 && typeof plan.active_generation !== 'number') return undefined;
-  const activeGeneration = typeof plan.active_generation === 'number'
-    ? plan.active_generation
-    : generations.reduce((max, generation) => Math.max(max, generation.generation), 0);
-  return { active_generation: activeGeneration, generations, nodes };
-}
-
 function usableGenerationRead(read: PlanGenerationRead | undefined): PlanGenerationRead | undefined {
   if (!read) return undefined;
   return read.generations.length > 0 || read.nodes.length > 0 ? read : undefined;
 }
 
-function generationTitle(gen: PlanGeneration, stages: PlanStage[], t: TFunction): string {
+function generationTitle(gen: PlanGeneration, t: TFunction): string {
   if (gen.reason.trim()) return gen.reason.trim();
-  if (gen.generation === 0) return t('plan.detail.dag.evolution.initialTitle');
-  const addedStages = gen.diff?.added_stages ?? [];
-  if (addedStages.length === 1) {
-    const stage = stages.find((s) => s.id === addedStages[0]);
-    return t('plan.detail.dag.evolution.addedOne', { stage: stage?.name || addedStages[0] });
-  }
-  if (addedStages.length > 1) {
-    const stageNames = addedStages
-      .slice(0, 2)
-      .map((id) => stages.find((s) => s.id === id)?.name || id)
-      .join(', ');
-    return t('plan.detail.dag.evolution.addedMany', { count: addedStages.length, stages: stageNames });
-  }
+  if (gen.revision === 0) return t('plan.detail.dag.evolution.initialTitle');
   return t('plan.detail.dag.evolution.reasonUnknown');
 }
 
 function buildGenerationEvolutionRevisions(
   generationRead: PlanGenerationRead,
-  stages: PlanStage[],
-  plan: Plan,
   t: TFunction,
 ): DagEvolutionRevision[] {
-  const verdictsById = new Map<string, GateVerdict>();
-  for (const verdict of plan.gate_verdicts ?? []) verdictsById.set(verdict.id, verdict);
   return generationRead.generations
     .slice()
-    .sort((a, b) => a.generation - b.generation)
-    .map((gen) => {
-      const verdict = gen.verdict_id ? verdictsById.get(gen.verdict_id) : undefined;
-      return {
-        generation: gen.generation,
-        revision: gen.revision,
-        label: gen.label || `R${gen.revision}`,
-        title: generationTitle(gen, stages, t),
-        reason: gen.evidence?.trim() || gen.reason?.trim() || (gen.generation === 0
-          ? t('plan.detail.dag.evolution.initialReason')
-          : t('plan.detail.dag.evolution.reasonUnknown')),
-        stageCount: gen.stage_ids.length,
-        taskCount: gen.task_ids.length,
-        active: gen.active,
-        progress: gen.progress,
-        diff: gen.diff,
-        idempotencyKey: gen.idempotency_key,
-        verdictId: gen.verdict_id,
-        verdictOutcome: verdict?.outcome,
-        continuationId: gen.continuation_id,
-        createdAt: gen.created_at,
-      };
-    });
+    .sort((a, b) => a.revision - b.revision)
+    .map((gen) => ({
+      generation: gen.revision,
+      revision: gen.revision + 1,
+      label: `R${gen.revision + 1}`,
+      title: generationTitle(gen, t),
+      reason: gen.evidence.trim() || gen.reason.trim() || (gen.revision === 0
+        ? t('plan.detail.dag.evolution.initialReason')
+        : t('plan.detail.dag.evolution.reasonUnknown')),
+      stageCount: new Set(gen.snapshot.tasks.map((task) => task.stage_id).filter(Boolean)).size,
+      taskCount: gen.snapshot.tasks.length,
+      active: gen.id === generationRead.active_generation_id,
+      progress: gen.snapshot_progress,
+      diff: gen.diff,
+      idempotencyKey: gen.idempotency_key,
+      generationId: gen.id,
+      parentGenerationId: gen.parent_generation_id,
+      createdAt: gen.created_at,
+    }));
 }
 
 function buildDagEvolutionRevisions(
-  stages: PlanStage[],
-  plan: Plan,
+  generationRead: PlanGenerationRead | undefined,
   t: TFunction,
-  generationRead?: PlanGenerationRead,
 ): DagEvolutionRevision[] {
-  if (generationRead?.generations.length) {
-    return buildGenerationEvolutionRevisions(generationRead, stages, plan, t);
-  }
-  if (stages.length === 0) return [];
-  const byGeneration = new Map<number, PlanStage[]>();
-  for (const stage of stages) {
-    const gen = stageGeneration(stage);
-    byGeneration.set(gen, [...(byGeneration.get(gen) ?? []), stage]);
-  }
-  const verdictsById = new Map<string, GateVerdict>();
-  for (const verdict of plan.gate_verdicts ?? []) verdictsById.set(verdict.id, verdict);
-  const continuationsById = new Map<string, PlanContinuation>();
-  for (const continuation of plan.continuations ?? []) continuationsById.set(continuation.id, continuation);
-
-  return [...byGeneration.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([generation, group]) => {
-      const sourceStage = group.find((stage) => stage.origin_verdict_id) ?? group[0];
-      const verdict = sourceStage.origin_verdict_id ? verdictsById.get(sourceStage.origin_verdict_id) : undefined;
-      const continuation = sourceStage.continuation_id ? continuationsById.get(sourceStage.continuation_id) : undefined;
-      const revision = generation + 1;
-      const taskCount = stageTaskIdSet(group).size;
-      const stageNames = group.map((stage) => stage.name || stage.id).slice(0, 2).join(', ');
-      const title = generation === 0
-        ? t('plan.detail.dag.evolution.initialTitle')
-        : group.length === 1
-          ? t('plan.detail.dag.evolution.addedOne', { stage: sourceStage.name || sourceStage.id })
-          : t('plan.detail.dag.evolution.addedMany', { count: group.length, stages: stageNames });
-      const fallbackReason = sourceStage.origin_verdict_id
-        ? t('plan.detail.dag.evolution.reasonFromVerdict', { verdict: shortLineageId(sourceStage.origin_verdict_id) })
-        : continuation
-          ? t('plan.detail.dag.evolution.reasonFromContinuation', { continuation: shortLineageId(continuation.id) })
-          : t('plan.detail.dag.evolution.reasonUnknown');
-      return {
-        generation,
-        revision,
-        label: `R${revision}`,
-        title,
-        reason: generation === 0
-          ? t('plan.detail.dag.evolution.initialReason')
-          : (verdict?.evidence?.trim() || fallbackReason),
-        stageCount: group.length,
-        taskCount,
-        verdictId: verdict?.id ?? sourceStage.origin_verdict_id,
-        verdictOutcome: verdict?.outcome,
-        continuationId: continuation?.id ?? sourceStage.continuation_id,
-        createdAt: verdict?.created_at ?? continuation?.created_at,
-      };
-    });
-}
-
-function generationTaskIdSet(generationRead: PlanGenerationRead | undefined, generation: number): Set<string> {
-  const ids = new Set<string>();
-  if (!generationRead) return ids;
-  for (const node of generationRead.nodes) {
-    if (node.generation <= generation && node.effective !== false) ids.add(node.task_id);
-  }
-  if (ids.size > 0) return ids;
-  for (const gen of generationRead.generations) {
-    if (gen.generation <= generation) {
-      for (const taskId of gen.task_ids) ids.add(taskId);
-    }
-  }
-  return ids;
+  if (!generationRead?.generations.length) return [];
+  return buildGenerationEvolutionRevisions(generationRead, t);
 }
 
 function generationNodeMap(generationRead: PlanGenerationRead | undefined): Map<string, PlanGenerationRead['nodes'][number]> {
@@ -2977,13 +2856,77 @@ function generationNodeMap(generationRead: PlanGenerationRead | undefined): Map<
   return map;
 }
 
-function evolutionDiffLabel(diff: PlanEvolutionDiff | undefined, t: TFunction): string {
+function evolutionDiffLabel(diff: PlanGenerationDiff | undefined, t: TFunction): string {
   if (!diff) return t('plan.detail.dag.evolution.diffEmpty');
   return t('plan.detail.dag.evolution.diffSummary', {
-    nodes: diff.added_nodes.length,
-    stages: diff.added_stages.length,
-    edges: diff.added_edges.length,
+    nodes: diff.tasks?.length ?? 0,
+    decisions: diff.node_decisions?.length ?? 0,
+    edges: diff.edges?.length ?? 0,
   });
+}
+
+function activeGenerationRevision(generationRead: PlanGenerationRead | undefined): number | undefined {
+  return generationRead?.generations.find((generation) => generation.id === generationRead.active_generation_id)?.revision;
+}
+
+function generationAtRevision(generationRead: PlanGenerationRead | undefined, revision: number): PlanGeneration | undefined {
+  return generationRead?.generations.find((generation) => generation.revision === revision);
+}
+
+function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
+  if (!generation) return [];
+  const taskById = new Map(generation.snapshot.tasks.map((task) => [task.task_id, task]));
+  const dispatched = new Set(generation.snapshot.dispatch_records.map((record) => record.task_id));
+  const dependsOn = new Map<string, string[]>();
+  for (const edge of generation.snapshot.edges) {
+    dependsOn.set(edge.from_task_id, [...(dependsOn.get(edge.from_task_id) ?? []), edge.to_task_id]);
+  }
+  return generation.snapshot.tasks.map((task) => {
+    const dependencies = dependsOn.get(task.task_id) ?? [];
+    let nodeStatus: PlanNodeStatus = 'blocked';
+    if (task.status === 'completed' || task.status === 'discarded') nodeStatus = 'done';
+    else if (task.status === 'running') nodeStatus = 'running';
+    else if (dispatched.has(task.task_id)) nodeStatus = 'dispatched';
+    else if (dependencies.every((id) => {
+      const upstream = taskById.get(id);
+      return upstream?.status === 'completed' || upstream?.status === 'discarded';
+    })) nodeStatus = 'ready';
+    return {
+      task_id: task.task_id,
+      title: task.title,
+      assignee_ref: task.assignee_ref ?? '',
+      task_status: task.status,
+      node_status: nodeStatus,
+      depends_on: dependencies,
+      effective: true,
+    };
+  });
+}
+
+function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: PlanGraphNode[]; edges: PlanGraphEdge[] } | undefined {
+  if (!generation) return undefined;
+  const nodeIdByTask = new Map<string, string>();
+  const nodes = generation.snapshot.tasks.map((task) => {
+    const id = task.node_id || `snapshot:${task.task_id}`;
+    nodeIdByTask.set(task.task_id, id);
+    return {
+      id,
+      category: 'business' as const,
+      title: task.title,
+      status: task.status as PlanGraphNodeStatus,
+      task_id: task.task_id,
+      task_status: task.status,
+      assignee_ref: task.assignee_ref,
+    };
+  });
+  const edges = generation.snapshot.edges.flatMap((edge) => {
+    const from = nodeIdByTask.get(edge.to_task_id);
+    const to = nodeIdByTask.get(edge.from_task_id);
+    if (!from || !to) return [];
+    const kind: PlanGraphEdgeKind = edge.kind === 'conditional' || edge.kind === 'loopback' ? edge.kind : 'seq';
+    return [{ from, to, kind }];
+  });
+  return { nodes, edges };
 }
 
 function DagEvolutionPanel({
@@ -3158,8 +3101,18 @@ function DagEvolutionPanel({
                       )}
                     </div>
                   )}
-                  {(revision.verdictId || revision.continuationId || revision.createdAt) && (
+                  {(revision.generationId || revision.parentGenerationId || revision.verdictId || revision.continuationId || revision.createdAt) && (
                     <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2 text-[0.625rem] text-text-muted">
+                      {revision.generationId && (
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.generationId}>
+                          {t('plan.detail.dag.evolution.generationId', { id: shortLineageId(revision.generationId) })}
+                        </span>
+                      )}
+                      {revision.parentGenerationId && (
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.parentGenerationId}>
+                          {t('plan.detail.dag.evolution.parentId', { id: shortLineageId(revision.parentGenerationId) })}
+                        </span>
+                      )}
                       {revision.verdictId && (
                         <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
                           {revision.verdictOutcome
@@ -3222,6 +3175,12 @@ function DagEvolutionPanel({
             {selected.idempotencyKey && (
               <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.idempotencyKey}>
                 {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
+              </div>
+            )}
+            {selected.generationId && (
+              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.generationId} data-testid="plan-dag-evolution-selected-generation-id">
+                {t('plan.detail.dag.evolution.generationId', { id: selected.generationId })}
+                {selected.parentGenerationId ? ` · ${t('plan.detail.dag.evolution.parentId', { id: selected.parentGenerationId })}` : ''}
               </div>
             )}
           </div>
@@ -3300,37 +3259,32 @@ function PlanGraphDag({
   // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
-  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t, generationRead), [generationRead, plan, stages, t]);
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(generationRead, t), [generationRead, t]);
   const currentGeneration = useMemo(
-    () => generationRead?.active_generation ?? latestStageGeneration(stages),
-    [generationRead?.active_generation, stages],
+    () => activeGenerationRevision(generationRead) ?? 0,
+    [generationRead],
   );
   const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
   const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
   const effectiveGeneration = selectedGeneration ?? currentGeneration;
+  const historicalGeneration = effectiveGeneration < currentGeneration
+    ? generationAtRevision(generationRead, effectiveGeneration)
+    : undefined;
   useEffect(() => {
     if (selectedGeneration == null) return;
     if (!evolutionRevisions.some((revision) => revision.generation === selectedGeneration)) setSelectedGeneration(null);
   }, [evolutionRevisions, selectedGeneration]);
-  const visibleStages = useMemo(
-    () => visibleStagesForGeneration(stages, effectiveGeneration),
-    [effectiveGeneration, stages],
-  );
+  const visibleStages = useMemo(() => {
+    if (historicalGeneration) {
+      const taskIDs = new Set(historicalGeneration.snapshot.tasks.map((task) => task.task_id));
+      return stages.filter((stage) => (stage.members ?? []).some((member) => taskIDs.has(member.task_id)));
+    }
+    return stages;
+  }, [historicalGeneration, stages]);
   const { nodes, edges } = useMemo(() => {
+    const historicalGraph = snapshotPlanGraph(historicalGeneration);
+    if (historicalGraph) return historicalGraph;
     if (stages.length === 0 || effectiveGeneration >= currentGeneration) {
-      if (stages.length === 0 && generationRead && effectiveGeneration < currentGeneration) {
-        const taskIds = generationTaskIdSet(generationRead, effectiveGeneration);
-        if (taskIds.size === 0) return { nodes: graphNodes, edges: graphEdges };
-        const filteredNodes = graphNodes.filter((node) => {
-          if (node.category === 'business') return node.task_id ? taskIds.has(node.task_id) : false;
-          return node.control_kind === 'start' || node.control_kind === 'end';
-        });
-        const nodeIds = new Set(filteredNodes.map((node) => node.id));
-        return {
-          nodes: filteredNodes,
-          edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
-        };
-      }
       return { nodes: graphNodes, edges: graphEdges };
     }
     const taskIds = stageTaskIdSet(visibleStages);
@@ -3346,7 +3300,7 @@ function PlanGraphDag({
       nodes: filteredNodes,
       edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
     };
-  }, [currentGeneration, effectiveGeneration, generationRead, graphEdges, graphNodes, stages.length, visibleStages]);
+  }, [currentGeneration, effectiveGeneration, graphEdges, graphNodes, historicalGeneration, stages.length, visibleStages]);
   // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
   // S1/S2 refs, which can be derived from the API's stable stage order without
   // changing the read model. Strip the same prefix from legacy stage names so
@@ -3355,16 +3309,12 @@ function PlanGraphDag({
 
   // Bound task → derived 6-state node_status (for the business-node chip), taken
   // from the plan detail's PlanNode list so the graph chips match the plan view.
+  const historicalPlanNodes = useMemo(() => snapshotPlanNodes(historicalGeneration), [historicalGeneration]);
   const nodeStatusOf = useMemo(() => {
     const m = new Map<string, PlanNodeStatus>();
-    for (const pn of plan.nodes ?? []) m.set(pn.task_id, pn.node_status);
+    for (const pn of historicalGeneration ? historicalPlanNodes : (plan.nodes ?? [])) m.set(pn.task_id, pn.node_status);
     return m;
-  }, [plan.nodes]);
-  const planNodeOf = useMemo(() => {
-    const m = new Map<string, PlanNode>();
-    for (const pn of plan.nodes ?? []) m.set(pn.task_id, pn);
-    return m;
-  }, [plan.nodes]);
+  }, [historicalGeneration, historicalPlanNodes, plan.nodes]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
 
   const { positioned, boxes, width, height } = useMemo(
@@ -3430,8 +3380,7 @@ function PlanGraphDag({
                     <span className="inline-flex items-center gap-1">
                       <NodeGenerationBadge
                         node={{
-                          generation: p.node.generation ?? planNodeOf.get(p.node.task_id)?.generation ?? generationNodeOf.get(p.node.task_id)?.generation,
-                          revision: p.node.revision ?? planNodeOf.get(p.node.task_id)?.revision ?? generationNodeOf.get(p.node.task_id)?.revision,
+                          revision: generationNodeOf.get(p.node.task_id)?.revision,
                         }}
                       />
                       <NodeStateChip status={nodeStatusOf.get(p.node.task_id) ?? 'blocked'} />
@@ -3487,15 +3436,6 @@ function PlanGraphDag({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${b.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
                       <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${b.stage.id}`}>{display.name}</span>
-                      {stageGeneration(b.stage) > 0 && (
-                        <span
-                          className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
-                          title={t('plan.detail.dag.evolution.stageRevisionTitle', { revision: `R${stageRevision(b.stage)}` })}
-                          data-testid={`plan-stage-remediation-${b.stage.id}`}
-                        >
-                          <span data-testid={`plan-stage-revision-${b.stage.id}`}>R{stageRevision(b.stage)}</span>
-                        </span>
-                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-2.5">
                       <span
@@ -3580,11 +3520,9 @@ function PlanGraphDag({
                 const status = nodeStatusOf.get(taskId) ?? 'blocked';
                 const s = NODE_STATE[status] ?? NODE_STATE.blocked;
                 const accentCls = s.border.replace(/^border-/, 'bg-');
-                const planNode = planNodeOf.get(taskId);
                 const generationNode = generationNodeOf.get(taskId);
                 const generationMeta = {
-                  generation: p.node.generation ?? planNode?.generation ?? generationNode?.generation,
-                  revision: p.node.revision ?? planNode?.revision ?? generationNode?.revision,
+                  revision: generationNode?.revision,
                 };
                 return (
                   <div
@@ -3769,7 +3707,7 @@ function MobileStageAuditCard({ stage }: { stage: PlanStage }) {
       >
         <div className="flex items-center justify-between gap-2 text-xs font-semibold text-text-primary">
           <span>{stage.name}</span>
-          <span>{stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}</span>
+          <span>{stage.status}</span>
         </div>
       </section>
       <StageAuditDialog
@@ -3850,7 +3788,7 @@ function StageAuditDetails({ stage, prefix }: { stage: PlanStage; prefix: string
           </span>
           <span className="min-w-0 break-words text-sm font-semibold text-text-primary">{stage.name || stage.id}</span>
           <span className="rounded bg-bg-elevated/70 px-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-            {stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}
+            {stage.status}
           </span>
         </div>
         <p className="mt-2 min-w-0 break-words text-xs leading-5 text-text-secondary">{tone.summary}</p>
@@ -4028,7 +3966,7 @@ function PlanDag({
 }): React.ReactElement {
   const graphQuery = usePlanGraph(projectId, plan.id);
   const generationQuery = usePlanGenerations(projectId, plan.id);
-  const generationRead = usableGenerationRead(generationQuery.data) ?? planGenerationsFromPlan(plan);
+  const generationRead = usableGenerationRead(generationQuery.data);
   const g = graphQuery.data;
   if (g?.has_graph && (g.nodes?.length ?? 0) > 0) {
     return <PlanGraphDag projectId={projectId} plan={plan} graph={{ nodes: g.nodes ?? [], edges: g.edges ?? [] }} compact={compact} generationRead={generationRead} />;
@@ -4055,35 +3993,37 @@ function LegacyPlanDag({
   const nodes = plan.nodes ?? [];
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
-  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t, generationRead), [generationRead, plan, stages, t]);
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(generationRead, t), [generationRead, t]);
   const currentGeneration = useMemo(
-    () => generationRead?.active_generation ?? latestStageGeneration(stages),
-    [generationRead?.active_generation, stages],
+    () => activeGenerationRevision(generationRead) ?? 0,
+    [generationRead],
   );
   const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
   const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
   const effectiveGeneration = selectedGeneration ?? currentGeneration;
+  const historicalGeneration = effectiveGeneration < currentGeneration
+    ? generationAtRevision(generationRead, effectiveGeneration)
+    : undefined;
   useEffect(() => {
     if (selectedGeneration == null) return;
     if (!evolutionRevisions.some((revision) => revision.generation === selectedGeneration)) setSelectedGeneration(null);
   }, [evolutionRevisions, selectedGeneration]);
-  const visibleStages = useMemo(
-    () => visibleStagesForGeneration(stages, effectiveGeneration),
-    [effectiveGeneration, stages],
-  );
+  const visibleStages = useMemo(() => {
+    if (historicalGeneration) {
+      const taskIDs = new Set(historicalGeneration.snapshot.tasks.map((task) => task.task_id));
+      return stages.filter((stage) => (stage.members ?? []).some((member) => taskIDs.has(member.task_id)));
+    }
+    return stages;
+  }, [historicalGeneration, stages]);
   const visibleNodes = useMemo(() => {
+    if (historicalGeneration) return snapshotPlanNodes(historicalGeneration);
     if (stages.length === 0 || effectiveGeneration >= currentGeneration) {
-      if (stages.length === 0 && generationRead && effectiveGeneration < currentGeneration) {
-        const taskIds = generationTaskIdSet(generationRead, effectiveGeneration);
-        if (taskIds.size === 0) return nodes;
-        return nodes.filter((node) => taskIds.has(node.task_id));
-      }
       return nodes;
     }
     const taskIds = stageTaskIdSet(visibleStages);
     if (taskIds.size === 0) return nodes;
     return nodes.filter((node) => taskIds.has(node.task_id));
-  }, [currentGeneration, effectiveGeneration, generationRead, nodes, stages.length, visibleStages]);
+  }, [currentGeneration, effectiveGeneration, historicalGeneration, nodes, stages.length, visibleStages]);
   const stageDisplay = useMemo(() => stageDisplayMeta(visibleStages), [visibleStages]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
   const isPending = plan.status === 'pending';
@@ -4325,15 +4265,6 @@ function LegacyPlanDag({
                       <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${box.stage.id}`}>
                         {display.name}
                       </span>
-                      {stageGeneration(box.stage) > 0 && (
-                        <span
-                          className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
-                          title={t('plan.detail.dag.evolution.stageRevisionTitle', { revision: `R${stageRevision(box.stage)}` })}
-                          data-testid={`plan-stage-remediation-${box.stage.id}`}
-                        >
-                          <span data-testid={`plan-stage-revision-${box.stage.id}`}>R{stageRevision(box.stage)}</span>
-                        </span>
-                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-2.5">
                       <span data-testid={`plan-stage-status-${box.stage.id}`} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[box.stage.status]}`}>
@@ -4443,8 +4374,7 @@ function LegacyPlanDag({
               const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
               const generationNode = generationNodeOf.get(taskId);
               const generationMeta = {
-                generation: p.node.generation ?? generationNode?.generation,
-                revision: p.node.revision ?? generationNode?.revision,
+                revision: generationNode?.revision,
               };
               // T347: a status-colored left accent bar (derived from the border
               // token) + hover lift make the nodes read as status cards, not plain
@@ -4626,7 +4556,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
   const canRemove = plan.status === 'pending';
   const members = useMembers();
   const generationQuery = usePlanGenerations(projectId, plan.id);
-  const generationRead = usableGenerationRead(generationQuery.data) ?? planGenerationsFromPlan(plan);
+  const generationRead = usableGenerationRead(generationQuery.data);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
   const [query, setQuery] = useState('');
 
@@ -4796,8 +4726,7 @@ function PlanTaskRow({
   };
   const title = node.title || refLabel(node.org_ref, node.task_id);
   const generationMeta = {
-    generation: node.generation ?? generationNode?.generation,
-    revision: node.revision ?? generationNode?.revision,
+    revision: generationNode?.revision,
   };
   // T147: ONE assignee control. Build the dropdown options — "" = Unassigned
   // (routes to the unassign endpoint), then each project member with an avatar

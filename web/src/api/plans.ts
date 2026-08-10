@@ -45,11 +45,6 @@ export interface PlanNode {
   task_status: string;
   node_status: PlanNodeStatus;
   depends_on: string[];
-  stage_id?: string;
-  generation?: number;
-  revision?: number;
-  origin_verdict_id?: string;
-  continuation_id?: string;
   effective?: boolean;
   superseded_by?: string[];
   superseded_reason?: string;
@@ -146,9 +141,7 @@ export interface Plan {
   node_count?: number;
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
-  active_generation?: number;
-  generations?: PlanGeneration[];
-  generation_nodes?: PlanGenerationNode[];
+  active_generation_id?: string;
 }
 
 export interface GateVerdict {
@@ -240,11 +233,6 @@ export interface PlanGraphNode {
   task_status?: string;
   org_ref?: string;
   assignee_ref?: string;
-  stage_id?: string;
-  generation?: number;
-  revision?: number;
-  origin_verdict_id?: string;
-  continuation_id?: string;
 }
 
 // One directed edge from→to, tagged by kind.
@@ -266,62 +254,110 @@ export interface PlanGraphView {
 }
 
 // ---------------------------------------------------------------------------
-// T1320 — Plan Generation / Evolution read model.
-//
-// The backend projects active/history generations from stage/remediation facts
-// plus current plan membership. A generation is a topology revision: R1 is the
-// initial DAG, later revisions are evolution/remediation additions with reason,
-// evidence, idempotency, progress, and additive diff metadata.
+// Immutable PlanGeneration ledger. IDs, parent lineage, diff, and snapshots are
+// persisted domain facts; revision is only a zero-based presentation position.
 // ---------------------------------------------------------------------------
 
-export interface PlanEvolutionEdge {
-  from_task_id: string;
-  to_task_id: string;
+export type PlanGenerationNodeAction = 'preserve' | 'hold_at_gate' | 'supersede';
+
+export interface PlanGenerationNodeDecision {
+  task_id: string;
+  action: PlanGenerationNodeAction;
+  reason?: string;
+}
+
+export interface PlanGenerationTaskDraft {
+  ref: string;
+  title: string;
+  description?: string;
+  assignee_ref: string;
+  dispatch_mode?: string;
+  delivery_contract?: string;
+  stage_id?: string;
+  follows_task_id?: string;
+}
+
+export interface PlanGenerationEdgeDraft {
+  from: string;
+  to: string;
   kind?: PlanGraphEdgeKind | 'seq' | 'conditional' | 'loopback';
   when?: string;
   max_rounds?: number;
 }
 
-export interface PlanEvolutionDiff {
-  from_generation: number;
-  to_generation: number;
-  added_nodes: string[];
-  added_stages: string[];
-  added_edges: PlanEvolutionEdge[];
-  removed_nodes: string[];
-  removed_edges: PlanEvolutionEdge[];
+export interface PlanGenerationDiff {
+  node_decisions: PlanGenerationNodeDecision[];
+  tasks: PlanGenerationTaskDraft[];
+  edges: PlanGenerationEdgeDraft[];
+}
+
+export interface PlanGenerationTaskSnapshot {
+  task_id: string;
+  stage_id?: string;
+  node_id?: string;
+  title: string;
+  description?: string;
+  assignee_ref?: string;
+  status: string;
+  dispatch_mode?: string;
+  delivery_contract?: string;
+  follows_task_id?: string;
+  origin_verdict_id?: string;
+}
+
+export interface PlanGenerationEdgeSnapshot {
+  from_task_id: string;
+  to_task_id: string;
+  kind?: string;
+  when?: string;
+  max_rounds?: number;
+}
+
+export interface PlanGenerationDispatchSnapshot {
+  task_id: string;
+  dispatched_at: string;
+  dispatch_message_id?: string;
+}
+
+export interface PlanGenerationSnapshot {
+  plan_id: string;
+  plan_version: number;
+  active_generation_id: string;
+  tasks: PlanGenerationTaskSnapshot[];
+  edges: PlanGenerationEdgeSnapshot[];
+  dispatch_records: PlanGenerationDispatchSnapshot[];
 }
 
 export interface PlanGeneration {
-  generation: number;
+  id: string;
+  plan_id: string;
+  parent_generation_id: string;
   revision: number;
-  label: string;
   active: boolean;
-  status: string;
-  stage_ids: string[];
-  task_ids: string[];
-  progress: { done: number; total: number };
   reason: string;
-  evidence?: string;
-  verdict_id?: string;
-  continuation_id?: string;
-  idempotency_key?: string;
-  created_at?: string;
-  diff: PlanEvolutionDiff;
+  evidence: string;
+  creator_ref: string;
+  diff: PlanGenerationDiff;
+  snapshot: PlanGenerationSnapshot;
+  snapshot_progress: { done: number; total: number };
+  idempotency_key: string;
+  dispatched_task_ids: string[];
+  created_at: string;
 }
 
 export interface PlanGenerationNode {
   task_id: string;
+  node_id?: string;
   stage_id?: string;
-  generation: number;
+  generation_id: string;
   revision: number;
-  origin_verdict_id?: string;
-  continuation_id?: string;
-  effective: boolean;
+  present_in_active: boolean;
 }
 
 export interface PlanGenerationRead {
-  active_generation: number;
+  plan_id: string;
+  active_generation_id: string;
+  plan_version: number;
   generations: PlanGeneration[];
   nodes: PlanGenerationNode[];
 }
@@ -465,8 +501,8 @@ export function usePlanGraph(projectId: string | undefined, planId: string | und
   });
 }
 
-// GET /{id}/generations — active/history topology revisions, additive diff, and
-// per-node generation ownership. Cached under the plan key so writes refresh it.
+// GET /{id}/generations — persisted active/parent lineage, immutable snapshots,
+// real PlanGenerationDiff, and first-generation node ownership.
 export function usePlanGenerations(projectId: string | undefined, planId: string | undefined) {
   return useQuery({
     queryKey: [...qk.plan(planId ?? ''), 'generations'],
@@ -745,32 +781,25 @@ export function useRemoveDependency(projectId: string, planId: string) {
   );
 }
 
-export type TopologyOp =
-  | { op: 'add_node'; task_id: string; assignee_ref?: string }
-  | { op: 'remove_node'; task_id: string }
-  | ({ op: 'add_edge' } & PlanEvolutionEdge)
-  | ({ op: 'remove_edge' } & PlanEvolutionEdge);
-
-export type PlanEvolutionInFlightPolicy = 'reject_conflicts';
-
 export interface CommitPlanEvolutionInput {
+  parent_generation_id: string;
   base_version: number;
   reason: string;
-  evidence?: string;
+  evidence: string;
   idempotency_key: string;
-  in_flight_policy: PlanEvolutionInFlightPolicy;
-  ops: TopologyOp[];
+  diff: PlanGenerationDiff;
 }
 
 export interface PlanEvolutionCommitResponse {
   ok: boolean;
+  duplicate: boolean;
+  active_generation_id: string;
   version: number;
   dispatched: string[];
-  plan: Plan;
+  generation: PlanGeneration;
 }
 
-// POST /{id}/evolution — live topology evolution entry for running/paused plans.
-// The API commits all-or-nothing and rejects stale/in-flight conflicts as a whole.
+// POST /{id}/evolution — EvolvePlanGeneration for running/paused plans.
 export function useCommitPlanEvolution(projectId: string, planId: string) {
   return usePlanWrite<CommitPlanEvolutionInput, PlanEvolutionCommitResponse>(projectId, planId, (vars) =>
     api.post<PlanEvolutionCommitResponse>(`${plansBase(projectId)}/${planId}/evolution`, vars),
