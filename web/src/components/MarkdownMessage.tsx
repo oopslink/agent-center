@@ -27,8 +27,17 @@ import { useSenderSidebar } from './SenderSidebarContext';
 function flattenText(node: React.ReactNode): string {
   if (typeof node === 'string') return node;
   if (Array.isArray(node)) return node.map(flattenText).join('');
+  if (node && typeof node === 'object' && 'props' in node) {
+    return flattenText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+  }
   return '';
 }
+
+// Agents commonly wrap a standalone entity reference in backticks. Preserve the
+// code-span appearance, but still let an exact ref enter the normal verified
+// resolver pipeline. Do not scan arbitrary inline code such as commands or file
+// names: only the whole span may be an entity ref.
+const INLINE_ENTITY_REF_RE = /^(?:task-[A-Za-z0-9]+|plan-[A-Za-z0-9]+|issue-[A-Za-z0-9]+|[TPI]\d+)$/;
 
 // A fenced code block arrives here as <pre>'s child <code class="language-x">…</code>.
 function PreBlock({ children }: { children?: React.ReactNode }): React.ReactElement {
@@ -183,6 +192,14 @@ function MarkdownBody({
           em: ({ children }) => <em>{linkify(children)}</em>,
           strong: ({ children }) => <strong>{linkify(children)}</strong>,
           td: ({ children }) => <td>{linkify(children)}</td>,
+          code: ({ children, className }) => {
+            const raw = flattenText(children);
+            return (
+              <code className={className}>
+                {INLINE_ENTITY_REF_RE.test(raw) ? linkify(children) : children}
+              </code>
+            );
+          },
           // external-safe links: rel guards window.opener + referrer leakage.
           a({ href, children }) {
             return (

@@ -223,6 +223,24 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
     expect(link).toHaveAttribute('data-task-id', 'task-abc');
   });
 
+  it('linkifies a standalone task ref wrapped in an inline code span', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'created remediation `task-abc`'} />);
+
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link).toHaveTextContent('T123');
+    expect(link.closest('code')).not.toBeNull();
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
+  });
+
+  it('does not linkify a task ref embedded in an inline code command', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'run `inspect task-abc now`'} />);
+
+    await waitFor(() => expect(screen.getByText('inspect task-abc now')).toBeInTheDocument());
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
+  });
+
   it('refreshes a fresh-but-stale resolver cache when a new task ref message mounts', async () => {
     mockOrgTasks();
     const filters = { status: ['all'] };
