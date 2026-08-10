@@ -90,6 +90,11 @@
       "copied": "Copied!",
       "copyLink": "Copy link to DM"
     },
+    "floating": {
+      "subtitle": "Direct message",
+      "openFullPage": "Open full page",
+      "close": "Close DM"
+    },
     "startModal": {
       "title": "Start a DM",
       "subtitle": "Pick one person or agent. Use channels for group conversations.",

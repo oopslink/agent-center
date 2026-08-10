@@ -1,4 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { useState } from 'react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,6 +7,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { OrgContext } from '@/OrgContext';
 import { useAppStore } from '@/store/app';
+import { FloatingDmProvider } from './FloatingDmContext';
 import { CommandPalette } from './CommandPalette';
 
 // v2.8.1 fix: CommandPalette items hold app-absolute paths (/channels, …) but
@@ -35,6 +37,38 @@ function renderPalette(org: { slug: string; orgId: string; orgName: string } | n
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function renderPaletteWithFloating(org: { slug: string; orgId: string; orgName: string }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const onClose = vi.fn();
+  function Harness(): React.ReactElement {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <CommandPalette
+          open={open}
+          onClose={() => {
+            onClose();
+            setOpen(false);
+          }}
+        />
+        <Loc />
+      </>
+    );
+  }
+  const result = render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/organizations/acme/projects']}>
+        <OrgContext.Provider value={org}>
+          <FloatingDmProvider>
+            <Harness />
+          </FloatingDmProvider>
+        </OrgContext.Provider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  return { ...result, onClose };
 }
 
 describe('CommandPalette org-scoped navigation (v2.8.1 fix)', () => {
@@ -95,7 +129,7 @@ describe('CommandPalette @ mode — quick DM an agent', () => {
     expect(screen.queryByText('@Me')).toBeNull();
   });
 
-  it('"@dev1" filters, and Enter opens (creates) the DM and navigates to it', async () => {
+  it('"@dev1" filters, and Enter opens (creates) the DM and navigates to it without the shell provider', async () => {
     useAppStore.getState().setCurrentUserId('user:me');
     let posted: unknown = null;
     server.use(
@@ -116,6 +150,45 @@ describe('CommandPalette @ mode — quick DM an agent', () => {
     await waitFor(() =>
       expect(screen.getByTestId('loc')).toHaveTextContent('/organizations/acme/dms/conv-1'),
     );
+    expect(posted).toEqual({ kind: 'dm', members: ['agent:agent-dev1'] });
+  });
+
+  it('opens the desktop floating DM chat instead of navigating when the shell provider is mounted', async () => {
+    useAppStore.getState().setCurrentUserId('user:me');
+    let posted: unknown = null;
+    server.use(
+      http.get('/api/members', () => HttpResponse.json(members)),
+      http.post('/api/conversations', async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json({ conversation_id: 'conv-1' });
+      }),
+      http.get('/api/conversations/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          kind: 'dm',
+          name: 'agent-center-dev1',
+          status: 'active',
+          peer_identity_id: 'agent:agent-dev1',
+          peer_display_name: 'agent-center-dev1',
+          dm_type: 'my_dm',
+          participants: [
+            { identity_id: 'user:me' },
+            { identity_id: 'agent:agent-dev1' },
+          ],
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    const { onClose } = renderPaletteWithFloating({ slug: 'acme', orgId: 'o1', orgName: 'Acme' });
+    const input = await screen.findByTestId('palette-input');
+    fireEvent.change(input, { target: { value: '@dev1' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    const floating = await screen.findByTestId('dm-floating-chat');
+    expect(floating).toHaveAttribute('data-conversation-id', 'conv-1');
+    expect(await screen.findByText('@agent-center-dev1')).toBeInTheDocument();
+    expect(screen.getByTestId('loc')).toHaveTextContent('/organizations/acme/projects');
+    expect(onClose).toHaveBeenCalled();
     expect(posted).toEqual({ kind: 'dm', members: ['agent:agent-dev1'] });
   });
 });

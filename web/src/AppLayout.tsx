@@ -25,6 +25,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOptionalOrgContext } from './OrgContext';
 import { useContextPanelController } from '@/shell/contextPanel';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
+import { FloatingDmProvider } from '@/components/FloatingDmContext';
 import { useResizablePanel } from '@/components/useResizablePanel';
 import { MobileTabBar, type TabBarModule } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
@@ -373,6 +374,7 @@ export default function AppLayout(): React.ReactElement {
 
   return (
     <ctxPanel.Provider value={ctxPanel.value}>
+      <FloatingDmProvider>
       {/* Mobile viewport fix: use the dynamic viewport height (.h-screen-dvh =
           100vh fallback → 100dvh) instead of h-screen. 100vh is the LARGE
           viewport on mobile browsers, so the reserved bottom band (fixed tab bar
@@ -736,6 +738,7 @@ export default function AppLayout(): React.ReactElement {
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <WorkerEnrolledToast />
       </div>
+      </FloatingDmProvider>
     </ctxPanel.Provider>
   );
 }

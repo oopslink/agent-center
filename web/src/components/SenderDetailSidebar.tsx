@@ -51,12 +51,13 @@ export function SenderDetailSidebar({
   const { t } = useTranslation('members');
   const containerRef = useModalA11y({ open, onClose });
   const displayName = useDisplayNameResolver();
-  // T136: the header "Open DM" button navigates (useOpenDm → useNavigate), which
-  // needs a Router ancestor. This sidebar is embedded in many surfaces (mentions,
-  // message list, threads) whose unit tests render WITHOUT a Router; gating the
-  // button on useInRouterContext keeps it out of those router-less renders (the
-  // live app always mounts within a Router) and isolates the navigate hook in the
-  // AgentDmButton child so it only runs when actually rendered.
+  // T136: the header "Open DM" button opens a route or shell floating panel via
+  // useOpenDm, which still needs a Router ancestor. This sidebar is embedded in
+  // many surfaces (mentions, message list, threads) whose unit tests render
+  // WITHOUT a Router; gating the button on useInRouterContext keeps it out of
+  // those router-less renders (the live app always mounts within a Router) and
+  // isolates the router-dependent hook in the AgentDmButton child so it only runs
+  // when actually rendered.
   const inRouter = useInRouterContext();
 
   // T474: the "create reminder" header button opens the create modal with this
@@ -245,10 +246,10 @@ function BellIcon(): React.ReactElement {
 }
 
 // AgentDmButton — T136 header "Open DM" icon button. Opens (or reuses) the 1:1 DM
-// with the agent and navigates to it, then closes the sidebar so the operator
-// lands in the conversation. Isolated in its own component so its useOpenDm →
-// useNavigate hook only runs when the button is actually rendered (i.e. within a
-// Router — see the SenderDetailSidebar inRouter gate).
+// with the agent, then closes the sidebar so the operator lands in the conversation
+// route or sees the floating chat. Isolated in its own component so its useOpenDm
+// hook only runs when the button is actually rendered (i.e. within a Router — see
+// the SenderDetailSidebar inRouter gate).
 function AgentDmButton({
   senderRef,
   onClose,

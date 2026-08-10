@@ -2,10 +2,11 @@ import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useConversations, useCreateConversation } from '@/api/conversations';
+import { useConversations } from '@/api/conversations';
 import { useMembers, identityRefOf, normalizeIdentityRef } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { orgPath, useOptionalOrgContext } from '@/OrgContext';
+import { useOpenDm } from './useOpenDm';
 
 // CommandPalette — Cmd/Ctrl-K quick-switcher (v2.3 P6). Searches
 // channels + DMs client-side (substring match on name/id;
@@ -16,7 +17,9 @@ import { orgPath, useOptionalOrgContext } from '@/OrgContext';
 // picker — it lists the org members you can DM (agents + humans, joined, minus
 // self) filtered by the text after "@". Committing opens your DM with that member,
 // creating it if none exists (the create endpoint is idempotent: an existing DM is
-// reused). This makes ⌘K + "@name" a one-keystroke way to jump into a DM.
+// reused). In the desktop shell this opens the floating DM chat; mobile/standalone
+// surfaces fall back to the full DM route. This makes Cmd/Ctrl-K + "@name" a
+// one-keystroke way to start chatting.
 //
 // Hidden by default; AppLayout owns the open/close state so the global
 // ⌘K hook can flip it.
@@ -46,7 +49,7 @@ export function CommandPalette({
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
   const members = useMembers();
-  const createConversation = useCreateConversation();
+  const openDm = useOpenDm();
   const me = useAppStore((s) => s.currentUserId);
   const meBare = me ? normalizeIdentityRef(me) : '';
 
@@ -142,16 +145,10 @@ export function CommandPalette({
     if (item.kind === 'dm-agent') {
       // Open my DM with this member, creating it if none exists (the create
       // endpoint is idempotent — an existing DM is returned, not duplicated).
-      if (createConversation.isPending) return;
-      createConversation.mutate(
-        { kind: 'dm', members: [item.ref] },
-        {
-          onSuccess: (res) => {
-            navigate(orgPath(`/dms/${encodeURIComponent(res.conversation_id)}`, org?.slug));
-            onClose();
-          },
-        },
-      );
+      if (openDm.pending) return;
+      void openDm.open(item.ref).then((opened) => {
+        if (opened) onClose();
+      });
       return;
     }
     navigate(orgPath(item.href, org?.slug));
