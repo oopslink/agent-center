@@ -50,6 +50,21 @@ function wrap(onClose = () => {}) {
 afterEach(() => cleanup());
 
 describe('AgentCreateModal — model field', () => {
+  it('places Worker before dependent Runtime selectors and explains the empty state', async () => {
+    wrap();
+
+    const worker = await screen.findByTestId('agent-create-worker-trigger');
+    const cli = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
+    const model = screen.getByTestId('agent-create-model') as HTMLSelectElement;
+
+    expect(worker.compareDocumentPosition(cli) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(cli.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(cli).toBeDisabled();
+    expect(model).toBeDisabled();
+    expect(Array.from(cli.options).map((o) => o.textContent)).toEqual(['Select a worker first']);
+    expect(Array.from(model.options).map((o) => o.textContent)).toEqual(['Select a worker first']);
+  });
+
   it('renders Runtime catalog CLI/model options filtered by the selected worker', async () => {
     wrap();
     fireEvent.click(await screen.findByTestId('agent-create-worker-trigger'));

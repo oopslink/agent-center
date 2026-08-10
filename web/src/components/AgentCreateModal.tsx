@@ -38,6 +38,15 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
     () => deriveRuntimeChoices(runtimeCatalog.data, selectedWorker),
     [runtimeCatalog.data, selectedWorker],
   );
+  const cliSelectDisabled = !workerId || runtimeChoices.cliOptions.length === 0;
+  const selectedModelOptions = runtimeChoices.modelOptionsByCli[cli] ?? [];
+  const modelSelectDisabled = !workerId || !cli || selectedModelOptions.length === 0;
+  const cliPlaceholder = !workerId
+    ? t('agents.create.cliSelectWorkerPlaceholder')
+    : t('agents.create.cliEmpty');
+  const modelPlaceholder = !workerId
+    ? t('agents.create.modelSelectWorkerPlaceholder')
+    : (!cli ? t('agents.create.modelSelectCliPlaceholder') : t('agents.create.modelEmpty'));
 
   useEffect(() => {
     if (!workerId || !runtimeChoices.defaultCli) return;
@@ -169,46 +178,6 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </span>
         </div>
 
-        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
-          <select
-            id="agent-create-model-input"
-            data-testid="agent-create-model"
-            value={model}
-            onChange={(e) => {
-              setModel(e.target.value);
-              setValidationError(null);
-            }}
-            className={inputClass}
-            disabled={!workerId || !cli || (runtimeChoices.modelOptionsByCli[cli] ?? []).length === 0}
-          >
-            {(runtimeChoices.modelOptionsByCli[cli] ?? []).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
-          <select
-            id="agent-create-cli-input"
-            data-testid="agent-create-cli"
-            value={cli}
-            onChange={(e) => {
-              setCli(e.target.value);
-              setValidationError(null);
-            }}
-            className={inputClass}
-            disabled={!workerId || runtimeChoices.cliOptions.length === 0}
-          >
-            {runtimeChoices.cliOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>
           {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
           <EntitySelect
@@ -233,6 +202,48 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
               {t('agents.create.noWorkers')}
             </p>
           )}
+        </Field>
+
+        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
+          <select
+            id="agent-create-cli-input"
+            data-testid="agent-create-cli"
+            value={cli}
+            onChange={(e) => {
+              setCli(e.target.value);
+              setValidationError(null);
+            }}
+            className={inputClass}
+            disabled={cliSelectDisabled}
+          >
+            {cliSelectDisabled && <option value="">{cliPlaceholder}</option>}
+            {runtimeChoices.cliOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
+          <select
+            id="agent-create-model-input"
+            data-testid="agent-create-model"
+            value={model}
+            onChange={(e) => {
+              setModel(e.target.value);
+              setValidationError(null);
+            }}
+            className={inputClass}
+            disabled={modelSelectDisabled}
+          >
+            {modelSelectDisabled && <option value="">{modelPlaceholder}</option>}
+            {selectedModelOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </Field>
 
         {(validationError || (workerId && runtimeError)) && (
