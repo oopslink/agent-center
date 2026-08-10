@@ -122,7 +122,8 @@ var (
 	// ErrInvalidExecutorProfile rejects an allowed_executors entry with an
 	// unsupported cli or an empty model (v2.18.1 BE-1). Distinct sentinel so the API
 	// maps the validation failure to 400. The CLI must be in SupportedExecutorCLIs
-	// {claude-code, codex}; the model is free text but must be non-empty.
+	// {claude-code, codex}; webconsole additionally validates the pair against
+	// RuntimeCatalog when it is wired.
 	ErrInvalidExecutorProfile = errors.New("agent: invalid executor profile (cli must be claude-code|codex and model must be non-empty)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
 	// cannot execute end-to-end (#181 / FINDING-F). "claude-code" and "codex" are
@@ -223,8 +224,9 @@ type Profile struct {
 
 // ExecutorProfile is one executor candidate: which CLI runs it and which model it
 // runs with (v2.18.1 BE-1). The CLI is hard-validated against SupportedExecutorCLIs
-// (a closed set the daemon can actually fork); the model is free text (non-empty) —
-// provider model names rotate too often to hard-enumerate without going stale.
+// (a closed set the daemon can actually fork); callers with RuntimeCatalog access
+// must validate that model belongs to an enabled compatible catalog entry before
+// persisting the pair.
 type ExecutorProfile struct {
 	CLI   string `json:"cli"`
 	Model string `json:"model"`

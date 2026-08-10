@@ -267,8 +267,9 @@
       "close": "关闭",
       "fields": {
         "cli": "CLI",
+        "cliPlaceholder": "选择 CLI",
         "model": "模型",
-        "modelPlaceholder": "例如 claude-opus-4-8",
+        "modelPlaceholder": "选择兼容模型",
         "reasoning": "推理",
         "reasoningHint": "推理强度。默认 = 运行时默认值。",
         "reasoningDefault": "默认",
@@ -280,6 +281,18 @@
         "provider": "提供方",
         "providerHint": "可选。留空 = 中心默认值。",
         "providerPlaceholder": "default"
+      },
+      "runtimeCatalog": {
+        "loading": "正在加载 AI Runtime 目录…",
+        "ready": "AI Runtime 目录版本 {{revision}}",
+        "error": "AI Runtime 目录不可用。",
+        "empty": "AI Runtime 目录没有已启用的 CLI/模型组合。",
+        "refresh": "刷新",
+        "modelSearch": "搜索模型",
+        "executorModelSearch": "搜索执行器模型",
+        "unavailable": "（不可用）",
+        "invalidSelection": "请选择 AI Runtime 中已启用的 CLI/模型组合。",
+        "invalidExecutors": "请移除不可用的执行器组合，或从 AI Runtime 中选择已启用的替代组合。"
       },
       "env": {
         "heading": "环境变量",

@@ -331,6 +331,29 @@ provider 与 `allowed_executors`。
 - `allowed_executors` 是 Agent CLI/Model 选择和执行路由的权威候选池；
 - 不在业务页面提供未受控的 Runtime Profile 绑定。
 
+#### 8.3.1 当前 legacy Agent CLI / Model selector 契约（T1305）
+
+在 `runtime_selection` 字段和 Snapshot 运行链切入前，Agent 配置页先使用共享 selector 数据层读取
+AI Runtime Catalog，并继续写 legacy Agent profile 字段：
+
+| 数据 | 权威边界 | 用途 |
+|---|---|---|
+| Runtime CLI / Model Catalog | `GET /api/orgs/{slug}/ai-runtime` 中的 `clis[]` / `models[]` | 唯一 CLI / Model 候选来源；CLI 按 `key` 去重；Model 按运行时 `model_key` 输出并按 `compatible_cli_keys` 过滤 |
+| Agent profile legacy fields | `Agent.profile.cli/model/allowed_executors` | Agent 当前 / effective config 的回显与写入目标；`model` 和 `allowed_executors[].model` 保存运行时真实 model string，不保存 catalog stable key |
+| Agent runtime effective config | `get_agent_runtime_effective_config` / Environment read model | 只用于 desired vs observed 诊断；不得作为选择器候选来源，也不得把 observed 值反写 Catalog |
+| Worker capability scan | Environment/Fleet capability projection | 只用于 coverage / schedulability 提示；不创建、不修改、不删除 Catalog 条目 |
+
+Selector 语义：
+
+- 共享 selector / hook 的输入只允许依赖 `clis[]`、`models[]` 与 Agent 当前 `cli/model/allowed_executors`；T1310 清退 Runtime Profile 后，`default_runtime_profile_id` / `profiles[]` 字段可以从 API 类型中消失，不得影响 selector 行为；
+- 初始默认值不读取 Runtime Profile；当 Agent 当前值为空时，按 Catalog 返回顺序选择第一个 enabled CLI 及其第一个 enabled 且兼容的 Model，作为确定性 UI 默认；
+- 若 Agent 已有 legacy 值，优先回显该值；Catalog 中已删除/停用/不兼容的当前值保留为不可选项，保存时必须改成有效组合；
+- CLI 变化后，若当前 Model 与新 CLI 不兼容，清空 Model 并要求用户重新选择；不得自动替换成第一个兼容模型；
+- Executor candidate 添加行复用同一 CLI / Model 过滤与搜索逻辑；提交前按 `{cli, model}` 去重，服务端再次规范化；
+- Catalog loading / error / empty 都是显式状态；用户可刷新 Catalog；empty 状态不得回落到硬编码候选或自由文本；
+- 并发配置变化（如 max_concurrent_tasks 改变、allowed_executors 清空）只影响 Agent profile legacy 字段；是否启用并发仍由服务端单一谓词 `max_concurrent_tasks>0 && allowed_executors non-empty` 判定；
+- 并发 Catalog 变化由服务端组合校验兜底：`POST /members/agent` 与 `PATCH /agents/{id}/config` 必须校验主 `cli/model` 与每个 `allowed_executors[]` 均存在、enabled 且兼容；失败返回 `runtime_*` reason 与 details。
+
 ## 9. 批量导入与导出
 
 ### 9.1 文件格式

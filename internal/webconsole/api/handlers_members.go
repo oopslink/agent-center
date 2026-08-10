@@ -8,6 +8,7 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/airuntime"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -222,6 +223,16 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "worker_id_required",
 			"worker_id is required (v2.7: an execution agent must bind a worker)")
 		return
+	}
+	if d.RuntimeCatalog != nil {
+		if err := d.RuntimeCatalog.ValidateLegacyAgentRuntimeConfig(r.Context(), orgID, airuntime.LegacyAgentRuntimeConfig{
+			CLI:              body.CLI,
+			Model:            body.Model,
+			AllowedExecutors: legacyRuntimeExecutors(body.AllowedExecutors),
+		}); err != nil {
+			mapAgentError(w, err)
+			return
+		}
 	}
 
 	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)
