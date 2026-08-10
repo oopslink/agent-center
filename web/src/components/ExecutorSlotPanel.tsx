@@ -267,7 +267,7 @@ export function ExecutorSlotPanel({
           const state = normalizeState(slot.state);
           const selected = canRevealSlotDetails && selectedSlotIndex === index;
           const className = [
-            'h-2.5 w-7 rounded-sm border transition focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 focus:ring-offset-bg-subtle',
+            'h-2.5 w-7 rounded-sm border transition focus:ring-2 focus:ring-accent focus:ring-offset-1 focus:ring-offset-bg-subtle',
             slotChipClass(state, amber || !measured),
             selected ? 'ring-2 ring-accent ring-offset-1 ring-offset-bg-subtle' : '',
             canRevealSlotDetails ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
