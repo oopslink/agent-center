@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { AgentConcurrency, AgentConcurrencySlot, ConcurrencyExecutor } from '@/api/concurrency';
@@ -168,6 +168,7 @@ export function ExecutorSlotPanel({
 }): React.ReactElement | null {
   const { t } = useTranslation('members');
   const slots = useMemo(() => (data ? normalizedSlots(data) : []), [data]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
   if (loading && !data) {
     return (
@@ -197,7 +198,12 @@ export function ExecutorSlotPanel({
   const amber = mode === 'offline' || mode === 'expired';
   const stable = slotStable(data);
   const draining = cap > configured || (data.admission_cap != null && data.admission_cap < cap);
-  const segs = Array.from({ length: cap }, (_, i) => i < occupancy);
+  const chipSlots = stable && slots.length > 0
+    ? slots
+    : Array.from({ length: cap }, (_, i) => ({ slot_index: i, state: i < occupancy ? 'running' : 'idle' }));
+  const selectedSlot = slots.find((slot) => slot.slot_index === selectedSlotIndex);
+  const canRevealSlotDetails = !compact && stable && slots.length > 0;
+  const detailId = `${testId}-slot-detail`;
 
   return (
     <section
@@ -255,44 +261,73 @@ export function ExecutorSlotPanel({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1" aria-hidden="true">
-        {segs.map((on, i) => (
-          <span
-            key={i}
-            className={`h-2 w-6 rounded-sm ${
-              measured && on
-                ? amber
-                  ? 'bg-warning'
-                  : 'bg-brand'
-                : on
-                  ? 'bg-text-muted'
-                  : 'bg-border-strong'
-            }`}
-          />
-        ))}
+      <div className="mt-2 flex flex-wrap items-center gap-1">
+        {chipSlots.map((slot, i) => {
+          const index = slot.slot_index ?? i;
+          const state = normalizeState(slot.state);
+          const selected = canRevealSlotDetails && selectedSlotIndex === index;
+          const className = [
+            'h-2.5 w-7 rounded-sm border transition focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 focus:ring-offset-bg-subtle',
+            slotChipClass(state, amber || !measured),
+            selected ? 'ring-2 ring-accent ring-offset-1 ring-offset-bg-subtle' : '',
+            canRevealSlotDetails ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
+          ].filter(Boolean).join(' ');
+          if (!canRevealSlotDetails) {
+            return (
+              <span
+                key={index}
+                className={className}
+                data-testid="executor-slot-chip"
+                data-slot-index={index}
+                data-slot-state={state}
+                title={stateLabel(slot.state, t)}
+                aria-hidden="true"
+              />
+            );
+          }
+          return (
+            <button
+              key={index}
+              type="button"
+              className={className}
+              data-testid="executor-slot-chip"
+              data-slot-index={index}
+              data-slot-state={state}
+              aria-label={t('agentRuntime.executorSlots.slotAria', { index, state: stateLabel(slot.state, t) })}
+              aria-pressed={selected ? 'true' : 'false'}
+              aria-expanded={selected ? 'true' : 'false'}
+              aria-controls={detailId}
+              title={stateLabel(slot.state, t)}
+              onClick={() => setSelectedSlotIndex((current) => (current === index ? null : index))}
+            />
+          );
+        })}
       </div>
 
       {!compact && (
-        <div className="mt-3">
-          {stable && slots.length > 0 ? (
-            <ul className="grid gap-2 sm:grid-cols-2" data-testid="executor-slot-list">
-              {slots.map((slot) => (
+        stable ? (
+          selectedSlot ? (
+            <div className="mt-3" id={detailId}>
+              <ul className="grid gap-2" data-testid="executor-slot-list">
                 <ExecutorSlotRow
-                  key={slot.slot_index}
-                  slot={slot}
+                  slot={selectedSlot}
                   targetCap={configured}
                   stale={mode !== 'live'}
                 />
-              ))}
-            </ul>
-          ) : stable ? (
-            <p className="text-xs text-text-muted" data-testid="executor-slot-empty">
-              {t('agentRuntime.executorSlots.empty')}
-            </p>
-          ) : (
+              </ul>
+            </div>
+          ) : slots.length === 0 ? (
+            <div className="mt-3" id={detailId}>
+              <p className="text-xs text-text-muted" data-testid="executor-slot-empty">
+                {t('agentRuntime.executorSlots.empty')}
+              </p>
+            </div>
+          ) : null
+        ) : (
+          <div className="mt-3" id={detailId}>
             <LegacyExecutorList data={data} />
-          )}
-        </div>
+          </div>
+        )
       )}
     </section>
   );
@@ -516,6 +551,16 @@ function stateClass(state: string | undefined): string {
   if (cls === 'orphan') return `${base} bg-status-amber-bg text-status-amber-fg`;
   if (cls === 'idle') return `${base} bg-bg-subtle text-text-muted`;
   return `${base} bg-bg-subtle text-text-secondary`;
+}
+
+function slotChipClass(state: ReturnType<typeof normalizeState>, muted: boolean): string {
+  if (muted && state === 'running') return 'border-warning/40 bg-warning';
+  if (state === 'running') return 'border-brand bg-brand';
+  if (state === 'starting') return 'border-status-blue-fg/30 bg-status-blue-bg';
+  if (state === 'finishing') return 'border-status-teal-fg/30 bg-status-teal-bg';
+  if (state === 'orphan') return 'border-warning/50 bg-warning';
+  if (state === 'idle') return 'border-border-strong bg-border-strong';
+  return 'border-border-strong bg-bg-subtle';
 }
 
 function HeartIcon(): React.ReactElement {

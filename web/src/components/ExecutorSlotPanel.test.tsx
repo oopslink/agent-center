@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ExecutorSlotPanel, AgentSlotMetricBadge } from './ExecutorSlotPanel';
 import type { AgentConcurrency } from '@/api/concurrency';
 
@@ -26,7 +27,7 @@ function conc(overrides: Partial<AgentConcurrency> = {}): AgentConcurrency {
 describe('ExecutorSlotPanel', () => {
   afterEach(() => cleanup());
 
-  it('renders a live stable #0..N-1 slot list with 0-based labels', () => {
+  it('renders stable slot colors by default and reveals the selected slot row on click', async () => {
     render(
       <ExecutorSlotPanel
         data={conc({
@@ -42,14 +43,20 @@ describe('ExecutorSlotPanel', () => {
     expect(screen.getByTestId('executor-slot-panel')).toHaveAttribute('data-mode', 'live');
     expect(screen.getByTestId('agent-concurrency-slots')).toHaveTextContent('3/4');
     expect(screen.getByTestId('agent-concurrency-queued')).toHaveTextContent('1 queued');
+    expect(screen.queryByTestId('executor-slot-row')).toBeNull();
+    const chips = screen.getAllByTestId('executor-slot-chip');
+    expect(chips).toHaveLength(4);
+    expect(chips.map((chip) => chip.getAttribute('data-slot-state'))).toEqual(['running', 'idle', 'starting', 'finishing']);
+
+    await userEvent.click(chips[0]);
     const rows = screen.getAllByTestId('executor-slot-row');
-    expect(rows).toHaveLength(4);
-    expect(rows.map((row) => within(row).getByTestId('executor-slot-index').textContent)).toEqual(['#0', '#1', '#2', '#3']);
-    expect(rows.map((row) => row.getAttribute('data-slot-state'))).toEqual(['running', 'idle', 'starting', 'finishing']);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByTestId('executor-slot-index')).toHaveTextContent('#0');
+    expect(rows[0]).toHaveAttribute('data-slot-state', 'running');
     expect(screen.getByTestId('executor-slot-current-activity')).toHaveTextContent('Doing: editing tests');
   });
 
-  it('renders expired stale last-known slots and orphan state without inventing idle slots', () => {
+  it('reveals expired stale last-known slot detail without inventing idle detail rows', async () => {
     render(
       <ExecutorSlotPanel
         data={conc({
@@ -67,6 +74,8 @@ describe('ExecutorSlotPanel', () => {
     expect(panel).toHaveAttribute('data-draining', 'true');
     expect(screen.getByTestId('agent-concurrency-age')).toHaveTextContent(/last known/i);
     expect(screen.getByTestId('agent-concurrency-draining')).toHaveTextContent(/target 2/i);
+    expect(screen.queryByTestId('executor-slot-row')).toBeNull();
+    await userEvent.click(screen.getByTestId('executor-slot-chip'));
     const rows = screen.getAllByTestId('executor-slot-row');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveAttribute('data-slot-index', '3');
@@ -136,6 +145,25 @@ describe('ExecutorSlotPanel', () => {
     );
     expect(screen.getByLabelText('Live executor slots')).toBeInTheDocument();
     expect(screen.getByLabelText('Executor slot 0 is Running')).toBeInTheDocument();
+  });
+
+  it('toggles the selected slot detail from the status chip', async () => {
+    render(
+      <ExecutorSlotPanel
+        data={conc({ slots: [{ slot_index: 0, state: 'running', executor_id: 'exec-0' }] })}
+      />,
+    );
+    const chip = screen.getAllByTestId('executor-slot-chip')[0];
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByTestId('executor-slot-row')).toBeNull();
+
+    await userEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('executor-slot-row')).toHaveAttribute('aria-label', 'Executor slot 0 is Running');
+
+    await userEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByTestId('executor-slot-row')).toBeNull();
   });
 });
 
