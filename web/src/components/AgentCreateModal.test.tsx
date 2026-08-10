@@ -10,7 +10,6 @@ function runtimeCatalog() {
     HttpResponse.json({
       org_id: 'org-test',
       revision: 1,
-      default_runtime_profile_id: 'runtime-profile-default',
       clis: [
         { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
         { id: 'runtime-cli-codex', key: 'codex', display_name: 'Codex CLI', executable: 'codex', enabled: true },
@@ -19,9 +18,6 @@ function runtimeCatalog() {
         { id: 'runtime-model-opus', key: 'opus-4-8', model_key: 'opus-4-8', display_name: 'Opus', compatible_cli_keys: ['claude-code'], enabled: true },
         { id: 'runtime-model-sonnet', key: 'sonnet-disabled', model_key: 'sonnet-disabled', display_name: 'Sonnet Disabled', compatible_cli_keys: ['claude-code'], enabled: false },
         { id: 'runtime-model-gpt', key: 'gpt-5', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
-      ],
-      profiles: [
-        { id: 'runtime-profile-default', key: 'default', name: 'Default', cli_key: 'claude-code', model_key: 'opus-4-8', parameters: {}, enabled: true },
       ],
     }),
   );

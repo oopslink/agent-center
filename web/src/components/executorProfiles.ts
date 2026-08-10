@@ -58,17 +58,10 @@ export function deriveRuntimeChoices(
       }));
   }
 
-  const defaultProfile = catalog?.profiles.find((p) => p.id === catalog.default_runtime_profile_id && p.enabled);
-  const defaultCli =
-    defaultProfile && cliOptions.some((option) => option.value === defaultProfile.cli_key)
-      ? defaultProfile.cli_key
-      : cliOptions[0]?.value ?? '';
-  const defaultModel =
-    defaultProfile &&
-    defaultProfile.cli_key === defaultCli &&
-    (modelOptionsByCli[defaultCli] ?? []).some((option) => option.value === defaultProfile.model_key)
-      ? defaultProfile.model_key
-      : modelOptionsByCli[defaultCli]?.[0]?.value ?? '';
+  // Runtime profiles were removed in T1310. Defaults now come directly from
+  // the first enabled catalog entries that the selected worker can execute.
+  const defaultCli = cliOptions[0]?.value ?? '';
+  const defaultModel = modelOptionsByCli[defaultCli]?.[0]?.value ?? '';
 
   return { cliOptions, modelOptionsByCli, defaultCli, defaultModel };
 }

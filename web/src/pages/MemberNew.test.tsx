@@ -32,15 +32,11 @@ function runtimeCatalog() {
     HttpResponse.json({
       org_id: 'org-test',
       revision: 1,
-      default_runtime_profile_id: 'runtime-profile-default',
       clis: [
         { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
       ],
       models: [
         { id: 'runtime-model-claude-opus', key: 'claude-opus-4-8', model_key: 'claude-opus-4-8', display_name: 'Claude Opus', compatible_cli_keys: ['claude-code'], enabled: true },
-      ],
-      profiles: [
-        { id: 'runtime-profile-default', key: 'default', name: 'Default', cli_key: 'claude-code', model_key: 'claude-opus-4-8', parameters: {}, enabled: true },
       ],
     }),
   );
@@ -67,7 +63,7 @@ function fleetWithWorker() {
 describe('MemberNew — Add agent runtime selection', () => {
   afterEach(() => cleanup());
 
-  it('selects the Runtime default after worker selection and submits it when untouched', async () => {
+  it('selects the first compatible Runtime pair after worker selection and submits it when untouched', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
       runtimeCatalog(),
