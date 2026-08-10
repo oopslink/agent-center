@@ -2072,6 +2072,8 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await waitFor(() => expect(screen.queryByTestId('plan-stage-gate-audit-dialog-st-b')).not.toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-stage-box-st-b'));
     expect(await screen.findByTestId('plan-stage-gate-audit-dialog-st-b')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-gate-outcome-banner-st-b')).toHaveTextContent('Rejected');
+    expect(screen.getByTestId('plan-stage-gate-outcome-chip-st-b')).toHaveTextContent('Rejected');
     expect(screen.getByTestId('plan-stage-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
     const evaluatorLink = await within(screen.getByTestId('plan-stage-gate-evaluator-st-b')).findByTestId('activity-agent-ref-link');
     expect(evaluatorLink).toHaveTextContent('agent-b5036ea8');
@@ -2091,6 +2093,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-stage-mobile-audit-st-b')).not.toHaveTextContent('Verify responsive UI');
     fireEvent.click(screen.getByTestId('plan-stage-mobile-audit-st-b'));
     expect(await screen.findByTestId('plan-stage-mobile-gate-audit-dialog-st-b')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-stage-mobile-gate-outcome-banner-st-b')).toHaveTextContent('Rejected');
     expect(screen.getByTestId('plan-stage-mobile-gate-evaluator-st-b')).toHaveTextContent('human · agent:agent-b5036ea8');
     expect(screen.getByTestId('plan-stage-mobile-gate-contract-st-b')).toHaveTextContent('Verify responsive UI');
     expect(screen.getByTestId('plan-stage-mobile-gate-evidence-st-b')).toHaveTextContent('Mobile overlap remains');
@@ -2170,6 +2173,8 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     const panel = await screen.findByTestId('plan-dag-evolution');
     expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
     expect(within(panel).getByTestId('plan-dag-evolution-reason-2')).toHaveTextContent('Reviewer rejected mobile acceptance');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-detail')).toHaveTextContent('R2');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
     expect(screen.getByTestId('plan-stage-revision-st-b')).toHaveTextContent('R2');
 
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));

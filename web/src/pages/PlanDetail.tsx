@@ -2678,10 +2678,15 @@ function DagEvolutionPanel({
               {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
             </span>
           </div>
-          <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
+          <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
             <span className="font-semibold text-text-primary">{selected.title}</span>
-            <span className="text-text-muted"> · {t('plan.detail.dag.evolution.reasonLabel')}: </span>
-            {selected.reason}
+            <span className="text-text-muted">
+              {' '}
+              · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+            </span>
+            {selected.verdictOutcome && (
+              <span className="text-text-muted"> · {selected.verdictOutcome}</span>
+            )}
           </p>
         </div>
         <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
@@ -2722,15 +2727,15 @@ function DagEvolutionPanel({
 
       {!collapsed && (
         <div id={panelBodyId} className="grid gap-2 p-3" data-testid="plan-dag-evolution-body">
-          <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]" data-testid="plan-dag-evolution-revisions">
+          <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]" data-testid="plan-dag-evolution-revisions">
             {revisions.map((revision) => {
               const active = revision.generation === selected.generation;
               return (
                 <button
                   key={revision.generation}
                   type="button"
-                  className={`min-w-0 rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                    active ? 'border-accent bg-accent/10' : 'border-border-base bg-bg-surface'
+                  className={`flex min-h-[8.75rem] min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
                   }`}
                   aria-pressed={active}
                   data-testid={`plan-dag-evolution-revision-${revision.revision}`}
@@ -2740,33 +2745,33 @@ function DagEvolutionPanel({
                     onSelectGeneration(revision.generation);
                   }}
                 >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-bold text-text-primary">{revision.label}</span>
-                    <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
+                  <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
+                    <span className="shrink-0 font-mono text-xs font-bold text-text-primary">{revision.label}</span>
+                    <span className="min-w-0 truncate text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
                       {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
                     </span>
                   </div>
-                  <div className="line-clamp-1 text-xs font-semibold text-text-primary">{revision.title}</div>
-                  <div className="mt-1 line-clamp-2 text-[0.6875rem] leading-4 text-text-secondary" data-testid={`plan-dag-evolution-reason-${revision.revision}`}>
+                  <div className="line-clamp-2 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary">{revision.title}</div>
+                  <div className="mt-1 line-clamp-2 min-w-0 break-words text-[0.6875rem] leading-4 text-text-secondary" data-testid={`plan-dag-evolution-reason-${revision.revision}`}>
                     <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
                     {revision.reason}
                   </div>
                   {(revision.verdictId || revision.continuationId || revision.createdAt) && (
-                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.625rem] text-text-muted">
+                    <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2 text-[0.625rem] text-text-muted">
                       {revision.verdictId && (
-                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
                           {revision.verdictOutcome
                             ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: revision.verdictOutcome, id: shortLineageId(revision.verdictId) })
                             : t('plan.detail.dag.evolution.verdict', { id: shortLineageId(revision.verdictId) })}
                         </span>
                       )}
                       {revision.continuationId && (
-                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
                           {t('plan.detail.dag.evolution.continuation', { id: shortLineageId(revision.continuationId) })}
                         </span>
                       )}
                       {revision.createdAt && (
-                        <span className="rounded bg-bg-subtle px-1.5 py-0.5">
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5">
                           {formatLocalTime(revision.createdAt)}
                         </span>
                       )}
@@ -2775,6 +2780,27 @@ function DagEvolutionPanel({
                 </button>
               );
             })}
+          </div>
+          <div
+            className="rounded-lg border border-border-base bg-bg-subtle/60 p-3"
+            data-testid="plan-dag-evolution-selected-detail"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg">
+                {selected.label}
+              </span>
+              <span className="min-w-0 break-words text-xs font-semibold text-text-primary">{selected.title}</span>
+              <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+                {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+              </span>
+            </div>
+            <div
+              className="mt-2 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
+              data-testid="plan-dag-evolution-selected-reason"
+            >
+              <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
+              {selected.reason}
+            </div>
           </div>
           <div className="flex gap-1.5 sm:hidden">
             <button
@@ -3347,20 +3373,54 @@ function StageAuditDetails({ stage, prefix }: { stage: PlanStage; prefix: string
   const spec = stage.gate_spec;
   const owner = spec?.assignee_ref || spec?.role_ref || 'Unassigned';
   const evidence = stage.gate_evidence || 'No evidence';
-  const diagnostics = stage.diagnostics?.length ? stage.diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n') : 'No diagnostics';
+  const diagnostics = stage.diagnostics ?? [];
+  const diagnosticsText = diagnostics.length ? diagnostics.map((d) => `${d.code}: ${d.message}`).join('\n') : 'No diagnostics';
+  const tone = stageGateOutcomeTone(stage.gate_outcome);
+  const reviewedSha = stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA';
   return (
-    <div className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm" data-testid={`${prefix}-audit-details-${stage.id}`}>
+    <div className="max-h-[70vh] overflow-y-auto p-4 text-sm" data-testid={`${prefix}-audit-details-${stage.id}`}>
+      <div className={`mb-3 rounded-lg border p-3 ${tone.bannerClass}`} data-testid={`${prefix}-outcome-banner-${stage.id}`}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-1 text-xs font-bold uppercase tracking-wide ${tone.chipClass}`} data-testid={`${prefix}-outcome-chip-${stage.id}`}>
+            {tone.label}
+          </span>
+          <span className="min-w-0 break-words text-sm font-semibold text-text-primary">{stage.name || stage.id}</span>
+          <span className="rounded bg-bg-elevated/70 px-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+            {stage.status}{stageGeneration(stage) > 0 ? ` · R${stageRevision(stage)}` : ''}
+          </span>
+        </div>
+        <p className="mt-2 min-w-0 break-words text-xs leading-5 text-text-secondary">{tone.summary}</p>
+        <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.6875rem]">
+          <span className="rounded bg-bg-elevated/70 px-2 py-1 font-mono text-text-secondary">{reviewedSha}</span>
+          <span className="rounded bg-bg-elevated/70 px-2 py-1 text-text-secondary">round {stage.rounds}/{stage.max_rounds}</span>
+          <span className="rounded bg-bg-elevated/70 px-2 py-1 text-text-secondary">{stage.members.length} tasks</span>
+          {diagnostics.length > 0 && (
+            <span className="rounded bg-danger/10 px-2 py-1 font-semibold text-danger">
+              {diagnostics.length} diagnostic{diagnostics.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
       <dl className="grid gap-3">
-        <StageAuditDetailRow label="Evaluator" testId={`${prefix}-evaluator-${stage.id}`}>
-          {spec?.evaluator_kind || 'Missing evaluator'} · <ActivityRefText text={owner} />
-        </StageAuditDetailRow>
+        <div className="grid gap-3 md:grid-cols-2">
+          <StageAuditDetailRow label="Evaluator" testId={`${prefix}-evaluator-${stage.id}`}>
+            {spec?.evaluator_kind || 'Missing evaluator'} · <ActivityRefText text={owner} />
+          </StageAuditDetailRow>
+          <StageAuditDetailRow label="Lineage" testId={`${prefix}-lineage-${stage.id}`}>
+            {stage.origin_verdict_id
+              ? `generation ${stage.generation ?? 0} · verdict ${stage.origin_verdict_id} · continuation ${stage.continuation_id ?? 'unknown'}`
+              : 'Base stage'}
+          </StageAuditDetailRow>
+        </div>
         <StageAuditDetailRow label="Routes" testId={`${prefix}-routes-${stage.id}`}>
-          {spec ? `${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}` : 'Routes unavailable'}
-        </StageAuditDetailRow>
-        <StageAuditDetailRow label="Lineage" testId={`${prefix}-lineage-${stage.id}`}>
-          {stage.origin_verdict_id
-            ? `generation ${stage.generation ?? 0} · verdict ${stage.origin_verdict_id} · continuation ${stage.continuation_id ?? 'unknown'}`
-            : 'Base stage'}
+          {spec ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              <span className="sr-only">{`${spec.pass_route} / ${spec.reject_route} / ${spec.exhausted_route}`}</span>
+              <StageAuditRouteChip label="Pass" value={spec.pass_route} className="border-success/30 bg-success/10 text-success" />
+              <StageAuditRouteChip label="Reject" value={spec.reject_route} className="border-warning/30 bg-warning/10 text-warning" />
+              <StageAuditRouteChip label="Exhausted" value={spec.exhausted_route} className="border-danger/30 bg-danger/10 text-danger" />
+            </div>
+          ) : 'Routes unavailable'}
         </StageAuditDetailRow>
         <StageAuditDetailRow label="Topology fingerprint" testId={`${prefix}-fingerprint-${stage.id}`}>
           <span className="font-mono text-xs">{stage.topology_fingerprint || 'Not recorded'}</span>
@@ -3368,20 +3428,60 @@ function StageAuditDetails({ stage, prefix }: { stage: PlanStage; prefix: string
         <StageAuditDetailRow label="Acceptance contract" testId={`${prefix}-contract-${stage.id}`} strong>
           <ActivityRefText text={spec?.acceptance_contract || 'Missing acceptance contract'} />
         </StageAuditDetailRow>
-        <StageAuditDetailRow label="Evidence" testId={`${prefix}-evidence-${stage.id}`}>
-          <div className="mb-1 flex min-w-0 flex-wrap gap-x-3 text-xs">
-            <span className="font-semibold uppercase">{stage.gate_outcome || 'Outcome pending'}</span>
-            <span className="font-mono">{stage.gate_reviewed_sha ? stage.gate_reviewed_sha.slice(0, 12) : 'No reviewed SHA'}</span>
+        <StageAuditDetailRow label="Evidence" testId={`${prefix}-evidence-${stage.id}`} tone={stage.gate_outcome === 'reject' ? 'danger' : stage.gate_outcome === 'pass' ? 'success' : undefined}>
+          <div className="mb-2 flex min-w-0 flex-wrap gap-1.5 text-xs">
+            <span className={`rounded px-2 py-1 font-semibold uppercase ${tone.chipClass}`}>{stage.gate_outcome || 'Outcome pending'}</span>
+            <span className="rounded bg-bg-subtle px-2 py-1 font-mono text-text-secondary">{reviewedSha}</span>
           </div>
-          <div className="whitespace-pre-wrap break-words" data-testid={`${prefix}-evidence-text-${stage.id}`}>
+          <div className="whitespace-pre-wrap break-words leading-5" data-testid={`${prefix}-evidence-text-${stage.id}`}>
             <ActivityRefText text={evidence} />
           </div>
         </StageAuditDetailRow>
-        <StageAuditDetailRow label="Diagnostics" testId={`${prefix}-diagnostics-${stage.id}`} danger={Boolean(stage.diagnostics?.length)}>
-          <ActivityRefText text={diagnostics} />
+        <StageAuditDetailRow label="Diagnostics" testId={`${prefix}-diagnostics-${stage.id}`} tone={diagnostics.length ? 'danger' : undefined}>
+          <ActivityRefText text={diagnosticsText} />
         </StageAuditDetailRow>
       </dl>
     </div>
+  );
+}
+
+function stageGateOutcomeTone(outcome: PlanStage['gate_outcome'] | undefined): {
+  label: string;
+  summary: string;
+  bannerClass: string;
+  chipClass: string;
+} {
+  if (outcome === 'pass') {
+    return {
+      label: 'Passed',
+      summary: 'The stage gate accepted the current evidence and can continue through the pass route.',
+      bannerClass: 'border-success/30 bg-success/10',
+      chipClass: 'bg-success text-white',
+    };
+  }
+  if (outcome === 'reject') {
+    return {
+      label: 'Rejected',
+      summary: 'The stage gate rejected the submitted evidence. Review the contract, evidence, diagnostics, and reject route before continuing.',
+      bannerClass: 'border-danger/30 bg-danger/10',
+      chipClass: 'bg-danger text-white',
+    };
+  }
+  return {
+    label: 'Pending',
+    summary: 'No gate verdict has been recorded yet. The evaluator, routes, and acceptance contract are shown for review.',
+    bannerClass: 'border-border-base bg-bg-subtle',
+    chipClass: 'bg-bg-elevated text-text-secondary',
+  };
+}
+
+function StageAuditRouteChip({ label, value, className }: { label: string; value: string; className: string }) {
+  return (
+    <span className={`min-w-0 max-w-full truncate rounded border px-2 py-1 text-[0.6875rem] font-semibold ${className}`}>
+      <span className="uppercase tracking-wide">{label}</span>
+      <span className="mx-1 text-text-muted">→</span>
+      <span className="font-mono">{value}</span>
+    </span>
   );
 }
 
@@ -3390,19 +3490,25 @@ function StageAuditDetailRow({
   testId,
   children,
   strong = false,
-  danger = false,
+  tone,
 }: {
   label: string;
   testId: string;
   children: React.ReactNode;
   strong?: boolean;
-  danger?: boolean;
+  tone?: 'danger' | 'success';
 }) {
+  const toneClass = tone === 'danger'
+    ? 'border-danger/30 bg-danger/5'
+    : tone === 'success'
+      ? 'border-success/30 bg-success/5'
+      : 'border-border-base bg-bg-surface';
+  const textClass = strong ? 'text-text-primary' : tone === 'danger' ? 'text-danger' : 'text-text-secondary';
   return (
-    <div className="grid gap-1">
+    <div className={`grid gap-1 rounded-lg border p-3 ${toneClass}`}>
       <dt className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
       <dd
-        className={`${strong ? 'text-text-primary' : danger ? 'text-danger' : 'text-text-secondary'} min-w-0 whitespace-pre-wrap break-words`}
+        className={`${textClass} min-w-0 whitespace-pre-wrap break-words`}
         data-testid={testId}
       >
         {children}
