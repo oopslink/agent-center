@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
@@ -105,6 +107,21 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 	if n.SupersededReason != "" {
 		node["superseded_reason"] = n.SupersededReason
 	}
+	node["generation"] = 0
+	node["revision"] = 1
+	if gen, ok := l.generationOf[n.TaskID]; ok {
+		node["generation"] = gen.Generation
+		node["revision"] = gen.Revision
+		if gen.StageID != "" {
+			node["stage_id"] = string(gen.StageID)
+		}
+		if gen.OriginVerdictID != "" {
+			node["origin_verdict_id"] = string(gen.OriginVerdictID)
+		}
+		if gen.ContinuationID != "" {
+			node["continuation_id"] = string(gen.ContinuationID)
+		}
+	}
 	// T570 (+ follow-up): a completed task carries its authoritative completion
 	// time (task.CompletedAt, set on →completed and cleared on reopen). Emitted
 	// only when present — a never-completed / reopened task has no completed_at.
@@ -136,7 +153,8 @@ type planNodeLookup struct {
 	// starvedOf (v2.18.3 BE-2) maps a task id → true when it is auto-assign STARVED.
 	// Sourced from PlanDetail.Starved (populated by the FE-facing reads for builtin
 	// pool plans); nil/absent ⇒ false (the common case for structured-plan nodes).
-	starvedOf map[pm.TaskID]bool
+	starvedOf    map[pm.TaskID]bool
+	generationOf map[pm.TaskID]pmservice.PlanGenerationNode
 }
 
 func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
@@ -150,6 +168,12 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		completedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
 		createdAtOf:   make(map[pm.TaskID]string, len(detail.Tasks)),
 		starvedOf:     detail.Starved,
+		generationOf:  make(map[pm.TaskID]pmservice.PlanGenerationNode),
+	}
+	if detail.Generations != nil {
+		for _, gen := range detail.Generations.Nodes {
+			l.generationOf[gen.TaskID] = gen
+		}
 	}
 	for _, t := range detail.Tasks {
 		l.titleOf[t.ID()] = t.Title()
@@ -199,7 +223,127 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if detail.Generations != nil {
+		m["active_generation"] = detail.Generations.ActiveGeneration
+		m["generations"] = pmPlanGenerationsArray(detail.Generations)
+		m["generation_nodes"] = pmPlanGenerationNodesArray(detail.Generations)
+	}
 	return m
+}
+
+func pmPlanGenerationsArray(read *pmservice.PlanGenerationRead) []map[string]any {
+	if read == nil {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(read.Generations))
+	for _, gen := range read.Generations {
+		out = append(out, pmPlanGenerationMap(gen))
+	}
+	return out
+}
+
+func pmPlanGenerationMap(gen pmservice.PlanGeneration) map[string]any {
+	stageIDs := make([]string, 0, len(gen.StageIDs))
+	for _, id := range gen.StageIDs {
+		stageIDs = append(stageIDs, string(id))
+	}
+	taskIDs := make([]string, 0, len(gen.TaskIDs))
+	for _, id := range gen.TaskIDs {
+		taskIDs = append(taskIDs, string(id))
+	}
+	m := map[string]any{
+		"generation": gen.Generation,
+		"revision":   gen.Revision,
+		"label":      "R" + strconv.Itoa(gen.Revision),
+		"active":     gen.Active,
+		"status":     gen.Status,
+		"stage_ids":  stageIDs,
+		"task_ids":   taskIDs,
+		"progress":   map[string]any{"done": gen.Progress.Done, "total": gen.Progress.Total},
+		"reason":     gen.Reason,
+		"diff":       pmPlanEvolutionDiffMap(gen.Diff),
+	}
+	if gen.Evidence != "" {
+		m["evidence"] = gen.Evidence
+	}
+	if gen.VerdictID != "" {
+		m["verdict_id"] = string(gen.VerdictID)
+	}
+	if gen.ContinuationID != "" {
+		m["continuation_id"] = string(gen.ContinuationID)
+	}
+	if gen.IdempotencyKey != "" {
+		m["idempotency_key"] = gen.IdempotencyKey
+	}
+	if !gen.CreatedAt.IsZero() {
+		m["created_at"] = gen.CreatedAt.Format(time.RFC3339Nano)
+	}
+	return m
+}
+
+func pmPlanEvolutionDiffMap(diff pmservice.PlanEvolutionDiff) map[string]any {
+	return map[string]any{
+		"from_generation": diff.FromGeneration,
+		"to_generation":   diff.ToGeneration,
+		"added_nodes":     taskIDsToStrings(diff.AddedNodes),
+		"added_stages":    stageIDsToStrings(diff.AddedStages),
+		"added_edges":     dependenciesToMaps(diff.AddedEdges),
+		"removed_nodes":   taskIDsToStrings(diff.RemovedNodes),
+		"removed_edges":   dependenciesToMaps(diff.RemovedEdges),
+	}
+}
+
+func pmPlanGenerationNodesArray(read *pmservice.PlanGenerationRead) []map[string]any {
+	if read == nil {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(read.Nodes))
+	for _, n := range read.Nodes {
+		m := map[string]any{
+			"task_id":    string(n.TaskID),
+			"generation": n.Generation,
+			"revision":   n.Revision,
+			"effective":  n.Effective,
+		}
+		if n.StageID != "" {
+			m["stage_id"] = string(n.StageID)
+		}
+		if n.OriginVerdictID != "" {
+			m["origin_verdict_id"] = string(n.OriginVerdictID)
+		}
+		if n.ContinuationID != "" {
+			m["continuation_id"] = string(n.ContinuationID)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func stageIDsToStrings(ids []pm.StageID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func dependenciesToMaps(edges []pm.Dependency) []map[string]any {
+	out := make([]map[string]any, 0, len(edges))
+	for _, edge := range edges {
+		m := map[string]any{
+			"from_task_id": string(edge.FromTaskID),
+			"to_task_id":   string(edge.ToTaskID),
+			"kind":         string(pm.NormalizeEdgeKind(edge.Kind)),
+		}
+		if edge.When != "" {
+			m["when"] = edge.When
+		}
+		if edge.MaxRounds != 0 {
+			m["max_rounds"] = edge.MaxRounds
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare
@@ -257,6 +401,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
+		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
+		errors.Is(err, pm.ErrIdempotencyConflict),
 		errors.Is(err, pm.ErrPlanHasRunningTasks), errors.Is(err, pm.ErrPlanNotComplete):
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
 		// can't delete/archive; already-archived can't re-archive; not-draft can't
@@ -279,6 +425,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
 		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
+		errors.Is(err, pm.ErrInvalidLoopback), errors.Is(err, pm.ErrConditionalNeedsWhen),
+		errors.Is(err, pm.ErrInvalidEdgeKind),
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
@@ -401,6 +549,31 @@ func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
 }
 
+func (s *Server) pmGetPlanGenerationsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	view, err := d.PM.GetPlanGenerations(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanGenerationReadMap(view))
+}
+
+func pmPlanGenerationReadMap(view *pmservice.PlanGenerationRead) map[string]any {
+	if view == nil {
+		return map[string]any{"active_generation": 0, "generations": []any{}, "nodes": []any{}}
+	}
+	return map[string]any{
+		"active_generation": view.ActiveGeneration,
+		"generations":       pmPlanGenerationsArray(view),
+		"nodes":             pmPlanGenerationNodesArray(view),
+	}
+}
+
 // pmGetPlanGraphHandler — GET …/plans/{plan_id}/graph (T769). Returns the plan's
 // orchestration-engine GRAPH read model: control nodes (Start/End/Condition) +
 // business nodes bound to tasks (status/org_ref) + edges by kind
@@ -449,6 +622,17 @@ func pmPlanGraphMap(v *pmservice.PlanGraphView) map[string]any {
 			node["task_id"] = n.TaskID
 			node["task_status"] = n.TaskStatus
 			node["assignee_ref"] = n.Assignee
+			node["generation"] = n.Generation
+			node["revision"] = n.Revision
+			if n.StageID != "" {
+				node["stage_id"] = n.StageID
+			}
+			if n.OriginVerdictID != "" {
+				node["origin_verdict_id"] = n.OriginVerdictID
+			}
+			if n.ContinuationID != "" {
+				node["continuation_id"] = n.ContinuationID
+			}
 		}
 		if n.TaskOrgRef != "" {
 			node["org_ref"] = n.TaskOrgRef
@@ -725,6 +909,97 @@ func (s *Server) pmRemoveDependencyHandler(w http.ResponseWriter, r *http.Reques
 	}
 	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
 	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+type pmTopologyOpReq struct {
+	Op         string `json:"op"`
+	TaskID     string `json:"task_id"`
+	FromTaskID string `json:"from_task_id"`
+	ToTaskID   string `json:"to_task_id"`
+	Kind       string `json:"kind"`
+	When       string `json:"when"`
+	MaxRounds  int    `json:"max_rounds"`
+}
+
+type pmPlanEvolutionReq struct {
+	BaseVersion    int               `json:"base_version"`
+	Reason         string            `json:"reason"`
+	Evidence       string            `json:"evidence"`
+	IdempotencyKey string            `json:"idempotency_key"`
+	InFlightPolicy string            `json:"in_flight_policy"`
+	Ops            []pmTopologyOpReq `json:"ops"`
+}
+
+func (s *Server) pmCommitPlanEvolutionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req pmPlanEvolutionReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	policy, err := normalizePlanEvolutionPolicy(req.InFlightPolicy)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "reason is required")
+		return
+	}
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "idempotency_key is required")
+		return
+	}
+	ops := make([]pmservice.TopologyOp, 0, len(req.Ops))
+	for _, op := range req.Ops {
+		ops = append(ops, pmservice.TopologyOp{
+			Kind:       pmservice.TopologyOpKind(strings.TrimSpace(op.Op)),
+			TaskID:     pm.TaskID(op.TaskID),
+			FromTaskID: pm.TaskID(op.FromTaskID),
+			ToTaskID:   pm.TaskID(op.ToTaskID),
+			EdgeKind:   pm.EdgeKind(strings.TrimSpace(op.Kind)),
+			When:       op.When,
+			MaxRounds:  op.MaxRounds,
+		})
+	}
+	dispatched, err := d.PM.EditPlanTopology(r.Context(), pmservice.EditPlanTopologyCommand{
+		PlanID:            pl.ID(),
+		BaseVersion:       req.BaseVersion,
+		Ops:               ops,
+		Actor:             caller,
+		EvolutionReason:   req.Reason,
+		EvolutionEvidence: req.Evidence,
+		IdempotencyKey:    req.IdempotencyKey,
+		InFlightPolicy:    policy,
+	})
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"version":    detail.Plan.Version(),
+		"dispatched": taskIDsToStrings(dispatched),
+		"plan":       pmPlanDetailMap(detail),
+	})
+}
+
+func normalizePlanEvolutionPolicy(raw string) (string, error) {
+	switch strings.TrimSpace(raw) {
+	case "", "reject_conflicts", "reject", "all_or_nothing":
+		return "reject_conflicts", nil
+	default:
+		return "", errors.New("in_flight_policy must be reject_conflicts")
+	}
 }
 
 func (s *Server) pmStartPlanHandler(w http.ResponseWriter, r *http.Request) {
