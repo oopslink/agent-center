@@ -72,14 +72,21 @@ type EditPlanTopologyCommand struct {
 	BaseVersion int
 	Ops         []TopologyOp
 	Actor       pm.IdentityRef
+	// Evolution metadata is supplied by the Web/API evolution entrypoint. The
+	// topology service still applies the same atomic edit; these fields make the
+	// operator's intent and conflict policy visible in the immutable audit ledger.
+	EvolutionReason   string
+	EvolutionEvidence string
+	IdempotencyKey    string
+	InFlightPolicy    string
 	// PlanningRules is the frozen phase=plan Team Memory snapshot used by this
 	// authoring session. It is audited with the topology commit.
 	PlanningRules *RuleSnapshot
 }
 
-// EditPlanTopology applies an ops batch to a draft OR running plan atomically
-// (2026-07-05 live-topology design §3/§4). Returns the newly-dispatched task ids
-// (empty for a draft edit, or a running edit that readied nothing).
+// EditPlanTopology applies an ops batch to a draft, running, or paused plan
+// atomically (2026-07-05 live-topology design §3/§4). Returns the newly-dispatched
+// task ids (empty for a draft/paused edit, or a running edit that readied nothing).
 func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyCommand) ([]pm.TaskID, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable
@@ -103,7 +110,7 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			return pm.ErrBuiltinPlanNoEdges
 		}
 		switch p.Status() {
-		case pm.PlanPending, pm.PlanRunning:
+		case pm.PlanPending, pm.PlanRunning, pm.PlanPaused:
 			// editable
 		case pm.PlanDiscarded:
 			return pm.ErrPlanArchived
@@ -117,6 +124,7 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			return fmt.Errorf("%w: base_version=%d current=%d", pm.ErrPlanVersionConflict, cmd.BaseVersion, p.Version())
 		}
 		running := p.Status() == pm.PlanRunning
+		live := running || p.Status() == pm.PlanPaused
 
 		// Load the CURRENT (pre-edit) snapshot: nodes, edges, dispatch records.
 		curTasks, err := s.tasks.ListByPlan(txCtx, cmd.PlanID)
@@ -194,19 +202,21 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 				return pm.ErrSelfDependency
 			}
 		}
-		// (c) RUNNING only — every terminal node has a resolvable assignee (a live node
-		// must be dispatchable). Draft defers this to start_plan (draft ≡ old per-op).
-		if running {
+		// (c) LIVE only — every terminal node has a resolvable assignee (a live node
+		// must be dispatchable once the plan is running). Draft defers this to
+		// start_plan (draft ≡ old per-op). Paused validates the same topology but does
+		// not dispatch newly-ready nodes until resume.
+		if live {
 			for id := range wm.nodes {
 				if err := s.validateResolvableAssignee(txCtx, p, taskByID[id]); err != nil {
 					return err
 				}
 			}
 		}
-		// (d) RUNNING only — every STRUCTURALLY-AFFECTED node must be mutable (§4/§6):
+		// (d) LIVE only — every STRUCTURALLY-AFFECTED node must be mutable (§4/§6):
 		// a node whose in-edge set changed, or a removed node. An immutable
 		// (dispatched/running/terminal) affected node → ErrPlanNodeInFlight (named).
-		if running {
+		if live {
 			for _, id := range structurallyAffected(curNodes, curEdges, wm) {
 				t := taskByID[id]
 				if t == nil {
@@ -286,13 +296,21 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			"added_nodes":   taskIDStrings(addedNodes),
 			"removed_nodes": taskIDStrings(removedNodes),
 		}
+		if cmd.EvolutionReason != "" || cmd.EvolutionEvidence != "" || cmd.IdempotencyKey != "" || cmd.InFlightPolicy != "" {
+			auditDetail["evolution"] = map[string]any{
+				"reason":           strings.TrimSpace(cmd.EvolutionReason),
+				"evidence":         strings.TrimSpace(cmd.EvolutionEvidence),
+				"idempotency_key":  strings.TrimSpace(cmd.IdempotencyKey),
+				"in_flight_policy": strings.TrimSpace(cmd.InFlightPolicy),
+			}
+		}
 		if rules := PlanRuleSnapshotAudit(cmd.PlanningRules); rules != nil {
 			auditDetail["team_rules"] = rules
 		}
 		s.auditPlan(txCtx, p, pm.AuditPlanTopologyCommit, cmd.Actor, auditDetail)
 
-		// ---- §4 step 4 (cont.): running → rebuild graph + dispatch new ready nodes. ----
-		if running {
+		// ---- §4 step 4 (cont.): live → rebuild graph; running also dispatches new ready nodes. ----
+		if live {
 			finalTasks, err := s.tasks.ListByPlan(txCtx, cmd.PlanID)
 			if err != nil {
 				return err
@@ -308,9 +326,11 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			if err := s.buildPlanGraph(txCtx, p, finalTasks, reloadedEdges, now); err != nil {
 				return err
 			}
-			dispatched, err = s.dispatchReadyNodes(txCtx, p)
-			if err != nil {
-				return err
+			if running {
+				dispatched, err = s.dispatchReadyNodes(txCtx, p)
+				if err != nil {
+					return err
+				}
 			}
 		}
 

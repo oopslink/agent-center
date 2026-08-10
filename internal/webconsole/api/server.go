@@ -363,6 +363,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/assignment-pool/tasks/{task_id}", s.pmRemoveAssignmentPoolTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
+	// T1320 — generation/evolution read model: active/history generations, node
+	// ownership, per-generation progress, and additive topology diffs.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/generations", s.pmGetPlanGenerationsHandler)
 	// T769 — plan-detail DAG reads the orchestration-engine graph (control nodes +
 	// edge kinds); a no-graph plan yields has_graph:false → legacy DAG fallback.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/graph", s.pmGetPlanGraphHandler)
@@ -384,6 +387,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/tasks/{task_id}", s.pmRemoveTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmAddDependencyHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmRemoveDependencyHandler)
+	// T1320 — Web Evolution entrypoint for running/paused topology changes. It
+	// wraps edit_plan_topology with operator reason/evidence/idempotency and
+	// all-or-nothing in-flight conflict policy.
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/evolution", s.pmCommitPlanEvolutionHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/pause", s.pmPausePlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/resume", s.pmResumePlanHandler)

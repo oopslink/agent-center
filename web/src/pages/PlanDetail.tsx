@@ -8,6 +8,7 @@ import { ApiError } from '@/api/client';
 import {
   usePlan,
   usePlanGraph,
+  usePlanGenerations,
   usePlanStages,
   useStartPlan,
   usePausePlan,
@@ -20,6 +21,7 @@ import {
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
+  useCommitPlanEvolution,
   friendlyDestructivePlanError,
   type Plan,
   type PlanNode,
@@ -31,6 +33,11 @@ import {
   type PlanStage,
   type PlanContinuation,
   type GateVerdict,
+  type PlanGenerationRead,
+  type PlanGeneration,
+  type PlanEvolutionDiff,
+  type TopologyOp,
+  type CommitPlanEvolutionInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -367,6 +374,7 @@ function PlanDetailHeader({
   const resume = useResumePlan(projectId, plan.id);
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
+  const [evolving, setEvolving] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
@@ -388,6 +396,7 @@ function PlanDetailHeader({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
 
   return (
     <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:px-6 md:py-3" data-testid="plan-detail-header">
@@ -427,6 +436,9 @@ function PlanDetailHeader({
                   )}
                   {plan.status === 'paused' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); resume.mutate(); }} disabled={resume.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.lifecycle.resume')}</button>
+                  )}
+                  {canEvolve && (
+                    <button type="button" role="menuitem" data-testid="plan-evolution-btn" onClick={() => { setActionsOpen(false); setEvolving(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle">{t('plan.detail.actions.evolution')}</button>
                   )}
                   {!plan.archived_at && plan.status !== 'done' && plan.status !== 'discarded' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.edit')}</button>
@@ -515,6 +527,16 @@ function PlanDetailHeader({
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white"
           >
             {t('plan.detail.lifecycle.resume')}
+          </button>
+        )}
+        {canEvolve && (
+          <button
+            type="button"
+            data-testid="plan-evolution-btn"
+            onClick={() => { setActionsOpen(false); setEvolving(true); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-accent md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:hover:bg-bg-base"
+          >
+            {t('plan.detail.actions.evolution')}
           </button>
         )}
         {/* T238: name + goal are DESCRIPTIVE metadata — editable in any
@@ -627,6 +649,9 @@ function PlanDetailHeader({
       )}
       {editing && (
         <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />
+      )}
+      {evolving && (
+        <PlanEvolutionModal projectId={projectId} plan={plan} onClose={() => setEvolving(false)} />
       )}
       {confirming === 'delete' && (
         <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
@@ -747,6 +772,7 @@ function PlanInfoRail({
   const resume = useResumePlan(projectId, plan.id);
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
+  const [evolving, setEvolving] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   // @oopslink: Up next is collapsible (mirrors the unmerged-branch panel). Default
@@ -761,6 +787,7 @@ function PlanInfoRail({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -838,6 +865,16 @@ function PlanInfoRail({
               className="flex-1 rounded-lg border-0 bg-accent px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {t('plan.detail.lifecycle.start')}
+            </button>
+          )}
+          {canEvolve && (
+            <button
+              type="button"
+              data-testid="plan-evolution-btn"
+              onClick={() => setEvolving(true)}
+              className={`${railBtn} border-accent text-accent hover:text-accent`}
+            >
+              {t('plan.detail.actions.evolution')}
             </button>
           )}
           {!plan.archived_at && plan.status !== 'done' && plan.status !== 'discarded' && (
@@ -1009,6 +1046,7 @@ function PlanInfoRail({
       <SenderDetailSidebar open={agentRef !== null} senderRef={agentRef} onClose={() => setAgentRef(null)} />
 
       {editing && <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />}
+      {evolving && <PlanEvolutionModal projectId={projectId} plan={plan} onClose={() => setEvolving(false)} />}
       {confirming === 'delete' && <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'archive' && <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'discard' && <PlanDiscardModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
@@ -1271,6 +1309,206 @@ function friendlyPatchError(error: unknown, t: TFunction): string {
     return t('plan.detail.editModal.errorPending');
   }
   return t('plan.detail.editModal.errorGeneric');
+}
+
+function planBaseVersion(plan: Plan): number {
+  return typeof plan.version === 'number' && Number.isFinite(plan.version) ? plan.version : 0;
+}
+
+function friendlyEvolutionError(error: unknown, t: TFunction): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('in-flight') || lower.includes('in flight') || lower.includes('dispatched') || lower.includes('running node')) {
+    return t('plan.detail.evolutionModal.errorInFlight');
+  }
+  if (lower.includes('version') || lower.includes('stale') || lower.includes('conflict')) {
+    return t('plan.detail.evolutionModal.errorVersion');
+  }
+  if (lower.includes('idempotency')) {
+    return t('plan.detail.evolutionModal.errorIdempotency');
+  }
+  return t('plan.detail.evolutionModal.errorGeneric');
+}
+
+function parseEvolutionOps(raw: string, t: TFunction): TopologyOp[] {
+  const text = raw.trim();
+  if (text === '') return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(t('plan.detail.evolutionModal.errorOpsJson'));
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(t('plan.detail.evolutionModal.errorOpsArray'));
+  }
+  return parsed as TopologyOp[];
+}
+
+function PlanEvolutionModal({
+  projectId,
+  plan,
+  onClose,
+}: {
+  projectId: string;
+  plan: Plan;
+  onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const baseVersion = planBaseVersion(plan);
+  const [reason, setReason] = useState('');
+  const [evidence, setEvidence] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
+  const [inFlightPolicy, setInFlightPolicy] = useState<CommitPlanEvolutionInput['in_flight_policy']>('reject_conflicts');
+  const [opsText, setOpsText] = useState('[]');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const commit = useCommitPlanEvolution(projectId, plan.id);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setParseError(null);
+    let ops: TopologyOp[];
+    try {
+      ops = parseEvolutionOps(opsText, t);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : t('plan.detail.evolutionModal.errorOpsJson'));
+      return;
+    }
+    const input: CommitPlanEvolutionInput = {
+      base_version: baseVersion,
+      reason: reason.trim(),
+      evidence: evidence.trim() || undefined,
+      idempotency_key: idempotencyKey.trim(),
+      in_flight_policy: inFlightPolicy,
+      ops,
+    };
+    try {
+      await commit.mutateAsync(input);
+      onClose();
+    } catch {
+      // surfaced inline below
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      data-testid="plan-evolution-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('plan.detail.evolutionModal.aria')}
+    >
+      <form onSubmit={submit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">{t('plan.detail.evolutionModal.title')}</h2>
+            <p className="mt-1 text-xs text-text-muted" data-testid="plan-evolution-base-version">
+              {t('plan.detail.evolutionModal.baseVersion', { version: baseVersion })}
+            </p>
+          </div>
+          <span className="rounded bg-status-blue-bg px-2 py-1 font-mono text-[0.6875rem] font-semibold text-status-blue-fg">
+            {t('plan.detail.evolutionModal.liveStatus', { status: plan.status })}
+          </span>
+        </div>
+
+        <label className="block text-xs font-medium" htmlFor="plan-evolution-reason">
+          {t('plan.detail.evolutionModal.reason')}
+        </label>
+        <input
+          id="plan-evolution-reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-evolution-reason"
+          required
+          autoFocus
+        />
+
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-evolution-evidence">
+          {t('plan.detail.evolutionModal.evidence')}
+        </label>
+        <textarea
+          id="plan-evolution-evidence"
+          value={evidence}
+          onChange={(e) => setEvidence(e.target.value)}
+          rows={3}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-evolution-evidence"
+        />
+
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_14rem]">
+          <div>
+            <label className="block text-xs font-medium" htmlFor="plan-evolution-idempotency">
+              {t('plan.detail.evolutionModal.idempotency')}
+            </label>
+            <input
+              id="plan-evolution-idempotency"
+              value={idempotencyKey}
+              onChange={(e) => setIdempotencyKey(e.target.value)}
+              className={PLAN_EDIT_MODAL_INPUT}
+              data-testid="plan-evolution-idempotency"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium" htmlFor="plan-evolution-policy">
+              {t('plan.detail.evolutionModal.inFlightPolicy')}
+            </label>
+            <select
+              id="plan-evolution-policy"
+              value={inFlightPolicy}
+              onChange={(e) => setInFlightPolicy(e.target.value as CommitPlanEvolutionInput['in_flight_policy'])}
+              className={PLAN_EDIT_MODAL_INPUT}
+              data-testid="plan-evolution-policy"
+            >
+              <option value="reject_conflicts">{t('plan.detail.evolutionModal.policyReject')}</option>
+            </select>
+          </div>
+        </div>
+
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-evolution-ops">
+          {t('plan.detail.evolutionModal.ops')}
+        </label>
+        <textarea
+          id="plan-evolution-ops"
+          value={opsText}
+          onChange={(e) => setOpsText(e.target.value)}
+          rows={8}
+          spellCheck={false}
+          className={`${PLAN_EDIT_MODAL_INPUT} font-mono`}
+          data-testid="plan-evolution-ops"
+        />
+        <p className="mt-1 text-[0.6875rem] text-text-muted">
+          {t('plan.detail.evolutionModal.opsHint')}
+        </p>
+
+        {(parseError || commit.isError) && (
+          <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">
+            {parseError ?? friendlyEvolutionError(commit.error, t)}
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            onClick={onClose}
+            data-testid="plan-evolution-cancel"
+          >
+            {t('plan.detail.cancel')}
+          </button>
+          <button
+            type="submit"
+            disabled={commit.isPending || !reason.trim() || !idempotencyKey.trim()}
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
+            data-testid="plan-evolution-submit"
+          >
+            {commit.isPending ? t('plan.detail.evolutionModal.committing') : t('plan.detail.evolutionModal.commit')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function PlanEditModal({
@@ -1577,6 +1815,26 @@ function TaskIdTag({
       className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
       data-testid={testId}
       title={taskId}
+    >
+      {label}
+    </span>
+  );
+}
+
+function nodeRevisionLabel(node: { generation?: number; revision?: number }): string | null {
+  if (typeof node.revision === 'number' && Number.isFinite(node.revision)) return `R${Math.max(1, Math.trunc(node.revision))}`;
+  if (typeof node.generation === 'number' && Number.isFinite(node.generation)) return `R${Math.max(1, Math.trunc(node.generation) + 1)}`;
+  return null;
+}
+
+function NodeGenerationBadge({ node, testId = 'plan-node-generation' }: { node: { generation?: number; revision?: number }; testId?: string }): React.ReactElement | null {
+  const label = nodeRevisionLabel(node);
+  if (!label) return null;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
+      data-testid={testId}
+      title={`Generation ${label}`}
     >
       {label}
     </span>
@@ -2029,9 +2287,11 @@ function SyntheticAnchorMarker({
 function PlanStepper({
   positioned,
   projectId,
+  generationNodeOf,
 }: {
   positioned: Positioned[];
   projectId: string;
+  generationNodeOf?: Map<string, PlanGenerationRead['nodes'][number]>;
 }): React.ReactElement {
   // Topological-ish order: DAG level, then stable vertical position within it.
   const ordered = useMemo(
@@ -2044,6 +2304,11 @@ function PlanStepper({
         const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
         const taskId = p.node.task_id;
         const last = i === ordered.length - 1;
+        const generationNode = generationNodeOf?.get(taskId);
+        const generationMeta = {
+          generation: p.node.generation ?? generationNode?.generation,
+          revision: p.node.revision ?? generationNode?.revision,
+        };
         return (
           <li
             key={taskId}
@@ -2070,6 +2335,7 @@ function PlanStepper({
               <div className="mb-1 flex items-center justify-between gap-2">
                 <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-stepper-taskid" />
                 <span className="inline-flex items-center gap-1">
+                  <NodeGenerationBadge node={generationMeta} />
                   <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                   <NodeStateChip status={p.node.node_status} />
                 </span>
@@ -2526,6 +2792,10 @@ interface DagEvolutionRevision {
   reason: string;
   stageCount: number;
   taskCount: number;
+  active?: boolean;
+  progress?: { done: number; total: number };
+  diff?: PlanEvolutionDiff;
+  idempotencyKey?: string;
   verdictId?: string;
   verdictOutcome?: GateVerdict['outcome'];
   continuationId?: string;
@@ -2561,7 +2831,83 @@ function shortLineageId(id?: string): string {
   return id ? id.slice(0, 8) : '';
 }
 
-function buildDagEvolutionRevisions(stages: PlanStage[], plan: Plan, t: TFunction): DagEvolutionRevision[] {
+function planGenerationsFromPlan(plan: Plan): PlanGenerationRead | undefined {
+  const generations = plan.generations ?? [];
+  const nodes = plan.generation_nodes ?? [];
+  if (generations.length === 0 && nodes.length === 0 && typeof plan.active_generation !== 'number') return undefined;
+  const activeGeneration = typeof plan.active_generation === 'number'
+    ? plan.active_generation
+    : generations.reduce((max, generation) => Math.max(max, generation.generation), 0);
+  return { active_generation: activeGeneration, generations, nodes };
+}
+
+function usableGenerationRead(read: PlanGenerationRead | undefined): PlanGenerationRead | undefined {
+  if (!read) return undefined;
+  return read.generations.length > 0 || read.nodes.length > 0 ? read : undefined;
+}
+
+function generationTitle(gen: PlanGeneration, stages: PlanStage[], t: TFunction): string {
+  if (gen.reason.trim()) return gen.reason.trim();
+  if (gen.generation === 0) return t('plan.detail.dag.evolution.initialTitle');
+  const addedStages = gen.diff?.added_stages ?? [];
+  if (addedStages.length === 1) {
+    const stage = stages.find((s) => s.id === addedStages[0]);
+    return t('plan.detail.dag.evolution.addedOne', { stage: stage?.name || addedStages[0] });
+  }
+  if (addedStages.length > 1) {
+    const stageNames = addedStages
+      .slice(0, 2)
+      .map((id) => stages.find((s) => s.id === id)?.name || id)
+      .join(', ');
+    return t('plan.detail.dag.evolution.addedMany', { count: addedStages.length, stages: stageNames });
+  }
+  return t('plan.detail.dag.evolution.reasonUnknown');
+}
+
+function buildGenerationEvolutionRevisions(
+  generationRead: PlanGenerationRead,
+  stages: PlanStage[],
+  plan: Plan,
+  t: TFunction,
+): DagEvolutionRevision[] {
+  const verdictsById = new Map<string, GateVerdict>();
+  for (const verdict of plan.gate_verdicts ?? []) verdictsById.set(verdict.id, verdict);
+  return generationRead.generations
+    .slice()
+    .sort((a, b) => a.generation - b.generation)
+    .map((gen) => {
+      const verdict = gen.verdict_id ? verdictsById.get(gen.verdict_id) : undefined;
+      return {
+        generation: gen.generation,
+        revision: gen.revision,
+        label: gen.label || `R${gen.revision}`,
+        title: generationTitle(gen, stages, t),
+        reason: gen.evidence?.trim() || gen.reason?.trim() || (gen.generation === 0
+          ? t('plan.detail.dag.evolution.initialReason')
+          : t('plan.detail.dag.evolution.reasonUnknown')),
+        stageCount: gen.stage_ids.length,
+        taskCount: gen.task_ids.length,
+        active: gen.active,
+        progress: gen.progress,
+        diff: gen.diff,
+        idempotencyKey: gen.idempotency_key,
+        verdictId: gen.verdict_id,
+        verdictOutcome: verdict?.outcome,
+        continuationId: gen.continuation_id,
+        createdAt: gen.created_at,
+      };
+    });
+}
+
+function buildDagEvolutionRevisions(
+  stages: PlanStage[],
+  plan: Plan,
+  t: TFunction,
+  generationRead?: PlanGenerationRead,
+): DagEvolutionRevision[] {
+  if (generationRead?.generations.length) {
+    return buildGenerationEvolutionRevisions(generationRead, stages, plan, t);
+  }
   if (stages.length === 0) return [];
   const byGeneration = new Map<number, PlanStage[]>();
   for (const stage of stages) {
@@ -2608,6 +2954,36 @@ function buildDagEvolutionRevisions(stages: PlanStage[], plan: Plan, t: TFunctio
         createdAt: verdict?.created_at ?? continuation?.created_at,
       };
     });
+}
+
+function generationTaskIdSet(generationRead: PlanGenerationRead | undefined, generation: number): Set<string> {
+  const ids = new Set<string>();
+  if (!generationRead) return ids;
+  for (const node of generationRead.nodes) {
+    if (node.generation <= generation && node.effective !== false) ids.add(node.task_id);
+  }
+  if (ids.size > 0) return ids;
+  for (const gen of generationRead.generations) {
+    if (gen.generation <= generation) {
+      for (const taskId of gen.task_ids) ids.add(taskId);
+    }
+  }
+  return ids;
+}
+
+function generationNodeMap(generationRead: PlanGenerationRead | undefined): Map<string, PlanGenerationRead['nodes'][number]> {
+  const map = new Map<string, PlanGenerationRead['nodes'][number]>();
+  for (const node of generationRead?.nodes ?? []) map.set(node.task_id, node);
+  return map;
+}
+
+function evolutionDiffLabel(diff: PlanEvolutionDiff | undefined, t: TFunction): string {
+  if (!diff) return t('plan.detail.dag.evolution.diffEmpty');
+  return t('plan.detail.dag.evolution.diffSummary', {
+    nodes: diff.added_nodes.length,
+    stages: diff.added_stages.length,
+    edges: diff.added_edges.length,
+  });
 }
 
 function DagEvolutionPanel({
@@ -2684,6 +3060,18 @@ function DagEvolutionPanel({
               {' '}
               · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
             </span>
+            {selected.progress && (
+              <span className="text-text-muted" data-testid="plan-dag-evolution-generation-progress">
+                {' '}
+                · {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+              </span>
+            )}
+            {selected.diff && (
+              <span className="text-text-muted" data-testid="plan-dag-evolution-diff">
+                {' '}
+                · {evolutionDiffLabel(selected.diff, t)}
+              </span>
+            )}
             {selected.verdictOutcome && (
               <span className="text-text-muted"> · {selected.verdictOutcome}</span>
             )}
@@ -2756,6 +3144,20 @@ function DagEvolutionPanel({
                     <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
                     {revision.reason}
                   </div>
+                  {(revision.progress || revision.diff) && (
+                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.625rem] text-text-muted">
+                      {revision.progress && (
+                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono" data-testid={`plan-dag-evolution-progress-${revision.revision}`}>
+                          {revision.progress.done}/{revision.progress.total}
+                        </span>
+                      )}
+                      {revision.diff && (
+                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5" data-testid={`plan-dag-evolution-diff-${revision.revision}`}>
+                          {evolutionDiffLabel(revision.diff, t)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {(revision.verdictId || revision.continuationId || revision.createdAt) && (
                     <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2 text-[0.625rem] text-text-muted">
                       {revision.verdictId && (
@@ -2793,6 +3195,16 @@ function DagEvolutionPanel({
               <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
                 {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
               </span>
+              {selected.progress && (
+                <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
+                  {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+                </span>
+              )}
+              {selected.active && (
+                <span className="rounded bg-success px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
+                  {t('plan.detail.dag.evolution.active')}
+                </span>
+              )}
             </div>
             <div
               className="mt-2 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
@@ -2801,6 +3213,17 @@ function DagEvolutionPanel({
               <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
               {selected.reason}
             </div>
+            {selected.diff && (
+              <div className="mt-2 text-xs text-text-secondary" data-testid="plan-dag-evolution-selected-diff">
+                <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.diffLabel')}: </span>
+                {evolutionDiffLabel(selected.diff, t)}
+              </div>
+            )}
+            {selected.idempotencyKey && (
+              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.idempotencyKey}>
+                {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
+              </div>
+            )}
           </div>
           <div className="flex gap-1.5 sm:hidden">
             <button
@@ -2858,11 +3281,13 @@ function PlanGraphDag({
   plan,
   graph,
   compact,
+  generationRead,
 }: {
   projectId: string;
   plan: Plan;
   graph: { nodes: PlanGraphNode[]; edges: PlanGraphEdge[] };
   compact: boolean;
+  generationRead?: PlanGenerationRead;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const scale = compact ? 0.7 : 1;
@@ -2875,8 +3300,11 @@ function PlanGraphDag({
   // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
-  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t), [plan, stages, t]);
-  const currentGeneration = useMemo(() => latestStageGeneration(stages), [stages]);
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t, generationRead), [generationRead, plan, stages, t]);
+  const currentGeneration = useMemo(
+    () => generationRead?.active_generation ?? latestStageGeneration(stages),
+    [generationRead?.active_generation, stages],
+  );
   const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
   const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
   const effectiveGeneration = selectedGeneration ?? currentGeneration;
@@ -2890,6 +3318,19 @@ function PlanGraphDag({
   );
   const { nodes, edges } = useMemo(() => {
     if (stages.length === 0 || effectiveGeneration >= currentGeneration) {
+      if (stages.length === 0 && generationRead && effectiveGeneration < currentGeneration) {
+        const taskIds = generationTaskIdSet(generationRead, effectiveGeneration);
+        if (taskIds.size === 0) return { nodes: graphNodes, edges: graphEdges };
+        const filteredNodes = graphNodes.filter((node) => {
+          if (node.category === 'business') return node.task_id ? taskIds.has(node.task_id) : false;
+          return node.control_kind === 'start' || node.control_kind === 'end';
+        });
+        const nodeIds = new Set(filteredNodes.map((node) => node.id));
+        return {
+          nodes: filteredNodes,
+          edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
+        };
+      }
       return { nodes: graphNodes, edges: graphEdges };
     }
     const taskIds = stageTaskIdSet(visibleStages);
@@ -2905,7 +3346,7 @@ function PlanGraphDag({
       nodes: filteredNodes,
       edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
     };
-  }, [currentGeneration, effectiveGeneration, graphEdges, graphNodes, stages.length, visibleStages]);
+  }, [currentGeneration, effectiveGeneration, generationRead, graphEdges, graphNodes, stages.length, visibleStages]);
   // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
   // S1/S2 refs, which can be derived from the API's stable stage order without
   // changing the read model. Strip the same prefix from legacy stage names so
@@ -2919,6 +3360,12 @@ function PlanGraphDag({
     for (const pn of plan.nodes ?? []) m.set(pn.task_id, pn.node_status);
     return m;
   }, [plan.nodes]);
+  const planNodeOf = useMemo(() => {
+    const m = new Map<string, PlanNode>();
+    for (const pn of plan.nodes ?? []) m.set(pn.task_id, pn);
+    return m;
+  }, [plan.nodes]);
+  const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
 
   const { positioned, boxes, width, height } = useMemo(
     () => layoutStagedGraph(nodes, edges, visibleStages),
@@ -2980,7 +3427,15 @@ function PlanGraphDag({
                     {p.node.title || refLabel(p.node.org_ref, p.node.task_id ?? p.node.id)}
                   </span>
                   {p.node.category === 'business' && p.node.task_id ? (
-                    <NodeStateChip status={nodeStatusOf.get(p.node.task_id) ?? 'blocked'} />
+                    <span className="inline-flex items-center gap-1">
+                      <NodeGenerationBadge
+                        node={{
+                          generation: p.node.generation ?? planNodeOf.get(p.node.task_id)?.generation ?? generationNodeOf.get(p.node.task_id)?.generation,
+                          revision: p.node.revision ?? planNodeOf.get(p.node.task_id)?.revision ?? generationNodeOf.get(p.node.task_id)?.revision,
+                        }}
+                      />
+                      <NodeStateChip status={nodeStatusOf.get(p.node.task_id) ?? 'blocked'} />
+                    </span>
                   ) : (
                     <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
                       {p.node.control_kind}
@@ -3125,6 +3580,12 @@ function PlanGraphDag({
                 const status = nodeStatusOf.get(taskId) ?? 'blocked';
                 const s = NODE_STATE[status] ?? NODE_STATE.blocked;
                 const accentCls = s.border.replace(/^border-/, 'bg-');
+                const planNode = planNodeOf.get(taskId);
+                const generationNode = generationNodeOf.get(taskId);
+                const generationMeta = {
+                  generation: p.node.generation ?? planNode?.generation ?? generationNode?.generation,
+                  revision: p.node.revision ?? planNode?.revision ?? generationNode?.revision,
+                };
                 return (
                   <div
                     key={p.node.id}
@@ -3154,7 +3615,10 @@ function PlanGraphDag({
                     <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
                     <div className="mb-1 flex items-center justify-between gap-1">
                       <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-graph-node-taskid" />
-                      <NodeStateChip status={status} />
+                      <span className="inline-flex shrink-0 items-center gap-1">
+                        <NodeGenerationBadge node={generationMeta} />
+                        <NodeStateChip status={status} />
+                      </span>
                     </div>
                     <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
                       <TaskTitleLink projectId={projectId} taskId={taskId} title={taskTitle} wrap />
@@ -3563,11 +4027,13 @@ function PlanDag({
   compact: boolean;
 }): React.ReactElement {
   const graphQuery = usePlanGraph(projectId, plan.id);
+  const generationQuery = usePlanGenerations(projectId, plan.id);
+  const generationRead = usableGenerationRead(generationQuery.data) ?? planGenerationsFromPlan(plan);
   const g = graphQuery.data;
   if (g?.has_graph && (g.nodes?.length ?? 0) > 0) {
-    return <PlanGraphDag projectId={projectId} plan={plan} graph={{ nodes: g.nodes ?? [], edges: g.edges ?? [] }} compact={compact} />;
+    return <PlanGraphDag projectId={projectId} plan={plan} graph={{ nodes: g.nodes ?? [], edges: g.edges ?? [] }} compact={compact} generationRead={generationRead} />;
   }
-  return <LegacyPlanDag projectId={projectId} plan={plan} compact={compact} />;
+  return <LegacyPlanDag projectId={projectId} plan={plan} compact={compact} generationRead={generationRead} />;
 }
 
 // LegacyPlanDag renders the depends_on graph for plans WITHOUT an orchestration
@@ -3578,17 +4044,22 @@ function LegacyPlanDag({
   projectId,
   plan,
   compact,
+  generationRead,
 }: {
   projectId: string;
   plan: Plan;
   compact: boolean;
+  generationRead?: PlanGenerationRead;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
-  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t), [plan, stages, t]);
-  const currentGeneration = useMemo(() => latestStageGeneration(stages), [stages]);
+  const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(stages, plan, t, generationRead), [generationRead, plan, stages, t]);
+  const currentGeneration = useMemo(
+    () => generationRead?.active_generation ?? latestStageGeneration(stages),
+    [generationRead?.active_generation, stages],
+  );
   const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null);
   const selectEvolutionGeneration = useCallback((generation: number) => setSelectedGeneration(generation), []);
   const effectiveGeneration = selectedGeneration ?? currentGeneration;
@@ -3601,12 +4072,20 @@ function LegacyPlanDag({
     [effectiveGeneration, stages],
   );
   const visibleNodes = useMemo(() => {
-    if (stages.length === 0 || effectiveGeneration >= currentGeneration) return nodes;
+    if (stages.length === 0 || effectiveGeneration >= currentGeneration) {
+      if (stages.length === 0 && generationRead && effectiveGeneration < currentGeneration) {
+        const taskIds = generationTaskIdSet(generationRead, effectiveGeneration);
+        if (taskIds.size === 0) return nodes;
+        return nodes.filter((node) => taskIds.has(node.task_id));
+      }
+      return nodes;
+    }
     const taskIds = stageTaskIdSet(visibleStages);
     if (taskIds.size === 0) return nodes;
     return nodes.filter((node) => taskIds.has(node.task_id));
-  }, [currentGeneration, effectiveGeneration, nodes, stages.length, visibleStages]);
+  }, [currentGeneration, effectiveGeneration, generationRead, nodes, stages.length, visibleStages]);
   const stageDisplay = useMemo(() => stageDisplayMeta(visibleStages), [visibleStages]);
+  const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
   const isPending = plan.status === 'pending';
   const canEditDependencies = isPending && effectiveGeneration >= currentGeneration;
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
@@ -3769,7 +4248,7 @@ function LegacyPlanDag({
           onSelectGeneration={selectEvolutionGeneration}
         />
         <MobileStageGateAudits stages={visibleStages} error={stagesQuery.isError} />
-        <PlanStepper positioned={positioned} projectId={projectId} />
+        <PlanStepper positioned={positioned} projectId={projectId} generationNodeOf={generationNodeOf} />
         {/* T348: the Compact toggle moved to the tab row (icon). The connect-mode
             banner (point 3, pending-only) stays here, shown only while connecting. */}
         {canEditDependencies && connectFrom != null && (
@@ -3962,6 +4441,11 @@ function LegacyPlanDag({
               const isSource = connectFrom === taskId;
               const isTarget = inConnect && !isSource && dropTargets.has(taskId);
               const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
+              const generationNode = generationNodeOf.get(taskId);
+              const generationMeta = {
+                generation: p.node.generation ?? generationNode?.generation,
+                revision: p.node.revision ?? generationNode?.revision,
+              };
               // T347: a status-colored left accent bar (derived from the border
               // token) + hover lift make the nodes read as status cards, not plain
               // boxes. overflow-hidden clips the bar to the rounded corner.
@@ -4011,6 +4495,7 @@ function LegacyPlanDag({
                   <div className="mb-1 flex items-center justify-between gap-1">
                     <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-node-taskid" />
                     <span className="inline-flex shrink-0 items-center gap-1">
+                      <NodeGenerationBadge node={generationMeta} />
                       <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                       <NodeStateChip status={p.node.node_status} />
                       {/* Pending connect control (point 3): a real keyboard-focusable
@@ -4140,6 +4625,9 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'pending';
   const members = useMembers();
+  const generationQuery = usePlanGenerations(projectId, plan.id);
+  const generationRead = usableGenerationRead(generationQuery.data) ?? planGenerationsFromPlan(plan);
+  const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
   const [query, setQuery] = useState('');
 
   // Case-insensitive filter on title OR Task-id (org_ref) OR assignee handle.
@@ -4212,6 +4700,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                       orgRef={n.org_ref}
                       canRemove={canRemove}
                       members={members.data ?? []}
+                      generationNode={generationNodeOf.get(n.task_id)}
                     />
                   ))}
                 </tbody>
@@ -4257,6 +4746,7 @@ function PlanTaskRow({
   orgRef,
   canRemove,
   members,
+  generationNode,
 }: {
   projectId: string;
   planId: string;
@@ -4264,6 +4754,7 @@ function PlanTaskRow({
   orgRef?: string;
   canRemove: boolean;
   members: MemberResult[];
+  generationNode?: PlanGenerationRead['nodes'][number];
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const remove = useRemoveTaskFromPlan(projectId, planId);
@@ -4304,6 +4795,10 @@ function PlanTaskRow({
     else assign.mutate({ assignee: next });
   };
   const title = node.title || refLabel(node.org_ref, node.task_id);
+  const generationMeta = {
+    generation: node.generation ?? generationNode?.generation,
+    revision: node.revision ?? generationNode?.revision,
+  };
   // T147: ONE assignee control. Build the dropdown options — "" = Unassigned
   // (routes to the unassign endpoint), then each project member with an avatar
   // leading so the (single) dropdown trigger shows the current assignee's
@@ -4325,7 +4820,10 @@ function PlanTaskRow({
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
       <td className="py-1.5 pr-3 align-top">
-        <TaskIdTag taskId={node.task_id} orgRef={orgRef} testId="plan-row-taskid" />
+        <span className="inline-flex items-center gap-1">
+          <TaskIdTag taskId={node.task_id} orgRef={orgRef} testId="plan-row-taskid" />
+          <NodeGenerationBadge node={generationMeta} testId="plan-row-generation" />
+        </span>
       </td>
       <td className="max-w-[18rem] py-1.5 pr-3 text-text-primary" title={node.title}>
         <TaskTitleLink

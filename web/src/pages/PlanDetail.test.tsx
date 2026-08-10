@@ -41,6 +41,7 @@ function planWith(overrides: Record<string, unknown> = {}) {
     name: 'v3.0 release plan',
     description: '',
     status: 'running',
+    version: 7,
     org_ref: 'P9',
     creator_ref: 'user:owner',
     conversation_id: 'conv-plan-1',
@@ -62,9 +63,17 @@ function planWith(overrides: Record<string, unknown> = {}) {
 }
 
 function mockPlan(overrides: Record<string, unknown> = {}) {
+  const payload = planWith(overrides) as Record<string, unknown>;
   server.use(
     http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
-    http.get('/api/projects/proj-a/plans/PL-1', () => HttpResponse.json(planWith(overrides))),
+    http.get('/api/projects/proj-a/plans/PL-1', () => HttpResponse.json(payload)),
+    http.get('/api/projects/proj-a/plans/PL-1/generations', () =>
+      HttpResponse.json({
+        active_generation: payload.active_generation ?? 0,
+        generations: payload.generations ?? [],
+        nodes: payload.generation_nodes ?? [],
+      }),
+    ),
   );
 }
 
@@ -1314,10 +1323,18 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   });
 
   function mockNodes(nodes: unknown[], overrides: Record<string, unknown> = {}) {
+    const payload = planWith({ nodes, ...overrides }) as Record<string, unknown>;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans/PL-1', () =>
-        HttpResponse.json(planWith({ nodes, ...overrides })),
+        HttpResponse.json(payload),
+      ),
+      http.get('/api/projects/proj-a/plans/PL-1/generations', () =>
+        HttpResponse.json({
+          active_generation: payload.active_generation ?? 0,
+          generations: payload.generations ?? [],
+          nodes: payload.generation_nodes ?? [],
+        }),
       ),
     );
   }
@@ -2186,6 +2203,145 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(panel).toHaveAttribute('data-collapsed', 'true');
     expect(within(panel).queryByTestId('plan-dag-evolution-revisions')).not.toBeInTheDocument();
     expect(within(panel).getByTestId('plan-dag-evolution-summary')).toHaveTextContent('Initial DAG');
+  });
+
+  it('Plan generation read model shows active/history progress, diff, and node ownership', async () => {
+    mockPlan({
+      active_generation: 1,
+      progress: { done: 1, total: 3 },
+      nodes: [
+        { task_id: 'n1', title: 'design schema', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], generation: 0, revision: 1 },
+        { task_id: 'n2', title: 'backend api', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: ['n1'], generation: 0, revision: 1 },
+        { task_id: 'n3', title: 'ui remediation', assignee_ref: 'agent:dev2', task_status: 'running', node_status: 'running', depends_on: ['n2'], generation: 1, revision: 2 },
+      ],
+      generations: [
+        {
+          generation: 0,
+          revision: 1,
+          label: 'R1',
+          active: false,
+          status: 'history',
+          stage_ids: [],
+          task_ids: ['n1', 'n2'],
+          progress: { done: 1, total: 2 },
+          reason: 'Initial DAG',
+          diff: { from_generation: 0, to_generation: 0, added_nodes: ['n1', 'n2'], added_stages: [], added_edges: [], removed_nodes: [], removed_edges: [] },
+        },
+        {
+          generation: 1,
+          revision: 2,
+          label: 'R2',
+          active: true,
+          status: 'active',
+          stage_ids: ['st-rem'],
+          task_ids: ['n3'],
+          progress: { done: 0, total: 1 },
+          reason: 'Reviewer reject',
+          evidence: 'Reviewer rejected mobile acceptance, so add a focused UI remediation node.',
+          verdict_id: 'verdict-reject-1',
+          continuation_id: 'cont-1',
+          idempotency_key: 'idem-evo-1',
+          created_at: '2026-06-02T01:00:00Z',
+          diff: {
+            from_generation: 0,
+            to_generation: 1,
+            added_nodes: ['n3'],
+            added_stages: ['st-rem'],
+            added_edges: [{ from_task_id: 'n3', to_task_id: 'n2', kind: 'seq' }],
+            removed_nodes: [],
+            removed_edges: [],
+          },
+        },
+      ],
+      generation_nodes: [
+        { task_id: 'n1', generation: 0, revision: 1, effective: true },
+        { task_id: 'n2', generation: 0, revision: 1, effective: true },
+        { task_id: 'n3', stage_id: 'st-rem', generation: 1, revision: 2, origin_verdict_id: 'verdict-reject-1', continuation_id: 'cont-1', effective: true },
+      ],
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({ stages: [] })),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+
+    const panel = await screen.findByTestId('plan-dag-evolution');
+    expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
+    expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('0/1 done');
+    expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 nodes');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
+    expect(within(panel).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 nodes');
+
+    const node = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
+    expect(within(node).getByTestId('plan-node-generation')).toHaveTextContent('R2');
+
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    const row = screen.getByTestId('plan-task-list').querySelector('[data-testid="plan-task-row"][data-task-id="n3"]') as HTMLElement;
+    expect(within(row).getByTestId('plan-row-generation')).toHaveTextContent('R2');
+  });
+
+  it('running/paused plans open Evolution and POST reason, evidence, idempotency, policy, and ops', async () => {
+    let body: Record<string, unknown> | null = null;
+    mockPlan({ status: 'paused', has_failed: false, version: 11 });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ok: true,
+          version: 12,
+          dispatched: [],
+          plan: planWith({ status: 'paused', version: 12 }),
+        });
+      }),
+    );
+
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-evolution-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-evolution-btn'));
+    expect(screen.getByTestId('plan-evolution-modal')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Gate reject follow-up' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Reviewer asked for an integration test.' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-evo-1' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-ops'), {
+      target: { value: '[{"op":"add_edge","from_task_id":"n7","to_task_id":"n3","kind":"seq"}]' },
+    });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+
+    await waitFor(() => expect(body).not.toBeNull());
+    expect(body).toEqual({
+      base_version: 11,
+      reason: 'Gate reject follow-up',
+      evidence: 'Reviewer asked for an integration test.',
+      idempotency_key: 'idem-ui-evo-1',
+      in_flight_policy: 'reject_conflicts',
+      ops: [{ op: 'add_edge', from_task_id: 'n7', to_task_id: 'n3', kind: 'seq' }],
+    });
+  });
+
+  it('Evolution shows whole-request rejection and recovery action for in-flight conflicts', async () => {
+    mockPlan({ status: 'running', version: 20 });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', () =>
+        HttpResponse.json(
+          { error: 'plan_conflict', message: 'projectmanager: plan node is in-flight and cannot be edited' },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-evolution-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-evolution-btn'));
+    fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Avoid active node' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-conflict' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+
+    const err = await screen.findByTestId('plan-evolution-error');
+    expect(err).toHaveTextContent(/rejected as a whole/i);
+    expect(err).toHaveTextContent(/already in flight/i);
+    expect(err).toHaveTextContent(/wait for those nodes to settle|add follow-up nodes/i);
   });
 
   it('mobile stage audit exposes a visible API error state', async () => {
