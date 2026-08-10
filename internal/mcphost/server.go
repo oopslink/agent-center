@@ -468,8 +468,8 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_plan",
-		Description: "Complete a running or paused plan only when the current effective node set is settled: no active/ready work, all effective leaves completed or skipped, and no unreplaced failed nodes. Idempotent if already done.",
-	}, makePlanID(cfg, "complete_plan"))
+		Description: "Complete a running or paused plan when its effective nodes are settled. For an explicit audited override, set force=true and provide a non-empty reason; automatic completion never forces. Idempotent if already done.",
+	}, makeCompletePlan(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "discard_plan",

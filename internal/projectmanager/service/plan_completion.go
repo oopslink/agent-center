@@ -25,11 +25,29 @@ type PlanCompletionEvaluation struct {
 // evaluator used by auto-advance says the current effective node set is complete.
 // It is idempotent for already-done plans.
 func (s *Service) CompletePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	return s.CompletePlanWithOptions(ctx, planID, actor, CompletePlanOptions{})
+}
+
+// CompletePlanOptions controls the explicit, human-only completion escape hatch.
+// Automatic completion never supplies these options.
+type CompletePlanOptions struct {
+	Force  bool
+	Reason string
+}
+
+// CompletePlanWithOptions force-completes a plan only when the caller explicitly
+// opts in and supplies an audit reason. Force bypasses completion eligibility,
+// but not identity, membership, existence, or lifecycle-state checks.
+func (s *Service) CompletePlanWithOptions(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef, opts CompletePlanOptions) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
 	if err := actor.Validate(); err != nil {
 		return err
+	}
+	reason := strings.TrimSpace(opts.Reason)
+	if opts.Force && reason == "" {
+		return pm.ErrForceReasonRequired
 	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
@@ -50,10 +68,18 @@ func (s *Service) CompletePlan(ctx context.Context, planID pm.PlanID, actor pm.I
 		if err != nil {
 			return err
 		}
-		if !eval.CanComplete {
+		if !opts.Force && !eval.CanComplete {
 			return fmt.Errorf("%w: %s", pm.ErrPlanNotComplete, strings.Join(eval.Reasons, "; "))
 		}
-		return s.markPlanDone(txCtx, p, now)
+		if err := s.markPlanDone(txCtx, p, now); err != nil {
+			return err
+		}
+		if opts.Force {
+			s.auditPlan(txCtx, p, pm.AuditPlanForceCompleted, actor, map[string]any{
+				"reason": reason, "bypassed_blockers": eval.Reasons,
+			})
+		}
+		return nil
 	})
 }
 
@@ -116,7 +142,7 @@ func (s *Service) canCompletePlan(ctx context.Context, p *pm.Plan) (PlanCompleti
 	if err != nil {
 		return eval, err
 	}
-	opts, err := s.planViewOptions(ctx, p, tasks)
+	opts, err := s.planViewOptions(ctx, p, tasks, edges)
 	if err != nil {
 		return eval, err
 	}
@@ -248,7 +274,7 @@ func (s *Service) unresolvedGraphConditions(ctx context.Context, p *pm.Plan) ([]
 	return pending, nil
 }
 
-func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.Task) (pm.PlanViewOptions, error) {
+func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.Task, edges []pm.Dependency) (pm.PlanViewOptions, error) {
 	inactive := make(map[pm.TaskID]pm.PlanNodeReplacement)
 	taskByID := make(map[pm.TaskID]*pm.Task, len(tasks))
 	for _, task := range tasks {
@@ -359,5 +385,203 @@ func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.T
 		}
 	}
 
+	for oldID, replacement := range legacyCompletedRemediationReplacements(tasks, edges, inactive) {
+		addReplacement(oldID, replacement.By, replacement.Reason)
+	}
+
 	return pm.PlanViewOptions{InactiveTasks: inactive}, nil
+}
+
+// legacyCompletedRemediationReplacements recognizes pre-ADR-0055 remediation
+// plans that never wrote follows_task_id/origin_verdict_id. It is deliberately
+// narrow: every current task must be terminal, each unmarked failure must be a
+// leaf, and the completed DAG must contain remediation/recovery -> ship -> final
+// acceptance evidence. Anything still active, non-leaf failed, or missing that
+// evidence stays in the effective graph and continues to block completion.
+func legacyCompletedRemediationReplacements(tasks []*pm.Task, edges []pm.Dependency, inactive map[pm.TaskID]pm.PlanNodeReplacement) map[pm.TaskID]pm.PlanNodeReplacement {
+	taskByID := make(map[pm.TaskID]*pm.Task, len(tasks))
+	var failedLeaves []pm.TaskID
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		taskByID[task.ID()] = task
+		if _, alreadyReplaced := inactive[task.ID()]; alreadyReplaced {
+			continue
+		}
+		switch {
+		case pm.TaskIsDone(task.Status()):
+			continue
+		case pm.TaskIsFailed(task.Status()):
+			failedLeaves = append(failedLeaves, task.ID())
+		default:
+			return nil
+		}
+	}
+	if len(failedLeaves) == 0 {
+		return nil
+	}
+
+	upstream := make(map[pm.TaskID][]pm.TaskID)
+	downstream := make(map[pm.TaskID][]pm.TaskID)
+	hasDependent := make(map[pm.TaskID]bool)
+	for _, edge := range edges {
+		if edge.IsLoopback() {
+			continue
+		}
+		if _, ok := taskByID[edge.FromTaskID]; !ok {
+			continue
+		}
+		if _, ok := taskByID[edge.ToTaskID]; !ok {
+			continue
+		}
+		upstream[edge.FromTaskID] = append(upstream[edge.FromTaskID], edge.ToTaskID)
+		downstream[edge.ToTaskID] = append(downstream[edge.ToTaskID], edge.FromTaskID)
+		hasDependent[edge.ToTaskID] = true
+	}
+	for _, id := range failedLeaves {
+		if hasDependent[id] {
+			return nil
+		}
+	}
+
+	out := make(map[pm.TaskID]pm.PlanNodeReplacement, len(failedLeaves))
+	for _, id := range failedLeaves {
+		evidence := legacyCompletedRemediationEvidence(id, taskByID, upstream, downstream, hasDependent)
+		if len(evidence) == 0 {
+			// A recovery chain elsewhere in the plan must not erase an unrelated
+			// failed leaf. Legacy plans have no explicit lineage, so require the
+			// remediation chain to share one of this failure's prerequisites.
+			return nil
+		}
+		out[id] = pm.PlanNodeReplacement{By: evidence, Reason: "legacy_completed_remediation"}
+	}
+	return out
+}
+
+func legacyCompletedRemediationEvidence(failedID pm.TaskID, taskByID map[pm.TaskID]*pm.Task, upstream, downstream map[pm.TaskID][]pm.TaskID, hasDependent map[pm.TaskID]bool) []pm.TaskID {
+	failedPrereqs := legacyUpstreamClosure(failedID, upstream)
+	if len(failedPrereqs) == 0 {
+		return nil
+	}
+	finals := make([]pm.TaskID, 0)
+	for id, task := range taskByID {
+		if !pm.TaskIsDone(task.Status()) || hasDependent[id] || !legacyLooksLikeFinalAcceptance(task) {
+			continue
+		}
+		finals = append(finals, id)
+	}
+	sort.SliceStable(finals, func(i, j int) bool { return finals[i] < finals[j] })
+	for _, finalID := range finals {
+		ancestors := legacyUpstreamClosure(finalID, upstream)
+		var remediations []pm.TaskID
+		var ships []pm.TaskID
+		for id := range ancestors {
+			task := taskByID[id]
+			if task == nil || !pm.TaskIsDone(task.Status()) {
+				continue
+			}
+			if legacyLooksLikeRecoveryOrRemediation(task) && legacySharesPrerequisite(id, failedPrereqs, upstream) {
+				remediations = append(remediations, id)
+			}
+			if legacyLooksLikeShip(task) {
+				ships = append(ships, id)
+			}
+		}
+		sort.SliceStable(remediations, func(i, j int) bool { return remediations[i] < remediations[j] })
+		sort.SliceStable(ships, func(i, j int) bool { return ships[i] < ships[j] })
+		for _, remediationID := range remediations {
+			for _, shipID := range ships {
+				if !legacyReachable(downstream, remediationID, shipID) || !legacyReachable(downstream, shipID, finalID) {
+					continue
+				}
+				return uniqueTaskIDs([]pm.TaskID{remediationID, shipID, finalID})
+			}
+		}
+	}
+	return nil
+}
+
+func legacySharesPrerequisite(taskID pm.TaskID, failedPrereqs map[pm.TaskID]bool, upstream map[pm.TaskID][]pm.TaskID) bool {
+	for prereq := range legacyUpstreamClosure(taskID, upstream) {
+		if failedPrereqs[prereq] {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyUpstreamClosure(from pm.TaskID, upstream map[pm.TaskID][]pm.TaskID) map[pm.TaskID]bool {
+	seen := make(map[pm.TaskID]bool)
+	stack := append([]pm.TaskID(nil), upstream[from]...)
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		stack = append(stack, upstream[id]...)
+	}
+	return seen
+}
+
+func legacyReachable(downstream map[pm.TaskID][]pm.TaskID, from, to pm.TaskID) bool {
+	if from == "" || to == "" || from == to {
+		return false
+	}
+	seen := make(map[pm.TaskID]bool)
+	stack := append([]pm.TaskID(nil), downstream[from]...)
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if id == to {
+			return true
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		stack = append(stack, downstream[id]...)
+	}
+	return false
+}
+
+func legacyLooksLikeRecoveryOrRemediation(task *pm.Task) bool {
+	return legacyTaskTextHasAny(task, []string{"remediation", "remediate", "recovery", "recover", "rework", "修复", "恢复", "整改", "返工"})
+}
+
+func legacyLooksLikeShip(task *pm.Task) bool {
+	return pm.RequiresAcceptance(task) || legacyTaskTextHasAny(task, []string{"ship", "release", "deploy", "发布", "部署", "上线", "合并"})
+}
+
+func legacyLooksLikeFinalAcceptance(task *pm.Task) bool {
+	return legacyTaskTextHasAny(task, []string{"final acceptance", "acceptance", "final review", "final verification", "最终验收", "验收", "最终复验", "复验"})
+}
+
+func legacyTaskTextHasAny(task *pm.Task, needles []string) bool {
+	if task == nil {
+		return false
+	}
+	text := strings.ToLower(task.Title() + " " + task.Description() + " " + strings.Join(task.Tags(), " "))
+	for _, needle := range needles {
+		if strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func uniqueTaskIDs(ids []pm.TaskID) []pm.TaskID {
+	seen := make(map[pm.TaskID]bool, len(ids))
+	out := make([]pm.TaskID, 0, len(ids))
+	for _, id := range ids {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }

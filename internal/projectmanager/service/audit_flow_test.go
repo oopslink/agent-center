@@ -203,6 +203,34 @@ func TestAudit_PlanDependency_NoOpNotRecorded(t *testing.T) {
 	}
 }
 
+func TestAudit_ForcePlanCompletionRecordsReasonAndBlockers(t *testing.T) {
+	svc, ctx := auditSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P-force", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "force audit", CreatedBy: "user:a"})
+	taskID, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "unfinished", CreatedBy: "user:a"})
+	assignee := "user:a"
+	if err := svc.BatchUpdateTask(ctx, taskID, BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	const reason = "owner approved legacy close"
+	if err := svc.CompletePlanWithOptions(ctx, planID, "user:a", CompletePlanOptions{Force: true, Reason: reason}); err != nil {
+		t.Fatal(err)
+	}
+	entry := hasChange(auditOf(t, svc, ctx, pm.AuditObjectPlan, string(planID)), pm.AuditPlanForceCompleted)
+	if entry == nil {
+		t.Fatal("no force_completed ledger row")
+	}
+	if entry.ActorRef != "user:a" || !strings.Contains(entry.Detail, reason) || !strings.Contains(entry.Detail, "ready_work") {
+		t.Fatalf("force audit missing actor/reason/blockers: %+v", entry)
+	}
+}
+
 // failingAudit is an AuditLogRepository whose Append always errors — proving审计写
 // 不阻塞主 mutation: the business op still succeeds and commits.
 type failingAudit struct{}
