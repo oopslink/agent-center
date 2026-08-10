@@ -2,266 +2,161 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
-	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// PlanGenerationRead is the generation/evolution read model for a Plan. It is
-// projected from existing immutable facts: Stage.generation, GateVerdict,
-// Continuation, Task.stage_id, and the current derived PlanView.
+// PlanGenerationRead is the product-facing projection of the immutable
+// PlanGeneration ledger. Generation identity and lineage always come from the
+// persisted ledger; Revision is only a zero-based display position in that
+// lineage and is never used as domain identity.
 type PlanGenerationRead struct {
-	ActiveGeneration int
-	Generations      []PlanGeneration
-	Nodes            []PlanGenerationNode
+	PlanID             pm.PlanID
+	ActiveGenerationID pm.PlanGenerationID
+	PlanVersion        int
+	Generations        []PlanGenerationRevision
+	Nodes              []PlanGenerationNodeOwnership
 }
 
-type PlanGeneration struct {
-	Generation     int
-	Revision       int
-	Active         bool
-	Status         string
-	StageIDs       []pm.StageID
-	TaskIDs        []pm.TaskID
-	Progress       pm.PlanProgress
-	Reason         string
-	Evidence       string
-	VerdictID      pm.GateVerdictID
-	ContinuationID pm.ContinuationID
-	IdempotencyKey string
-	CreatedAt      time.Time
-	Diff           PlanEvolutionDiff
+type PlanGenerationRevision struct {
+	Generation *pm.PlanGeneration
+	Revision   int
+	Active     bool
+	Progress   pm.PlanProgress
 }
 
-type PlanGenerationNode struct {
+// PlanGenerationNodeOwnership records the first immutable generation snapshot
+// in which a task node appeared. PresentInActive distinguishes historical nodes
+// that a later generation superseded from nodes in the active snapshot.
+type PlanGenerationNodeOwnership struct {
 	TaskID          pm.TaskID
+	NodeID          string
 	StageID         pm.StageID
-	Generation      int
+	GenerationID    pm.PlanGenerationID
 	Revision        int
-	OriginVerdictID pm.GateVerdictID
-	ContinuationID  pm.ContinuationID
-	Effective       bool
+	PresentInActive bool
 }
 
-type PlanEvolutionDiff struct {
-	FromGeneration int
-	ToGeneration   int
-	AddedNodes     []pm.TaskID
-	AddedStages    []pm.StageID
-	AddedEdges     []pm.Dependency
-	RemovedNodes   []pm.TaskID
-	RemovedEdges   []pm.Dependency
-}
-
-// GetPlanGenerations returns the stable read model used by the Web Console to
-// show active/history generations, per-generation progress, node ownership, and
-// each generation's additive topology diff.
+// GetPlanGenerations follows Plan.active_generation_id through persisted parent
+// links to G0. It fails closed on broken, cyclic, cross-Plan, or internally
+// inconsistent lineage instead of manufacturing generations from Stage fields.
 func (s *Service) GetPlanGenerations(ctx context.Context, planID pm.PlanID) (*PlanGenerationRead, error) {
-	detail, err := s.GetPlanDetail(ctx, planID)
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	p, err := s.plans.FindByID(ctx, planID)
 	if err != nil {
 		return nil, err
 	}
-	if detail.Generations == nil {
-		if err := s.enrichGenerationView(ctx, detail); err != nil {
+	read := &PlanGenerationRead{
+		PlanID:             p.ID(),
+		ActiveGenerationID: p.ActiveGenerationID(),
+		PlanVersion:        p.Version(),
+		Generations:        []PlanGenerationRevision{},
+		Nodes:              []PlanGenerationNodeOwnership{},
+	}
+	if p.ActiveGenerationID() == "" {
+		return read, nil
+	}
+
+	lineage, err := s.planGenerationLineage(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	activeTasks := make(map[pm.TaskID]bool)
+	for _, task := range lineage[len(lineage)-1].Snapshot.Tasks {
+		activeTasks[task.TaskID] = true
+	}
+	owned := make(map[pm.TaskID]bool)
+	for revision, generation := range lineage {
+		read.Generations = append(read.Generations, PlanGenerationRevision{
+			Generation: generation,
+			Revision:   revision,
+			Active:     generation.ID == p.ActiveGenerationID(),
+			Progress:   generationSnapshotProgress(generation.Snapshot),
+		})
+		for _, task := range generation.Snapshot.Tasks {
+			if owned[task.TaskID] {
+				continue
+			}
+			owned[task.TaskID] = true
+			read.Nodes = append(read.Nodes, PlanGenerationNodeOwnership{
+				TaskID:          task.TaskID,
+				NodeID:          task.NodeID,
+				StageID:         task.StageID,
+				GenerationID:    generation.ID,
+				Revision:        revision,
+				PresentInActive: activeTasks[task.TaskID],
+			})
+		}
+	}
+	sort.SliceStable(read.Nodes, func(i, j int) bool {
+		if read.Nodes[i].Revision != read.Nodes[j].Revision {
+			return read.Nodes[i].Revision < read.Nodes[j].Revision
+		}
+		return read.Nodes[i].TaskID < read.Nodes[j].TaskID
+	})
+	return read, nil
+}
+
+func (s *Service) planGenerationLineage(ctx context.Context, p *pm.Plan) ([]*pm.PlanGeneration, error) {
+	return loadPlanGenerationLineage(ctx, p, s.plans)
+}
+
+type planGenerationFinder interface {
+	FindGenerationByID(context.Context, pm.PlanGenerationID) (*pm.PlanGeneration, error)
+}
+
+func loadPlanGenerationLineage(ctx context.Context, p *pm.Plan, finder planGenerationFinder) ([]*pm.PlanGeneration, error) {
+	seen := make(map[pm.PlanGenerationID]bool)
+	reversed := make([]*pm.PlanGeneration, 0, 4)
+	for id := p.ActiveGenerationID(); id != ""; {
+		if seen[id] {
+			return nil, fmt.Errorf("%w: cycle at generation %s", pm.ErrPlanGenerationConflict, id)
+		}
+		seen[id] = true
+		generation, err := finder.FindGenerationByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, pm.ErrPlanGenerationNotFound) {
+				return nil, fmt.Errorf("%w: missing generation %s", pm.ErrPlanGenerationConflict, id)
+			}
 			return nil, err
 		}
+		if generation.PlanID != p.ID() {
+			return nil, fmt.Errorf("%w: generation %s belongs to plan %s", pm.ErrPlanGenerationConflict, id, generation.PlanID)
+		}
+		if generation.Snapshot.PlanID != p.ID() || generation.Snapshot.ActiveGenerationID != generation.ID {
+			return nil, fmt.Errorf("%w: generation %s snapshot identity mismatch", pm.ErrPlanGenerationConflict, id)
+		}
+		reversed = append(reversed, generation)
+		id = generation.ParentGenerationID
 	}
-	return detail.Generations, nil
+
+	lineage := make([]*pm.PlanGeneration, len(reversed))
+	for i := range reversed {
+		lineage[len(reversed)-1-i] = reversed[i]
+	}
+	if len(lineage) == 0 || lineage[0].ParentGenerationID != "" {
+		return nil, fmt.Errorf("%w: lineage does not terminate at G0", pm.ErrPlanGenerationConflict)
+	}
+	for i := 1; i < len(lineage); i++ {
+		if lineage[i].ParentGenerationID != lineage[i-1].ID {
+			return nil, fmt.Errorf("%w: generation %s does not descend from %s", pm.ErrPlanGenerationConflict, lineage[i].ID, lineage[i-1].ID)
+		}
+	}
+	return lineage, nil
 }
 
-func (s *Service) enrichGenerationView(ctx context.Context, detail *PlanDetail) error {
-	if detail == nil || detail.Plan == nil {
-		return nil
-	}
-	var stages []*pm.Stage
-	if s.stages != nil {
-		var err error
-		stages, err = s.stages.ListByPlan(ctx, detail.Plan.ID())
-		if err != nil {
-			return err
+func generationSnapshotProgress(snapshot pm.PlanGenerationSnapshot) pm.PlanProgress {
+	progress := pm.PlanProgress{Total: len(snapshot.Tasks)}
+	for _, task := range snapshot.Tasks {
+		switch task.Status {
+		case pm.TaskCompleted, pm.TaskDiscarded:
+			progress.Done++
 		}
 	}
-	edges, err := s.plans.ListDependencies(ctx, detail.Plan.ID())
-	if err != nil {
-		return err
-	}
-	detail.Generations = buildPlanGenerationRead(detail, stages, edges)
-	return nil
-}
-
-func buildPlanGenerationRead(detail *PlanDetail, stages []*pm.Stage, edges []pm.Dependency) *PlanGenerationRead {
-	stageByID := make(map[pm.StageID]*pm.Stage, len(stages))
-	verdictByID := make(map[pm.GateVerdictID]pm.GateVerdict, len(detail.GateVerdicts))
-	for _, verdict := range detail.GateVerdicts {
-		verdictByID[verdict.ID] = verdict
-	}
-	continuationByID := make(map[pm.ContinuationID]*pm.PlanContinuation, len(detail.Continuations))
-	for _, continuation := range detail.Continuations {
-		if continuation != nil {
-			continuationByID[continuation.ID] = continuation
-		}
-	}
-
-	activeGeneration := 0
-	for _, st := range stages {
-		if st == nil {
-			continue
-		}
-		stageByID[st.ID()] = st
-		if gen := normalizedGeneration(st.Generation()); gen > activeGeneration {
-			activeGeneration = gen
-		}
-	}
-
-	nodeByTask := make(map[pm.TaskID]pm.PlanNodeView, len(detail.View.Nodes))
-	for _, node := range detail.View.Nodes {
-		nodeByTask[node.TaskID] = node
-	}
-
-	groups := map[int]*PlanGeneration{}
-	ensure := func(gen int) *PlanGeneration {
-		gen = normalizedGeneration(gen)
-		if groups[gen] == nil {
-			groups[gen] = &PlanGeneration{
-				Generation: gen,
-				Revision:   gen + 1,
-				Status:     "historical",
-				Diff: PlanEvolutionDiff{
-					FromGeneration: maxInt(0, gen-1),
-					ToGeneration:   gen,
-				},
-			}
-		}
-		return groups[gen]
-	}
-	ensure(0)
-
-	for _, st := range stages {
-		if st == nil {
-			continue
-		}
-		gen := normalizedGeneration(st.Generation())
-		group := ensure(gen)
-		group.StageIDs = append(group.StageIDs, st.ID())
-		if st.CreatedAt().After(group.CreatedAt) {
-			group.CreatedAt = st.CreatedAt()
-		}
-		if group.VerdictID == "" && st.OriginVerdictID() != "" {
-			group.VerdictID = st.OriginVerdictID()
-			if verdict, ok := verdictByID[st.OriginVerdictID()]; ok {
-				group.Evidence = verdict.Evidence
-				group.IdempotencyKey = verdict.IdempotencyKey
-				if group.CreatedAt.IsZero() {
-					group.CreatedAt = verdict.CreatedAt
-				}
-			}
-		}
-		if group.ContinuationID == "" && st.ContinuationID() != "" {
-			group.ContinuationID = st.ContinuationID()
-		}
-	}
-
-	var nodes []PlanGenerationNode
-	genByTask := make(map[pm.TaskID]int, len(detail.Tasks))
-	for _, task := range detail.Tasks {
-		if task == nil {
-			continue
-		}
-		stageID := task.StageID()
-		gen := 0
-		var origin pm.GateVerdictID
-		var continuation pm.ContinuationID
-		if st := stageByID[stageID]; st != nil {
-			gen = normalizedGeneration(st.Generation())
-			origin = st.OriginVerdictID()
-			continuation = st.ContinuationID()
-		} else {
-			origin = task.OriginVerdictID()
-		}
-		group := ensure(gen)
-		group.TaskIDs = append(group.TaskIDs, task.ID())
-		genByTask[task.ID()] = gen
-		view := nodeByTask[task.ID()]
-		if view.TaskID == "" {
-			view.Effective = true
-		}
-		if view.Effective && view.NodeStatus == pm.NodeDone {
-			group.Progress.Done++
-		}
-		if view.Effective {
-			group.Progress.Total++
-		}
-		nodes = append(nodes, PlanGenerationNode{
-			TaskID: task.ID(), StageID: stageID, Generation: gen, Revision: gen + 1,
-			OriginVerdictID: origin, ContinuationID: continuation, Effective: view.Effective,
-		})
-	}
-
-	for _, edge := range edges {
-		fromGen := genByTask[edge.FromTaskID]
-		toGen := genByTask[edge.ToTaskID]
-		gen := fromGen
-		if toGen > gen {
-			gen = toGen
-		}
-		group := ensure(gen)
-		group.Diff.AddedEdges = append(group.Diff.AddedEdges, edge)
-	}
-
-	out := make([]PlanGeneration, 0, len(groups))
-	for gen, group := range groups {
-		sortStageIDs(group.StageIDs)
-		sortTaskIDsLocal(group.TaskIDs)
-		group.Diff.AddedStages = append([]pm.StageID(nil), group.StageIDs...)
-		group.Diff.AddedNodes = append([]pm.TaskID(nil), group.TaskIDs...)
-		if gen == activeGeneration {
-			group.Active = true
-			group.Status = "active"
-		}
-		if gen == 0 {
-			group.Reason = "initial_plan"
-			if group.CreatedAt.IsZero() && detail.Plan != nil {
-				group.CreatedAt = detail.Plan.CreatedAt()
-			}
-		} else {
-			group.Reason = "gate_rejection"
-			if group.ContinuationID != "" {
-				if continuation := continuationByID[group.ContinuationID]; continuation != nil && group.CreatedAt.IsZero() {
-					group.CreatedAt = continuation.CreatedAt
-				}
-			}
-		}
-		out = append(out, *group)
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Generation < out[j].Generation })
-	sort.SliceStable(nodes, func(i, j int) bool {
-		if nodes[i].Generation != nodes[j].Generation {
-			return nodes[i].Generation < nodes[j].Generation
-		}
-		return nodes[i].TaskID < nodes[j].TaskID
-	})
-	return &PlanGenerationRead{ActiveGeneration: activeGeneration, Generations: out, Nodes: nodes}
-}
-
-func normalizedGeneration(g int) int {
-	if g < 0 {
-		return 0
-	}
-	return g
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func sortStageIDs(ids []pm.StageID) {
-	sort.SliceStable(ids, func(i, j int) bool { return ids[i] < ids[j] })
-}
-
-func sortTaskIDsLocal(ids []pm.TaskID) {
-	sort.SliceStable(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return progress
 }

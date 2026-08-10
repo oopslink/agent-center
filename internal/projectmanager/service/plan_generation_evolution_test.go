@@ -401,6 +401,44 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 		}
 	})
 
+	t.Run("edge rewrite of dispatched dependent rejects whole request", func(t *testing.T) {
+		h := planAdvanceSetup(t)
+		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a"})
+		h.drain(t)
+		a, _ := h.startRunningPlanAB(t, pid, planID)
+		base := h.planVersion(t, planID)
+		_, parent := activePlanGeneration(t, h, planID)
+		beforeTasks, err := h.tasks.ListByProject(h.ctx, pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+			PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-edge-running",
+			Reason: "rewrite dispatched dependency", Evidence: "A already dispatched", Creator: "user:a",
+			Diff: pm.PlanGenerationDiff{
+				Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "must roll back", AssigneeRef: "user:c1"}},
+				Edges: []pm.PlanGenerationEdgeDraft{{From: string(a), To: "c", Kind: pm.EdgeSeq}},
+			},
+		})
+		if !errors.Is(err, pm.ErrPlanNodeInFlight) {
+			t.Fatalf("edge rewrite err=%v want ErrPlanNodeInFlight", err)
+		}
+		if got := h.planVersion(t, planID); got != base {
+			t.Fatalf("version=%d want %d after rejected request", got, base)
+		}
+		afterTasks, err := h.tasks.ListByProject(h.ctx, pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(afterTasks) != len(beforeTasks) {
+			t.Fatalf("task count=%d want %d; valid prefix was not rolled back", len(afterTasks), len(beforeTasks))
+		}
+		if _, found, err := h.plans.FindGenerationByIdempotencyKey(h.ctx, planID, "evo-edge-running"); err != nil || found {
+			t.Fatalf("rejected generation persisted found=%v err=%v", found, err)
+		}
+	})
+
 	t.Run("hold at gate with in flight downstream rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

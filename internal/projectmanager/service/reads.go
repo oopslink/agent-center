@@ -627,9 +627,6 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.enrichRemediationView(ctx, detail); err != nil {
 		return nil, err
 	}
-	if err := s.enrichGenerationView(ctx, detail); err != nil {
-		return nil, err
-	}
 	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
 	// decision queue). Pure read — re-reads the materialized store, changes no gating.
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
@@ -663,10 +660,6 @@ type PlanDetail struct {
 	// history visible without reconstructing it from mutable task state.
 	GateVerdicts  []pm.GateVerdict
 	Continuations []*pm.PlanContinuation
-	// Generations projects active/history Plan generations, node generation
-	// ownership, per-generation progress, and additive topology diffs. It is built
-	// from Stage/Remediation/Task facts and is read-only.
-	Generations *PlanGenerationRead
 	// BlockedOn (I103 §2) carries the plan's 旁路 OBSERVATIONAL blocked_on snapshots —
 	// one per non-terminal node the reconcile sweep classified as un-advancing (why it
 	// waits, on whom, since when). PURE READ: it is the materialized store re-read, never
@@ -713,9 +706,6 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 		return nil, err
 	}
 	if err := s.enrichRemediationView(ctx, detail); err != nil {
-		return nil, err
-	}
-	if err := s.enrichGenerationView(ctx, detail); err != nil {
 		return nil, err
 	}
 	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
