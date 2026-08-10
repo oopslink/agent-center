@@ -217,10 +217,9 @@ func (h *planAdvanceHarness) startRunningPlanAB(t *testing.T, pid pm.ProjectID, 
 	return a, b
 }
 
-// TestEditPlanTopology_RunningInFlightRejected: on a RUNNING plan, editing the in-edges
-// of a dispatched/running node is rejected with ErrPlanNodeInFlight; removing an
-// in-flight node is likewise rejected.
-func TestEditPlanTopology_RunningInFlightRejected(t *testing.T) {
+// TestEditPlanTopology_RunningFailClosed: live topology edits are no longer
+// accepted once execution has started. Evolution owns running-plan changes.
+func TestEditPlanTopology_RunningFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "inflight", CreatedBy: "user:a"})
@@ -235,13 +234,13 @@ func TestEditPlanTopology_RunningInFlightRejected(t *testing.T) {
 		TopologyOp{Kind: OpAddNode, TaskID: c},
 		TopologyOp{Kind: OpAddEdge, FromTaskID: a, ToTaskID: c}, // A depends_on C — touches A's in-edges
 	)
-	if !errors.Is(err, pm.ErrPlanNodeInFlight) {
-		t.Fatalf("add_edge on running node A: err=%v, want ErrPlanNodeInFlight", err)
+	if !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("add_edge on running plan: err=%v, want ErrPlanNotPending", err)
 	}
-	// remove_node of the in-flight node A → rejected.
+	// remove_node of the in-flight node A is rejected by the same status guard.
 	_, err = h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: a})
-	if !errors.Is(err, pm.ErrPlanNodeInFlight) {
-		t.Fatalf("remove_node of running A: err=%v, want ErrPlanNodeInFlight", err)
+	if !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("remove_node on running plan: err=%v, want ErrPlanNotPending", err)
 	}
 	// Version unchanged (both rejected, nothing committed).
 	if got := h.planVersion(t, planID); got != base {
@@ -249,87 +248,22 @@ func TestEditPlanTopology_RunningInFlightRejected(t *testing.T) {
 	}
 }
 
-// TestEditPlanTopology_EditAdvanceIsolation covers BOTH orderings of the edit×advance
-// race with a consistent outcome (design §4, tx isolation):
-//
-//   - ADVANCE-first: the advance dispatched A; a later edit that restructures A sees
-//     A's dispatch record → A immutable → ErrPlanNodeInFlight (the advance "won").
-//   - EDIT-first: an edit adds a new ROOT node C and commits the new topology; C is
-//     dispatched inside the SAME commit, and a following advance is idempotent — the
-//     new node is live under the new topology (the edit "won", advance sees it).
-func TestEditPlanTopology_EditAdvanceIsolation(t *testing.T) {
+func TestEditPlanTopology_PausedFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-
-	// --- ADVANCE-first: advance dispatched A, edit on A rejected. ---
-	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "advance-first", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a"})
 	h.drain(t)
-	a, _ := h.startRunningPlanAB(t, pid, planA) // A dispatched by baseline advance
-	baseA := h.planVersion(t, planA)
-	d := h.seedBacklogAssignedTask(t, pid, "D", "user:d1")
-	_, err := h.edit(t, planA, baseA,
-		TopologyOp{Kind: OpAddNode, TaskID: d},
-		TopologyOp{Kind: OpAddEdge, FromTaskID: a, ToTaskID: d}, // restructures dispatched A
-	)
-	if !errors.Is(err, pm.ErrPlanNodeInFlight) {
-		t.Fatalf("advance-first: edit err=%v, want ErrPlanNodeInFlight (advance dispatched A)", err)
+	h.startRunningPlanAB(t, pid, planID)
+	if err := h.svc.PausePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("PausePlan: %v", err)
 	}
-
-	// --- EDIT-first: edit adds a new root C, dispatched in the edit; advance idempotent. ---
-	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edit-first", CreatedBy: "user:a"})
-	h.drain(t)
-	a2, _ := h.startRunningPlanAB(t, pid, planB) // A dispatched; B blocked (undispatched)
-	_ = a2
-	baseB := h.planVersion(t, planB)
-	c := h.seedBacklogAssignedTask(t, pid, "C", "user:c1")
-	dispatched, err := h.edit(t, planB, baseB, TopologyOp{Kind: OpAddNode, TaskID: c}) // new root, no deps
-	if err != nil {
-		t.Fatalf("edit-first: %v", err)
-	}
-	if len(dispatched) != 1 || dispatched[0] != c {
-		t.Fatalf("edit-first: dispatched=%v, want [C]=%v (new root dispatched in the edit)", dispatched, c)
-	}
-	// A following advance sees the new topology and is idempotent (C already dispatched).
-	if again, _ := h.svc.AdvancePlan(h.ctx, planB, "user:a"); len(again) != 0 {
-		t.Fatalf("edit-first: follow-up advance dispatched %v, want [] (idempotent under new topology)", again)
-	}
-	if ns := h.nodeStatus(t, planB); ns[c] != pm.NodeDispatched {
-		t.Fatalf("edit-first: node C status=%s, want dispatched", ns[c])
-	}
-}
-
-// TestEditPlanTopology_DoneNodeRetainedAcrossEdit: completing A (node done) then editing
-// the plan (add a new node) keeps A's done state — an executed node is not disturbed by
-// a live topology edit.
-func TestEditPlanTopology_DoneNodeRetainedAcrossEdit(t *testing.T) {
-	h := planAdvanceSetup(t)
-	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "retain", CreatedBy: "user:a"})
-	h.drain(t)
-	a, b := h.startRunningPlanAB(t, pid, planID)
-	h.setTaskStatus(t, a, pm.TaskRunning)
-	h.setTaskStatus(t, a, pm.TaskCompleted)
-	// advance so A's node syncs to completed and B becomes ready.
-	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
-		t.Fatalf("advance after A done: %v", err)
-	}
-	if ns := h.nodeStatus(t, planID); ns[a] != pm.NodeDone {
-		t.Fatalf("A node status=%s, want done before edit", ns[a])
-	}
-	// Edit: add a new node C depending on B. A (done) is untouched structurally.
-	c := h.seedBacklogAssignedTask(t, pid, "C", "user:c1")
 	base := h.planVersion(t, planID)
-	if _, err := h.edit(t, planID, base,
-		TopologyOp{Kind: OpAddNode, TaskID: c},
-		TopologyOp{Kind: OpAddEdge, FromTaskID: c, ToTaskID: b}, // C depends_on B (B is dispatched but `to` may be any state)
-	); err != nil {
-		t.Fatalf("edit adding C: %v", err)
+	c := h.seedBacklogAssignedTask(t, pid, "C", "user:c1")
+	_, err := h.edit(t, planID, base, TopologyOp{Kind: OpAddNode, TaskID: c})
+	if !errors.Is(err, pm.ErrPlanNotPending) {
+		t.Fatalf("edit on paused plan err=%v, want ErrPlanNotPending", err)
 	}
-	ns := h.nodeStatus(t, planID)
-	if ns[a] != pm.NodeDone {
-		t.Fatalf("A node status=%s after edit, want done (retained across edit)", ns[a])
-	}
-	if _, ok := ns[c]; !ok {
-		t.Fatal("C not present after edit")
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d (paused edit rejected)", got, base)
 	}
 }

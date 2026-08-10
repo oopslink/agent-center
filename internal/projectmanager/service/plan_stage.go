@@ -201,7 +201,10 @@ func (s *Service) CreateStage(ctx context.Context, cmd CreateStageCommand) (pm.S
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		if !p.IsBuiltin() && p.Status() != pm.PlanPending {
+		if p.IsBuiltin() {
+			return pm.ErrBuiltinPlanNoEdges
+		}
+		if p.Status() != pm.PlanPending {
 			return pm.ErrPlanNotPending
 		}
 		gateSpec := cmd.GateSpec

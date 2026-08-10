@@ -63,6 +63,9 @@ const (
 	// manual Advance click. Payload mirrors planEventPayload (PlanID + ProjectID
 	// + OrganizationID).
 	EvtPlanStarted = "pm.plan.started"
+	// Plan Generation Evolution: immutable generation snapshot committed and made
+	// active in the same tx as any running-plan dispatch it triggered.
+	EvtPlanGenerationEvolved = "pm.plan.generation_evolved"
 	// v2.9 P3 (delete + archive). EvtPlanDeleted is emitted by DeletePlan AFTER the
 	// plan row (+ its tasks unloaded to backlog + deps/dispatch-records) are gone; the
 	// PlanParticipantProjector consumes it to HARD-DELETE the plan's 1:1 Conversation

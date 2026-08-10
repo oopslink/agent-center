@@ -269,6 +269,15 @@ type PlanRepository interface {
 	ClearBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) error
 	GetBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) (BlockedOn, bool, error)
 	ListBlockedOn(ctx context.Context, planID PlanID) ([]BlockedOn, error)
+
+	// Generations are immutable topology snapshots produced by Evolution commits.
+	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.
+	// ActivateGeneration CAS-updates the Plan aggregate pointer + version in the same
+	// tx as the generation row and any dispatch writes.
+	SaveGeneration(ctx context.Context, g *PlanGeneration) error
+	FindGenerationByID(ctx context.Context, id PlanGenerationID) (*PlanGeneration, error)
+	FindGenerationByIdempotencyKey(ctx context.Context, planID PlanID, key string) (*PlanGeneration, bool, error)
+	ActivateGeneration(ctx context.Context, planID PlanID, generationID PlanGenerationID, expectedVersion, nextVersion int, at time.Time) (bool, error)
 }
 
 // StageRepository persists Stage ARs (2026-07-03 plan-stage-model design §4.1): the

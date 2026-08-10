@@ -19,7 +19,8 @@ package mcphost
 var AgentFacingToolNames = []string{
 	"add_plan_dependency",
 	"add_task_to_plan",
-	"edit_plan_topology", // 2026-07-05: unified atomic DAG edit (draft+running), supersedes the per-op plan-edit tools
+	"edit_plan_topology",     // pending-only batch DAG edit
+	"evolve_plan_generation", // immutable generation evolution for running/paused plans
 	"archive_plan",
 	"assign_task",
 	"attach_file",

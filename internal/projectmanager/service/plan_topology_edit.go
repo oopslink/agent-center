@@ -77,9 +77,9 @@ type EditPlanTopologyCommand struct {
 	PlanningRules *RuleSnapshot
 }
 
-// EditPlanTopology applies an ops batch to a draft OR running plan atomically
-// (2026-07-05 live-topology design §3/§4). Returns the newly-dispatched task ids
-// (empty for a draft edit, or a running edit that readied nothing).
+// EditPlanTopology applies an ops batch to a draft plan atomically. Running/paused
+// topology evolution is handled by EvolvePlanGeneration so server-side authoring
+// fails closed once execution history exists.
 func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyCommand) ([]pm.TaskID, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable
@@ -103,12 +103,12 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			return pm.ErrBuiltinPlanNoEdges
 		}
 		switch p.Status() {
-		case pm.PlanPending, pm.PlanRunning:
+		case pm.PlanPending:
 			// editable
 		case pm.PlanDiscarded:
 			return pm.ErrPlanArchived
-		default: // done
-			return pm.ErrPlanNotRunning
+		default:
+			return pm.ErrPlanNotPending
 		}
 		// §4.1 CAS — the optimistic-concurrency gate for edit-vs-edit. Under SQLite's
 		// single-writer serialization the loaded version is the committed one, so a
