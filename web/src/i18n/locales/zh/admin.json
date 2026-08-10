@@ -358,8 +358,10 @@
       "edit": "编辑",
       "disable": "停用",
       "enable": "启用",
+      "delete": "删除",
       "disableSelected": "批量停用",
-      "enableSelected": "批量启用"
+      "enableSelected": "批量启用",
+      "deleteSelected": "批量删除"
     },
     "permissions": {
       "unknownRole": "成员",
@@ -419,6 +421,16 @@
       "cliMessage": "确定要停用“{{name}}”吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供该 CLI。",
       "clisTitle": "停用选中的 Runtime CLIs？",
       "clisMessage": "确定要停用选中的 {{count}} 个 Runtime CLIs 吗？已有保存引用仍可见，但 worker 和新的运行时选择不会再提供这些 CLI。"
+    },
+    "deleteConfirm": {
+      "modelTitle": "删除 Runtime Model？",
+      "modelMessage": "确定要删除“{{name}}”吗？这会从 AI Runtime 目录中移除该模型。",
+      "modelsTitle": "删除选中的 Runtime Models？",
+      "modelsMessage": "确定要删除选中的 {{count}} 个 Runtime Models 吗？这会从 AI Runtime 目录中移除它们。",
+      "cliTitle": "删除 Runtime CLI？",
+      "cliMessage": "确定要删除“{{name}}”吗？这会从 AI Runtime 目录中移除该 CLI。引用它的 Model 会保留 key，但匹配 CLI 再次存在前不会成为可选组合。",
+      "clisTitle": "删除选中的 Runtime CLIs？",
+      "clisMessage": "确定要删除选中的 {{count}} 个 Runtime CLIs 吗？引用它们的 Model 会保留 key，但匹配 CLI 再次存在前不会成为可选组合。"
     },
     "form": {
       "newModel": "新建 Model",

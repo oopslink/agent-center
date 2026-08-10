@@ -69,7 +69,7 @@ func TestCatalogLifecycleAndRevision(t *testing.T) {
 	}
 }
 
-func TestModelRejectsMissingCompatibleCLI(t *testing.T) {
+func TestModelAllowsMissingCompatibleCLIUntilRuntimeUse(t *testing.T) {
 	db, err := persistence.Open(t.TempDir() + "/runtime.db")
 	if err != nil {
 		t.Fatal(err)
@@ -81,13 +81,20 @@ func TestModelRejectsMissingCompatibleCLI(t *testing.T) {
 	n := 0
 	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string { n++; return fmt.Sprintf("disabled-%d", n) })
 	ctx := context.Background()
-	_, _, err = svc.CreateModel(ctx, "org", "user:a", 0, airuntime.ModelDefinition{
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", 0, airuntime.ModelDefinition{
 		Key: "missing-cli", ModelKey: "missing-cli", CompatibleCLIKeys: []string{"missing"},
 		DefaultParameters: map[string]any{}, Enabled: true,
 	})
+	if err != nil || rev != 1 {
+		t.Fatalf("create missing CLI model: rev=%d err=%v", rev, err)
+	}
+	resolver := airuntime.NewRuntimeResolver(airuntimesql.NewRepository(db))
+	_, err = resolver.Resolve(ctx, "org", airuntime.RuntimeSelection{
+		Mode: airuntime.SelectionOverride, CLIID: "missing", ModelID: model.ID,
+	})
 	var runtimeErr *airuntime.Error
 	if !errors.As(err, &runtimeErr) || runtimeErr.Reason != airuntime.ReasonCLINotFound {
-		t.Fatalf("missing CLI model error = %v", err)
+		t.Fatalf("runtime use error = %v", err)
 	}
 }
 
@@ -137,14 +144,87 @@ func TestCatalogUpdatesRevalidateDependentModels(t *testing.T) {
 
 	incompatibleModel := model
 	incompatibleModel.CompatibleCLIKeys = []string{"missing"}
-	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, incompatibleModel); err == nil {
-		t.Fatal("model compatibility update must reject a missing CLI")
+	model, rev, err = svc.UpdateModel(ctx, "org", "user:a", rev, incompatibleModel)
+	if err != nil {
+		t.Fatalf("model compatibility update with a missing CLI should remain import/edit tolerant: %v", err)
 	}
 
 	invalidDefaults := model
+	invalidDefaults.CompatibleCLIKeys = []string{"codex"}
 	invalidDefaults.DefaultParameters = map[string]any{"retries": float64(4)}
 	if _, _, err := svc.UpdateModel(ctx, "org", "user:a", rev, invalidDefaults); err == nil {
 		t.Fatal("model defaults update must reject invalid parameters")
+	}
+}
+
+func TestCatalogHardDeleteRemovesEntriesAndDoesNotReseedSystemCLI(t *testing.T) {
+	db, err := persistence.Open(t.TempDir() + "/runtime.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	svc := airuntime.NewService(airuntimesql.NewRepository(db), func() string {
+		n++
+		return fmt.Sprintf("delete-%d", n)
+	})
+	ctx := context.Background()
+	catalog, err := svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, rev, err := svc.CreateModel(ctx, "org", "user:a", catalog.Revision, airuntime.ModelDefinition{
+		Key: "gpt", ModelKey: "gpt", CompatibleCLIKeys: []string{"codex"},
+		DefaultParameters: map[string]any{}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev, err = svc.DeleteModel(ctx, "org", "user:a", model.ID, rev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err = svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Models) != 0 {
+		t.Fatalf("model was not hard deleted: %+v", catalog.Models)
+	}
+	var codexID string
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			codexID = cli.ID
+		}
+	}
+	if codexID == "" {
+		t.Fatalf("fixture missing codex CLI: %+v", catalog.CLIs)
+	}
+	rev, err = svc.DeleteCLI(ctx, "org", "user:a", codexID, rev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err = svc.Catalog(ctx, "org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			t.Fatalf("deleted system CLI was reseeded: %+v", catalog.CLIs)
+		}
+	}
+	if catalog.Revision != rev {
+		t.Fatalf("revision=%d want %d", catalog.Revision, rev)
+	}
+	var audits int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_runtime_audit_log WHERE org_id=? AND action='deleted'`, "org").Scan(&audits); err != nil {
+		t.Fatal(err)
+	}
+	if audits != 2 {
+		t.Fatalf("delete audits=%d want 2", audits)
 	}
 }
 

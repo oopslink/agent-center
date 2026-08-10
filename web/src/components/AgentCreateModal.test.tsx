@@ -50,7 +50,7 @@ function wrap(onClose = () => {}) {
 afterEach(() => cleanup());
 
 describe('AgentCreateModal — model field', () => {
-  it('places Worker before dependent Runtime selectors and explains the empty state', async () => {
+  it('places Worker before Runtime selectors while allowing catalog selection before worker choice', async () => {
     wrap();
 
     const worker = await screen.findByTestId('agent-create-worker-trigger');
@@ -59,13 +59,15 @@ describe('AgentCreateModal — model field', () => {
 
     expect(worker.compareDocumentPosition(cli) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(cli.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(cli).toBeDisabled();
-    expect(model).toBeDisabled();
-    expect(Array.from(cli.options).map((o) => o.textContent)).toEqual(['Select a worker first']);
-    expect(Array.from(model.options).map((o) => o.textContent)).toEqual(['Select a worker first']);
+    await waitFor(() => expect(cli.value).toBe('claude-code'));
+    expect(cli).not.toBeDisabled();
+    expect(model).not.toBeDisabled();
+    expect(Array.from(cli.options).map((o) => o.value)).toEqual(['claude-code', 'codex']);
+    expect(model.value).toBe('opus-4-8');
+    expect(screen.getByTestId('agent-create-submit')).toBeDisabled();
   });
 
-  it('renders Runtime catalog CLI/model options filtered by the selected worker', async () => {
+  it('keeps Runtime catalog options after worker selection and narrows models by CLI', async () => {
     wrap();
     fireEvent.click(await screen.findByTestId('agent-create-worker-trigger'));
     fireEvent.click(await screen.findByTestId('agent-create-worker-option'));
@@ -112,7 +114,7 @@ describe('AgentCreateModal — model field', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it('blocks creation when the selected worker has no enabled Runtime CLI capability', async () => {
+  it('warns without blocking when the selected worker has no enabled Runtime CLI capability', async () => {
     server.use(runtimeCatalog(), fleetWithWorker([{ agent_cli: 'claude-code', detected: true, enabled: false }]));
     const onClose = vi.fn();
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -125,8 +127,9 @@ describe('AgentCreateModal — model field', () => {
     fireEvent.click(await screen.findByTestId('agent-create-worker-option'));
     fireEvent.change(screen.getByTestId('agent-create-name'), { target: { value: 'bot-x' } });
 
-    expect(await screen.findByTestId('agent-create-validation-error')).toHaveTextContent(/not enabled/i);
-    expect(screen.getByTestId('agent-create-submit')).toBeDisabled();
+    expect(await screen.findByTestId('agent-create-runtime-warning')).toHaveTextContent(/can still be created/i);
+    expect(screen.queryByTestId('agent-create-validation-error')).toBeNull();
+    expect(screen.getByTestId('agent-create-submit')).not.toBeDisabled();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

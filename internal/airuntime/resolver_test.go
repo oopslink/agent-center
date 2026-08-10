@@ -17,10 +17,16 @@ func (*resolveRepo) CreateCLI(context.Context, CLIDefinition, int64, AuditEvent)
 func (*resolveRepo) UpdateCLI(context.Context, CLIDefinition, int64, AuditEvent) (int64, error) {
 	return 0, errors.New("unused")
 }
+func (*resolveRepo) DeleteCLI(context.Context, string, string, int64, AuditEvent) (int64, error) {
+	return 0, errors.New("unused")
+}
 func (*resolveRepo) CreateModel(context.Context, ModelDefinition, int64, AuditEvent) (int64, error) {
 	return 0, errors.New("unused")
 }
 func (*resolveRepo) UpdateModel(context.Context, ModelDefinition, int64, AuditEvent) (int64, error) {
+	return 0, errors.New("unused")
+}
+func (*resolveRepo) DeleteModel(context.Context, string, string, int64, AuditEvent) (int64, error) {
 	return 0, errors.New("unused")
 }
 

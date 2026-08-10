@@ -34,9 +34,11 @@ function runtimeCatalog() {
       revision: 1,
       clis: [
         { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
+        { id: 'runtime-cli-codex', key: 'codex', display_name: 'Codex CLI', executable: 'codex', enabled: true },
       ],
       models: [
         { id: 'runtime-model-claude-opus', key: 'claude-opus-4-8', model_key: 'claude-opus-4-8', display_name: 'Claude Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+        { id: 'runtime-model-gpt', key: 'gpt-5', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true },
       ],
     }),
   );
@@ -77,14 +79,49 @@ describe('MemberNew — Add agent runtime selection', () => {
 
     await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
     // Pick the worker via the EntitySelect (open → click option).
-    fireEvent.click(screen.getByTestId('mn-worker-trigger'));
+    await userEvent.click(screen.getByTestId('mn-worker-trigger'));
     await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
-    fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await userEvent.click(screen.getByTestId('mn-worker-option'));
     await waitFor(() => expect((screen.getByLabelText(/Model/i) as HTMLSelectElement).value).toBe('claude-opus-4-8'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(posted).not.toBeNull());
     expect(posted).toMatchObject({ display_name: 'newbot', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8' });
+  });
+
+  it('allows Runtime selection before worker choice and only warns on worker mismatch', async () => {
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      runtimeCatalog(),
+      fleetWithWorker(),
+      http.post('/api/members/agent', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: 'a-new', identity_id: 'a-new', kind: 'agent', display_name: 'newbot' }, { status: 201 });
+      }),
+    );
+    wrap();
+
+    await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
+    const cli = screen.getByLabelText('CLI') as HTMLSelectElement;
+    const model = screen.getByLabelText(/Model/i) as HTMLSelectElement;
+    await waitFor(() => expect(cli.value).toBe('claude-code'));
+    expect(cli).not.toBeDisabled();
+    expect(model).not.toBeDisabled();
+
+    fireEvent.change(cli, { target: { value: 'codex' } });
+    await waitFor(() => expect(model.value).toBe('gpt-5'));
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+
+    await userEvent.click(screen.getByTestId('mn-worker-trigger'));
+    await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
+    await userEvent.click(screen.getByTestId('mn-worker-option'));
+
+    expect(await screen.findByTestId('mn-runtime-warning')).toHaveTextContent(/can still be created/i);
+    expect(screen.getByRole('button', { name: 'Create' })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ display_name: 'newbot', worker_id: 'w-7', cli: 'codex', model: 'gpt-5' });
   });
 });
 
@@ -116,9 +153,9 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
     );
     wrap();
     await userEvent.type(await screen.findByLabelText('Display name'), 'newbot');
-    fireEvent.click(screen.getByTestId('mn-worker-trigger'));
+    await userEvent.click(screen.getByTestId('mn-worker-trigger'));
     await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
-    fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await userEvent.click(screen.getByTestId('mn-worker-option'));
     await waitFor(() => expect((screen.getByLabelText(/Model/i) as HTMLSelectElement).value).toBe('claude-opus-4-8'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/agents'));

@@ -12,7 +12,7 @@ import { useFleet } from '@/api/fleet';
 import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
-import { deriveRuntimeChoices, validateRuntimePair } from './executorProfiles';
+import { deriveRuntimeChoices, runtimeWorkerWarning, validateRuntimePair } from './executorProfiles';
 
 interface Props {
   onClose: () => void;
@@ -35,30 +35,26 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const workers = fleet.data?.workers ?? [];
   const selectedWorker = workers.find((w) => w.worker_id === workerId);
   const runtimeChoices = useMemo(
-    () => deriveRuntimeChoices(runtimeCatalog.data, selectedWorker),
-    [runtimeCatalog.data, selectedWorker],
+    () => deriveRuntimeChoices(runtimeCatalog.data),
+    [runtimeCatalog.data],
   );
-  const cliSelectDisabled = !workerId || runtimeChoices.cliOptions.length === 0;
+  const cliSelectDisabled = runtimeChoices.cliOptions.length === 0;
   const selectedModelOptions = runtimeChoices.modelOptionsByCli[cli] ?? [];
-  const modelSelectDisabled = !workerId || !cli || selectedModelOptions.length === 0;
-  const cliPlaceholder = !workerId
-    ? t('agents.create.cliSelectWorkerPlaceholder')
-    : t('agents.create.cliEmpty');
-  const modelPlaceholder = !workerId
-    ? t('agents.create.modelSelectWorkerPlaceholder')
-    : (!cli ? t('agents.create.modelSelectCliPlaceholder') : t('agents.create.modelEmpty'));
+  const modelSelectDisabled = !cli || selectedModelOptions.length === 0;
+  const cliPlaceholder = t('agents.create.cliEmpty');
+  const modelPlaceholder = !cli ? t('agents.create.modelSelectCliPlaceholder') : t('agents.create.modelEmpty');
 
   useEffect(() => {
-    if (!workerId || !runtimeChoices.defaultCli) return;
+    if (!runtimeChoices.defaultCli) return;
     setCli((current) =>
       runtimeChoices.cliOptions.some((option) => option.value === current)
         ? current
         : runtimeChoices.defaultCli,
     );
-  }, [runtimeChoices, workerId]);
+  }, [runtimeChoices]);
 
   useEffect(() => {
-    if (!workerId || !cli) return;
+    if (!cli) return;
     const modelOptions = runtimeChoices.modelOptionsByCli[cli] ?? [];
     const fallbackModel =
       cli === runtimeChoices.defaultCli ? runtimeChoices.defaultModel : (modelOptions[0]?.value ?? '');
@@ -67,7 +63,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         ? current
         : fallbackModel,
     );
-  }, [cli, runtimeChoices, workerId]);
+  }, [cli, runtimeChoices]);
 
   const trimmedName = name.trim();
   const validationMessages = {
@@ -79,16 +75,24 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
       t('agents.create.validation.modelUnavailable', { model: value, cli: cliValue }),
     executorUnavailable: (cliValue: string, modelValue: string) =>
       t('agents.create.validation.executorUnavailable', { cli: cliValue, model: modelValue }),
+    workerCapabilityWarning: (cliValue: string) =>
+      t('agents.create.validation.workerCapabilityWarning', { cli: cliValue }),
   };
   const runtimeError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
     catalogLoading: runtimeCatalog.isLoading,
     catalogReady: runtimeCatalog.isSuccess,
     workerSelected: !!workerId,
   });
-  const canSubmit = trimmedName.length > 0 && !runtimeError && !create.isPending;
+  const runtimeWarning = runtimeWorkerWarning(selectedWorker, cli, validationMessages);
+  const visibleRuntimeError = validationError ?? ((cli || model || workerId) ? runtimeError : null);
+  const canSubmit = trimmedName.length > 0 && !!workerId && !runtimeError && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!workerId) {
+      setValidationError(validationMessages.workerMissing);
+      return;
+    }
     const submitError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
       catalogLoading: runtimeCatalog.isLoading,
       catalogReady: runtimeCatalog.isSuccess,
@@ -246,9 +250,18 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </select>
         </Field>
 
-        {(validationError || (workerId && runtimeError)) && (
+        {visibleRuntimeError && (
           <p className="mb-3 text-xs text-danger" data-testid="agent-create-validation-error">
-            {validationError ?? runtimeError}
+            {visibleRuntimeError}
+          </p>
+        )}
+
+        {runtimeWarning && (
+          <p
+            className="mb-3 rounded border border-status-amber-border bg-status-amber-bg px-3 py-2 text-xs text-status-amber-fg"
+            data-testid="agent-create-runtime-warning"
+          >
+            {runtimeWarning}
           </p>
         )}
 

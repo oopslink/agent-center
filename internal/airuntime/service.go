@@ -133,6 +133,24 @@ func (s *Service) UpdateCLI(ctx context.Context, orgID, actor string, expected i
 	return in, rev, err
 }
 
+func (s *Service) DeleteCLI(ctx context.Context, orgID, actor, id string, expected int64) (int64, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return 0, err
+	}
+	var old *CLIDefinition
+	for i := range cat.CLIs {
+		if cat.CLIs[i].ID == id {
+			old = &cat.CLIs[i]
+			break
+		}
+	}
+	if old == nil {
+		return 0, ErrNotFound
+	}
+	return s.repo.DeleteCLI(ctx, orgID, id, expected, s.audit(orgID, actor, "cli", old.Key, "deleted", *old, nil))
+}
+
 func (s *Service) CreateModel(ctx context.Context, orgID, actor string, expected int64, in ModelDefinition) (ModelDefinition, int64, error) {
 	in.ID, in.OrgID, in.Key = s.id(), orgID, strings.TrimSpace(in.Key)
 	if err := validateKey("key", in.Key); err != nil {
@@ -202,6 +220,24 @@ func (s *Service) UpdateModel(ctx context.Context, orgID, actor string, expected
 	return in, rev, err
 }
 
+func (s *Service) DeleteModel(ctx context.Context, orgID, actor, id string, expected int64) (int64, error) {
+	cat, err := s.repo.GetCatalog(ctx, orgID)
+	if err != nil {
+		return 0, err
+	}
+	var old *ModelDefinition
+	for i := range cat.Models {
+		if cat.Models[i].ID == id {
+			old = &cat.Models[i]
+			break
+		}
+	}
+	if old == nil {
+		return 0, ErrNotFound
+	}
+	return s.repo.DeleteModel(ctx, orgID, id, expected, s.audit(orgID, actor, "model", old.Key, "deleted", *old, nil))
+}
+
 func validateModel(cat Catalog, model ModelDefinition) error {
 	clis := map[string]CLIDefinition{}
 	for _, cli := range cat.CLIs {
@@ -210,7 +246,7 @@ func validateModel(cat Catalog, model ModelDefinition) error {
 	for _, key := range model.CompatibleCLIKeys {
 		cli, ok := clis[key]
 		if !ok {
-			return &Error{Reason: ReasonCLINotFound, Message: "compatible CLI not found", Details: map[string]any{"cli_key": key}}
+			continue
 		}
 		if err := validateParameters(cli.ParameterSchema, model.DefaultParameters); err != nil {
 			return err

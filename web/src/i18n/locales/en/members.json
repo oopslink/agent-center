@@ -318,7 +318,7 @@
         "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor unit profile to run in parallel."
       },
       "validation": {
-        "catalogLoading": "Loading Runtime and worker capabilities.",
+        "catalogLoading": "Loading Runtime catalog.",
         "catalogMissing": "Runtime catalog is unavailable. Try again after it loads.",
         "workerMissing": "The bound worker is not available in the current fleet snapshot.",
         "cliUnavailable": "CLI {{cli}} is not enabled for the bound worker.",
@@ -558,14 +558,14 @@
       "descriptionLabel": "Description",
       "descriptionHint": "Optional. Shown in the agent list.",
       "modelLabel": "Model",
-      "modelHint": "From the Runtime catalog, filtered by the selected worker and CLI.",
+      "modelHint": "From the Runtime catalog, filtered by CLI.",
       "modelSelectWorkerPlaceholder": "Select a worker first",
       "modelSelectCliPlaceholder": "Select a CLI first",
       "modelEmpty": "No compatible Runtime models",
       "cliLabel": "CLI",
-      "cliHint": "From the selected worker's enabled Runtime capabilities.",
+      "cliHint": "From the enabled Runtime catalog. Worker capability mismatches are shown as warnings.",
       "cliSelectWorkerPlaceholder": "Select a worker first",
-      "cliEmpty": "No enabled Runtime CLIs on this worker",
+      "cliEmpty": "No enabled Runtime CLIs",
       "workerLabel": "Worker",
       "workerHint": "Sourced from Environment.",
       "workerSelectPlaceholder": "Select a worker…",
@@ -573,12 +573,13 @@
       "workerEmptyLabel": "No matching workers.",
       "noWorkers": "No workers in Environment yet — enroll a worker first.",
       "validation": {
-        "catalogLoading": "Loading Runtime and worker capabilities.",
+        "catalogLoading": "Loading Runtime catalog.",
         "catalogMissing": "Runtime catalog is unavailable. Try again after it loads.",
         "workerMissing": "Select a worker before choosing Runtime options.",
-        "cliUnavailable": "CLI {{cli}} is not enabled for the selected worker.",
+        "cliUnavailable": "CLI {{cli}} is not enabled in the Runtime catalog.",
         "modelUnavailable": "Model {{model}} is not enabled for CLI {{cli}}.",
-        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled for the selected worker."
+        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled in the Runtime catalog.",
+        "workerCapabilityWarning": "Selected worker has not reported enabled CLI {{cli}}. The agent can still be created, but it may not run there until worker capabilities match."
       },
       "cancel": "Cancel",
       "submit": "Create agent",

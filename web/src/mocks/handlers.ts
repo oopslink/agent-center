@@ -970,6 +970,10 @@ const baseHandlers = [
     const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
     return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
   }),
+  http.delete('/api/ai-runtime/models/:id', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number };
+    return ok({ revision: (body.expected_revision ?? 3) + 1 });
+  }),
   http.post('/api/ai-runtime/clis', async ({ request }) => {
     const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
     const key = typeof body.value?.key === 'string' ? body.value.key : 'new-cli';
@@ -978,6 +982,10 @@ const baseHandlers = [
   http.patch('/api/ai-runtime/clis/:id', async ({ params, request }) => {
     const body = (await request.json()) as { expected_revision?: number; value?: Record<string, unknown> };
     return ok({ revision: (body.expected_revision ?? 3) + 1, entry: { id: String(params.id), ...(body.value ?? {}) } });
+  }),
+  http.delete('/api/ai-runtime/clis/:id', async ({ request }) => {
+    const body = (await request.json()) as { expected_revision?: number };
+    return ok({ revision: (body.expected_revision ?? 3) + 1 });
   }),
   http.post('/api/ai-runtime/import/preview', async ({ request }) => {
     const body = (await request.json()) as {

@@ -185,7 +185,7 @@ describe('Agents page', () => {
     await waitFor(() =>
       expect((screen.getByTestId('agent-create-model') as HTMLSelectElement).value).toBe('claude-opus-4-8'),
     );
-    // CLI/model choices are sourced from Runtime catalog ∩ worker capabilities.
+    // CLI/model choices are sourced from the Runtime catalog; worker mismatches warn only.
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
     expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);

@@ -25,23 +25,15 @@ export interface RuntimeValidationMessages {
   cliUnavailable: (cli: string) => string;
   modelUnavailable: (model: string, cli: string) => string;
   executorUnavailable: (cli: string, model: string) => string;
+  workerCapabilityWarning?: (cli: string) => string;
 }
 
 export function deriveRuntimeChoices(
   catalog: AIRuntimeCatalog | undefined,
-  worker: Pick<FleetWorkerRow, 'capabilities'> | undefined,
+  _worker?: Pick<FleetWorkerRow, 'capabilities'>,
 ): RuntimeChoices {
-  if (!worker) {
-    return { cliOptions: [], modelOptionsByCli: {}, defaultCli: '', defaultModel: '' };
-  }
-  const enabledWorkerCLIs = new Set(
-    (worker?.capabilities ?? [])
-      .filter((cap) => cap.detected && cap.enabled)
-      .map((cap) => cap.agent_cli),
-  );
   const enabledCatalogCLIs = (catalog?.clis ?? [])
-    .filter((cli) => cli.enabled)
-    .filter((cli) => enabledWorkerCLIs.has(cli.key));
+    .filter((cli) => cli.enabled);
   const cliOptions = enabledCatalogCLIs.map((cli) => ({
     value: cli.key,
     label: cli.display_name ? `${cli.display_name} (${cli.key})` : cli.key,
@@ -59,7 +51,7 @@ export function deriveRuntimeChoices(
   }
 
   // Runtime profiles were removed in T1310. Defaults now come directly from
-  // the first enabled catalog entries that the selected worker can execute.
+  // the first enabled catalog entries; worker capability mismatches are warnings.
   const defaultCli = cliOptions[0]?.value ?? '';
   const defaultModel = modelOptionsByCli[defaultCli]?.[0]?.value ?? '';
 
@@ -75,7 +67,6 @@ export function validateRuntimePair(
 ): string | null {
   if (state.catalogLoading) return messages.catalogLoading;
   if (!state.catalogReady) return messages.catalogMissing;
-  if (!state.workerSelected) return messages.workerMissing;
   if (!choices.cliOptions.some((option) => option.value === cli)) {
     return messages.cliUnavailable(cli);
   }
@@ -83,6 +74,18 @@ export function validateRuntimePair(
     return messages.modelUnavailable(model.trim(), cli);
   }
   return null;
+}
+
+export function runtimeWorkerWarning(
+  worker: Pick<FleetWorkerRow, 'capabilities'> | undefined,
+  cli: string,
+  messages: RuntimeValidationMessages,
+): string | null {
+  if (!worker || !cli || !messages.workerCapabilityWarning) return null;
+  const canRunCLI = (worker.capabilities ?? []).some(
+    (cap) => cap.agent_cli === cli && cap.detected && cap.enabled,
+  );
+  return canRunCLI ? null : messages.workerCapabilityWarning(cli);
 }
 
 export function validateExecutorProfiles(

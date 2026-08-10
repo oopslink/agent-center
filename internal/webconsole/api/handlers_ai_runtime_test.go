@@ -67,6 +67,79 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 		t.Fatalf("member write status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
+
+	resp = orgScopedDeleteJSON(t, server.URL+"/api/ai-runtime/models/"+modelResult.Entry.ID, fmt.Sprintf(`{"expected_revision":%d}`, modelResult.Revision), member)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member delete model status=%d want 403", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = orgScopedDeleteJSON(t, server.URL+"/api/ai-runtime/models/"+modelResult.Entry.ID, fmt.Sprintf(`{"expected_revision":%d}`, modelResult.Revision), owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("delete model status=%d body=%+v", resp.StatusCode, body)
+	}
+	var deleteModel struct {
+		Revision int64 `json:"revision"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&deleteModel); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if deleteModel.Revision != modelResult.Revision+1 {
+		t.Fatalf("delete model revision=%d", deleteModel.Revision)
+	}
+
+	catalog, err := deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, model := range catalog.Models {
+		if model.ID == modelResult.Entry.ID {
+			t.Fatalf("model was not hard deleted: %+v", catalog.Models)
+		}
+	}
+	var codexID string
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			codexID = cli.ID
+		}
+	}
+	if codexID == "" {
+		t.Fatalf("codex CLI missing from catalog: %+v", catalog.CLIs)
+	}
+	resp = orgScopedDeleteJSON(t, server.URL+"/api/ai-runtime/clis/"+codexID, fmt.Sprintf(`{"expected_revision":%d}`, deleteModel.Revision), owner)
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("delete cli status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
+	catalog, err = deps.RuntimeCatalog.Catalog(context.Background(), owner.OrgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cli := range catalog.CLIs {
+		if cli.Key == "codex" {
+			t.Fatalf("deleted system CLI was reseeded: %+v", catalog.CLIs)
+		}
+	}
+}
+
+func orgScopedDeleteJSON(t *testing.T, url, body string, sess testSession) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodDelete, orgScopedURL(url, sess.OrgSlug), strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
 }
 
 func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {

@@ -9,6 +9,7 @@ import {
   useAIRuntimeCatalog,
   useApplyRuntimeImport,
   useCreateRuntimeEntry,
+  useDeleteRuntimeEntry,
   usePreviewRuntimeImport,
   useUpdateRuntimeEntry,
   type AIRuntimeCatalog,
@@ -233,8 +234,10 @@ function ModelsTable({
 }): React.ReactElement {
   const { t } = useTranslation('admin');
   const update = useUpdateRuntimeEntry('models');
+  const remove = useDeleteRuntimeEntry('models');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [pendingDisable, setPendingDisable] = useState<RuntimeModel[] | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RuntimeModel[] | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   useEffect(() => {
     setSelectedIds((current) => pruneSelectedIds(current, rows));
@@ -243,7 +246,7 @@ function ModelsTable({
   const selectedEnabled = selectedRows.filter((row) => row.enabled);
   const selectedDisabled = selectedRows.filter((row) => !row.enabled);
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
-  const busy = update.isPending || batchBusy;
+  const busy = update.isPending || remove.isPending || batchBusy;
   const setEnabled = async (entries: RuntimeModel[], enabled: boolean): Promise<void> => {
     if (entries.length === 0) return;
     setBatchBusy(true);
@@ -259,6 +262,23 @@ function ModelsTable({
       }
       setSelectedIds((current) => removeSelectedIds(current, entries));
       setPendingDisable(null);
+    } catch {
+      // mutation error is rendered below
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+  const deleteEntries = async (entries: RuntimeModel[]): Promise<void> => {
+    if (entries.length === 0) return;
+    setBatchBusy(true);
+    let nextRevision = revision;
+    try {
+      for (const entry of entries) {
+        const response = await remove.mutateAsync({ id: entry.id, expectedRevision: nextRevision });
+        nextRevision = response.revision;
+      }
+      setSelectedIds((current) => removeSelectedIds(current, entries));
+      setPendingDelete(null);
     } catch {
       // mutation error is rendered below
     } finally {
@@ -282,6 +302,15 @@ function ModelsTable({
             {t('aiRuntime.bulk.selectedCount', { count: selectedRows.length })}
           </span>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-delete-models"
+              disabled={busy || selectedRows.length === 0}
+              onClick={() => setPendingDelete(selectedRows)}
+            >
+              {t('aiRuntime.actions.deleteSelected')}
+            </button>
             <button
               type="button"
               className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
@@ -390,6 +419,15 @@ function ModelsTable({
                           {t('aiRuntime.actions.enable')}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="text-xs text-danger hover:underline disabled:opacity-50"
+                        data-testid="ai-runtime-delete-model"
+                        disabled={busy}
+                        onClick={() => setPendingDelete([m])}
+                      >
+                        {t('aiRuntime.actions.delete')}
+                      </button>
                     </div>
                   </td>
                 )}
@@ -398,9 +436,9 @@ function ModelsTable({
           </tbody>
         </table>
       </div>
-      {update.isError && (
+      {(update.isError || remove.isError) && (
         <p className="mt-2 text-xs text-danger" role="alert" data-testid="ai-runtime-model-toggle-error">
-          {mutationErrorMessage(update.error)}
+          {mutationErrorMessage(update.error) || mutationErrorMessage(remove.error)}
         </p>
       )}
       <ConfirmModal
@@ -412,6 +450,16 @@ function ModelsTable({
         busy={busy}
         onConfirm={() => pendingDisable && void setEnabled(pendingDisable, false)}
         onCancel={() => setPendingDisable(null)}
+      />
+      <ConfirmModal
+        open={pendingDelete != null}
+        title={pendingDelete && pendingDelete.length > 1 ? t('aiRuntime.deleteConfirm.modelsTitle') : t('aiRuntime.deleteConfirm.modelTitle')}
+        message={pendingDelete ? deleteModelsMessage(t, pendingDelete) : ''}
+        confirmLabel={t('aiRuntime.actions.delete')}
+        danger
+        busy={busy}
+        onConfirm={() => pendingDelete && void deleteEntries(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );
@@ -430,8 +478,10 @@ function CLIsTable({
 }): React.ReactElement {
   const { t } = useTranslation('admin');
   const update = useUpdateRuntimeEntry('clis');
+  const remove = useDeleteRuntimeEntry('clis');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [pendingDisable, setPendingDisable] = useState<RuntimeCLI[] | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RuntimeCLI[] | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   useEffect(() => {
     setSelectedIds((current) => pruneSelectedIds(current, rows));
@@ -440,7 +490,7 @@ function CLIsTable({
   const selectedEnabled = selectedRows.filter((row) => row.enabled);
   const selectedDisabled = selectedRows.filter((row) => !row.enabled);
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
-  const busy = update.isPending || batchBusy;
+  const busy = update.isPending || remove.isPending || batchBusy;
   const setEnabled = async (entries: RuntimeCLI[], enabled: boolean): Promise<void> => {
     if (entries.length === 0) return;
     setBatchBusy(true);
@@ -456,6 +506,23 @@ function CLIsTable({
       }
       setSelectedIds((current) => removeSelectedIds(current, entries));
       setPendingDisable(null);
+    } catch {
+      // mutation error is rendered below
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+  const deleteEntries = async (entries: RuntimeCLI[]): Promise<void> => {
+    if (entries.length === 0) return;
+    setBatchBusy(true);
+    let nextRevision = revision;
+    try {
+      for (const entry of entries) {
+        const response = await remove.mutateAsync({ id: entry.id, expectedRevision: nextRevision });
+        nextRevision = response.revision;
+      }
+      setSelectedIds((current) => removeSelectedIds(current, entries));
+      setPendingDelete(null);
     } catch {
       // mutation error is rendered below
     } finally {
@@ -479,6 +546,15 @@ function CLIsTable({
             {t('aiRuntime.bulk.selectedCount', { count: selectedRows.length })}
           </span>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
+              data-testid="ai-runtime-bulk-delete-clis"
+              disabled={busy || selectedRows.length === 0}
+              onClick={() => setPendingDelete(selectedRows)}
+            >
+              {t('aiRuntime.actions.deleteSelected')}
+            </button>
             <button
               type="button"
               className="rounded border border-border-base px-2.5 py-1 text-xs font-medium text-danger hover:bg-bg-elevated disabled:opacity-50"
@@ -590,6 +666,15 @@ function CLIsTable({
                           {t('aiRuntime.actions.enable')}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="text-xs text-danger hover:underline disabled:opacity-50"
+                        data-testid="ai-runtime-delete-cli"
+                        disabled={busy}
+                        onClick={() => setPendingDelete([cli])}
+                      >
+                        {t('aiRuntime.actions.delete')}
+                      </button>
                     </div>
                   </td>
                 )}
@@ -598,9 +683,9 @@ function CLIsTable({
           </tbody>
         </table>
       </div>
-      {update.isError && (
+      {(update.isError || remove.isError) && (
         <p className="mt-2 text-xs text-danger" role="alert" data-testid="ai-runtime-cli-toggle-error">
-          {mutationErrorMessage(update.error)}
+          {mutationErrorMessage(update.error) || mutationErrorMessage(remove.error)}
         </p>
       )}
       <ConfirmModal
@@ -612,6 +697,16 @@ function CLIsTable({
         busy={busy}
         onConfirm={() => pendingDisable && void setEnabled(pendingDisable, false)}
         onCancel={() => setPendingDisable(null)}
+      />
+      <ConfirmModal
+        open={pendingDelete != null}
+        title={pendingDelete && pendingDelete.length > 1 ? t('aiRuntime.deleteConfirm.clisTitle') : t('aiRuntime.deleteConfirm.cliTitle')}
+        message={pendingDelete ? deleteCLIsMessage(t, pendingDelete) : ''}
+        confirmLabel={t('aiRuntime.actions.delete')}
+        danger
+        busy={busy}
+        onConfirm={() => pendingDelete && void deleteEntries(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );
@@ -1119,6 +1214,22 @@ function disableCLIsMessage(t: RuntimeTranslate, entries: RuntimeCLI[]): string 
     return t('aiRuntime.disableConfirm.cliMessage', { name: entry.display_name || entry.key });
   }
   return t('aiRuntime.disableConfirm.clisMessage', { count: entries.length });
+}
+
+function deleteModelsMessage(t: RuntimeTranslate, entries: RuntimeModel[]): string {
+  if (entries.length === 1) {
+    const entry = entries[0];
+    return t('aiRuntime.deleteConfirm.modelMessage', { name: entry.display_name || entry.key });
+  }
+  return t('aiRuntime.deleteConfirm.modelsMessage', { count: entries.length });
+}
+
+function deleteCLIsMessage(t: RuntimeTranslate, entries: RuntimeCLI[]): string {
+  if (entries.length === 1) {
+    const entry = entries[0];
+    return t('aiRuntime.deleteConfirm.cliMessage', { name: entry.display_name || entry.key });
+  }
+  return t('aiRuntime.deleteConfirm.clisMessage', { count: entries.length });
 }
 
 function pruneSelectedIds<T extends { id: string }>(current: Set<string>, rows: T[]): Set<string> {

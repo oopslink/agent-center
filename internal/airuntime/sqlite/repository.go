@@ -59,12 +59,12 @@ func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutati
 func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Catalog, error) {
 	c := airuntime.Catalog{OrgID: org, CLIs: []airuntime.CLIDefinition{}, Models: []airuntime.ModelDefinition{}}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	if _, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO ai_runtime_catalogs(org_id) VALUES (?)`, org); err != nil {
+	res, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO ai_runtime_catalogs(org_id) VALUES (?)`, org)
+	if err != nil {
 		return c, err
 	}
-	for _, seed := range []struct{ key, name, executable string }{{"codex", "Codex", "codex"}, {"claude-code", "Claude Code", "claude"}} {
-		if _, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO ai_runtime_clis(id,org_id,key,display_name,executable,parameter_schema_json,enabled,system,created_at,updated_at) VALUES(?,?,?,?,?, ?,1,1,?,?)`,
-			"cli-"+seed.key+"-"+org, org, seed.key, seed.name, seed.executable, `{"type":"object"}`, stamp(time.Now()), stamp(time.Now())); err != nil {
+	if inserted, _ := res.RowsAffected(); inserted != 0 {
+		if err := seedDefaultCLIs(ctx, exec, org); err != nil {
 			return c, err
 		}
 	}
@@ -137,6 +137,18 @@ func (r *Repository) UpdateCLI(ctx context.Context, x airuntime.CLIDefinition, e
 		return err
 	})
 }
+func (r *Repository) DeleteCLI(ctx context.Context, org, id string, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, org, expected, a, func(exec persistence.SQLExecutor) error {
+		res, err := exec.ExecContext(ctx, `DELETE FROM ai_runtime_clis WHERE id=? AND org_id=?`, id, org)
+		if err == nil {
+			n, _ := res.RowsAffected()
+			if n == 0 {
+				return airuntime.ErrNotFound
+			}
+		}
+		return err
+	})
+}
 func (r *Repository) CreateModel(ctx context.Context, x airuntime.ModelDefinition, expected int64, a airuntime.AuditEvent) (int64, error) {
 	return r.write(ctx, x.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
 		clis, _ := json.Marshal(x.CompatibleCLIKeys)
@@ -159,14 +171,32 @@ func (r *Repository) UpdateModel(ctx context.Context, x airuntime.ModelDefinitio
 		return err
 	})
 }
+func (r *Repository) DeleteModel(ctx context.Context, org, id string, expected int64, a airuntime.AuditEvent) (int64, error) {
+	return r.write(ctx, org, expected, a, func(exec persistence.SQLExecutor) error {
+		res, err := exec.ExecContext(ctx, `DELETE FROM pm_model_catalog WHERE id=? AND org_id=?`, id, org)
+		if err == nil {
+			n, _ := res.RowsAffected()
+			if n == 0 {
+				return airuntime.ErrNotFound
+			}
+		}
+		return err
+	})
+}
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64
 	err := persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {
 		exec, _ := persistence.ExecutorFromCtx(txctx, r.db)
-		if _, err := exec.ExecContext(txctx, `INSERT OR IGNORE INTO ai_runtime_catalogs(org_id) VALUES (?)`, org); err != nil {
+		res, err := exec.ExecContext(txctx, `INSERT OR IGNORE INTO ai_runtime_catalogs(org_id) VALUES (?)`, org)
+		if err != nil {
 			return err
 		}
-		res, err := exec.ExecContext(txctx, `UPDATE ai_runtime_catalogs SET revision=revision+1 WHERE org_id=? AND revision=?`, org, expected)
+		if inserted, _ := res.RowsAffected(); inserted != 0 {
+			if err := seedDefaultCLIs(txctx, exec, org); err != nil {
+				return err
+			}
+		}
+		res, err = exec.ExecContext(txctx, `UPDATE ai_runtime_catalogs SET revision=revision+1 WHERE org_id=? AND revision=?`, org, expected)
 		if err != nil {
 			return err
 		}
@@ -189,6 +219,16 @@ func mapConstraint(err error) error {
 		return fmt.Errorf("ai runtime key already exists: %w", err)
 	}
 	return err
+}
+func seedDefaultCLIs(ctx context.Context, exec persistence.SQLExecutor, org string) error {
+	now := stamp(time.Now())
+	for _, seed := range []struct{ key, name, executable string }{{"codex", "Codex", "codex"}, {"claude-code", "Claude Code", "claude"}} {
+		if _, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO ai_runtime_clis(id,org_id,key,display_name,executable,parameter_schema_json,enabled,system,created_at,updated_at) VALUES(?,?,?,?,?, ?,1,1,?,?)`,
+			"cli-"+seed.key+"-"+org, org, seed.key, seed.name, seed.executable, `{"type":"object"}`, now, now); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || func() bool {

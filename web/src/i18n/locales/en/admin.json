@@ -358,8 +358,10 @@
       "edit": "Edit",
       "disable": "Disable",
       "enable": "Enable",
+      "delete": "Delete",
       "disableSelected": "Disable selected",
-      "enableSelected": "Enable selected"
+      "enableSelected": "Enable selected",
+      "deleteSelected": "Delete selected"
     },
     "permissions": {
       "unknownRole": "member",
@@ -419,6 +421,16 @@
       "cliMessage": "Disable \"{{name}}\"? Existing saved references stay visible, but workers and new runtime selection will not offer this CLI.",
       "clisTitle": "Disable selected runtime CLIs?",
       "clisMessage": "Disable {{count}} selected runtime CLIs? Existing saved references stay visible, but workers and new runtime selection will not offer these CLIs."
+    },
+    "deleteConfirm": {
+      "modelTitle": "Delete runtime model?",
+      "modelMessage": "Delete \"{{name}}\"? This removes the model from the AI Runtime catalog.",
+      "modelsTitle": "Delete selected runtime models?",
+      "modelsMessage": "Delete {{count}} selected runtime models? This removes them from the AI Runtime catalog.",
+      "cliTitle": "Delete runtime CLI?",
+      "cliMessage": "Delete \"{{name}}\"? This removes the CLI from the AI Runtime catalog. Models that referenced it will keep their key but it will not be selectable until a matching CLI exists again.",
+      "clisTitle": "Delete selected runtime CLIs?",
+      "clisMessage": "Delete {{count}} selected runtime CLIs? Models that referenced them will keep their keys but those combinations will not be selectable until matching CLIs exist again."
     },
     "form": {
       "newModel": "New model",

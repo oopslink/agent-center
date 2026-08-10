@@ -6,8 +6,10 @@ type Repository interface {
 	GetCatalog(context.Context, string) (Catalog, error)
 	CreateCLI(context.Context, CLIDefinition, int64, AuditEvent) (int64, error)
 	UpdateCLI(context.Context, CLIDefinition, int64, AuditEvent) (int64, error)
+	DeleteCLI(context.Context, string, string, int64, AuditEvent) (int64, error)
 	CreateModel(context.Context, ModelDefinition, int64, AuditEvent) (int64, error)
 	UpdateModel(context.Context, ModelDefinition, int64, AuditEvent) (int64, error)
+	DeleteModel(context.Context, string, string, int64, AuditEvent) (int64, error)
 }
 
 type BulkRepository interface {

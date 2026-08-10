@@ -79,6 +79,10 @@ export interface RuntimeWriteResponse<T> {
   entry: T;
 }
 
+export interface RuntimeDeleteResponse {
+  revision: number;
+}
+
 export type RuntimeImportStrategy = 'merge' | 'create_only' | 'replace';
 
 export interface AIRuntimeExportCLI {
@@ -190,6 +194,17 @@ export function useUpdateRuntimeEntry<K extends RuntimeEntityKind>(kind: K) {
       api.patch<RuntimeWriteResponse<RuntimeEntryByKind[K]>>(`/ai-runtime/${kind}/${encodeURIComponent(input.id)}`, {
         expected_revision: input.expectedRevision,
         value: input.value,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.aiRuntimeCatalog() }),
+  });
+}
+
+export function useDeleteRuntimeEntry<K extends RuntimeEntityKind>(kind: K) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; expectedRevision: number }) =>
+      api.del<RuntimeDeleteResponse>(`/ai-runtime/${kind}/${encodeURIComponent(input.id)}`, {
+        expected_revision: input.expectedRevision,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.aiRuntimeCatalog() }),
   });

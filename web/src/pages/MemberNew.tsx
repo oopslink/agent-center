@@ -6,7 +6,7 @@ import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { EntitySelect } from '@/components/EntitySelect';
-import { deriveRuntimeChoices, validateRuntimePair } from '@/components/executorProfiles';
+import { deriveRuntimeChoices, runtimeWorkerWarning, validateRuntimePair } from '@/components/executorProfiles';
 import { useTranslation } from 'react-i18next';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
@@ -38,8 +38,8 @@ export default function MemberNew(): React.ReactElement {
   const workers = fleet.data?.workers ?? [];
   const selectedWorker = workers.find((w) => w.worker_id === workerID);
   const runtimeChoices = useMemo(
-    () => deriveRuntimeChoices(runtimeCatalog.data, selectedWorker),
-    [runtimeCatalog.data, selectedWorker],
+    () => deriveRuntimeChoices(runtimeCatalog.data),
+    [runtimeCatalog.data],
   );
   const validationMessages = {
     catalogLoading: t('agents.create.validation.catalogLoading'),
@@ -50,24 +50,27 @@ export default function MemberNew(): React.ReactElement {
       t('agents.create.validation.modelUnavailable', { model: value, cli: cliValue }),
     executorUnavailable: (cliValue: string, modelValue: string) =>
       t('agents.create.validation.executorUnavailable', { cli: cliValue, model: modelValue }),
+    workerCapabilityWarning: (cliValue: string) =>
+      t('agents.create.validation.workerCapabilityWarning', { cli: cliValue }),
   };
   const runtimeError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
     catalogLoading: runtimeCatalog.isLoading,
     catalogReady: runtimeCatalog.isSuccess,
     workerSelected: !!workerID,
   });
+  const runtimeWarning = runtimeWorkerWarning(selectedWorker, cli, validationMessages);
 
   useEffect(() => {
-    if (!workerID || !runtimeChoices.defaultCli) return;
+    if (!runtimeChoices.defaultCli) return;
     setCli((current) =>
       runtimeChoices.cliOptions.some((option) => option.value === current)
         ? current
         : runtimeChoices.defaultCli,
     );
-  }, [runtimeChoices, workerID]);
+  }, [runtimeChoices]);
 
   useEffect(() => {
-    if (!workerID || !cli) return;
+    if (!cli) return;
     const modelOptions = runtimeChoices.modelOptionsByCli[cli] ?? [];
     const fallbackModel =
       cli === runtimeChoices.defaultCli ? runtimeChoices.defaultModel : (modelOptions[0]?.value ?? '');
@@ -76,12 +79,16 @@ export default function MemberNew(): React.ReactElement {
         ? current
         : fallbackModel,
     );
-  }, [cli, runtimeChoices, workerID]);
+  }, [cli, runtimeChoices]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (kind === 'agent') {
+      if (!workerID) {
+        setError(validationMessages.workerMissing);
+        return;
+      }
       const submitError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
         catalogLoading: runtimeCatalog.isLoading,
         catalogReady: runtimeCatalog.isSuccess,
@@ -210,7 +217,7 @@ export default function MemberNew(): React.ReactElement {
                   setModel(e.target.value);
                   setError('');
                 }}
-                disabled={!workerID || !cli || (runtimeChoices.modelOptionsByCli[cli] ?? []).length === 0}
+                disabled={!cli || (runtimeChoices.modelOptionsByCli[cli] ?? []).length === 0}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               >
                 {(runtimeChoices.modelOptionsByCli[cli] ?? []).map((option) => (
@@ -229,7 +236,7 @@ export default function MemberNew(): React.ReactElement {
                   setCli(e.target.value);
                   setError('');
                 }}
-                disabled={!workerID || runtimeChoices.cliOptions.length === 0}
+                disabled={runtimeChoices.cliOptions.length === 0}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               >
                 {runtimeChoices.cliOptions.map((option) => (
@@ -239,6 +246,14 @@ export default function MemberNew(): React.ReactElement {
                 ))}
               </select>
               <p className="text-xs text-text-muted">{t('humans.new.cliHint')}</p>
+              {runtimeWarning && (
+                <p
+                  className="rounded border border-status-amber-border bg-status-amber-bg px-3 py-2 text-xs text-status-amber-fg"
+                  data-testid="mn-runtime-warning"
+                >
+                  {runtimeWarning}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -265,7 +280,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim() || (kind === 'agent' && !!runtimeError)}
+            disabled={pending || !displayName.trim() || (kind === 'agent' && (!workerID || !!runtimeError))}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? t('humans.new.creating') : t('humans.new.create')}

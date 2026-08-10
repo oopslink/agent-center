@@ -272,9 +272,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/clis", s.listRuntimeCLIsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/clis", s.createRuntimeCLIHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/clis/{id}", s.updateRuntimeCLIHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/ai-runtime/clis/{id}", s.deleteRuntimeCLIHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/ai-runtime/models", s.listRuntimeModelsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/ai-runtime/models", s.createRuntimeModelHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/ai-runtime/models/{id}", s.updateRuntimeModelHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/ai-runtime/models/{id}", s.deleteRuntimeModelHandler)
 
 	// Team WebUI facade (plan-32dd9107, P1: teams CRUD + members + projects).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams", s.listTeamsHandler)

@@ -20,6 +20,10 @@ type runtimeWrite[T any] struct {
 	Value            T     `json:"value"`
 }
 
+type runtimeDelete struct {
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
 func aiRuntimeDeps(w http.ResponseWriter, r *http.Request, admin bool) (HandlerDeps, *identity.Identity, string, bool) {
 	d := hd(r)
 	if d.RuntimeCatalog == nil {
@@ -326,6 +330,23 @@ func (s *Server) updateRuntimeCLIHandler(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
 }
+func (s *Server) deleteRuntimeCLIHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req runtimeDelete
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	rev, err := d.RuntimeCatalog.DeleteCLI(r.Context(), org, "user:"+id.ID(), r.PathValue("id"), req.ExpectedRevision)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev})
+}
 func (s *Server) createRuntimeModelHandler(w http.ResponseWriter, r *http.Request) {
 	d, id, org, ok := aiRuntimeDeps(w, r, true)
 	if !ok {
@@ -360,4 +381,21 @@ func (s *Server) updateRuntimeModelHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
+}
+func (s *Server) deleteRuntimeModelHandler(w http.ResponseWriter, r *http.Request) {
+	d, id, org, ok := aiRuntimeDeps(w, r, true)
+	if !ok {
+		return
+	}
+	var req runtimeDelete
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	rev, err := d.RuntimeCatalog.DeleteModel(r.Context(), org, "user:"+id.ID(), r.PathValue("id"), req.ExpectedRevision)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revision": rev})
 }
