@@ -271,6 +271,98 @@ func TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill(t *tes
 	}
 }
 
+func TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	const planID pm.PlanID = "plan-5a432139"
+	p, err := pm.NewPlan(pm.NewPlanInput{ID: planID, ProjectID: pid, Name: "Team Memory controlled writes", CreatorRef: "user:a", CreatedAt: h.clk.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.Save(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	titles := []string{
+		"T1282 独立预验收 Team Memory 写入分支的权限、并发与契约",
+		"T1283 实现 TeamMemoryPolicy、Proposal 聚合与 Git Repository",
+		"T1284 实现 Team Memory Proposals Web 审核与 Curator 设置",
+		"T1285 最终验收 main 上 Team Memory 受控写入与学习闭环",
+		"T1286 贯通 Team Memory MCP/Admin、授权、安全与 Observability",
+		"T1287 集成 Team Memory 受控写入全链并合入 main",
+		"T1290 T1286 Generation 2：接管 recovery 交付并恢复计划主链",
+		"T1291 T1282 REJECT remediation：统一 Team Memory Service/Web/MCP 契约并恢复可编译集成候选",
+		"T1292 独立复验 T1282 remediation 的可编译性、统一契约与全真矩阵",
+		"T1293 T1285 REJECT remediation：修复 Proposal 去重与启动期 Git Reconcile",
+		"T1294 独立复验 T1285 remediation：真实部署去重与重启补投",
+		"T1295 最终验收 Team Memory 受控写入 remediation 后完整闭环",
+		"T1296 集成 T1293 remediation 至 main 并核验远端谱系",
+		"T1297 main 上最终复验 Team Memory 受控写入完整闭环",
+	}
+	ids := make([]pm.TaskID, len(titles))
+	for i, title := range titles {
+		ids[i] = h.seedAssignedTask(t, pid, planID, title, "user:dev")
+	}
+	for _, e := range [][2]int{{0, 6}, {0, 2}, {2, 1}, {3, 8}, {4, 1}, {5, 0}, {6, 1}, {7, 6}, {7, 0}, {7, 1}, {7, 2}, {8, 7}, {9, 3}, {10, 9}, {11, 10}, {12, 11}, {13, 12}} {
+		if err := h.svc.AddPlanDependency(ctx, planID, ids[e[0]], ids[e[1]], "user:a"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, id := range ids {
+		status := pm.TaskCompleted
+		if i == 4 || i == 5 {
+			status = pm.TaskDiscarded
+		}
+		h.setTaskStatus(t, id, status)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.CompletePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("CompletePlan real legacy graph: %v", err)
+	}
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Plan.Status() != pm.PlanDone || len(detail.View.Nodes) != 14 || len(detail.View.HistoricalFailures) != 2 {
+		t.Fatalf("status=%s nodes=%d historical=%v", detail.Plan.Status(), len(detail.View.Nodes), detail.View.HistoricalFailures)
+	}
+}
+
+func TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "mixed legacy recovery", CreatedBy: "user:a"})
+	h.drain(t)
+	aBase := h.seedAssignedTask(t, pid, planID, "A base", "user:dev")
+	aFailed := h.seedAssignedTask(t, pid, planID, "A failed", "user:dev")
+	aRecovery := h.seedAssignedTask(t, pid, planID, "A recovery remediation", "user:dev")
+	ship := h.seedAssignedTask(t, pid, planID, "ship release", "user:dev")
+	accept := h.seedAssignedTask(t, pid, planID, "final acceptance", "user:dev")
+	bBase := h.seedAssignedTask(t, pid, planID, "B base", "user:dev")
+	bFailed := h.seedAssignedTask(t, pid, planID, "B failed without recovery", "user:dev")
+	for _, dep := range [][2]pm.TaskID{{aFailed, aBase}, {aRecovery, aBase}, {ship, aRecovery}, {accept, ship}, {bFailed, bBase}} {
+		if err := h.svc.AddPlanDependency(ctx, planID, dep[0], dep[1], "user:a"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []pm.TaskID{aBase, aRecovery, ship, accept, bBase} {
+		h.setTaskStatus(t, id, pm.TaskCompleted)
+	}
+	for _, id := range []pm.TaskID{aFailed, bFailed} {
+		h.setTaskStatus(t, id, pm.TaskDiscarded)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	err := h.svc.CompletePlan(ctx, planID, "user:a")
+	if !errors.Is(err, pm.ErrPlanNotComplete) || !strings.Contains(err.Error(), string(bFailed)) {
+		t.Fatalf("CompletePlan err=%v want unrelated failed B to block", err)
+	}
+}
+
 func TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure(t *testing.T) {
 	h := planAdvanceSetup(t)
 	ctx := h.ctx

@@ -419,18 +419,25 @@ func legacyCompletedRemediationReplacements(tasks []*pm.Task, edges []pm.Depende
 		}
 	}
 
-	evidence := legacyCompletedRemediationEvidence(taskByID, upstream, downstream, hasDependent)
-	if len(evidence) == 0 {
-		return nil
-	}
 	out := make(map[pm.TaskID]pm.PlanNodeReplacement, len(failedLeaves))
 	for _, id := range failedLeaves {
+		evidence := legacyCompletedRemediationEvidence(id, taskByID, upstream, downstream, hasDependent)
+		if len(evidence) == 0 {
+			// A recovery chain elsewhere in the plan must not erase an unrelated
+			// failed leaf. Legacy plans have no explicit lineage, so require the
+			// remediation chain to share one of this failure's prerequisites.
+			return nil
+		}
 		out[id] = pm.PlanNodeReplacement{By: evidence, Reason: "legacy_completed_remediation"}
 	}
 	return out
 }
 
-func legacyCompletedRemediationEvidence(taskByID map[pm.TaskID]*pm.Task, upstream, downstream map[pm.TaskID][]pm.TaskID, hasDependent map[pm.TaskID]bool) []pm.TaskID {
+func legacyCompletedRemediationEvidence(failedID pm.TaskID, taskByID map[pm.TaskID]*pm.Task, upstream, downstream map[pm.TaskID][]pm.TaskID, hasDependent map[pm.TaskID]bool) []pm.TaskID {
+	failedPrereqs := legacyUpstreamClosure(failedID, upstream)
+	if len(failedPrereqs) == 0 {
+		return nil
+	}
 	finals := make([]pm.TaskID, 0)
 	for id, task := range taskByID {
 		if !pm.TaskIsDone(task.Status()) || hasDependent[id] || !legacyLooksLikeFinalAcceptance(task) {
@@ -448,7 +455,7 @@ func legacyCompletedRemediationEvidence(taskByID map[pm.TaskID]*pm.Task, upstrea
 			if task == nil || !pm.TaskIsDone(task.Status()) {
 				continue
 			}
-			if legacyLooksLikeRecoveryOrRemediation(task) {
+			if legacyLooksLikeRecoveryOrRemediation(task) && legacySharesPrerequisite(id, failedPrereqs, upstream) {
 				remediations = append(remediations, id)
 			}
 			if legacyLooksLikeShip(task) {
@@ -467,6 +474,15 @@ func legacyCompletedRemediationEvidence(taskByID map[pm.TaskID]*pm.Task, upstrea
 		}
 	}
 	return nil
+}
+
+func legacySharesPrerequisite(taskID pm.TaskID, failedPrereqs map[pm.TaskID]bool, upstream map[pm.TaskID][]pm.TaskID) bool {
+	for prereq := range legacyUpstreamClosure(taskID, upstream) {
+		if failedPrereqs[prereq] {
+			return true
+		}
+	}
+	return false
 }
 
 func legacyUpstreamClosure(from pm.TaskID, upstream map[pm.TaskID][]pm.TaskID) map[pm.TaskID]bool {
@@ -514,7 +530,7 @@ func legacyLooksLikeShip(task *pm.Task) bool {
 }
 
 func legacyLooksLikeFinalAcceptance(task *pm.Task) bool {
-	return legacyTaskTextHasAny(task, []string{"final acceptance", "acceptance", "final review", "最终验收", "验收"})
+	return legacyTaskTextHasAny(task, []string{"final acceptance", "acceptance", "final review", "final verification", "最终验收", "验收", "最终复验", "复验"})
 }
 
 func legacyTaskTextHasAny(task *pm.Task, needles []string) bool {
