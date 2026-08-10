@@ -6,8 +6,8 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentConfigEditModal } from './AgentConfigEditModal';
-import { KNOWN_MODELS } from '@/config/agent-defaults';
 import type { Agent } from '@/api/types';
+import { qk } from '@/api/queryKeys';
 
 const base: Agent = {
   id: 'A1', organization_id: 'O-1', name: 'bot-1', description: '',
@@ -16,8 +16,51 @@ const base: Agent = {
   created_by: 'user:hayang', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
 };
 
+function runtimeCatalogData() {
+  return {
+    org_id: 'org-test',
+    revision: 1,
+    default_runtime_profile_id: 'runtime-profile-default',
+    clis: [
+      { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
+      { id: 'runtime-cli-codex', key: 'codex', display_name: 'Codex CLI', executable: 'codex', enabled: true },
+    ],
+    models: [
+      { id: 'runtime-model-claude-opus', key: 'claude-opus-4-8', model_key: 'claude-opus-4-8', display_name: 'Claude Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+      { id: 'runtime-model-opus', key: 'opus-4-8', model_key: 'opus-4-8', display_name: 'Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+      { id: 'runtime-model-sonnet', key: 'claude-sonnet-4-6', model_key: 'claude-sonnet-4-6', display_name: 'Claude Sonnet', compatible_cli_keys: ['claude-code'], enabled: true },
+      { id: 'runtime-model-gpt', key: 'gpt-5.5', model_key: 'gpt-5.5', display_name: 'GPT-5.5', compatible_cli_keys: ['codex'], enabled: true },
+    ],
+    profiles: [
+      { id: 'runtime-profile-default', key: 'default', name: 'Default', cli_key: 'claude-code', model_key: 'claude-opus-4-8', parameters: {}, enabled: true },
+    ],
+  };
+}
+
+function fleetSnapshot(capabilities = [
+  { agent_cli: 'claude-code', detected: true, enabled: true },
+  { agent_cli: 'codex', detected: true, enabled: true },
+]) {
+  return {
+    tasks: [],
+    workers: [{ worker_id: 'w-1', name: 'worker-one', status: 'online', active_count: 0, capabilities }],
+    pending_issues: [],
+    generated_at: '2026-05-24T01:00:00Z',
+  };
+}
+
+function installRuntimeHandlers(capabilities?: Array<{ agent_cli: string; detected: boolean; enabled: boolean }>) {
+  server.use(
+    http.get('/api/ai-runtime', () => HttpResponse.json(runtimeCatalogData())),
+    http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot(capabilities))),
+  );
+}
+
 function wrap(agent: Agent, onClose = () => {}) {
+  installRuntimeHandlers();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  qc.setQueryData(qk.aiRuntimeCatalog(), runtimeCatalogData());
+  qc.setQueryData(qk.fleet(), fleetSnapshot());
   return render(
     <QueryClientProvider client={qc}>
       <AgentConfigEditModal agent={agent} onClose={onClose} />
@@ -249,18 +292,25 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(screen.getByTestId('agent-config-include-description')).toHaveAttribute('aria-checked', 'false');
   });
 
-  // Editable model dropdown: preset <datalist> suggestions + free text.
-  it('model: renders the KNOWN_MODELS presets as a datalist bound to the input', () => {
+  it('model: renders Runtime catalog models filtered by the selected CLI and worker', () => {
     wrap(base);
-    const input = screen.getByTestId('agent-config-model') as HTMLInputElement;
-    expect(input.getAttribute('list')).toBe('agent-config-model-list');
-    const list = screen.getByTestId('agent-config-model-list');
-    const values = Array.from(list.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(KNOWN_MODELS);
-    expect(values).toContain('claude-opus-4-8');
+    const cli = screen.getByTestId('agent-config-cli') as HTMLSelectElement;
+    expect(Array.from(cli.options).map((o) => o.value)).toEqual(['claude-code', 'codex']);
+    const model = screen.getByTestId('agent-config-model') as HTMLSelectElement;
+    expect(Array.from(model.options).map((o) => o.value)).toEqual([
+      'claude-opus-4-8',
+      'opus-4-8',
+      'claude-sonnet-4-6',
+    ]);
+
+    fireEvent.change(cli, { target: { value: 'codex' } });
+    expect(Array.from((screen.getByTestId('agent-config-model') as HTMLSelectElement).options).map((o) => o.value)).toEqual([
+      'gpt-5.5',
+    ]);
+    expect((screen.getByTestId('agent-config-model') as HTMLSelectElement).value).toBe('gpt-5.5');
   });
 
-  it('model: a free-typed non-preset value is NOT restricted and PATCHes through', async () => {
+  it('model: rejects a stale persisted model before PATCH', async () => {
     let patchBody: Record<string, unknown> | undefined;
     server.use(
       http.patch('/api/agents/:id/config', async ({ request }) => {
@@ -269,15 +319,11 @@ describe('AgentConfigEditModal (T236)', () => {
       }),
       http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
     );
-    wrap(base);
-    const custom = 'my-org/custom-model-2099';
-    expect(KNOWN_MODELS).not.toContain(custom);
-    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: custom } });
-    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe(custom);
+    wrap({ ...base, model: 'my-org/custom-model-2099' });
     fireEvent.click(screen.getByTestId('agent-config-edit-save'));
-    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
-    await waitFor(() => expect(patchBody).toBeDefined());
-    expect(patchBody).toMatchObject({ model: custom });
+    expect(screen.queryByTestId('confirm-modal')).toBeNull();
+    expect(screen.getByTestId('agent-config-validation-error')).toHaveTextContent(/not enabled/i);
+    expect(patchBody).toBeUndefined();
   });
 
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {

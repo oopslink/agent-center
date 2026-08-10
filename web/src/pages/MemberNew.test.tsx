@@ -27,15 +27,51 @@ function wrap(path = '/members/new?kind=agent') {
   );
 }
 
-describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
+function runtimeCatalog() {
+  return http.get('/api/ai-runtime', () =>
+    HttpResponse.json({
+      org_id: 'org-test',
+      revision: 1,
+      default_runtime_profile_id: 'runtime-profile-default',
+      clis: [
+        { id: 'runtime-cli-claude', key: 'claude-code', display_name: 'Claude Code', executable: 'claude', enabled: true },
+      ],
+      models: [
+        { id: 'runtime-model-claude-opus', key: 'claude-opus-4-8', model_key: 'claude-opus-4-8', display_name: 'Claude Opus', compatible_cli_keys: ['claude-code'], enabled: true },
+      ],
+      profiles: [
+        { id: 'runtime-profile-default', key: 'default', name: 'Default', cli_key: 'claude-code', model_key: 'claude-opus-4-8', parameters: {}, enabled: true },
+      ],
+    }),
+  );
+}
+
+function fleetWithWorker() {
+  return http.get('/api/fleet', () =>
+    HttpResponse.json({
+      tasks: [],
+      workers: [
+        {
+          worker_id: 'w-7',
+          name: 'box-7',
+          status: 'online',
+          active_count: 0,
+          capabilities: [{ agent_cli: 'claude-code', detected: true, enabled: true }],
+        },
+      ],
+      pending_issues: [],
+    }),
+  );
+}
+
+describe('MemberNew — Add agent runtime selection', () => {
   afterEach(() => cleanup());
 
-  it('prefills Model with the explicit default and submits it when untouched', async () => {
+  it('selects the Runtime default after worker selection and submits it when untouched', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      runtimeCatalog(),
+      fleetWithWorker(),
       http.post('/api/members/agent', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ id: 'a-new', identity_id: 'a-new', kind: 'agent', display_name: 'newbot' }, { status: 201 });
@@ -43,16 +79,12 @@ describe('MemberNew — Add agent model default (#232 MemberNew gap)', () => {
     );
     wrap();
 
-    // Model is pre-filled with the explicit default (was an empty input → null
-    // model → blank Profile, the original dogfood pain that #232 missed here).
-    const model = screen.getByLabelText(/Model/i) as HTMLInputElement;
-    await waitFor(() => expect(model.value).toBe('claude-opus-4-8'));
-
     await userEvent.type(screen.getByLabelText('Display name'), 'newbot');
     // Pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('mn-worker-trigger'));
     await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
     fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await waitFor(() => expect((screen.getByLabelText(/Model/i) as HTMLSelectElement).value).toBe('claude-opus-4-8'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(posted).not.toBeNull());
@@ -67,9 +99,8 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
 
   it('Cancel (agent kind) navigates to /agents, not /members/agents', async () => {
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      runtimeCatalog(),
+      fleetWithWorker(),
     );
     wrap();
     await screen.findByLabelText('Display name');
@@ -80,9 +111,8 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
 
   it('post-create fallback (no identity_id) navigates to /agents', async () => {
     server.use(
-      http.get('/api/workers', () =>
-        HttpResponse.json({ workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }] }),
-      ),
+      runtimeCatalog(),
+      fleetWithWorker(),
       // Response without identity_id → MemberNew falls back to the list page.
       http.post('/api/members/agent', () =>
         HttpResponse.json({ id: 'a-new', kind: 'agent', display_name: 'newbot' }, { status: 201 }),
@@ -93,6 +123,7 @@ describe('MemberNew — agent navigation targets canonical /agents (dev2/v281)',
     fireEvent.click(screen.getByTestId('mn-worker-trigger'));
     await waitFor(() => expect(screen.getByTestId('mn-worker-options')).toHaveTextContent('box-7'));
     fireEvent.click(screen.getByTestId('mn-worker-option'));
+    await waitFor(() => expect((screen.getByLabelText(/Model/i) as HTMLSelectElement).value).toBe('claude-opus-4-8'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/agents'));
     expect(screen.getByTestId('location-probe')).not.toHaveTextContent('/members/agents');
