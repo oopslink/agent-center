@@ -43,6 +43,7 @@ type PlanGenerationTaskDraft struct {
 	DispatchMode     DispatchMode     `json:"dispatch_mode,omitempty"`
 	DeliveryContract DeliveryContract `json:"delivery_contract,omitempty"`
 	StageID          StageID          `json:"stage_id,omitempty"`
+	StageRef         string           `json:"stage_ref,omitempty"`
 	FollowsTaskID    TaskID           `json:"follows_task_id,omitempty"`
 }
 
@@ -56,11 +57,48 @@ type PlanGenerationEdgeDraft struct {
 	MaxRounds int      `json:"max_rounds,omitempty"`
 }
 
+// PlanGenerationStageDraft creates a Stage in the generation diff. Ref is local to
+// the diff and can be used by task stage_ref, stage dependencies, and membership
+// changes in the same Evolution commit.
+type PlanGenerationStageDraft struct {
+	Ref                string         `json:"ref"`
+	Name               string         `json:"name"`
+	DependsOnStages    []string       `json:"depends_on_stages,omitempty"`
+	MaxRounds          int            `json:"max_rounds,omitempty"`
+	GateSpec           GateSpec       `json:"gate_spec,omitempty"`
+	OriginVerdictID    GateVerdictID  `json:"origin_verdict_id,omitempty"`
+	ContinuationID     ContinuationID `json:"continuation_id,omitempty"`
+	Generation         int            `json:"generation,omitempty"`
+	AcceptanceContract string         `json:"acceptance_contract,omitempty"`
+}
+
+// PlanGenerationStageUpdate mutates a live Stage only through Evolution. Nil
+// pointer fields mean "leave unchanged", which lets callers clear dependencies by
+// passing an explicit empty depends_on_stages array.
+type PlanGenerationStageUpdate struct {
+	StageID         StageID   `json:"stage_id"`
+	Name            string    `json:"name,omitempty"`
+	DependsOnStages *[]string `json:"depends_on_stages,omitempty"`
+	MaxRounds       *int      `json:"max_rounds,omitempty"`
+	GateSpec        *GateSpec `json:"gate_spec,omitempty"`
+}
+
+// PlanGenerationStageMembership moves a task into a stage, or clears membership
+// when Stage is empty. Task and Stage may be existing ids or local refs from this
+// same diff.
+type PlanGenerationStageMembership struct {
+	Task  string `json:"task"`
+	Stage string `json:"stage,omitempty"`
+}
+
 // PlanGenerationDiff is the immutable input-level diff attached to a generation.
 type PlanGenerationDiff struct {
-	NodeDecisions []PlanGenerationNodeDecision `json:"node_decisions,omitempty"`
-	Tasks         []PlanGenerationTaskDraft    `json:"tasks,omitempty"`
-	Edges         []PlanGenerationEdgeDraft    `json:"edges,omitempty"`
+	NodeDecisions    []PlanGenerationNodeDecision    `json:"node_decisions,omitempty"`
+	Tasks            []PlanGenerationTaskDraft       `json:"tasks,omitempty"`
+	Edges            []PlanGenerationEdgeDraft       `json:"edges,omitempty"`
+	Stages           []PlanGenerationStageDraft      `json:"stages,omitempty"`
+	StageUpdates     []PlanGenerationStageUpdate     `json:"stage_updates,omitempty"`
+	StageMemberships []PlanGenerationStageMembership `json:"stage_memberships,omitempty"`
 }
 
 // Snapshot types intentionally copy descriptive fields instead of referencing
@@ -94,10 +132,29 @@ type PlanGenerationDispatchSnapshot struct {
 	DispatchMessageID string    `json:"dispatch_message_id,omitempty"`
 }
 
+type PlanGenerationStageSnapshot struct {
+	StageID             StageID        `json:"stage_id"`
+	Name                string         `json:"name"`
+	DependsOnStages     []StageID      `json:"depends_on_stages,omitempty"`
+	GateNodeID          string         `json:"gate_node_id,omitempty"`
+	GateTaskID          TaskID         `json:"gate_task_id,omitempty"`
+	GateSpec            GateSpec       `json:"gate_spec,omitempty"`
+	MaxRounds           int            `json:"max_rounds,omitempty"`
+	OriginVerdictID     GateVerdictID  `json:"origin_verdict_id,omitempty"`
+	ContinuationID      ContinuationID `json:"continuation_id,omitempty"`
+	Generation          int            `json:"generation,omitempty"`
+	AcceptanceContract  string         `json:"acceptance_contract,omitempty"`
+	TopologyFingerprint string         `json:"topology_fingerprint,omitempty"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	Version             int            `json:"version"`
+}
+
 type PlanGenerationSnapshot struct {
 	PlanID             PlanID                           `json:"plan_id"`
 	PlanVersion        int                              `json:"plan_version"`
 	ActiveGenerationID PlanGenerationID                 `json:"active_generation_id,omitempty"`
+	Stages             []PlanGenerationStageSnapshot    `json:"stages,omitempty"`
 	Tasks              []PlanGenerationTaskSnapshot     `json:"tasks"`
 	Edges              []PlanGenerationEdgeSnapshot     `json:"edges"`
 	DispatchRecords    []PlanGenerationDispatchSnapshot `json:"dispatch_records"`

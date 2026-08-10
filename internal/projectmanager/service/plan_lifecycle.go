@@ -104,6 +104,24 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := s.buildPlanGraph(txCtx, p, tasks, edges, now); err != nil {
 			return err
 		}
+		if p.ActiveGenerationID() == "" && !p.IsBuiltin() {
+			generationID := pm.PlanGenerationID(s.idgen.NewEntityID("generation"))
+			postGraphVersion := p.Version()
+			generation, gerr := s.saveSystemPlanGeneration(txCtx, p, generationID, "",
+				"initial generation activated at plan start",
+				"pending topology, stages, graph nodes, and dispatch baseline captured before first running dispatch",
+				actor,
+				"initial:"+string(p.ID())+":"+strconv.Itoa(postGraphVersion),
+				now)
+			if gerr != nil {
+				return gerr
+			}
+			p.SetActiveGenerationID(generation.ID, now)
+			p.SetVersion(postGraphVersion, now)
+			if uerr := s.plans.Update(txCtx, p); uerr != nil {
+				return uerr
+			}
+		}
 		// v2.9 P2-1 auto-advance: emit pm.plan.started so the orchestrator projector
 		// dispatches the Plan's INITIAL ready nodes (no manual Advance). The project's
 		// org is carried so the payload mirrors planEventPayload (the orchestrator

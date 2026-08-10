@@ -997,6 +997,8 @@ type evolveTaskArgs struct {
 	AssigneeRef      string `json:"assignee_ref" jsonschema:"identity ref assigned to the new task"`
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"executor_fork (default) or supervisor_inline"`
 	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"code_change (default) or evidence_only"`
+	StageID          string `json:"stage_id,omitempty" jsonschema:"existing stage id for the new task"`
+	StageRef         string `json:"stage_ref,omitempty" jsonschema:"local stage ref from this diff for the new task"`
 	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"existing task this new task follows/remediates"`
 }
 
@@ -1008,15 +1010,53 @@ type evolveEdgeArgs struct {
 	MaxRounds int    `json:"max_rounds,omitempty" jsonschema:"reserved for loopback edges"`
 }
 
+type evolveGateSpecArgs struct {
+	EvaluatorKind      string `json:"evaluator_kind,omitempty" jsonschema:"human"`
+	AssigneeRef        string `json:"assignee_ref,omitempty" jsonschema:"human reviewer identity ref"`
+	RoleRef            string `json:"role_ref,omitempty" jsonschema:"optional reviewer role ref"`
+	AcceptanceContract string `json:"acceptance_contract,omitempty" jsonschema:"acceptance contract text"`
+	PassRoute          string `json:"pass_route,omitempty" jsonschema:"downstream"`
+	RejectRoute        string `json:"reject_route,omitempty" jsonschema:"append_remediation"`
+	ExhaustedRoute     string `json:"exhausted_route,omitempty" jsonschema:"escalate"`
+}
+
+type evolveStageArgs struct {
+	Ref                string             `json:"ref" jsonschema:"local stage ref used by task stage_ref and memberships"`
+	Name               string             `json:"name" jsonschema:"new stage name"`
+	DependsOnStages    []string           `json:"depends_on_stages,omitempty" jsonschema:"existing stage ids or local stage refs this stage depends on"`
+	MaxRounds          int                `json:"max_rounds,omitempty" jsonschema:"stage gate max rounds"`
+	GateSpec           evolveGateSpecArgs `json:"gate_spec,omitempty" jsonschema:"optional gate spec; defaults to a human gate assigned to the caller"`
+	OriginVerdictID    string             `json:"origin_verdict_id,omitempty" jsonschema:"optional remediation provenance verdict id"`
+	ContinuationID     string             `json:"continuation_id,omitempty" jsonschema:"optional remediation continuation id"`
+	Generation         int                `json:"generation,omitempty" jsonschema:"optional remediation generation number"`
+	AcceptanceContract string             `json:"acceptance_contract,omitempty" jsonschema:"optional acceptance contract snapshot"`
+}
+
+type evolveStageUpdateArgs struct {
+	StageID         string              `json:"stage_id" jsonschema:"stage id to update"`
+	Name            string              `json:"name,omitempty" jsonschema:"new stage name"`
+	DependsOnStages *[]string           `json:"depends_on_stages,omitempty" jsonschema:"replacement dependencies; pass [] to clear on pending/ungraphed plans"`
+	MaxRounds       *int                `json:"max_rounds,omitempty" jsonschema:"replacement stage max rounds"`
+	GateSpec        *evolveGateSpecArgs `json:"gate_spec,omitempty" jsonschema:"replacement gate spec"`
+}
+
+type evolveStageMembershipArgs struct {
+	Task  string `json:"task" jsonschema:"existing task id or local task ref"`
+	Stage string `json:"stage,omitempty" jsonschema:"existing stage id or local stage ref; empty clears membership where safe"`
+}
+
 type evolveDiffArgs struct {
-	NodeDecisions []evolveNodeDecisionArgs `json:"node_decisions,omitempty" jsonschema:"treatment of existing nodes: preserve, hold_at_gate, or supersede"`
-	Tasks         []evolveTaskArgs         `json:"tasks,omitempty" jsonschema:"new task nodes to create"`
-	Edges         []evolveEdgeArgs         `json:"edges,omitempty" jsonschema:"new dependency edges"`
+	NodeDecisions    []evolveNodeDecisionArgs    `json:"node_decisions,omitempty" jsonschema:"treatment of existing nodes: preserve, hold_at_gate, or supersede"`
+	Tasks            []evolveTaskArgs            `json:"tasks,omitempty" jsonschema:"new task nodes to create"`
+	Edges            []evolveEdgeArgs            `json:"edges,omitempty" jsonschema:"new dependency edges"`
+	Stages           []evolveStageArgs           `json:"stages,omitempty" jsonschema:"new stages to create"`
+	StageUpdates     []evolveStageUpdateArgs     `json:"stage_updates,omitempty" jsonschema:"stage metadata/dependency updates"`
+	StageMemberships []evolveStageMembershipArgs `json:"stage_memberships,omitempty" jsonschema:"task to stage membership changes"`
 }
 
 type evolvePlanGenerationArgs struct {
 	PlanID             string         `json:"plan_id" jsonschema:"plan to evolve"`
-	ParentGenerationID string         `json:"parent_generation_id,omitempty" jsonschema:"active generation id read from get_plan; empty for the first generation"`
+	ParentGenerationID string         `json:"parent_generation_id,omitempty" jsonschema:"active generation id read from get_plan"`
 	BaseVersion        int            `json:"base_version" jsonschema:"plan version read from get_plan"`
 	IdempotencyKey     string         `json:"idempotency_key" jsonschema:"stable key for retrying this exact evolution payload"`
 	Reason             string         `json:"reason" jsonschema:"human-readable reason for creating this generation"`
@@ -1035,7 +1075,8 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 			tasks = append(tasks, map[string]any{
 				"ref": t.Ref, "title": t.Title, "description": t.Description,
 				"assignee_ref": t.AssigneeRef, "dispatch_mode": t.DispatchMode,
-				"delivery_contract": t.DeliveryContract, "follows_task_id": t.FollowsTaskID,
+				"delivery_contract": t.DeliveryContract, "stage_id": t.StageID,
+				"stage_ref": t.StageRef, "follows_task_id": t.FollowsTaskID,
 			})
 		}
 		edges := make([]map[string]any, 0, len(args.Diff.Edges))
@@ -1044,6 +1085,26 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 				"from": e.From, "to": e.To, "kind": e.Kind,
 				"when": e.When, "max_rounds": e.MaxRounds,
 			})
+		}
+		stages := make([]map[string]any, 0, len(args.Diff.Stages))
+		for _, st := range args.Diff.Stages {
+			stages = append(stages, map[string]any{
+				"ref": st.Ref, "name": st.Name, "depends_on_stages": st.DependsOnStages,
+				"max_rounds": st.MaxRounds, "gate_spec": st.GateSpec,
+				"origin_verdict_id": st.OriginVerdictID, "continuation_id": st.ContinuationID,
+				"generation": st.Generation, "acceptance_contract": st.AcceptanceContract,
+			})
+		}
+		stageUpdates := make([]map[string]any, 0, len(args.Diff.StageUpdates))
+		for _, st := range args.Diff.StageUpdates {
+			stageUpdates = append(stageUpdates, map[string]any{
+				"stage_id": st.StageID, "name": st.Name, "depends_on_stages": st.DependsOnStages,
+				"max_rounds": st.MaxRounds, "gate_spec": st.GateSpec,
+			})
+		}
+		stageMemberships := make([]map[string]any, 0, len(args.Diff.StageMemberships))
+		for _, m := range args.Diff.StageMemberships {
+			stageMemberships = append(stageMemberships, map[string]any{"task": m.Task, "stage": m.Stage})
 		}
 		body := map[string]any{
 			"agent_id":             cfg.AgentID,
@@ -1054,9 +1115,12 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 			"reason":               args.Reason,
 			"evidence":             args.Evidence,
 			"diff": map[string]any{
-				"node_decisions": nodeDecisions,
-				"tasks":          tasks,
-				"edges":          edges,
+				"node_decisions":    nodeDecisions,
+				"tasks":             tasks,
+				"edges":             edges,
+				"stages":            stages,
+				"stage_updates":     stageUpdates,
+				"stage_memberships": stageMemberships,
 			},
 		}
 		if planRules != nil {

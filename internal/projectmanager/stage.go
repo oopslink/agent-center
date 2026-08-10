@@ -293,6 +293,36 @@ func (s *Stage) SetGateTask(taskID TaskID, spec GateSpec, at time.Time) {
 	s.touch(at)
 }
 
+func (s *Stage) SetDependsOnStages(deps []StageID, at time.Time) error {
+	normalized, err := normalizeStageDeps(s.id, deps)
+	if err != nil {
+		return err
+	}
+	s.dependsOnStages = normalized
+	s.touch(at)
+	return nil
+}
+
+func (s *Stage) SetMaxRounds(maxRounds int, at time.Time) {
+	if maxRounds <= 0 {
+		maxRounds = DefaultStageMaxRounds
+	}
+	s.maxRounds = maxRounds
+	s.touch(at)
+}
+
+func (s *Stage) SetGateSpec(spec GateSpec, at time.Time) error {
+	if spec.RejectRoute == "reopen_stage" {
+		spec.RejectRoute = "append_remediation"
+	}
+	if err := spec.Validate(); err != nil {
+		return err
+	}
+	s.gateSpec = spec
+	s.touch(at)
+	return nil
+}
+
 // Rename updates the stage's display name.
 func (s *Stage) Rename(name string, at time.Time) error {
 	if strings.TrimSpace(name) == "" {

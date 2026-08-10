@@ -453,7 +453,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "evolve_plan_generation",
-		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch.",
+		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id from get_plan, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges/stages/stage_updates/stage_memberships. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch.",
 	}, makeEvolvePlanGeneration(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
