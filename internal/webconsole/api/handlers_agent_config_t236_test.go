@@ -1,9 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/oopslink/agent-center/internal/airuntime"
+	airuntimesql "github.com/oopslink/agent-center/internal/airuntime/sqlite"
 )
 
 // T236: PATCH /api/agents/{id}/config edits the agent's LLM config (model / cli /
@@ -165,5 +170,125 @@ func TestAPI_Agent_AllowedExecutors_RoundTrip(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&errBody)
 	if errBody["error"] != "invalid_executor_profile" {
 		t.Fatalf("error = %v, want invalid_executor_profile", errBody["error"])
+	}
+}
+
+func TestAPI_Agent_UpdateConfig_ValidatesRuntimeCatalogCombinations(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), runtimeIDGen())
+	sess := setupTestSession(t, db, deps)
+	seedRuntimeCatalogForAgentConfig(t, deps.RuntimeCatalog, sess.OrgID, "user:"+sess.IdentityID)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"coder","model":"claude-opus-4-8","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: got %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+
+	resp = orgScopedPatch(t, s.URL+"/api/agents/"+id+"/config",
+		`{"model":"claude-opus-4-8","cli":"codex"}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("incompatible main pair: got %d, want 400", resp.StatusCode)
+	}
+	var errBody airuntime.Error
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("incompatible main pair reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPatch(t, s.URL+"/api/agents/"+id+"/config",
+		`{"model":"gpt-5","cli":"codex","max_concurrent_tasks":2,`+
+			`"allowed_executors":[{"cli":"claude-code","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("incompatible executor pair: got %d, want 400", resp.StatusCode)
+	}
+	errBody = airuntime.Error{}
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("incompatible executor reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPatch(t, s.URL+"/api/agents/"+id+"/config",
+		`{"model":"gpt-5","cli":"codex","max_concurrent_tasks":2,`+
+			`"allowed_executors":[{"cli":"codex","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("compatible runtime config: got %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestAPI_Agent_Create_ValidatesRuntimeCatalogCombinations(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.RuntimeCatalog = airuntime.NewService(airuntimesql.NewRepository(db), runtimeIDGen())
+	sess := setupTestSession(t, db, deps)
+	seedRuntimeCatalogForAgentConfig(t, deps.RuntimeCatalog, sess.OrgID, "user:"+sess.IdentityID)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"bad-main","model":"gpt-5","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create incompatible main pair: got %d, want 400", resp.StatusCode)
+	}
+	var errBody airuntime.Error
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("create main pair reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"bad-executor","model":"gpt-5","cli":"codex","worker_id":"w-1",`+
+			`"max_concurrent_tasks":2,"allowed_executors":[{"cli":"claude-code","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("create incompatible executor pair: got %d, want 400", resp.StatusCode)
+	}
+	errBody = airuntime.Error{}
+	_ = json.NewDecoder(resp.Body).Decode(&errBody)
+	if errBody.Reason != airuntime.ReasonIncompatible {
+		t.Fatalf("create executor reason = %q, want %q body=%+v", errBody.Reason, airuntime.ReasonIncompatible, errBody)
+	}
+
+	resp = orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"good","model":"gpt-5","cli":"codex","worker_id":"w-1",`+
+			`"max_concurrent_tasks":2,"allowed_executors":[{"cli":"codex","model":"gpt-5"}]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create compatible runtime config: got %d, want 201", resp.StatusCode)
+	}
+}
+
+func seedRuntimeCatalogForAgentConfig(t *testing.T, svc *airuntime.Service, orgID, actor string) {
+	t.Helper()
+	ctx := context.Background()
+	cat, err := svc.Catalog(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rev, err := svc.CreateModel(ctx, orgID, actor, cat.Revision, airuntime.ModelDefinition{
+		Key: "claude-opus", ModelKey: "claude-opus-4-8", DisplayName: "Claude Opus",
+		CompatibleCLIKeys: []string{"claude-code"}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = svc.CreateModel(ctx, orgID, actor, rev, airuntime.ModelDefinition{
+		Key: "gpt-5", ModelKey: "gpt-5", DisplayName: "GPT-5",
+		CompatibleCLIKeys: []string{"codex"}, Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runtimeIDGen() func() string {
+	n := 0
+	return func() string {
+		n++
+		return fmt.Sprintf("runtime-test-%d", n)
 	}
 }

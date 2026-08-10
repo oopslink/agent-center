@@ -349,10 +349,9 @@
   },
   "aiRuntime": {
     "title": "AI Runtime",
-    "subtitle": "Organization-wide runtime profiles, model definitions, CLI definitions, and the default runtime selection agents inherit.",
+    "subtitle": "Organization-wide model definitions and CLI definitions used by Agent runtime configuration.",
     "actions": {
       "exportYaml": "Export YAML",
-      "newProfile": "New profile",
       "newModel": "New model",
       "newCLI": "New CLI",
       "importModels": "Import models",
@@ -360,36 +359,25 @@
     },
     "permissions": {
       "unknownRole": "member",
-      "manage": "Visible to organization members. Your {{role}} role can manage runtime defaults and catalog entries.",
-      "readOnly": "Visible to organization members. Your {{role}} role is read-only; owners and admins manage runtime defaults and catalog entries."
+      "manage": "Visible to organization members. Your {{role}} role can manage runtime catalog entries.",
+      "readOnly": "Visible to organization members. Your {{role}} role is read-only; owners and admins manage runtime catalog entries."
     },
     "summary": {
       "revision": "Revision"
     },
+    "common": {
+      "actions": "Actions"
+    },
     "tabs": {
       "aria": "AI Runtime catalog sections",
-      "profiles": "Profiles",
       "models": "Models",
       "clis": "CLIs"
     },
-    "defaultProfile": "Organization default: {{name}}",
     "empty": {
-      "profiles": "No runtime profiles",
-      "profilesBody": "Owners and admins can import or create profiles once catalog management is enabled.",
       "models": "No runtime models",
       "modelsBody": "Runtime models define the model keys each CLI can run.",
       "clis": "No runtime CLIs",
       "clisBody": "Runtime CLIs define the executables workers must provide."
-    },
-    "profile": {
-      "name": "Profile",
-      "cli": "CLI",
-      "model": "Model",
-      "parameters": "Parameters",
-      "status": "Status",
-      "actions": "Actions",
-      "default": "Default",
-      "setDefault": "Set default"
     },
     "model": {
       "name": "Model",
@@ -412,15 +400,11 @@
       "disabled": "Disabled"
     },
     "form": {
-      "newProfile": "New profile",
-      "editProfile": "Edit profile",
       "newModel": "New model",
       "editModel": "Edit model",
       "newCLI": "New CLI",
       "editCLI": "Edit CLI",
       "key": "Stable key",
-      "description": "Description",
-      "parameters": "Parameters JSON",
       "defaultParameters": "Default parameters JSON",
       "parameterSchema": "Parameter schema JSON",
       "enabled": "Enabled",
@@ -435,14 +419,14 @@
     },
     "import": {
       "title": "Import models",
-      "help": "Paste a JSON array of model definitions. The UI builds a full AI Runtime document that preserves existing Profiles and CLIs, previews the model diff, then applies it with safe upsert semantics.",
-      "scope": "Models only. Existing CLIs ({{clis}}) and Profiles ({{profiles}}) are carried forward unchanged in the generated document.",
+      "help": "Paste a JSON array of model definitions. The UI builds a full AI Runtime document that preserves existing CLIs, previews the model diff, then applies it with safe upsert semantics.",
+      "scope": "Models only. Existing CLIs ({{clis}}) are carried forward unchanged in the generated document.",
       "preview": "Preview",
       "previewing": "Previewing...",
       "apply": "Apply import",
       "applying": "Applying...",
       "revision": "Revision {{revision}}",
-      "preserved": "Preserved {{clis}} CLIs and {{profiles}} Profiles",
+      "preserved": "Preserved {{clis}} CLIs",
       "noModelChanges": "No model changes in this import.",
       "entity": "Entity",
       "key": "Key",

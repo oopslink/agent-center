@@ -178,8 +178,8 @@ func MigrateV1ToV2Command() *Command {
 // 0119-0121 add AssignmentPool, monotonic Plan lifecycle, and remediation ledgers;
 // 0122 adds the explicit task delivery contract; 0123 makes worker control
 // command status observable; 0124 adds controlled Team Memory policy; 0125 checkpoints
-// Team Memory observability projection.
-const targetSchemaVersion = 125
+// Team Memory observability projection; 0126 retires AI Runtime Profile schema.
+const targetSchemaVersion = 126
 
 func runMigrateV1ToV2(
 	ctx context.Context,

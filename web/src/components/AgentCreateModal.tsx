@@ -5,13 +5,14 @@
 // (useFleet().workers); name + worker_id are required; description/model/cli
 // optional. (Declared skills removed in issue-4a45e9cc — skills are now OBSERVED
 // per-agent.) The created agent's business id = response identity_id.
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
-import { DEFAULT_AGENT_MODEL, KNOWN_MODELS } from '@/config/agent-defaults';
+import { useAIRuntimeCatalog } from '@/api/aiRuntime';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import { deriveRuntimeChoices, validateRuntimePair } from './executorProfiles';
 
 interface Props {
   onClose: () => void;
@@ -21,34 +22,80 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const { t } = useTranslation('members');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  // v2.7.1 #232: prefill the explicit default model (not a placeholder) so an
-  // untouched form still submits a concrete value — store = Profile = runtime
-  // stay consistent instead of persisting an empty model.
-  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
-  // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
-  // option select (no free text) so the form can't create an agent bound to a
-  // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
-  const [cli, setCli] = useState('claude-code');
+  const [model, setModel] = useState('');
+  const [cli, setCli] = useState('');
   const [workerId, setWorkerId] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
   // T728 (issue-0619f315): inject the description into the agent's system prompt.
   // Default ON — matches the backend default (nil → true).
   const [includeDescription, setIncludeDescription] = useState(true);
   const create = useAddAgentMember();
   const fleet = useFleet();
+  const runtimeCatalog = useAIRuntimeCatalog();
   const workers = fleet.data?.workers ?? [];
+  const selectedWorker = workers.find((w) => w.worker_id === workerId);
+  const runtimeChoices = useMemo(
+    () => deriveRuntimeChoices(runtimeCatalog.data, selectedWorker),
+    [runtimeCatalog.data, selectedWorker],
+  );
+
+  useEffect(() => {
+    if (!workerId || !runtimeChoices.defaultCli) return;
+    setCli((current) =>
+      runtimeChoices.cliOptions.some((option) => option.value === current)
+        ? current
+        : runtimeChoices.defaultCli,
+    );
+  }, [runtimeChoices, workerId]);
+
+  useEffect(() => {
+    if (!workerId || !cli) return;
+    const modelOptions = runtimeChoices.modelOptionsByCli[cli] ?? [];
+    const fallbackModel =
+      cli === runtimeChoices.defaultCli ? runtimeChoices.defaultModel : (modelOptions[0]?.value ?? '');
+    setModel((current) =>
+      modelOptions.some((option) => option.value === current)
+        ? current
+        : fallbackModel,
+    );
+  }, [cli, runtimeChoices, workerId]);
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0 && workerId.length > 0 && !create.isPending;
+  const validationMessages = {
+    catalogLoading: t('agents.create.validation.catalogLoading'),
+    catalogMissing: t('agents.create.validation.catalogMissing'),
+    workerMissing: t('agents.create.validation.workerMissing'),
+    cliUnavailable: (value: string) => t('agents.create.validation.cliUnavailable', { cli: value }),
+    modelUnavailable: (value: string, cliValue: string) =>
+      t('agents.create.validation.modelUnavailable', { model: value, cli: cliValue }),
+    executorUnavailable: (cliValue: string, modelValue: string) =>
+      t('agents.create.validation.executorUnavailable', { cli: cliValue, model: modelValue }),
+  };
+  const runtimeError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
+    catalogLoading: runtimeCatalog.isLoading,
+    catalogReady: runtimeCatalog.isSuccess,
+    workerSelected: !!workerId,
+  });
+  const canSubmit = trimmedName.length > 0 && !runtimeError && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const submitError = validateRuntimePair(runtimeChoices, cli, model, validationMessages, {
+      catalogLoading: runtimeCatalog.isLoading,
+      catalogReady: runtimeCatalog.isSuccess,
+      workerSelected: !!workerId,
+    });
+    if (submitError) {
+      setValidationError(submitError);
+      return;
+    }
     if (!canSubmit) return;
     try {
       await create.mutateAsync({
         display_name: trimmedName,
         description: description.trim() || undefined,
         role: 'member',
-        model: model.trim() || undefined,
+        model: model.trim(),
         cli,
         worker_id: workerId,
         include_description_in_system_prompt: includeDescription,
@@ -123,21 +170,23 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         </div>
 
         <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
-          {/* Editable dropdown: preset models as <datalist> suggestions while
-              the field stays free text (backend accepts any model string). */}
-          <input
+          <select
             id="agent-create-model-input"
             data-testid="agent-create-model"
             value={model}
-            onChange={(e) => setModel(e.target.value)}
-            list="agent-create-model-list"
+            onChange={(e) => {
+              setModel(e.target.value);
+              setValidationError(null);
+            }}
             className={inputClass}
-          />
-          <datalist id="agent-create-model-list" data-testid="agent-create-model-list">
-            {KNOWN_MODELS.map((m) => (
-              <option key={m} value={m} />
+            disabled={!workerId || !cli || (runtimeChoices.modelOptionsByCli[cli] ?? []).length === 0}
+          >
+            {(runtimeChoices.modelOptionsByCli[cli] ?? []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
-          </datalist>
+          </select>
         </Field>
 
         <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
@@ -145,10 +194,18 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             id="agent-create-cli-input"
             data-testid="agent-create-cli"
             value={cli}
-            onChange={(e) => setCli(e.target.value)}
+            onChange={(e) => {
+              setCli(e.target.value);
+              setValidationError(null);
+            }}
             className={inputClass}
+            disabled={!workerId || runtimeChoices.cliOptions.length === 0}
           >
-            <option value="claude-code">claude-code</option>
+            {runtimeChoices.cliOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </Field>
 
@@ -157,7 +214,10 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           <EntitySelect
             testId="agent-create-worker"
             value={workerId}
-            onChange={setWorkerId}
+            onChange={(next) => {
+              setWorkerId(next);
+              setValidationError(null);
+            }}
             options={workers.map((w) => ({
               value: w.worker_id,
               label: w.name || w.worker_id,
@@ -174,6 +234,12 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             </p>
           )}
         </Field>
+
+        {(validationError || (workerId && runtimeError)) && (
+          <p className="mb-3 text-xs text-danger" data-testid="agent-create-validation-error">
+            {validationError ?? runtimeError}
+          </p>
+        )}
 
         {create.isError && (
           <p className="mb-3 text-xs text-danger" data-testid="agent-create-error">

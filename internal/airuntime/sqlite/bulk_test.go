@@ -57,21 +57,11 @@ func importRuntime(ctx context.Context, svc *airuntime.Service, org, actor strin
 func seededDocument(t *testing.T, svc *airuntime.Service, org string) airuntime.ExportDocument {
 	t.Helper()
 	ctx := context.Background()
-	model, rev, err := svc.CreateModel(ctx, org, "user:owner", 0, airuntime.ModelDefinition{
+	_, _, err := svc.CreateModel(ctx, org, "user:owner", 0, airuntime.ModelDefinition{
 		Key: "gpt", ModelKey: "gpt-5", DisplayName: "GPT", CompatibleCLIKeys: []string{"codex"},
 		DefaultParameters: map[string]any{"temperature": 0.2}, Enabled: true,
 	})
 	if err != nil {
-		t.Fatal(err)
-	}
-	profile, rev, err := svc.CreateProfile(ctx, org, "user:owner", rev, airuntime.RuntimeProfile{
-		Key: "coding", Name: "Coding", CLIKey: "codex", ModelKey: model.Key,
-		Parameters: map[string]any{"temperature": 0.1}, Enabled: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.SetDefaultProfile(ctx, org, "user:owner", profile.ID, rev); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := svc.Export(ctx, org)
@@ -293,7 +283,7 @@ func TestBulkExportRedactsSensitiveFieldsAndIsolatesOrganizations(t *testing.T) 
 func TestBulkImportReplaceDisablesMissingEntriesWithinOrganization(t *testing.T) {
 	svc, _ := newBulkService(t)
 	doc := seededDocument(t, svc, "org-a")
-	_, revision, err := svc.CreateCLI(context.Background(), "org-a", "user:owner", 3, airuntime.CLIDefinition{
+	_, revision, err := svc.CreateCLI(context.Background(), "org-a", "user:owner", 1, airuntime.CLIDefinition{
 		Key: "extra", DisplayName: "Extra", Executable: "extra", Enabled: true,
 	})
 	if err != nil {
@@ -437,16 +427,15 @@ func TestPreviewApplyPreservesRedactedSecretsInsideArrays(t *testing.T) {
 	}
 }
 
-func TestCreateOnlyDoesNotChangeExistingDefaultProfile(t *testing.T) {
+func TestCreateOnlyDoesNotChangeExistingCatalogEntries(t *testing.T) {
 	svc, db := newBulkService(t)
 	doc := seededDocument(t, svc, "org")
 	catalog, err := svc.Catalog(context.Background(), "org")
 	if err != nil {
 		t.Fatal(err)
 	}
-	originalDefaultID := catalog.DefaultProfileID
-	other, revision, err := svc.CreateProfile(context.Background(), "org", "user:owner", catalog.Revision, airuntime.RuntimeProfile{
-		Key: "other", Name: "Other", CLIKey: "codex", ModelKey: "gpt", Parameters: map[string]any{}, Enabled: true,
+	_, revision, err := svc.CreateModel(context.Background(), "org", "user:owner", catalog.Revision, airuntime.ModelDefinition{
+		Key: "other", ModelKey: "other", DisplayName: "Other", CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -455,7 +444,11 @@ func TestCreateOnlyDoesNotChangeExistingDefaultProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc.Runtime.DefaultProfileKey = other.Key
+	for i := range doc.Runtime.Models {
+		if doc.Runtime.Models[i].Key == "other" {
+			doc.Runtime.Models[i].DisplayName = "Other updated"
+		}
+	}
 	preview, err := svc.PreviewImport(context.Background(), "org", airuntime.PreviewRequest{
 		Strategy: airuntime.StrategyCreate, Document: doc,
 	})
@@ -471,12 +464,12 @@ func TestCreateOnlyDoesNotChangeExistingDefaultProfile(t *testing.T) {
 	if report.Applied {
 		t.Fatalf("create_only unexpectedly applied: %+v", report)
 	}
-	var defaultID string
-	if err := db.QueryRow(`SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, "org").Scan(&defaultID); err != nil {
+	var displayName string
+	if err := db.QueryRow(`SELECT display_name FROM pm_model_catalog WHERE org_id=? AND runtime_key=?`, "org", "other").Scan(&displayName); err != nil {
 		t.Fatal(err)
 	}
-	if defaultID != originalDefaultID || revision == 0 {
-		t.Fatalf("default profile changed under create_only: %s", defaultID)
+	if displayName != "Other" || revision == 0 {
+		t.Fatalf("existing model changed under create_only: %s", displayName)
 	}
 }
 

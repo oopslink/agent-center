@@ -3,14 +3,104 @@
 // helpers are consumed by both the editor (AgentConfigEditModal) and the
 // read-only Runtime config view (AgentProfile) so the CLI color coding +
 // "truly parallel" status wording stay in one place.
-import type { ExecutorProfile } from '@/api/types';
+import type { AIRuntimeCatalog } from '@/api/aiRuntime';
+import type { ExecutorProfile, FleetWorkerRow } from '@/api/types';
 
-// Per-CLI model suggestions (datalist). model is FREE TEXT server-side — these
-// are hints only, the operator may type a custom value.
-export const MODEL_SUGGESTIONS: Record<string, string[]> = {
-  'claude-code': ['opus-4-8', 'sonnet-4-6', 'haiku-4-5', 'fable-5'],
-  codex: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex-spark'],
-};
+export interface RuntimeOption {
+  value: string;
+  label: string;
+}
+
+export interface RuntimeChoices {
+  cliOptions: RuntimeOption[];
+  modelOptionsByCli: Record<string, RuntimeOption[]>;
+  defaultCli: string;
+  defaultModel: string;
+}
+
+export interface RuntimeValidationMessages {
+  catalogLoading: string;
+  catalogMissing: string;
+  workerMissing: string;
+  cliUnavailable: (cli: string) => string;
+  modelUnavailable: (model: string, cli: string) => string;
+  executorUnavailable: (cli: string, model: string) => string;
+}
+
+export function deriveRuntimeChoices(
+  catalog: AIRuntimeCatalog | undefined,
+  worker: Pick<FleetWorkerRow, 'capabilities'> | undefined,
+): RuntimeChoices {
+  if (!worker) {
+    return { cliOptions: [], modelOptionsByCli: {}, defaultCli: '', defaultModel: '' };
+  }
+  const enabledWorkerCLIs = new Set(
+    (worker?.capabilities ?? [])
+      .filter((cap) => cap.detected && cap.enabled)
+      .map((cap) => cap.agent_cli),
+  );
+  const enabledCatalogCLIs = (catalog?.clis ?? [])
+    .filter((cli) => cli.enabled)
+    .filter((cli) => enabledWorkerCLIs.has(cli.key));
+  const cliOptions = enabledCatalogCLIs.map((cli) => ({
+    value: cli.key,
+    label: cli.display_name ? `${cli.display_name} (${cli.key})` : cli.key,
+  }));
+
+  const modelOptionsByCli: Record<string, RuntimeOption[]> = {};
+  for (const cli of enabledCatalogCLIs) {
+    modelOptionsByCli[cli.key] = (catalog?.models ?? [])
+      .filter((model) => model.enabled)
+      .filter((model) => (model.compatible_cli_keys ?? []).includes(cli.key))
+      .map((model) => ({
+        value: model.model_key || model.key,
+        label: model.display_name ? `${model.display_name} (${model.model_key || model.key})` : model.model_key || model.key,
+      }));
+  }
+
+  // Runtime profiles were removed in T1310. Defaults now come directly from
+  // the first enabled catalog entries that the selected worker can execute.
+  const defaultCli = cliOptions[0]?.value ?? '';
+  const defaultModel = modelOptionsByCli[defaultCli]?.[0]?.value ?? '';
+
+  return { cliOptions, modelOptionsByCli, defaultCli, defaultModel };
+}
+
+export function validateRuntimePair(
+  choices: RuntimeChoices,
+  cli: string,
+  model: string,
+  messages: RuntimeValidationMessages,
+  state: { catalogLoading: boolean; catalogReady: boolean; workerSelected: boolean },
+): string | null {
+  if (state.catalogLoading) return messages.catalogLoading;
+  if (!state.catalogReady) return messages.catalogMissing;
+  if (!state.workerSelected) return messages.workerMissing;
+  if (!choices.cliOptions.some((option) => option.value === cli)) {
+    return messages.cliUnavailable(cli);
+  }
+  if (!choices.modelOptionsByCli[cli]?.some((option) => option.value === model.trim())) {
+    return messages.modelUnavailable(model.trim(), cli);
+  }
+  return null;
+}
+
+export function validateExecutorProfiles(
+  choices: RuntimeChoices,
+  executors: ExecutorProfile[],
+  messages: RuntimeValidationMessages,
+): string | null {
+  for (const executor of executors) {
+    const model = executor.model.trim();
+    if (
+      !choices.cliOptions.some((option) => option.value === executor.cli) ||
+      !choices.modelOptionsByCli[executor.cli]?.some((option) => option.value === model)
+    ) {
+      return messages.executorUnavailable(executor.cli, model);
+    }
+  }
+  return null;
+}
 
 // Color-code a profile chip's badge by CLI so codex vs claude-code are visually
 // distinct (per mockup2). Uses the shared status-chip palette (light/dark aware,

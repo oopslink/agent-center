@@ -349,10 +349,9 @@
   },
   "aiRuntime": {
     "title": "AI Runtime",
-    "subtitle": "组织级 Runtime Profile、模型定义、CLI 定义，以及智能体继承的默认运行时选择。",
+    "subtitle": "组织级 Runtime Model 与 Runtime CLI 目录，供智能体运行时配置使用。",
     "actions": {
       "exportYaml": "导出 YAML",
-      "newProfile": "新建 Profile",
       "newModel": "新建 Model",
       "newCLI": "新建 CLI",
       "importModels": "导入 Models",
@@ -360,36 +359,25 @@
     },
     "permissions": {
       "unknownRole": "成员",
-      "manage": "组织成员均可看到此页。你的 {{role}} 角色可以管理运行时默认值和目录条目。",
-      "readOnly": "组织成员均可看到此页。你的 {{role}} 角色为只读；owner 和 admin 可管理运行时默认值和目录条目。"
+      "manage": "组织成员均可看到此页。你的 {{role}} 角色可以管理运行时目录条目。",
+      "readOnly": "组织成员均可看到此页。你的 {{role}} 角色为只读；owner 和 admin 可管理运行时目录条目。"
     },
     "summary": {
       "revision": "修订"
     },
+    "common": {
+      "actions": "操作"
+    },
     "tabs": {
       "aria": "AI Runtime 目录分区",
-      "profiles": "Profiles",
       "models": "Models",
       "clis": "CLIs"
     },
-    "defaultProfile": "组织默认：{{name}}",
     "empty": {
-      "profiles": "暂无 Runtime Profile",
-      "profilesBody": "目录管理启用后，owner 和 admin 可以导入或创建 Profile。",
       "models": "暂无 Runtime Model",
       "modelsBody": "Runtime Model 定义各 CLI 可运行的模型 key。",
       "clis": "暂无 Runtime CLI",
       "clisBody": "Runtime CLI 定义 Worker 必须提供的可执行程序。"
-    },
-    "profile": {
-      "name": "Profile",
-      "cli": "CLI",
-      "model": "Model",
-      "parameters": "参数",
-      "status": "状态",
-      "actions": "操作",
-      "default": "默认",
-      "setDefault": "设为默认"
     },
     "model": {
       "name": "Model",
@@ -412,15 +400,11 @@
       "disabled": "停用"
     },
     "form": {
-      "newProfile": "新建 Profile",
-      "editProfile": "编辑 Profile",
       "newModel": "新建 Model",
       "editModel": "编辑 Model",
       "newCLI": "新建 CLI",
       "editCLI": "编辑 CLI",
       "key": "稳定 key",
-      "description": "描述",
-      "parameters": "Parameters JSON",
       "defaultParameters": "Default parameters JSON",
       "parameterSchema": "Parameter schema JSON",
       "enabled": "启用",
@@ -435,14 +419,14 @@
     },
     "import": {
       "title": "导入 Models",
-      "help": "粘贴模型定义 JSON 数组。界面会生成保留现有 Profiles 与 CLIs 的完整 AI Runtime 文档，先预览模型差异，再用安全 upsert 语义应用。",
-      "scope": "仅影响 Models。现有 CLIs（{{clis}}）和 Profiles（{{profiles}}）会在生成文档中原样保留。",
+      "help": "粘贴模型定义 JSON 数组。界面会生成保留现有 CLIs 的完整 AI Runtime 文档，先预览模型差异，再用安全 upsert 语义应用。",
+      "scope": "仅影响 Models。现有 CLIs（{{clis}}）会在生成文档中原样保留。",
       "preview": "预览",
       "previewing": "预览中...",
       "apply": "应用导入",
       "applying": "应用中...",
       "revision": "修订 {{revision}}",
-      "preserved": "已保留 {{clis}} 个 CLIs 和 {{profiles}} 个 Profiles",
+      "preserved": "已保留 {{clis}} 个 CLIs",
       "noModelChanges": "此次导入没有 Model 变更。",
       "entity": "实体",
       "key": "Key",

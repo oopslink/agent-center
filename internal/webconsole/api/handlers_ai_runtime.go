@@ -72,7 +72,6 @@ func (s *Server) exportRuntimeCatalogHandler(w http.ResponseWriter, r *http.Requ
 		Scope:               airuntime.ExportScope(query.Get("scope")),
 		CLIKeys:             splitRuntimeKeys(query.Get("cli_keys")),
 		ModelKeys:           splitRuntimeKeys(query.Get("model_keys")),
-		ProfileKeys:         splitRuntimeKeys(query.Get("profile_keys")),
 		IncludeDependencies: includeDependencies,
 	})
 	if err != nil {
@@ -176,6 +175,9 @@ func decodeRuntimeDocument(r *http.Request, dst any) error {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return err
 	}
+	if err := rejectRetiredRuntimeProfileFields(value); err != nil {
+		return err
+	}
 	if err := json.Unmarshal(raw, dst); err != nil {
 		return err
 	}
@@ -184,6 +186,22 @@ func decodeRuntimeDocument(r *http.Request, dst any) error {
 		return nil
 	}
 	preview.Warnings = runtimeUnknownFieldWarnings(value)
+	return nil
+}
+
+func rejectRetiredRuntimeProfileFields(value any) error {
+	root, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	doc, _ := root["document"].(map[string]any)
+	runtime, _ := doc["runtime"].(map[string]any)
+	if _, ok := runtime["default_profile_key"]; ok {
+		return errors.New("runtime.default_profile_key is retired; AI Runtime Profile import is no longer supported")
+	}
+	if _, ok := runtime["profiles"]; ok {
+		return errors.New("runtime.profiles is retired; AI Runtime Profile import is no longer supported")
+	}
 	return nil
 }
 
@@ -207,7 +225,7 @@ func runtimeUnknownFieldWarnings(value any) []airuntime.Diagnostic {
 	doc, _ := root["document"].(map[string]any)
 	visitUnknown(doc, "$.document", map[string]bool{"schema_version": true, "kind": true, "exported_at": true, "runtime": true, "warnings": true})
 	runtime, _ := doc["runtime"].(map[string]any)
-	visitUnknown(runtime, "$.document.runtime", map[string]bool{"default_profile_key": true, "clis": true, "models": true, "profiles": true})
+	visitUnknown(runtime, "$.document.runtime", map[string]bool{"clis": true, "models": true})
 	scanList := func(raw any, path string, allowed map[string]bool) {
 		items, _ := raw.([]any)
 		for i, item := range items {
@@ -223,10 +241,6 @@ func runtimeUnknownFieldWarnings(value any) []airuntime.Diagnostic {
 		"key": true, "model_key": true, "display_name": true, "compatible_cli_keys": true,
 		"default_parameters": true, "enabled": true, "context_window": true,
 		"input_cost_per_mtok": true, "output_cost_per_mtok": true, "tier": true,
-	})
-	scanList(runtime["profiles"], "$.document.runtime.profiles", map[string]bool{
-		"key": true, "name": true, "description": true, "cli_key": true,
-		"model_key": true, "parameters": true, "enabled": true,
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
@@ -275,18 +289,6 @@ func (s *Server) listRuntimeModelsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"revision": c.Revision, "entries": c.Models})
-}
-func (s *Server) listRuntimeProfilesHandler(w http.ResponseWriter, r *http.Request) {
-	d, _, org, ok := aiRuntimeDeps(w, r, false)
-	if !ok {
-		return
-	}
-	c, err := d.RuntimeCatalog.Catalog(r.Context(), org)
-	if err != nil {
-		writeRuntimeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": c.Revision, "default_runtime_profile_id": c.DefaultProfileID, "entries": c.Profiles})
 }
 
 func (s *Server) createRuntimeCLIHandler(w http.ResponseWriter, r *http.Request) {
@@ -358,59 +360,4 @@ func (s *Server) updateRuntimeModelHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
-}
-func (s *Server) createRuntimeProfileHandler(w http.ResponseWriter, r *http.Request) {
-	d, id, org, ok := aiRuntimeDeps(w, r, true)
-	if !ok {
-		return
-	}
-	var req runtimeWrite[airuntime.RuntimeProfile]
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	entry, rev, err := d.RuntimeCatalog.CreateProfile(r.Context(), org, "user:"+id.ID(), req.ExpectedRevision, req.Value)
-	if err != nil {
-		writeRuntimeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"revision": rev, "entry": entry})
-}
-func (s *Server) updateRuntimeProfileHandler(w http.ResponseWriter, r *http.Request) {
-	d, id, org, ok := aiRuntimeDeps(w, r, true)
-	if !ok {
-		return
-	}
-	var req runtimeWrite[airuntime.RuntimeProfile]
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	req.Value.ID = r.PathValue("id")
-	entry, rev, err := d.RuntimeCatalog.UpdateProfile(r.Context(), org, "user:"+id.ID(), req.ExpectedRevision, req.Value)
-	if err != nil {
-		writeRuntimeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "entry": entry})
-}
-func (s *Server) setRuntimeDefaultProfileHandler(w http.ResponseWriter, r *http.Request) {
-	d, id, org, ok := aiRuntimeDeps(w, r, true)
-	if !ok {
-		return
-	}
-	var req struct {
-		ExpectedRevision int64  `json:"expected_revision"`
-		ProfileID        string `json:"profile_id"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	rev, err := d.RuntimeCatalog.SetDefaultProfile(r.Context(), org, "user:"+id.ID(), req.ProfileID, req.ExpectedRevision)
-	if err != nil {
-		writeRuntimeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "default_runtime_profile_id": req.ProfileID})
 }

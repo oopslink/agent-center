@@ -37,14 +37,12 @@ describe('AiRuntime page', () => {
     const segments = screen.getByTestId('segmented-nav');
     expect(within(segments).getByTestId('system-seg-ai-runtime')).toHaveAttribute('data-active', 'true');
     expect(within(segments).getByTestId('system-seg-environment')).toHaveAttribute('data-active', 'false');
-    expect(await screen.findByTestId('ai-runtime-default-profile')).toHaveTextContent('Default coding');
-    expect(screen.getAllByTestId('ai-runtime-profile-row')).toHaveLength(2);
-    expect(screen.getAllByTestId('ai-runtime-set-default')).toHaveLength(2);
-    expect(screen.getByTestId('ai-runtime-create-profile')).toBeInTheDocument();
-    expect(screen.getAllByTestId('ai-runtime-edit-profile')).toHaveLength(2);
-
-    fireEvent.click(screen.getByTestId('ai-runtime-tab-models'));
     expect(await screen.findByTestId('ai-runtime-model-row')).toHaveTextContent('GPT-5');
+    expect(screen.queryByTestId('ai-runtime-tab-profiles')).not.toBeInTheDocument();
+    expect(screen.queryByText('Default coding')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-runtime-create-profile')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-runtime-edit-profile')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-runtime-set-default')).not.toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-create-model')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-import-models')).toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-edit-model')).toBeInTheDocument();
@@ -70,8 +68,8 @@ describe('AiRuntime page', () => {
     expect(screen.queryByTestId('ai-runtime-edit-profile')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-set-default')).not.toBeInTheDocument();
     const table = await screen.findByTestId('ai-runtime-catalog');
-    expect(within(table).getByText('Default coding')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('ai-runtime-tab-models'));
+    expect(within(table).getByText('GPT-5')).toBeInTheDocument();
+    expect(within(table).queryByText('Default coding')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-create-model')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-import-models')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-runtime-edit-model')).not.toBeInTheDocument();
@@ -80,35 +78,28 @@ describe('AiRuntime page', () => {
     expect(screen.queryByTestId('ai-runtime-edit-cli')).not.toBeInTheDocument();
   });
 
-  it('sets a new default profile through the org-scoped endpoint', async () => {
-    let called = false;
-    server.use(
-      http.put('/api/orgs/:slug/ai-runtime/default-profile', async ({ params, request }) => {
-        const body = (await request.json()) as { expected_revision?: number; profile_id?: string };
-        called = params.slug === 'test' && body.expected_revision === 3 && body.profile_id === 'runtime-profile-review';
-        return HttpResponse.json({ revision: 4, default_runtime_profile_id: body.profile_id });
-      }),
-    );
-    renderPage();
-    const buttons = await screen.findAllByTestId('ai-runtime-set-default');
-    fireEvent.click(buttons[1]);
-    await waitFor(() => expect(called).toBe(true));
+  it('ignores the retired profiles tab URL and keeps the Models tab active', async () => {
+    renderPage('/organizations/test/ai-runtime?tab=profiles');
+    expect(await screen.findByTestId('ai-runtime-model-row')).toHaveTextContent('GPT-5');
+    expect(screen.queryByTestId('ai-runtime-tab-profiles')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ai-runtime-tab-models')).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('creates a runtime profile through the org-scoped POST endpoint with expected_revision', async () => {
+  it('creates a runtime model through the org-scoped POST endpoint with expected_revision', async () => {
     let payload: unknown = null;
     server.use(
-      http.post('/api/orgs/:slug/ai-runtime/profiles', async ({ params, request }) => {
+      http.post('/api/orgs/:slug/ai-runtime/models', async ({ params, request }) => {
         payload = { slug: params.slug, body: await request.json() };
-        return HttpResponse.json({ revision: 4, entry: { id: 'runtime-profile-planning' } }, { status: 201 });
+        return HttpResponse.json({ revision: 4, entry: { id: 'runtime-model-gpt-5-mini' } }, { status: 201 });
       }),
     );
     renderPage();
     expect(await screen.findByTestId('page-AiRuntime')).toBeInTheDocument();
-    fireEvent.click(await screen.findByTestId('ai-runtime-create-profile'));
-    fireEvent.change(screen.getByTestId('ai-runtime-profile-key'), { target: { value: 'planning' } });
-    fireEvent.change(screen.getByTestId('ai-runtime-profile-name'), { target: { value: 'Planning' } });
-    const enabledSwitch = screen.getByTestId('ai-runtime-profile-enabled');
+    fireEvent.click(await screen.findByTestId('ai-runtime-create-model'));
+    fireEvent.change(screen.getByTestId('ai-runtime-model-key'), { target: { value: 'gpt-5-mini' } });
+    fireEvent.change(screen.getByTestId('ai-runtime-model-model-key'), { target: { value: 'gpt-5-mini' } });
+    fireEvent.change(screen.getByTestId('ai-runtime-model-display-name'), { target: { value: 'GPT-5 mini' } });
+    const enabledSwitch = screen.getByTestId('ai-runtime-model-enabled');
     expect(enabledSwitch).toHaveAttribute('role', 'switch');
     expect(enabledSwitch).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(enabledSwitch);
@@ -120,13 +111,13 @@ describe('AiRuntime page', () => {
         body: {
           expected_revision: 3,
           value: {
-            key: 'planning',
-            name: 'Planning',
-            description: '',
-            cli_key: 'codex',
-            model_key: 'gpt-5',
-            parameters: {},
+            key: 'gpt-5-mini',
+            model_key: 'gpt-5-mini',
+            display_name: 'GPT-5 mini',
+            compatible_cli_keys: ['codex'],
+            default_parameters: {},
             enabled: false,
+            tier: '',
           },
         },
       }),
@@ -195,14 +186,14 @@ describe('AiRuntime page', () => {
     expect(screen.getByTestId('ai-runtime-cli-key')).toBeDisabled();
   });
 
-  it('previews and applies a models-only bulk import while preserving Profiles and CLIs', async () => {
+  it('previews and applies a models-only bulk import while preserving CLIs', async () => {
     let previewPayload: unknown = null;
     let applyPayload: unknown = null;
     server.use(
       http.post('/api/orgs/:slug/ai-runtime/import/preview', async ({ params, request }) => {
         const body = await request.json() as {
           strategy?: string;
-          document?: { runtime?: { clis?: unknown[]; models?: Array<{ key?: string }>; profiles?: unknown[] } };
+          document?: { runtime?: { clis?: unknown[]; models?: Array<{ key?: string }> } };
         };
         previewPayload = { slug: params.slug, body };
         return HttpResponse.json({
@@ -213,14 +204,11 @@ describe('AiRuntime page', () => {
             items: [
               { entity_type: 'cli', key: 'codex', action: 'unchanged' },
               { entity_type: 'model', key: 'gpt-5-mini', action: 'create' },
-              { entity_type: 'profile', key: 'default-coding', action: 'unchanged' },
-              { entity_type: 'profile', key: 'review', action: 'unchanged' },
             ],
             diagnostics: [
               { code: 'model_tier_missing', severity: 'warning', path: 'runtime.models[1].tier', message: 'tier is optional' },
             ],
           },
-          coverage: [],
           validation_token: 'validation-token-1',
           expires_at: '2026-08-08T00:00:00Z',
           document_sha256: 'abcdef0123456789',
@@ -257,51 +245,38 @@ describe('AiRuntime page', () => {
     fireEvent.click(screen.getByTestId('ai-runtime-model-import-preview-btn'));
     expect(await screen.findByTestId('ai-runtime-model-import-change')).toHaveTextContent('gpt-5-mini');
     expect(screen.getByTestId('ai-runtime-model-import-preview')).toHaveTextContent('1 CLIs');
-    expect(screen.getByTestId('ai-runtime-model-import-preview')).toHaveTextContent('2 Profiles');
+    expect(screen.getByTestId('ai-runtime-model-import-preview')).not.toHaveTextContent('Profiles');
     expect(screen.getByTestId('ai-runtime-model-import-diagnostics')).toHaveTextContent('tier is optional');
     await waitFor(() => {
-      expect(previewPayload).toEqual(
-        expect.objectContaining({
-          slug: 'test',
-          body: expect.objectContaining({
-            strategy: 'merge',
-            document: expect.objectContaining({
-              kind: 'agent-center-ai-runtime',
-              runtime: expect.objectContaining({
-                clis: expect.arrayContaining([expect.objectContaining({ key: 'codex' })]),
-                profiles: expect.arrayContaining([
-                  expect.objectContaining({ key: 'default-coding' }),
-                  expect.objectContaining({ key: 'review' }),
-                ]),
-                models: expect.arrayContaining([
-                  expect.objectContaining({ key: 'gpt-5' }),
-                  expect.objectContaining({ key: 'gpt-5-mini' }),
-                ]),
-              }),
-            }),
-          }),
-        }),
-      );
+      const payload = previewPayload as {
+        slug?: string;
+        body?: { strategy?: string; document?: { kind?: string; runtime?: Record<string, unknown> } };
+      };
+      expect(payload.slug).toBe('test');
+      expect(payload.body?.strategy).toBe('merge');
+      expect(payload.body?.document?.kind).toBe('agent-center-ai-runtime');
+      expect(payload.body?.document?.runtime?.clis).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'codex' })]));
+      expect(payload.body?.document?.runtime?.models).toEqual(expect.arrayContaining([
+        expect.objectContaining({ key: 'gpt-5' }),
+        expect.objectContaining({ key: 'gpt-5-mini' }),
+      ]));
+      expect(payload.body?.document?.runtime?.profiles).toBeUndefined();
+      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
     });
     fireEvent.click(screen.getByTestId('ai-runtime-model-import-apply'));
     expect(await screen.findByTestId('ai-runtime-model-import-applied')).toHaveTextContent('4');
-    await waitFor(() =>
-      expect(applyPayload).toEqual(
-        expect.objectContaining({
-          slug: 'test',
-          body: expect.objectContaining({
-            strategy: 'merge',
-            validation_token: 'validation-token-1',
-            document: expect.objectContaining({
-              runtime: expect.objectContaining({
-                clis: expect.arrayContaining([expect.objectContaining({ key: 'codex' })]),
-                profiles: expect.arrayContaining([expect.objectContaining({ key: 'default-coding' })]),
-                models: expect.arrayContaining([expect.objectContaining({ key: 'gpt-5-mini' })]),
-              }),
-            }),
-          }),
-        }),
-      ),
-    );
+    await waitFor(() => {
+      const payload = applyPayload as {
+        slug?: string;
+        body?: { strategy?: string; validation_token?: string; document?: { runtime?: Record<string, unknown> } };
+      };
+      expect(payload.slug).toBe('test');
+      expect(payload.body?.strategy).toBe('merge');
+      expect(payload.body?.validation_token).toBe('validation-token-1');
+      expect(payload.body?.document?.runtime?.clis).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'codex' })]));
+      expect(payload.body?.document?.runtime?.models).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'gpt-5-mini' })]));
+      expect(payload.body?.document?.runtime?.profiles).toBeUndefined();
+      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
+    });
   });
 });

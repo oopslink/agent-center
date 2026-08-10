@@ -52,62 +52,12 @@ func (r *Repository) ApplyBulkImport(ctx context.Context, m airuntime.BulkMutati
 				return mapConstraint(err)
 			}
 		}
-		for _, x := range m.Profiles {
-			params, _ := json.Marshal(x.Parameters)
-			_, err := exec.ExecContext(ctx, `
-				INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at)
-				VALUES(?,?,?,?,?,?,?,?,?,?,?)
-				ON CONFLICT(org_id,key) DO UPDATE SET
-					name=excluded.name, description=excluded.description, cli_key=excluded.cli_key,
-					model_key=excluded.model_key, parameters_json=excluded.parameters_json,
-					enabled=excluded.enabled, updated_at=excluded.updated_at`,
-				x.ID, m.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params),
-				boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
-			if err != nil {
-				return mapConstraint(err)
-			}
-		}
-		if m.SetDefaultProfile {
-			if m.DefaultProfileKey == "" {
-				res, err := exec.ExecContext(ctx, `
-					UPDATE ai_runtime_catalogs
-					SET default_profile_id=''
-					WHERE org_id=?`, m.OrgID)
-				if err != nil {
-					return err
-				}
-				if n, _ := res.RowsAffected(); n == 0 {
-					return airuntime.ErrNotFound
-				}
-				return nil
-			}
-			res, err := exec.ExecContext(ctx, `
-				UPDATE ai_runtime_catalogs
-				SET default_profile_id=(
-					SELECT id FROM ai_runtime_profiles
-					WHERE org_id=? AND key=? AND enabled=1
-				)
-				WHERE org_id=?`, m.OrgID, m.DefaultProfileKey, m.OrgID)
-			if err != nil {
-				return err
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return airuntime.ErrNotFound
-			}
-			var profileID string
-			if err := exec.QueryRowContext(ctx, `SELECT default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, m.OrgID).Scan(&profileID); err != nil {
-				return err
-			}
-			if profileID == "" {
-				return airuntime.ErrNotFound
-			}
-		}
 		return nil
 	})
 }
 
 func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Catalog, error) {
-	c := airuntime.Catalog{OrgID: org, CLIs: []airuntime.CLIDefinition{}, Models: []airuntime.ModelDefinition{}, Profiles: []airuntime.RuntimeProfile{}}
+	c := airuntime.Catalog{OrgID: org, CLIs: []airuntime.CLIDefinition{}, Models: []airuntime.ModelDefinition{}}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	if _, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO ai_runtime_catalogs(org_id) VALUES (?)`, org); err != nil {
 		return c, err
@@ -118,7 +68,7 @@ func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Cata
 			return c, err
 		}
 	}
-	if err := exec.QueryRowContext(ctx, `SELECT revision,default_profile_id FROM ai_runtime_catalogs WHERE org_id=?`, org).Scan(&c.Revision, &c.DefaultProfileID); err != nil {
+	if err := exec.QueryRowContext(ctx, `SELECT revision FROM ai_runtime_catalogs WHERE org_id=?`, org).Scan(&c.Revision); err != nil {
 		return c, err
 	}
 	rows, err := exec.QueryContext(ctx, `SELECT id,key,display_name,executable,version_constraint,required_features_json,parameter_schema_json,enabled,system,created_at,updated_at FROM ai_runtime_clis WHERE org_id=? ORDER BY key`, org)
@@ -162,26 +112,6 @@ func (r *Repository) GetCatalog(ctx context.Context, org string) (airuntime.Cata
 		x.CreatedAt = parse(created)
 		x.UpdatedAt = parse(updated)
 		c.Models = append(c.Models, x)
-	}
-	rows.Close()
-	rows, err = exec.QueryContext(ctx, `SELECT id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at FROM ai_runtime_profiles WHERE org_id=? ORDER BY key`, org)
-	if err != nil {
-		return c, err
-	}
-	for rows.Next() {
-		var x airuntime.RuntimeProfile
-		var params, created, updated string
-		var enabled int
-		if err := rows.Scan(&x.ID, &x.Key, &x.Name, &x.Description, &x.CLIKey, &x.ModelKey, &params, &enabled, &created, &updated); err != nil {
-			rows.Close()
-			return c, err
-		}
-		x.OrgID = org
-		x.Enabled = enabled != 0
-		_ = json.Unmarshal([]byte(params), &x.Parameters)
-		x.CreatedAt = parse(created)
-		x.UpdatedAt = parse(updated)
-		c.Profiles = append(c.Profiles, x)
 	}
 	rows.Close()
 	return c, nil
@@ -229,33 +159,6 @@ func (r *Repository) UpdateModel(ctx context.Context, x airuntime.ModelDefinitio
 		return err
 	})
 }
-func (r *Repository) CreateProfile(ctx context.Context, x airuntime.RuntimeProfile, expected int64, a airuntime.AuditEvent) (int64, error) {
-	return r.write(ctx, x.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
-		params, _ := json.Marshal(x.Parameters)
-		_, err := exec.ExecContext(ctx, `INSERT INTO ai_runtime_profiles(id,org_id,key,name,description,cli_key,model_key,parameters_json,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, x.ID, x.OrgID, x.Key, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), stamp(x.CreatedAt), stamp(x.UpdatedAt))
-		return err
-	})
-}
-func (r *Repository) UpdateProfile(ctx context.Context, x airuntime.RuntimeProfile, expected int64, a airuntime.AuditEvent) (int64, error) {
-	return r.write(ctx, x.OrgID, expected, a, func(exec persistence.SQLExecutor) error {
-		params, _ := json.Marshal(x.Parameters)
-		res, err := exec.ExecContext(ctx, `UPDATE ai_runtime_profiles SET name=?,description=?,cli_key=?,model_key=?,parameters_json=?,enabled=?,updated_at=? WHERE id=? AND org_id=?`, x.Name, x.Description, x.CLIKey, x.ModelKey, string(params), boolInt(x.Enabled), stamp(x.UpdatedAt), x.ID, x.OrgID)
-		if err == nil {
-			n, _ := res.RowsAffected()
-			if n == 0 {
-				return airuntime.ErrNotFound
-			}
-		}
-		return err
-	})
-}
-func (r *Repository) SetDefaultProfile(ctx context.Context, org, id string, expected int64, a airuntime.AuditEvent) (int64, error) {
-	return r.write(ctx, org, expected, a, func(exec persistence.SQLExecutor) error {
-		_, err := exec.ExecContext(ctx, `UPDATE ai_runtime_catalogs SET default_profile_id=? WHERE org_id=?`, id, org)
-		return err
-	})
-}
-
 func (r *Repository) write(ctx context.Context, org string, expected int64, a airuntime.AuditEvent, change func(persistence.SQLExecutor) error) (int64, error) {
 	var revision int64
 	err := persistence.RunInTx(ctx, r.db, func(txctx context.Context) error {

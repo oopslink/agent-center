@@ -18,12 +18,10 @@ const (
 	ReasonModelNotFound     Reason = "runtime_model_not_found"
 	ReasonIncompatible      Reason = "runtime_model_cli_incompatible"
 	ReasonParametersInvalid Reason = "runtime_parameters_invalid"
-	ReasonProfileDisabled   Reason = "runtime_profile_disabled"
 	ReasonDefaultMissing    Reason = "runtime_default_missing"
 	ReasonRevisionConflict  Reason = "runtime_catalog_revision_conflict"
 	ReasonCLIDisabled       Reason = "runtime_cli_disabled"
 	ReasonModelDisabled     Reason = "runtime_model_disabled"
-	ReasonProfileNotFound   Reason = "runtime_profile_not_found"
 	ReasonSelectionInvalid  Reason = "runtime_selection_invalid"
 	ReasonLegacyUnmapped    Reason = "runtime_legacy_unmapped"
 )
@@ -75,23 +73,8 @@ type ModelDefinition struct {
 	UpdatedAt         time.Time      `json:"updated_at"`
 }
 
-type RuntimeProfile struct {
-	ID          string         `json:"id"`
-	OrgID       string         `json:"-"`
-	Key         string         `json:"key"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	CLIKey      string         `json:"cli_key"`
-	ModelKey    string         `json:"model_key"`
-	Parameters  map[string]any `json:"parameters"`
-	Enabled     bool           `json:"enabled"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-}
-
 type RuntimeSelection struct {
 	Mode       string         `json:"mode"`
-	ProfileID  string         `json:"profile_id,omitempty"`
 	CLIID      string         `json:"cli_id,omitempty"`
 	ModelID    string         `json:"model_id,omitempty"`
 	Parameters map[string]any `json:"parameters,omitempty"`
@@ -99,7 +82,6 @@ type RuntimeSelection struct {
 
 const (
 	SelectionInherit  = "inherit"
-	SelectionProfile  = "profile"
 	SelectionOverride = "override"
 )
 
@@ -112,17 +94,14 @@ type RuntimeSnapshot struct {
 	ModelKey             string         `json:"model_key"`
 	Parameters           map[string]any `json:"parameters"`
 	Source               string         `json:"source"`
-	ProfileID            string         `json:"profile_id,omitempty"`
 	ResolvedAt           time.Time      `json:"resolved_at"`
 }
 
 type Catalog struct {
-	OrgID            string            `json:"org_id"`
-	Revision         int64             `json:"revision"`
-	DefaultProfileID string            `json:"default_runtime_profile_id,omitempty"`
-	CLIs             []CLIDefinition   `json:"clis"`
-	Models           []ModelDefinition `json:"models"`
-	Profiles         []RuntimeProfile  `json:"profiles"`
+	OrgID    string            `json:"org_id"`
+	Revision int64             `json:"revision"`
+	CLIs     []CLIDefinition   `json:"clis"`
+	Models   []ModelDefinition `json:"models"`
 }
 
 type AuditEvent struct {
