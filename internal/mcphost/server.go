@@ -448,8 +448,13 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "edit_plan_topology",
-		Description: "Atomically edit a plan's DAG with a batch of ops — the SINGLE topology-edit entrypoint, for PENDING and RUNNING plans alike. Pass base_version (read from get_plan) for optimistic concurrency: if another edit landed first you get a version conflict — re-read and retry. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated (a reorder may pass through a transient cycle), so it must be acyclic and, when running, every node must have a resolvable assignee. On a RUNNING plan you may only restructure a node that has not started (blocked/ready): editing the in-edges of, or removing, a dispatched/running/completed node is rejected. Newly-ready nodes are dispatched immediately. Prefer this over add_task_to_plan/add_plan_dependency (pending-only, deprecated).",
+		Description: "Atomically edit a PENDING plan's DAG with a batch of ops. Pass base_version (read from get_plan) for optimistic concurrency. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated. Once a plan is running or paused, use evolve_plan_generation instead.",
 	}, makeEditPlanTopology(cfg, planningRules))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "evolve_plan_generation",
+		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch.",
+	}, makeEvolvePlanGeneration(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",

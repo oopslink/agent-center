@@ -52,7 +52,8 @@ import (
 // through to mapDomainError's 403.
 func mapPlanToolError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrStageNotFound):
+	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrStageNotFound),
+		errors.Is(err, pm.ErrPlanGenerationNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pmservice.ErrStageGateReopenForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
@@ -63,7 +64,9 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
-		errors.Is(err, pm.ErrPlanHasRunningTasks), errors.Is(err, pm.ErrPlanNotComplete):
+		errors.Is(err, pm.ErrPlanGenerationConflict), errors.Is(err, pm.ErrIdempotencyConflict),
+		errors.Is(err, pm.ErrRemediationProposalStale), errors.Is(err, pm.ErrPlanHasRunningTasks),
+		errors.Is(err, pm.ErrPlanNotComplete):
 		// Live-topology edit conflicts (§4): a stale base_version (rebase & retry) and
 		// an in-flight node whose structure can't be live-edited are both STATE
 		// conflicts → 409 plan_conflict, consistent with the other plan-state guards.
@@ -85,6 +88,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
 		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		errors.Is(err, pm.ErrPlanGenerationExists),
 		// Plan Stage authoring/build guards (2026-07-03 design §5/§6) — validation class.
 		errors.Is(err, pm.ErrEmptyStageName), errors.Is(err, pm.ErrStageExists),
 		errors.Is(err, pm.ErrStageCycle), errors.Is(err, pm.ErrStageSelfDependency),
@@ -307,12 +311,10 @@ type editPlanTopologyReq struct {
 	PlanningRules *pmservice.RuleSnapshot `json:"planning_rules"`
 }
 
-// editPlanTopologyHandler applies a whole topology-edit batch to a draft or running
-// plan via pm.EditPlanTopology (actor=agent). It is the single DAG-edit entrypoint
-// (2026-07-05 live-topology design §3): CAS on base_version, terminal-only validation,
-// running-plan mutability guard, then (running) rebuild + dispatch. Domain guards
-// (ErrPlanVersionConflict / ErrPlanNodeInFlight / ErrPlanCycle / …) surface as tool
-// errors via mapPlanToolError.
+// editPlanTopologyHandler applies a whole topology-edit batch to a pending plan
+// via pm.EditPlanTopology (actor=agent): CAS on base_version, terminal-only DAG
+// validation, then one version bump. Running/paused changes must use Evolution
+// so execution history is preserved by immutable generations.
 func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req editPlanTopologyReq
@@ -366,6 +368,64 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 		out = append(out, string(id))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out, "team_rules": planRulesView(planningRules)})
+}
+
+// --- evolve_plan_generation -------------------------------------------------
+
+type evolvePlanGenerationReq struct {
+	AgentID            string                `json:"agent_id"`
+	PlanID             string                `json:"plan_id"`
+	ParentGenerationID string                `json:"parent_generation_id"`
+	BaseVersion        int                   `json:"base_version"`
+	IdempotencyKey     string                `json:"idempotency_key"`
+	Reason             string                `json:"reason"`
+	Evidence           string                `json:"evidence"`
+	Diff               pm.PlanGenerationDiff `json:"diff"`
+}
+
+func (s *Server) evolvePlanGenerationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req evolvePlanGenerationReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, gateOK := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !gateOK {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	res, err := d.PMService.EvolvePlanGeneration(r.Context(), pmservice.EvolvePlanGenerationCommand{
+		PlanID:             pm.PlanID(req.PlanID),
+		ParentGenerationID: pm.PlanGenerationID(req.ParentGenerationID),
+		BaseVersion:        req.BaseVersion,
+		IdempotencyKey:     req.IdempotencyKey,
+		Reason:             req.Reason,
+		Evidence:           req.Evidence,
+		Creator:            pm.IdentityRef(agentActor(a)),
+		Diff:               req.Diff,
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	dispatched := make([]string, 0, len(res.Dispatched))
+	for _, id := range res.Dispatched {
+		dispatched = append(dispatched, string(id))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"duplicate":  res.Duplicate,
+		"dispatched": dispatched,
+		"generation": planGenerationMap(res.Generation),
+	})
 }
 
 // --- start_plan / pause_plan / resume_plan / complete_plan / discard_plan ----
@@ -930,6 +990,9 @@ func planMap(p *pm.Plan) map[string]any {
 		"version":    p.Version(),
 		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
 	}
+	if p.ActiveGenerationID() != "" {
+		m["active_generation_id"] = string(p.ActiveGenerationID())
+	}
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
 	}
@@ -938,6 +1001,29 @@ func planMap(p *pm.Plan) map[string]any {
 		m["archived_by"] = string(p.ArchivedBy())
 	}
 	return m
+}
+
+func planGenerationMap(g *pm.PlanGeneration) map[string]any {
+	if g == nil {
+		return nil
+	}
+	dispatched := make([]string, 0, len(g.DispatchedTaskIDs))
+	for _, id := range g.DispatchedTaskIDs {
+		dispatched = append(dispatched, string(id))
+	}
+	return map[string]any{
+		"id":                   string(g.ID),
+		"plan_id":              string(g.PlanID),
+		"parent_generation_id": string(g.ParentGenerationID),
+		"reason":               g.Reason,
+		"evidence":             g.Evidence,
+		"creator_ref":          string(g.CreatorRef),
+		"diff":                 g.Diff,
+		"snapshot":             g.Snapshot,
+		"idempotency_key":      g.IdempotencyKey,
+		"dispatched_task_ids":  dispatched,
+		"created_at":           g.CreatedAt.Format(time.RFC3339Nano),
+	}
 }
 
 func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef, archivedOf map[pm.TaskID]bool, orgRefOf map[pm.TaskID]string) map[string]any {

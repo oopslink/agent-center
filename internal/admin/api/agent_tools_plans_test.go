@@ -13,6 +13,7 @@ import (
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
@@ -282,6 +283,73 @@ func TestEditPlanTopology_UsesFrozenPlanningRulesFromRequest(t *testing.T) {
 	auditRuleList, _ := auditRules["rules"].([]any)
 	if len(auditRuleList) != 1 || auditRuleList[0].(map[string]any)["enabled"] != true {
 		t.Fatalf("audit rule list = %v", auditRules["rules"])
+	}
+}
+
+func TestEvolvePlanGeneration_AsMemberIdempotentAPI(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, planID := f.seedPlanMember(t)
+	srv := f.server(t)
+	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := map[string]any{
+		"agent_id": atAgent1, "plan_id": planID, "parent_generation_id": "",
+		"base_version": p.Version(), "idempotency_key": "api-evo-1",
+		"reason": "add api task", "evidence": "route test",
+		"diff": map[string]any{
+			"node_decisions": []map[string]any{},
+			"tasks":          []map[string]any{{"ref": "api-c", "title": "API C", "assignee_ref": "agent:" + atAgent1}},
+			"edges":          []map[string]any{},
+		},
+	}
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/evolve_plan_generation", "acat_w1", req)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if body["duplicate"] != false {
+		t.Fatalf("duplicate = %v, want false", body["duplicate"])
+	}
+	gen, _ := body["generation"].(map[string]any)
+	genID, _ := gen["id"].(string)
+	if genID == "" || gen["creator_ref"] != "agent:"+atAgent1 || gen["reason"] != "add api task" {
+		t.Fatalf("generation response = %v", gen)
+	}
+	if dispatched, _ := body["dispatched"].([]any); len(dispatched) != 0 {
+		t.Fatalf("pending evolution dispatched %v, want none", dispatched)
+	}
+	plans := pmsql.NewPlanRepo(f.db)
+	reloadedPlan, err := plans.FindByID(context.Background(), pm.PlanID(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloadedPlan.ActiveGenerationID() != pm.PlanGenerationID(genID) || reloadedPlan.Version() != p.Version()+1 {
+		t.Fatalf("active generation/version = %s/%d, want %s/%d", reloadedPlan.ActiveGenerationID(), reloadedPlan.Version(), genID, p.Version()+1)
+	}
+	stored, err := plans.FindGenerationByID(context.Background(), pm.PlanGenerationID(genID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.CreatorRef != pm.IdentityRef("agent:"+atAgent1) || len(stored.Snapshot.Tasks) != 1 || stored.Snapshot.Tasks[0].Title != "API C" {
+		t.Fatalf("stored generation = %+v", stored)
+	}
+
+	status, dupBody := postBearer(t, srv.URL, "/admin/agent-tools/evolve_plan_generation", "acat_w1", req)
+	if status != http.StatusOK {
+		t.Fatalf("duplicate status = %d, want 200; body = %v", status, dupBody)
+	}
+	dupGen, _ := dupBody["generation"].(map[string]any)
+	if dupBody["duplicate"] != true || dupGen["id"] != genID {
+		t.Fatalf("duplicate body = %v, want same generation %s", dupBody, genID)
+	}
+
+	req["evidence"] = "changed with same idempotency key"
+	status, conflict := postBearer(t, srv.URL, "/admin/agent-tools/evolve_plan_generation", "acat_w1", req)
+	if status != http.StatusConflict || conflict["error"] != "plan_conflict" {
+		t.Fatalf("idempotency conflict status=%d body=%v, want 409 plan_conflict", status, conflict)
 	}
 }
 

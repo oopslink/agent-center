@@ -199,7 +199,7 @@ var wantTools = []string{
 	"resume_paused_node",
 	// v2.9 P3 Stage C (#285): plan orchestration tools (see planTools)
 	"create_plan", "add_task_to_plan", "remove_task_from_plan",
-	"add_plan_dependency", "remove_plan_dependency", "edit_plan_topology",
+	"add_plan_dependency", "remove_plan_dependency", "edit_plan_topology", "evolve_plan_generation",
 	"start_plan", "pause_plan", "resume_plan", "complete_plan", "discard_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read
@@ -233,7 +233,7 @@ var wantTools = []string{
 // all of these are present.
 var planTools = []string{
 	"create_plan", "add_task_to_plan", "remove_task_from_plan",
-	"add_plan_dependency", "remove_plan_dependency",
+	"add_plan_dependency", "remove_plan_dependency", "edit_plan_topology", "evolve_plan_generation",
 	"start_plan", "pause_plan", "resume_plan", "complete_plan", "discard_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
