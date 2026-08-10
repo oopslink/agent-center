@@ -77,6 +77,17 @@ func TestClassify_DualSignal(t *testing.T) {
 			wantKind: OutcomeRunning,
 		},
 		{
+			name:     "orphan alive pid + success output → succeeded (durable terminal wins)",
+			facts:    CompletionFacts{ExecutorID: id, Exited: false, Alive: true, Output: okOutput(id), HasOutput: true, Status: doneStatus(id)},
+			wantKind: OutcomeSucceeded,
+		},
+		{
+			name:        "orphan alive pid + status failed → failed (durable terminal wins)",
+			facts:       CompletionFacts{ExecutorID: id, Exited: false, Alive: true, Status: failedStatus(id)},
+			wantKind:    OutcomeFailed,
+			wantErrKind: "stk",
+		},
+		{
 			name:     "orphan gone + success output → succeeded",
 			facts:    CompletionFacts{ExecutorID: id, Exited: false, Alive: false, Output: okOutput(id), HasOutput: true},
 			wantKind: OutcomeSucceeded,

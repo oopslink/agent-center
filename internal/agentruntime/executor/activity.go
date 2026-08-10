@@ -41,6 +41,9 @@ type ActivityObserver interface {
 	// status.last_progress_at moved). Throttled to change-only by the Monitor so a
 	// long-lived executor yields a readable heartbeat, not a per-tick flood.
 	ExecutorProgress(ProgressEvent)
+	// ExecutorRecovery reports boot/orphan recovery decisions that explain why a
+	// recovered executor was adopted, blocked, or quiet-finalized.
+	ExecutorRecovery(RecoveryEvent)
 }
 
 // StopEvent is the executor-scoped fact set for one terminal completion. The
@@ -89,4 +92,18 @@ type ProgressEvent struct {
 	Detail         string
 	LastProgressAt time.Time
 	At             time.Time
+}
+
+// RecoveryEvent is a diagnostic-only lifecycle event emitted during boot recovery.
+type RecoveryEvent struct {
+	ExecutorID string
+	SlotIndex  *int
+	TaskRef    string
+	Event      string
+	Reason     string
+	Detail     string
+	Outcome    OutcomeKind
+	PID        int
+	Decision   string
+	At         time.Time
 }

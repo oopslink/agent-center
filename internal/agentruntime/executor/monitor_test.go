@@ -458,6 +458,29 @@ func TestMonitor_Finalize_RunningIsNoop(t *testing.T) {
 	}
 }
 
+func TestMonitor_QuietFinalizeRecovered_NoWriteback(t *testing.T) {
+	f := newMonitorFixture(t, 3)
+	id := "e-historical"
+	mustProvision(t, f.fx, id)
+	mustWriteStatus(t, f.fx, *doneStatus(id))
+	mustWriteOutput(t, f.fx, *okOutput(id))
+	if err := f.pool.Adopt(id); err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if err := f.mon.QuietFinalizeRecovered(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded}); err != nil {
+		t.Fatalf("QuietFinalizeRecovered: %v", err)
+	}
+	if got := f.wb.kinds(); len(got) != 0 {
+		t.Fatalf("quiet finalize must not write back, got %v", got)
+	}
+	if f.pool.Active() != 0 {
+		t.Fatalf("quiet finalize must release local slot, active=%d", f.pool.Active())
+	}
+	if refs, err := f.fx.ListFinalized(); err != nil || len(refs) != 1 || refs[0].ExecutorID != id {
+		t.Fatalf("ListFinalized = %+v,%v; want retained marker for %s", refs, err, id)
+	}
+}
+
 func TestMonitor_Finalize_WritebackErrorRetainsDir(t *testing.T) {
 	f := newMonitorFixture(t, 1)
 	id := "e-keep"

@@ -39,14 +39,15 @@ func TestExecutorActivityObserver_Emits(t *testing.T) {
 
 	obs.ExecutorStopped(executor.StopEvent{ExecutorID: "e1", TaskRef: "T", Outcome: executor.OutcomeSucceeded})
 	obs.ExecutorProgress(executor.ProgressEvent{ExecutorID: "e1", TaskRef: "T", State: "running"})
+	obs.ExecutorRecovery(executor.RecoveryEvent{ExecutorID: "e1", TaskRef: "T", Event: "executor.recovery_scan_completed", Decision: "adopt"})
 	rt.emitExecutorStart("a", "T", "title", &orchestrator.Launched{ExecutorID: "e1", CLI: "claude-code", Model: "m"})
 	rt.emitExecutorStart("a", "T", "title", nil) // nil → no-op
 
 	rep.mu.Lock()
 	got := append([]string(nil), rep.activity...)
 	rep.mu.Unlock()
-	if len(got) != 3 {
-		t.Fatalf("expected 3 lifecycle activity emits, got %d: %v", len(got), got)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 lifecycle activity emits, got %d: %v", len(got), got)
 	}
 	for _, ev := range got {
 		if ev != "lifecycle" {
@@ -253,6 +254,36 @@ func TestExecutorProgressPayload_OmitsEmptySummary(t *testing.T) {
 	}
 	if _, ok := p["last_progress_at"]; ok {
 		t.Errorf("zero last_progress_at must be omitted: %+v", p)
+	}
+}
+
+func TestExecutorRecoveryPayload_Schema(t *testing.T) {
+	slot := 0
+	p := executorRecoveryPayload(executor.RecoveryEvent{
+		ExecutorID: "exec-run",
+		SlotIndex:  &slot,
+		TaskRef:    "T155",
+		Event:      "executor.recovery_slot_conflict",
+		Reason:     "duplicate_running_slot",
+		Detail:     "slot 0 already occupied",
+		Outcome:    executor.OutcomeRunning,
+		PID:        4242,
+		Decision:   "not_adopted",
+	})
+	if p["event"] != "executor.recovery_slot_conflict" {
+		t.Fatalf("event = %v", p["event"])
+	}
+	if p["executor_id"] != "exec-run" || p["task_ref"] != "T155" {
+		t.Fatalf("missing executor_id/task_ref prefix: %+v", p)
+	}
+	if p["slot_index"] != 0 || p["pid"] != 4242 {
+		t.Fatalf("slot/pid = %+v", p)
+	}
+	if p["reason"] != "duplicate_running_slot" || p["decision"] != "not_adopted" || p["outcome"] != "running" {
+		t.Fatalf("recovery payload = %+v", p)
+	}
+	if p["scope"] != "not_adopted" {
+		t.Fatalf("scope = %v, want decision", p["scope"])
 	}
 }
 

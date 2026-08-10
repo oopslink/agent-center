@@ -158,7 +158,18 @@ type Reconciled struct {
 	// Completion classifies the orphan: Running (re-adopt), or Succeeded/Failed/
 	// Crashed (finalize). Retryable crashes carry Record (BaseRef/RunnerCmd) for
 	// re-launch.
-	Completion Completion
+	Completion  Completion
+	Diagnostics []RecoveryDiagnostic
+}
+
+// RecoveryDiagnostic is an executor-scoped recovery observation surfaced to the
+// runtime activity stream. It is diagnostic only: it must not decide writeback.
+type RecoveryDiagnostic struct {
+	Event     string
+	Reason    string
+	Detail    string
+	SlotIndex *int
+	Decision  string
 }
 
 // Reconciler rebuilds in-flight executor state from durable files at startup.
@@ -207,9 +218,6 @@ func (r *Reconciler) Reconcile() ([]Reconciled, error) {
 			records[snap.ExecutorID] = rec
 		}
 	}
-	if err := r.reconcileSlotAssignments(snaps, records); err != nil {
-		return nil, err
-	}
 	out := make([]Reconciled, 0, len(snaps))
 	for _, snap := range snaps {
 		rec := records[snap.ExecutorID]
@@ -229,6 +237,7 @@ func (r *Reconciler) Reconcile() ([]Reconciled, error) {
 			Completion: Classify(facts),
 		})
 	}
+	r.reconcileSlotAssignments(out)
 	return out, nil
 }
 
@@ -249,33 +258,53 @@ type legacySlotRecord struct {
 	rec        *Record
 }
 
-func (r *Reconciler) reconcileSlotAssignments(snaps []Snapshot, records map[string]*Record) error {
-	if len(records) == 0 {
-		return nil
-	}
+func (r *Reconciler) reconcileSlotAssignments(items []Reconciled) {
 	limit := r.slotCap
 	if limit <= 0 {
-		limit = len(records)
+		limit = DefaultMaxConcurrent
 	}
-	used := make(map[int]string, len(records))
+	used := make(map[int]string, len(items))
 	var legacy []legacySlotRecord
-	for _, snap := range snaps {
-		rec := records[snap.ExecutorID]
+	for i := range items {
+		if items[i].Completion.Kind != OutcomeRunning {
+			continue
+		}
+		rec := items[i].Record
 		if rec == nil {
 			continue
 		}
-		if slot, ok := durableSlotIndex(rec, snap.Input); ok {
+		if slot, ok := durableSlotIndex(rec, items[i].Snapshot.Input); ok {
 			if slot < 0 || slot >= limit {
-				return fmt.Errorf("executor: recovery slot_index %d for %s out of range [0,%d)", slot, rec.ExecutorID, limit)
+				items[i].Diagnostics = append(items[i].Diagnostics, RecoveryDiagnostic{
+					Event:     "executor.recovery_slot_conflict",
+					Reason:    "slot_out_of_range",
+					Detail:    fmt.Sprintf("recovery slot_index %d is outside [0,%d)", slot, limit),
+					SlotIndex: intPtr(slot),
+					Decision:  "not_adopted",
+				})
+				continue
 			}
 			if other := used[slot]; other != "" && other != rec.ExecutorID {
-				return fmt.Errorf("executor: recovery duplicate slot_index %d for %s and %s", slot, other, rec.ExecutorID)
+				items[i].Diagnostics = append(items[i].Diagnostics, RecoveryDiagnostic{
+					Event:     "executor.recovery_slot_conflict",
+					Reason:    "duplicate_running_slot",
+					Detail:    fmt.Sprintf("recovery duplicate slot_index %d for %s and %s", slot, other, rec.ExecutorID),
+					SlotIndex: intPtr(slot),
+					Decision:  "not_adopted",
+				})
+				continue
 			}
 			used[slot] = rec.ExecutorID
 			if rec.SlotIndex == nil {
 				rec.SlotIndex = intPtr(slot)
 				if err := r.tracker.Write(*rec); err != nil {
-					return fmt.Errorf("executor: recovery backfill slot_index for %s: %w", rec.ExecutorID, err)
+					items[i].Diagnostics = append(items[i].Diagnostics, RecoveryDiagnostic{
+						Event:     "executor.recovery_slot_conflict",
+						Reason:    "slot_backfill_failed",
+						Detail:    fmt.Sprintf("recovery backfill slot_index for %s: %v", rec.ExecutorID, err),
+						SlotIndex: intPtr(slot),
+						Decision:  "adopt_without_persisted_backfill",
+					})
 				}
 			}
 			continue
@@ -291,15 +320,36 @@ func (r *Reconciler) reconcileSlotAssignments(snaps []Snapshot, records map[stri
 	for _, lr := range legacy {
 		slot, ok := firstUnusedSlot(used, limit)
 		if !ok {
-			return fmt.Errorf("executor: recovery no free slot to backfill %s within [0,%d)", lr.executorID, limit)
+			for i := range items {
+				if items[i].ExecutorID == lr.executorID {
+					items[i].Diagnostics = append(items[i].Diagnostics, RecoveryDiagnostic{
+						Event:    "executor.recovery_slot_conflict",
+						Reason:   "no_free_slot",
+						Detail:   fmt.Sprintf("recovery no free slot to backfill %s within [0,%d)", lr.executorID, limit),
+						Decision: "not_adopted",
+					})
+					break
+				}
+			}
+			continue
 		}
 		used[slot] = lr.executorID
 		lr.rec.SlotIndex = intPtr(slot)
 		if err := r.tracker.Write(*lr.rec); err != nil {
-			return fmt.Errorf("executor: recovery backfill slot_index for %s: %w", lr.executorID, err)
+			for i := range items {
+				if items[i].ExecutorID == lr.executorID {
+					items[i].Diagnostics = append(items[i].Diagnostics, RecoveryDiagnostic{
+						Event:     "executor.recovery_slot_conflict",
+						Reason:    "slot_backfill_failed",
+						Detail:    fmt.Sprintf("recovery backfill slot_index for %s: %v", lr.executorID, err),
+						SlotIndex: intPtr(slot),
+						Decision:  "adopt_without_persisted_backfill",
+					})
+					break
+				}
+			}
 		}
 	}
-	return nil
 }
 
 func durableSlotIndex(rec *Record, in *Input) (int, bool) {

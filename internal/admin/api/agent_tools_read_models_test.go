@@ -94,6 +94,53 @@ func TestTaskExecutionsExpiresOldPendingForkCommand(t *testing.T) {
 	}
 }
 
+func TestTaskExecutionsStartedForkCommandIsTelemetryGap(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	clk := clock.NewFakeClock(time.Now().Add(-executionStaleAfter - time.Minute).UTC())
+	envSvc := envservice.New(envservice.Deps{
+		DB: db, Workers: envsqlite.NewWorkerRepo(db), Events: envsqlite.NewControlEventRepo(db),
+		IDGen: idgen.NewGenerator(clk), Clock: clk,
+	})
+	if _, err := envSvc.ConnectWorker(ctx, "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := envSvc.EnqueueCommand(ctx, environment.AppendCommandInput{
+		WorkerID: "worker-1", CommandType: cmdTypeAgentForkExecutor, IdempotencyKey: "fork-started",
+		AgentID: "agent-1", TaskID: "task-1", Status: environment.CommandStatusPending,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clk.Advance(time.Minute)
+	if _, err := envSvc.UpdateCommandStatus(ctx, environment.UpdateCommandStatusInput{
+		WorkerID: "worker-1", CommandID: cmd.ID(), AgentID: "agent-1", TaskID: "task-1",
+		Status: environment.CommandStatusStarted, ExecutionID: "exec-no-lifecycle", StatusUpdatedAt: clk.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	clk.Advance(executionStaleAfter + time.Minute)
+	runs, err := taskExecutions(ctx, HandlerDeps{EnvControlSvc: envSvc}, "agent-1", "worker-1", "task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs=%d, want started command row", len(runs))
+	}
+	got := runs[0]
+	if got.State == "running" || got.State != "spawned" || got.HealthStatus != "telemetry_gap" ||
+		got.ControlPlaneHealth != "telemetry_gap" || got.RecoveryStatus != "spawned_no_lifecycle" || !got.RecoveryRequired {
+		t.Fatalf("started command run = %+v", got)
+	}
+}
+
 func (r readModelActivityRepo) Append(context.Context, *agent.AgentActivityEvent) error { return nil }
 func (r readModelActivityRepo) ListByAgent(context.Context, agent.AgentID, int, string) ([]*agent.AgentActivityEvent, error) {
 	return nil, nil
@@ -147,6 +194,28 @@ func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
 	}
 	if len(got.NonDeliveryReasons) == 0 || got.NonDeliveryReasons[0].Code != "head_not_pushed" {
 		t.Fatalf("non-delivery reasons = %+v", got.NonDeliveryReasons)
+	}
+}
+
+func TestTaskExecutionsProjectsRecoveryDiagnostics(t *testing.T) {
+	start := time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC)
+	repo := readModelActivityRepo{events: []*agent.AgentActivityEvent{
+		readModelEvent(t, "01", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, start),
+		readModelEvent(t, "02", `{"event":"executor.recovery_slot_conflict","reason":"duplicate_running_slot","detail":"slot conflict","decision":"not_adopted","outcome":"running"}`, start.Add(time.Minute)),
+		readModelEvent(t, "03", `{"event":"executor.recovery_quiet_finalized","reason":"no_backfill_guard","detail":"old terminal","decision":"quiet_finalized","outcome":"succeeded"}`, start.Add(2*time.Minute)),
+	}}
+	runs, err := taskExecutions(context.Background(), HandlerDeps{AgentActivityRepo: repo}, "agent-1", "worker-1", "task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs = %d, want 1", len(runs))
+	}
+	got := runs[0]
+	if got.HealthStatus != "control_plane_lost" || got.ControlPlaneHealth != "control_plane_lost" ||
+		got.RecoveryStatus != "quiet_finalized" || got.Outcome != "quiet_finalized" ||
+		got.ErrorKind != "no_backfill_guard" || got.ErrorDetail != "old terminal" {
+		t.Fatalf("recovery diagnostic run = %+v", got)
 	}
 }
 

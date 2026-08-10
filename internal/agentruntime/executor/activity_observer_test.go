@@ -18,6 +18,7 @@ type recordingObserver struct {
 	mu       sync.Mutex
 	stops    []StopEvent
 	progress []ProgressEvent
+	recovery []RecoveryEvent
 }
 
 func (o *recordingObserver) ExecutorStopped(ev StopEvent) {
@@ -30,6 +31,12 @@ func (o *recordingObserver) ExecutorProgress(ev ProgressEvent) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.progress = append(o.progress, ev)
+}
+
+func (o *recordingObserver) ExecutorRecovery(ev RecoveryEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recovery = append(o.recovery, ev)
 }
 
 func (o *recordingObserver) lastStop(t *testing.T) StopEvent {

@@ -47,6 +47,11 @@ func (o executorActivityObserver) ExecutorProgress(ev executor.ProgressEvent) {
 	o.r.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorProgressPayload(ev), stampOr(ev.At, o.r.now))
 }
 
+// ExecutorRecovery emits one executor recovery diagnostic lifecycle event.
+func (o executorActivityObserver) ExecutorRecovery(ev executor.RecoveryEvent) {
+	o.r.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorRecoveryPayload(ev), stampOr(ev.At, o.r.now))
+}
+
 // emitExecutorStart emits the executor.start lifecycle event right after a
 // successful fork (launchExecutor), where the routed cli/model + pid are richest.
 func (r *LocalRuntime) emitExecutorStart(agentID, taskRef, title string, launched *orchestrator.Launched) {
@@ -75,6 +80,9 @@ func (r *LocalRuntime) emitExecutorStart(agentID, taskRef, title string, launche
 // agentID, tagged with task_ref + the executor's interaction ref. Best-effort:
 // a marshal/report failure is logged, never returned (activity is observational).
 func (r *LocalRuntime) emitExecutorLifecycle(agentID, execID, taskRef string, payload map[string]any, at time.Time) {
+	if r.cfg.Reporter == nil {
+		return
+	}
 	b, err := json.Marshal(payload)
 	if err != nil {
 		r.log("agent=%s executor=%s lifecycle activity marshal: %v", agentID, execID, err)
@@ -177,6 +185,36 @@ func executorProgressPayload(ev executor.ProgressEvent) map[string]any {
 	}
 	putIfSet(p, "summary", ev.Summary)
 	putIfSet(p, "detail", ev.Detail) // T880: short sanitized "what it's doing" note
+	return p
+}
+
+func executorRecoveryPayload(ev executor.RecoveryEvent) map[string]any {
+	event := ev.Event
+	if event == "" {
+		event = "executor.recovery_diagnostic"
+	}
+	scope := ev.Decision
+	if scope == "" {
+		scope = ev.Reason
+	}
+	p := map[string]any{
+		"event":       event,
+		"executor_id": ev.ExecutorID,
+		"task_ref":    ev.TaskRef,
+		"scope":       scope,
+	}
+	if ev.SlotIndex != nil {
+		p["slot_index"] = *ev.SlotIndex
+	}
+	if ev.Outcome != "" {
+		p["outcome"] = string(ev.Outcome)
+	}
+	if ev.PID > 0 {
+		p["pid"] = ev.PID
+	}
+	putIfSet(p, "reason", ev.Reason)
+	putIfSet(p, "detail", ev.Detail)
+	putIfSet(p, "decision", ev.Decision)
 	return p
 }
 

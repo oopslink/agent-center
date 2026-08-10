@@ -414,6 +414,22 @@ func (m *Monitor) FinalizeRecovered(ctx context.Context, c Completion) error {
 	return m.Finalize(ctx, c)
 }
 
+// QuietFinalizeRecovered seals a historical terminal artifact locally without
+// center writeback, delivery reporting, stop activity, or task mutation. Boot
+// recovery uses this when no-backfill guards cannot prove the artifact is the
+// current in-flight execution. It only marks the dir for normal retained-terminal
+// reaping and releases any local slot view.
+func (m *Monitor) QuietFinalizeRecovered(ctx context.Context, c Completion) error {
+	_ = ctx
+	if c.Kind == OutcomeRunning {
+		return nil
+	}
+	if m.pool != nil {
+		m.pool.Release(c.ExecutorID)
+	}
+	return m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), nil)
+}
+
 // Recover rebuilds in-flight state at orchestrator startup (design §12) and acts
 // on each orphan exactly once: terminal/crashed orphans are finalized (their
 // result is not lost across the restart); still-alive orphans are re-adopted into

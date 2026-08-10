@@ -100,6 +100,10 @@ const (
 	// re-run a real failure), or the degraded/ownerless dead case. Best-effort per
 	// executor so one writeback failure does not wedge the whole reconcile.
 	reconcileFinalize
+	// reconcileQuietFinalize — seal a historical terminal artifact locally without
+	// writeback/delivery/task mutation. Used when the no-backfill guard cannot prove
+	// the terminal artifact belongs to this agent's current in-flight execution.
+	reconcileQuietFinalize
 	// reconcileVerifyCancel — the task is ABSENT from this agent's in-flight set: a
 	// CANDIDATE for cancel, NOT an immediate one. Absence ≠ cancel evidence (the set may
 	// be incomplete), so the enactment first get_task-verifies and cancels ONLY on
@@ -112,6 +116,7 @@ const (
 type execReconcileFacts struct {
 	Kind            executor.OutcomeKind // Succeeded / Failed / Crashed / Running
 	HasValidVerdict bool                 // a valid output.json result exists (⇒ a legit conclusion, not a death)
+	HasTerminalFile bool                 // durable terminal output/status exists even if incomplete
 	TaskRef         string
 	Alive           bool
 	Inflight        map[string]bool
@@ -122,9 +127,11 @@ type execReconcileFacts struct {
 // via the ladder) from a legitimate terminal result (finalize), and only cancels an
 // absent task with positive evidence.
 func classifyExecutor(f execReconcileFacts) reconcileAction {
-	// A succeeded executor's work is DONE regardless of the inflight set → report + teardown.
 	if f.Kind == executor.OutcomeSucceeded {
-		return reconcileFinalize
+		if terminalWritebackAllowed(f) {
+			return reconcileFinalize
+		}
+		return reconcileQuietFinalize
 	}
 	if f.Alive {
 		if !f.HaveInflight {
@@ -140,14 +147,23 @@ func classifyExecutor(f execReconcileFacts) reconcileAction {
 	}
 	// Dead (Crashed / Failed).
 	if !f.HaveInflight {
+		if f.HasTerminalFile {
+			return reconcileQuietFinalize
+		}
 		// Degraded (inflight query failed): we can't confirm should-continue, so preserve
 		// the pre-D6 behavior — report the dead executor's result (finalize), don't strand it.
 		return reconcileFinalize
 	}
 	if f.TaskRef == "" {
+		if f.HasTerminalFile {
+			return reconcileQuietFinalize
+		}
 		return reconcileFinalize // ownerless dead: report + teardown
 	}
 	if !f.Inflight[f.TaskRef] {
+		if f.HasTerminalFile {
+			return reconcileQuietFinalize
+		}
 		return reconcileVerifyCancel
 	}
 	// In-flight (should-continue) + dead: DEATH (no valid verdict) → tier recover; a
@@ -156,6 +172,10 @@ func classifyExecutor(f execReconcileFacts) reconcileAction {
 		return reconcileRecover
 	}
 	return reconcileFinalize
+}
+
+func terminalWritebackAllowed(f execReconcileFacts) bool {
+	return f.HaveInflight && f.TaskRef != "" && f.Inflight[f.TaskRef]
 }
 
 // isDeath reports whether a terminal executor DIED without concluding (crash / kill /
@@ -169,14 +189,15 @@ func isDeath(kind executor.OutcomeKind, hasValidVerdict bool) bool {
 // enactment needs. Plan is set only for reconcileRecover; Completion carries the result
 // for reconcileFinalize.
 type execReconcileDecision struct {
-	ExecutorID string
-	TaskRef    string
-	Action     reconcileAction
-	Alive      bool
-	PID        int
-	Record     *executor.Record
-	Completion executor.Completion
-	Plan       orchestrator.RecoveryPlan
+	ExecutorID  string
+	TaskRef     string
+	Action      reconcileAction
+	Alive       bool
+	PID         int
+	Record      *executor.Record
+	Completion  executor.Completion
+	Diagnostics []executor.RecoveryDiagnostic
+	Plan        orchestrator.RecoveryPlan
 }
 
 // planExecutorReconcile is the PURE core: it maps each SCANNED executor × the in-flight
@@ -187,7 +208,7 @@ type execReconcileDecision struct {
 func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool, haveInflight bool, planner *orchestrator.RecoveryPlanner) []execReconcileDecision {
 	out := make([]execReconcileDecision, 0, len(items))
 	for _, it := range items {
-		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record, Completion: it.Completion}
+		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record, Completion: it.Completion, Diagnostics: it.Diagnostics}
 		d.TaskRef = taskRefOf(it.Snapshot)
 		d.Alive = it.Completion.Kind == executor.OutcomeRunning && it.Record != nil && it.Record.PID > 0
 		if d.Alive {
@@ -196,6 +217,7 @@ func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool
 		d.Action = classifyExecutor(execReconcileFacts{
 			Kind:            it.Completion.Kind,
 			HasValidVerdict: it.Completion.Output != nil,
+			HasTerminalFile: hasTerminalFile(it.Completion),
 			TaskRef:         d.TaskRef,
 			Alive:           d.Alive,
 			Inflight:        inflight,
@@ -207,6 +229,13 @@ func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool
 		out = append(out, d)
 	}
 	return out
+}
+
+func hasTerminalFile(c executor.Completion) bool {
+	if c.Output != nil {
+		return true
+	}
+	return c.Status != nil && (c.Status.State == executor.StateDone || c.Status.State == executor.StateFailed)
 }
 
 // taskRefOf extracts the executor's task ref from its input.json snapshot (the same
@@ -237,9 +266,15 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 		return perr
 	}
 
+	for _, it := range items {
+		r.emitExecutorRecoveryItem(it, "executor.recovery_scan_started", "", "", "scanned")
+	}
 	decisions := planExecutorReconcile(items, inflight, haveInflight, planner)
-	var adopted, recovered, finalized, cancelled, kept int
+	var adopted, recovered, finalized, quietFinalized, cancelled, kept int
 	for _, d := range decisions {
+		for _, diag := range d.Diagnostics {
+			r.emitExecutorRecoveryDiagnostic(d, diag)
+		}
 		switch d.Action {
 		case reconcileAdopt:
 			var slot *int
@@ -248,6 +283,7 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 			}
 			if err := ee.adoptAlive(d.ExecutorID, d.PID, slot); err != nil {
 				r.log("agent=%s self-reconcile adopt executor=%s: %v (continuing)", r.cfg.AgentID, d.ExecutorID, err)
+				r.emitExecutorRecovery(d, "executor.orphan_adopt_failed", "adopt_failed", err.Error(), "not_adopted")
 				kept++
 			} else {
 				adopted++
@@ -263,6 +299,12 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 				r.log("agent=%s self-reconcile finalize executor=%s: %v (continuing)", r.cfg.AgentID, d.ExecutorID, ferr)
 			}
 			finalized++
+		case reconcileQuietFinalize:
+			if ferr := ee.monitor.QuietFinalizeRecovered(ctx, d.Completion); ferr != nil {
+				r.log("agent=%s self-reconcile quiet-finalize executor=%s: %v (continuing)", r.cfg.AgentID, d.ExecutorID, ferr)
+			}
+			r.emitExecutorRecovery(d, "executor.recovery_quiet_finalized", "no_backfill_guard", "terminal artifact was not confirmed as this agent's current in-flight execution", "quiet_finalized")
+			quietFinalized++
 		case reconcileVerifyCancel:
 			// Absence is not cancel evidence: get_task-verify, cancel only on proof.
 			if r.verifyThenCancel(ctx, ee, d) {
@@ -273,12 +315,77 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 		case reconcileLeave:
 			kept++
 		}
+		r.emitExecutorRecovery(d, "executor.recovery_scan_completed", "", "", reconcileActionName(d.Action))
 	}
-	if adopted+recovered+finalized+cancelled+kept > 0 {
-		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d finalized=%d cancelled=%d kept=%d inflight_known=%t",
-			r.cfg.AgentID, len(items), adopted, recovered, finalized, cancelled, kept, haveInflight)
+	if adopted+recovered+finalized+quietFinalized+cancelled+kept > 0 {
+		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d finalized=%d quiet_finalized=%d cancelled=%d kept=%d inflight_known=%t",
+			r.cfg.AgentID, len(items), adopted, recovered, finalized, quietFinalized, cancelled, kept, haveInflight)
 	}
 	return nil
+}
+
+func (r *LocalRuntime) emitExecutorRecoveryItem(it executor.Reconciled, event, reason, detail, decision string) {
+	rec := it.Record
+	var slot *int
+	var pid int
+	if rec != nil {
+		slot = rec.SlotIndex
+		pid = rec.PID
+	}
+	r.emitExecutorLifecycle(r.cfg.AgentID, it.ExecutorID, taskRefOf(it.Snapshot), executorRecoveryPayload(executor.RecoveryEvent{
+		ExecutorID: it.ExecutorID,
+		SlotIndex:  slot,
+		TaskRef:    taskRefOf(it.Snapshot),
+		Event:      event,
+		Reason:     reason,
+		Detail:     detail,
+		Outcome:    it.Completion.Kind,
+		PID:        pid,
+		Decision:   decision,
+		At:         r.now(),
+	}), r.now())
+}
+
+func (r *LocalRuntime) emitExecutorRecoveryDiagnostic(d execReconcileDecision, diag executor.RecoveryDiagnostic) {
+	r.emitExecutorRecovery(d, diag.Event, diag.Reason, diag.Detail, diag.Decision)
+}
+
+func (r *LocalRuntime) emitExecutorRecovery(d execReconcileDecision, event, reason, detail, decision string) {
+	var slot *int
+	var pid int
+	if d.Record != nil {
+		slot = d.Record.SlotIndex
+		pid = d.Record.PID
+	}
+	r.emitExecutorLifecycle(r.cfg.AgentID, d.ExecutorID, d.TaskRef, executorRecoveryPayload(executor.RecoveryEvent{
+		ExecutorID: d.ExecutorID,
+		SlotIndex:  slot,
+		TaskRef:    d.TaskRef,
+		Event:      event,
+		Reason:     reason,
+		Detail:     detail,
+		Outcome:    d.Completion.Kind,
+		PID:        pid,
+		Decision:   decision,
+		At:         r.now(),
+	}), r.now())
+}
+
+func reconcileActionName(a reconcileAction) string {
+	switch a {
+	case reconcileAdopt:
+		return "adopt"
+	case reconcileRecover:
+		return "recover"
+	case reconcileFinalize:
+		return "finalize"
+	case reconcileQuietFinalize:
+		return "quiet_finalize"
+	case reconcileVerifyCancel:
+		return "verify_cancel"
+	default:
+		return "leave"
+	}
 }
 
 // inflightTaskSet fetches this agent's DISPATCHABLE in-flight task set from the center

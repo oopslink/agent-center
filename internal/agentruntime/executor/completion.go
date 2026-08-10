@@ -135,16 +135,11 @@ func classifyExited(f CompletionFacts, c Completion) Completion {
 
 // classifyOrphan handles crash recovery: no exit observed, liveness was probed.
 func classifyOrphan(f CompletionFacts, c Completion) Completion {
-	// A still-alive orphan is not a completion — the orchestrator re-adopts it
-	// (design §12: rebuild "在管哪些 executor" without re-spawning).
-	if f.Alive {
-		c.Kind = OutcomeRunning
-		return c
-	}
-	// The process is gone. Decide from the durable files.
+	// Durable terminal files beat pid liveness. A pid in orchestrator.json can be
+	// reused after the original executor exited; trusting Alive first would adopt a
+	// historical terminal artifact as if it were still running.
 	switch {
 	case f.HasOutput && f.Output.Success:
-		// It finished successfully before we noticed (e.g. exited during our downtime).
 		c.Kind = OutcomeSucceeded
 		return c
 	case f.HasOutput && !f.Output.Success:
@@ -161,14 +156,19 @@ func classifyOrphan(f CompletionFacts, c Completion) Completion {
 		c.Retryable = true
 		c.Error = resolveError(f, "done_no_output", "executor status=done but output.json missing")
 		return c
-	default:
-		// The core §9 case 3: process gone while status was still "running" (or no
-		// status at all). Treat as a crash the orchestrator may retry.
-		c.Kind = OutcomeCrashed
-		c.Retryable = true
-		c.Error = resolveError(f, "process_gone", "executor process gone while status still running")
+	}
+	// A still-alive orphan is not a completion — the orchestrator re-adopts it
+	// (design §12: rebuild "在管哪些 executor" without re-spawning).
+	if f.Alive {
+		c.Kind = OutcomeRunning
 		return c
 	}
+	// The core §9 case 3: process gone while status was still "running" (or no
+	// status at all). Treat as a crash the orchestrator may retry.
+	c.Kind = OutcomeCrashed
+	c.Retryable = true
+	c.Error = resolveError(f, "process_gone", "executor process gone while status still running")
+	return c
 }
 
 // resolveError picks the most specific error detail available: an explicit

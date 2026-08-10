@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -259,7 +258,37 @@ func TestReconciler_BackfillsRecordFromInputSlot(t *testing.T) {
 	assertRecordSlot(t, tr, "exec-input-slot", 2)
 }
 
-func TestReconciler_DuplicateAndOutOfRangeSlotsFailLoud(t *testing.T) {
+func TestReconciler_TerminalDoneOutputDoesNotConflictWithRunningSameSlot(t *testing.T) {
+	fx, tr := newRecoveryFixture(t)
+	base := time.Unix(1700000000, 0)
+	seedInputAndRecord(t, fx, tr, "exec-done", 1001, base, intPtr(0), nil)
+	mustWriteStatus(t, fx, *doneStatus("exec-done"))
+	mustWriteOutput(t, fx, *okOutput("exec-done"))
+	seedInputAndRecord(t, fx, tr, "exec-running", 1002, base.Add(time.Second), intPtr(0), nil)
+	mustWriteStatus(t, fx, runningStatusAt("exec-running", base))
+
+	rc, err := NewReconciler(fx, tr, fakeLiveness{alive: map[int]bool{1001: true, 1002: true}})
+	if err != nil {
+		t.Fatalf("NewReconciler: %v", err)
+	}
+	rc.SetSlotCap(1)
+	items, err := rc.Reconcile()
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	byID := reconciledByID(items)
+	if byID["exec-done"].Completion.Kind != OutcomeSucceeded {
+		t.Fatalf("exec-done kind = %q, want succeeded", byID["exec-done"].Completion.Kind)
+	}
+	if byID["exec-running"].Completion.Kind != OutcomeRunning {
+		t.Fatalf("exec-running kind = %q, want running", byID["exec-running"].Completion.Kind)
+	}
+	if len(byID["exec-running"].Diagnostics) != 0 {
+		t.Fatalf("terminal same-slot must not conflict with running, diagnostics=%+v", byID["exec-running"].Diagnostics)
+	}
+}
+
+func TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic(t *testing.T) {
 	t.Run("duplicate", func(t *testing.T) {
 		fx, tr := newRecoveryFixture(t)
 		seedInputAndRecord(t, fx, tr, "exec-a", 1001, time.Unix(1700000000, 0), intPtr(0), nil)
@@ -269,8 +298,16 @@ func TestReconciler_DuplicateAndOutOfRangeSlotsFailLoud(t *testing.T) {
 			t.Fatalf("NewReconciler: %v", err)
 		}
 		rc.SetSlotCap(2)
-		if _, err := rc.Reconcile(); err == nil || !strings.Contains(err.Error(), "duplicate slot_index") {
-			t.Fatalf("Reconcile err = %v, want duplicate slot_index", err)
+		items, err := rc.Reconcile()
+		if err != nil {
+			t.Fatalf("Reconcile: %v", err)
+		}
+		byID := reconciledByID(items)
+		if got := byID["exec-b"].Completion.Kind; got != OutcomeRunning {
+			t.Fatalf("exec-b kind = %q, want running", got)
+		}
+		if !hasRecoveryDiagnostic(byID["exec-b"], "duplicate_running_slot") {
+			t.Fatalf("exec-b diagnostics = %+v, want duplicate_running_slot", byID["exec-b"].Diagnostics)
 		}
 	})
 	t.Run("out of range", func(t *testing.T) {
@@ -281,8 +318,13 @@ func TestReconciler_DuplicateAndOutOfRangeSlotsFailLoud(t *testing.T) {
 			t.Fatalf("NewReconciler: %v", err)
 		}
 		rc.SetSlotCap(2)
-		if _, err := rc.Reconcile(); err == nil || !strings.Contains(err.Error(), "out of range") {
-			t.Fatalf("Reconcile err = %v, want out of range", err)
+		items, err := rc.Reconcile()
+		if err != nil {
+			t.Fatalf("Reconcile: %v", err)
+		}
+		byID := reconciledByID(items)
+		if !hasRecoveryDiagnostic(byID["exec-a"], "slot_out_of_range") {
+			t.Fatalf("exec-a diagnostics = %+v, want slot_out_of_range", byID["exec-a"].Diagnostics)
 		}
 	})
 }
@@ -348,4 +390,21 @@ func assertRecordSlot(t *testing.T, tr *Tracker, id string, want int) {
 	if rec.SlotIndex == nil || *rec.SlotIndex != want {
 		t.Fatalf("%s slot_index = %v, want %d", id, rec.SlotIndex, want)
 	}
+}
+
+func reconciledByID(items []Reconciled) map[string]Reconciled {
+	out := make(map[string]Reconciled, len(items))
+	for _, it := range items {
+		out[it.ExecutorID] = it
+	}
+	return out
+}
+
+func hasRecoveryDiagnostic(it Reconciled, reason string) bool {
+	for _, diag := range it.Diagnostics {
+		if diag.Reason == reason {
+			return true
+		}
+	}
+	return false
 }

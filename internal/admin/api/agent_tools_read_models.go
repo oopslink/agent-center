@@ -154,6 +154,9 @@ type executionReadModel struct {
 	Model                   string              `json:"model,omitempty"`
 	State                   string              `json:"state"`
 	HealthStatus            string              `json:"health_status"`
+	ExecutorHealth          string              `json:"executor_health,omitempty"`
+	ControlPlaneHealth      string              `json:"control_plane_health,omitempty"`
+	RecoveryStatus          string              `json:"recovery_status,omitempty"`
 	RecoveryRequired        bool                `json:"recovery_required"`
 	Outcome                 string              `json:"outcome,omitempty"`
 	ErrorKind               string              `json:"error_kind,omitempty"`
@@ -200,6 +203,8 @@ func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskI
 		case "executor.start":
 			run.State = "running"
 			run.HealthStatus = "active"
+			run.ExecutorHealth = "running"
+			run.ControlPlaneHealth = "active"
 			run.CLI, _ = p["cli"].(string)
 			run.Model, _ = p["model"].(string)
 			run.StartedAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
@@ -209,6 +214,8 @@ func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskI
 				run.State = state
 			}
 			run.HealthStatus = "active"
+			run.ExecutorHealth = "running"
+			run.ControlPlaneHealth = "active"
 			if ts, ok := p["last_progress_at"].(string); ok && ts != "" {
 				run.LastEffectiveActivityAt = ts
 			} else {
@@ -233,6 +240,38 @@ func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskI
 				}
 			}
 			run.HealthStatus = executionStopHealth(run.Outcome, run.ErrorKind, run.NonDeliveryReasons)
+			run.ExecutorHealth = run.HealthStatus
+			run.ControlPlaneHealth = "finalized"
+			run.RecoveryStatus = recoveryStatusFromStop(run.Recovered)
+		case "executor.recovery_scan_started":
+			run.RecoveryStatus = "scanning"
+			run.ControlPlaneHealth = nonEmpty(run.ControlPlaneHealth, "recovering")
+		case "executor.recovery_scan_completed":
+			if run.RecoveryStatus == "" || run.RecoveryStatus == "scanning" {
+				run.RecoveryStatus = stringFromAny(p["decision"])
+			}
+			run.ControlPlaneHealth = nonEmpty(run.ControlPlaneHealth, "recovering")
+		case "executor.recovery_slot_conflict", "executor.orphan_adopt_failed":
+			run.State = nonEmpty(run.State, "unknown")
+			run.HealthStatus = "recovery_blocked"
+			run.ExecutorHealth = nonEmpty(run.ExecutorHealth, "running")
+			run.ControlPlaneHealth = "recovery_blocked"
+			run.RecoveryStatus = stringFromAny(p["decision"])
+			run.ErrorKind = stringFromAny(p["reason"])
+			run.ErrorDetail = redactAuditNote(stringFromAny(p["detail"]))
+			run.RecoveryRequired = true
+			run.LastEffectiveActivityAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
+		case "executor.recovery_quiet_finalized":
+			run.State = "terminal"
+			run.Outcome = "quiet_finalized"
+			run.HealthStatus = "control_plane_lost"
+			run.ExecutorHealth = nonEmpty(run.ExecutorHealth, "terminal")
+			run.ControlPlaneHealth = "control_plane_lost"
+			run.RecoveryStatus = "quiet_finalized"
+			run.ErrorKind = stringFromAny(p["reason"])
+			run.ErrorDetail = redactAuditNote(stringFromAny(p["detail"]))
+			run.FinishedAt = ev.OccurredAt().UTC().Format(time.RFC3339Nano)
+			run.LastEffectiveActivityAt = run.FinishedAt
 		}
 	}
 	out := make([]executionReadModel, 0, len(order))
@@ -308,14 +347,20 @@ func forkCommandExecution(cmd *environment.WorkerControlEvent, now time.Time) ex
 		AgentID:                 cmd.AgentID(),
 		State:                   "pending",
 		HealthStatus:            "pending",
+		ControlPlaneHealth:      "pending",
 		StartedAt:               cmd.CreatedAt().UTC().Format(time.RFC3339Nano),
 		LastEffectiveActivityAt: updated.UTC().Format(time.RFC3339Nano),
 		Events:                  1,
 	}
 	switch status {
 	case environment.CommandStatusStarted:
-		run.State = "running"
-		run.HealthStatus = "active"
+		run.State = "spawned"
+		run.HealthStatus = "telemetry_gap"
+		run.ControlPlaneHealth = "telemetry_gap"
+		run.RecoveryStatus = "spawned_no_lifecycle"
+		if now.Sub(updated) > executionStaleAfter {
+			run.RecoveryRequired = true
+		}
 	case environment.CommandStatusRejected, environment.CommandStatusFailed, environment.CommandStatusExpired:
 		run.State = "terminal"
 		run.Outcome = status
@@ -383,6 +428,20 @@ func executionStopHealth(outcome, reason string, nonDelivery []pm.DeliveryReason
 	default:
 		return "terminal"
 	}
+}
+
+func recoveryStatusFromStop(recovered bool) string {
+	if recovered {
+		return "finalized"
+	}
+	return ""
+}
+
+func nonEmpty(current, fallback string) string {
+	if current != "" {
+		return current
+	}
+	return fallback
 }
 
 func deliveryFromPayload(v any) *pm.Delivery {

@@ -17,7 +17,7 @@ var errBoom = errors.New("boom")
 func TestClassifyExecutor(t *testing.T) {
 	inflight := map[string]bool{"task-1": true}
 	f := func(kind executor.OutcomeKind, validVerdict bool, taskRef string, alive bool) execReconcileFacts {
-		return execReconcileFacts{Kind: kind, HasValidVerdict: validVerdict, TaskRef: taskRef, Alive: alive, Inflight: inflight, HaveInflight: true}
+		return execReconcileFacts{Kind: kind, HasValidVerdict: validVerdict, HasTerminalFile: validVerdict, TaskRef: taskRef, Alive: alive, Inflight: inflight, HaveInflight: true}
 	}
 	cases := []struct {
 		name  string
@@ -30,8 +30,12 @@ func TestClassifyExecutor(t *testing.T) {
 		{"inflight+dead(failed,no verdict) → recover", f(executor.OutcomeFailed, false, "task-1", false), reconcileRecover},
 		// LEGIT failure (valid verdict) + should-continue → finalize, NOT re-run (§9).
 		{"inflight+dead(failed,valid verdict) → finalize", f(executor.OutcomeFailed, true, "task-1", false), reconcileFinalize},
-		// Succeeded → finalize regardless of inflight (work is done).
+		// Succeeded writes back only when still confirmed in-flight; otherwise it is
+		// a historical artifact and must quiet-finalize.
 		{"succeeded → finalize", f(executor.OutcomeSucceeded, true, "task-1", false), reconcileFinalize},
+		{"succeeded not in-flight → quiet-finalize", f(executor.OutcomeSucceeded, true, "task-9", false), reconcileQuietFinalize},
+		{"succeeded with unknown inflight → quiet-finalize", execReconcileFacts{Kind: executor.OutcomeSucceeded, HasValidVerdict: true, HasTerminalFile: true, TaskRef: "task-1", HaveInflight: false}, reconcileQuietFinalize},
+		{"failed valid verdict not in-flight → quiet-finalize", f(executor.OutcomeFailed, true, "task-9", false), reconcileQuietFinalize},
 		// Absent from inflight → verify-cancel candidate (get_task-verified).
 		{"not-inflight+alive → verify-cancel", f(executor.OutcomeRunning, false, "task-9", true), reconcileVerifyCancel},
 		{"not-inflight+dead → verify-cancel", f(executor.OutcomeCrashed, false, "task-9", false), reconcileVerifyCancel},
@@ -116,6 +120,28 @@ func TestPlanExecutorReconcile_DegradedNeverCancels(t *testing.T) {
 	// since Scan no longer finalizes for us.
 	if got[1].Action != reconcileFinalize {
 		t.Errorf("degraded: dead executor should be finalized, got %v", got[1].Action)
+	}
+}
+
+func TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes(t *testing.T) {
+	items := []executor.Reconciled{{
+		ExecutorID: "exec-d0f03bb1",
+		Snapshot: executor.Snapshot{
+			Input: &executor.Input{Source: executor.SourceRefs{TaskRef: "task-4aa3e376"}},
+		},
+		Record: &executor.Record{ExecutorID: "exec-d0f03bb1", PID: 1001},
+		Completion: executor.Completion{
+			ExecutorID: "exec-d0f03bb1",
+			Kind:       executor.OutcomeSucceeded,
+			Output:     &executor.Output{ExecutorID: "exec-d0f03bb1", Success: true},
+		},
+	}}
+	got := planExecutorReconcile(items, map[string]bool{"other-task": true}, true, nil)
+	if len(got) != 1 {
+		t.Fatalf("decisions = %d, want 1", len(got))
+	}
+	if got[0].Action != reconcileQuietFinalize {
+		t.Fatalf("historical terminal artifact action = %v, want quiet-finalize", got[0].Action)
 	}
 }
 
