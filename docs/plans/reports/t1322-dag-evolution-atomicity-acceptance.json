@@ -1,0 +1,227 @@
+{
+  "schema": "agent-center.acceptance.evidence.v1",
+  "task": "T1322",
+  "title": "DAG evolution atomicity, generation immutability, and crash recovery acceptance",
+  "reviewed_candidate": {
+    "sha": "cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+    "short_sha": "cd9d2b2",
+    "worktree": "/tmp/agent-center-candidate-cd9d2b2.sCuvJH",
+    "checkout_mode": "git worktree add --detach <tmp> cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+    "tracked_candidate_changes_after_validation": "none",
+    "ignored_validation_artifacts": [
+      "web/node_modules/"
+    ]
+  },
+  "original_verdict": "pass",
+  "verdict": "pass",
+  "summary": {
+    "verdict": "pass",
+    "result": "Candidate satisfies the acceptance contract at the public service/API/repository/UI test surfaces exercised. T1315 to T1314 evolution is accepted only as one new active child generation, and the illegal in-flight rewrite is rejected with active generation, generation ledger, node ownership, dispatch records, and task count unchanged.",
+    "blocking_findings": []
+  },
+  "method": {
+    "candidate_isolation": "All product validation commands were run inside the detached candidate worktree, not origin/main and not this evidence branch.",
+    "product_code_modification": "No product code was modified in the final candidate tree. A temporary acceptance-only Go test was added under internal/projectmanager/service, run, then deleted before evidence commit.",
+    "interfaces_exercised": [
+      "ProjectManager service public app services",
+      "ProjectManager SQLite repository public methods and migration-backed schema",
+      "webconsole HTTP API handlers",
+      "agent-tools HTTP API handlers",
+      "web PlanDetail UI/API contract tests"
+    ]
+  },
+  "coverage_matrix": [
+    {
+      "contract": "concurrent evolution",
+      "evidence": [
+        "TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates passed in focused service run",
+        "go test ./internal/projectmanager/service -run '^TestEvolvePlanGeneration_' -count=5 passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "idempotent duplicate evolution",
+      "evidence": [
+        "TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot passed and asserts duplicate returns same generation/dispatched set without adding dispatch records or plan version changes",
+        "TestEvolvePlanGeneration_AsMemberIdempotentAPI passed and asserts HTTP replay returns duplicate=true with same generation"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "in-flight preserve, hold, and supersede boundaries",
+      "evidence": [
+        "TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot passed preserve of running node",
+        "TestEvolvePlanGeneration_InFlightConflictDecisions passed supersede running node rejected, dispatched dependent edge rewrite rolled back, and hold_at_gate with in-flight downstream rejected"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "blocked final gate",
+      "evidence": [
+        "TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion passed",
+        "TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion passed for ready, dispatched, and running work",
+        "TestStageGateReadiness_RequiresEveryMemberTerminal passed",
+        "TestStageGateReadiness_ReloadsPersistedMembersFailClosed passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "remediation stage",
+      "evidence": [
+        "TestStageReject_AppendsIncrementalStageWithoutReopeningHistory passed",
+        "TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume passed",
+        "TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent passed at agent-tools API surface"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "crash/restart recovery",
+      "evidence": [
+        "TestReconcile_DispatchesMissedReadyNode passed",
+        "TestReconcile_Idempotent passed",
+        "TestReconcile_SkipsDraftAndDone passed",
+        "TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "generation immutability and node ownership",
+      "evidence": [
+        "TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent passed",
+        "TestStartPlan_G0PersistenceFailureRollsBackActivation passed",
+        "TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership passed",
+        "TestLoadPlanGenerationLineage_FailsClosed passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "public API",
+      "evidence": [
+        "go test ./internal/webconsole/api -count=1 passed",
+        "TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts passed",
+        "TestPlanGenerationAPI_InFlightConflictRejectsWholeRequest passed",
+        "TestEvolvePlanGeneration_AsMemberIdempotentAPI passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "DB schema and state",
+      "evidence": [
+        "Migration 0127 exposes pm_plans.active_generation_id and pm_plan_generations with UNIQUE(plan_id, idempotency_key)",
+        "TestPlanRepo_GenerationRoundTripSnapshotAndActivation passed",
+        "TestPlanRepo_DispatchRecords passed",
+        "focused projectmanager/sqlite generation and dispatch run passed"
+      ],
+      "status": "pass"
+    },
+    {
+      "contract": "UI/API",
+      "evidence": [
+        "pnpm exec vitest run src/pages/PlanDetail.test.tsx -t '<generation/evolution subset>' passed: 6 passed, 101 skipped",
+        "full web suite passed: 188 files, 1742 tests"
+      ],
+      "status": "pass"
+    }
+  ],
+  "t1315_reproduction": {
+    "temporary_probe": "TestT1322Acceptance_T1315ToT1314EvolutionIsAtomic",
+    "command": "go test ./internal/projectmanager/service -run '^TestT1322Acceptance_T1315ToT1314EvolutionIsAtomic$' -count=1 -v",
+    "result": "pass",
+    "legal_case": {
+      "input": "Existing in-flight T1314 is preserved; diff creates T1315 and edge {from:T1315,to:T1314,kind:seq}.",
+      "observed": "T1322_EVIDENCE legal verdict=pass plan=plan-788eca1f g0=generation-06cdd3a5 g1=generation-8daa118a version_before=5 version_after=6 t1314_owner=generation-06cdd3a5 t1315_owner=generation-8daa118a dispatch_records_before=1 dispatch_records_after=1",
+      "acceptance": "One new active child generation is created; T1314 remains owned by G0 and present in active snapshot; T1315 is owned by G1; dispatch records remain stable because T1315 is blocked behind in-flight T1314."
+    },
+    "illegal_case": {
+      "input": "Existing in-flight T1314 would have its dependency set rewritten through edge {from:T1314,to:T1315,kind:seq}.",
+      "observed": "T1322_EVIDENCE reject verdict=pass plan=plan-acdfd22e active_generation=generation-8fa3bf59 version=5 generations=1 nodes=1 dispatch_records=1 tasks=1",
+      "acceptance": "Request is rejected with ErrPlanNodeInFlight and zero active generation, generation ledger, node ownership, dispatch record, or task count changes."
+    }
+  },
+  "commands": [
+    {
+      "name": "focused service generation and remediation run",
+      "command": "go test ./internal/projectmanager/service -run 'Test(StartPlan_FreezesImmutableG0AndRequiresItAsFirstParent|StartPlan_G0PersistenceFailureRollsBackActivation|StartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration|EvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates|EvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot|EvolvePlanGeneration_InFlightConflictDecisions|EvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch|GetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership|LoadPlanGenerationLineage_FailsClosed|StageReject_AppendsIncrementalStageWithoutReopeningHistory|StageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume)' -count=1 -v",
+      "status": "pass",
+      "key_output": "PASS ok github.com/oopslink/agent-center/internal/projectmanager/service 1.352s"
+    },
+    {
+      "name": "webconsole generation API focused run",
+      "command": "go test ./internal/webconsole/api -run 'TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts|TestPlanGenerationAPI_InFlightConflictRejectsWholeRequest' -count=1 -v",
+      "status": "pass",
+      "key_output": "PASS ok github.com/oopslink/agent-center/internal/webconsole/api 1.567s"
+    },
+    {
+      "name": "agent-tools evolution and remediation API run",
+      "command": "go test ./internal/admin/api -run 'Test(EvolvePlanGeneration_AsMemberIdempotentAPI|CompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent|CompleteTask_RecordsReviewVerdict_T468|CompleteTask_StructuredDeliveryRecordsReviewVerdict|CompleteTask_InvalidReviewVerdict_Rejected_T468)' -count=1 -v",
+      "status": "pass",
+      "key_output": "PASS ok github.com/oopslink/agent-center/internal/admin/api 0.547s"
+    },
+    {
+      "name": "T1315 to T1314 atomicity probe",
+      "command": "go test ./internal/projectmanager/service -run '^TestT1322Acceptance_T1315ToT1314EvolutionIsAtomic$' -count=1 -v",
+      "status": "pass",
+      "key_output": "legal child generation and illegal zero-change rejection both passed"
+    },
+    {
+      "name": "service crash recovery/final gate/remediation focused run",
+      "command": "go test ./internal/projectmanager/service -run 'Test(PlanReconcile|Reconcile|StageGate|CompletePlan|PlanCompletion|Final|StageReject|GetPlanGenerations|EvolvePlanGeneration)' -count=1 -v",
+      "status": "pass",
+      "key_output": "PASS ok github.com/oopslink/agent-center/internal/projectmanager/service 2.003s"
+    },
+    {
+      "name": "SQLite repository generation and dispatch run",
+      "command": "go test ./internal/projectmanager/sqlite -run 'TestPlanRepo_GenerationRoundTrip|TestPlanRepo|Generation|Dispatch' -count=1 -v",
+      "status": "pass",
+      "key_output": "PASS ok github.com/oopslink/agent-center/internal/projectmanager/sqlite 1.336s"
+    },
+    {
+      "name": "full webconsole API package",
+      "command": "go test ./internal/webconsole/api -count=1",
+      "status": "pass",
+      "key_output": "ok github.com/oopslink/agent-center/internal/webconsole/api 30.045s"
+    },
+    {
+      "name": "evolution stress rerun",
+      "command": "go test ./internal/projectmanager/service -run '^TestEvolvePlanGeneration_' -count=5",
+      "status": "pass",
+      "key_output": "ok github.com/oopslink/agent-center/internal/projectmanager/service 2.213s"
+    },
+    {
+      "name": "full projectmanager service package",
+      "command": "go test ./internal/projectmanager/service -count=1",
+      "status": "pass",
+      "key_output": "ok github.com/oopslink/agent-center/internal/projectmanager/service 23.437s"
+    },
+    {
+      "name": "web dependencies",
+      "command": "pnpm install --frozen-lockfile",
+      "working_directory": "web",
+      "status": "pass",
+      "key_output": "Lockfile is up to date; Done in 2.2s using pnpm v10.31.0"
+    },
+    {
+      "name": "web full suite",
+      "command": "pnpm test -- PlanDetail.test.tsx -t '<generation/evolution subset>'",
+      "working_directory": "web",
+      "status": "pass",
+      "key_output": "Due argument placement this ran the full suite: Test Files 188 passed (188), Tests 1742 passed (1742)"
+    },
+    {
+      "name": "web targeted PlanDetail generation/evolution subset",
+      "command": "pnpm exec vitest run src/pages/PlanDetail.test.tsx -t 'Plan generation read model shows active/history progress|does not manufacture PlanGeneration history|running/paused plans POST|Evolution shows whole-request rejection|Evolution rejects malformed diffs|renders an orchestration-graph history revision'",
+      "working_directory": "web",
+      "status": "pass",
+      "key_output": "Test Files 1 passed (1), Tests 6 passed | 101 skipped (107)"
+    }
+  ],
+  "warnings": [
+    "Vitest emitted existing MSW missing-handler stderr warnings in the focused PlanDetail run, but the targeted tests and full suite passed.",
+    "An earlier combined admin API command printed PASS but the shell process did not return promptly; the same tests were rerun individually and in a focused grouped command and exited cleanly with pass."
+  ],
+  "final_candidate_sanity": {
+    "head": "cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+    "tracked_diff": "none",
+    "running_validation_processes": "none"
+  }
+}
