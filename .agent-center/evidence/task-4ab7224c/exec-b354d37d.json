@@ -1,0 +1,129 @@
+{
+  "task_id": "task-4ab7224c",
+  "requested_acceptance": "T1322 independent DAG evolution acceptance",
+  "execution_id": "exec-b354d37d",
+  "verdict": "fail",
+  "reviewed_candidate": {
+    "source": "origin/main",
+    "sha": "26298e01626c9d9f67d6eebcd2bf8da535962e07",
+    "worktree": "/tmp/t1322-origin-main.XrOl0a",
+    "sync_evidence": [
+      "git fetch origin main",
+      "git worktree add --detach /tmp/t1322-origin-main.XrOl0a origin/main"
+    ]
+  },
+  "scope_statement": "Validation was run against the detached origin/main candidate only. The task branch contains later local integration commits, including plan_generation files, but those commits were intentionally excluded from the candidate evidence.",
+  "blocking_findings": [
+    {
+      "id": "T1315_T1314_CORE_MISSING",
+      "severity": "blocker",
+      "summary": "origin/main does not expose the PlanGeneration evolution API, active generation ledger, or pm_plan_generations schema required to reproduce T1315 as an atomic T1315->T1314 generation transition.",
+      "evidence": {
+        "command": "if rg -n \"EvolvePlanGeneration|PlanGeneration|pm_plan_generations|plan_generations|generation_id|active_generation\" internal cmd web tests docs/plans; then :; else echo 'NO_MATCH: origin/main exposes no PlanGeneration/evolution ledger API/schema symbols'; fi",
+        "exit_status": 0,
+        "observed": "NO_MATCH: origin/main exposes no PlanGeneration/evolution ledger API/schema symbols"
+      },
+      "impact": "The required acceptance invariant cannot be observed: there is no active_generation_id to prove unchanged on rejection and no public evolution entrypoint to prove atomic generation creation."
+    }
+  ],
+  "coverage_matrix": [
+    {
+      "requirement": "concurrent evolution",
+      "status": "fail_unavailable",
+      "evidence": "No EvolvePlanGeneration/PlanGeneration symbols or schema on origin/main."
+    },
+    {
+      "requirement": "idempotent duplicate",
+      "status": "partial_pass",
+      "evidence": "Remediation verdict replay is idempotent in TestStageReject_AppendsIncrementalStageWithoutReopeningHistory and TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume; PlanGeneration idempotency is unavailable."
+    },
+    {
+      "requirement": "in-flight preserve/hold/supersede",
+      "status": "fail_unavailable",
+      "evidence": "No PlanGeneration node decision API for preserve/hold/supersede exists on origin/main. Existing TestEditPlanTopology_RunningInFlightRejected only proves legacy topology edit rejects running in-flight mutation."
+    },
+    {
+      "requirement": "blocked final gate",
+      "status": "pass",
+      "evidence": "TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion and TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion passed."
+    },
+    {
+      "requirement": "remediation stage",
+      "status": "pass",
+      "evidence": "TestStageReject_AppendsIncrementalStageWithoutReopeningHistory and TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume passed; migration 0121 adds remediation continuations/proposals and pm_stages generation/origin_verdict_id/continuation_id."
+    },
+    {
+      "requirement": "crash/restart recovery",
+      "status": "pass",
+      "evidence": "TestStuckNode_FruitlessReopens_DurableAcrossRestart and related stuck-node recovery tests passed."
+    },
+    {
+      "requirement": "generations and node ownership",
+      "status": "partial_pass",
+      "evidence": "Remediation stage generation lineage is present in pm_stages and API projection. Full PlanGeneration snapshots/node ownership are absent."
+    },
+    {
+      "requirement": "dispatch events/records",
+      "status": "partial_pass",
+      "evidence": "Existing service tests assert dispatch records for stage remediation and legacy topology advance. PlanGeneration evolution dispatch atomicity is unavailable."
+    },
+    {
+      "requirement": "UI/API",
+      "status": "partial_pass",
+      "evidence": "PlanDetail UI tests passed for remediation-based DAG evolution; webconsole plan graph/stage API tests passed. No PlanGeneration API/UI is exposed on origin/main."
+    }
+  ],
+  "commands": [
+    {
+      "name": "candidate identity",
+      "command": "git rev-parse origin/main FETCH_HEAD main HEAD && git merge-base --is-ancestor HEAD origin/main; echo head_to_origin=$? && git merge-base --is-ancestor origin/main HEAD; echo origin_to_head=$?",
+      "exit_status": 0,
+      "observed": [
+        "origin/main=26298e01626c9d9f67d6eebcd2bf8da535962e07",
+        "HEAD=cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+        "head_to_origin=1",
+        "origin_to_head=0"
+      ]
+    },
+    {
+      "name": "service remediation/stage/final/recovery tests",
+      "command": "go test ./internal/projectmanager/service -run 'TestStageReject|TestStage_Barrier|TestStage_GateReject|TestEditRunningPlan_DispatchesNewlyReadyNodesAtomically|TestPlanCompletion|TestStuckNode|TestStageGateReadiness|TestStage_Barrier|TestStageGate' -count=1 -v",
+      "exit_status": 0,
+      "observed": "PASS; package ok in 2.064s. Covered stage reject append, paused replay, stage barrier, retired legacy reject, final completion blockers, and stuck-node restart recovery."
+    },
+    {
+      "name": "legacy topology edit dispatch/idempotency tests",
+      "command": "go test ./internal/projectmanager/service -run 'TestEdit.*Running|TestEditRunningPlan|TestTopology|TestAdvancePlan|TestPlanOrchestrationGraph|TestPlanReconcile' -count=1 -v",
+      "exit_status": 0,
+      "observed": "PASS; includes TestAdvancePlan_AllReady_Idempotent, TestAdvancePlan_FailureIsolation, TestAdvancePlan_DoneSemantics, TestEditPlanTopology_RunningInFlightRejected."
+    },
+    {
+      "name": "webconsole public API tests",
+      "command": "go test ./internal/webconsole/api -run 'Test.*Plan|Test.*Stage|Test.*Remediation|Test.*Resume|Test.*Complete' -count=1 -v",
+      "exit_status": 0,
+      "observed": "PASS; includes PlanGraphAPI, PlanStagesAPI, PlanAPI_CreateGetStartAdvance, PMResumePausedNode_ErrorMapping."
+    },
+    {
+      "name": "frontend PlanDetail/UI test suite",
+      "command": "pnpm install --frozen-lockfile && pnpm test -- PlanDetail.test.tsx",
+      "exit_status": 0,
+      "observed": "PASS after installing web dependencies; Vitest summary: Test Files 186 passed, Tests 1711 passed. The suite includes 'DAG evolution shows revision reasons, filters historical stages, and collapses'."
+    },
+    {
+      "name": "remediation schema/API evidence",
+      "command": "rg -n \"RecordStageGateVerdict|pm_remediation|pm_stages|generation|origin_verdict_id|continuation_id|reject_route|append_remediation\" internal/persistence/migrations internal/projectmanager/sqlite internal/webconsole/api/handlers_pm_plans.go internal/projectmanager/service/plan_remediation.go",
+      "exit_status": 0,
+      "observed": "Found remediation stage ledger/projection symbols, including migration 0121 and handlers_pm_plans.go generation/origin_verdict_id/continuation_id fields."
+    }
+  ],
+  "t1315_reproduction_result": {
+    "status": "not_reproducible_on_candidate",
+    "accepted_outcomes_required": [
+      "atomic T1315->T1314 new active generation with complete generation snapshot/node ownership/dispatch evidence",
+      "or full rejection with zero active generation change"
+    ],
+    "observed_on_origin_main": "No PlanGeneration active generation state or evolution command exists; therefore neither accepted outcome can be proven.",
+    "acceptance_decision": "reject_candidate"
+  },
+  "product_code_changes": "none"
+}
