@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -70,16 +71,24 @@ func (s *Server) forkExecutorHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	} else if existing != nil {
-		if forkCommandExpired(existing, time.Now()) {
+		now := time.Now()
+		terminal, status, reason, detail, err := forkCommandTerminalUpdate(
+			r.Context(), d, existing, string(a.ID()), a.WorkerID(), req.TaskID, now,
+		)
+		if err != nil {
+			mapDomainError(w, err)
+			return
+		}
+		if terminal {
 			_, err := d.EnvControlSvc.UpdateCommandStatus(r.Context(), environment.UpdateCommandStatusInput{
 				WorkerID:        environment.WorkerID(a.WorkerID()),
 				CommandID:       existing.ID(),
 				AgentID:         string(a.ID()),
 				TaskID:          req.TaskID,
-				Status:          environment.CommandStatusExpired,
-				StatusReason:    "runtime_command_timeout",
-				StatusDetail:    "fork_executor command was not started before its pending timeout",
-				StatusUpdatedAt: time.Now(),
+				Status:          status,
+				StatusReason:    reason,
+				StatusDetail:    detail,
+				StatusUpdatedAt: now,
 			})
 			if err != nil {
 				mapDomainError(w, err)
@@ -181,6 +190,84 @@ func requireRuntimeReadyForFork(w http.ResponseWriter, r *http.Request, d Handle
 	return true
 }
 
+func forkCommandTerminalUpdate(ctx context.Context, d HandlerDeps, evt *environment.WorkerControlEvent, agentID, workerID, taskID string, now time.Time) (bool, string, string, string, error) {
+	if evt == nil {
+		return false, "", "", "", nil
+	}
+	switch forkCommandStatus(evt) {
+	case environment.CommandStatusPending:
+		if !forkCommandExpired(evt, now) {
+			return false, "", "", "", nil
+		}
+		return true, environment.CommandStatusExpired, "runtime_command_timeout",
+			"fork_executor command was not started before its pending timeout", nil
+	case environment.CommandStatusStarted:
+		return startedForkCommandTerminalUpdate(ctx, d, evt, agentID, workerID, taskID, now)
+	default:
+		return false, "", "", "", nil
+	}
+}
+
+func startedForkCommandTerminalUpdate(ctx context.Context, d HandlerDeps, evt *environment.WorkerControlEvent, agentID, workerID, taskID string, now time.Time) (bool, string, string, string, error) {
+	execID := strings.TrimSpace(evt.ExecutionID())
+	if execID == "" {
+		if forkCommandStale(evt, now) {
+			return true, environment.CommandStatusFailed, "executor_lifecycle_missing",
+				"fork_executor command was marked started without an execution id and did not report lifecycle before timeout", nil
+		}
+		return false, "", "", "", nil
+	}
+	runs, err := taskExecutions(ctx, d, agentID, workerID, taskID)
+	if err != nil {
+		return false, "", "", "", err
+	}
+	for _, run := range runs {
+		if run.ExecutionID != execID {
+			continue
+		}
+		if run.State == "running" && !run.RecoveryRequired {
+			return false, "", "", "", nil
+		}
+		if run.State == "spawned" && !run.RecoveryRequired {
+			return false, "", "", "", nil
+		}
+		reason := "executor_terminal"
+		if run.RecoveryRequired || run.State == "spawned" {
+			reason = "executor_recovery_required"
+		}
+		return true, environment.CommandStatusFailed, reason, forkCommandExecutionDetail(execID, run), nil
+	}
+	if forkCommandStale(evt, now) {
+		return true, environment.CommandStatusFailed, "executor_lifecycle_missing",
+			fmt.Sprintf("fork_executor command execution %s has no lifecycle event before timeout", execID), nil
+	}
+	return false, "", "", "", nil
+}
+
+func forkCommandExecutionDetail(execID string, run executionReadModel) string {
+	state := nonEmpty(run.State, "unknown")
+	health := nonEmpty(run.HealthStatus, "unknown")
+	recovery := nonEmpty(run.RecoveryStatus, "none")
+	return fmt.Sprintf("fork_executor command execution %s state=%s health=%s recovery=%s recovery_required=%t; allowing retry",
+		execID, state, health, recovery, run.RecoveryRequired)
+}
+
+func forkCommandStale(evt *environment.WorkerControlEvent, now time.Time) bool {
+	at := forkCommandUpdatedAt(evt)
+	return !at.IsZero() && now.Sub(at) > executionStaleAfter
+}
+
+func forkCommandUpdatedAt(evt *environment.WorkerControlEvent) time.Time {
+	if evt == nil {
+		return time.Time{}
+	}
+	at := evt.StatusUpdatedAt()
+	if at.IsZero() {
+		at = evt.CreatedAt()
+	}
+	return at
+}
+
 func forkCommandExpired(evt *environment.WorkerControlEvent, now time.Time) bool {
 	if evt == nil {
 		return false
@@ -189,10 +276,7 @@ func forkCommandExpired(evt *environment.WorkerControlEvent, now time.Time) bool
 	if status != environment.CommandStatusPending {
 		return false
 	}
-	at := evt.StatusUpdatedAt()
-	if at.IsZero() {
-		at = evt.CreatedAt()
-	}
+	at := forkCommandUpdatedAt(evt)
 	return !at.IsZero() && now.Sub(at) > forkCommandExpireAfter
 }
 

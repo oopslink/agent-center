@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
@@ -225,6 +226,144 @@ func TestForkExecutorHandler_ExpiresLegacyPendingCommandBeforeNewAccepted(t *tes
 	if cmds[1].Status() != environment.CommandStatusPending {
 		t.Fatalf("new command status=%q, want pending", cmds[1].Status())
 	}
+}
+
+func TestForkExecutorHandler_StartedCommandWithTerminalExecutionAllowsNewFork(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	_, taskID := fx.seedMemberProject(t)
+	envWorkers := envsqlite.NewWorkerRepo(fx.db)
+	envEvents := envsqlite.NewControlEventRepo(fx.db)
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envWorkers, Events: envEvents,
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	if _, err := fx.deps.EnvControlSvc.ConnectWorker(context.Background(), environment.WorkerID(atWorker1)); err != nil {
+		t.Fatalf("connect env worker: %v", err)
+	}
+	startedAt := time.Now().Add(-executionStaleAfter - time.Minute).UTC()
+	fx.clk.Set(startedAt.Add(-time.Minute))
+	old, err := fx.deps.EnvControlSvc.EnqueueCommand(context.Background(), environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(atWorker1),
+		CommandType:    cmdTypeAgentForkExecutor,
+		IdempotencyKey: "stale-started",
+		Payload:        `{"agent_id":"` + atAgent1 + `","task_id":"` + taskID + `"}`,
+		AgentID:        atAgent1,
+		TaskID:         taskID,
+		Status:         environment.CommandStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("enqueue legacy fork: %v", err)
+	}
+	if _, err := fx.deps.EnvControlSvc.UpdateCommandStatus(context.Background(), environment.UpdateCommandStatusInput{
+		WorkerID: environment.WorkerID(atWorker1), CommandID: old.ID(), AgentID: atAgent1, TaskID: taskID,
+		Status: environment.CommandStatusStarted, ExecutionID: "exec-terminal", StatusUpdatedAt: startedAt,
+	}); err != nil {
+		t.Fatalf("mark legacy started: %v", err)
+	}
+	fx.deps.AgentActivityRepo = readModelActivityRepo{events: []*agent.AgentActivityEvent{
+		forkExecutionEvent(t, "aae-start", taskID, "exec-terminal", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, startedAt),
+		forkExecutionEvent(t, "aae-stop", taskID, "exec-terminal", `{"event":"executor.stop","outcome":"succeeded","git":{"branch":"fix/x","head_sha":"abc","probed":true,"pushed":false,"dirty":false,"base_ref":"origin/main","base_known":true,"ahead_of_base":1}}`, startedAt.Add(time.Minute)),
+	}}
+	markForkRuntimeReady(t, fx, atWorker1, atAgent1)
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusAccepted {
+		t.Fatalf("status=%d body=%v, want 202", st, body)
+	}
+	if body["command_id"] == old.ID() || body["offset"] != float64(2) || body["command_status"] != environment.CommandStatusPending {
+		t.Fatalf("new accepted command body=%v, want offset=2 pending and not old command %s", body, old.ID())
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker1), 0)
+	if err != nil {
+		t.Fatalf("commands after: %v", err)
+	}
+	if len(cmds) != 2 {
+		t.Fatalf("commands=%d, want failed legacy + new pending", len(cmds))
+	}
+	if cmds[0].Status() != environment.CommandStatusFailed ||
+		cmds[0].StatusReason() != "executor_recovery_required" ||
+		!strings.Contains(cmds[0].StatusDetail(), "exec-terminal") {
+		t.Fatalf("legacy command not failed from terminal execution: status=%q reason=%q detail=%q",
+			cmds[0].Status(), cmds[0].StatusReason(), cmds[0].StatusDetail())
+	}
+	if cmds[1].Status() != environment.CommandStatusPending {
+		t.Fatalf("new command status=%q, want pending", cmds[1].Status())
+	}
+}
+
+func TestForkExecutorHandler_StartedCommandWithActiveExecutionDedupes(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	_, taskID := fx.seedMemberProject(t)
+	envWorkers := envsqlite.NewWorkerRepo(fx.db)
+	envEvents := envsqlite.NewControlEventRepo(fx.db)
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envWorkers, Events: envEvents,
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	if _, err := fx.deps.EnvControlSvc.ConnectWorker(context.Background(), environment.WorkerID(atWorker1)); err != nil {
+		t.Fatalf("connect env worker: %v", err)
+	}
+	startedAt := time.Now().UTC()
+	fx.clk.Set(startedAt.Add(-time.Minute))
+	old, err := fx.deps.EnvControlSvc.EnqueueCommand(context.Background(), environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(atWorker1),
+		CommandType:    cmdTypeAgentForkExecutor,
+		IdempotencyKey: "active-started",
+		Payload:        `{"agent_id":"` + atAgent1 + `","task_id":"` + taskID + `"}`,
+		AgentID:        atAgent1,
+		TaskID:         taskID,
+		Status:         environment.CommandStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("enqueue legacy fork: %v", err)
+	}
+	if _, err := fx.deps.EnvControlSvc.UpdateCommandStatus(context.Background(), environment.UpdateCommandStatusInput{
+		WorkerID: environment.WorkerID(atWorker1), CommandID: old.ID(), AgentID: atAgent1, TaskID: taskID,
+		Status: environment.CommandStatusStarted, ExecutionID: "exec-active", StatusUpdatedAt: startedAt,
+	}); err != nil {
+		t.Fatalf("mark legacy started: %v", err)
+	}
+	fx.deps.AgentActivityRepo = readModelActivityRepo{events: []*agent.AgentActivityEvent{
+		forkExecutionEvent(t, "aae-active", taskID, "exec-active", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, startedAt),
+	}}
+	markForkRuntimeReady(t, fx, atWorker1, atAgent1)
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusAccepted {
+		t.Fatalf("status=%d body=%v, want 202", st, body)
+	}
+	if body["command_id"] != old.ID() || body["offset"] != float64(1) || body["command_status"] != environment.CommandStatusStarted {
+		t.Fatalf("active command should dedupe to old command, body=%v old=%s", body, old.ID())
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker1), 0)
+	if err != nil {
+		t.Fatalf("commands after: %v", err)
+	}
+	if len(cmds) != 1 || cmds[0].Status() != environment.CommandStatusStarted {
+		t.Fatalf("active execution should not enqueue new command, rows=%d first_status=%q", len(cmds), cmds[0].Status())
+	}
+}
+
+func forkExecutionEvent(t *testing.T, id, taskID, execID, payload string, at time.Time) *agent.AgentActivityEvent {
+	t.Helper()
+	ev, err := agent.NewActivityEvent(agent.NewActivityEventInput{
+		ID: id, AgentID: atAgent1, TaskRef: taskID, InteractionRef: "executor:" + execID,
+		EventType: agent.EventTypeLifecycle, Payload: payload, OccurredAt: at,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
 }
 
 func TestForkExecutorHandler_CommandFailureIsQueryableWithoutExecutionStart(t *testing.T) {
