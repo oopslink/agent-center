@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -683,21 +684,43 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	r.mu.Lock()
 	if r.state.Session != nil {
 		cur := r.state.Version
-		if spec.Version > cur {
-			r.state.Version = spec.Version
+		if spec.Version <= cur {
+			r.mu.Unlock()
+			r.log("start agent=%s: session already running (incoming v%d, current v%d) — no second start", agentID, spec.Version, cur)
+			return nil
 		}
+		if !r.hasRecordedStartSpecLocked() || !r.startSpecRequiresSessionRestartLocked(spec) {
+			r.recordStartSpecLocked(spec)
+			r.mu.Unlock()
+			r.log("start agent=%s: session already running (incoming v%d, current v%d) — no second start", agentID, spec.Version, cur)
+			return nil
+		}
+		sess := r.state.Session
+		r.state.ExpectedStop = true
 		r.mu.Unlock()
-		r.log("start agent=%s: session already running (incoming v%d, current v%d) — no second start", agentID, spec.Version, cur)
-		return nil
+
+		r.log("start agent=%s: session config changed (incoming v%d, current v%d) — restarting session", agentID, spec.Version, cur)
+		if err := sess.Stop(ctx); err != nil {
+			return fmt.Errorf("agent_controller: restart session: stop current session: %w", err)
+		}
+		if home, _, _, pathErr := r.agentPaths(agentID); pathErr == nil {
+			if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
+				r.log("start agent=%s restart release instance: %v", agentID, relErr)
+			}
+		}
+
+		r.mu.Lock()
+		if r.state.Session == sess {
+			r.state.Session = nil
+		}
+		r.resetSessionStartStateLocked()
+		r.recordStartSpecLocked(spec)
+		r.mu.Unlock()
+	} else {
+		r.resetSessionStartStateLocked()
+		r.recordStartSpecLocked(spec)
+		r.mu.Unlock()
 	}
-	// Session-scoped config carried across a crash (self-heal gets no fresh reconcile).
-	r.state.Version = spec.Version
-	r.state.Model = spec.Model
-	r.state.DisplayName = spec.DisplayName
-	r.state.PromptDescription = spec.PromptDescription
-	r.state.EnvVars = cloneEnv(spec.EnvVars)
-	r.state.CLI = spec.CLI
-	r.mu.Unlock()
 
 	home, tasksDir, _, err := r.agentPaths(agentID)
 	if err != nil {
@@ -806,6 +829,59 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	// rate-limit so the panel populates on first online.
 	r.kickInstalledSkillsReport()
 	return nil
+}
+
+func (r *LocalRuntime) hasRecordedStartSpecLocked() bool {
+	return r.state.Version != 0 ||
+		r.state.CLI != "" ||
+		r.state.Model != "" ||
+		r.state.DisplayName != "" ||
+		r.state.PromptDescription != "" ||
+		r.state.EnvVars != nil
+}
+
+func (r *LocalRuntime) startSpecRequiresSessionRestartLocked(spec StartSpec) bool {
+	return r.state.CLI != spec.CLI ||
+		r.state.Model != spec.Model ||
+		r.state.DisplayName != spec.DisplayName ||
+		r.state.PromptDescription != spec.PromptDescription ||
+		!maps.Equal(r.state.EnvVars, spec.EnvVars) ||
+		r.state.ConcurrencyEnabled != spec.ConcurrencyEnabled
+}
+
+func (r *LocalRuntime) recordStartSpecLocked(spec StartSpec) {
+	r.state.Version = spec.Version
+	r.state.Model = spec.Model
+	r.state.DisplayName = spec.DisplayName
+	r.state.PromptDescription = spec.PromptDescription
+	r.state.EnvVars = cloneEnv(spec.EnvVars)
+	r.state.CLI = spec.CLI
+	r.state.ConcurrencyEnabled = spec.ConcurrencyEnabled
+}
+
+func (r *LocalRuntime) resetSessionStartStateLocked() {
+	r.state.ExpectedStop = false
+	r.state.Detaching = false
+	r.state.LifecycleOnce = sync.Once{}
+	r.state.WakeSeen = nil
+	r.state.WakeOrder = nil
+	r.state.HadWork = false
+	r.state.CurrentTaskID = ""
+	r.state.CurrentConversationID = ""
+	r.state.ToolNames = nil
+	r.state.EventTaskID = ""
+	r.state.LastEventTaskID = ""
+	r.state.TaskLog = nil
+	r.state.TaskLogID = ""
+	r.state.EventSeq = 0
+	r.state.CodexCleanTurns = 0
+	r.state.RLRetryAfterSecs = 0
+	r.state.RLResetAtUnix = 0
+	r.state.RateLimitResumeAt = time.Time{}
+	r.state.APIErrorRetries = 0
+	r.state.SawIncompleteTurn = false
+	r.state.SawCodexPoisoningTransport = false
+	r.state.SawCodexRegistryMissing = false
 }
 
 // startCodex starts a cli=codex session via the neutral CodexSpec (the daemon

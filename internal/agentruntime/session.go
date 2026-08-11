@@ -178,11 +178,12 @@ type SessionState struct {
 	LastEventTaskID string
 
 	// Carried across a crash (self-heal gets no fresh reconcile).
-	Model             string
-	DisplayName       string
-	PromptDescription string
-	EnvVars           map[string]string
-	CLI               string
+	Model              string
+	DisplayName        string
+	PromptDescription  string
+	EnvVars            map[string]string
+	CLI                string
+	ConcurrencyEnabled bool
 	// CodexCleanTurns counts successful turns in the current in-process Codex logical
 	// session. The runtime uses it to checkpoint-recycle long-lived supervisors before
 	// their Codex thread accumulates unbounded prompt history.

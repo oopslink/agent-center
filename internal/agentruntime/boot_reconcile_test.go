@@ -463,6 +463,8 @@ func TestStart_IdempotentWhenSessionRunning(t *testing.T) {
 	rt.withState(func(s *SessionState) {
 		s.Session = &fakeSession{} // a session is already live (boot self-start)
 		s.Version = 5
+		s.CLI = CLICodex
+		s.Model = "gpt-5.6-sol"
 	})
 
 	// Stale/duplicate reconcile (version ≤ current) → no-op, no second start, version kept.
@@ -474,8 +476,14 @@ func TestStart_IdempotentWhenSessionRunning(t *testing.T) {
 			t.Errorf("a stale reconcile must not lower the running version: got %d, want 5", s.Version)
 		}
 	})
-	// Strictly-newer reconcile → still no restart, but version recorded.
-	if err := rt.Start(context.Background(), StartSpec{AgentID: "agent-x", Version: 8}); err != nil {
+	// Strictly-newer reconcile with the same supervisor config → still no restart, but
+	// version recorded.
+	if err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 8,
+		CLI:     CLICodex,
+		Model:   "gpt-5.6-sol",
+	}); err != nil {
 		t.Fatalf("Start (running, newer) = %v, want nil", err)
 	}
 	rt.withState(func(s *SessionState) {
@@ -484,6 +492,64 @@ func TestStart_IdempotentWhenSessionRunning(t *testing.T) {
 		}
 		if s.Session == nil {
 			t.Error("the live session must be preserved (no second start / no teardown)")
+		}
+	})
+}
+
+func TestStart_RestartsRunningSessionWhenNewerSpecChangesModel(t *testing.T) {
+	base := t.TempDir()
+	oldSession := &fakeSession{}
+	newSession := &fakeSession{}
+	var got CodexSpec
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexBinary:   "/usr/local/bin/codex",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			got = spec
+			return newSession, nil
+		},
+	}, &SessionState{})
+	rt.withState(func(s *SessionState) {
+		s.Session = oldSession
+		s.Version = 2
+		s.CLI = CLICodex
+		s.Model = "gpt-5-sol"
+	})
+
+	if err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 3,
+		CLI:     CLICodex,
+		Model:   "gpt-5.6-sol",
+	}); err != nil {
+		t.Fatalf("Start (running, changed model) = %v, want nil", err)
+	}
+
+	oldSession.mu.Lock()
+	oldClosed := oldSession.closed
+	oldSession.mu.Unlock()
+	if !oldClosed {
+		t.Fatal("changed supervisor config must stop the stale live session")
+	}
+	if got.Model != "gpt-5.6-sol" {
+		t.Fatalf("new codex session model = %q, want gpt-5.6-sol", got.Model)
+	}
+	rt.withState(func(s *SessionState) {
+		if s.Session != newSession {
+			t.Fatalf("running session was not replaced")
+		}
+		if s.Version != 3 || s.Model != "gpt-5.6-sol" || s.CLI != CLICodex {
+			t.Fatalf("state not refreshed: version=%d model=%q cli=%q", s.Version, s.Model, s.CLI)
+		}
+		if s.ExpectedStop {
+			t.Fatal("ExpectedStop must be reset for the replacement session")
 		}
 	})
 }
