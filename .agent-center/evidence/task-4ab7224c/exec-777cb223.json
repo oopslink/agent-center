@@ -1,0 +1,599 @@
+{
+  "task_id": "task-4ab7224c",
+  "execution_id": "exec-777cb223",
+  "reviewed_sha": "8e4ee3bc2ea95cc3900688a9a4ae3e8a8763c063",
+  "base_sha": "cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'rg --files'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'git log --oneline -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name 'Makefile' -o -name 'go.mod' -o -name 'package.json' -o -name '*.md' \\\\)\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"rg -n \\\"T1315|active_generation|generation|generations|evolution|remediation|supersede|preserve|blocked final|final gate|blocked\\\" internal cmd web docs -g '\"'!web/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git worktree add --detach ../acceptance-cd9d2b27 cd9d2b2757595a7734722d44537dcaa6c0fcb16b'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'find internal/projectmanager -maxdepth 3 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'rg -n \"Evolve|Evolution|CommitPlanEvolution|PlanGeneration|active_generation|pm_plan_generations|pm_plan_generation|generation_id|idempotency\" internal/projectmanager cmd web/src/api web/src/pages/PlanDetail.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'rg -n \"plan.*generation|generation.*plan|active_generation|evolution|remediation|blocked final|final gate\" docs/design docs/plans docs/rules README.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_generation_evolution.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '260,650p' internal/projectmanager/service/plan_generation_evolution.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_generation_read.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/sqlite/plan_repo.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' internal/projectmanager/sqlite/plan_repo.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_generation_evolution_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '260,560p' internal/projectmanager/service/plan_generation_evolution_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '760,830p' web/src/api/plans.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'rg -n \"plan-evolution|dag-evolution|active_generation_id|generation\" web/src/pages/PlanDetail.test.tsx web/src/api/plans.test.ts web/src/mocks/handlers.ts web/src/pages/PlanDetail.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"rg -n \\\"SaveGeneration|FindGenerationByID|FindGenerationByIdempotencyKey|ActivateGeneration|pm_plan_generations|active_generation_id\\\" internal/projectmanager/sqlite internal/persistence migrations db internal -g '\"'!**/*_test.go'\"'\"",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"rg -n \\\"evolution|generations|active_generation_id|CommitPlanEvolution|PlanGeneration\\\" internal -g '*http*' -g '*handler*' -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '678,780p' internal/projectmanager/sqlite/plan_repo.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' internal/persistence/migrations/0127_plan_generations.up.sql\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '463,515p' internal/webconsole/api/handlers_pm_plan_graph_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '412,520p' internal/webconsole/api/handlers_pm_plans.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"sed -n '372,490p' internal/webconsole/api/handlers_pm_plan_graph_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '819,920p' internal/webconsole/api/handlers_pm_plans.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"rg -n \\\"remediation|final gate|final|gate|crash|restart|reconcile|recovery|awaiting_remediation|blocked\\\" internal/projectmanager/service/plan_remediation_test.go internal/projectmanager/service/plan_completion_test.go internal/projectmanager/service/plan_reconcile_test.go internal/projectmanager/service/plan_orchestrator_projector_test.go internal/projectmanager/service/plan_stage_test.go internal/projectmanager/service/runnable_gate_test.go internal/webconsole/api -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '280,620p' internal/projectmanager/service/plan_remediation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_remediation.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/projectmanager/service/plan_remediation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/sqlite -run 'TestPlanRepo_SaveGenerationRoundTrip' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'TestPlanGenerationAPI_(G0GnLineageSnapshotReplayAndStaleConflicts|InFlightConflictRejectsWholeRequest)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'Test(StartPlan_FreezesImmutableG0AndRequiresItAsFirstParent|StartPlan_G0PersistenceFailureRollsBackActivation|StartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration|EvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates|EvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot|EvolvePlanGeneration_InFlightConflictDecisions|EvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch|StageReject_AppendsIncrementalStageWithoutReopeningHistory|StageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume|Plan_FinalAcceptanceGateWaitsForEffectiveRemediation|Plan_FinalAcceptanceRejectsUnremediatedFailedLeaf)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'rg -n \"SaveGeneration|Generation|RoundTrip|ActivateGeneration|Idempotency\" internal/projectmanager/sqlite/plan_repo_test.go internal/projectmanager/sqlite/*generation* internal/projectmanager/sqlite/*_test.go'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"sed -n '130,210p' internal/projectmanager/sqlite/plan_repo_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'pnpm --version'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"pnpm exec vitest run src/pages/PlanDetail.test.tsx -t 'generation|evolution'\"",
+      "exit_status": 254
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'go test ./internal/projectmanager/sqlite -run TestPlanRepo_GenerationRoundTripSnapshotAndActivation -count=1 -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'Test(GetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership|LoadPlanGenerationLineage_FailsClosed)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"rg -n \\\"crash|restart|replay|reconcile|missed|resume|recovery|RecordStageGateVerdict|remediation\\\" internal/projectmanager/service internal/webconsole/api internal/mcphost -g '*_test.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'rg -n \"func Test.*(Final|final|Acceptance|Gate|Failed|Remediation|recovery|legacy|complete)\" internal/projectmanager/service/plan_completion_test.go internal/projectmanager/service/plan_reconcile_test.go internal/projectmanager/service/plan_orchestrator_projector_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'Test(Reconcile_DispatchesMissedReadyNode|Orchestrator_EventReplayDispatchesOnce|Orchestrator_FailureReplayNotifiesOnce|Orchestrator_AgentCreatorWakeReplayOnce|StageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"pnpm exec vitest run src/pages/PlanDetail.test.tsx -t 'generation|evolution'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'rg -n \"func Test.*Replay|func Test.*Dispatch|func Test.*Final|func Test.*Completion|func Test.*Blocks|func Test.*Remediation\" internal/projectmanager/service/plan_orchestrator_projector_test.go internal/projectmanager/service/plan_completion_test.go internal/projectmanager/service/plan_reconcile_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' internal/projectmanager/service/plan_completion_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"sed -n '150,215p' internal/projectmanager/service/plan_orchestrator_projector_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"sed -n '130,270p' internal/projectmanager/service/plan_completion_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestOrchestrator_(ReplayIdempotent|ConcurrentDispatch)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestPlanCompletion_(RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape|UnremediatedFailureBlocksAutoAndManualCompletion|ReadyDispatchedAndRunningWorkBlockManualCompletion|LegacyFailedLeafWithoutRecoveryChainStillBlocks)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"sed -n '320,380p' internal/webconsole/api/handlers_pm_plan_graph_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/webconsole/api/handlers_pm_plan_graph_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc \"rg -n \\\"T1315|T1314|task-.*1315|1315|1314\\\" . -g '\"'!web/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' internal/projectmanager/plan_generation.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc \"rg -n \\\"CREATE TABLE IF NOT EXISTS pm_tasks|CREATE TABLE pm_tasks|pm_tasks\\\" internal/persistence/migrations -g '*.sql'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"rg -n \\\"func \\\\(s \\\\*Service\\\\) .*Task|CompleteTask|SetTask|TaskCompleted|Report.*Delivery|Submit|Resolve\\\" internal/projectmanager/service -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'go test ./internal/webconsole/api -run TestT1315AtomicEvolutionAcceptanceHarness -count=1 -v'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc 'go test ./internal/webconsole/api -run TestT1315AtomicEvolutionAcceptanceHarness -count=1 -v'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc 'go test ./internal/webconsole/api -run TestT1315AtomicEvolutionAcceptanceHarness -count=1 -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'mkdir -p docs/plans/evidence/t1322-dag-evolution-acceptance'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc 'go test ./internal/projectmanager/sqlite -run TestPlanRepo_GenerationRoundTripSnapshotAndActivation -count=1 -v 2\u003e\u00261 | tee /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-777cb223/docs/plans/evidence/t1322-dag-evolution-acceptance/sqlite.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'Test(PlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts|PlanGenerationAPI_InFlightConflictRejectsWholeRequest|T1315AtomicEvolutionAcceptanceHarness)' -count=1 -v 2\u003e\u00261 | tee /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-777cb223/docs/plans/evidence/t1322-dag-evolution-acceptance/api-t1315.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_97",
+      "command": "/bin/zsh -lc \"pnpm exec vitest run src/pages/PlanDetail.test.tsx -t 'generation|evolution' 2\u003e\u00261 | tee /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-777cb223/docs/plans/evidence/t1322-dag-evolution-acceptance/web-plan-detail.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'Test(StartPlan_FreezesImmutableG0AndRequiresItAsFirstParent|StartPlan_G0PersistenceFailureRollsBackActivation|StartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration|EvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates|EvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot|EvolvePlanGeneration_InFlightConflictDecisions|EvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch|GetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership|LoadPlanGenerationLineage_FailsClosed|StageReject_AppendsIncrementalStageWithoutReopeningHistory|StageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume|PlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape|PlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion|PlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks|PlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion|Reconcile_DispatchesMissedReadyNode|Orchestrator_ReplayIdempotent|Orchestrator_ConcurrentDispatch|Orchestrator_FailureReplayNotifiesOnce|Orchestrator_AgentCreatorWakeReplayOnce)' -count=1 -v 2\u003e\u00261 | tee /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-777cb223/docs/plans/evidence/t1322-dag-evolution-acceptance/service.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_101",
+      "command": "/bin/zsh -lc \"find docs/plans/evidence/t1322-dag-evolution-acceptance -maxdepth 1 -type f -print -exec wc -l {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_103",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_106",
+      "command": "/bin/zsh -lc \"printf 'assigned_branch=%s\ncandidate_head=%s\ncurrent_head_before_evidence=%s\n' \\\"\"'$(git branch --show-current)\" \"$(git -C ../acceptance-cd9d2b27 rev-parse HEAD)\" \"$(git rev-parse HEAD)\" \u003e docs/plans/evidence/t1322-dag-evolution-acceptance/git-metadata.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_110",
+      "command": "/bin/zsh -lc 'rg -n \"PASS|FAIL|verdict|Test Files|Tests\" docs/plans/evidence/t1322-dag-evolution-acceptance'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_111",
+      "command": "/bin/zsh -lc 'python3 -m json.tool docs/plans/evidence/t1322-dag-evolution-acceptance/results.json \u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_112",
+      "command": "/bin/zsh -lc 'find docs/plans/evidence/t1322-dag-evolution-acceptance -maxdepth 1 -type f -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_113",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_115",
+      "command": "/bin/zsh -lc 'git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_116",
+      "command": "/bin/zsh -lc 'git diff -- docs/plans/evidence/t1322-dag-evolution-acceptance/ACCEPTANCE.md docs/plans/evidence/t1322-dag-evolution-acceptance/results.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_117",
+      "command": "/bin/zsh -lc 'git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_118",
+      "command": "/bin/zsh -lc 'git -C ../acceptance-cd9d2b27 status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_120",
+      "command": "/bin/zsh -lc 'git add docs/plans/evidence/t1322-dag-evolution-acceptance'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_122",
+      "command": "/bin/zsh -lc 'git diff --cached --name-status'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_121",
+      "command": "/bin/zsh -lc 'git diff --cached --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_123",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_125",
+      "command": "/bin/zsh -lc 'git commit -m \"chore(evidence): validate dag evolution atomicity\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_127",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_128",
+      "command": "/bin/zsh -lc 'git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_129",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_131",
+      "command": "/bin/zsh -lc 'git push -u origin HEAD:ac-exec/task-4ab7224c/exec-777cb223'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_133",
+      "command": "/bin/zsh -lc \"git config --show-origin --get-regexp '\"'^(remote'\"\\\\.origin\\\\.|push\\\\.|alias\\\\.push)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_135",
+      "command": "/bin/zsh -lc \"git config --show-origin --get-regexp '\"'^alias'\"\\\\.'\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_134",
+      "command": "/bin/zsh -lc 'git remote show origin'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_137",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push -u origin HEAD:ac-exec/task-4ab7224c/exec-777cb223'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_139",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_140",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_141",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-4ab7224c/exec-777cb223'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-777cb223/command_events.jsonl",
+  "command_event_digest": "sha256:6989195f5721e3b42824793b6037f939c60dcb778da6713b5a019afd9a121d0a",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "验收完成，verdict: PASS。",
+  "artifact_digest": "sha256:fc4dc26dff0b89550d7b34c4282b1c93e3f4720961373b4a1032bb4f0788e880",
+  "path": ".agent-center/evidence/task-4ab7224c/exec-777cb223.json",
+  "branch": "ac-exec/task-4ab7224c/exec-777cb223"
+}
