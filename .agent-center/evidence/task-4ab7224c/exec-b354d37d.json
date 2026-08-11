@@ -1,129 +1,311 @@
 {
   "task_id": "task-4ab7224c",
-  "requested_acceptance": "T1322 independent DAG evolution acceptance",
   "execution_id": "exec-b354d37d",
-  "verdict": "fail",
-  "reviewed_candidate": {
-    "source": "origin/main",
-    "sha": "26298e01626c9d9f67d6eebcd2bf8da535962e07",
-    "worktree": "/tmp/t1322-origin-main.XrOl0a",
-    "sync_evidence": [
-      "git fetch origin main",
-      "git worktree add --detach /tmp/t1322-origin-main.XrOl0a origin/main"
-    ]
-  },
-  "scope_statement": "Validation was run against the detached origin/main candidate only. The task branch contains later local integration commits, including plan_generation files, but those commits were intentionally excluded from the candidate evidence.",
-  "blocking_findings": [
-    {
-      "id": "T1315_T1314_CORE_MISSING",
-      "severity": "blocker",
-      "summary": "origin/main does not expose the PlanGeneration evolution API, active generation ledger, or pm_plan_generations schema required to reproduce T1315 as an atomic T1315->T1314 generation transition.",
-      "evidence": {
-        "command": "if rg -n \"EvolvePlanGeneration|PlanGeneration|pm_plan_generations|plan_generations|generation_id|active_generation\" internal cmd web tests docs/plans; then :; else echo 'NO_MATCH: origin/main exposes no PlanGeneration/evolution ledger API/schema symbols'; fi",
-        "exit_status": 0,
-        "observed": "NO_MATCH: origin/main exposes no PlanGeneration/evolution ledger API/schema symbols"
-      },
-      "impact": "The required acceptance invariant cannot be observed: there is no active_generation_id to prove unchanged on rejection and no public evolution entrypoint to prove atomic generation creation."
-    }
-  ],
-  "coverage_matrix": [
-    {
-      "requirement": "concurrent evolution",
-      "status": "fail_unavailable",
-      "evidence": "No EvolvePlanGeneration/PlanGeneration symbols or schema on origin/main."
-    },
-    {
-      "requirement": "idempotent duplicate",
-      "status": "partial_pass",
-      "evidence": "Remediation verdict replay is idempotent in TestStageReject_AppendsIncrementalStageWithoutReopeningHistory and TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume; PlanGeneration idempotency is unavailable."
-    },
-    {
-      "requirement": "in-flight preserve/hold/supersede",
-      "status": "fail_unavailable",
-      "evidence": "No PlanGeneration node decision API for preserve/hold/supersede exists on origin/main. Existing TestEditPlanTopology_RunningInFlightRejected only proves legacy topology edit rejects running in-flight mutation."
-    },
-    {
-      "requirement": "blocked final gate",
-      "status": "pass",
-      "evidence": "TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion and TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion passed."
-    },
-    {
-      "requirement": "remediation stage",
-      "status": "pass",
-      "evidence": "TestStageReject_AppendsIncrementalStageWithoutReopeningHistory and TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume passed; migration 0121 adds remediation continuations/proposals and pm_stages generation/origin_verdict_id/continuation_id."
-    },
-    {
-      "requirement": "crash/restart recovery",
-      "status": "pass",
-      "evidence": "TestStuckNode_FruitlessReopens_DurableAcrossRestart and related stuck-node recovery tests passed."
-    },
-    {
-      "requirement": "generations and node ownership",
-      "status": "partial_pass",
-      "evidence": "Remediation stage generation lineage is present in pm_stages and API projection. Full PlanGeneration snapshots/node ownership are absent."
-    },
-    {
-      "requirement": "dispatch events/records",
-      "status": "partial_pass",
-      "evidence": "Existing service tests assert dispatch records for stage remediation and legacy topology advance. PlanGeneration evolution dispatch atomicity is unavailable."
-    },
-    {
-      "requirement": "UI/API",
-      "status": "partial_pass",
-      "evidence": "PlanDetail UI tests passed for remediation-based DAG evolution; webconsole plan graph/stage API tests passed. No PlanGeneration API/UI is exposed on origin/main."
-    }
-  ],
+  "reviewed_sha": "1817698fe69f7364b0e2482cce4ecc748a5db404",
+  "base_sha": "cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
   "commands": [
     {
-      "name": "candidate identity",
-      "command": "git rev-parse origin/main FETCH_HEAD main HEAD && git merge-base --is-ancestor HEAD origin/main; echo head_to_origin=$? && git merge-base --is-ancestor origin/main HEAD; echo origin_to_head=$?",
-      "exit_status": 0,
-      "observed": [
-        "origin/main=26298e01626c9d9f67d6eebcd2bf8da535962e07",
-        "HEAD=cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
-        "head_to_origin=1",
-        "origin_to_head=0"
-      ]
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse --abbrev-ref --symbolic-full-name @{u} 2\u003e/dev/null || true'",
+      "exit_status": 0
     },
     {
-      "name": "service remediation/stage/final/recovery tests",
-      "command": "go test ./internal/projectmanager/service -run 'TestStageReject|TestStage_Barrier|TestStage_GateReject|TestEditRunningPlan_DispatchesNewlyReadyNodesAtomically|TestPlanCompletion|TestStuckNode|TestStageGateReadiness|TestStage_Barrier|TestStageGate' -count=1 -v",
-      "exit_status": 0,
-      "observed": "PASS; package ok in 2.064s. Covered stage reject append, paused replay, stage barrier, retired legacy reject, final completion blockers, and stuck-node restart recovery."
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
     },
     {
-      "name": "legacy topology edit dispatch/idempotency tests",
-      "command": "go test ./internal/projectmanager/service -run 'TestEdit.*Running|TestEditRunningPlan|TestTopology|TestAdvancePlan|TestPlanOrchestrationGraph|TestPlanReconcile' -count=1 -v",
-      "exit_status": 0,
-      "observed": "PASS; includes TestAdvancePlan_AllReady_Idempotent, TestAdvancePlan_FailureIsolation, TestAdvancePlan_DoneSemantics, TestEditPlanTopology_RunningInFlightRejected."
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"rg --files -g '\"'!*node_modules*'\"' -g '\"'!*.png'\"' -g '\"'!*.jpg'\"' -g '\"'!*.jpeg'\"' -g '\"'!*.gif'\"' | head -200\"",
+      "exit_status": 0
     },
     {
-      "name": "webconsole public API tests",
-      "command": "go test ./internal/webconsole/api -run 'Test.*Plan|Test.*Stage|Test.*Remediation|Test.*Resume|Test.*Complete' -count=1 -v",
-      "exit_status": 0,
-      "observed": "PASS; includes PlanGraphAPI, PlanStagesAPI, PlanAPI_CreateGetStartAdvance, PMResumePausedNode_ErrorMapping."
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -5 --all --graph'",
+      "exit_status": 0
     },
     {
-      "name": "frontend PlanDetail/UI test suite",
-      "command": "pnpm install --frozen-lockfile && pnpm test -- PlanDetail.test.tsx",
-      "exit_status": 0,
-      "observed": "PASS after installing web dependencies; Vitest summary: Test Files 186 passed, Tests 1711 passed. The suite includes 'DAG evolution shows revision reasons, filters historical stages, and collapses'."
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git fetch origin main'",
+      "exit_status": 0
     },
     {
-      "name": "remediation schema/API evidence",
-      "command": "rg -n \"RecordStageGateVerdict|pm_remediation|pm_stages|generation|origin_verdict_id|continuation_id|reject_route|append_remediation\" internal/persistence/migrations internal/projectmanager/sqlite internal/webconsole/api/handlers_pm_plans.go internal/projectmanager/service/plan_remediation.go",
-      "exit_status": 0,
-      "observed": "Found remediation stage ledger/projection symbols, including migration 0121 and handlers_pm_plans.go generation/origin_verdict_id/continuation_id fields."
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main FETCH_HEAD main HEAD \u0026\u0026 git merge-base --is-ancestor HEAD origin/main; echo head_to_origin=$? \u0026\u0026 git merge-base --is-ancestor origin/main HEAD; echo origin_to_head=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"rg -n \\\"T1315|T1314|generation|evolution|preserve|hold|supersede|remediation|blocked final|final gate|dispatch\\\" . -g '\"'!*node_modules*'\"' -g '\"'!vendor/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=12 origin/main HEAD main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'find . -maxdepth 2 -type d | sort | head -120'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"rg --files -g 'go.mod' -g 'package.json' -g 'Makefile' -g 'docker-compose*.yml' -g '*.go' -g '*test*' | head -240\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'rg -n \"evol|generation|PlanGeneration|plan_generation|blocked|remediation|final gate|final_gate\" internal cmd pkg web ui tests docs/plans docs/releases 2\u003e/dev/null'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --ancestry-path origin/main..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_generation_evolution_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate origin/main -1 \u0026\u0026 git show --stat --oneline --decorate HEAD -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'tmpdir=$(mktemp -d /tmp/t1322-origin-main.XXXXXX) \u0026\u0026 git worktree add --detach \"$tmpdir\" origin/main \u0026\u0026 printf '\"'%s\\\\n' \\\"\"'$tmpdir\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'rg -n \"EvolvePlanGeneration|PlanGeneration|plan_generation|generation|evolution|remediation|hold_at_gate|blocked final|final gate|T1315|T1314\" internal cmd web tests docs/plans 2\u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile 2\u003e/dev/null || true; sed -n '1,220p' go.mod 2\u003e/dev/null || true; sed -n '1,220p' package.json 2\u003e/dev/null || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 rg --files internal/projectmanager/service | grep -E 'plan_generation|generation|evolution|stage|remediation' | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_remediation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' internal/projectmanager/service/plan_stage_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"sed -n '2080,2200p' web/src/pages/PlanDetail.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"rg -n \\\"remediation|generation|final|complete|crash|recover|restart|resume|hold|supersede|idempot\\\" internal/projectmanager/service internal/webconsole web/src/pages tests/e2e -g '*test*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"cd web \u0026\u0026 sed -n '1,220p' package.json \u0026\u0026 pnpm test -- --run PlanDetail.test.tsx\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestStageReject|TestStage_Barrier|TestStage_GateReject|TestEditRunningPlan_DispatchesNewlyReadyNodesAtomically|TestPlanCompletion|TestStuckNode|TestStageGateReadiness|TestStage_Barrier|TestStageGate' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'rg -n \"EvolvePlanGeneration|PlanGeneration|pm_plan_generations|plan_generations|generation_id|active_generation\" internal cmd web tests docs/plans'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestEdit.*Running|TestEditRunningPlan|TestTopology|TestAdvancePlan|TestPlanOrchestrationGraph|TestPlanReconcile' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'Test.*Plan|Test.*Stage|Test.*Remediation|Test.*Resume|Test.*Complete' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"if rg -n \\\"EvolvePlanGeneration|PlanGeneration|pm_plan_generations|plan_generations|generation_id|active_generation\\\" internal cmd web tests docs/plans; then :; else echo 'NO_MATCH: origin/main exposes no PlanGeneration/evolution ledger API/schema symbols'; fi\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'rg -n \"RecordStageGateVerdict|pm_remediation|pm_stages|generation|origin_verdict_id|continuation_id|reject_route|append_remediation\" internal/persistence/migrations internal/projectmanager/sqlite internal/webconsole/api/handlers_pm_plans.go internal/projectmanager/service/plan_remediation.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"git diff --name-status origin/main..HEAD | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'pnpm test -- PlanDetail.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-evidence-spec.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' .agent-center/evidence/task-5e7f1053/exec-8ebbc4d6.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"git diff -- .agent-center/evidence/task-4ab7224c/exec-b354d37d.json | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'python3 -m json.tool .agent-center/evidence/task-4ab7224c/exec-b354d37d.json \u003e/tmp/t1322-evidence.pretty.json \u0026\u0026 wc -c .agent-center/evidence/task-4ab7224c/exec-b354d37d.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'git add .agent-center/evidence/task-4ab7224c/exec-b354d37d.json \u0026\u0026 git commit -m \"chore(evidence): record t1322 dag evolution acceptance\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git log --oneline --decorate -3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'git worktree remove --force /tmp/t1322-origin-main.XrOl0a'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'git push -u origin ac-exec/task-4ab7224c/exec-b354d37d'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^(remote'\"\\\\.origin\\\\.|push\\\\.|alias\\\\.push|url\\\\.)' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc \"git remote show origin | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push -u origin HEAD:refs/heads/ac-exec/task-4ab7224c/exec-b354d37d'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin ac-exec/task-4ab7224c/exec-b354d37d'",
+      "exit_status": 0
     }
   ],
-  "t1315_reproduction_result": {
-    "status": "not_reproducible_on_candidate",
-    "accepted_outcomes_required": [
-      "atomic T1315->T1314 new active generation with complete generation snapshot/node ownership/dispatch evidence",
-      "or full rejection with zero active generation change"
-    ],
-    "observed_on_origin_main": "No PlanGeneration active generation state or evolution command exists; therefore neither accepted outcome can be proven.",
-    "acceptance_decision": "reject_candidate"
-  },
-  "product_code_changes": "none"
+  "commands_available": true,
+  "command_event_path": "executor://exec-b354d37d/command_events.jsonl",
+  "command_event_digest": "sha256:a568bad0cc64c1b59b7e38f3e4ee9e6e3a889483b7c04fdb3a4b6cea8d869adb",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已完成 T1322 独立验收并推送证据。",
+  "artifact_digest": "sha256:860fa4af7e1fbb362ab30ad368cb49781793a9aecd0d53fe178f31b788ce45ea",
+  "path": ".agent-center/evidence/task-4ab7224c/exec-b354d37d.json",
+  "branch": "ac-exec/task-4ab7224c/exec-b354d37d"
 }
