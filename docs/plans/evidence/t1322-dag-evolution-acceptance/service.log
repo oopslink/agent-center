@@ -1,0 +1,62 @@
+=== RUN   TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape
+--- PASS: TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape (0.08s)
+=== RUN   TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion
+--- PASS: TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion (0.07s)
+=== RUN   TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks
+--- PASS: TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks (0.07s)
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running
+--- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion (0.21s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready (0.07s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched (0.07s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running (0.07s)
+=== RUN   TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent
+--- PASS: TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent (0.07s)
+=== RUN   TestStartPlan_G0PersistenceFailureRollsBackActivation
+--- PASS: TestStartPlan_G0PersistenceFailureRollsBackActivation (0.07s)
+=== RUN   TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration
+--- PASS: TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration (0.07s)
+=== RUN   TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates
+--- PASS: TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates (0.07s)
+=== RUN   TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot
+--- PASS: TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot (0.07s)
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected
+--- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions (0.20s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected (0.07s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request (0.07s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected (0.07s)
+=== RUN   TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch
+--- PASS: TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch (0.06s)
+=== RUN   TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership
+--- PASS: TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership (0.07s)
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/missing_parent
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/cycle
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/cross_plan
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/snapshot_mismatch
+--- PASS: TestLoadPlanGenerationLineage_FailsClosed (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/missing_parent (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/cycle (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/cross_plan (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/snapshot_mismatch (0.00s)
+=== RUN   TestOrchestrator_ReplayIdempotent
+--- PASS: TestOrchestrator_ReplayIdempotent (0.07s)
+=== RUN   TestOrchestrator_ConcurrentDispatch
+--- PASS: TestOrchestrator_ConcurrentDispatch (0.07s)
+=== RUN   TestOrchestrator_FailureReplayNotifiesOnce
+--- PASS: TestOrchestrator_FailureReplayNotifiesOnce (0.06s)
+=== RUN   TestOrchestrator_AgentCreatorWakeReplayOnce
+--- PASS: TestOrchestrator_AgentCreatorWakeReplayOnce (0.06s)
+=== RUN   TestReconcile_DispatchesMissedReadyNode
+--- PASS: TestReconcile_DispatchesMissedReadyNode (0.06s)
+=== RUN   TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+--- PASS: TestStageReject_AppendsIncrementalStageWithoutReopeningHistory (0.07s)
+=== RUN   TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+--- PASS: TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume (0.07s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	2.020s

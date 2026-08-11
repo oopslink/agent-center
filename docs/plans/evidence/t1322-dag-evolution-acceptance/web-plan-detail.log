@@ -1,0 +1,42 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/acceptance-cd9d2b27/web
+
+(node:29959) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > does not manufacture PlanGeneration history from Stage generation integers
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Plan generation read model shows active/history progress, diff, and node ownership
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/PlanDetail.test.tsx (107 tests | 104 skipped) 359ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 104 skipped (107)
+   Start at  18:22:58
+   Duration  1.58s (transform 348ms, setup 286ms, collect 468ms, tests 359ms, environment 223ms, prepare 38ms)
+

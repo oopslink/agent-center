@@ -1,0 +1,52 @@
+{
+  "verdict": "pass",
+  "candidate_sha": "cd9d2b2757595a7734722d44537dcaa6c0fcb16b",
+  "assigned_branch": "ac-exec/task-4ab7224c/exec-777cb223",
+  "execution_worktree": "../acceptance-cd9d2b27",
+  "product_code_modified": false,
+  "raw_logs": [
+    "git-metadata.log",
+    "service.log",
+    "api-t1315.log",
+    "sqlite.log",
+    "web-plan-detail.log"
+  ],
+  "commands": [
+    {
+      "name": "projectmanager-service-targeted",
+      "verdict": "pass",
+      "log": "service.log"
+    },
+    {
+      "name": "webconsole-api-plus-t1315-harness",
+      "verdict": "pass",
+      "log": "api-t1315.log"
+    },
+    {
+      "name": "sqlite-generation-roundtrip",
+      "verdict": "pass",
+      "log": "sqlite.log"
+    },
+    {
+      "name": "plan-detail-generation-ui",
+      "verdict": "pass",
+      "log": "web-plan-detail.log",
+      "nonfatal_warnings": [
+        "MSW reported unhandled GET /api/projects/proj-a/plans/PL-1/related-issues during three targeted PlanDetail tests; Vitest still reported the selected generation/evolution tests as passed."
+      ]
+    }
+  ],
+  "t1315": {
+    "verdict": "pass",
+    "accepted_atomic_generation": true,
+    "reject_zero_active_generation_change": true,
+    "checked_surfaces": [
+      "POST /evolution",
+      "GET /generations",
+      "pm_plans.active_generation_id",
+      "pm_plan_generations",
+      "pm_task_dependencies",
+      "pm_plan_dispatch_records"
+    ]
+  }
+}

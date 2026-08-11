@@ -1,0 +1,12 @@
+=== RUN   TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts
+--- PASS: TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts (0.12s)
+=== RUN   TestPlanGenerationAPI_InFlightConflictRejectsWholeRequest
+--- PASS: TestPlanGenerationAPI_InFlightConflictRejectsWholeRequest (0.11s)
+=== RUN   TestT1315AtomicEvolutionAcceptanceHarness
+=== RUN   TestT1315AtomicEvolutionAcceptanceHarness/accepts_only_atomic_T1315_to_T1314_generation
+=== RUN   TestT1315AtomicEvolutionAcceptanceHarness/rejects_invalid_partial_T1315_mutation_with_zero_active_generation_change
+--- PASS: TestT1315AtomicEvolutionAcceptanceHarness (0.11s)
+    --- PASS: TestT1315AtomicEvolutionAcceptanceHarness/accepts_only_atomic_T1315_to_T1314_generation (0.00s)
+    --- PASS: TestT1315AtomicEvolutionAcceptanceHarness/rejects_invalid_partial_T1315_mutation_with_zero_active_generation_change (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	0.884s

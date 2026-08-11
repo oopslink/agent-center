@@ -1,0 +1,4 @@
+=== RUN   TestPlanRepo_GenerationRoundTripSnapshotAndActivation
+--- PASS: TestPlanRepo_GenerationRoundTripSnapshotAndActivation (0.07s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	0.363s
