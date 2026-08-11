@@ -15,7 +15,7 @@
 | 9 | UI history/snapshot/ownership | ✅ pass | `PlanDetail.test.tsx` 覆盖 active R2、progress/diff、generation/parent ID、node revision badge，以及 legacy DAG 和 orchestration graph 两条 immutable G0 snapshot 切换路径；另验证 Stage generation 整数不能制造 PlanGeneration 历史。 |
 | 10 | UI Evolution form contract | ✅ pass | UI 断言 POST 包含 `parent_generation_id`、`base_version`、non-empty reason/evidence/key 与完整 `PlanGenerationDiff`；非法/缺字段 diff 在 POST 前拒绝。 |
 | 11 | UI conflict guidance | ✅ pass | UI 覆盖 stale parent/version、in-flight all-request rejection、idempotency conflict 三类可恢复提示。 |
-| 12 | repository/backend/web gates | ✅ pass | `go test ./...`、`pnpm test`、`make lint`、`make build` 最终均 exit 0；`git diff --check` clean。 |
+| 12 | repository/backend/web gates | ✅ pass | 当前 main 基线集成后，`go test ./...`、`pnpm test`、`make lint`、`make build` 最终均 exit 0；`git diff --check` clean。 |
 
 ## 测试分层 (Layered Test Inventory)
 
@@ -25,7 +25,13 @@
 | Integration with mocks | 2 个 SQLite + in-process HTTP tests；6 个 PlanGeneration 专项 UI/MSW tests | `internal/webconsole/api/handlers_pm_plan_graph_test.go`、`web/src/pages/PlanDetail.test.tsx` |
 | Deployed-binary smoke | 0 | 本项是 feature remediation，不是 phase / GA / release close；按测试计划明确不执行部署 smoke。 |
 
-全量回归实际入口：102 个 Go packages；186 个 Vitest files / 1,718 tests。
+全量回归实际入口：102 个 Go packages；188 个 Vitest files / 1,742 tests。
+
+## 当前 main 集成说明
+
+- accepted core `ec573fdd` 的功能内容与 observability remediation 被集成到 executor-precreated branch，没有切换 branch。
+- 当前 main 已使用 migration `0126_remove_ai_runtime_profiles`，因此 PlanGeneration ledger 顺延为 `0127_plan_generations`，并将 schema version 与 migration round-trip assertions 更新为 127；没有覆盖或改写现有 0126。
+- 全量 Web gate 暴露 current-main 的两个遗留门禁漂移：`Agents.test.tsx` 仍只期待 worker capability 交集中的 CLI，但 production 已改为完整 runtime catalog + worker mismatch warning；ESLint 的 table-row checkbox allowlist 尚未登记 AI Runtime bulk table。两项均按当前 production/UX contract 对齐并由最终全量 tests/lint 覆盖。
 
 ## 覆盖率
 
@@ -52,12 +58,12 @@
 | `go test ./internal/projectmanager/service ./internal/webconsole/api` | ✅ pass |
 | `go test ./...` | ✅ pass（102 packages） |
 | `cd web && pnpm exec vitest run src/pages/PlanDetail.test.tsx` | ✅ pass（107 tests） |
-| `cd web && pnpm test` | ✅ pass（186 files / 1,718 tests） |
+| `cd web && pnpm test` | ✅ pass（188 files / 1,742 tests） |
 | `make lint` | ✅ pass（go vet、gofmt、project linters、tsc、eslint） |
 | `make build` | ✅ pass（Vite production bundle + Go binaries） |
 | `git diff --check` | ✅ clean |
 
-首次并行执行全量 Go/Web tests 时，`internal/workerdaemon/TestSupervisorSession_DetachSurvives` 在高负载下超时；该测试单独重跑 2.14s 通过，随后独占资源完整重跑 `go test ./...` 通过。该路径与本改动无代码交集。
+首次全量 Go run 时，`internal/agentruntime/executor/TestExecGitRunner_ContextCancelKillsGitProcessGroup` 的 1 秒 fixture deadline 在 fake SSH 写 PID 前到期；同一 case `-count=3` 通过，随后完整重跑 `go test ./...` exit 0。首次全量 Web run 暴露上述 stale Runtime catalog assertion；修正后专项 21/21 与完整 1,742/1,742 均通过。
 
 ## 出口标准核对
 

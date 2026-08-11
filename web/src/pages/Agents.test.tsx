@@ -188,7 +188,7 @@ describe('Agents page', () => {
     // CLI/model choices are sourced from the Runtime catalog; worker mismatches warn only.
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
-    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
+    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code', 'codex']);
     // T728: the include-description switch defaults ON.
     expect(screen.getByTestId('agent-create-include-description')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('agent-create-submit'));
