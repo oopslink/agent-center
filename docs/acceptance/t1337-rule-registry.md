@@ -39,4 +39,3 @@ go test -race ./internal/cognition/ruleregistry/sqlite -count=3
 go test ./...
 go test ./internal/agentruntime/executor -run TestExecGitRunner_ContextCancelKillsGitProcessGroup -count=10
 ```
-
