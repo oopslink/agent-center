@@ -25,6 +25,11 @@
 | DDD 蓝图 | [ddd-blueprint.md](ddd-blueprint.md) — DDD 设计推进的 plan & status（哪些做了 / 没做 / 下一步）|
 
 **范围决策的两类**：
+
+当前功能设计：
+
+- [Team Rule Registry：索引常驻、正文按需加载](features/2026-08-13-team-rule-registry.md)
+
 - **出范围**（永远不做）→ [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)
 - **推迟**（v1 不做，但早晚要做）→ [roadmap.md](roadmap.md)
 
