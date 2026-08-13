@@ -170,7 +170,8 @@
         "curator_review": "Team agents can submit proposals. The curator agents listed below can also promote or reject pending proposals; owners/admins keep the same review access."
       },
       "curators": "Curator agents",
-      "curatorsHelp": "This grant list is used only by Curator review. Removing an agent from the team automatically removes its curator access.",
+      "curatorsHelpActive": "These agents can promote or reject pending proposals. Removing an agent from the team automatically removes its curator access.",
+      "curatorsHelpInactive": "Select Curator review to activate this grant list. In Proposal only mode, owners/admins are the only reviewers.",
       "noAgents": "No agents in the directory yet.",
       "save": "Save",
       "saveSuccess": "Settings saved.",

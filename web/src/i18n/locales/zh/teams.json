@@ -170,7 +170,8 @@
         "curator_review": "Team 内 Agent 可以提交 proposal。下方列出的 curator agent 也可以 promote 或 reject 待审 proposal；owner/admin 仍保留同样审核权限。"
       },
       "curators": "Curator agents",
-      "curatorsHelp": "这份授权列表只在 Curator 审核模式下生效。Agent 从 team 移除后，会自动失去 curator 权限。",
+      "curatorsHelpActive": "这些 agent 可以 promote 或 reject 待审 proposal。Agent 从 team 移除后，会自动失去 curator 权限。",
+      "curatorsHelpInactive": "选择 Curator 审核后，这份授权列表才会生效。仅提案模式下，只有 owner/admin 能审核。",
       "noAgents": "目录中还没有 agent。",
       "save": "Save",
       "saveSuccess": "设置已保存。",

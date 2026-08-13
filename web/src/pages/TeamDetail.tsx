@@ -541,6 +541,7 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
   const [policy, setPolicy] = useState<TeamMemoryPolicy>('owner_admin_review');
   const [curators, setCurators] = useState<string[]>([]);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
+  const curatorPolicyActive = policy === 'curator_review';
 
   useEffect(() => {
     if (!settings.data) return;
@@ -556,7 +557,10 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
   const save = async () => {
     setSaveSucceeded(false);
     try {
-      await update.mutateAsync({ policy, curator_agents: curators });
+      await update.mutateAsync({
+        policy,
+        curator_agents: curatorPolicyActive ? curators : [],
+      });
       setSaveSucceeded(true);
     } catch {
       setSaveSucceeded(false);
@@ -612,10 +616,12 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
                   }}
                   ariaLabel={t('teamDetail.settings.curators')}
                   placeholder={t('teamDetail.settings.curators')}
-                  disabled={!canManage}
+                  disabled={!canManage || !curatorPolicyActive}
                 />
               )}
-              <p className="mt-2 text-xs leading-5 text-text-muted">{t('teamDetail.settings.curatorsHelp')}</p>
+              <p className="mt-2 text-xs leading-5 text-text-muted" data-testid="team-memory-curators-help">
+                {curatorPolicyActive ? t('teamDetail.settings.curatorsHelpActive') : t('teamDetail.settings.curatorsHelpInactive')}
+              </p>
             </Field>
             {saveSucceeded && (
               <div role="status" data-testid="team-memory-settings-success" className="mt-4 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">

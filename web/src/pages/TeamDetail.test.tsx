@@ -350,12 +350,15 @@ describe('TeamDetail', () => {
     expect(policySelect).toHaveTextContent('Curator review - listed agents can review');
     expect(policySelect).not.toHaveTextContent('Read-only');
     expect(within(panel).getByTestId('team-memory-policy-description')).toHaveTextContent('Only human owners/admins can promote or reject');
-    expect(within(panel).getByText(/grant list is used only by Curator review/i)).toBeInTheDocument();
+    expect(within(panel).getByTestId('team-memory-curators-help')).toHaveTextContent('Select Curator review to activate this grant list');
     await waitFor(() => {
       expect(panel.querySelector('[data-testid="team-memory-curator-picker-chip"][data-value="agent:agent-t1"]')).not.toBeNull();
     });
+    expect(within(panel).getByTestId('team-memory-curator-picker-trigger')).toBeDisabled();
     fireEvent.change(within(panel).getByTestId('team-memory-policy'), { target: { value: 'curator_review' } });
     expect(within(panel).getByTestId('team-memory-policy-description')).toHaveTextContent('curator agents listed below can also promote or reject');
+    expect(within(panel).getByTestId('team-memory-curators-help')).toHaveTextContent('These agents can promote or reject pending proposals');
+    expect(within(panel).getByTestId('team-memory-curator-picker-trigger')).not.toBeDisabled();
     fireEvent.click(within(panel).getByTestId('team-memory-curator-picker-trigger'));
     const options = await screen.findAllByTestId('team-memory-curator-picker-option');
     const dataMiner = options.find((option) => option.getAttribute('data-value') === 'agent:agent-d5');
@@ -366,6 +369,32 @@ describe('TeamDetail', () => {
     fireEvent.click(saveButton);
     await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-success')).toHaveTextContent('Settings saved.'));
     await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-meta')).toHaveTextContent('settings commit'));
+  });
+
+  it('does not preserve curator grants when saving proposal-only policy', async () => {
+    let body: { policy?: string; curator_agents?: string[] } | undefined;
+    server.use(
+      http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+        memory_permissions: { web_edit: true, can_manage: true },
+      }))),
+      http.put('/api/teams/:id/memory/settings', async ({ request }) => {
+        body = await request.json() as typeof body;
+        return HttpResponse.json({
+          curator_agents: body?.curator_agents ?? [],
+          policy: body?.policy ?? 'owner_admin_review',
+          updated_at: '2026-08-08T12:30:00Z',
+          updated_by: 'user:user-oops',
+          commit: 'settingscommit',
+          effect_hint: 'New sessions and fresh forks load promoted team memory from the current commit; in-flight sessions keep their snapshotted rules until restarted or forked again.',
+        });
+      }),
+    );
+    renderAt('team-7c19b0', 'owner');
+    fireEvent.click(await screen.findByTestId('tab-st'));
+    const panel = await screen.findByTestId('team-memory-settings');
+    await waitFor(() => expect(within(panel).getByTestId('team-memory-curator-picker-trigger')).toBeDisabled());
+    fireEvent.click(within(panel).getByTestId('team-memory-settings-save'));
+    await waitFor(() => expect(body).toEqual({ policy: 'owner_admin_review', curator_agents: [] }));
   });
 
   it('shows failed team settings save feedback without discarding edits', async () => {
