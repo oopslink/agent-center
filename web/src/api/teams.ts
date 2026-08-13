@@ -158,12 +158,14 @@ export interface MemoryDoc {
 
 export interface TeamMemorySettings {
   curator_agents: string[];
-  policy: 'owner_admin_review' | 'curator_review' | 'read_only';
+  policy: TeamMemoryPolicy;
   updated_at?: string;
   updated_by?: string;
   commit?: string;
   effect_hint?: string;
 }
+
+export type TeamMemoryPolicy = 'owner_admin_review' | 'curator_review';
 
 /** Curation finding kind — mirrors internal/team ScrubKind. */
 export type ScrubKind = 'code_name' | 'path' | 'url' | 'repo_name';

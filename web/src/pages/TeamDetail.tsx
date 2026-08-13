@@ -18,6 +18,7 @@ import {
   useTeamProjects,
   useUpdateTeamMemorySettings,
   useUpdateTeamRoles,
+  type TeamMemoryPolicy,
   type RoleInput,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
@@ -537,8 +538,9 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
   const agents = useDirectoryAgents();
   const update = useUpdateTeamMemorySettings(team.id);
   const canManage = team.memory_permissions?.can_manage === true;
-  const [policy, setPolicy] = useState<'owner_admin_review' | 'curator_review' | 'read_only'>('owner_admin_review');
+  const [policy, setPolicy] = useState<TeamMemoryPolicy>('owner_admin_review');
   const [curators, setCurators] = useState<string[]>([]);
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
 
   useEffect(() => {
     if (!settings.data) return;
@@ -546,8 +548,19 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
     setCurators(settings.data.curator_agents ?? []);
   }, [settings.data]);
 
+  const clearSaveFeedback = () => {
+    setSaveSucceeded(false);
+    update.reset();
+  };
+
   const save = async () => {
-    await update.mutateAsync({ policy, curator_agents: curators });
+    setSaveSucceeded(false);
+    try {
+      await update.mutateAsync({ policy, curator_agents: curators });
+      setSaveSucceeded(true);
+    } catch {
+      setSaveSucceeded(false);
+    }
   };
   const curatorOptions = (agents.data ?? []).map((agent) => ({
     value: agent.ref,
@@ -569,13 +582,19 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
                 className={inputCls}
                 value={policy}
                 disabled={!canManage}
-                onChange={(e) => setPolicy(e.target.value as typeof policy)}
+                onChange={(e) => {
+                  clearSaveFeedback();
+                  setPolicy(e.target.value as TeamMemoryPolicy);
+                }}
                 data-testid="team-memory-policy"
+                aria-describedby="team-memory-policy-description"
               >
                 <option value="owner_admin_review">{t('teamDetail.settings.policyOwnerAdmin')}</option>
                 <option value="curator_review">{t('teamDetail.settings.policyCurator')}</option>
-                <option value="read_only">{t('teamDetail.settings.policyReadOnly')}</option>
               </select>
+              <p id="team-memory-policy-description" data-testid="team-memory-policy-description" className="mt-2 text-xs leading-5 text-text-secondary">
+                {t(`teamDetail.settings.policyDescriptions.${policy}`)}
+              </p>
             </Field>
             <Field label={t('teamDetail.settings.curators')}>
               {agents.isLoading && <Skeleton height="4rem" />}
@@ -587,13 +606,27 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
                   testId="team-memory-curator-picker"
                   options={curatorOptions}
                   values={curators}
-                  onChange={(values) => setCurators([...values].sort())}
+                  onChange={(values) => {
+                    clearSaveFeedback();
+                    setCurators([...values].sort());
+                  }}
                   ariaLabel={t('teamDetail.settings.curators')}
                   placeholder={t('teamDetail.settings.curators')}
                   disabled={!canManage}
                 />
               )}
+              <p className="mt-2 text-xs leading-5 text-text-muted">{t('teamDetail.settings.curatorsHelp')}</p>
             </Field>
+            {saveSucceeded && (
+              <div role="status" data-testid="team-memory-settings-success" className="mt-4 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+                {t('teamDetail.settings.saveSuccess')}
+              </div>
+            )}
+            {update.isError && (
+              <div role="alert" data-testid="team-memory-settings-error" className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {t('teamDetail.settings.saveError', { message: (update.error as Error).message })}
+              </div>
+            )}
             <div className="mt-4 flex items-center justify-between gap-3">
               <div className="text-xs text-text-muted" data-testid="team-memory-settings-meta">
                 {settings.data?.commit ? t('teamDetail.settings.commit', { commit: settings.data.commit.slice(0, 12) }) : t('teamDetail.settings.noCommit')}
@@ -605,7 +638,6 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
           </>
         )}
         {settings.isError && <p className="text-sm text-danger">{(settings.error as Error).message}</p>}
-        {update.isError && <p className="mt-3 text-sm text-danger" role="alert">{(update.error as Error).message}</p>}
       </Card>
       <Card>
         <SectionHead title={t('teamDetail.settings.guardrails')} />

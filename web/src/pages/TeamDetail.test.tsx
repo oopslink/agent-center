@@ -344,18 +344,47 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0', 'owner');
     fireEvent.click(await screen.findByTestId('tab-st'));
     const panel = await screen.findByTestId('team-memory-settings');
-    expect(await within(panel).findByTestId('team-memory-policy')).toHaveValue('owner_admin_review');
+    const policySelect = await within(panel).findByTestId('team-memory-policy');
+    expect(policySelect).toHaveValue('owner_admin_review');
+    expect(policySelect).toHaveTextContent('Proposal only - owners/admins review');
+    expect(policySelect).toHaveTextContent('Curator review - listed agents can review');
+    expect(policySelect).not.toHaveTextContent('Read-only');
+    expect(within(panel).getByTestId('team-memory-policy-description')).toHaveTextContent('Only human owners/admins can promote or reject');
+    expect(within(panel).getByText(/grant list is used only by Curator review/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(panel.querySelector('[data-testid="team-memory-curator-picker-chip"][data-value="agent:agent-t1"]')).not.toBeNull();
     });
     fireEvent.change(within(panel).getByTestId('team-memory-policy'), { target: { value: 'curator_review' } });
+    expect(within(panel).getByTestId('team-memory-policy-description')).toHaveTextContent('curator agents listed below can also promote or reject');
     fireEvent.click(within(panel).getByTestId('team-memory-curator-picker-trigger'));
     const options = await screen.findAllByTestId('team-memory-curator-picker-option');
     const dataMiner = options.find((option) => option.getAttribute('data-value') === 'agent:agent-d5');
     expect(dataMiner).toBeTruthy();
     fireEvent.click(dataMiner!);
-    fireEvent.click(within(panel).getByTestId('team-memory-settings-save'));
+    const saveButton = within(panel).getByTestId('team-memory-settings-save');
+    expect(saveButton).toHaveTextContent('Save');
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-success')).toHaveTextContent('Settings saved.'));
     await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-meta')).toHaveTextContent('settings commit'));
+  });
+
+  it('shows failed team settings save feedback without discarding edits', async () => {
+    server.use(
+      http.get('/api/teams/:id', () => HttpResponse.json(teamDetail({
+        memory_permissions: { web_edit: true, can_manage: true },
+      }))),
+      http.put('/api/teams/:id/memory/settings', () => HttpResponse.json(
+        { error: 'invalid_input', message: 'policy rejected' },
+        { status: 400 },
+      )),
+    );
+    renderAt('team-7c19b0', 'owner');
+    fireEvent.click(await screen.findByTestId('tab-st'));
+    const panel = await screen.findByTestId('team-memory-settings');
+    fireEvent.change(await within(panel).findByTestId('team-memory-policy'), { target: { value: 'curator_review' } });
+    fireEvent.click(within(panel).getByTestId('team-memory-settings-save'));
+    await waitFor(() => expect(within(panel).getByTestId('team-memory-settings-error')).toHaveTextContent('Save failed: [400 invalid_input] policy rejected'));
+    expect(within(panel).getByTestId('team-memory-policy')).toHaveValue('curator_review');
   });
 
   it('keeps team settings read-only for regular members', async () => {
