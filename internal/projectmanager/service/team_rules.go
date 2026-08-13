@@ -17,14 +17,13 @@ const (
 	PlanRuleSourceUnavailable = "unavailable"
 )
 
-// RuleContext is the credential-free Team Memory rule material passed through
-// plan-authoring commands for audit and tool responses.
+// RuleContext is the credential-free Team Memory rule index entry passed through
+// plan-authoring commands for audit and tool responses. Rule bodies are not part
+// of the frozen planning snapshot; agents read them later by slug + commit.
 type RuleContext struct {
 	Slug        string   `json:"slug"`
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
-	Body        string   `json:"body,omitempty"`
-	Enabled     bool     `json:"enabled"`
 	AppliesTo   []string `json:"applies_to,omitempty"`
 	BodyBytes   int      `json:"body_bytes,omitempty"`
 	SourcePath  string   `json:"source_path,omitempty"`
@@ -78,8 +77,6 @@ func NormalizePlanRuleSnapshot(in *RuleSnapshot, fallbackSource string) *RuleSna
 			Slug:        strings.TrimSpace(r.Slug),
 			Title:       strings.TrimSpace(r.Title),
 			Description: strings.TrimSpace(r.Description),
-			Body:        r.Body,
-			Enabled:     r.Enabled,
 			AppliesTo:   append([]string(nil), r.AppliesTo...),
 			BodyBytes:   r.BodyBytes,
 			SourcePath:  strings.TrimSpace(r.SourcePath),
@@ -99,13 +96,9 @@ func PlanRuleSnapshotAudit(in *RuleSnapshot) map[string]any {
 			"slug":        r.Slug,
 			"title":       r.Title,
 			"description": r.Description,
-			"enabled":     r.Enabled,
 			"applies_to":  r.AppliesTo,
 			"body_bytes":  r.BodyBytes,
 			"source_path": r.SourcePath,
-		}
-		if r.Body != "" {
-			row["body"] = r.Body
 		}
 		rules = append(rules, row)
 	}

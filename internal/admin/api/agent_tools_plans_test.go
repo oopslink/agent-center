@@ -285,8 +285,11 @@ func TestEditPlanTopology_UsesFrozenPlanningRulesFromRequest(t *testing.T) {
 		t.Fatalf("audit team_rules = %v", auditRules)
 	}
 	auditRuleList, _ := auditRules["rules"].([]any)
-	if len(auditRuleList) != 1 || auditRuleList[0].(map[string]any)["enabled"] != true {
+	if len(auditRuleList) != 1 {
 		t.Fatalf("audit rule list = %v", auditRules["rules"])
+	}
+	if _, leaked := auditRuleList[0].(map[string]any)["body"]; leaked {
+		t.Fatalf("audit rule leaked body = %v", auditRuleList[0])
 	}
 }
 

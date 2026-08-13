@@ -301,15 +301,16 @@ func (r *LocalRuntime) workViaExecutor(ctx context.Context, req WorkRequest, ee 
 		title = "task " + req.TaskID
 	}
 	item := orchestrator.WorkItem{
-		TaskID:  req.TaskID,
-		TaskRef: req.TaskRef,
-		Goal:    executor.Goal{Title: title, Description: req.Brief},
+		TaskID:     req.TaskID,
+		TaskRef:    req.TaskRef,
+		ExecutorID: ee.engine.NewExecutorID(),
+		Goal:       executor.Goal{Title: title, Description: req.Brief},
 		// I105 N2: carry the command's routing decision through to input.json. NotifyWork
 		// only reaches here when the node is NOT supervisor_inline, so this is normally
 		// "" / executor_fork; a stamped inline value would be an N4 case.
 		DispatchMode: strings.TrimSpace(req.DispatchMode),
 	}
-	item.RuleSnapshot = r.loadTeamRules(ctx, req.AgentID, rulePhaseExecute)
+	item.RuleSnapshot = r.loadTeamRules(ctx, req.AgentID, rulePhaseExecute, item.ExecutorID)
 	return r.launchExecutor(ctx, req.AgentID, req.TaskID, item, ee)
 }
 
@@ -975,8 +976,11 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
+	if execID == "" {
+		execID = ee.engine.NewExecutorID()
+	}
 	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
-	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task))
+	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
