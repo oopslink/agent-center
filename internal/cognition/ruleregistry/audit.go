@@ -23,6 +23,7 @@ type LoadAudit struct {
 type AuditRepository interface {
 	AppendLoaded(ctx context.Context, audit LoadAudit) (inserted bool, err error)
 	ListByExecutionIDs(ctx context.Context, executionIDs []string) (map[string][]LoadAudit, error)
+	ListByPlanningSessionIDs(ctx context.Context, planningSessionIDs []string) (map[string][]LoadAudit, error)
 }
 
 func NormalizeLoadAudit(in LoadAudit) LoadAudit {

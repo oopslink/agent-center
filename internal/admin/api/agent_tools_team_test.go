@@ -250,6 +250,7 @@ func TestTeamTools_GetTeamRuleIndexAndCommitBoundBodyRead(t *testing.T) {
 
 	if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
 		{Slug: "execute-rule", Title: "Execute Rule", Description: "read before changing code", Body: "Execute carefully.", Enabled: true, AppliesTo: []string{"execute"}},
+		{Slug: "plan-rule", Title: "Plan Rule", Description: "read before planning", Body: "Plan carefully.", Enabled: true, AppliesTo: []string{"plan"}},
 		{Slug: "review-rule", Description: "review hook", Body: "Review carefully.", Enabled: true, AppliesTo: []string{"review"}},
 	}); err != nil {
 		t.Fatalf("SeedTeam rules: %v", err)
@@ -298,6 +299,29 @@ func TestTeamTools_GetTeamRuleIndexAndCommitBoundBodyRead(t *testing.T) {
 	}
 	if got := len(audits["exec-1"]); got != 1 {
 		t.Fatalf("audit rows = %d, want idempotent single row: %+v", got, audits)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "plan-rule", "commit": commit, "phase": "plan", "planning_session_id": "agent:" + atAgent1 + "/generation:7",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("planning get_team_rule status=%d body=%v", st, body)
+	}
+	if body["commit"] != commit || body["body"] != "Plan carefully." || body["slug"] != "plan-rule" {
+		t.Fatalf("unexpected planning rule body payload: %v", body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "plan-rule", "commit": commit, "phase": "plan", "planning_session_id": "agent:" + atAgent1 + "/generation:7",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("duplicate planning get_team_rule status=%d body=%v", st, body)
+	}
+	planAudits, err := f.deps.TeamRuleAuditRepo.ListByPlanningSessionIDs(ctx, []string{"agent:" + atAgent1 + "/generation:7"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(planAudits["agent:"+atAgent1+"/generation:7"]); got != 1 {
+		t.Fatalf("planning audit rows = %d, want idempotent single row: %+v", got, planAudits)
 	}
 
 	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{

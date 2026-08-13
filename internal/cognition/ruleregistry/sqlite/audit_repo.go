@@ -57,7 +57,7 @@ func (r *AuditRepo) ListByExecutionIDs(ctx context.Context, executionIDs []strin
 	if r == nil || r.db == nil {
 		return out, nil
 	}
-	ids := cleanExecutionIDs(executionIDs)
+	ids := cleanAuditScopeIDs(executionIDs)
 	if len(ids) == 0 {
 		return out, nil
 	}
@@ -87,18 +87,50 @@ func (r *AuditRepo) ListByExecutionIDs(ctx context.Context, executionIDs []strin
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	for id := range out {
-		sort.Slice(out[id], func(i, j int) bool {
-			if out[id][i].RuleSlug != out[id][j].RuleSlug {
-				return out[id][i].RuleSlug < out[id][j].RuleSlug
-			}
-			return out[id][i].LoadedAt.Before(out[id][j].LoadedAt)
-		})
-	}
+	sortAuditRowsBySlug(out)
 	return out, nil
 }
 
-func cleanExecutionIDs(in []string) []string {
+func (r *AuditRepo) ListByPlanningSessionIDs(ctx context.Context, planningSessionIDs []string) (map[string][]ruleregistry.LoadAudit, error) {
+	out := map[string][]ruleregistry.LoadAudit{}
+	if r == nil || r.db == nil {
+		return out, nil
+	}
+	ids := cleanAuditScopeIDs(planningSessionIDs)
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	placeholders := make([]string, len(ids))
+	for i, id := range ids {
+		args[i] = id
+		placeholders[i] = "?"
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT execution_id, planning_session_id, team_id,
+		team_memory_commit, rule_slug, phase, agent_id, loaded_at
+		FROM team_rule_load_audits
+		WHERE planning_session_id IN (`+strings.Join(placeholders, ",")+`)
+		ORDER BY planning_session_id ASC, rule_slug ASC, loaded_at ASC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		a, err := scanLoadAudit(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[a.PlanningSessionID] = append(out[a.PlanningSessionID], a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sortAuditRowsBySlug(out)
+	return out, nil
+}
+
+func cleanAuditScopeIDs(in []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(in))
 	for _, raw := range in {
@@ -114,6 +146,17 @@ func cleanExecutionIDs(in []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func sortAuditRowsBySlug(rows map[string][]ruleregistry.LoadAudit) {
+	for id := range rows {
+		sort.Slice(rows[id], func(i, j int) bool {
+			if rows[id][i].RuleSlug != rows[id][j].RuleSlug {
+				return rows[id][i].RuleSlug < rows[id][j].RuleSlug
+			}
+			return rows[id][i].LoadedAt.Before(rows[id][j].LoadedAt)
+		})
+	}
 }
 
 type loadAuditScanner interface {

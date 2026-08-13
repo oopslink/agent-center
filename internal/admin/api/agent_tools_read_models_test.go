@@ -169,6 +169,9 @@ func (r readModelRuleAuditRepo) ListByExecutionIDs(_ context.Context, ids []stri
 	}
 	return out, nil
 }
+func (r readModelRuleAuditRepo) ListByPlanningSessionIDs(context.Context, []string) (map[string][]ruleregistry.LoadAudit, error) {
+	return map[string][]ruleregistry.LoadAudit{}, nil
+}
 
 func readModelEvent(t *testing.T, id, payload string, at time.Time) *agent.AgentActivityEvent {
 	t.Helper()
