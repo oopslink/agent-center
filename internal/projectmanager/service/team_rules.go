@@ -26,6 +26,7 @@ type RuleContext struct {
 	Body        string   `json:"body,omitempty"`
 	Enabled     bool     `json:"enabled"`
 	AppliesTo   []string `json:"applies_to,omitempty"`
+	BodyBytes   int      `json:"body_bytes,omitempty"`
 	SourcePath  string   `json:"source_path,omitempty"`
 }
 
@@ -80,6 +81,7 @@ func NormalizePlanRuleSnapshot(in *RuleSnapshot, fallbackSource string) *RuleSna
 			Body:        r.Body,
 			Enabled:     r.Enabled,
 			AppliesTo:   append([]string(nil), r.AppliesTo...),
+			BodyBytes:   r.BodyBytes,
 			SourcePath:  strings.TrimSpace(r.SourcePath),
 		})
 	}
@@ -93,15 +95,19 @@ func PlanRuleSnapshotAudit(in *RuleSnapshot) map[string]any {
 	}
 	rules := make([]map[string]any, 0, len(snap.Rules))
 	for _, r := range snap.Rules {
-		rules = append(rules, map[string]any{
+		row := map[string]any{
 			"slug":        r.Slug,
 			"title":       r.Title,
 			"description": r.Description,
-			"body":        r.Body,
 			"enabled":     r.Enabled,
 			"applies_to":  r.AppliesTo,
+			"body_bytes":  r.BodyBytes,
 			"source_path": r.SourcePath,
-		})
+		}
+		if r.Body != "" {
+			row["body"] = r.Body
+		}
+		rules = append(rules, row)
 	}
 	skipped := snap.Skipped
 	if skipped == nil {

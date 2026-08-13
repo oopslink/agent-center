@@ -113,10 +113,13 @@ func TestBuildPrompt_AllBranches(t *testing.T) {
 			}},
 		},
 	})
-	for _, want := range []string{"T", "D", "## Spec\nS", "## Context\nC", "## Team Rules (execute)", "team=team-1 commit=abc123", "Write a focused test."} {
+	for _, want := range []string{"T", "D", "## Spec\nS", "## Context\nC", "## Team Rule Index (execute)", "team=team-1 commit=abc123", "Read a rule with get_team_rule", "- prefer-tests — test rule"} {
 		if !strings.Contains(full, want) {
 			t.Errorf("prompt %q missing %q", full, want)
 		}
+	}
+	if strings.Contains(full, "Write a focused test.") {
+		t.Fatalf("prompt leaked rule body: %q", full)
 	}
 	// Title-only: no Spec/Context headers.
 	bare := eng.buildPrompt(context.Background(), WorkItem{Goal: executor.Goal{Title: "only"}})

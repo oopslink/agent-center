@@ -123,7 +123,7 @@ func (s *scriptedToolCaller) CallAgentTool(_ context.Context, tool string, body 
 			*out = append((*out)[:0], rb...)
 		}
 		return nil
-	case "get_team_rules":
+	case "get_team_rule_index":
 		if s.teamRulesErr != nil {
 			return s.teamRulesErr
 		}
@@ -150,8 +150,8 @@ func (s *scriptedToolCaller) toolsSeen() []string {
 }
 
 // assertAdmissionForked locks the admission handshake of a FORKING spawn: get_task then
-// start_task, in that order, as the first two center calls. A get_team_rules call may
-// follow immediately before launch; it is the run's auditable rule snapshot.
+// start_task, in that order, as the first two center calls. A get_team_rule_index
+// call may follow immediately before launch; it is the run's auditable rule index.
 //
 // It deliberately does NOT lock the TOTAL call count. A forked executor is the `true`
 // stand-in, so it exits immediately and is reaped asynchronously; reconcileOneExecutor
@@ -171,8 +171,8 @@ func assertAdmissionForked(t *testing.T, sc *scriptedToolCaller, msg string) {
 		t.Fatalf("%s: tool calls = %v — want [get_task start_task] as the first two calls", msg, seen)
 	}
 	for i, tool := range seen[2:] {
-		if tool != "get_task" && tool != "get_team_rules" {
-			t.Fatalf("%s: tool calls = %v — call #%d is %q; after the admission handshake only get_team_rules (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow",
+		if tool != "get_task" && tool != "get_team_rule_index" {
+			t.Fatalf("%s: tool calls = %v — call #%d is %q; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow",
 				msg, seen, i+2, tool)
 		}
 	}

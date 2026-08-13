@@ -35,14 +35,14 @@ func (s *Server) loadPlanRulesForAgent(ctx context.Context, d HandlerDeps, a *ag
 	if d.TeamGitHost == nil {
 		return emptyPlanRules(teamID.String(), pmservice.PlanRuleSourceTeamMemory)
 	}
-	snap, err := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeamRules(ctx, teamID.String(), "plan")
+	snap, err := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeamRuleIndex(ctx, teamID.String(), "plan")
 	if err != nil {
 		return unavailablePlanRules(teamID.String(), err.Error())
 	}
-	return planRulesFromTeamSnapshot(snap)
+	return planRulesFromTeamIndexSnapshot(snap)
 }
 
-func planRulesFromTeamSnapshot(snap centergit.RuleSnapshot) *pmservice.RuleSnapshot {
+func planRulesFromTeamIndexSnapshot(snap centergit.RuleIndexSnapshot) *pmservice.RuleSnapshot {
 	out := &pmservice.RuleSnapshot{
 		TeamID:           strings.TrimSpace(snap.TeamID),
 		Phase:            "plan",
@@ -56,9 +56,8 @@ func planRulesFromTeamSnapshot(snap centergit.RuleSnapshot) *pmservice.RuleSnaps
 			Slug:        strings.TrimSpace(r.Slug),
 			Title:       strings.TrimSpace(r.Title),
 			Description: strings.TrimSpace(r.Description),
-			Body:        r.Body,
-			Enabled:     r.Enabled,
 			AppliesTo:   append([]string(nil), r.AppliesTo...),
+			BodyBytes:   r.BodyBytes,
 			SourcePath:  strings.TrimSpace(r.SourcePath),
 		})
 	}

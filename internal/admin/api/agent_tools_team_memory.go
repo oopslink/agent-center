@@ -271,6 +271,10 @@ func teamMemoryViewPayload(view teammemory.ProposalView) map[string]any {
 }
 
 func mapTeamMemoryError(w http.ResponseWriter, err error) {
+	if errors.Is(err, centergit.ErrTeamRuleIndexTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "team_rule_index_too_large", err.Error())
+		return
+	}
 	reason := teammemory.Reason(err)
 	switch reason {
 	case "team_memory_not_wired":

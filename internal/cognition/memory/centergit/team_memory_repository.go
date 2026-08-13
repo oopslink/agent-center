@@ -439,6 +439,8 @@ func (r *TeamMemoryRepository) BootstrapWithPaths(ctx context.Context, teamID st
 		if path, err := store.WriteRule(rule); err == nil {
 			written++
 			paths = append(paths, path)
+		} else if errors.Is(err, ErrTeamRuleIndexTooLarge) {
+			return written, paths, "", err
 		}
 	}
 	if written == 0 {

@@ -217,7 +217,7 @@ func TestCreatePlan_AutoLoadsPlanTeamRules_OK(t *testing.T) {
 		t.Fatalf("team_rules rules=%v want one phase=plan rule", rulesView["rules"])
 	}
 	rule, _ := rules[0].(map[string]any)
-	if rule["slug"] != "plan-shape" || rule["body"] != "Keep the plan DAG explicit." || rule["enabled"] != true || rule["source_path"] == "" {
+	if rule["slug"] != "plan-shape" || rule["body"] != nil || rule["body_bytes"] == nil || rule["source_path"] == "" {
 		t.Fatalf("unexpected plan rule payload: %v", rule)
 	}
 
@@ -227,7 +227,11 @@ func TestCreatePlan_AutoLoadsPlanTeamRules_OK(t *testing.T) {
 		t.Fatalf("audit team_rules = %v, response = %v", auditRules, rulesView)
 	}
 	auditList, _ := auditRules["rules"].([]any)
-	if len(auditList) != 1 || auditList[0].(map[string]any)["enabled"] != true {
+	if len(auditList) != 1 {
+		t.Fatalf("audit rules = %v", auditRules["rules"])
+	}
+	auditRule, _ := auditList[0].(map[string]any)
+	if auditRule["body"] != nil || auditRule["body_bytes"] == nil {
 		t.Fatalf("audit rules = %v", auditRules["rules"])
 	}
 }

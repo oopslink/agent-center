@@ -45,7 +45,7 @@ func (c *planningRuleCache) load(ctx context.Context) map[string]any {
 	}
 	var raw json.RawMessage
 	body := map[string]any{"agent_id": c.cfg.AgentID, "phase": "plan"}
-	if err := c.cfg.Admin.CallAgentTool(ctx, "get_team_rules", body, &raw); err != nil {
+	if err := c.cfg.Admin.CallAgentTool(ctx, "get_team_rule_index", body, &raw); err != nil {
 		return unavailablePlanRuleSnapshot(c.cfg, err.Error())
 	}
 	if len(raw) == 0 {
@@ -55,7 +55,7 @@ func (c *planningRuleCache) load(ctx context.Context) map[string]any {
 	}
 	var snap map[string]any
 	if err := json.Unmarshal(raw, &snap); err != nil {
-		return unavailablePlanRuleSnapshot(c.cfg, "decode get_team_rules response: "+err.Error())
+		return unavailablePlanRuleSnapshot(c.cfg, "decode get_team_rule_index response: "+err.Error())
 	}
 	if snap == nil {
 		snap = map[string]any{}

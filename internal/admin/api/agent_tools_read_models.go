@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/cognition/ruleregistry"
 	"github.com/oopslink/agent-center/internal/environment"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -168,14 +170,26 @@ type executionReadModel struct {
 	Branch                  string              `json:"branch,omitempty"`
 	Pushed                  *bool               `json:"pushed,omitempty"`
 	NonDeliveryReasons      []pm.DeliveryReason `json:"non_delivery_reasons,omitempty"`
+	TeamRuleSnapshot        *teamRuleReadModel  `json:"team_rule_snapshot,omitempty"`
+	LoadedRuleIDs           []string            `json:"loaded_rule_ids,omitempty"`
 	Recovered               bool                `json:"recovered"`
 	Events                  int                 `json:"event_count"`
+}
+
+type teamRuleReadModel struct {
+	TeamID string `json:"team_id"`
+	Commit string `json:"commit"`
+	Phase  string `json:"phase"`
 }
 
 func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskID string) ([]executionReadModel, error) {
 	now := time.Now()
 	if d.AgentActivityRepo == nil {
-		return forkCommandExecutions(ctx, d, agentID, workerID, taskID, nil, now)
+		runs, err := forkCommandExecutions(ctx, d, agentID, workerID, taskID, nil, now)
+		if err != nil {
+			return nil, err
+		}
+		return attachTeamRuleAudits(ctx, d, runs)
 	}
 	events, err := d.AgentActivityRepo.ListByTask(ctx, taskID)
 	if err != nil {
@@ -280,7 +294,65 @@ func taskExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskI
 		finalizeExecutionHealth(&run, now)
 		out = append(out, run)
 	}
-	return forkCommandExecutions(ctx, d, agentID, workerID, taskID, out, now)
+	runs, err := forkCommandExecutions(ctx, d, agentID, workerID, taskID, out, now)
+	if err != nil {
+		return nil, err
+	}
+	return attachTeamRuleAudits(ctx, d, runs)
+}
+
+func attachTeamRuleAudits(ctx context.Context, d HandlerDeps, runs []executionReadModel) ([]executionReadModel, error) {
+	if d.TeamRuleAuditRepo == nil || len(runs) == 0 {
+		return runs, nil
+	}
+	ids := make([]string, 0, len(runs))
+	for _, run := range runs {
+		id := strings.TrimSpace(run.ExecutionID)
+		if id != "" && !strings.HasPrefix(id, "command:") {
+			ids = append(ids, id)
+		}
+	}
+	byExec, err := d.TeamRuleAuditRepo.ListByExecutionIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range runs {
+		audits := byExec[runs[i].ExecutionID]
+		if len(audits) == 0 {
+			continue
+		}
+		runs[i].LoadedRuleIDs = sortedRuleSlugs(audits)
+		for _, audit := range audits {
+			if strings.TrimSpace(audit.TeamID) == "" || strings.TrimSpace(audit.TeamMemoryCommit) == "" {
+				continue
+			}
+			runs[i].TeamRuleSnapshot = &teamRuleReadModel{
+				TeamID: strings.TrimSpace(audit.TeamID),
+				Commit: strings.TrimSpace(audit.TeamMemoryCommit),
+				Phase:  strings.TrimSpace(audit.Phase),
+			}
+			break
+		}
+	}
+	return runs, nil
+}
+
+func sortedRuleSlugs(audits []ruleregistry.LoadAudit) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(audits))
+	for _, audit := range audits {
+		slug := strings.TrimSpace(audit.RuleSlug)
+		if slug == "" {
+			continue
+		}
+		if _, ok := seen[slug]; ok {
+			continue
+		}
+		seen[slug] = struct{}{}
+		out = append(out, slug)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func forkCommandExecutions(ctx context.Context, d HandlerDeps, agentID, workerID, taskID string, runs []executionReadModel, now time.Time) ([]executionReadModel, error) {

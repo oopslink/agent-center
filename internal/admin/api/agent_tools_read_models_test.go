@@ -8,6 +8,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/ruleregistry"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
@@ -21,6 +22,10 @@ import (
 
 type readModelActivityRepo struct {
 	events []*agent.AgentActivityEvent
+}
+
+type readModelRuleAuditRepo struct {
+	byExec map[string][]ruleregistry.LoadAudit
 }
 
 func TestTaskExecutionsIncludesPendingForkCommand(t *testing.T) {
@@ -152,6 +157,19 @@ func (r readModelActivityRepo) LatestByAgents(context.Context, []agent.AgentID) 
 	return nil, nil
 }
 
+func (r readModelRuleAuditRepo) AppendLoaded(context.Context, ruleregistry.LoadAudit) (bool, error) {
+	return false, nil
+}
+func (r readModelRuleAuditRepo) ListByExecutionIDs(_ context.Context, ids []string) (map[string][]ruleregistry.LoadAudit, error) {
+	out := map[string][]ruleregistry.LoadAudit{}
+	for _, id := range ids {
+		if rows := r.byExec[id]; len(rows) > 0 {
+			out[id] = append([]ruleregistry.LoadAudit(nil), rows...)
+		}
+	}
+	return out, nil
+}
+
 func readModelEvent(t *testing.T, id, payload string, at time.Time) *agent.AgentActivityEvent {
 	t.Helper()
 	ev, err := agent.NewActivityEvent(agent.NewActivityEventInput{
@@ -194,6 +212,38 @@ func TestTaskExecutionsProjectsPersistedLifecycle(t *testing.T) {
 	}
 	if len(got.NonDeliveryReasons) == 0 || got.NonDeliveryReasons[0].Code != "head_not_pushed" {
 		t.Fatalf("non-delivery reasons = %+v", got.NonDeliveryReasons)
+	}
+}
+
+func TestTaskExecutionsIncludesTeamRuleAuditSnapshot(t *testing.T) {
+	start := time.Date(2026, 8, 13, 1, 2, 3, 0, time.UTC)
+	activity := readModelActivityRepo{events: []*agent.AgentActivityEvent{
+		readModelEvent(t, "01", `{"event":"executor.start","cli":"codex","model":"gpt-5"}`, start),
+	}}
+	ruleAudits := readModelRuleAuditRepo{byExec: map[string][]ruleregistry.LoadAudit{
+		"exec-1": {
+			{ExecutionID: "exec-1", TeamID: "team-1", TeamMemoryCommit: "c1", RuleSlug: "z-rule", Phase: "execute", LoadedAt: start},
+			{ExecutionID: "exec-1", TeamID: "team-1", TeamMemoryCommit: "c1", RuleSlug: "a-rule", Phase: "execute", LoadedAt: start},
+			{ExecutionID: "exec-1", TeamID: "team-1", TeamMemoryCommit: "c1", RuleSlug: "a-rule", Phase: "execute", LoadedAt: start},
+		},
+	}}
+	runs, err := taskExecutions(context.Background(), HandlerDeps{
+		AgentActivityRepo: activity,
+		TeamRuleAuditRepo: ruleAudits,
+	}, "agent-1", "worker-1", "task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs = %d, want 1", len(runs))
+	}
+	got := runs[0]
+	if got.TeamRuleSnapshot == nil || got.TeamRuleSnapshot.TeamID != "team-1" ||
+		got.TeamRuleSnapshot.Commit != "c1" || got.TeamRuleSnapshot.Phase != "execute" {
+		t.Fatalf("team rule snapshot = %+v", got.TeamRuleSnapshot)
+	}
+	if len(got.LoadedRuleIDs) != 2 || got.LoadedRuleIDs[0] != "a-rule" || got.LoadedRuleIDs[1] != "z-rule" {
+		t.Fatalf("loaded rule ids = %+v", got.LoadedRuleIDs)
 	}
 }
 

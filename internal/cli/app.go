@@ -19,6 +19,7 @@ import (
 	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
+	ruleregistrysqlite "github.com/oopslink/agent-center/internal/cognition/ruleregistry/sqlite"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/config"
@@ -138,6 +139,7 @@ type App struct {
 	// The admin controller→center feedback surface (v2.7 D2-c-i activity sink)
 	// reads it back in tests; writes go through AgentService.AppendActivity.
 	AgentActivityRepo agentpkg.ActivityEventRepository
+	TeamRuleAuditRepo *ruleregistrysqlite.AuditRepo
 
 	// EnvControlSvc is the v2.7 Environment BC control-channel AppService
 	// (D1, ADR-0050, task #102) — backs the additive /admin/environment/...
@@ -498,6 +500,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// retired. The pm Service's PausedTaskPort is left unwired (it degrades to a
 	// nil-safe no-op: plan view shows no paused nodes).
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
+	teamRuleAuditRepo := ruleregistrysqlite.NewAuditRepo(db)
 	// issue-4a45e9cc: OBSERVED installed-skill projection (agent_installed_skills).
 	agentInstalledSkillRepo := agentsql.NewInstalledSkillRepo(db)
 
@@ -564,6 +567,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AgentService:        agentSvc,
 		AgentRepo:           agentRepo,
 		AgentActivityRepo:   agentActivityRepo,
+		TeamRuleAuditRepo:   teamRuleAuditRepo,
 		EnvControlSvc:       envControlSvc,
 		ControlStreamBus:    controlStreamBus,
 		RuntimeFsDispatcher: runtimeFsDispatcher,

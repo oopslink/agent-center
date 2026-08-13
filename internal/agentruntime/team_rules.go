@@ -15,22 +15,21 @@ const (
 	rulePhaseRecovery = "recovery"
 )
 
-type teamRulesToolResponse struct {
-	TeamID           string              `json:"team_id"`
-	Phase            string              `json:"phase"`
-	Commit           string              `json:"commit"`
-	Rules            []teamRulesToolRule `json:"rules"`
-	Skipped          []string            `json:"skipped_nonstandard"`
-	RefreshSemantics string              `json:"refresh_semantics"`
+type teamRuleIndexToolResponse struct {
+	TeamID           string                  `json:"team_id"`
+	Phase            string                  `json:"phase"`
+	Commit           string                  `json:"commit"`
+	Rules            []teamRuleIndexToolRule `json:"rules"`
+	Skipped          []string                `json:"skipped_nonstandard"`
+	RefreshSemantics string                  `json:"refresh_semantics"`
 }
 
-type teamRulesToolRule struct {
+type teamRuleIndexToolRule struct {
 	Slug        string   `json:"slug"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Body        string   `json:"body"`
-	Enabled     bool     `json:"enabled"`
 	AppliesTo   []string `json:"applies_to"`
+	BodyBytes   int      `json:"body_bytes"`
 	SourcePath  string   `json:"source_path"`
 }
 
@@ -42,17 +41,17 @@ func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string)
 	phase = normalizeRulePhaseForRuntime(phase)
 	var raw json.RawMessage
 	body := map[string]any{"agent_id": agentID, "phase": phase}
-	if err := caller.CallAgentTool(ctx, "get_team_rules", body, &raw); err != nil {
-		r.log("agent=%s team-rules phase=%s load failed: %v — continuing without team rules", agentID, phase, err)
-		return nil
+	if err := caller.CallAgentTool(ctx, "get_team_rule_index", body, &raw); err != nil {
+		r.log("agent=%s team-rule-index phase=%s load failed: %v", agentID, phase, err)
+		return &executor.RuleSnapshot{Phase: phase, LoadError: err.Error()}
 	}
 	if len(raw) == 0 {
 		return nil
 	}
-	var resp teamRulesToolResponse
+	var resp teamRuleIndexToolResponse
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		r.log("agent=%s team-rules phase=%s decode failed: %v — continuing without team rules", agentID, phase, err)
-		return nil
+		r.log("agent=%s team-rule-index phase=%s decode failed: %v", agentID, phase, err)
+		return &executor.RuleSnapshot{Phase: phase, LoadError: "decode get_team_rule_index response: " + err.Error()}
 	}
 	if strings.TrimSpace(resp.Phase) == "" {
 		resp.Phase = phase
@@ -64,6 +63,7 @@ func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string)
 		TeamID:           strings.TrimSpace(resp.TeamID),
 		Phase:            normalizeRulePhaseForRuntime(resp.Phase),
 		Commit:           strings.TrimSpace(resp.Commit),
+		LoadError:        "",
 		Skipped:          append([]string(nil), resp.Skipped...),
 		RefreshSemantics: strings.TrimSpace(resp.RefreshSemantics),
 	}
@@ -72,9 +72,8 @@ func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string)
 			Slug:        tr.Slug,
 			Title:       tr.Title,
 			Description: tr.Description,
-			Body:        tr.Body,
-			Enabled:     tr.Enabled,
 			AppliesTo:   append([]string(nil), tr.AppliesTo...),
+			BodyBytes:   tr.BodyBytes,
 			SourcePath:  tr.SourcePath,
 		})
 	}

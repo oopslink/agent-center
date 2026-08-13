@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	ruleregistrysqlite "github.com/oopslink/agent-center/internal/cognition/ruleregistry/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -33,6 +34,7 @@ func wireTeam(t *testing.T, f *writeToolsFixture) (*httptest.Server, *centergit.
 	f.deps.TeamIDGen = gen
 	gitHost := centergit.NewHost(t.TempDir(), nil)
 	f.deps.TeamGitHost = gitHost
+	f.deps.TeamRuleAuditRepo = ruleregistrysqlite.NewAuditRepo(f.db)
 
 	gitHandler, err := NewGitHandler(gitHost, centergit.NewMapMembership())
 	if err != nil {
@@ -223,6 +225,92 @@ func TestTeamTools_GetTeamRulesLoadsEnabledPhaseSnapshot(t *testing.T) {
 	rule, _ := rules[0].(map[string]any)
 	if rule["slug"] != "execute-rule" || rule["body"] != "Execute carefully." || rule["source_path"] == "" {
 		t.Fatalf("unexpected rule payload: %v", rule)
+	}
+}
+
+func TestTeamTools_GetTeamRuleIndexAndCommitBoundBodyRead(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-rule-index", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+
+	if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
+		{Slug: "execute-rule", Title: "Execute Rule", Description: "read before changing code", Body: "Execute carefully.", Enabled: true, AppliesTo: []string{"execute"}},
+		{Slug: "review-rule", Description: "review hook", Body: "Review carefully.", Enabled: true, AppliesTo: []string{"review"}},
+	}); err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule_index", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute", "execution_id": "exec-1",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("get_team_rule_index status=%d body=%v", st, body)
+	}
+	commit, _ := body["commit"].(string)
+	if body["team_id"] != teamID || body["phase"] != "execute" || commit == "" {
+		t.Fatalf("bad index metadata: %v", body)
+	}
+	rules, _ := body["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("index rules=%v want exactly one execute rule", body["rules"])
+	}
+	rule, _ := rules[0].(map[string]any)
+	if _, leaked := rule["body"]; leaked {
+		t.Fatalf("index leaked body: %v", rule)
+	}
+	if rule["slug"] != "execute-rule" || rule["body_bytes"] == nil || rule["source_path"] == "" {
+		t.Fatalf("unexpected index rule payload: %v", rule)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "execute-rule", "commit": commit, "phase": "execute", "execution_id": "exec-1",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("get_team_rule status=%d body=%v", st, body)
+	}
+	if body["commit"] != commit || body["body"] != "Execute carefully." || body["slug"] != "execute-rule" {
+		t.Fatalf("unexpected rule body payload: %v", body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "execute-rule", "commit": commit, "phase": "execute", "execution_id": "exec-1",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("duplicate get_team_rule status=%d body=%v", st, body)
+	}
+	audits, err := f.deps.TeamRuleAuditRepo.ListByExecutionIDs(ctx, []string{"exec-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(audits["exec-1"]); got != 1 {
+		t.Fatalf("audit rows = %d, want idempotent single row: %+v", got, audits)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "execute-rule", "commit": commit, "phase": "review", "execution_id": "exec-review",
+	})
+	if st != http.StatusNotFound || body["error"] != "team_rule_not_found" {
+		t.Fatalf("wrong phase status=%d body=%v, want 404 team_rule_not_found", st, body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "slug": "execute-rule", "commit": "ffffffffffffffffffffffffffffffffffffffff", "phase": "execute", "execution_id": "exec-miss",
+	})
+	if st != http.StatusNotFound || body["error"] != "rule_snapshot_not_found" {
+		t.Fatalf("bad commit status=%d body=%v, want 404 rule_snapshot_not_found", st, body)
 	}
 }
 

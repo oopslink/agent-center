@@ -276,14 +276,14 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 		"team_id": "team-1", "phase": "execute", "commit": "abc123",
 		"refresh_semantics": "snapshot at fork",
 		"rules": []map[string]any{{
-			"slug": "prefer-tests", "description": "test first", "body": "Write the regression test.", "enabled": true, "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
+			"slug": "prefer-tests", "description": "test first", "body_bytes": 26, "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
 		}},
 	}}
 	rt, _, home := spawn(t, "agent-fork", "task-9", sc)
 
 	assertAdmissionForked(t, sc, "admission must run get_task→start_task before forking")
-	if body, ok := sc.callFor("get_team_rules"); !ok || body["phase"] != "execute" || body["agent_id"] != "agent-fork" {
-		t.Errorf("get_team_rules body = %v", body)
+	if body, ok := sc.callFor("get_team_rule_index"); !ok || body["phase"] != "execute" || body["agent_id"] != "agent-fork" {
+		t.Errorf("get_team_rule_index body = %v", body)
 	}
 	if body, ok := sc.callFor("start_task"); !ok || body["task_id"] != "task-9" || body["agent_id"] != "agent-fork" {
 		t.Errorf("start_task body = %v", body)
@@ -304,7 +304,7 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 			t.Fatalf("read input: %v", err)
 		}
 		if in.TeamRules == nil || in.TeamRules.Commit != "abc123" || len(in.TeamRules.Rules) != 1 ||
-			in.TeamRules.Rules[0].Slug != "prefer-tests" || !in.TeamRules.Rules[0].Enabled {
+			in.TeamRules.Rules[0].Slug != "prefer-tests" || in.TeamRules.Rules[0].Body != "" || in.TeamRules.Rules[0].BodyBytes != 26 {
 			t.Fatalf("input team_rules = %+v", in.TeamRules)
 		}
 	}
@@ -482,7 +482,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -712,8 +712,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rules block_task]", seen)
+	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rule_index block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

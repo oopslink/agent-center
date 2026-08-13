@@ -66,6 +66,8 @@ var AgentFacingToolNames = []string{
 	"find_org_channel",
 	"fork_executor",
 	"get_issue",
+	"get_team_rule_index",
+	"get_team_rule",
 	"get_team_rules",
 	"propose_team_memory_change",
 	"list_team_memory_proposals",

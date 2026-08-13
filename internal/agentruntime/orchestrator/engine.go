@@ -372,7 +372,7 @@ func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
 	if phase == "" {
 		phase = "execute"
 	}
-	fmt.Fprintf(&b, "## Team Rules (%s)\n", phase)
+	fmt.Fprintf(&b, "## Team Rule Index (%s)\n", phase)
 	meta := make([]string, 0, 2)
 	if teamID := strings.TrimSpace(snap.TeamID); teamID != "" {
 		meta = append(meta, "team="+teamID)
@@ -384,28 +384,30 @@ func renderRuleSnapshot(snap *executor.RuleSnapshot) string {
 		b.WriteString(strings.Join(meta, " "))
 		b.WriteString("\n\n")
 	}
+	if loadErr := strings.TrimSpace(snap.LoadError); loadErr != "" {
+		b.WriteString("_Team rule index unavailable: ")
+		b.WriteString(loadErr)
+		b.WriteString("_")
+		return b.String()
+	}
+	b.WriteString("Read a rule with get_team_rule before acting when its description applies.\n")
 	if len(snap.Rules) == 0 {
+		b.WriteString("\n")
 		b.WriteString("_No enabled team rules matched this phase._")
 		return b.String()
 	}
-	for i, r := range snap.Rules {
-		if i > 0 {
-			b.WriteString("\n\n")
+	for _, r := range snap.Rules {
+		slug := strings.TrimSpace(r.Slug)
+		if slug == "" {
+			slug = "rule"
 		}
-		title := strings.TrimSpace(r.Title)
-		if title == "" {
-			title = strings.TrimSpace(r.Slug)
+		desc := strings.TrimSpace(r.Description)
+		if desc == "" {
+			desc = strings.TrimSpace(r.Title)
 		}
-		if title == "" {
-			title = "rule"
-		}
-		fmt.Fprintf(&b, "### %s\n", title)
-		if desc := strings.TrimSpace(r.Description); desc != "" {
-			b.WriteString(desc)
-			b.WriteString("\n\n")
-		}
-		if body := strings.TrimSpace(r.Body); body != "" {
-			b.WriteString(body)
+		fmt.Fprintf(&b, "\n- %s", slug)
+		if desc != "" {
+			fmt.Fprintf(&b, " — %s", desc)
 		}
 	}
 	return b.String()

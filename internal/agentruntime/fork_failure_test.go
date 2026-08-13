@@ -84,8 +84,8 @@ func TestSpawnExecutor_NoModelResolvable_BlocksWithCause(t *testing.T) {
 		t.Fatalf("SpawnExecutor (no model) = (%v, %v), want failed/no_model_resolvable", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rules" || seen[3] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rules block_task] (fork-fail must fail-loud → block, not silent)", seen)
+	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rule_index block_task] (fork-fail must fail-loud → block, not silent)", seen)
 	}
 	body, ok := sc.callFor("block_task")
 	if !ok {

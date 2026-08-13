@@ -121,8 +121,9 @@ type RuleContext struct {
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Body        string   `json:"body,omitempty"`
-	Enabled     bool     `json:"enabled"`
+	Enabled     bool     `json:"enabled,omitempty"`
 	AppliesTo   []string `json:"applies_to,omitempty"`
+	BodyBytes   int      `json:"body_bytes,omitempty"`
 	SourcePath  string   `json:"source_path,omitempty"`
 }
 
@@ -133,6 +134,7 @@ type RuleSnapshot struct {
 	TeamID           string        `json:"team_id,omitempty"`
 	Phase            string        `json:"phase,omitempty"`
 	Commit           string        `json:"commit,omitempty"`
+	LoadError        string        `json:"load_error,omitempty"`
 	Rules            []RuleContext `json:"rules,omitempty"`
 	Skipped          []string      `json:"skipped_nonstandard,omitempty"`
 	RefreshSemantics string        `json:"refresh_semantics,omitempty"`

@@ -296,6 +296,7 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// v2.7 D2-f s4 — worker boot-resume endpoint reads the worker's agents.
 		AgentRepo:         a.AgentRepo,
 		AgentActivityRepo: a.AgentActivityRepo,
+		TeamRuleAuditRepo: a.TeamRuleAuditRepo,
 		// v2.7 D2-e-ii (OQ5): outbox emitter for conversation.message_added wakes.
 		OutboxRepo: a.OutboxRepo,
 

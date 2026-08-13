@@ -15,6 +15,7 @@ import (
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
+	"github.com/oopslink/agent-center/internal/cognition/ruleregistry"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -125,6 +126,9 @@ type HandlerDeps struct {
 	// endpoint asserts via repo in tests; the handler appends through the
 	// AgentSvc AppService.
 	AgentActivityRepo agent.ActivityEventRepository
+	// TeamRuleAuditRepo persists idempotent team_rule.loaded read facts for the
+	// commit-bound get_team_rule body API and TaskExecution read models.
+	TeamRuleAuditRepo ruleregistry.AuditRepository
 
 	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The MessageWriter
 	// uses it to emit `conversation.message_added` IN THE SAME outer tx as the
