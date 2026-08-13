@@ -109,7 +109,6 @@ func TestBuildPrompt_AllBranches(t *testing.T) {
 			Rules: []executor.RuleContext{{
 				Slug:        "prefer-tests",
 				Description: "test rule",
-				Body:        "Write a focused test.",
 			}},
 		},
 	})
@@ -117,9 +116,6 @@ func TestBuildPrompt_AllBranches(t *testing.T) {
 		if !strings.Contains(full, want) {
 			t.Errorf("prompt %q missing %q", full, want)
 		}
-	}
-	if strings.Contains(full, "Write a focused test.") {
-		t.Fatalf("prompt leaked rule body: %q", full)
 	}
 	// Title-only: no Spec/Context headers.
 	bare := eng.buildPrompt(context.Background(), WorkItem{Goal: executor.Goal{Title: "only"}})

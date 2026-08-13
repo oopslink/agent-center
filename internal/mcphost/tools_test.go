@@ -287,6 +287,26 @@ func TestPlanRuleFreezeSurvivesSearchToolsReregister(t *testing.T) {
 	}
 }
 
+func TestGetTeamRuleDefaultsPlanningSessionAuditContext(t *testing.T) {
+	fake := &fakeAdmin{canned: json.RawMessage(`{"slug":"plan-dag","commit":"c1","body":"read me"}`)}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 7})
+
+	callOK(t, cs, "get_team_rule", map[string]any{"slug": "plan-dag", "commit": "c1"})
+
+	if fake.gotTool != "get_team_rule" {
+		t.Fatalf("tool = %q, want get_team_rule", fake.gotTool)
+	}
+	if fake.gotBody["agent_id"] != "agent-1" ||
+		fake.gotBody["slug"] != "plan-dag" ||
+		fake.gotBody["commit"] != "c1" ||
+		fake.gotBody["planning_session_id"] != "agent:agent-1/generation:7" {
+		t.Fatalf("forwarded body = %v", fake.gotBody)
+	}
+	if _, leaked := fake.gotBody["execution_id"]; leaked {
+		t.Fatalf("planning get_team_rule must not invent execution_id: %v", fake.gotBody)
+	}
+}
+
 // TestCreateTaskAgentIDNotSpoofable proves the process-fixed agent_id wins on a
 // NEW tool too: a smuggled agent_id arg is either rejected by the schema or
 // ignored — the forwarded body always carries cfg.AgentID.

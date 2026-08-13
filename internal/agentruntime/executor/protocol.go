@@ -115,13 +115,12 @@ type RepoRef struct {
 }
 
 // RuleContext is the frozen, credential-free representation of a team memory
-// rule that applied when the executor was forked.
+// rule index entry that applied when the executor was forked. The full rule body
+// is intentionally absent; agents read it later via get_team_rule(slug, commit).
 type RuleContext struct {
 	Slug        string   `json:"slug"`
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
-	Body        string   `json:"body,omitempty"`
-	Enabled     bool     `json:"enabled,omitempty"`
 	AppliesTo   []string `json:"applies_to,omitempty"`
 	BodyBytes   int      `json:"body_bytes,omitempty"`
 	SourcePath  string   `json:"source_path,omitempty"`

@@ -33,7 +33,7 @@ type teamRuleIndexToolRule struct {
 	SourcePath  string   `json:"source_path"`
 }
 
-func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string) *executor.RuleSnapshot {
+func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase, executionID string) *executor.RuleSnapshot {
 	caller := r.toolCaller()
 	if caller == nil {
 		return nil
@@ -41,6 +41,9 @@ func (r *LocalRuntime) loadTeamRules(ctx context.Context, agentID, phase string)
 	phase = normalizeRulePhaseForRuntime(phase)
 	var raw json.RawMessage
 	body := map[string]any{"agent_id": agentID, "phase": phase}
+	if executionID = strings.TrimSpace(executionID); executionID != "" {
+		body["execution_id"] = executionID
+	}
 	if err := caller.CallAgentTool(ctx, "get_team_rule_index", body, &raw); err != nil {
 		r.log("agent=%s team-rule-index phase=%s load failed: %v", agentID, phase, err)
 		return &executor.RuleSnapshot{Phase: phase, LoadError: err.Error()}

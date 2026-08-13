@@ -276,13 +276,15 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 		"team_id": "team-1", "phase": "execute", "commit": "abc123",
 		"refresh_semantics": "snapshot at fork",
 		"rules": []map[string]any{{
-			"slug": "prefer-tests", "description": "test first", "body_bytes": 26, "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
+			"slug": "prefer-tests", "description": "test first", "body": "preloaded body must not persist",
+			"body_bytes": 26, "applies_to": []string{"execute"}, "source_path": "rules/prefer-tests.md",
 		}},
 	}}
 	rt, _, home := spawn(t, "agent-fork", "task-9", sc)
 
 	assertAdmissionForked(t, sc, "admission must run get_task→start_task before forking")
-	if body, ok := sc.callFor("get_team_rule_index"); !ok || body["phase"] != "execute" || body["agent_id"] != "agent-fork" {
+	if body, ok := sc.callFor("get_team_rule_index"); !ok || body["phase"] != "execute" ||
+		body["agent_id"] != "agent-fork" || body["execution_id"] == "" {
 		t.Errorf("get_team_rule_index body = %v", body)
 	}
 	if body, ok := sc.callFor("start_task"); !ok || body["task_id"] != "task-9" || body["agent_id"] != "agent-fork" {
@@ -304,8 +306,32 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 			t.Fatalf("read input: %v", err)
 		}
 		if in.TeamRules == nil || in.TeamRules.Commit != "abc123" || len(in.TeamRules.Rules) != 1 ||
-			in.TeamRules.Rules[0].Slug != "prefer-tests" || in.TeamRules.Rules[0].Body != "" || in.TeamRules.Rules[0].BodyBytes != 26 {
+			in.TeamRules.Rules[0].Slug != "prefer-tests" || in.TeamRules.Rules[0].BodyBytes != 26 {
 			t.Fatalf("input team_rules = %+v", in.TeamRules)
+		}
+		if body, ok := sc.callFor("get_team_rule_index"); ok && body["execution_id"] != in.ExecutorID {
+			t.Fatalf("get_team_rule_index execution_id=%v, input executor_id=%s", body["execution_id"], in.ExecutorID)
+		}
+		inputPath, err := layout.InputPath(in.ExecutorID)
+		if err != nil {
+			t.Fatalf("input path: %v", err)
+		}
+		raw, err := os.ReadFile(inputPath)
+		if err != nil {
+			t.Fatalf("read raw input: %v", err)
+		}
+		if strings.Contains(string(raw), "preloaded body must not persist") {
+			t.Fatalf("input.json leaked rule body: %s", raw)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatalf("decode raw input: %v", err)
+		}
+		teamRules, _ := doc["team_rules"].(map[string]any)
+		storedRules, _ := teamRules["rules"].([]any)
+		storedRule, _ := storedRules[0].(map[string]any)
+		if _, leaked := storedRule["body"]; leaked {
+			t.Fatalf("input.json rule entry leaked body key: %v", storedRule)
 		}
 	}
 	if got := rt.CurrentTaskID(); got != "task-9" {
@@ -742,6 +768,11 @@ func TestNotifyWork_ExecutorBranchForks(t *testing.T) {
 	attach(rt, ee)
 	fs := &fakeSession{}
 	rt.withState(func(s *SessionState) { s.Session = fs }) // NotifyWork requires a live session before branching
+	sc := &scriptedToolCaller{teamRulesBody: map[string]any{
+		"team_id": "team-1", "phase": "execute", "commit": "notify-c1",
+		"rules": []map[string]any{{"slug": "notify-rule", "description": "read for notify", "body_bytes": 12}},
+	}}
+	setToolCaller(rt, sc)
 
 	if err := rt.NotifyWork(context.Background(), WorkRequest{AgentID: "agent-nw", TaskID: "t-1", TaskRef: "task-1", Brief: "do it"}); err != nil {
 		t.Fatalf("NotifyWork: %v", err)
@@ -752,9 +783,79 @@ func TestNotifyWork_ExecutorBranchForks(t *testing.T) {
 	}
 	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].TaskRefs) == 0 || probs[0].TaskRefs[0] != "task-1" {
 		t.Fatalf("expected routing bound to task-1, got %+v", probs)
+	} else {
+		executorID := probs[0].ExecutorIDs[0]
+		if body, ok := sc.callFor("get_team_rule_index"); !ok || body["execution_id"] != executorID {
+			t.Fatalf("NotifyWork get_team_rule_index body = %v, want execution_id %s", body, executorID)
+		}
+		layout, err := executor.NewLayout(home)
+		if err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+		fx, err := executor.NewFileExchange(layout, nil)
+		if err != nil {
+			t.Fatalf("file exchange: %v", err)
+		}
+		in, err := fx.ReadInput(executorID)
+		if err != nil {
+			t.Fatalf("read input: %v", err)
+		}
+		if in.TeamRules == nil || in.TeamRules.Commit != "notify-c1" {
+			t.Fatalf("NotifyWork input team rules = %+v", in.TeamRules)
+		}
 	}
 	if got := rt.CurrentTaskID(); got != "t-1" {
 		t.Errorf("currentTaskID = %q, want t-1", got)
+	}
+}
+
+func TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "agent-rule-rec")
+	attach(rt, ee)
+	sc := &scriptedToolCaller{teamRulesErr: errors.New("recovery must not refresh team rule index")}
+	setToolCaller(rt, sc)
+
+	fx, tr := seedExchange(t, home)
+	_, alivePID := liveChild(t)
+	now := time.Now()
+	const execID = "exec-rules-001"
+	if _, err := fx.Provision(execID); err != nil {
+		t.Fatalf("Provision: %v", err)
+	}
+	if err := fx.WriteInput(executor.Input{
+		ExecutorID: execID,
+		Goal:       executor.Goal{Title: "recover rules"},
+		Model:      "m",
+		Source:     executor.SourceRefs{TaskRef: "task-rules"},
+		TeamRules: &executor.RuleSnapshot{
+			TeamID: "team-1",
+			Phase:  "execute",
+			Commit: "old-commit",
+			Rules:  []executor.RuleContext{{Slug: "old-rule", Description: "old description"}},
+		},
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("WriteInput: %v", err)
+	}
+	if err := fx.WriteStatus(executor.Status{ExecutorID: execID, State: executor.StateRunning, Model: "m", StartedAt: now, LastProgressAt: now}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	if err := tr.Write(executor.Record{ExecutorID: execID, PID: alivePID, SpawnedAt: now}); err != nil {
+		t.Fatalf("Tracker.Write: %v", err)
+	}
+
+	if err := rt.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover: %v", err)
+	}
+	if seen := sc.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("recovery must reuse input.json rule snapshot without center refresh, calls=%v", seen)
+	}
+	in, err := fx.ReadInput(execID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.TeamRules == nil || in.TeamRules.Commit != "old-commit" || in.TeamRules.Rules[0].Slug != "old-rule" {
+		t.Fatalf("recovery changed team rule snapshot: %+v", in.TeamRules)
 	}
 }
 
