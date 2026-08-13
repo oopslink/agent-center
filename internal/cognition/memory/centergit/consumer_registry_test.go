@@ -2,6 +2,7 @@ package centergit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,44 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestTeamRuleIndexHundredLargeBodiesStayOutOfStartupSnapshot(t *testing.T) {
+	ctx := context.Background()
+	host := NewHost(t.TempDir(), nil)
+	prod := NewTeamMemoryProducer(host, nil)
+	phases := []string{"plan", "execute", "review", "recovery"}
+	rules := make([]Rule, 0, 100)
+	for i := 0; i < 100; i++ {
+		rules = append(rules, Rule{
+			Slug:        fmt.Sprintf("large-rule-%03d", i),
+			Description: fmt.Sprintf("read large rule %03d when its scenario applies", i),
+			Body:        "BODY-MUST-NOT-BE-IN-INDEX-" + strings.Repeat("x", 32*1024),
+			Enabled:     true,
+			AppliesTo:   []string{phases[i%len(phases)]},
+		})
+	}
+	if _, err := prod.SeedTeam(ctx, "team-large-bodies", nil, rules); err != nil {
+		t.Fatalf("SeedTeam: %v", err)
+	}
+
+	idx, err := NewTeamMemoryConsumer(host, nil).ReadTeamRuleIndex(ctx, "team-large-bodies", "execute")
+	if err != nil {
+		t.Fatalf("ReadTeamRuleIndex: %v", err)
+	}
+	if got := len(idx.Rules); got != 25 {
+		t.Fatalf("execute index entries = %d, want 25 of 100 phase-partitioned rules", got)
+	}
+	b, err := json.Marshal(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) > RuleIndexMaxBytes {
+		t.Fatalf("serialized index = %d bytes, max %d", len(b), RuleIndexMaxBytes)
+	}
+	if strings.Contains(string(b), "BODY-MUST-NOT-BE-IN-INDEX") {
+		t.Fatalf("index leaked a rule body: %s", b)
+	}
+}
 
 func TestTeamRuleIndexAndBodyReadAreCommitBound(t *testing.T) {
 	ctx := context.Background()
