@@ -2,12 +2,19 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/ruleregistry"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -20,6 +27,44 @@ type denyResolver struct{}
 
 func (denyResolver) MemberExists(context.Context, string, team.MemberRef) (bool, error) {
 	return false, nil
+}
+
+type fakeTeamRuleAudit struct {
+	mu      sync.Mutex
+	keys    map[string]struct{}
+	records []ruleregistry.LoadAudit
+}
+
+func (f *fakeTeamRuleAudit) AppendLoaded(_ context.Context, audit ruleregistry.LoadAudit) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.keys == nil {
+		f.keys = map[string]struct{}{}
+	}
+	audit = ruleregistry.NormalizeLoadAudit(audit)
+	owner := audit.ExecutionID
+	if owner == "" {
+		owner = "planning:" + audit.PlanningSessionID
+	}
+	key := owner + "|" + audit.TeamID + "|" + audit.TeamMemoryCommit + "|" + audit.RuleSlug
+	if _, ok := f.keys[key]; ok {
+		return false, nil
+	}
+	f.keys[key] = struct{}{}
+	f.records = append(f.records, audit)
+	return true, nil
+}
+
+func (f *fakeTeamRuleAudit) recordCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.records)
+}
+
+func (f *fakeTeamRuleAudit) recordAt(i int) ruleregistry.LoadAudit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.records[i]
 }
 
 // wireTeam attaches a live team service + git host to the fixture deps and
@@ -223,6 +268,235 @@ func TestTeamTools_GetTeamRulesLoadsEnabledPhaseSnapshot(t *testing.T) {
 	rule, _ := rules[0].(map[string]any)
 	if rule["slug"] != "execute-rule" || rule["body"] != "Execute carefully." || rule["source_path"] == "" {
 		t.Fatalf("unexpected rule payload: %v", rule)
+	}
+}
+
+func TestTeamRuleRegistry_IndexBodyCommitAndAudit(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	audit := &fakeTeamRuleAudit{}
+	f.deps.TeamRuleAudit = audit
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-rule-registry", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+
+	if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
+		{Slug: "execute-rule", Title: "Execute Rule", Description: "read before changing code", Body: "old body", Enabled: true, AppliesTo: []string{"execute"}},
+		{Slug: "review-rule", Description: "read during review", Body: "review body", Enabled: true, AppliesTo: []string{"review"}},
+		{Slug: "off-rule", Description: "do not read", Body: "off", Enabled: false, AppliesTo: []string{"execute"}},
+	}); err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule_index", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute", "execution_id": "exec-1",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("get_team_rule_index status=%d body=%v", st, body)
+	}
+	commit, _ := body["commit"].(string)
+	if commit == "" {
+		t.Fatalf("index missing commit: %v", body)
+	}
+	rules, _ := body["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("index rules=%v want exactly one execute rule", body["rules"])
+	}
+	entry, _ := rules[0].(map[string]any)
+	if entry["slug"] != "execute-rule" || entry["body"] != nil || entry["body_bytes"] == nil {
+		t.Fatalf("bad body-free index entry: %v", entry)
+	}
+	sourcePath, _ := entry["source_path"].(string)
+	updateTeamRuleBodyAtHEAD(t, gitHost, teamID, sourcePath, "old body", "new body")
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute", "slug": "execute-rule", "commit": commit,
+	})
+	if st != http.StatusBadRequest || body["error"] != "team_rule_audit_context_required" {
+		t.Fatalf("missing audit context status=%d body=%v, want team_rule_audit_context_required", st, body)
+	}
+
+	for i := 0; i < 2; i++ {
+		st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+			"agent_id": atAgent1, "phase": "execute", "slug": "execute-rule", "commit": commit, "execution_id": "exec-1",
+		})
+		if st != http.StatusOK {
+			t.Fatalf("get_team_rule attempt %d status=%d body=%v", i+1, st, body)
+		}
+		if body["commit"] != commit || body["body"] != "old body" {
+			t.Fatalf("commit-bound body response=%v, want old body at %s", body, commit)
+		}
+	}
+	if audit.recordCount() != 1 {
+		t.Fatalf("audit records=%d want one idempotent record: %+v", audit.recordCount(), audit.records)
+	}
+	if got := audit.recordAt(0); got.ExecutionID != "exec-1" || got.TeamID != teamID ||
+		got.TeamMemoryCommit != commit || got.RuleSlug != "execute-rule" || got.Phase != "execute" {
+		t.Fatalf("audit record = %+v", got)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "review", "slug": "execute-rule", "commit": commit, "execution_id": "exec-2",
+	})
+	if st != http.StatusNotFound || body["error"] != "team_rule_not_found" {
+		t.Fatalf("wrong phase status=%d body=%v, want team_rule_not_found", st, body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute", "slug": "execute-rule",
+		"commit": strings.Repeat("f", 40), "execution_id": "exec-3",
+	})
+	if st != http.StatusNotFound || body["error"] != "rule_snapshot_not_found" {
+		t.Fatalf("missing commit status=%d body=%v, want rule_snapshot_not_found", st, body)
+	}
+}
+
+func TestTeamRuleRegistry_ConcurrentDuplicateReadsAuditOnce(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	audit := &fakeTeamRuleAudit{}
+	f.deps.TeamRuleAudit = audit
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-rule-concurrent", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+	if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
+		{Slug: "execute-rule", Description: "read before changing code", Body: "body", Enabled: true, AppliesTo: []string{"execute"}},
+	}); err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+	idx, err := centergit.NewTeamMemoryConsumer(gitHost, nil).ReadTeamRuleIndex(ctx, teamID, "execute")
+	if err != nil {
+		t.Fatalf("ReadTeamRuleIndex: %v", err)
+	}
+
+	const callers = 8
+	errs := make(chan string, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			st, body := postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+				"agent_id": atAgent1, "phase": "execute", "slug": "execute-rule", "commit": idx.Commit, "execution_id": "exec-race",
+			})
+			if st != http.StatusOK || body["body"] != "body" {
+				errs <- fmt.Sprintf("status=%d body=%v", st, body)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if audit.recordCount() != 1 {
+		t.Fatalf("audit records=%d want one idempotent record", audit.recordCount())
+	}
+}
+
+func TestTeamRuleRegistry_GetRuleFailsClosedWhenAuditUnwired(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-rule-audit-required", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:" + atAgent1, "role": "dev",
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("add_member status=%d body=%v", st, body)
+	}
+	if _, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, nil, []centergit.Rule{
+		{Slug: "execute-rule", Description: "read before changing code", Body: "body", Enabled: true, AppliesTo: []string{"execute"}},
+	}); err != nil {
+		t.Fatalf("SeedTeam rules: %v", err)
+	}
+	idx, err := centergit.NewTeamMemoryConsumer(gitHost, nil).ReadTeamRuleIndex(ctx, teamID, "execute")
+	if err != nil {
+		t.Fatalf("ReadTeamRuleIndex: %v", err)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/get_team_rule", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "phase": "execute", "slug": "execute-rule", "commit": idx.Commit, "execution_id": "exec-1",
+	})
+	if st != http.StatusNotImplemented || body["error"] != "team_rule_audit_not_wired" {
+		t.Fatalf("unwired audit status=%d body=%v, want team_rule_audit_not_wired", st, body)
+	}
+}
+
+func updateTeamRuleBodyAtHEAD(t *testing.T, host *centergit.Host, teamID, sourcePath, oldBody, newBody string) {
+	t.Helper()
+	bareDir, err := host.RepoDir(centergit.TeamRepo(teamID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	work := t.TempDir()
+	runTeamRuleGit(t, home, work, "clone", bareDir, "wc")
+	wc := filepath.Join(work, "wc")
+	abs := filepath.Join(wc, filepath.FromSlash(sourcePath))
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := strings.Replace(string(raw), oldBody, newBody, 1)
+	if next == string(raw) {
+		t.Fatalf("old body %q not found in %s", oldBody, sourcePath)
+	}
+	if err := os.WriteFile(abs, []byte(next), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runTeamRuleGit(t, home, wc, "add", "-A")
+	runTeamRuleGit(t, home, wc, "-c", "commit.gpgsign=false", "commit", "-m", "update team rule body")
+	runTeamRuleGit(t, home, wc, "push", "origin", "HEAD:main")
+}
+
+func runTeamRuleGit(t *testing.T, home, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"HOME="+home,
+		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
+		"GIT_AUTHOR_NAME=test",
+		"GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=test",
+		"GIT_COMMITTER_EMAIL=test@example.com",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, out)
 	}
 }
 

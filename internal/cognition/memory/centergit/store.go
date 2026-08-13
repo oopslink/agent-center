@@ -2,6 +2,7 @@ package centergit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -216,6 +217,9 @@ func (s *Store) WriteRule(r Rule) (string, error) {
 	}
 	if strings.TrimSpace(r.Description) == "" {
 		return "", fmt.Errorf("%w: description is required (it seeds the index)", ErrInvalidRule)
+	}
+	if n := len([]byte(strings.TrimSpace(r.Description))); n > RuleDescriptionMaxBytes {
+		return "", fmt.Errorf("%w: description is %d bytes, max %d", ErrTeamRuleIndexTooLarge, n, RuleDescriptionMaxBytes)
 	}
 	applies, err := normalizeAppliesTo(r.AppliesTo)
 	if err != nil {
@@ -548,6 +552,9 @@ func (s *Store) RegenerateIndex() error {
 	if err != nil {
 		return err
 	}
+	if err := s.ValidateRuleIndexBudgets(); err != nil {
+		return err
+	}
 	var b strings.Builder
 	b.WriteString("# Memory Index\n\n")
 	b.WriteString("<!-- GENERATED from entries/ and rules/ — do not edit by hand. See centergit.Store.RegenerateIndex. -->\n\n")
@@ -582,6 +589,22 @@ func (s *Store) RegenerateIndex() error {
 		fmt.Fprintf(&b, "- [%s](%s) — %s (%s; applies_to: %s)\n", r.name, r.file, desc, status, applies)
 	}
 	return os.WriteFile(filepath.Join(s.dir, indexFile), []byte(b.String()), 0o600)
+}
+
+// ValidateRuleIndexBudgets enforces the phase-scoped rule-index budget that new
+// runtime contexts depend on. It reads complete rule bodies so body_bytes is
+// accurate, but does not persist or mutate anything.
+func (s *Store) ValidateRuleIndexBudgets() error {
+	rules, _, err := s.ReadRules()
+	if err != nil {
+		return err
+	}
+	for _, phase := range allRulePhases {
+		if _, err := buildRuleIndexEntries(rules, phase); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Commit stages the whole working tree and commits under author. It is a no-op
@@ -719,4 +742,12 @@ func normalizeRulePhase(phase string) string {
 	default:
 		return ""
 	}
+}
+
+func ruleIndexPayloadBytes(entries []RuleIndexEntry) int {
+	raw, err := json.Marshal(entries)
+	if err != nil {
+		return RuleIndexMaxBytes + 1
+	}
+	return len(raw)
 }

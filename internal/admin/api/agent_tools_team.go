@@ -11,6 +11,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/cognition/ruleregistry"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
@@ -264,6 +265,21 @@ type getTeamRulesReq struct {
 	Phase   string `json:"phase"`
 }
 
+type getTeamRuleIndexReq struct {
+	AgentID     string `json:"agent_id"`
+	Phase       string `json:"phase"`
+	ExecutionID string `json:"execution_id,omitempty"`
+}
+
+type getTeamRuleReq struct {
+	AgentID           string `json:"agent_id"`
+	Slug              string `json:"slug"`
+	Commit            string `json:"commit"`
+	Phase             string `json:"phase,omitempty"`
+	ExecutionID       string `json:"execution_id,omitempty"`
+	PlanningSessionID string `json:"planning_session_id,omitempty"`
+}
+
 func (s *Server) getTeamRulesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req getTeamRulesReq
@@ -310,6 +326,140 @@ func (s *Server) getTeamRulesHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, teamRulesSnapshotView(snap))
 }
 
+func (s *Server) getTeamRuleIndexHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getTeamRuleIndexReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	phase, ok := normalizeTeamRulePhase(req.Phase)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_phase", "phase must be one of plan, execute, review, recovery")
+		return
+	}
+	teamID, hasTeam, ok := s.resolveRuleTeam(w, r, d, a)
+	if !ok {
+		return
+	}
+	if !hasTeam {
+		writeJSON(w, http.StatusOK, emptyTeamRuleIndexView("", phase))
+		return
+	}
+	if d.TeamGitHost == nil {
+		writeError(w, http.StatusNotImplemented, "team_memory_not_wired", "team memory git host is not wired on this center")
+		return
+	}
+	snap, err := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeamRuleIndex(r.Context(), teamID, phase)
+	if err != nil {
+		mapTeamRuleRegistryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, teamRuleIndexSnapshotView(snap))
+}
+
+func (s *Server) getTeamRuleHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getTeamRuleReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	requestedPhase := req.Phase
+	if strings.TrimSpace(requestedPhase) == "" && strings.TrimSpace(req.ExecutionID) == "" && strings.TrimSpace(req.PlanningSessionID) != "" {
+		requestedPhase = "plan"
+	}
+	phase, ok := normalizeTeamRulePhase(requestedPhase)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_phase", "phase must be one of plan, execute, review, recovery")
+		return
+	}
+	if strings.TrimSpace(req.ExecutionID) == "" && strings.TrimSpace(req.PlanningSessionID) == "" {
+		writeError(w, http.StatusBadRequest, "team_rule_audit_context_required", "execution_id or planning_session_id is required")
+		return
+	}
+	if d.TeamRuleAudit == nil {
+		writeError(w, http.StatusNotImplemented, "team_rule_audit_not_wired", "team rule audit recorder is not wired on this center")
+		return
+	}
+	teamID, hasTeam, ok := s.resolveRuleTeam(w, r, d, a)
+	if !ok {
+		return
+	}
+	if !hasTeam {
+		writeError(w, http.StatusNotFound, "rule_snapshot_not_found", "team rule snapshot not found")
+		return
+	}
+	if d.TeamGitHost == nil {
+		writeError(w, http.StatusNotImplemented, "team_memory_not_wired", "team memory git host is not wired on this center")
+		return
+	}
+	snap, err := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeamRule(
+		r.Context(), teamID, phase, req.Slug, req.Commit,
+	)
+	if err != nil {
+		mapTeamRuleRegistryError(w, err)
+		return
+	}
+	_, err = d.TeamRuleAudit.AppendLoaded(r.Context(), ruleregistry.LoadAudit{
+		ExecutionID:       req.ExecutionID,
+		PlanningSessionID: req.PlanningSessionID,
+		TeamID:            snap.TeamID,
+		TeamMemoryCommit:  snap.Commit,
+		RuleSlug:          snap.Rule.Slug,
+		Phase:             snap.Phase,
+		AgentID:           a.ID().String(),
+		LoadedAt:          time.Now().UTC(),
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, teamRuleBodySnapshotView(snap))
+}
+
+func (s *Server) resolveRuleTeam(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) (string, bool, bool) {
+	teamID, hasTeam, err := d.TeamSvc.FindAgentTeam(r.Context(), operatingAgentMemberRef(a))
+	if err != nil {
+		mapTeamError(w, err)
+		return "", false, false
+	}
+	if !hasTeam {
+		return "", false, true
+	}
+	t, err := d.TeamSvc.GetTeam(r.Context(), teamID)
+	if err != nil {
+		mapTeamError(w, err)
+		return "", false, false
+	}
+	if t.OrgID() != string(a.OrganizationID()) {
+		writeError(w, http.StatusNotFound, "team_not_found", "not found")
+		return "", false, false
+	}
+	return teamID.String(), true, true
+}
+
+func mapTeamRuleRegistryError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, centergit.ErrRuleSnapshotNotFound):
+		writeError(w, http.StatusNotFound, "rule_snapshot_not_found", err.Error())
+	case errors.Is(err, centergit.ErrTeamRuleNotFound):
+		writeError(w, http.StatusNotFound, "team_rule_not_found", err.Error())
+	case errors.Is(err, centergit.ErrTeamRuleIndexTooLarge):
+		writeError(w, http.StatusRequestEntityTooLarge, "team_rule_index_too_large", err.Error())
+	default:
+		mapDomainError(w, err)
+	}
+}
+
 func operatingAgentMemberRef(a *agent.Agent) team.MemberRef {
 	if a == nil {
 		return ""
@@ -350,6 +500,17 @@ func emptyTeamRulesView(teamID, phase string) map[string]any {
 	}
 }
 
+func emptyTeamRuleIndexView(teamID, phase string) map[string]any {
+	return map[string]any{
+		"team_id":             teamID,
+		"phase":               phase,
+		"commit":              "",
+		"rules":               []any{},
+		"skipped_nonstandard": []string{},
+		"refresh_semantics":   centergit.RuleRefreshSemantics,
+	}
+}
+
 func teamRulesSnapshotView(snap centergit.RuleSnapshot) map[string]any {
 	rules := make([]map[string]any, 0, len(snap.Rules))
 	for _, r := range snap.Rules {
@@ -374,6 +535,50 @@ func teamRulesSnapshotView(snap centergit.RuleSnapshot) map[string]any {
 		"rules":               rules,
 		"skipped_nonstandard": skipped,
 		"refresh_semantics":   snap.RefreshSemantics,
+	}
+}
+
+func teamRuleIndexSnapshotView(snap centergit.RuleIndexSnapshot) map[string]any {
+	rules := make([]map[string]any, 0, len(snap.Rules))
+	for _, r := range snap.Rules {
+		rules = append(rules, map[string]any{
+			"slug":        r.Slug,
+			"title":       r.Title,
+			"description": r.Description,
+			"applies_to":  r.AppliesTo,
+			"body_bytes":  r.BodyBytes,
+			"source_path": r.SourcePath,
+		})
+	}
+	skipped := snap.Skipped
+	if skipped == nil {
+		skipped = []string{}
+	}
+	return map[string]any{
+		"team_id":             snap.TeamID,
+		"phase":               snap.Phase,
+		"commit":              snap.Commit,
+		"rules":               rules,
+		"skipped_nonstandard": skipped,
+		"refresh_semantics":   snap.RefreshSemantics,
+	}
+}
+
+func teamRuleBodySnapshotView(snap centergit.RuleBodySnapshot) map[string]any {
+	r := snap.Rule
+	return map[string]any{
+		"team_id":           snap.TeamID,
+		"phase":             snap.Phase,
+		"commit":            snap.Commit,
+		"slug":              r.Slug,
+		"title":             r.Title,
+		"description":       r.Description,
+		"body":              r.Body,
+		"enabled":           r.Enabled,
+		"applies_to":        r.AppliesTo,
+		"body_bytes":        len([]byte(r.Body)),
+		"source_path":       r.SourcePath,
+		"refresh_semantics": snap.RefreshSemantics,
 	}
 }
 

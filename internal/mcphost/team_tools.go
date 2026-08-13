@@ -36,8 +36,16 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 	}, makeListTeams(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_team_rules",
-		Description: "Read the enabled Team Memory rules for the current agent's team and phase (plan, execute, review, recovery). The response includes the team memory commit used for audit. In-flight executors keep their snapshotted rules; fresh forks reload.",
+		Description: "LEGACY/DEPRECATED: read enabled Team Memory rules with full bodies. Prefer get_team_rule_index at startup and get_team_rule for audited, commit-bound body reads.",
 	}, makeGetTeamRules(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_team_rule_index",
+		Description: "Read the body-free Team Rule index for the current agent's team and phase (plan, execute, review, recovery). The response includes the Team Memory commit; pass that commit to get_team_rule before acting when a rule description applies.",
+	}, makeGetTeamRuleIndex(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_team_rule",
+		Description: "Read one Team Rule body by slug from the exact Team Memory commit returned by get_team_rule_index. Never omit commit. Executor reads must include execution_id; planning sessions may omit it and are audited under the MCP planning session.",
+	}, makeGetTeamRule(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "propose_team_memory_change",
 		Description: "Propose an add/update/disable/delete change to your current Team Memory. The team is resolved from your membership; do not pass team_id. A proposal does not affect get_team_rules or runtime until promoted. Promotion affects only new planning generations and new executor forks; in-flight snapshots keep their old commit.",
@@ -178,6 +186,48 @@ type getTeamRulesArgs struct {
 func makeGetTeamRules(cfg Config) mcp.ToolHandlerFor[getTeamRulesArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamRulesArgs) (*mcp.CallToolResult, any, error) {
 		return callAdmin(ctx, cfg, "get_team_rules", map[string]any{"agent_id": cfg.AgentID, "phase": args.Phase})
+	}
+}
+
+type getTeamRuleIndexArgs struct {
+	Phase       string `json:"phase,omitempty" jsonschema:"plan | execute | review | recovery; defaults to execute"`
+	ExecutionID string `json:"execution_id,omitempty" jsonschema:"executor run id when this index belongs to one execution"`
+}
+
+func makeGetTeamRuleIndex(cfg Config) mcp.ToolHandlerFor[getTeamRuleIndexArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamRuleIndexArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "phase": args.Phase}
+		if args.ExecutionID != "" {
+			body["execution_id"] = args.ExecutionID
+		}
+		return callAdmin(ctx, cfg, "get_team_rule_index", body)
+	}
+}
+
+type getTeamRuleArgs struct {
+	Slug              string `json:"slug" jsonschema:"rule slug from get_team_rule_index"`
+	Commit            string `json:"commit" jsonschema:"40-character Team Memory commit from get_team_rule_index; required"`
+	Phase             string `json:"phase,omitempty" jsonschema:"plan | execute | review | recovery; defaults to execute"`
+	ExecutionID       string `json:"execution_id,omitempty" jsonschema:"executor run id required outside planning sessions"`
+	PlanningSessionID string `json:"planning_session_id,omitempty" jsonschema:"planning session id; defaults to this MCP host's planning session when execution_id is absent"`
+}
+
+func makeGetTeamRule(cfg Config) mcp.ToolHandlerFor[getTeamRuleArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTeamRuleArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"slug":     args.Slug,
+			"commit":   args.Commit,
+			"phase":    args.Phase,
+		}
+		if args.ExecutionID != "" {
+			body["execution_id"] = args.ExecutionID
+		} else if args.PlanningSessionID != "" {
+			body["planning_session_id"] = args.PlanningSessionID
+		} else if cfg.Generation > 0 {
+			body["planning_session_id"] = planningSessionID(cfg)
+		}
+		return callAdmin(ctx, cfg, "get_team_rule", body)
 	}
 }
 

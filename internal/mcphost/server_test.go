@@ -172,7 +172,7 @@ var wantTools = []string{
 	"find_org_channel",
 	// reads
 	"get_task", "get_issue", "list_tasks",
-	"get_team_rules",
+	"get_team_rules", "get_team_rule_index", "get_team_rule",
 	"propose_team_memory_change", "list_team_memory_proposals",
 	"get_team_memory_proposal", "review_team_memory_proposal",
 	"get_task_audit", "list_task_executions", "get_task_execution",
