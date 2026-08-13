@@ -484,12 +484,69 @@ func TestTeamMemory_ProposalLifecycleSettingsAndPermissions(t *testing.T) {
 		t.Fatalf("PUT settings = %d body=%v", putResp.StatusCode, decodeBody(t, putResp))
 	}
 	settings := decodeBody(t, putResp)
-	if settings["policy"] != "proposal_only" || settings["effect_hint"] == "" {
+	if settings["policy"] != "owner_admin_review" || settings["effect_hint"] == "" {
 		t.Fatalf("settings = %#v", settings)
 	}
 	agents := settings["curator_agents"].([]any)
 	if len(agents) != 0 {
 		t.Fatalf("curator_agents = %#v", agents)
+	}
+}
+
+func TestTeamMemory_SettingsTranslateWebPolicyContract(t *testing.T) {
+	deps, _, owner := setupTeamsMemoryAPI(t)
+	tm := seedTeam(t, deps, owner.OrgID, "Agent Core", implRole)
+	if _, err := deps.TeamService.AddMember(context.Background(), tm.ID(), "agent:curator", "impl"); err != nil {
+		t.Fatalf("AddMember curator: %v", err)
+	}
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner.OrgSlug), strings.NewReader(`{"policy":"curator_review","curator_agents":["agent:curator"]}`))
+	req.AddCookie(owner.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT curator settings: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT curator settings = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	settings := decodeBody(t, resp)
+	if settings["policy"] != "curator_review" {
+		t.Fatalf("settings policy = %#v", settings)
+	}
+	agents := settings["curator_agents"].([]any)
+	if len(agents) != 1 || agents[0] != "agent:curator" {
+		t.Fatalf("curator_agents = %#v", agents)
+	}
+
+	getResp := orgScopedGet(t, ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner)
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET settings = %d body=%v", getResp.StatusCode, decodeBody(t, getResp))
+	}
+	got := decodeBody(t, getResp)
+	if got["policy"] != "curator_review" {
+		t.Fatalf("GET policy = %#v", got)
+	}
+}
+
+func TestTeamMemory_SettingsRejectUnsupportedPolicy(t *testing.T) {
+	deps, _, owner := setupTeamsMemoryAPI(t)
+	tm := seedTeam(t, deps, owner.OrgID, "Agent Core", implRole)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPut, orgScopedURL(ts.URL+"/api/teams/"+string(tm.ID())+"/memory/settings", owner.OrgSlug), strings.NewReader(`{"policy":"read_only","curator_agents":[]}`))
+	req.AddCookie(owner.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT invalid settings: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("PUT invalid settings = %d, want 400 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	if code := errorCodeOf(t, resp); code != "invalid_input" {
+		t.Fatalf("code = %q", code)
 	}
 }
 

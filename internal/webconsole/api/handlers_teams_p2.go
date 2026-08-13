@@ -610,9 +610,10 @@ func (s *Server) putTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	mode := team.TeamMemoryPolicyMode(req.Policy)
-	if mode == "owner_admin_review" || mode == "" {
-		mode = team.TeamMemoryProposalOnly
+	mode, ok := teamMemoryPolicyModeFromWeb(req.Policy)
+	if !ok {
+		mapTeamMemoryWebError(w, team.ErrInvalidTeamMemoryPolicy)
+		return
 	}
 	refs := make([]team.MemberRef, 0, len(req.CuratorAgents))
 	for _, ref := range req.CuratorAgents {
@@ -680,6 +681,10 @@ func mapTeamMemoryWebError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "proposal_not_pending", err.Error())
 	case errors.Is(err, centergit.ErrTeamMemoryAgentSelfGrant):
 		writeError(w, http.StatusForbidden, "agent_self_grant_forbidden", err.Error())
+	case errors.Is(err, team.ErrTeamNotFound):
+		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, team.ErrInvalidTeamMemoryPolicy):
+		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "an internal error occurred")
 	}
@@ -866,8 +871,28 @@ func memoryPolicyView(policy team.TeamMemoryPolicy) map[string]any {
 		agents = append(agents, ref.String())
 	}
 	return map[string]any{
-		"curator_agents": agents, "policy": policy.Mode,
+		"curator_agents": agents, "policy": teamMemoryPolicyModeToWeb(policy.Mode),
 		"effect_hint": centergit.TeamMemoryEffectHint,
+	}
+}
+
+func teamMemoryPolicyModeFromWeb(policy string) (team.TeamMemoryPolicyMode, bool) {
+	switch strings.TrimSpace(policy) {
+	case "", "owner_admin_review", string(team.TeamMemoryProposalOnly):
+		return team.TeamMemoryProposalOnly, true
+	case "curator_review", string(team.TeamMemoryCuratorAuto):
+		return team.TeamMemoryCuratorAuto, true
+	default:
+		return "", false
+	}
+}
+
+func teamMemoryPolicyModeToWeb(mode team.TeamMemoryPolicyMode) string {
+	switch mode {
+	case team.TeamMemoryCuratorAuto:
+		return "curator_review"
+	default:
+		return "owner_admin_review"
 	}
 }
 
