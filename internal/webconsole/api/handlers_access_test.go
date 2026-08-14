@@ -12,7 +12,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedGet(t, server.URL+"/api/permissions/effective?status=not_applicable", sess)
+	resp := orgScopedGet(t, server.URL+"/api/access/overview?status=not_applicable", sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("effective status=%d", resp.StatusCode)
 	}
@@ -42,7 +42,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		"expires_at":"2026-08-20T12:30:00Z",
 		"reason":"temporary release support"
 	}`
-	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/preview", body, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/preview", body, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("preview status=%d", resp.StatusCode)
 	}
@@ -69,7 +69,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("preview did not expose expiry/high-risk/unauthorized/not-applicable: %+v", preview)
 	}
 
-	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/apply", body, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("apply status=%d", resp.StatusCode)
 	}
@@ -90,7 +90,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
-	resp = orgScopedPost(t, server.URL+"/api/permissions/grants/revoke", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("revoke status=%d", resp.StatusCode)
 	}
@@ -112,7 +112,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("revoke did not expose derived-grant not_applicable: %+v", revoked)
 	}
 
-	resp = orgScopedPatch(t, server.URL+"/api/permissions/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
+	resp = orgScopedPatch(t, server.URL+"/api/access/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("role update status=%d want 409", resp.StatusCode)
 	}

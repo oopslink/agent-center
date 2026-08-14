@@ -203,6 +203,21 @@ type BatchResult struct {
 	Operations     []OperationResult `json:"operations"`
 }
 
+type AuditEvent struct {
+	ID            string         `json:"id"`
+	EventType     string         `json:"event_type"`
+	ActorRef      SubjectRef     `json:"actor_ref"`
+	SubjectRef    SubjectRef     `json:"subject_ref,omitempty"`
+	PermissionKey PermissionKey  `json:"permission_key,omitempty"`
+	ResourceKind  string         `json:"resource_kind,omitempty"`
+	ResourceID    string         `json:"resource_id,omitempty"`
+	RoleID        string         `json:"role_id,omitempty"`
+	AssignmentID  string         `json:"assignment_id,omitempty"`
+	RequestID     string         `json:"request_id,omitempty"`
+	Payload       map[string]any `json:"payload,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
 type OperationResult struct {
 	ID           string `json:"id,omitempty"`
 	Type         string `json:"type"`
