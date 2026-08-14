@@ -724,6 +724,9 @@ func TestRevokeAndRegistryPersistenceErrorsFailClosed(t *testing.T) {
 	if _, _, err := svc.store.revokeAssignment(ctx, RevokeInput{AssignmentID: "asgn-trigger"}, "system", "org-1", now); err == nil {
 		t.Fatal("revoke update storage error did not fail closed")
 	}
+	if _, err := svc.RevokeBatch(ctx, BatchRequest{IdempotencyKey: "trigger-revoke", ActorRef: "system", OrgID: "org-1", Operations: []BatchOperation{{Revoke: RevokeInput{AssignmentID: "asgn-trigger"}}}}); err == nil {
+		t.Fatal("service revoke storage error did not roll back")
+	}
 
 	for column, restore := range map[string]string{
 		"actions_json":        `["read"]`,
