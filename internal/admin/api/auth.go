@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 )
 
 // authKey is the request context key holding the verified bearer.
@@ -55,12 +56,75 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 			"endpoint requires authenticated bearer")
 		return false
 	}
+	if d := hd(r); d.Authorizer != nil {
+		permission, mapped := authz.PermissionForBearerScope(string(scope))
+		if mapped {
+			matchedScope := matchedBearerScope(auth.Scopes, scope)
+			decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+				SubjectRef:  adminBearerSubject(auth.Owner),
+				Transport:   authz.TransportAdminHTTP,
+				BearerScope: matchedScope,
+				Permission:  permission,
+				Resource:    bearerResource(permission),
+			})
+			if err != nil || !decision.Allowed {
+				writeError(w, http.StatusForbidden, "scope_forbidden",
+					"token lacks required scope: "+string(scope))
+				return false
+			}
+			return true
+		}
+	}
 	if !auth.HasScope(scope) {
 		writeError(w, http.StatusForbidden, "scope_forbidden",
 			"token lacks required scope: "+string(scope))
 		return false
 	}
 	return true
+}
+
+func adminBearerSubject(owner admintoken.Owner) authz.SubjectRef {
+	if strings.HasPrefix(string(owner), "worker:") {
+		return authz.SubjectRef(owner)
+	}
+	return authz.SubjectRef("user:" + string(owner))
+}
+
+func matchedBearerScope(scopes []admintoken.Scope, required admintoken.Scope) string {
+	for _, have := range scopes {
+		if have == required {
+			return string(required)
+		}
+	}
+	for _, have := range scopes {
+		scope := string(have)
+		if strings.HasSuffix(scope, ":*") && strings.HasPrefix(string(required), strings.TrimSuffix(scope, "*")) {
+			return scope
+		}
+	}
+	for _, have := range scopes {
+		if have == "*" {
+			return "*"
+		}
+	}
+	return ""
+}
+
+func bearerResource(permission authz.PermissionKey) authz.ResourceScope {
+	switch permission {
+	case "admin_token.manage":
+		return authz.ResourceScope{Kind: "admin_token", ID: "*"}
+	case "secret.resolve":
+		return authz.ResourceScope{Kind: "secret", ID: "*"}
+	case "blob.put":
+		return authz.ResourceScope{Kind: "blob", ID: "*"}
+	case "dispatch.pull", "worker.enroll", "worker.heartbeat", "worker.capability.report":
+		return authz.ResourceScope{Kind: "worker", ID: "*"}
+	case "task.internal.report":
+		return authz.ResourceScope{Kind: "task", ID: "*"}
+	default:
+		return authz.ResourceScope{Kind: "admin_token", ID: "*"}
+	}
 }
 
 // Verifier is the slim contract the middleware needs from

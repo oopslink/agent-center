@@ -20,8 +20,8 @@ import (
 // See docs/plans/phase-12-audits/s2-schema-migration-audit.md for the
 // full inventory + acceptance criteria.
 
-// TestMigrations_FullRoundTrip runs Up → Down(0) → Up and asserts that
-// (a) Version() is 26 both times Up returns, and (b) the set of user
+// TestMigrations_FullRoundTrip runs Up -> Down(0) -> Up and asserts that
+// (a) Version() is current both times Up returns, and (b) the set of user
 // tables and the set of column names per table are identical across the
 // two post-Up snapshots. Catches the class of bug where a down.sql
 // silently leaves a column behind that the next Up then re-adds with a
@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 128 || v2 != 128 {
-		t.Fatalf("Version after Up: got (%d, %d) want (128, 128)", v1, v2)
+	if v1 != 129 || v2 != 129 {
+		t.Fatalf("Version after Up: got (%d, %d) want (129, 129)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/autoassign"
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -254,6 +255,22 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 	if err != nil || p.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "project not found in this organization")
 		return nil, "", false
+	}
+	if d.Authorizer != nil {
+		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.UserSubject(callerID.ID()),
+			Transport:  authz.TransportWeb,
+			Permission: "project.read",
+			Resource: authz.ResourceScope{
+				Kind:  "project",
+				ID:    string(p.ID()),
+				OrgID: orgID,
+			},
+		})
+		if err != nil || !decision.Allowed {
+			writeAuthorizationError(w, decision, err)
+			return nil, "", false
+		}
 	}
 	return p, pmCallerRef(callerID), true
 }
