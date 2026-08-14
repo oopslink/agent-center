@@ -223,9 +223,9 @@ func (s *Store) assignRole(ctx context.Context, in RoleAssignment, now time.Time
 	}
 	ts := now.UTC().Format(time.RFC3339Nano)
 	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_role_assignments
-		(id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-		in.ID, in.OrgID, in.SubjectRef, in.RoleID, in.ResourceKind, in.ResourceID, in.CreatedBy, ts)
+		(id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, expires_at, version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+		in.ID, in.OrgID, in.SubjectRef, in.RoleID, in.ResourceKind, in.ResourceID, in.CreatedBy, ts, nullableTime(in.ExpiresAt))
 	if err != nil {
 		existing, findErr := s.findActiveAssignment(ctx, in.OrgID, in.SubjectRef, in.RoleID, in.ResourceKind, in.ResourceID)
 		if findErr == nil {
@@ -243,7 +243,7 @@ func (s *Store) getAssignment(ctx context.Context, id string) (RoleAssignment, e
 		return RoleAssignment{}, err
 	}
 	row := exec.QueryRowContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
-		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
+		created_by, created_at, expires_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments WHERE id = ?`, strings.TrimSpace(id))
 	return scanAssignment(row.Scan)
 }
@@ -254,7 +254,7 @@ func (s *Store) findActiveAssignment(ctx context.Context, orgID string, subject 
 		return RoleAssignment{}, err
 	}
 	row := exec.QueryRowContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
-		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
+		created_by, created_at, expires_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments
 		WHERE org_id = ? AND subject_ref = ? AND role_id = ? AND resource_kind = ? AND resource_id = ? AND revoked_at IS NULL`,
 		strings.TrimSpace(orgID), strings.TrimSpace(string(subject)), strings.TrimSpace(roleID), strings.TrimSpace(kind), strings.TrimSpace(id))
@@ -267,7 +267,7 @@ func (s *Store) activeAssignmentsFor(ctx context.Context, orgID string, subject 
 		return nil, err
 	}
 	rows, err := exec.QueryContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
-		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
+		created_by, created_at, expires_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments
 		WHERE org_id = ? AND subject_ref = ? AND resource_kind = ? AND resource_id = ? AND revoked_at IS NULL
 		ORDER BY created_at, id`, orgID, subject, kind, id)
@@ -413,20 +413,31 @@ func scanRole(scan func(dest ...any) error) (Role, error) {
 func scanAssignment(scan func(dest ...any) error) (RoleAssignment, error) {
 	var a RoleAssignment
 	var created string
-	var revoked sql.NullString
+	var expires, revoked sql.NullString
 	if err := scan(&a.ID, &a.OrgID, &a.SubjectRef, &a.RoleID, &a.ResourceKind, &a.ResourceID,
-		&a.CreatedBy, &created, &revoked, &a.RevokedBy, &a.RevokedReason, &a.Version); err != nil {
+		&a.CreatedBy, &created, &expires, &revoked, &a.RevokedBy, &a.RevokedReason, &a.Version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return RoleAssignment{}, ErrAssignmentNotFound
 		}
 		return RoleAssignment{}, err
 	}
 	a.CreatedAt = parseDBTime(created)
+	if expires.Valid && expires.String != "" {
+		t := parseDBTime(expires.String)
+		a.ExpiresAt = &t
+	}
 	if revoked.Valid && revoked.String != "" {
 		t := parseDBTime(revoked.String)
 		a.RevokedAt = &t
 	}
 	return a, nil
+}
+
+func nullableTime(v *time.Time) any {
+	if v == nil {
+		return nil
+	}
+	return v.UTC().Format(time.RFC3339Nano)
 }
 
 func parseDBTime(v string) time.Time {

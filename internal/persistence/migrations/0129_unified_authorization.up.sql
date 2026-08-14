@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS authorization_role_assignments (
     resource_id     TEXT NOT NULL,
     created_by      TEXT NOT NULL,
     created_at      TEXT NOT NULL,
+    expires_at      TEXT,
     revoked_at      TEXT,
     revoked_by      TEXT NOT NULL DEFAULT '',
     revoked_reason  TEXT NOT NULL DEFAULT '',
