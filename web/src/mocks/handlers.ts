@@ -1015,6 +1015,65 @@ const baseHandlers = [
     return ok({ dry_run: false, applied: true, revision: 4, items, diagnostics: [] });
   }),
 
+  // Unified authorization service. Detail pages request these only on the
+  // Permissions tab; focused tests override the exact shapes they need.
+  http.get('/api/permissions/definitions', () =>
+    ok({
+      definitions: [
+        {
+          key: 'org.read',
+          category: 'access',
+          resource_kinds: ['org'],
+          actions: ['read'],
+          legacy_sources: ['members'],
+        },
+        {
+          key: 'org.member.list',
+          category: 'access',
+          resource_kinds: ['org'],
+          actions: ['list'],
+          legacy_sources: ['members'],
+        },
+      ],
+    }),
+  ),
+  http.get('/api/permissions/effective', ({ request }) => {
+    const url = new URL(request.url);
+    const subject = url.searchParams.get('subject_ref') ?? 'user:test';
+    const kind = url.searchParams.get('resource_kind') ?? 'org';
+    const id = url.searchParams.get('resource_id') ?? 'org-1';
+    return ok({
+      subject_ref: subject,
+      resource: { kind, id, org_id: kind === 'org' ? id : 'org-1' },
+      permissions: [],
+    });
+  }),
+  http.post('/api/permissions/explain', async ({ request }) => {
+    const body = (await request.json()) as {
+      subject_ref?: string;
+      permission?: string;
+      resource?: Record<string, unknown>;
+    };
+    return ok({
+      decision: {
+        allowed: false,
+        subject_ref: body.subject_ref ?? '',
+        permission: body.permission ?? '',
+        resource: body.resource ?? { kind: 'org', id: 'org-1' },
+        reason: 'permission_denied',
+      },
+      effective: [],
+      denied_by: [],
+    });
+  }),
+  http.get('/api/permissions/audit', () => ok({ events: [] })),
+  http.post('/api/permissions/batch/apply', () =>
+    ok({ preview: false, operations: [{ id: 'assignment', type: 'assign_role', status: 'created', assignment_id: 'asgn-mock' }] }),
+  ),
+  http.post('/api/permissions/batch/revoke', () =>
+    ok({ preview: false, operations: [{ id: 'revoke', type: 'revoke_assignment', status: 'revoked', assignment_id: 'asgn-mock' }] }),
+  ),
+
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
 

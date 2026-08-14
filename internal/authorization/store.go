@@ -417,6 +417,57 @@ func (s *Store) appendAudit(ctx context.Context, e auditEvent) error {
 	return err
 }
 
+func (s *Store) listAuditEventsForSubject(ctx context.Context, subject SubjectRef, limit int) ([]AuditEvent, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT id, event_type, actor_ref, subject_ref, permission_key,
+			resource_kind, resource_id, role_id, assignment_id, request_id, payload_json, created_at
+		FROM authorization_audit_events
+		WHERE subject_ref = ? OR actor_ref = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?`, strings.TrimSpace(string(subject)), strings.TrimSpace(string(subject)), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditEvent
+	for rows.Next() {
+		var e AuditEvent
+		var payload string
+		var created string
+		if err := rows.Scan(
+			&e.ID,
+			&e.EventType,
+			&e.ActorRef,
+			&e.SubjectRef,
+			&e.PermissionKey,
+			&e.ResourceKind,
+			&e.ResourceID,
+			&e.RoleID,
+			&e.AssignmentID,
+			&e.RequestID,
+			&payload,
+			&created,
+		); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(payload) != "" {
+			var p map[string]any
+			if err := json.Unmarshal([]byte(payload), &p); err == nil {
+				e.Payload = p
+			}
+		}
+		e.CreatedAt = parseDBTime(created)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 type auditEvent struct {
 	ID            string
 	EventType     string

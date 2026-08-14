@@ -447,10 +447,11 @@
       "tabs": {
         "profile": "资料",
         "activity": "活动",
-        "runtime": "运行时",
-        "memory": "记忆",
-        "tasks": "任务",
-        "analytics": "分析"
+      "runtime": "运行时",
+      "memory": "记忆",
+      "tasks": "任务",
+      "analytics": "分析",
+      "permissions": "权限"
       },
       "controls": {
         "messageTitle": "发送消息",
@@ -703,11 +704,12 @@
         "members": "成员",
         "humans": "成员"
       },
-      "tabs": {
-        "profile": "资料",
-        "organizations": "组织",
-        "account": "账户"
-      },
+    "tabs": {
+      "profile": "资料",
+      "organizations": "组织",
+      "account": "账户",
+      "permissions": "权限"
+    },
       "profile": {
         "email": "邮箱",
         "created": "创建时间",
@@ -818,6 +820,73 @@
         "role": "角色",
         "email": "邮箱"
       }
+    }
+  },
+  "access": {
+    "loading": "正在加载权限...",
+    "unavailable": "该主体没有可用的组织范围。",
+    "definitionsError": "无法加载权限定义；已有有效权限仍会显示。",
+    "overview": {
+      "title": "权限概览",
+      "total": "有效权限",
+      "direct": "直接授权",
+      "inherited": "继承权限"
+    },
+    "effective": {
+      "title": "有效权限",
+      "empty": "该资源暂无有效权限。"
+    },
+    "explain": {
+      "title": "来源解释树",
+      "subject": "主体",
+      "resource": "资源",
+      "decision": "判定",
+      "allowed": "允许",
+      "denied": "拒绝",
+      "empty": "当前没有来源授予该权限。"
+    },
+    "direct": {
+      "title": "直接授权",
+      "grant": "授权",
+      "granting": "授权中...",
+      "alreadyGranted": "已直接授权",
+      "empty": "暂无直接 custom-role 授权。",
+      "revoke": "撤销",
+      "revoking": "撤销中...",
+      "revokeAria": "撤销 {{permission}}"
+    },
+    "inherited": {
+      "title": "继承权限与来源",
+      "empty": "该资源暂无继承权限。"
+    },
+    "source": {
+      "open": "打开来源"
+    },
+    "notice": {
+      "granted": "已为 {{permission}} 添加直接授权。",
+      "revoked": "已撤销 {{permission}} 的直接授权。",
+      "revokedInherited": "已撤销 {{permission}} 的直接授权，但它仍通过 {{source}}（{{evidence}}）保持有效。"
+    },
+    "audit": {
+      "title": "主体审计",
+      "empty": "该主体暂无权限审计事件。",
+      "assignmentCreated": "创建了 {{permission}} 在 {{resource}} 上的授权",
+      "assignmentRevoked": "撤销了 {{permission}} 在 {{resource}} 上的授权",
+      "roleUpserted": "更新了角色 {{role}}",
+      "rolePermissionsSet": "设置了角色 {{role}} 的权限"
+    },
+    "sources": {
+      "org_role": "组织角色",
+      "project_member": "项目成员",
+      "team_member": "团队成员",
+      "team_memory_policy": "团队记忆策略",
+      "conversation_participant": "会话参与者",
+      "file_scope": "文件范围",
+      "admin_token_scope": "管理员令牌范围",
+      "worker_owner": "工作节点所有者",
+      "agent_worker_binding": "智能体工作节点绑定",
+      "system": "系统",
+      "custom_role": "直接 custom role"
     }
   },
   "workers": {

@@ -105,6 +105,13 @@ export const qk = {
     o('runtimeGitDiff', agentId, path, ref),
   // T593: per-agent live concurrency slots (3s poll), overlaid on the Tasks tab.
   agentConcurrency: (agentId: string) => o('agentConcurrency', agentId),
+  permissions: () => o('permissions'),
+  permissionDefinitions: () => o('permissions', 'definitions'),
+  permissionEffective: (subjectRef: string, resourceKey: string) =>
+    o('permissions', 'effective', subjectRef, resourceKey),
+  permissionExplain: (subjectRef: string, permission: string, resourceKey: string) =>
+    o('permissions', 'explain', subjectRef, permission, resourceKey),
+  permissionAudit: (subjectRef: string) => o('permissions', 'audit', subjectRef),
   // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
   modelCatalog: () => o('model-catalog'),
   aiRuntimeCatalog: () => o('ai-runtime'),

@@ -107,6 +107,9 @@ CREATE INDEX IF NOT EXISTS idx_authorization_audit_created
 CREATE INDEX IF NOT EXISTS idx_authorization_audit_resource
     ON authorization_audit_events(resource_kind, resource_id, created_at);
 
+CREATE INDEX IF NOT EXISTS idx_authorization_audit_subject
+    ON authorization_audit_events(subject_ref, actor_ref, created_at);
+
 INSERT OR IGNORE INTO permission_definitions
     (key, category, resource_kinds_json, actions_json, legacy_sources_json, created_at)
 VALUES

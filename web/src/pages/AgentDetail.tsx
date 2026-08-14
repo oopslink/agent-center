@@ -28,6 +28,7 @@ import { AgentProfile } from '@/components/AgentProfile';
 import { AgentRuntime } from '@/components/AgentRuntime';
 import { AgentTasks } from '@/components/AgentTasks';
 import { AgentAnalyticsPanel } from '@/components/analytics/AgentAnalyticsPanel';
+import { AccessPermissionsPanel } from '@/components/AccessPermissionsPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
 // v2.7.1 #228: AgentDetail is a tab surface.
@@ -39,6 +40,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 // the visible label is localized at render via t('agents.detail.tabs.<key>').
 const AGENT_TABS = [
   { key: 'profile' },
+  { key: 'permissions' },
   { key: 'activity' },
   // I5 (T583): read-only runtime browser — memory/workspace tree + file preview.
   { key: 'runtime' },
@@ -169,6 +171,7 @@ export default function AgentDetail(): React.ReactElement {
   // v2.8 #270/#272 (b strict-two-step): archive only a settled (stopped/error)
   // agent — a running agent must be stopped first (backend also 409-guards).
   const canArchive = lc === 'stopped' || lc === 'error';
+  const agentSubjectRef = `agent:${a.identity_member_id || a.id}`;
 
   const lifecyclePending =
     start.isPending || stop.isPending || restart.isPending;
@@ -382,6 +385,15 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* I5 (T583): read-only runtime browser. */}
       {tab === 'runtime' && <AgentRuntime agentId={id} />}
+
+      {tab === 'permissions' && (
+        <AccessPermissionsPanel
+          subjectRef={agentSubjectRef}
+          subjectLabel={a.name}
+          resource={{ kind: 'org', id: a.organization_id }}
+          resourceLabel={org?.orgName ?? a.organization_id}
+        />
+      )}
 
       {tab === 'memory' && <AgentMemoryManager agentId={id} />}
 

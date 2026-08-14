@@ -115,6 +115,42 @@ func TestPermissionsHTTP_CrossOrgRevokeMustFailClosed(t *testing.T) {
 	}
 }
 
+func TestPermissionsHTTP_SubjectAuditIsOrgScoped(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
+	srv := NewServer("127.0.0.1:0", Deps{})
+	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer ts.Close()
+
+	subject := string(authz.UserSubject(sess.IdentityID))
+	insertHTTPAuthzAudit(t, db, "audit-current", subject, "org", sess.OrgID)
+	insertHTTPAuthzAudit(t, db, "audit-other", subject, "org", "org-http-other")
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/permissions/audit?subject_ref="+subject+"&limit=10", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("audit status=%d", resp.StatusCode)
+	}
+	var body struct {
+		Events []authz.AuditEvent `json:"events"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Events) != 1 || body.Events[0].ID != "audit-current" {
+		t.Fatalf("audit events = %#v, want only current org event", body.Events)
+	}
+}
+
 func seedHTTPAuthzAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignmentID string) {
 	t.Helper()
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
@@ -138,6 +174,19 @@ func seedHTTPAuthzAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignment
 		 (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
 		 VALUES (?, ?, 'user:testuser', ?, 'org', ?, 'system', ?, 1)`,
 		assignmentID, orgID, roleID, orgID, now,
+	)
+}
+
+func insertHTTPAuthzAudit(t *testing.T, db *sql.DB, id, subject, resourceKind, resourceID string) {
+	t.Helper()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execHTTPAuthz(t, db,
+		`INSERT INTO authorization_audit_events
+		 (id, event_type, actor_ref, subject_ref, permission_key, resource_kind, resource_id,
+		  role_id, assignment_id, request_id, payload_json, created_at)
+		 VALUES (?, 'authorization.assignment.created', 'user:testuser', ?, 'org.read', ?, ?,
+		  'role-audit', ?, '', '{}', ?)`,
+		id, subject, resourceKind, resourceID, id, now,
 	)
 }
 

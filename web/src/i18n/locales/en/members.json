@@ -447,10 +447,11 @@
       "tabs": {
         "profile": "Profile",
         "activity": "Activity",
-        "runtime": "Runtime",
-        "memory": "Memory",
-        "tasks": "Tasks",
-        "analytics": "Analytics"
+      "runtime": "Runtime",
+      "memory": "Memory",
+      "tasks": "Tasks",
+      "analytics": "Analytics",
+      "permissions": "Permissions"
       },
       "controls": {
         "messageTitle": "Send message",
@@ -703,11 +704,12 @@
         "members": "Members",
         "humans": "Humans"
       },
-      "tabs": {
-        "profile": "Profile",
-        "organizations": "Organizations",
-        "account": "Account"
-      },
+    "tabs": {
+      "profile": "Profile",
+      "organizations": "Organizations",
+      "account": "Account",
+      "permissions": "Permissions"
+    },
       "profile": {
         "email": "Email",
         "created": "Created",
@@ -818,6 +820,73 @@
         "role": "Role",
         "email": "Email"
       }
+    }
+  },
+  "access": {
+    "loading": "Loading permissions...",
+    "unavailable": "No organization scope is available for this subject.",
+    "definitionsError": "Permission definitions could not be loaded; existing effective permissions remain visible.",
+    "overview": {
+      "title": "Access overview",
+      "total": "Effective permissions",
+      "direct": "Direct grants",
+      "inherited": "Inherited"
+    },
+    "effective": {
+      "title": "Effective permissions",
+      "empty": "No effective permissions for this resource."
+    },
+    "explain": {
+      "title": "Source explanation tree",
+      "subject": "Subject",
+      "resource": "Resource",
+      "decision": "Decision",
+      "allowed": "Allowed",
+      "denied": "Denied",
+      "empty": "No source currently grants this permission."
+    },
+    "direct": {
+      "title": "Direct authorization",
+      "grant": "Grant",
+      "granting": "Granting...",
+      "alreadyGranted": "Already granted",
+      "empty": "No direct custom-role grants.",
+      "revoke": "Revoke",
+      "revoking": "Revoking...",
+      "revokeAria": "Revoke {{permission}}"
+    },
+    "inherited": {
+      "title": "Inherited permissions and sources",
+      "empty": "No inherited permissions for this resource."
+    },
+    "source": {
+      "open": "Open source"
+    },
+    "notice": {
+      "granted": "Direct grant added for {{permission}}.",
+      "revoked": "Direct grant revoked for {{permission}}.",
+      "revokedInherited": "Direct grant revoked for {{permission}}, but it is still effective through {{source}} ({{evidence}})."
+    },
+    "audit": {
+      "title": "Subject audit",
+      "empty": "No permission audit events for this subject.",
+      "assignmentCreated": "created assignment {{permission}} on {{resource}}",
+      "assignmentRevoked": "revoked assignment {{permission}} on {{resource}}",
+      "roleUpserted": "updated role {{role}}",
+      "rolePermissionsSet": "set permissions for role {{role}}"
+    },
+    "sources": {
+      "org_role": "Org role",
+      "project_member": "Project member",
+      "team_member": "Team member",
+      "team_memory_policy": "Team memory policy",
+      "conversation_participant": "Conversation participant",
+      "file_scope": "File scope",
+      "admin_token_scope": "Admin token scope",
+      "worker_owner": "Worker owner",
+      "agent_worker_binding": "Agent worker binding",
+      "system": "System",
+      "custom_role": "Direct custom role"
     }
   },
   "workers": {

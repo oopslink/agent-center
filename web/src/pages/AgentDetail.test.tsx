@@ -144,6 +144,27 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-activity-row')).toHaveAttribute('data-event-type', 'agent.started');
   });
 
+  it('mounts the Permissions tab with the agent business identity subject', async () => {
+    let subject = '';
+    stubAgent({ identity_member_id: 'agent-member-1' });
+    server.use(
+      http.get('/api/permissions/effective', ({ request }) => {
+        const url = new URL(request.url);
+        subject = url.searchParams.get('subject_ref') ?? '';
+        return HttpResponse.json({
+          subject_ref: subject,
+          resource: { kind: 'org', id: 'O-1', org_id: 'O-1' },
+          permissions: [{ key: 'org.read', source: 'org_role', evidence_ref: 'members:agent-member-1' }],
+        });
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-tab-permissions'));
+    await waitFor(() => expect(screen.getByTestId('access-permissions-panel')).toBeInTheDocument());
+    expect(screen.getByTestId('access-permissions-panel')).toHaveAttribute('data-subject-ref', 'agent:agent-member-1');
+    expect(subject).toBe('agent:agent-member-1');
+  });
+
   it('Activity tab Refresh button refetches the activity stream (#228)', async () => {
     let hits = 0;
     server.use(

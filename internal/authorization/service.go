@@ -147,6 +147,55 @@ func (s *Service) ListEffective(ctx context.Context, subject SubjectRef, resourc
 	return EffectivePermissions{SubjectRef: subject, Resource: resolved, Permissions: effective}, nil
 }
 
+func (s *Service) ListSubjectAudit(ctx context.Context, subject SubjectRef, orgID string, limit int) ([]AuditEvent, error) {
+	if s == nil || s.db == nil || s.store == nil {
+		return nil, errors.New("authorization service: nil db")
+	}
+	subject = SubjectRef(strings.TrimSpace(string(subject)))
+	orgID = strings.TrimSpace(orgID)
+	if subject == "" || orgID == "" {
+		return nil, fmt.Errorf("%w: subject_ref and org_id required", ErrInvalid)
+	}
+	if err := subject.Validate(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rawLimit := limit * 4
+	if rawLimit < 100 {
+		rawLimit = 100
+	}
+	events, err := s.store.listAuditEventsForSubject(ctx, subject, rawLimit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AuditEvent, 0, len(events))
+	for _, e := range events {
+		if !s.auditEventInOrg(ctx, e, orgID) {
+			continue
+		}
+		out = append(out, e)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) auditEventInOrg(ctx context.Context, e AuditEvent, orgID string) bool {
+	kind := strings.TrimSpace(e.ResourceKind)
+	id := strings.TrimSpace(e.ResourceID)
+	if kind == "" || id == "" {
+		return false
+	}
+	if kind == "org" {
+		return id == orgID
+	}
+	resolved, _, err := s.resolveResource(ctx, ResourceScope{Kind: kind, ID: id, OrgID: orgID})
+	return err == nil && resolved.OrgID == orgID
+}
+
 func (s *Service) PreviewBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
 	return s.runBatch(ctx, req, true)
 }
