@@ -301,13 +301,16 @@ func (s *Store) revokeAssignment(ctx context.Context, in RevokeInput, actor Subj
 	if err != nil {
 		return RoleAssignment{}, "", err
 	}
+	if a.OrgID != strings.TrimSpace(orgID) {
+		return RoleAssignment{}, "", ErrAssignmentNotFound
+	}
 	if a.RevokedAt != nil {
 		return a, "unchanged", nil
 	}
 	ts := now.UTC().Format(time.RFC3339Nano)
 	if _, err := exec.ExecContext(ctx, `UPDATE authorization_role_assignments
 		SET revoked_at = ?, revoked_by = ?, revoked_reason = ?, version = version + 1
-		WHERE id = ? AND revoked_at IS NULL`, ts, actor, strings.TrimSpace(in.Reason), a.ID); err != nil {
+		WHERE id = ? AND org_id = ? AND revoked_at IS NULL`, ts, actor, strings.TrimSpace(in.Reason), a.ID, strings.TrimSpace(orgID)); err != nil {
 		return RoleAssignment{}, "", err
 	}
 	revoked, err := s.getAssignment(ctx, a.ID)

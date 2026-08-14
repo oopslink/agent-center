@@ -273,6 +273,13 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if roleID == "" {
 			return OperationResult{}, fmt.Errorf("%w: role id required", ErrInvalid)
 		}
+		role, err := s.store.getRole(ctx, roleID)
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if role.Kind == "custom" && role.OrgID != orgID {
+			return OperationResult{}, fmt.Errorf("%w: role belongs to another org", ErrNotFound)
+		}
 		for _, p := range op.Permissions {
 			if !PermissionDefinedForResource(p.PermissionKey, p.ResourceKind) {
 				return OperationResult{}, fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, p.PermissionKey, p.ResourceKind)
@@ -412,6 +419,17 @@ func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, 
 }
 
 func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, orgID string, in RevokeInput) error {
+	var assignment *RoleAssignment
+	if strings.TrimSpace(in.AssignmentID) != "" {
+		a, err := s.store.getAssignment(ctx, in.AssignmentID)
+		if err != nil {
+			return err
+		}
+		if a.OrgID != orgID {
+			return fmt.Errorf("%w: assignment belongs to another org", ErrAssignmentNotFound)
+		}
+		assignment = &a
+	}
 	if actor == "system" {
 		return nil
 	}
@@ -419,13 +437,9 @@ func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, or
 		return nil
 	}
 	roleID := strings.TrimSpace(in.RoleID)
-	if roleID == "" && in.AssignmentID != "" {
-		a, err := s.store.getAssignment(ctx, in.AssignmentID)
-		if err != nil {
-			return err
-		}
-		roleID = a.RoleID
-		in.Resource = ResourceScope{Kind: a.ResourceKind, ID: a.ResourceID, OrgID: a.OrgID}
+	if roleID == "" && assignment != nil {
+		roleID = assignment.RoleID
+		in.Resource = ResourceScope{Kind: assignment.ResourceKind, ID: assignment.ResourceID, OrgID: assignment.OrgID}
 	}
 	if roleID == "" {
 		return fmt.Errorf("%w: role id required for revoke", ErrInvalid)
