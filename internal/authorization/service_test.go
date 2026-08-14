@@ -192,6 +192,92 @@ func TestService_AdminBearerScopeMapping(t *testing.T) {
 	}
 }
 
+func TestService_CheckMigratedModesAndShadowAudit(t *testing.T) {
+	ctx := context.Background()
+	db, _ := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	req := CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "org.member.role.manage",
+		Resource:   ResourceScope{Kind: "org", ID: "org-1"},
+		RequestID:  "req-shadow",
+	}
+	legacy := LegacyDecision{Allowed: true, Reason: "legacy test allow", Source: SourceOrgRole, EvidenceRef: "members:mem-member"}
+
+	shadowSvc := New(Deps{DB: db, Features: FeatureFlags{Mode: MigrationModeShadow, ShadowCompare: true}})
+	shadowDecision, err := shadowSvc.CheckMigrated(ctx, req, legacy)
+	if err != nil || !shadowDecision.Allowed || shadowDecision.Reason != "legacy test allow" {
+		t.Fatalf("shadow decision=%#v err=%v", shadowDecision, err)
+	}
+	var mismatches int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_audit_events WHERE event_type = 'authorization.shadow_mismatch' AND request_id = 'req-shadow'`).Scan(&mismatches); err != nil {
+		t.Fatal(err)
+	}
+	if mismatches != 1 {
+		t.Fatalf("shadow mismatches = %d want 1", mismatches)
+	}
+
+	enforceSvc := New(Deps{DB: db, Features: FeatureFlags{Mode: MigrationModeEnforce, ShadowCompare: true}})
+	enforceDecision, err := enforceSvc.CheckMigrated(ctx, req, legacy)
+	if !errors.Is(err, ErrDenied) || enforceDecision.Allowed {
+		t.Fatalf("enforce decision=%#v err=%v, want unified deny", enforceDecision, err)
+	}
+
+	legacySvc := New(Deps{DB: db, Features: FeatureFlags{Mode: MigrationModeLegacy}})
+	legacyDecision, err := legacySvc.CheckMigrated(ctx, req, legacy)
+	if err != nil || !legacyDecision.Allowed {
+		t.Fatalf("legacy rollback decision=%#v err=%v", legacyDecision, err)
+	}
+}
+
+func TestService_EffectiveCacheInvalidatesOnLegacyRevision(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-cache", "org-1")
+	req := CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: "project-cache"}}
+
+	denied, err := svc.Check(ctx, req)
+	if !errors.Is(err, ErrDenied) || denied.Allowed {
+		t.Fatalf("initial project read should deny, decision=%#v err=%v", denied, err)
+	}
+	before, err := svc.Revision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedProjectMember(t, db, "pm-cache-member", "project-cache", "user:user-member", "member")
+	after, err := svc.Revision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after <= before {
+		t.Fatalf("authorization revision did not advance: before=%d after=%d", before, after)
+	}
+	allowed, err := svc.Check(ctx, req)
+	if err != nil || !allowed.Allowed || allowed.Source != SourceProjectMember {
+		t.Fatalf("project read after membership should allow, decision=%#v err=%v", allowed, err)
+	}
+}
+
+func TestService_FileUploaderDoesNotGrantDownload(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execMany(t, db, `INSERT INTO file_references
+		(id, file_uri, scope, scope_id, filename, mime_type, size_bytes, created_by, created_at)
+		VALUES ('file-ref-uploader', 'ac://files/uploader-only', 'uploader', 'user:user-member', 'note.txt', 'text/plain', 1, 'user:user-member', ?)`, now)
+
+	attach, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "file.attach", Resource: ResourceScope{Kind: "file", URI: "ac://files/uploader-only"}})
+	if err != nil || !attach.Allowed {
+		t.Fatalf("uploader should attach own file, decision=%#v err=%v", attach, err)
+	}
+	download, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "file.download", Resource: ResourceScope{Kind: "file", URI: "ac://files/uploader-only"}})
+	if !errors.Is(err, ErrDenied) || download.Allowed {
+		t.Fatalf("uploader-only reference must not download, decision=%#v err=%v", download, err)
+	}
+}
+
 func TestService_ApplyBatchConcurrentIdempotency(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)

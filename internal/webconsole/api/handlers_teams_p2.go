@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
@@ -653,6 +654,23 @@ func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		mapTeamWebError(w, err)
 		return nil, nil, nil, false
+	}
+	if d.Authorizer != nil {
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.UserSubject(caller.ID()),
+			Transport:  authz.TransportWeb,
+			Permission: "team.memory.review",
+			Resource:   authz.ResourceScope{Kind: "team", ID: string(t.ID()), OrgID: orgID},
+		}, authz.LegacyDecision{
+			Allowed:     true,
+			Reason:      "legacy team memory admin role",
+			Source:      authz.SourceOrgRole,
+			EvidenceRef: "members:" + member.ID(),
+		})
+		if err != nil || !decision.Allowed {
+			writeAuthorizationError(w, decision, err)
+			return nil, nil, nil, false
+		}
 	}
 	return caller, member, t, true
 }

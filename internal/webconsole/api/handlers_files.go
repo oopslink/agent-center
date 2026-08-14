@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
@@ -75,16 +76,38 @@ func (s *Server) fileReachableForHuman(ctx context.Context, d HandlerDeps, calle
 		return false, nil // fail-closed: no live reference grants a human download
 	}
 	callerRef := filesCallerRef(caller)
+	legacyAllowed := false
 	for _, ref := range refs {
 		ok, err := s.refReachableForHuman(ctx, d, callerRef, orgID, ref)
 		if err != nil {
 			return false, err
 		}
 		if ok {
-			return true, nil
+			legacyAllowed = true
+			break
 		}
 	}
-	return false, nil
+	if d.Authorizer == nil {
+		return legacyAllowed, nil
+	}
+	authzRefs := make([]authz.FileRef, 0, len(refs))
+	for _, ref := range refs {
+		authzRefs = append(authzRefs, authz.FileRef{Scope: string(ref.Scope), ScopeID: ref.ScopeID})
+	}
+	decision, err := d.Authorizer.CheckMigrated(ctx, authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(callerRef),
+		Transport:  authz.TransportWeb,
+		Permission: "file.download",
+		Resource:   authz.ResourceScope{Kind: "file", OrgID: orgID, URI: string(fileURI), Refs: authzRefs},
+	}, authz.LegacyDecision{
+		Allowed: legacyAllowed,
+		Reason:  "legacy file reverse reachability",
+		Source:  authz.SourceFileScope,
+	})
+	if err != nil && !errors.Is(err, authz.ErrDenied) {
+		return false, err
+	}
+	return decision.Allowed, nil
 }
 
 // callerUploaded is the ATTACH-ONLY authorization predicate (v2.7 #142): it

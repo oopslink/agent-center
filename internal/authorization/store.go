@@ -29,6 +29,21 @@ func (s *Store) exec(ctx context.Context) (persistence.SQLExecutor, error) {
 	return persistence.ExecutorFromCtx(ctx, s.db)
 }
 
+func (s *Store) Revision(ctx context.Context) (int64, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var revision int64
+	if err := exec.QueryRowContext(ctx, `SELECT revision FROM authorization_revision WHERE id = 1`).Scan(&revision); err != nil {
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table") {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return revision, nil
+}
+
 func (s *Store) ListDefinitions(ctx context.Context) ([]PermissionDefinition, error) {
 	exec, err := s.exec(ctx)
 	if err != nil {

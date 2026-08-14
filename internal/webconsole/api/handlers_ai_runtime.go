@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/airuntime"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/identity"
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +38,27 @@ func aiRuntimeDeps(w http.ResponseWriter, r *http.Request, admin bool) (HandlerD
 	if admin && !member.Role().AtLeast(identity.RoleAdmin) {
 		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can manage AI Runtime Catalog")
 		return d, nil, "", false
+	}
+	if d.Authorizer != nil {
+		permission := authz.PermissionKey("ai_runtime.catalog.read")
+		if admin {
+			permission = "ai_runtime.catalog.manage"
+		}
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.UserSubject(id.ID()),
+			Transport:  authz.TransportWeb,
+			Permission: permission,
+			Resource:   authz.ResourceScope{Kind: "org", ID: org},
+		}, authz.LegacyDecision{
+			Allowed:     true,
+			Reason:      "legacy ai runtime org role",
+			Source:      authz.SourceOrgRole,
+			EvidenceRef: "members:" + member.ID(),
+		})
+		if err != nil || !decision.Allowed {
+			writeAuthorizationError(w, decision, err)
+			return d, nil, "", false
+		}
 	}
 	return d, id, org, true
 }

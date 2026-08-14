@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -45,6 +46,24 @@ func (s *Server) workerReportCapabilitiesHandler(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusForbidden, "worker_mismatch",
 			"a worker may only report its own capabilities")
 		return
+	}
+	if d.Authorizer != nil {
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.WorkerSubject(req.WorkerID),
+			Transport:  authz.TransportAdminHTTP,
+			Permission: "worker.capability.report",
+			Resource:   authz.ResourceScope{Kind: "worker", ID: req.WorkerID},
+		}, authz.LegacyDecision{
+			Allowed:     true,
+			Reason:      "legacy worker owner",
+			Source:      authz.SourceWorkerOwner,
+			EvidenceRef: "admin_tokens.owner:worker:" + req.WorkerID,
+		})
+		if err != nil || !decision.Allowed {
+			writeError(w, http.StatusForbidden, "worker_mismatch",
+				"a worker may only report its own capabilities")
+			return
+		}
 	}
 	res, err := d.EnrollSvc.ReportCapabilities(r.Context(), wfservice.ReportCapabilitiesCommand{
 		WorkerID:      workforce.WorkerID(req.WorkerID),

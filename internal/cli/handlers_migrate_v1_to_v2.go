@@ -20,8 +20,7 @@ import (
 // Per P12 S12 audit (docs/plans/phase-12-audits/s12-migration-tool-audit.md):
 //   - --dry-run reports planned ops (bridge row counts; current vs target version)
 //   - --apply runs them: bridge tables → JSON archive → drop via 0025 → Up to
-//     targetSchemaVersion (currently 28 — v2.0 GA was 25, v2.1-C added 0026,
-//     v2.1-E added 0027, v2.3-3a added 0028 admin_tokens)
+//     targetSchemaVersion (kept in lock-step with the highest embedded migration)
 //   - Idempotent: if already at v2 (currentVer >= targetSchemaVersion), exits 0
 //     with "already at v2"
 //   - Refuses to run silently — neither flag → usage error
@@ -179,8 +178,10 @@ func MigrateV1ToV2Command() *Command {
 // 0122 adds the explicit task delivery contract; 0123 makes worker control
 // command status observable; 0124 adds controlled Team Memory policy; 0125 checkpoints
 // Team Memory observability projection; 0126 retires AI Runtime Profile schema;
-// 0127 adds immutable Plan Generation snapshots.
-const targetSchemaVersion = 129
+// 0127 adds immutable Plan Generation snapshots; 0128 audits team rule loads;
+// 0129 adds the unified authorization registry; 0130 adds authorization revision
+// invalidation triggers.
+const targetSchemaVersion = 130
 
 func runMigrateV1ToV2(
 	ctx context.Context,

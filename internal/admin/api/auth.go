@@ -60,12 +60,17 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 		permission, mapped := authz.PermissionForBearerScope(string(scope))
 		if mapped {
 			matchedScope := matchedBearerScope(auth.Scopes, scope)
-			decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+			legacyAllowed := auth.HasScope(scope)
+			decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
 				SubjectRef:  adminBearerSubject(auth.Owner),
 				Transport:   authz.TransportAdminHTTP,
 				BearerScope: matchedScope,
 				Permission:  permission,
 				Resource:    bearerResource(permission),
+			}, authz.LegacyDecision{
+				Allowed: legacyAllowed,
+				Reason:  "legacy bearer scope",
+				Source:  authz.SourceAdminTokenScope,
 			})
 			if err != nil || !decision.Allowed {
 				writeError(w, http.StatusForbidden, "scope_forbidden",

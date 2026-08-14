@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -18,11 +19,16 @@ import (
 )
 
 type Service struct {
-	db    *sql.DB
-	store *Store
-	gen   idgen.Generator
-	clock clock.Clock
-	sink  *observability.EventSink
+	db       *sql.DB
+	store    *Store
+	gen      idgen.Generator
+	clock    clock.Clock
+	sink     *observability.EventSink
+	features FeatureFlags
+
+	cacheMu        sync.RWMutex
+	cacheRevision  int64
+	effectiveCache map[string]effectiveCacheEntry
 }
 
 type Deps struct {
@@ -31,6 +37,12 @@ type Deps struct {
 	IDGen     idgen.Generator
 	Clock     clock.Clock
 	EventSink *observability.EventSink
+	Features  FeatureFlags
+}
+
+type effectiveCacheEntry struct {
+	effective []EffectivePermission
+	denied    []string
 }
 
 func New(deps Deps) *Service {
@@ -46,7 +58,13 @@ func New(deps Deps) *Service {
 	if store == nil && deps.DB != nil {
 		store = NewStore(deps.DB)
 	}
-	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink}
+	features := deps.Features
+	if features.Mode == "" {
+		features = DefaultFeatureFlags()
+	} else {
+		features = features.normalized()
+	}
+	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, features: features}
 }
 
 func (s *Service) ListDefinitions(ctx context.Context) ([]PermissionDefinition, error) {
@@ -60,6 +78,13 @@ func (s *Service) ListDefinitions(ctx context.Context) ([]PermissionDefinition, 
 	return defs, nil
 }
 
+func (s *Service) Revision(ctx context.Context) (int64, error) {
+	if s == nil || s.store == nil {
+		return 0, nil
+	}
+	return s.store.Revision(ctx)
+}
+
 func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, error) {
 	exp, err := s.Explain(ctx, req)
 	if err != nil {
@@ -69,6 +94,91 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, 
 		return exp.Decision, ErrDenied
 	}
 	return exp.Decision, nil
+}
+
+func (s *Service) CheckMigrated(ctx context.Context, req CheckRequest, legacy LegacyDecision) (AccessDecision, error) {
+	legacyDecision := legacyAccessDecision(req, legacy)
+	features := s.featureFlags()
+	if s == nil || features.Mode == MigrationModeLegacy {
+		if legacyDecision.Allowed {
+			return legacyDecision, nil
+		}
+		return legacyDecision, ErrDenied
+	}
+	unified, unifiedErr := s.Check(ctx, req)
+	unifiedAllowed := unifiedErr == nil && unified.Allowed
+	if features.ShadowCompare && unifiedAllowed != legacyDecision.Allowed {
+		s.auditShadowMismatch(ctx, req, legacyDecision, unified, unifiedErr)
+	}
+	if features.Mode == MigrationModeShadow {
+		if legacyDecision.Allowed {
+			return legacyDecision, nil
+		}
+		return legacyDecision, ErrDenied
+	}
+	return unified, unifiedErr
+}
+
+func (s *Service) featureFlags() FeatureFlags {
+	if s == nil {
+		return DefaultFeatureFlags()
+	}
+	return s.features.normalized()
+}
+
+func legacyAccessDecision(req CheckRequest, legacy LegacyDecision) AccessDecision {
+	reason := strings.TrimSpace(legacy.Reason)
+	if reason == "" {
+		if legacy.Allowed {
+			reason = "legacy allowed"
+		} else {
+			reason = "legacy denied"
+		}
+	}
+	return AccessDecision{
+		Allowed:     legacy.Allowed,
+		SubjectRef:  req.SubjectRef,
+		Permission:  req.Permission,
+		Resource:    req.Resource,
+		Source:      legacy.Source,
+		Reason:      reason,
+		EvidenceRef: legacy.EvidenceRef,
+	}
+}
+
+func (s *Service) auditShadowMismatch(ctx context.Context, req CheckRequest, legacy AccessDecision, unified AccessDecision, unifiedErr error) {
+	if s == nil || s.store == nil {
+		return
+	}
+	resourceID := req.Resource.ID
+	if resourceID == "" {
+		resourceID = req.Resource.URI
+	}
+	payload := map[string]any{
+		"legacy_allowed":  legacy.Allowed,
+		"legacy_reason":   legacy.Reason,
+		"legacy_source":   string(legacy.Source),
+		"unified_allowed": unifiedErr == nil && unified.Allowed,
+		"unified_reason":  unified.Reason,
+		"unified_source":  string(unified.Source),
+		"transport":       string(req.Transport),
+		"bearer_scope":    req.BearerScope,
+		"resource_org":    req.Resource.OrgID,
+		"resource_uri":    req.Resource.URI,
+	}
+	if unifiedErr != nil {
+		payload["unified_error"] = unifiedErr.Error()
+	}
+	_ = s.audit(ctx, auditEvent{
+		EventType:     "authorization.shadow_mismatch",
+		ActorRef:      req.SubjectRef,
+		SubjectRef:    req.SubjectRef,
+		PermissionKey: req.Permission,
+		ResourceKind:  req.Resource.Kind,
+		ResourceID:    resourceID,
+		RequestID:     req.RequestID,
+		Payload:       payload,
+	})
 }
 
 func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult, error) {
@@ -434,6 +544,71 @@ func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, or
 }
 
 func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
+	features := s.featureFlags()
+	if s == nil {
+		return nil, []string{"authorization service is not wired"}, ErrDenied
+	}
+	if s.store == nil || !features.CacheEffective {
+		return s.deriveEffectiveUncached(ctx, req)
+	}
+	revision, err := s.store.Revision(ctx)
+	if err != nil {
+		return s.deriveEffectiveUncached(ctx, req)
+	}
+	key, err := effectiveCacheKey(req)
+	if err != nil {
+		return s.deriveEffectiveUncached(ctx, req)
+	}
+	s.cacheMu.RLock()
+	if s.effectiveCache != nil && s.cacheRevision == revision {
+		if cached, ok := s.effectiveCache[key]; ok {
+			effective := append([]EffectivePermission(nil), cached.effective...)
+			denied := append([]string(nil), cached.denied...)
+			s.cacheMu.RUnlock()
+			return effective, denied, nil
+		}
+	}
+	s.cacheMu.RUnlock()
+
+	effective, denied, err := s.deriveEffectiveUncached(ctx, req)
+	if err != nil {
+		return effective, denied, err
+	}
+	s.cacheMu.Lock()
+	if s.effectiveCache == nil || s.cacheRevision != revision {
+		s.effectiveCache = make(map[string]effectiveCacheEntry)
+		s.cacheRevision = revision
+	}
+	s.effectiveCache[key] = effectiveCacheEntry{
+		effective: append([]EffectivePermission(nil), effective...),
+		denied:    append([]string(nil), denied...),
+	}
+	s.cacheMu.Unlock()
+	return effective, denied, nil
+}
+
+func effectiveCacheKey(req CheckRequest) (string, error) {
+	key := struct {
+		SubjectRef  SubjectRef    `json:"subject_ref"`
+		Transport   Transport     `json:"transport"`
+		BearerScope string        `json:"bearer_scope,omitempty"`
+		Permission  PermissionKey `json:"permission"`
+		Resource    ResourceScope `json:"resource"`
+	}{
+		SubjectRef:  req.SubjectRef,
+		Transport:   req.Transport,
+		BearerScope: req.BearerScope,
+		Permission:  req.Permission,
+		Resource:    req.Resource,
+	}
+	b, err := json.Marshal(key)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func (s *Service) deriveEffectiveUncached(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
 	var out []EffectivePermission
 	var denied []string
 	add := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
@@ -803,38 +978,54 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 			return err
 		}
 	}
+	var reachable bool
 	for _, ref := range refs {
-		if s.fileRefReachable(ctx, subject, ref) {
-			evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
-			add("file.download", SourceFileScope, evidence, false)
-			add("file.attach", SourceFileScope, evidence, false)
-			add("file.upload", SourceFileScope, evidence, false)
-			return nil
+		perms := s.fileRefPermissions(ctx, subject, ref)
+		if len(perms) == 0 {
+			continue
+		}
+		reachable = true
+		evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
+		for _, perm := range perms {
+			add(perm, SourceFileScope, evidence, false)
 		}
 	}
-	*denied = append(*denied, "no live reachable file reference for subject")
+	if !reachable {
+		*denied = append(*denied, "no live reachable file reference for subject")
+	}
 	return nil
 }
 
-func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, ref FileRef) bool {
+func (s *Service) fileRefPermissions(ctx context.Context, subject SubjectRef, ref FileRef) []PermissionKey {
 	switch ref.Scope {
 	case "uploader":
-		return ref.ScopeID == string(subject)
+		if ref.ScopeID == string(subject) {
+			return []PermissionKey{"file.attach", "file.upload"}
+		}
+		return nil
 	case "conversation":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		if s.fileParentAllowed(ctx, subject, "conversation.read", ResourceScope{Kind: "conversation", ID: ref.ScopeID}) {
+			return []PermissionKey{"file.download", "file.attach", "file.upload"}
+		}
 	case "project":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		if s.fileParentAllowed(ctx, subject, "project.read", ResourceScope{Kind: "project", ID: ref.ScopeID}) {
+			return []PermissionKey{"file.download", "file.attach", "file.upload"}
+		}
 	case "task":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "task.read", Resource: ResourceScope{Kind: "task", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		if s.fileParentAllowed(ctx, subject, "task.read", ResourceScope{Kind: "task", ID: ref.ScopeID}) {
+			return []PermissionKey{"file.download", "file.attach", "file.upload"}
+		}
 	case "issue":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
-	default:
-		return false
+		if s.fileParentAllowed(ctx, subject, "issue.read", ResourceScope{Kind: "issue", ID: ref.ScopeID}) {
+			return []PermissionKey{"file.download", "file.attach", "file.upload"}
+		}
 	}
+	return nil
+}
+
+func (s *Service) fileParentAllowed(ctx context.Context, subject SubjectRef, permission PermissionKey, resource ResourceScope) bool {
+	exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: permission, Resource: resource})
+	return exp.Decision.Allowed
 }
 
 func (s *Service) addAgentEffective(ctx context.Context, req CheckRequest, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {

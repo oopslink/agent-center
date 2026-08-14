@@ -87,6 +87,16 @@ type AccessDecision struct {
 	EvidenceRef string         `json:"evidence_ref,omitempty"`
 }
 
+// LegacyDecision is the pre-migration verdict for a guarded surface.
+// CheckMigrated compares it with the unified Authorization Service decision
+// while feature flags decide which verdict is authoritative.
+type LegacyDecision struct {
+	Allowed     bool
+	Reason      string
+	Source      DecisionSource
+	EvidenceRef string
+}
+
 type EffectivePermission struct {
 	Key          PermissionKey  `json:"key"`
 	Source       DecisionSource `json:"source"`

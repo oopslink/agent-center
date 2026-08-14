@@ -257,7 +257,7 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 		return nil, "", false
 	}
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.UserSubject(callerID.ID()),
 			Transport:  authz.TransportWeb,
 			Permission: "project.read",
@@ -266,6 +266,10 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 				ID:    string(p.ID()),
 				OrgID: orgID,
 			},
+		}, authz.LegacyDecision{
+			Allowed: true,
+			Reason:  "legacy project-in-org gate",
+			Source:  authz.SourceOrgRole,
 		})
 		if err != nil || !decision.Allowed {
 			writeAuthorizationError(w, decision, err)

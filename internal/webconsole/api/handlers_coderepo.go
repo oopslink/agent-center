@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/coderepo"
 	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
@@ -78,6 +79,23 @@ func (s *Server) requireOrgAdmin(w http.ResponseWriter, r *http.Request, d Handl
 	if !member.Role().AtLeast(identity.RoleAdmin) {
 		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can manage workspace repos")
 		return nil, "", false
+	}
+	if d.Authorizer != nil {
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.UserSubject(id.ID()),
+			Transport:  authz.TransportWeb,
+			Permission: "coderepo.workspace.manage",
+			Resource:   authz.ResourceScope{Kind: "org", ID: org},
+		}, authz.LegacyDecision{
+			Allowed:     true,
+			Reason:      "legacy org admin role",
+			Source:      authz.SourceOrgRole,
+			EvidenceRef: "members:" + member.ID(),
+		})
+		if err != nil || !decision.Allowed {
+			writeAuthorizationError(w, decision, err)
+			return nil, "", false
+		}
 	}
 	return id, org, true
 }

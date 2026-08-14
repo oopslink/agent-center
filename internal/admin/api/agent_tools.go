@@ -83,7 +83,7 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 		return nil, false
 	}
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		decision, err := d.Authorizer.CheckMigrated(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.WorkerSubject(workerID),
 			Transport:  authz.TransportMCP,
 			Permission: "agent.operate.self",
@@ -93,6 +93,11 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 				OrgID:            a.OrganizationID(),
 				IdentityMemberID: a.IdentityMemberID(),
 			},
+		}, authz.LegacyDecision{
+			Allowed:     true,
+			Reason:      "legacy worker-agent binding",
+			Source:      authz.SourceAgentWorkerBinding,
+			EvidenceRef: "agents:" + string(a.ID()) + "/worker_id",
 		})
 		if err != nil || !decision.Allowed {
 			writeError(w, http.StatusForbidden, "agent_not_bound_to_worker",
