@@ -166,6 +166,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{id}/cancel", s.cancelInvitationHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/invitations/{id}", s.deleteInvitationHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{token}/accept", s.acceptInvitationHandler)
+	// Unified authorization contract: server-side check/explain/effective and
+	// idempotent RBAC batch mutation surfaces. These are debug/admin APIs for Web
+	// and tests; business handlers still call server-side Check directly.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/definitions", s.permissionsDefinitionsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/check", s.permissionsCheckHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/explain", s.permissionsExplainHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/effective", s.permissionsEffectiveHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/preview", s.permissionsBatchPreviewHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/apply", s.permissionsBatchApplyHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/revoke", s.permissionsBatchRevokeHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs
 	// to + their per-org role; authenticated only, no requireOrgMember gate.

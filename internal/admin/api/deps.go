@@ -11,6 +11,7 @@ import (
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/agent"
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
@@ -46,7 +47,8 @@ import (
 // 18 CLI handler files). We keep it independent from webconsole so
 // changes to either transport don't ripple into the other.
 type HandlerDeps struct {
-	Actor observability.Actor
+	Actor      observability.Actor
+	Authorizer *authz.Service
 
 	// DB is the raw connection pool used by composite endpoints that
 	// must wrap two AppService calls in the SAME tx (ADR-0014 § 2 —
