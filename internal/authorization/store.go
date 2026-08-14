@@ -233,18 +233,19 @@ func (s *Store) assignRole(ctx context.Context, in RoleAssignment, now time.Time
 		}
 		return RoleAssignment{}, "", err
 	}
-	created, err := s.getAssignment(ctx, in.ID)
+	created, err := s.getAssignmentInOrg(ctx, in.OrgID, in.ID)
 	return created, "created", err
 }
 
-func (s *Store) getAssignment(ctx context.Context, id string) (RoleAssignment, error) {
+func (s *Store) getAssignmentInOrg(ctx context.Context, orgID, id string) (RoleAssignment, error) {
 	exec, err := s.exec(ctx)
 	if err != nil {
 		return RoleAssignment{}, err
 	}
 	row := exec.QueryRowContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
 		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
-		FROM authorization_role_assignments WHERE id = ?`, strings.TrimSpace(id))
+		FROM authorization_role_assignments WHERE org_id = ? AND id = ?`,
+		strings.TrimSpace(orgID), strings.TrimSpace(id))
 	return scanAssignment(row.Scan)
 }
 
@@ -257,6 +258,21 @@ func (s *Store) findActiveAssignment(ctx context.Context, orgID string, subject 
 		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments
 		WHERE org_id = ? AND subject_ref = ? AND role_id = ? AND resource_kind = ? AND resource_id = ? AND revoked_at IS NULL`,
+		strings.TrimSpace(orgID), strings.TrimSpace(string(subject)), strings.TrimSpace(roleID), strings.TrimSpace(kind), strings.TrimSpace(id))
+	return scanAssignment(row.Scan)
+}
+
+func (s *Store) findAssignmentForRevoke(ctx context.Context, orgID string, subject SubjectRef, roleID, kind, id string) (RoleAssignment, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return RoleAssignment{}, err
+	}
+	row := exec.QueryRowContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
+		created_by, created_at, revoked_at, revoked_by, revoked_reason, version
+		FROM authorization_role_assignments
+		WHERE org_id = ? AND subject_ref = ? AND role_id = ? AND resource_kind = ? AND resource_id = ?
+		ORDER BY CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END, created_at DESC, id DESC
+		LIMIT 1`,
 		strings.TrimSpace(orgID), strings.TrimSpace(string(subject)), strings.TrimSpace(roleID), strings.TrimSpace(kind), strings.TrimSpace(id))
 	return scanAssignment(row.Scan)
 }
@@ -291,13 +307,7 @@ func (s *Store) revokeAssignment(ctx context.Context, in RevokeInput, actor Subj
 	if err != nil {
 		return RoleAssignment{}, "", err
 	}
-	var a RoleAssignment
-	if strings.TrimSpace(in.AssignmentID) != "" {
-		a, err = s.getAssignment(ctx, in.AssignmentID)
-	} else {
-		kind, id := in.Resource.Key()
-		a, err = s.findActiveAssignment(ctx, orgID, in.SubjectRef, in.RoleID, kind, id)
-	}
+	a, err := s.assignmentForRevoke(ctx, orgID, in)
 	if err != nil {
 		return RoleAssignment{}, "", err
 	}
@@ -305,13 +315,42 @@ func (s *Store) revokeAssignment(ctx context.Context, in RevokeInput, actor Subj
 		return a, "unchanged", nil
 	}
 	ts := now.UTC().Format(time.RFC3339Nano)
-	if _, err := exec.ExecContext(ctx, `UPDATE authorization_role_assignments
+	result, err := exec.ExecContext(ctx, `UPDATE authorization_role_assignments
 		SET revoked_at = ?, revoked_by = ?, revoked_reason = ?, version = version + 1
-		WHERE id = ? AND revoked_at IS NULL`, ts, actor, strings.TrimSpace(in.Reason), a.ID); err != nil {
+		WHERE org_id = ? AND id = ? AND revoked_at IS NULL`,
+		ts, actor, strings.TrimSpace(in.Reason), strings.TrimSpace(orgID), a.ID)
+	if err != nil {
 		return RoleAssignment{}, "", err
 	}
-	revoked, err := s.getAssignment(ctx, a.ID)
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		current, findErr := s.getAssignmentInOrg(ctx, orgID, a.ID)
+		if findErr != nil {
+			return RoleAssignment{}, "", findErr
+		}
+		if current.RevokedAt != nil {
+			return current, "unchanged", nil
+		}
+		return RoleAssignment{}, "", ErrConflict
+	}
+	revoked, err := s.getAssignmentInOrg(ctx, orgID, a.ID)
 	return revoked, "revoked", err
+}
+
+func (s *Store) assignmentForRevoke(ctx context.Context, orgID string, in RevokeInput) (RoleAssignment, error) {
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return RoleAssignment{}, fmt.Errorf("%w: org_id required", ErrInvalid)
+	}
+	if assignmentID := strings.TrimSpace(in.AssignmentID); assignmentID != "" {
+		return s.getAssignmentInOrg(ctx, orgID, assignmentID)
+	}
+	kind, id := in.Resource.Key()
+	subject := SubjectRef(strings.TrimSpace(string(in.SubjectRef)))
+	roleID := strings.TrimSpace(in.RoleID)
+	if subject == "" || roleID == "" || kind == "" || id == "" {
+		return RoleAssignment{}, fmt.Errorf("%w: revoke requires assignment_id or subject_ref, role_id and resource", ErrInvalid)
+	}
+	return s.findAssignmentForRevoke(ctx, orgID, subject, roleID, kind, id)
 }
 
 func (s *Store) beginIdempotency(ctx context.Context, key, actor, operation, requestHash string, now time.Time) (string, bool, error) {

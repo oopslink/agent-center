@@ -412,25 +412,53 @@ func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, 
 }
 
 func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, orgID string, in RevokeInput) error {
+	target, err := s.resolveRevokeTarget(ctx, orgID, in)
+	if err != nil {
+		return err
+	}
+	if target.OrgID != strings.TrimSpace(orgID) {
+		return ErrNotFound
+	}
 	if actor == "system" {
 		return nil
 	}
 	if _, err := s.Check(ctx, CheckRequest{SubjectRef: actor, Transport: TransportSystem, Permission: "org.member.role.manage", Resource: ResourceScope{Kind: "org", ID: orgID}}); err == nil {
 		return nil
 	}
-	roleID := strings.TrimSpace(in.RoleID)
-	if roleID == "" && in.AssignmentID != "" {
-		a, err := s.store.getAssignment(ctx, in.AssignmentID)
-		if err != nil {
-			return err
+	return s.requireDelegatableRole(ctx, actor, target.RoleID, ResourceScope{
+		Kind:  target.ResourceKind,
+		ID:    target.ResourceID,
+		OrgID: target.OrgID,
+	})
+}
+
+func (s *Service) resolveRevokeTarget(ctx context.Context, orgID string, in RevokeInput) (RoleAssignment, error) {
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return RoleAssignment{}, fmt.Errorf("%w: org_id required", ErrInvalid)
+	}
+	target, err := s.store.assignmentForRevoke(ctx, orgID, in)
+	if err != nil {
+		if errors.Is(err, ErrAssignmentNotFound) {
+			return RoleAssignment{}, ErrNotFound
 		}
-		roleID = a.RoleID
-		in.Resource = ResourceScope{Kind: a.ResourceKind, ID: a.ResourceID, OrgID: a.OrgID}
+		return RoleAssignment{}, err
 	}
-	if roleID == "" {
-		return fmt.Errorf("%w: role id required for revoke", ErrInvalid)
+	if target.OrgID != orgID {
+		return RoleAssignment{}, ErrNotFound
 	}
-	return s.requireDelegatableRole(ctx, actor, roleID, in.Resource)
+	resolved, _, err := s.resolveResource(ctx, ResourceScope{
+		Kind:  target.ResourceKind,
+		ID:    target.ResourceID,
+		OrgID: target.OrgID,
+	})
+	if err != nil {
+		return RoleAssignment{}, err
+	}
+	if resolved.OrgID != orgID {
+		return RoleAssignment{}, ErrNotFound
+	}
+	return target, nil
 }
 
 func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
