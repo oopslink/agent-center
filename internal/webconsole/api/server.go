@@ -315,13 +315,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/team-templates", s.createTeamTemplateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates/{tid}", s.getTeamTemplateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates/{tid}/scrub", s.templateScrubHandler)
-	// Unified permission contract (ADR-0058): read-only derived effective access
-	// plus batch preview/result surfaces. Phase 1 does not add a grant table; the
-	// handlers project current production structures into PermissionKey decisions.
-	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/effective", s.accessEffectiveHandler)
-	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/preview", s.accessBatchPreviewHandler)
-	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/apply", s.accessBatchApplyHandler)
-	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/grants/revoke", s.accessBulkRevokeHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/permissions/roles/{id}", s.accessRoleUpdateHandler)
 	// Team WebUI facade P3 (this slice): disassociate / template save·import /
 	// template-instances + the org people directory (agents / humans).

@@ -1025,6 +1025,7 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 				Delegatable:  p.Delegatable,
 				RoleID:       a.RoleID,
 				AssignmentID: a.ID,
+				ExpiresAt:    a.ExpiresAt,
 			})
 		}
 	}

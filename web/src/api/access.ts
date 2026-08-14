@@ -25,6 +25,7 @@ export type AccessSource =
   | 'admin_token_scope'
   | 'worker_owner'
   | 'agent_worker_binding'
+  | 'custom_role'
   | 'system';
 export type AccessStatus = 'allowed' | 'denied' | 'unauthorized' | 'not_applicable';
 export type AccessRisk = 'low' | 'medium' | 'high';
@@ -187,9 +188,11 @@ export interface AccessRoleUpdateRequest {
 
 function qs(filters?: AccessFilters): string {
   const params = new URLSearchParams();
-  if (!filters) return '';
-  for (const [key, value] of Object.entries(filters)) {
-    if (value && value !== 'all') params.set(key, value);
+  params.set('view', 'access');
+  if (filters) {
+    for (const [key, value] of Object.entries(filters)) {
+      if (value && value !== 'all') params.set(key, value);
+    }
   }
   const encoded = params.toString();
   return encoded ? `?${encoded}` : '';
@@ -203,7 +206,7 @@ export const accessApi = {
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
     api.post<AccessBatchResult>('/permissions/batch/apply', payload),
   bulkRevoke: (payload: AccessBulkRevokeRequest) =>
-    api.post<AccessBatchResult>('/permissions/grants/revoke', payload),
+    api.post<AccessBatchResult>('/permissions/batch/revoke', payload),
   updateRole: (payload: AccessRoleUpdateRequest) =>
     api.patch<AccessRole>(`/permissions/roles/${encodeURIComponent(payload.role_id)}`, {
       permissions: payload.permissions,

@@ -94,6 +94,7 @@ type EffectivePermission struct {
 	Delegatable  bool           `json:"delegatable,omitempty"`
 	RoleID       string         `json:"role_id,omitempty"`
 	AssignmentID string         `json:"assignment_id,omitempty"`
+	ExpiresAt    *time.Time     `json:"expires_at,omitempty"`
 }
 
 type EffectivePermissions struct {
