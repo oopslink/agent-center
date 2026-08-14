@@ -93,6 +93,10 @@ func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "access" {
+		s.accessEffectiveHandler(w, r)
+		return
+	}
 	d := hd(r)
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
@@ -190,10 +194,44 @@ func (s *Server) permissionsBatchHandler(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
-	var req authz.BatchRequest
-	if err := decodeJSON(r, &req); err != nil {
+	var env struct {
+		IdempotencyKey string                 `json:"idempotency_key,omitempty"`
+		ActorRef       authz.SubjectRef       `json:"actor_ref"`
+		OrgID          string                 `json:"org_id"`
+		Operations     []authz.BatchOperation `json:"operations"`
+
+		SubjectRefs      []string                 `json:"subject_refs"`
+		PermissionKeys   []string                 `json:"permission_keys"`
+		Resources        []accessResourceScopeDTO `json:"resources"`
+		ExpiresAt        *string                  `json:"expires_at"`
+		Reason           string                   `json:"reason"`
+		PreviewRequestID string                   `json:"preview_request_id"`
+	}
+	if err := decodeJSON(r, &env); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
+	}
+	if len(env.SubjectRefs) > 0 || len(env.PermissionKeys) > 0 || len(env.Resources) > 0 {
+		if revoke {
+			writeError(w, http.StatusBadRequest, "invalid_access_request", "access batch revoke is not supported by this compatibility payload")
+			return
+		}
+		body := accessBatchRequestDTO{
+			SubjectRefs:      env.SubjectRefs,
+			PermissionKeys:   env.PermissionKeys,
+			Resources:        env.Resources,
+			ExpiresAt:        env.ExpiresAt,
+			Reason:           env.Reason,
+			PreviewRequestID: env.PreviewRequestID,
+		}
+		s.accessBatchUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body, preview)
+		return
+	}
+	req := authz.BatchRequest{
+		IdempotencyKey: env.IdempotencyKey,
+		ActorRef:       env.ActorRef,
+		OrgID:          env.OrgID,
+		Operations:     env.Operations,
 	}
 	req.ActorRef = authz.UserSubject(caller.ID())
 	req.OrgID = orgID
