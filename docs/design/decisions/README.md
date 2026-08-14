@@ -44,6 +44,7 @@
 | 0055 | [Plan 单调生命周期与增量 Remediation Stage](0055-monotonic-plan-lifecycle-and-remediation-stages.md) | Accepted |
 | 0056 | [Executor Slot 与 Execution Run identity 分离](0056-stable-executor-slots.md) | Accepted |
 | 0057 | [Team Memory 通过 Proposal/Promotion 受控写入](0057-controlled-team-memory-writes.md) | Accepted |
+| 0058 | [统一权限契约](0058-unified-permission-contract.md) | Accepted |
 
 ## 规则提示
 
