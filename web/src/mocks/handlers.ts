@@ -361,6 +361,378 @@ function agentHandlers() {
   ];
 }
 
+function accessHandlers() {
+  type Resource = { kind: string; id: string; org_id?: string; project_id?: string; label?: string };
+  type BatchRequest = {
+    subject_refs?: string[];
+    permission_keys?: string[];
+    resources?: Resource[];
+    expires_at?: string | null;
+    reason?: string;
+    preview_request_id?: string;
+  };
+  type BatchItem = {
+    id: string;
+    subject_ref: string;
+    subject_name: string;
+    permission: string;
+    resource: Resource;
+    status: 'allowed' | 'denied' | 'unauthorized' | 'not_applicable';
+    risk: 'low' | 'medium' | 'high';
+    high_risk: boolean;
+    reason: string;
+    evidence_ref?: string;
+    grant_id?: string;
+  };
+
+  const subjects = [
+    { ref: 'user:hayang', kind: 'human', name: 'Hayang', role: 'owner', status: 'joined', team_names: ['agent-center core'] },
+    { ref: 'user:ops', kind: 'human', name: 'Ops Reviewer', role: 'admin', status: 'joined', team_names: ['release'] },
+    { ref: 'agent:builder', kind: 'agent', name: 'Builder', role: 'member', status: 'joined', team_names: ['agent-center core'] },
+    { ref: 'agent:external', kind: 'agent', name: 'External Bot', role: 'member', status: 'unavailable', team_names: [] },
+  ];
+  const catalog = [
+    {
+      key: 'org.read',
+      label: 'Read organization',
+      description: 'Open organization-scoped resources.',
+      resource_kinds: ['org'],
+      actions: ['read'],
+      risk: 'low',
+      category: 'access',
+      legacy_sources: ['org_role'],
+    },
+    {
+      key: 'org.member.role.manage',
+      label: 'Manage org roles',
+      description: 'Change owner/admin/member assignments.',
+      resource_kinds: ['org'],
+      actions: ['manage'],
+      risk: 'high',
+      high_risk: true,
+      category: 'access',
+      legacy_sources: ['org_role'],
+    },
+    {
+      key: 'project.write',
+      label: 'Write project',
+      description: 'Create and update project work items.',
+      resource_kinds: ['project'],
+      actions: ['write'],
+      risk: 'medium',
+      category: 'access',
+      legacy_sources: ['project_member'],
+    },
+    {
+      key: 'team.memory.review',
+      label: 'Review team memory',
+      description: 'Promote or reject team memory proposals.',
+      resource_kinds: ['team'],
+      actions: ['review'],
+      risk: 'high',
+      high_risk: true,
+      category: 'access',
+      legacy_sources: ['org_role', 'team_memory_policy'],
+    },
+    {
+      key: 'file.download',
+      label: 'Download files',
+      description: 'Download files reachable through live scope references.',
+      resource_kinds: ['file', 'task', 'issue', 'plan', 'conversation'],
+      actions: ['download'],
+      risk: 'medium',
+      category: 'access',
+      legacy_sources: ['file_scope'],
+    },
+  ];
+  const roles = [
+    {
+      id: 'org:owner',
+      name: 'Org owner',
+      scope_kind: 'org',
+      description: 'Full organization administration.',
+      permissions: ['org.read', 'org.member.role.manage', 'team.memory.review'],
+      editable: false,
+      source: 'org_role',
+      high_risk: true,
+    },
+    {
+      id: 'org:admin',
+      name: 'Org admin',
+      scope_kind: 'org',
+      description: 'Operational administration without owner transfer.',
+      permissions: ['org.read', 'project.write'],
+      editable: true,
+      source: 'org_role',
+    },
+    {
+      id: 'project:member',
+      name: 'Project member',
+      scope_kind: 'project',
+      description: 'Project read/write membership.',
+      permissions: ['project.write'],
+      editable: false,
+      source: 'project_member',
+    },
+    {
+      id: 'team:curator',
+      name: 'Team curator',
+      scope_kind: 'team',
+      description: 'Review team memory proposals when policy grants it.',
+      permissions: ['team.memory.review'],
+      editable: true,
+      source: 'team_memory_policy',
+      high_risk: true,
+    },
+  ];
+  const customGrants = [
+    {
+      id: 'grant-custom-1',
+      subject_ref: 'agent:builder',
+      subject_name: 'Builder',
+      permission: 'project.write',
+      resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+      source: 'project_member',
+      status: 'expires_soon',
+      starts_at: '2026-08-14T00:00:00Z',
+      expires_at: '2026-08-21T00:00:00Z',
+      created_by: 'user:hayang',
+      created_at: '2026-08-14T00:00:00Z',
+      revoked_at: null,
+      risk: 'medium',
+    },
+    {
+      id: 'grant-derived-owner',
+      subject_ref: 'user:hayang',
+      subject_name: 'Hayang',
+      permission: 'org.member.role.manage',
+      resource: { kind: 'org', id: 'org-test', label: 'Test Org' },
+      source: 'org_role',
+      status: 'active',
+      starts_at: '2026-08-14T00:00:00Z',
+      expires_at: null,
+      created_by: 'system',
+      created_at: '2026-08-14T00:00:00Z',
+      revoked_at: null,
+      risk: 'high',
+    },
+  ];
+  const baseDecisions = [
+    {
+      allowed: true,
+      subject_ref: 'user:hayang',
+      permission: 'org.read',
+      resource: { kind: 'org', id: 'org-test', label: 'Test Org' },
+      source: 'org_role',
+      reason: 'owner role derives org.read',
+      evidence_ref: 'members:mem-1',
+      status: 'allowed',
+      risk: 'low',
+    },
+    {
+      allowed: true,
+      subject_ref: 'user:hayang',
+      permission: 'org.member.role.manage',
+      resource: { kind: 'org', id: 'org-test', label: 'Test Org' },
+      source: 'org_role',
+      reason: 'owner role derives org.member.role.manage',
+      evidence_ref: 'members:mem-1',
+      status: 'allowed',
+      risk: 'high',
+    },
+    {
+      allowed: true,
+      subject_ref: 'agent:builder',
+      permission: 'project.write',
+      resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+      source: 'project_member',
+      reason: 'project membership derives project.write',
+      evidence_ref: 'pm_project_members:pmem-1',
+      status: 'allowed',
+      expires_at: '2026-08-21T00:00:00Z',
+      grant_id: 'grant-custom-1',
+      risk: 'medium',
+    },
+    {
+      allowed: false,
+      subject_ref: 'agent:builder',
+      permission: 'team.memory.review',
+      resource: { kind: 'team', id: 'team-core', org_id: 'org-test', label: 'agent-center core' },
+      source: 'team_memory_policy',
+      reason: 'not a curator for this team policy',
+      evidence_ref: 'team_memory_policy:team-core',
+      status: 'denied',
+      risk: 'high',
+    },
+    {
+      allowed: false,
+      subject_ref: 'agent:external',
+      permission: 'project.write',
+      resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+      source: 'project_member',
+      reason: 'subject is not a joined organization member',
+      evidence_ref: 'members:missing',
+      status: 'unauthorized',
+      risk: 'medium',
+    },
+    {
+      allowed: false,
+      subject_ref: 'user:ops',
+      permission: 'file.download',
+      resource: { kind: 'team', id: 'team-core', org_id: 'org-test', label: 'agent-center core' },
+      source: 'file_scope',
+      reason: 'file.download does not apply to team resources',
+      evidence_ref: 'permission_registry:file.download',
+      status: 'not_applicable',
+      risk: 'medium',
+    },
+  ];
+  const summaryFor = (decisions: typeof baseDecisions) => ({
+    allowed: decisions.filter((d) => d.status === 'allowed').length,
+    high_risk: decisions.filter((d) => d.risk === 'high').length,
+    expiring: customGrants.filter((g) => g.status === 'expires_soon').length,
+    denied: decisions.filter((d) => d.status === 'denied' || d.status === 'unauthorized').length,
+    not_applicable: decisions.filter((d) => d.status === 'not_applicable').length,
+  });
+  const findSubject = (ref: string) => subjects.find((s) => s.ref === ref);
+  const findPermission = (key: string) => catalog.find((p) => p.key === key);
+  const makeItems = (body: BatchRequest): BatchItem[] => {
+    const items: BatchItem[] = [];
+    for (const subjectRef of body.subject_refs ?? []) {
+      for (const permission of body.permission_keys ?? []) {
+        for (const resource of body.resources ?? []) {
+          const subject = findSubject(subjectRef);
+          const def = findPermission(permission);
+          let status: BatchItem['status'] = 'allowed';
+          let reason = 'grant can be applied by the permission API';
+          if (!subject || subject.status === 'unavailable') {
+            status = 'unauthorized';
+            reason = 'subject is unavailable or outside this organization';
+          } else if (!def?.resource_kinds.includes(resource.kind)) {
+            status = 'not_applicable';
+            reason = `${permission} does not apply to ${resource.kind}`;
+          } else if (permission === 'org.member.role.manage' && subject.kind === 'agent') {
+            status = 'unauthorized';
+            reason = 'agents cannot receive organization role-management grants';
+          }
+          items.push({
+            id: `item-${items.length + 1}`,
+            subject_ref: subjectRef,
+            subject_name: subject?.name ?? subjectRef,
+            permission,
+            resource,
+            status,
+            risk: (def?.risk ?? 'medium') as BatchItem['risk'],
+            high_risk: def?.risk === 'high',
+            reason,
+            evidence_ref: status === 'allowed' ? 'permission_preview:mock' : undefined,
+            grant_id: status === 'allowed' ? `grant-new-${items.length + 1}` : undefined,
+          });
+        }
+      }
+    }
+    return items;
+  };
+  return [
+    http.get('/api/permissions/effective', ({ request }) => {
+      const url = new URL(request.url);
+      const q = (url.searchParams.get('q') ?? '').toLowerCase();
+      const risk = url.searchParams.get('risk');
+      const status = url.searchParams.get('status');
+      const filtered = baseDecisions.filter((d) => {
+        const subject = findSubject(d.subject_ref);
+        if (q && !`${subject?.name ?? ''} ${d.subject_ref} ${d.permission} ${d.reason}`.toLowerCase().includes(q)) return false;
+        if (risk && risk !== 'all' && d.risk !== risk) return false;
+        if (status && status !== 'all' && d.status !== status) return false;
+        return true;
+      });
+      return ok({
+        generated_at: '2026-08-14T08:00:00Z',
+        subjects,
+        roles,
+        catalog,
+        decisions: filtered,
+        grants: customGrants,
+        summary: summaryFor(filtered),
+      });
+    }),
+    http.post('/api/permissions/batch/preview', async ({ request }) => {
+      const body = (await request.json()) as BatchRequest;
+      const items = makeItems(body);
+      return ok({
+        request_id: 'preview-mock-1',
+        expires_at: body.expires_at ?? null,
+        items,
+        summary: {
+          total: items.length,
+          grantable: items.filter((i) => i.status === 'allowed').length,
+          high_risk: items.filter((i) => i.high_risk).length,
+          unauthorized: items.filter((i) => i.status === 'unauthorized').length,
+          not_applicable: items.filter((i) => i.status === 'not_applicable').length,
+        },
+      });
+    }),
+    http.post('/api/permissions/batch/apply', async ({ request }) => {
+      const body = (await request.json()) as BatchRequest;
+      const items: BatchItem[] = makeItems(body).map((item, idx) =>
+        idx === 0 && item.status === 'allowed'
+          ? { ...item, status: 'denied', reason: 'write conflict: grant already changed' }
+          : item,
+      );
+      const failed = items.filter((i) => i.status !== 'allowed').length;
+      return ok({
+        operation_id: 'access-op-1',
+        applied_at: '2026-08-14T08:01:00Z',
+        items,
+        summary: {
+          total: items.length,
+          succeeded: items.filter((i) => i.status === 'allowed').length,
+          failed,
+          unauthorized: items.filter((i) => i.status === 'unauthorized').length,
+          not_applicable: items.filter((i) => i.status === 'not_applicable').length,
+          partial_failure: failed > 0,
+        },
+      });
+    }),
+    http.post('/api/permissions/grants/revoke', async ({ request }) => {
+      const body = (await request.json()) as { grant_ids?: string[]; reason?: string };
+      const items: BatchItem[] = (body.grant_ids ?? []).map((id, idx) => ({
+        id: `revoke-${idx + 1}`,
+        subject_ref: idx === 0 ? 'agent:builder' : 'user:ops',
+        subject_name: idx === 0 ? 'Builder' : 'Ops Reviewer',
+        permission: idx === 0 ? 'project.write' : 'org.read',
+        resource: idx === 0
+          ? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }
+          : { kind: 'org', id: 'org-test', label: 'Test Org' },
+        status: 'not_applicable',
+        risk: idx === 0 ? 'medium' : 'low',
+        high_risk: false,
+        reason: `${id} is a derived permission and must be revoked at its source`,
+        grant_id: id,
+      }));
+      const failed = items.filter((i) => i.status !== 'allowed').length;
+      return ok({
+        operation_id: 'access-revoke-1',
+        applied_at: '2026-08-14T08:02:00Z',
+        items,
+        summary: {
+          total: items.length,
+          succeeded: items.filter((i) => i.status === 'allowed').length,
+          failed,
+          unauthorized: 0,
+          not_applicable: items.filter((i) => i.status === 'not_applicable').length,
+          partial_failure: failed > 0,
+        },
+      });
+    }),
+    http.patch('/api/permissions/roles/:id', async ({ params, request }) => {
+      const body = (await request.json()) as { permissions?: string[]; reason?: string };
+      const role = roles.find((r) => r.id === String(params.id)) ?? roles[1];
+      return ok({ ...role, permissions: body.permissions ?? role.permissions });
+    }),
+  ];
+}
+
 function aiRuntimeCatalog() {
   return {
     org_id: 'org-test',
@@ -766,6 +1138,9 @@ const baseHandlers = [
   // Team WebUI Phase-1 facade (teams CRUD + members + projects) — backed by the
   // teamsFixtures store; see teamHandlers.ts.
   ...teamHandlers(),
+
+  // Unified permission / Access module contract.
+  ...accessHandlers(),
 
   // Secrets
   http.get('/api/secrets', () =>

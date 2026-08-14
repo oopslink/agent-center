@@ -57,7 +57,7 @@ describe('App shell + route tree', () => {
     }, ROUTE_WAIT);
   }, 20000);
 
-  it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
+  it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
       [`${ORG_BASE}/dms`, 'page-DMs'],
       [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
@@ -80,6 +80,7 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/settings`, 'page-Settings'],
       [`${ORG_BASE}/ai-runtime`, 'page-AiRuntime'],
       [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
+      [`${ORG_BASE}/access`, 'page-Access'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
@@ -115,6 +116,7 @@ describe('App shell + route tree', () => {
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('href', `${ORG_BASE}/channels`);
     // members-into-teams: the Members module is merged into Teams (teamui).
     expect(screen.getByTestId('rail-module-teamui')).toHaveAttribute('href', `${ORG_BASE}/teams`);
+    expect(screen.getByTestId('rail-module-access')).toHaveAttribute('href', `${ORG_BASE}/access`);
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', `${ORG_BASE}/environment`);
   });
 
@@ -139,6 +141,9 @@ describe('App shell + route tree', () => {
         ['All teams', `${ORG_BASE}/teams`],
         ['Agents', `${ORG_BASE}/teams/agents`],
         ['Humans', `${ORG_BASE}/teams/humans`],
+      ]],
+      [`${ORG_BASE}/access`, [
+        ['Access overview', `${ORG_BASE}/access`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
@@ -381,13 +386,13 @@ describe('App shell + route tree', () => {
     expect(home).toHaveAttribute('href', '/');
   });
 
-  it('renders the four module rail icons + the active module col② items', async () => {
+  it('renders the module rail icons + the active module col② items', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
     });
-    // col① — all four modules present on the rail (members-into-teams: teamui).
-    for (const id of ['workspace', 'conversations', 'teamui', 'system']) {
+    // col① — all top-level modules present on the rail (members-into-teams: teamui).
+    for (const id of ['workspace', 'conversations', 'teamui', 'access', 'reminders', 'system']) {
       expect(screen.getByTestId(`rail-module-${id}`)).toBeInTheDocument();
     }
     // col② — the active (Conversations) module's custom nav (T64): the Channels

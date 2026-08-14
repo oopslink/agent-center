@@ -8,6 +8,7 @@
     "conversations": "Conversations",
     "members": "Members",
     "teamui": "Teams",
+    "access": "Access",
     "reminders": "Reminders",
     "system": "System",
     "orgSettings": "Organization Settings",
@@ -16,6 +17,7 @@
       "conversations": "Chat",
       "members": "Team",
       "teamui": "Teams",
+      "access": "Access",
       "reminders": "Remind",
       "system": "Sys"
     }
