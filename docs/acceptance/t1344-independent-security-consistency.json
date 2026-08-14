@@ -1,0 +1,92 @@
+{
+  "task": "T1344",
+  "date": "2026-08-14",
+  "verdict": "REJECT",
+  "candidate": {
+    "branch": "delivery/task-fcf46142-human-agent-permissions",
+    "sha": "aab7b8d3ad46c1d994a00a7be19ec313800e8ab7",
+    "required_baseline_sha": "1ff3a401e393a998762f892140305e7dc895555c",
+    "known_bad_sha": "fa4cabf57b9cc6af4f42bf821404bc3fe8b01969"
+  },
+  "ancestry": {
+    "delivery_contains_baseline": true,
+    "known_bad_contains_baseline": false,
+    "main_sha": "af795b013ac71eef2f30b0116dc7b6045db3899d",
+    "main_contains_baseline": false
+  },
+  "blockers": [
+    {
+      "id": "BLOCKER-1",
+      "title": "Legacy /access batch apply reports success without mutating unified authorization state",
+      "evidence_test": "internal/webconsole/api/t1344_access_consistency_test.go::TestT1344LegacyAccessApplyMustMatchPermissionsEffectiveState",
+      "command": "go test ./internal/webconsole/api -run TestT1344 -count=1 -v",
+      "observed": "legacy /access apply reported success but /permissions effective did not include org.settings.manage",
+      "contract_impact": ["old_new_entry_consistency", "web_internal_consistency", "idempotency", "audit"]
+    },
+    {
+      "id": "BLOCKER-2",
+      "title": "Legacy /access overview omits custom_role permissions visible through /permissions/effective",
+      "evidence_test": "internal/webconsole/api/t1344_access_consistency_test.go::TestT1344LegacyAccessOverviewMustIncludeCustomRolePermissions",
+      "command": "go test ./internal/webconsole/api -run TestT1344 -count=1 -v",
+      "observed": "legacy /access overview omitted custom_role permission that /permissions effective exposes",
+      "contract_impact": ["custom_role_impact", "old_new_entry_consistency", "web_internal_consistency"]
+    },
+    {
+      "id": "BLOCKER-3",
+      "title": "origin/main does not contain required baseline",
+      "command": "git merge-base --is-ancestor 1ff3a401 main",
+      "observed_exit_code": 1,
+      "contract_impact": ["origin_main_required_before_completion", "single_candidate_sha"]
+    }
+  ],
+  "passing_checks": [
+    {
+      "name": "Service T1344 contract",
+      "command": "go test ./internal/authorization -run TestT1344 -count=1 -v",
+      "result": "PASS",
+      "covers": [
+        "human_agent_mixed_batch",
+        "idempotency",
+        "source_inheritance",
+        "team_removal_precise_reclaim",
+        "expiry",
+        "last_org_owner",
+        "high_risk_agent_denial",
+        "self_escalation_denial",
+        "custom_role_impact",
+        "transport_consistency",
+        "audit"
+      ]
+    },
+    {
+      "name": "Existing authorization package",
+      "command": "go test ./internal/authorization -count=1",
+      "result": "PASS"
+    },
+    {
+      "name": "Existing HTTP permission/access smoke",
+      "command": "go test ./internal/webconsole/api -run 'TestPermissionsHTTP|TestAccessEffectiveBatchAndRevokeContract' -count=1 -v",
+      "result": "PASS"
+    },
+    {
+      "name": "Admin HTTP authorizer delegation",
+      "command": "go test ./internal/admin/api -run TestRequireScope_DelegatesToAuthorizationService -count=1 -v",
+      "result": "PASS"
+    },
+    {
+      "name": "Relevant frontend permission tests",
+      "command": "pnpm exec vitest run src/components/AccessPermissionsPanel.test.tsx src/pages/Access.test.tsx",
+      "result": "PASS"
+    },
+    {
+      "name": "Frontend typecheck",
+      "command": "pnpm exec tsc --noEmit",
+      "result": "PASS"
+    }
+  ],
+  "repro_test_files_added": [
+    "internal/authorization/t1344_acceptance_test.go",
+    "internal/webconsole/api/t1344_access_consistency_test.go"
+  ],
+  "final_note": "Do not mark PASS until the legacy /access surface delegates to the unified authorization service or is removed/redirected, custom_role permissions are consistently visible, audit/idempotency are preserved, and the accepted candidate is merged into origin/main."
+}
