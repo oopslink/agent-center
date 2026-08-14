@@ -2,12 +2,17 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/team"
@@ -153,13 +158,145 @@ func accessRoles() []accessRoleDTO {
 	}
 }
 
+func accessRolesForOrg(ctx context.Context, d HandlerDeps, orgID string, catalog map[string]accessPermissionDefinitionDTO) []accessRoleDTO {
+	roles := accessRoles()
+	if d.DB == nil {
+		return roles
+	}
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT id, name, COALESCE(description, '')
+		FROM authorization_roles
+		WHERE org_id = ? AND kind = 'custom' AND revoked_at IS NULL
+		ORDER BY name, id`, orgID)
+	if err != nil {
+		return roles
+	}
+	var custom []accessRoleDTO
+	for rows.Next() {
+		var role accessRoleDTO
+		if err := rows.Scan(&role.ID, &role.Name, &role.Description); err != nil {
+			rows.Close()
+			return roles
+		}
+		role.Editable = true
+		role.Source = string(authz.SourceCustomRole)
+		custom = append(custom, role)
+	}
+	rows.Close()
+	for _, role := range custom {
+		role.Permissions = accessRolePermissions(ctx, d, role.ID)
+		role.ScopeKind = accessRoleScopeKind(role.Permissions, catalog)
+		for _, p := range role.Permissions {
+			if catalog[p].Risk == "high" {
+				role.HighRisk = true
+				break
+			}
+		}
+		roles = append(roles, role)
+	}
+	return roles
+}
+
+func accessRolePermissions(ctx context.Context, d HandlerDeps, roleID string) []string {
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT permission_key
+		FROM authorization_role_permissions
+		WHERE role_id = ?
+		ORDER BY permission_key`, roleID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var permissions []string
+	for rows.Next() {
+		var permission string
+		if err := rows.Scan(&permission); err != nil {
+			return permissions
+		}
+		permissions = append(permissions, permission)
+	}
+	return permissions
+}
+
+func accessRoleScopeKind(permissions []string, catalog map[string]accessPermissionDefinitionDTO) string {
+	for _, permission := range permissions {
+		def := catalog[permission]
+		if len(def.ResourceKinds) > 0 {
+			return def.ResourceKinds[0]
+		}
+	}
+	return "org"
+}
+
+func accessCatalogFromDefinitions(definitions []authz.PermissionDefinition) []accessPermissionDefinitionDTO {
+	meta := map[string]accessPermissionDefinitionDTO{}
+	for _, entry := range accessCatalog {
+		meta[entry.Key] = entry
+	}
+	out := make([]accessPermissionDefinitionDTO, 0, len(definitions))
+	for _, def := range definitions {
+		key := string(def.Key)
+		entry := meta[key]
+		if entry.Key == "" {
+			entry = accessPermissionMetadata(key)
+		}
+		entry.Key = key
+		entry.Category = def.Category
+		if entry.Category == "" {
+			entry.Category = "access"
+		}
+		entry.ResourceKinds = append([]string(nil), def.ResourceKinds...)
+		entry.Actions = append([]string(nil), def.Actions...)
+		entry.LegacySources = append([]string(nil), def.LegacySources...)
+		if entry.Risk == "" {
+			entry.Risk = accessPermissionRisk(def)
+		}
+		entry.HighRisk = entry.Risk == "high"
+		out = append(out, entry)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out
+}
+
+func accessPermissionMetadata(key string) accessPermissionDefinitionDTO {
+	label := strings.ReplaceAll(key, ".", " ")
+	return accessPermissionDefinitionDTO{
+		Key:         key,
+		Label:       strings.Title(label),
+		Description: "Unified authorization permission " + key + ".",
+		Risk:        "low",
+		Category:    "access",
+	}
+}
+
+func accessPermissionRisk(def authz.PermissionDefinition) string {
+	key := string(def.Key)
+	for _, token := range []string{"lifecycle", "role.manage", "member.disable", "admin_token", "secret", "delete", "remove", "manage"} {
+		if strings.Contains(key, token) {
+			return "high"
+		}
+	}
+	for _, action := range def.Actions {
+		switch action {
+		case "create", "update", "write", "upload", "attach", "review", "export", "put", "complete", "block", "report", "pull":
+			return "medium"
+		}
+	}
+	return "low"
+}
+
 func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	state, err := s.accessDerivedState(r.Context(), d, orgID)
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
@@ -178,13 +315,13 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, callerMember, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	state, err := s.accessDerivedState(r.Context(), d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
 	var body accessBatchRequestDTO
@@ -192,24 +329,18 @@ func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	items := accessBatchItems(body, state, callerMember, false)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"request_id": fmt.Sprintf("access-preview-%d", time.Now().UTC().UnixNano()),
-		"expires_at": body.ExpiresAt,
-		"items":      items,
-		"summary":    accessPreviewSummary(items),
-	})
+	s.accessBatchUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body, true)
 }
 
 func (s *Server) accessBatchApplyHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, callerMember, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	state, err := s.accessDerivedState(r.Context(), d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
 	var body accessBatchRequestDTO
@@ -217,24 +348,18 @@ func (s *Server) accessBatchApplyHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	items := accessBatchItems(body, state, callerMember, true)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"operation_id": fmt.Sprintf("access-apply-%d", time.Now().UTC().UnixNano()),
-		"applied_at":   time.Now().UTC().Format(time.RFC3339),
-		"items":        items,
-		"summary":      accessResultSummary(items),
-	})
+	s.accessBatchUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body, false)
 }
 
 func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, callerMember, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	state, err := s.accessDerivedState(r.Context(), d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
 	var body struct {
@@ -245,59 +370,22 @@ func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	grants := make(map[string]accessGrantDTO, len(state.grants))
-	for _, grant := range state.grants {
-		grants[grant.ID] = grant
-	}
-	items := make([]accessBatchItemDTO, 0, len(body.GrantIDs))
-	for i, id := range body.GrantIDs {
-		grant, found := grants[id]
-		item := accessBatchItemDTO{
-			ID:          fmt.Sprintf("revoke-%d", i+1),
-			SubjectRef:  id,
-			SubjectName: id,
-			Permission:  "unknown",
-			Resource:    accessResourceScopeDTO{Kind: "org", ID: orgID, OrgID: orgID, Label: orgID},
-			Status:      "not_applicable",
-			Risk:        "medium",
-			Reason:      "grant is not present in the current effective access projection",
-			GrantID:     id,
-		}
-		if found {
-			item.SubjectRef = grant.SubjectRef
-			item.SubjectName = grant.SubjectName
-			item.Permission = grant.Permission
-			item.Resource = grant.Resource
-			item.Risk = grant.Risk
-			item.HighRisk = grant.Risk == "high"
-			item.Reason = fmt.Sprintf("%s is derived from %s and must be revoked at its source", id, grant.Source)
-			if callerMember.Role().AtLeast(identity.RoleAdmin) && grant.Source == "system" {
-				item.Status = "denied"
-				item.Reason = "system grants cannot be revoked from Access"
-			}
-		}
-		if !callerMember.Role().AtLeast(identity.RoleAdmin) {
-			item.Status = "unauthorized"
-			item.Reason = "only owner or admin can revoke access grants"
-		}
-		items = append(items, item)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"operation_id": fmt.Sprintf("access-revoke-%d", time.Now().UTC().UnixNano()),
-		"applied_at":   time.Now().UTC().Format(time.RFC3339),
-		"items":        items,
-		"summary":      accessResultSummary(items),
-	})
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason)
 }
 
 func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, callerMember, _, ok := requireOrgMember(w, r, d)
+	caller, callerMember, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	if !callerMember.Role().AtLeast(identity.RoleAdmin) {
 		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access roles")
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
 	var body struct {
@@ -315,23 +403,103 @@ func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	writeError(w, http.StatusNotFound, "not_found", "access role not found")
+	role, found, err := accessCustomRole(r.Context(), d, orgID, roleID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "role_lookup_failed", err.Error())
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "not_found", "access role not found")
+		return
+	}
+	definitions, err := svc.ListDefinitions(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "authorization_failed", err.Error())
+		return
+	}
+	catalog := accessCatalogFromDefinitions(definitions)
+	catalogByKey := make(map[string]accessPermissionDefinitionDTO, len(catalog))
+	for _, def := range catalog {
+		catalogByKey[def.Key] = def
+	}
+	perms := make([]authz.RolePermissionInput, 0, len(body.Permissions))
+	for _, permission := range body.Permissions {
+		def := catalogByKey[permission]
+		if def.Key == "" || len(def.ResourceKinds) == 0 {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_permission_request", "permission is not registered: "+permission)
+			return
+		}
+		perms = append(perms, authz.RolePermissionInput{PermissionKey: authz.PermissionKey(permission), ResourceKind: def.ResourceKinds[0]})
+	}
+	_, err = svc.ApplyBatch(r.Context(), authz.BatchRequest{
+		IdempotencyKey: "access-role-" + accessHash(orgID+"|"+authz.UserSubject(caller.ID()).BareID()+"|"+roleID+"|"+strings.Join(body.Permissions, ",")),
+		ActorRef:       authz.UserSubject(caller.ID()),
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{{
+			ID:          "set-role-permissions",
+			Type:        "set_role_permissions",
+			Role:        authz.RoleInput{ID: roleID},
+			Permissions: perms,
+		}},
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	role.Permissions = append([]string(nil), body.Permissions...)
+	sort.Strings(role.Permissions)
+	role.ScopeKind = accessRoleScopeKind(role.Permissions, catalogByKey)
+	role.HighRisk = false
+	for _, permission := range role.Permissions {
+		if catalogByKey[permission].Risk == "high" {
+			role.HighRisk = true
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, role)
 }
 
-func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID string) (accessDerivedState, error) {
+func accessCustomRole(ctx context.Context, d HandlerDeps, orgID, roleID string) (accessRoleDTO, bool, error) {
+	if d.DB == nil {
+		return accessRoleDTO{}, false, nil
+	}
+	var role accessRoleDTO
+	err := d.DB.QueryRowContext(ctx, `
+		SELECT id, name, COALESCE(description, '')
+		FROM authorization_roles
+		WHERE id = ? AND org_id = ? AND kind = 'custom' AND revoked_at IS NULL`, roleID, orgID).
+		Scan(&role.ID, &role.Name, &role.Description)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessRoleDTO{}, false, nil
+		}
+		return accessRoleDTO{}, false, err
+	}
+	role.Editable = true
+	role.Source = string(authz.SourceCustomRole)
+	role.Permissions = accessRolePermissions(ctx, d, role.ID)
+	role.ScopeKind = "org"
+	return role, true, nil
+}
+
+func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID string, svc *authz.Service) (accessDerivedState, error) {
 	now := time.Now().UTC()
-	catalog := append([]accessPermissionDefinitionDTO(nil), accessCatalog...)
+	definitions, err := svc.ListDefinitions(ctx)
+	if err != nil {
+		return accessDerivedState{}, err
+	}
+	catalog := accessCatalogFromDefinitions(definitions)
 	catalogByKey := make(map[string]accessPermissionDefinitionDTO, len(catalog))
 	for _, def := range catalog {
 		catalogByKey[def.Key] = def
 	}
 	state := accessDerivedState{
 		generatedAt:  now,
-		roles:        accessRoles(),
 		catalog:      catalog,
 		catalogByKey: catalogByKey,
 		subjectByRef: map[string]accessSubjectDTO{},
 	}
+	state.roles = accessRolesForOrg(ctx, d, orgID, catalogByKey)
 	members, err := d.MemberRepo.ListByOrganization(ctx, orgID)
 	if err != nil {
 		return state, err
@@ -381,6 +549,7 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 	for _, tm := range teams {
 		state.addTeamDecisions(ctx, d, members, tm)
 	}
+	state.decisions = state.authorizedDecisions(ctx, svc)
 	state.decisions = append(state.decisions, accessNotApplicableRows(state)...)
 	state.grants = accessGrantsFromDecisions(state.generatedAt, state.decisions, state.subjectByRef)
 	return state, nil
@@ -504,6 +673,131 @@ func (s *accessDerivedState) addDecision(subjectRef, permission string, resource
 	})
 }
 
+func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.Service) []accessDecisionDTO {
+	out := make([]accessDecisionDTO, 0, len(s.decisions))
+	seen := map[string]struct{}{}
+	for _, decision := range s.decisions {
+		key := strings.Join([]string{decision.SubjectRef, decision.Permission, resourceKey(decision.Resource)}, "|")
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		def := s.catalogByKey[decision.Permission]
+		if def.Key == "" {
+			def = accessPermissionDefinitionDTO{Key: decision.Permission, Risk: "medium"}
+		}
+		decision.Risk = fallback(decision.Risk, def.Risk)
+		if !accessPermissionApplies(def, decision.Resource.Kind) {
+			decision.Allowed = false
+			decision.Status = "not_applicable"
+			decision.Source = fallback(decision.Source, strings.Join(def.LegacySources, ","))
+			decision.Reason = fmt.Sprintf("%s does not apply to %s resources", decision.Permission, decision.Resource.Kind)
+			decision.EvidenceRef = "permission_registry:" + decision.Permission
+			decision.GrantID = ""
+			out = append(out, decision)
+			continue
+		}
+		explain, err := svc.Explain(ctx, authz.CheckRequest{
+			SubjectRef: authz.SubjectRef(decision.SubjectRef),
+			Transport:  authz.TransportWeb,
+			Permission: authz.PermissionKey(decision.Permission),
+			Resource:   accessAuthzResource(decision.Resource),
+		})
+		decision.Allowed = explain.Decision.Allowed
+		if explain.Decision.Resource.Kind != "" {
+			decision.Resource = accessResourceFromAuthz(explain.Decision.Resource, decision.Resource)
+		}
+		if explain.Decision.Source != "" {
+			decision.Source = string(explain.Decision.Source)
+		}
+		decision.EvidenceRef = explain.Decision.EvidenceRef
+		decision.ExpiresAt = accessDecisionExpiry(explain.Effective, decision.Permission, decision.EvidenceRef)
+		if decision.Allowed {
+			decision.Status = "allowed"
+			decision.Reason = fallback(explain.Decision.Reason, "matched unified authorization service")
+			decision.GrantID = accessGrantIDForDecision(decision)
+		} else {
+			decision.Status = accessStatusForAuthorizationError(err, explain)
+			decision.Reason = accessReasonForAuthorizationError(err, explain)
+			decision.GrantID = ""
+		}
+		out = append(out, decision)
+	}
+	return out
+}
+
+func accessDecisionExpiry(effective []authz.EffectivePermission, permission, evidenceRef string) *string {
+	for _, eff := range effective {
+		if string(eff.Key) == permission && eff.EvidenceRef == evidenceRef && eff.ExpiresAt != nil {
+			value := eff.ExpiresAt.UTC().Format(time.RFC3339)
+			return &value
+		}
+	}
+	return nil
+}
+
+func accessGrantIDForDecision(decision accessDecisionDTO) string {
+	if decision.Source == string(authz.SourceCustomRole) && strings.HasPrefix(decision.EvidenceRef, "authorization_role_assignments:") {
+		return strings.TrimPrefix(decision.EvidenceRef, "authorization_role_assignments:")
+	}
+	return accessGrantID(decision.SubjectRef, decision.Permission, decision.Resource, decision.Source)
+}
+
+func accessStatusForAuthorizationError(err error, explain authz.ExplainResult) string {
+	if errors.Is(err, authz.ErrPermissionUndefined) {
+		return "not_applicable"
+	}
+	reason := accessReasonForAuthorizationError(err, explain)
+	switch {
+	case strings.Contains(reason, "disabled"):
+		return "denied"
+	case errors.Is(err, authz.ErrDenied), errors.Is(err, authz.ErrNotDelegatable), errors.Is(err, authz.ErrNotFound):
+		return "unauthorized"
+	default:
+		return "denied"
+	}
+}
+
+func accessReasonForAuthorizationError(err error, explain authz.ExplainResult) string {
+	if explain.Decision.Reason != "" && explain.Decision.Reason != "permission_denied" {
+		return explain.Decision.Reason
+	}
+	if len(explain.DeniedBy) > 0 {
+		return strings.Join(explain.DeniedBy, "; ")
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "permission denied by unified authorization service"
+}
+
+func accessAuthzResource(resource accessResourceScopeDTO) authz.ResourceScope {
+	return authz.ResourceScope{
+		Kind:      resource.Kind,
+		ID:        resource.ID,
+		OrgID:     resource.OrgID,
+		ProjectID: resource.ProjectID,
+		URI:       resource.ID,
+	}
+}
+
+func accessResourceFromAuthz(resource authz.ResourceScope, fallbackResource accessResourceScopeDTO) accessResourceScopeDTO {
+	out := fallbackResource
+	if resource.Kind != "" {
+		out.Kind = resource.Kind
+	}
+	if resource.ID != "" {
+		out.ID = resource.ID
+	}
+	if resource.OrgID != "" {
+		out.OrgID = resource.OrgID
+	}
+	if resource.ProjectID != "" {
+		out.ProjectID = resource.ProjectID
+	}
+	return out
+}
+
 func (s accessDerivedState) hasAllowedDecision(subjectRef, permission string, resource accessResourceScopeDTO) bool {
 	key := resourceKey(resource)
 	for _, d := range s.decisions {
@@ -606,6 +900,7 @@ func accessGrantsFromDecisions(now time.Time, decisions []accessDecisionDTO, sub
 			Resource:    d.Resource,
 			Source:      d.Source,
 			Status:      "active",
+			ExpiresAt:   d.ExpiresAt,
 			CreatedBy:   "system",
 			CreatedAt:   now.Format(time.RFC3339),
 			Risk:        d.Risk,
@@ -698,66 +993,280 @@ func accessSummary(decisions []accessDecisionDTO, grants []accessGrantDTO) map[s
 	return summary
 }
 
-func accessBatchItems(body accessBatchRequestDTO, state accessDerivedState, callerMember *identity.Member, applied bool) []accessBatchItemDTO {
+func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, body accessBatchRequestDTO, preview bool) {
+	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
+		return
+	}
+	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
+	if preview {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"request_id": fmt.Sprintf("access-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
+			"expires_at": body.ExpiresAt,
+			"items":      items,
+			"summary":    accessPreviewSummary(items),
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"operation_id": fmt.Sprintf("access-apply-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
+		"applied_at":   time.Now().UTC().Format(time.RFC3339),
+		"items":        items,
+		"summary":      accessResultSummary(items),
+	})
+}
+
+func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, applied bool) []accessBatchItemDTO {
 	items := []accessBatchItemDTO{}
+	expiresAt, expiresErr := parseAccessExpiry(body.ExpiresAt)
 	for _, subjectRef := range body.SubjectRefs {
 		for _, permission := range body.PermissionKeys {
 			for _, resource := range body.Resources {
-				items = append(items, accessEvaluateBatchItem(len(items)+1, subjectRef, permission, resource, state, callerMember, applied))
+				idx := len(items) + 1
+				item := accessEvaluateBatchItem(ctx, svc, orgID, actor, body, state, idx, subjectRef, permission, resource, expiresAt, expiresErr, applied)
+				items = append(items, item)
 			}
 		}
 	}
 	return items
 }
 
-func accessEvaluateBatchItem(idx int, subjectRef, permission string, resource accessResourceScopeDTO, state accessDerivedState, callerMember *identity.Member, applied bool) accessBatchItemDTO {
+func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef, permission string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
 	subj, subjectFound := state.subjectByRef[subjectRef]
 	def, permissionFound := state.catalogByKey[permission]
-	status := "allowed"
-	reason := "grant can be applied by the permission API"
-	evidence := "permission_preview:derived"
-	if applied {
-		reason = "grant accepted by the permission API"
-		evidence = "permission_apply:derived"
-	}
-	if !callerMember.Role().AtLeast(identity.RoleAdmin) {
-		status = "unauthorized"
-		reason = "only owner or admin can batch authorize access"
-		evidence = ""
-	} else if !subjectFound || subj.Status != string(identity.MemberJoined) {
-		status = "unauthorized"
-		reason = "subject is unavailable or outside this organization"
-		evidence = ""
-	} else if !permissionFound {
-		status = "denied"
-		reason = "permission is not registered"
-		evidence = "permission_registry:missing"
-	} else if !accessPermissionApplies(def, resource.Kind) {
-		status = "not_applicable"
-		reason = fmt.Sprintf("%s does not apply to %s", permission, resource.Kind)
-		evidence = "permission_registry:" + permission
-	} else if permission == "org.member.role.manage" && subj.Kind == "agent" {
-		status = "unauthorized"
-		reason = "agents cannot receive organization role-management grants"
-		evidence = ""
-	}
-	grantID := ""
-	if status == "allowed" {
-		grantID = accessGrantID(subjectRef, permission, resource, "system")
-	}
-	return accessBatchItemDTO{
+	item := accessBatchItemDTO{
 		ID:          fmt.Sprintf("item-%d", idx),
 		SubjectRef:  subjectRef,
 		SubjectName: fallback(subj.Name, subjectRef),
 		Permission:  permission,
 		Resource:    resource,
-		Status:      status,
+		Status:      "denied",
 		Risk:        fallback(def.Risk, "medium"),
 		HighRisk:    def.Risk == "high",
-		Reason:      reason,
-		EvidenceRef: evidence,
-		GrantID:     grantID,
+		Reason:      "permission denied by unified authorization service",
 	}
+	switch {
+	case expiresErr != nil:
+		item.Status = "denied"
+		item.Reason = "invalid expiry: " + expiresErr.Error()
+		return item
+	case !subjectFound || subj.Status != string(identity.MemberJoined):
+		item.Status = "unauthorized"
+		item.Reason = "subject is unavailable or outside this organization"
+		return item
+	case !permissionFound:
+		item.Status = "denied"
+		item.Reason = "permission is not registered"
+		item.EvidenceRef = "permission_registry:missing"
+		return item
+	case !accessPermissionApplies(def, resource.Kind):
+		item.Status = "not_applicable"
+		item.Reason = fmt.Sprintf("%s does not apply to %s", permission, resource.Kind)
+		item.EvidenceRef = "permission_registry:" + permission
+		return item
+	}
+	req := accessBatchAuthorizationRequest(orgID, actor, body, item, expiresAt)
+	var (
+		res authz.BatchResult
+		err error
+	)
+	if applied {
+		res, err = svc.ApplyBatch(ctx, req)
+	} else {
+		res, err = svc.PreviewBatch(ctx, req)
+	}
+	if err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	for _, op := range res.Operations {
+		if op.Reason != "" || op.Status == "denied" {
+			item.Status = accessBatchStatusForReason(op.Reason)
+			item.Reason = fallback(op.Reason, op.Status)
+			return item
+		}
+		if op.AssignmentID != "" {
+			item.GrantID = op.AssignmentID
+		}
+	}
+	item.Status = "allowed"
+	if applied {
+		item.Reason = "grant applied by unified authorization API"
+		item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	} else {
+		item.Reason = "grant can be applied by unified authorization API"
+		item.EvidenceRef = "authorization_preview:" + item.ID
+	}
+	return item
+}
+
+func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
+	roleID := accessRoleIDForPermission(item.Permission, item.Resource.Kind)
+	resource := accessAuthzResource(item.Resource)
+	return authz.BatchRequest{
+		IdempotencyKey: accessBatchIdempotencyKey("apply", orgID, actor, body.PreviewRequestID, item),
+		ActorRef:       actor,
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{
+			{
+				ID:   item.ID + "-role",
+				Type: "upsert_role",
+				Role: authz.RoleInput{
+					ID:          roleID,
+					Name:        "Access grant " + item.Permission + " on " + item.Resource.Kind,
+					Description: "Managed by the Access batch authorization flow.",
+				},
+			},
+			{
+				ID:   item.ID + "-permissions",
+				Type: "set_role_permissions",
+				Role: authz.RoleInput{ID: roleID},
+				Permissions: []authz.RolePermissionInput{{
+					PermissionKey: authz.PermissionKey(item.Permission),
+					ResourceKind:  item.Resource.Kind,
+					Delegatable:   false,
+				}},
+			},
+			{
+				ID:   item.ID,
+				Type: "assign_role",
+				Assignment: authz.AssignmentInput{
+					SubjectRef: authz.SubjectRef(item.SubjectRef),
+					RoleID:     roleID,
+					Resource:   resource,
+					ExpiresAt:  expiresAt,
+				},
+			},
+		},
+	}
+}
+
+func parseAccessExpiry(raw *string) (*time.Time, error) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, nil
+	}
+	value := strings.TrimSpace(*raw)
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+func accessRoleIDForPermission(permission, resourceKind string) string {
+	return "role-access-" + accessHash(permission+"|"+resourceKind)
+}
+
+func accessBatchIdempotencyKey(prefix, orgID string, actor authz.SubjectRef, previewID string, item accessBatchItemDTO) string {
+	seed := strings.Join([]string{prefix, orgID, string(actor), previewID, item.SubjectRef, item.Permission, resourceKey(item.Resource)}, "|")
+	return "access-" + prefix + "-" + accessHash(seed)
+}
+
+func accessHash(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+func accessBatchStatusForError(err error) string {
+	switch {
+	case errors.Is(err, authz.ErrPermissionUndefined):
+		return "not_applicable"
+	case errors.Is(err, authz.ErrDenied), errors.Is(err, authz.ErrNotDelegatable), errors.Is(err, authz.ErrNotFound), errors.Is(err, authz.ErrUnauthenticated):
+		return "unauthorized"
+	default:
+		return "denied"
+	}
+}
+
+func accessBatchStatusForReason(reason string) string {
+	reason = strings.ToLower(reason)
+	switch {
+	case strings.Contains(reason, "not defined"), strings.Contains(reason, "does not apply"):
+		return "not_applicable"
+	case strings.Contains(reason, "not delegatable"), strings.Contains(reason, "permission denied"), strings.Contains(reason, "not a joined org member"), strings.Contains(reason, "agents cannot"):
+		return "unauthorized"
+	default:
+		return "denied"
+	}
+}
+
+func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string) {
+	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
+		return
+	}
+	grants := make(map[string]accessGrantDTO, len(state.grants))
+	for _, grant := range state.grants {
+		grants[grant.ID] = grant
+	}
+	items := make([]accessBatchItemDTO, 0, len(grantIDs))
+	for i, id := range grantIDs {
+		items = append(items, accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"operation_id": fmt.Sprintf("access-revoke-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
+		"applied_at":   time.Now().UTC().Format(time.RFC3339),
+		"items":        items,
+		"summary":      accessResultSummary(items),
+	})
+}
+
+func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string) accessBatchItemDTO {
+	grant, found := grants[id]
+	item := accessBatchItemDTO{
+		ID:          fmt.Sprintf("revoke-%d", idx),
+		SubjectRef:  id,
+		SubjectName: id,
+		Permission:  "unknown",
+		Resource:    accessResourceScopeDTO{Kind: "org", ID: orgID, OrgID: orgID, Label: orgID},
+		Status:      "not_applicable",
+		Risk:        "medium",
+		Reason:      "grant is not present in the current effective access projection",
+		GrantID:     id,
+	}
+	if !found {
+		return item
+	}
+	item.SubjectRef = grant.SubjectRef
+	item.SubjectName = grant.SubjectName
+	item.Permission = grant.Permission
+	item.Resource = grant.Resource
+	item.Risk = grant.Risk
+	item.HighRisk = grant.Risk == "high"
+	item.Reason = fmt.Sprintf("%s is a derived permission and must be revoked at its source", id)
+	if grant.Source != string(authz.SourceCustomRole) {
+		return item
+	}
+	req := authz.BatchRequest{
+		IdempotencyKey: accessBatchIdempotencyKey("revoke", orgID, actor, "", item),
+		ActorRef:       actor,
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{{
+			ID:     item.ID,
+			Type:   "revoke_assignment",
+			Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
+		}},
+	}
+	res, err := svc.RevokeBatch(ctx, req)
+	if err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	for _, op := range res.Operations {
+		if op.Reason != "" || op.Status == "denied" {
+			item.Status = accessBatchStatusForReason(op.Reason)
+			item.Reason = fallback(op.Reason, op.Status)
+			return item
+		}
+	}
+	item.Status = "allowed"
+	item.Reason = "grant revoked by unified authorization API"
+	item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	return item
 }
 
 func accessPermissionApplies(def accessPermissionDefinitionDTO, kind string) bool {

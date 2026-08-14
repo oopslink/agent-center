@@ -694,7 +694,7 @@ function accessHandlers() {
         },
       });
     }),
-    http.post('/api/permissions/grants/revoke', async ({ request }) => {
+    http.post('/api/permissions/batch/revoke', async ({ request }) => {
       const body = (await request.json()) as { grant_ids?: string[]; reason?: string };
       const items: BatchItem[] = (body.grant_ids ?? []).map((id, idx) => ({
         id: `revoke-${idx + 1}`,

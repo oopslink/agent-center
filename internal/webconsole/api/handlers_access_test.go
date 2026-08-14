@@ -12,7 +12,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedGet(t, server.URL+"/api/permissions/effective?status=not_applicable", sess)
+	resp := orgScopedGet(t, server.URL+"/api/permissions/effective?view=access&status=not_applicable", sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("effective status=%d", resp.StatusCode)
 	}
@@ -90,7 +90,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
-	resp = orgScopedPost(t, server.URL+"/api/permissions/grants/revoke", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
+	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/revoke", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("revoke status=%d", resp.StatusCode)
 	}
