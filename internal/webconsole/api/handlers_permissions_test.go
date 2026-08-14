@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
 )
@@ -66,5 +69,81 @@ func TestPermissionsHTTP_CheckAndEffectiveUseServerAuthorizer(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("effective permissions missing org.read: %#v", effective.Permissions)
+	}
+}
+
+func TestPermissionsHTTP_CrossOrgRevokeMustFailClosed(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedHTTPAuthzAssignment(t, db, "org-http-other", "role-http-cross", "asgn-http-cross")
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
+	srv := NewServer("127.0.0.1:0", Deps{})
+	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer ts.Close()
+
+	body := `{"idempotency_key":"idem-http-cross","operations":[{"id":"cross","revoke":{"assignment_id":"asgn-http-cross","reason":"cross-org"}}]}`
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/orgs/"+sess.OrgSlug+"/permissions/batch/revoke", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org revoke status=%d, want opaque 404", resp.StatusCode)
+	}
+	var errBody map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(errBody)
+	if strings.Contains(string(raw), "org-http-other") {
+		t.Fatalf("cross-org revoke response leaked target org: %s", raw)
+	}
+	var revokedAt sql.NullString
+	if err := db.QueryRowContext(context.Background(),
+		`SELECT revoked_at FROM authorization_role_assignments WHERE org_id = 'org-http-other' AND id = 'asgn-http-cross'`,
+	).Scan(&revokedAt); err != nil {
+		t.Fatal(err)
+	}
+	if revokedAt.Valid && revokedAt.String != "" {
+		t.Fatalf("cross-org assignment was revoked via HTTP: %q", revokedAt.String)
+	}
+}
+
+func seedHTTPAuthzAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignmentID string) {
+	t.Helper()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execHTTPAuthz(t, db,
+		`INSERT INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at)
+		 VALUES (?, ?, 'Other Org', 'testuser', ?, ?)`,
+		orgID, orgID, now, now,
+	)
+	execHTTPAuthz(t, db,
+		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		 VALUES (?, ?, 'custom', ?, '', 'system', ?, ?, 1)`,
+		roleID, orgID, roleID, now, now,
+	)
+	execHTTPAuthz(t, db,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		 VALUES (?, 'org.read', 'org', 1, ?)`,
+		roleID, now,
+	)
+	execHTTPAuthz(t, db,
+		`INSERT INTO authorization_role_assignments
+		 (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
+		 VALUES (?, ?, 'user:testuser', ?, 'org', ?, 'system', ?, 1)`,
+		assignmentID, orgID, roleID, orgID, now,
+	)
+}
+
+func execHTTPAuthz(t *testing.T, db *sql.DB, stmt string, args ...any) {
+	t.Helper()
+	if _, err := db.ExecContext(context.Background(), stmt, args...); err != nil {
+		t.Fatalf("exec %s: %v", stmt, err)
 	}
 }

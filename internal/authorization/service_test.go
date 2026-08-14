@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -124,6 +125,138 @@ func TestService_ProjectMembershipCustomRolesAndRevoke(t *testing.T) {
 	if !errors.Is(err, ErrDenied) || after.Allowed {
 		t.Fatalf("revoked custom assignment should deny, decision=%#v err=%v", after, err)
 	}
+}
+
+func TestSupervisorCrossOrgRevokeMustFailClosed(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedRoleAssignment(t, db, "org-1", "role-same-org", "asgn-same-org", "user:user-member", "org", "org-1")
+	seedRoleAssignment(t, db, "org-2", "role-cross-org", "asgn-cross-org", "user:user-member", "org", "org-2")
+
+	for _, tc := range []struct {
+		name   string
+		revoke RevokeInput
+	}{
+		{name: "by assignment id", revoke: RevokeInput{AssignmentID: "asgn-cross-org", Reason: "cross-org-id"}},
+		{name: "by composite key", revoke: RevokeInput{SubjectRef: "user:user-member", RoleID: "role-cross-org", Resource: ResourceScope{Kind: "org", ID: "org-2"}, Reason: "cross-org-composite"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.RevokeBatch(ctx, BatchRequest{
+				IdempotencyKey: "idem-" + shortHash(tc.name),
+				ActorRef:       "user:user-owner",
+				OrgID:          "org-1",
+				Operations: []BatchOperation{
+					{ID: "same-org-first", Revoke: RevokeInput{AssignmentID: "asgn-same-org", Reason: "must-roll-back"}},
+					{ID: "cross-org", Revoke: tc.revoke},
+				},
+			})
+			if !errors.Is(err, ErrNotFound) {
+				t.Fatalf("cross-org revoke error = %v, want ErrNotFound fail-closed", err)
+			}
+			assertAssignmentRevoked(t, db, "org-1", "asgn-same-org", false)
+			assertAssignmentRevoked(t, db, "org-2", "asgn-cross-org", false)
+		})
+	}
+}
+
+func TestService_RevokeAssignmentSameOrgValidAndIdempotent(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedRoleAssignment(t, db, "org-1", "role-revoke-ok", "asgn-revoke-ok", "user:user-member", "org", "org-1")
+
+	req := BatchRequest{
+		IdempotencyKey: "idem-revoke-ok",
+		ActorRef:       "user:user-owner",
+		OrgID:          "org-1",
+		Operations:     []BatchOperation{{ID: "revoke", Revoke: RevokeInput{AssignmentID: "asgn-revoke-ok", Reason: "same-org"}}},
+	}
+	res, err := svc.RevokeBatch(ctx, req)
+	if err != nil {
+		t.Fatalf("same-org RevokeBatch: %v", err)
+	}
+	if len(res.Operations) != 1 || res.Operations[0].Status != "revoked" || res.Operations[0].AssignmentID != "asgn-revoke-ok" {
+		t.Fatalf("same-org revoke result = %#v", res)
+	}
+	assertAssignmentRevoked(t, db, "org-1", "asgn-revoke-ok", true)
+
+	replay, err := svc.RevokeBatch(ctx, req)
+	if err != nil {
+		t.Fatalf("same-key revoke replay: %v", err)
+	}
+	if !replay.Replayed || len(replay.Operations) != 1 || replay.Operations[0].Status != "revoked" {
+		t.Fatalf("same-key replay = %#v", replay)
+	}
+
+	second, err := svc.RevokeBatch(ctx, BatchRequest{
+		IdempotencyKey: "idem-revoke-ok-second",
+		ActorRef:       "user:user-owner",
+		OrgID:          "org-1",
+		Operations:     []BatchOperation{{ID: "revoke-again", Revoke: RevokeInput{SubjectRef: "user:user-member", RoleID: "role-revoke-ok", Resource: ResourceScope{Kind: "org", ID: "org-1"}, Reason: "again"}}},
+	})
+	if err != nil {
+		t.Fatalf("second revoke should be idempotent: %v", err)
+	}
+	if len(second.Operations) != 1 || second.Operations[0].Status != "unchanged" {
+		t.Fatalf("second revoke = %#v, want unchanged", second)
+	}
+}
+
+func TestService_RevokeAssignmentConcurrentRaceIdempotent(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedRoleAssignment(t, db, "org-1", "role-race", "asgn-race", "user:user-member", "org", "org-1")
+
+	const n = 8
+	results := make(chan OperationResult, n)
+	errs := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			res, err := svc.RevokeBatch(ctx, BatchRequest{
+				IdempotencyKey: fmt.Sprintf("idem-race-%d", i),
+				ActorRef:       "user:user-owner",
+				OrgID:          "org-1",
+				Operations:     []BatchOperation{{ID: fmt.Sprintf("revoke-%d", i), Revoke: RevokeInput{AssignmentID: "asgn-race", Reason: "race"}}},
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			if len(res.Operations) != 1 {
+				errs <- fmt.Errorf("operation count = %d", len(res.Operations))
+				return
+			}
+			results <- res.Operations[0]
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	close(results)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent revoke error: %v", err)
+		}
+	}
+	var revoked, unchanged int
+	for res := range results {
+		switch res.Status {
+		case "revoked":
+			revoked++
+		case "unchanged":
+			unchanged++
+		default:
+			t.Fatalf("unexpected concurrent revoke result: %#v", res)
+		}
+	}
+	if revoked != 1 || unchanged != n-1 {
+		t.Fatalf("concurrent statuses: revoked=%d unchanged=%d want 1/%d", revoked, unchanged, n-1)
+	}
+	assertAssignmentRevoked(t, db, "org-1", "asgn-race", true)
 }
 
 func TestService_TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess(t *testing.T) {
@@ -348,6 +481,41 @@ func seedTeam(t *testing.T, db *sql.DB) {
 	execMany(t, db, `INSERT INTO teams (id, org_id, name, description, created_at, updated_at) VALUES ('team-1', 'org-1', 'Team', '', ?, ?)`, now, now)
 	execMany(t, db, `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at) VALUES ('team-1', 'reviewer', 'codex', 'gpt-5', '["team.memory.review"]', 1, ?)`, now)
 	execMany(t, db, `INSERT INTO team_members (team_id, member_ref, member_kind, role, created_at) VALUES ('team-1', 'agent:mem-agent', 'agent', 'reviewer', ?)`, now)
+}
+
+func seedRoleAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignmentID string, subject SubjectRef, resourceKind, resourceID string) {
+	t.Helper()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execMany(t, db,
+		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		 VALUES (?, ?, 'custom', ?, '', 'system', ?, ?, 1)`,
+		roleID, orgID, roleID, now, now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		 VALUES (?, 'org.read', 'org', 1, ?)`,
+		roleID, now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_role_assignments
+		 (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
+		 VALUES (?, ?, ?, ?, ?, ?, 'system', ?, 1)`,
+		assignmentID, orgID, subject, roleID, resourceKind, resourceID, now,
+	)
+}
+
+func assertAssignmentRevoked(t *testing.T, db *sql.DB, orgID, assignmentID string, want bool) {
+	t.Helper()
+	var revoked sql.NullString
+	if err := db.QueryRowContext(context.Background(),
+		`SELECT revoked_at FROM authorization_role_assignments WHERE org_id = ? AND id = ?`,
+		orgID, assignmentID,
+	).Scan(&revoked); err != nil {
+		t.Fatalf("read assignment %s/%s: %v", orgID, assignmentID, err)
+	}
+	if got := revoked.Valid && revoked.String != ""; got != want {
+		t.Fatalf("assignment %s/%s revoked=%v want %v", orgID, assignmentID, got, want)
+	}
 }
 
 func execMany(t *testing.T, db *sql.DB, stmt string, args ...any) {
