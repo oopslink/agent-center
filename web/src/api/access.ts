@@ -200,15 +200,15 @@ function qs(filters?: AccessFilters): string {
 
 export const accessApi = {
   overview: (filters?: AccessFilters) =>
-    api.get<AccessOverview>(`/permissions/effective${qs(filters)}`),
+    api.get<AccessOverview>(`/access/overview${qs(filters)}`),
   previewBatch: (payload: AccessBatchRequest) =>
-    api.post<AccessBatchPreview>('/permissions/batch/preview', payload),
+    api.post<AccessBatchPreview>('/access/batch/preview', payload),
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
-    api.post<AccessBatchResult>('/permissions/batch/apply', payload),
+    api.post<AccessBatchResult>('/access/batch/apply', payload),
   bulkRevoke: (payload: AccessBulkRevokeRequest) =>
-    api.post<AccessBatchResult>('/permissions/batch/revoke', payload),
+    api.post<AccessBatchResult>('/access/grants/revoke', payload),
   updateRole: (payload: AccessRoleUpdateRequest) =>
-    api.patch<AccessRole>(`/permissions/roles/${encodeURIComponent(payload.role_id)}`, {
+    api.patch<AccessRole>(`/access/roles/${encodeURIComponent(payload.role_id)}`, {
       permissions: payload.permissions,
       reason: payload.reason,
     }),

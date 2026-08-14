@@ -82,6 +82,37 @@ describe('UserDetail page (#193)', () => {
     expect(screen.getByTestId('user-detail-org-id')).toHaveTextContent('organization-9');
   });
 
+  it('mounts the Permissions tab with the human subject ref', async () => {
+    let subject = '';
+    server.use(
+      http.get('/api/orgs', () =>
+        HttpResponse.json([{ id: 'org-1', slug: 'acme', name: 'Acme', created_at: '2026-01-01T00:00:00Z' }]),
+      ),
+      http.get('/api/users/user-abc12345', () =>
+        HttpResponse.json({
+          user_id: 'user-abc12345',
+          display_name: 'Alice',
+          email: 'alice@example.com',
+          created_at: '2026-05-20T01:00:00Z',
+          orgs: [{ org_id: 'org-1', org_name: 'Acme', org_slug: 'acme', role: 'member' }],
+        }),
+      ),
+      http.get('/api/permissions/effective', ({ request }) => {
+        const url = new URL(request.url);
+        subject = url.searchParams.get('subject_ref') ?? '';
+        return HttpResponse.json({
+          subject_ref: subject,
+          resource: { kind: 'org', id: 'org-1', org_id: 'org-1' },
+          permissions: [{ key: 'org.read', source: 'org_role', evidence_ref: 'members:user-abc12345' }],
+        });
+      }),
+    );
+    wrap('/users/user-abc12345?tab=permissions');
+    await waitFor(() => expect(screen.getByTestId('access-permissions-panel')).toBeInTheDocument());
+    expect(screen.getByTestId('access-permissions-panel')).toHaveAttribute('data-subject-ref', 'user:user-abc12345');
+    expect(subject).toBe('user:user-abc12345');
+  });
+
   it('shows the self-only Account section (change password + sign out) when viewing your own profile', async () => {
     server.use(
       http.get('/api/orgs', () =>

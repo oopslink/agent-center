@@ -160,6 +160,10 @@ func memberViewMap(m *team.TeamMember, roleByName map[string]team.RoleConfig, na
 }
 
 func memberViews(members []*team.TeamMember, roleByName map[string]team.RoleConfig, resolveName func(team.MemberRef) string) []map[string]any {
+	return memberViewsWithRoleOrder(members, roleByName, nil, resolveName)
+}
+
+func memberViewsWithRoleOrder(members []*team.TeamMember, roleByName map[string]team.RoleConfig, roleOrder map[string]int, resolveName func(team.MemberRef) string) []map[string]any {
 	type group struct {
 		first *team.TeamMember
 		roles []string
@@ -184,6 +188,20 @@ func memberViews(members []*team.TeamMember, roleByName map[string]team.RoleConf
 	for _, key := range order {
 		g := groups[key]
 		m := g.first
+		if len(roleOrder) > 0 {
+			sort.SliceStable(g.roles, func(i, j int) bool {
+				left, leftOK := roleOrder[g.roles[i]]
+				right, rightOK := roleOrder[g.roles[j]]
+				switch {
+				case leftOK && rightOK && left != right:
+					return left < right
+				case leftOK != rightOK:
+					return leftOK
+				default:
+					return g.roles[i] < g.roles[j]
+				}
+			})
+		}
 		name := ""
 		if resolveName != nil {
 			name = resolveName(m.Ref)
@@ -474,7 +492,7 @@ func (s *Server) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	roleByName := rolesByName(t)
-	writeJSON(w, http.StatusOK, memberViews(members, roleByName, func(ref team.MemberRef) string {
+	writeJSON(w, http.StatusOK, memberViewsWithRoleOrder(members, roleByName, roleOrderByName(t), func(ref team.MemberRef) string {
 		return resolveDisplayName(r, d, conversation.IdentityRef(string(ref)))
 	}))
 }
@@ -483,6 +501,14 @@ func rolesByName(t *team.Team) map[string]team.RoleConfig {
 	m := make(map[string]team.RoleConfig, len(t.Roles()))
 	for _, rc := range t.Roles() {
 		m[rc.Role] = rc
+	}
+	return m
+}
+
+func roleOrderByName(t *team.Team) map[string]int {
+	m := make(map[string]int, len(t.Roles()))
+	for i, rc := range t.Roles() {
+		m[rc.Role] = i
 	}
 	return m
 }
@@ -563,7 +589,7 @@ func (s *Server) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		mapTeamWebError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, memberViews(members, rolesByName(t), func(ref team.MemberRef) string {
+	writeJSON(w, http.StatusCreated, memberViewsWithRoleOrder(members, rolesByName(t), roleOrderByName(t), func(ref team.MemberRef) string {
 		return resolveDisplayName(r, d, conversation.IdentityRef(string(ref)))
 	})[0])
 }

@@ -1,10 +1,11 @@
 import type React from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { OrgLink } from '@/OrgContext';
+import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useUser, type UserDetailResult, type UserOrgMembership } from '@/api/users';
 import { useOrgs, useMe } from '@/api/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import AccountPanel from '@/components/AccountPanel';
+import { AccessPermissionsPanel } from '@/components/AccessPermissionsPanel';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { useTranslation } from 'react-i18next';
 
@@ -14,7 +15,7 @@ function fmtDate(v?: string): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-type UserTab = 'profile' | 'organizations' | 'account';
+type UserTab = 'profile' | 'organizations' | 'account' | 'permissions';
 
 // UserDetail (/users/:userId, userId = member-id `user-<8hex>`). v2.7.1 #193 →
 // v2.8.1 #8: a tabbed profile page. The "User" kind shows as a tag next to the
@@ -67,6 +68,7 @@ function UserDetailView({
   const { t } = useTranslation('members');
   const [searchParams, setSearchParams] = useSearchParams();
   const orgs = useOrgs();
+  const orgCtx = useOptionalOrgContext();
   // T478 #1: resolve the org's display name. The server now sends org_name on the
   // membership (authoritative, works for any org); fall back to the viewer's own
   // org list and finally to the raw id only if neither is available.
@@ -77,6 +79,7 @@ function UserDetailView({
 
   const tabs: { key: UserTab; label: string }[] = [
     { key: 'profile', label: t('humans.userDetail.tabs.profile') },
+    { key: 'permissions', label: t('humans.userDetail.tabs.permissions') },
     { key: 'organizations', label: t('humans.userDetail.tabs.organizations') },
     ...(isSelf ? [{ key: 'account' as UserTab, label: t('humans.userDetail.tabs.account') }] : []),
   ];
@@ -95,6 +98,11 @@ function UserDetailView({
     );
   // Shared WAI-ARIA tablist keyboard nav (arrow keys + roving tabindex + Home/End).
   const tablist = useTablistKeyboard({ keys: tabs.map((t) => t.key), active: tab });
+  const accessOrg = orgCtx
+    ? { org_id: orgCtx.orgId, org_name: orgCtx.orgName }
+    : u.orgs[0];
+  const accessResource = accessOrg ? { kind: 'org', id: accessOrg.org_id } : null;
+  const accessResourceLabel = accessOrg?.org_name || accessOrg?.org_id || '';
 
   return (
     <section className="flex h-full flex-col gap-6" data-testid="page-UserDetail" data-user-id={u.user_id}>
@@ -212,6 +220,15 @@ function UserDetailView({
             </ul>
           )}
         </section>
+      )}
+
+      {tab === 'permissions' && (
+        <AccessPermissionsPanel
+          subjectRef={`user:${u.user_id}`}
+          subjectLabel={u.display_name || u.user_id}
+          resource={accessResource}
+          resourceLabel={accessResourceLabel}
+        />
       )}
 
       {isSelf && tab === 'account' && (

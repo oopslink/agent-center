@@ -110,6 +110,13 @@ export const qk = {
   aiRuntimeCatalog: () => o('ai-runtime'),
   accessOverview: (filters?: unknown) =>
     filters === undefined ? o('access', 'overview') : o('access', 'overview', filters ?? null),
+  permissions: () => o('permissions'),
+  permissionDefinitions: () => o('permissions', 'definitions'),
+  permissionEffective: (subjectRef: string, resourceKey: string) =>
+    o('permissions', 'effective', subjectRef, resourceKey),
+  permissionExplain: (subjectRef: string, permissionKey: string, resourceKey: string) =>
+    o('permissions', 'explain', subjectRef, permissionKey, resourceKey),
+  permissionAudit: (subjectRef: string) => o('permissions', 'audit', subjectRef),
   workspaceRepos: () => o('workspaceRepos'),
   repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),
   repoBranches: (repoId: string) => o('repoBranches', repoId),

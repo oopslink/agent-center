@@ -634,7 +634,7 @@ function accessHandlers() {
     return items;
   };
   return [
-    http.get('/api/permissions/effective', ({ request }) => {
+    http.get('/api/access/overview', ({ request }) => {
       const url = new URL(request.url);
       const q = (url.searchParams.get('q') ?? '').toLowerCase();
       const risk = url.searchParams.get('risk');
@@ -656,7 +656,7 @@ function accessHandlers() {
         summary: summaryFor(filtered),
       });
     }),
-    http.post('/api/permissions/batch/preview', async ({ request }) => {
+    http.post('/api/access/batch/preview', async ({ request }) => {
       const body = (await request.json()) as BatchRequest;
       const items = makeItems(body);
       return ok({
@@ -672,7 +672,7 @@ function accessHandlers() {
         },
       });
     }),
-    http.post('/api/permissions/batch/apply', async ({ request }) => {
+    http.post('/api/access/batch/apply', async ({ request }) => {
       const body = (await request.json()) as BatchRequest;
       const items: BatchItem[] = makeItems(body).map((item, idx) =>
         idx === 0 && item.status === 'allowed'
@@ -694,7 +694,7 @@ function accessHandlers() {
         },
       });
     }),
-    http.post('/api/permissions/batch/revoke', async ({ request }) => {
+    http.post('/api/access/grants/revoke', async ({ request }) => {
       const body = (await request.json()) as { grant_ids?: string[]; reason?: string };
       const items: BatchItem[] = (body.grant_ids ?? []).map((id, idx) => ({
         id: `revoke-${idx + 1}`,
@@ -725,10 +725,101 @@ function accessHandlers() {
         },
       });
     }),
-    http.patch('/api/permissions/roles/:id', async ({ params, request }) => {
+    http.patch('/api/access/roles/:id', async ({ params, request }) => {
       const body = (await request.json()) as { permissions?: string[]; reason?: string };
       const role = roles.find((r) => r.id === String(params.id)) ?? roles[1];
       return ok({ ...role, permissions: body.permissions ?? role.permissions });
+    }),
+  ];
+}
+
+function permissionHandlers() {
+  const definitions = [
+    { key: 'org.read', category: 'access', resource_kinds: ['org'], actions: ['read'], legacy_sources: ['org_role'] },
+    { key: 'org.member.list', category: 'access', resource_kinds: ['org'], actions: ['list'], legacy_sources: ['org_role'] },
+    { key: 'org.settings.manage', category: 'access', resource_kinds: ['org'], actions: ['manage'], legacy_sources: ['org_role', 'custom_role'] },
+  ];
+  const effectiveFor = (subjectRef: string, revoked = false) => ({
+    subject_ref: subjectRef,
+    resource: { kind: 'org', id: 'org-test', org_id: 'org-test' },
+    permissions: [
+      { key: 'org.read', source: 'org_role', evidence_ref: 'members:member-1', delegatable: true },
+      ...(revoked
+        ? []
+        : [
+            {
+              key: 'org.settings.manage',
+              source: 'custom_role',
+              evidence_ref: 'authorization_role_assignments:asgn-direct-settings',
+              role_id: 'role-direct-org-settings-manage',
+              assignment_id: 'asgn-direct-settings',
+            },
+          ]),
+    ],
+  });
+  let revoked = false;
+  return [
+    http.get('/api/permissions/definitions', () => ok({ definitions })),
+    http.get('/api/permissions/effective', ({ request }) => {
+      const url = new URL(request.url);
+      return ok(effectiveFor(url.searchParams.get('subject_ref') ?? 'user:user-test', revoked));
+    }),
+    http.post('/api/permissions/explain', async ({ request }) => {
+      const body = (await request.json()) as { subject_ref?: string; permission?: string; resource?: Record<string, unknown> };
+      const eff = effectiveFor(body.subject_ref ?? 'user:user-test', revoked);
+      const match = eff.permissions.find((p) => p.key === body.permission);
+      return ok({
+        decision: {
+          allowed: !!match,
+          subject_ref: body.subject_ref ?? 'user:user-test',
+          permission: body.permission ?? 'org.read',
+          resource: body.resource ?? eff.resource,
+          source: match?.source,
+          reason: match ? `matched ${match.source}` : 'permission_denied',
+          evidence_ref: match?.evidence_ref,
+        },
+        effective: eff.permissions,
+        denied_by: match ? [] : ['no matching source'],
+        resolved_org: 'org-test',
+      });
+    }),
+    http.get('/api/permissions/audit', ({ request }) => {
+      const url = new URL(request.url);
+      const subject = url.searchParams.get('subject_ref') ?? 'user:user-test';
+      return ok({
+        events: [
+          {
+            id: 'authz-audit-1',
+            event_type: 'authorization.assignment.created',
+            actor_ref: 'user:owner',
+            subject_ref: subject,
+            permission_key: 'org.settings.manage',
+            resource_kind: 'org',
+            resource_id: 'org-test',
+            role_id: 'role-direct-org-settings-manage',
+            assignment_id: 'asgn-direct-settings',
+            payload: {},
+            created_at: '2026-08-14T04:00:00Z',
+          },
+        ],
+      });
+    }),
+    http.post('/api/permissions/batch/apply', () =>
+      ok({
+        preview: false,
+        operations: [
+          { id: 'role', type: 'upsert_role', status: 'created', role_id: 'role-direct-org-settings-manage' },
+          { id: 'permissions', type: 'set_role_permissions', status: 'set', role_id: 'role-direct-org-settings-manage' },
+          { id: 'assignment', type: 'assign_role', status: 'created', assignment_id: 'asgn-direct-settings' },
+        ],
+      }),
+    ),
+    http.post('/api/permissions/batch/revoke', () => {
+      revoked = true;
+      return ok({
+        preview: false,
+        operations: [{ id: 'revoke', type: 'revoke_assignment', status: 'revoked', assignment_id: 'asgn-direct-settings' }],
+      });
     }),
   ];
 }
@@ -1139,7 +1230,8 @@ const baseHandlers = [
   // teamsFixtures store; see teamHandlers.ts.
   ...teamHandlers(),
 
-  // Unified permission / Access module contract.
+  // Unified permission service and Access module contract.
+  ...permissionHandlers(),
   ...accessHandlers(),
 
   // Secrets

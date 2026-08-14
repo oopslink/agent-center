@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -131,6 +132,43 @@ func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, eff)
+}
+
+func (s *Server) permissionsAuditHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	callerRef := authz.UserSubject(caller.ID())
+	subject := authz.SubjectRef(strings.TrimSpace(r.URL.Query().Get("subject_ref")))
+	if subject == "" {
+		subject = callerRef
+	}
+	if subject != callerRef && !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner/admin may inspect another subject")
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 100 {
+			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be between 1 and 100")
+			return
+		}
+		limit = n
+	}
+	events, err := svc.ListSubjectAudit(r.Context(), subject, orgID, limit)
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
 func (s *Server) permissionsBatchPreviewHandler(w http.ResponseWriter, r *http.Request) {
