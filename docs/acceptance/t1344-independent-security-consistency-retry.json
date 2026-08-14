@@ -1,0 +1,150 @@
+{
+  "task": "T1344",
+  "date": "2026-08-14",
+  "verdict": "REJECT",
+  "reviewed_sha": "aab7b8d3ad46c1d994a00a7be19ec313800e8ab7",
+  "expected_base_sha": "1ff3a401e393a998762f892140305e7dc895555c",
+  "branch": "evidence/t1344-independent-security-consistency-retry-ffe5dfde",
+  "artifact": {
+    "path": "docs/acceptance/t1344-independent-security-consistency-retry.md",
+    "sha256": "2399ca4652905c84143347216085fe8d7e0f5b1f00b40740359316bdcd032847"
+  },
+  "isolation": {
+    "center_tools_used": false,
+    "center_db_or_socket_used": false,
+    "raw_center_http_used": false,
+    "notes": "Only git remote refs, local worktrees, local tests, and source inspection were used."
+  },
+  "candidates": [
+    {
+      "task": "T1341",
+      "sha": "c5279376e415c6af422b9f25c5d0db2891526017",
+      "remote_ref": "origin/delivery/task-edf7d9c3-access-management",
+      "contains_expected_base": true,
+      "result": "REJECT",
+      "summary": "Service matrix and new apply path pass; Access overview still omits custom_role permissions visible through direct /permissions/effective."
+    },
+    {
+      "task": "T1342",
+      "sha": "aab7b8d3ad46c1d994a00a7be19ec313800e8ab7",
+      "remote_ref": "origin/delivery/task-fcf46142-human-agent-permissions",
+      "contains_expected_base": true,
+      "result": "REJECT",
+      "summary": "Frontend checks pass and service matrix passes; legacy /access apply reports success without unified mutation and overview omits custom_role permissions."
+    },
+    {
+      "task": "T1343",
+      "sha": null,
+      "remote_ref": null,
+      "contains_expected_base": null,
+      "result": "BLOCKED",
+      "summary": "No T1343/1343 remote ref found by git ls-remote --refs; center access is out of bounds for this executor."
+    }
+  ],
+  "ancestry": {
+    "T1341_contains_base": true,
+    "T1342_contains_base": true,
+    "prior_evidence_branch_contains_base": true,
+    "origin_main_sha": "af795b013ac71eef2f30b0116dc7b6045db3899d",
+    "origin_main_contains_base": false,
+    "T1341_T1342_merge_base": "b6d2431b903856187660e00a1af0800b45b4117e",
+    "T1341_is_ancestor_of_T1342": false,
+    "T1342_is_ancestor_of_T1341": false
+  },
+  "matrix": {
+    "service_contract": {
+      "command": "go test ./internal/authorization -run 'TestT1344|TestService_RevokeAssignmentConcurrentRaceIdempotent' -count=1 -v",
+      "T1341": "PASS",
+      "T1342": "PASS",
+      "covers": [
+        "human_agent_mixed_batch",
+        "idempotency",
+        "source_inheritance",
+        "team_removal_precise_reclaim",
+        "expiry",
+        "last_org_owner",
+        "high_risk_agent_denial",
+        "self_escalation_denial",
+        "custom_role_impact",
+        "web_mcp_system_transport_service_boundary",
+        "concurrency",
+        "audit"
+      ]
+    },
+    "web_api_consistency": {
+      "command": "go test ./internal/webconsole/api -run TestT1344 -count=1 -v",
+      "T1341": "FAIL custom_role overview omitted unified custom_role permission",
+      "T1342": "FAIL legacy /access apply false success; legacy overview omitted custom_role permission"
+    },
+    "existing_backend_checks": {
+      "commands": [
+        "go test ./internal/authorization -count=1",
+        "go test ./internal/webconsole/api -run 'TestPermissionsHTTP|TestAccessEffectiveBatchAndRevokeContract' -count=1 -v",
+        "go test ./internal/admin/api -run TestRequireScope_DelegatesToAuthorizationService -count=1 -v"
+      ],
+      "result": "PASS where run on T1341/T1342"
+    },
+    "frontend_checks": {
+      "commands": [
+        "cd web && pnpm install --frozen-lockfile",
+        "pnpm exec vitest run src/pages/Access.test.tsx",
+        "pnpm exec vitest run src/components/AccessPermissionsPanel.test.tsx src/pages/Access.test.tsx",
+        "pnpm exec tsc --noEmit"
+      ],
+      "T1341": "PASS Access page Vitest and TypeScript",
+      "T1342": "PASS AccessPermissionsPanel, Access page Vitest, and TypeScript"
+    },
+    "mcp_internal_consistency": {
+      "command": "rg -n 'Name:\\s*\".*(permission|access|role|grant|revoke)|permissions/batch|AuthorizationService|Authorizer|ApplyBatch|RevokeBatch|ListEffective|permissions' internal/mcphost internal/admin/api -g '*.go' || true",
+      "result": "Admin and worker operation checks delegate to AuthorizationService.Check; no MCP unified permission batch/effective management equivalent found."
+    }
+  },
+  "blockers": [
+    {
+      "id": "BLOCKER-1",
+      "title": "T1343 final implementation SHA not found in remote refs",
+      "impact": ["single_candidate_sha", "ancestry_gate", "evidence_before_verdict"]
+    },
+    {
+      "id": "BLOCKER-2",
+      "title": "T1341 and T1342 are sibling candidates, not one integrated delivery",
+      "impact": ["old_new_entry_consistency", "web_internal_consistency"]
+    },
+    {
+      "id": "BLOCKER-3",
+      "title": "T1342 legacy /access apply reports success without mutating unified state",
+      "evidence_test": "internal/webconsole/api/t1344_access_consistency_test.go::TestT1344AccessApplyEntrypointMustMutateUnifiedStateOrBeRemoved",
+      "impact": ["old_new_entry_consistency", "web_internal_consistency", "idempotency", "audit"]
+    },
+    {
+      "id": "BLOCKER-4",
+      "title": "Access overview omits custom_role permissions visible through direct /permissions/effective",
+      "evidence_test": "internal/webconsole/api/t1344_access_consistency_test.go::TestT1344AccessOverviewMustIncludeCustomRolePermissionsOrBeRemoved",
+      "impact": ["custom_role_impact", "old_new_entry_consistency", "web_internal_consistency"]
+    },
+    {
+      "id": "BLOCKER-5",
+      "title": "origin/main does not contain required T1340 baseline",
+      "observed_origin_main_sha": "af795b013ac71eef2f30b0116dc7b6045db3899d",
+      "impact": ["origin_main_required_before_completion"]
+    },
+    {
+      "id": "BLOCKER-6",
+      "title": "MCP permission management parity not demonstrated",
+      "impact": ["web_mcp_internal_consistency"]
+    }
+  ],
+  "rerun": {
+    "T1342_from_this_branch": [
+      "go test ./internal/authorization -run 'TestT1344|TestService_RevokeAssignmentConcurrentRaceIdempotent' -count=1 -v",
+      "go test ./internal/webconsole/api -run TestT1344 -count=1 -v"
+    ],
+    "T1341": [
+      "git worktree add --detach /tmp/t1344-c527.rerun c5279376e415c6af422b9f25c5d0db2891526017",
+      "cd /tmp/t1344-c527.rerun",
+      "git checkout 7eaaf7445b4434ae73363f717a5d3f915f117c31 -- internal/authorization/t1344_acceptance_test.go internal/webconsole/api/t1344_access_consistency_test.go",
+      "go test ./internal/authorization -run 'TestT1344|TestService_RevokeAssignmentConcurrentRaceIdempotent' -count=1 -v",
+      "go test ./internal/webconsole/api -run TestT1344 -count=1 -v"
+    ]
+  }
+}
