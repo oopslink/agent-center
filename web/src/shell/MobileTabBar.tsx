@@ -7,8 +7,8 @@ import type { ShellModuleId } from '@/shell/secondaryNav';
 // v2.10.1 [M1] MobileTabBar — the small-screen (<768) primary navigation.
 //
 // The desktop col① module rail reflows to a fixed BOTTOM tab bar on mobile
-// (mockup `docs/design/v2.10.1/v2.10.1-mobile` — `.mtab`): the same four
-// top-level modules (Workspace / Conversations / Members / System), each a
+// (mockup `docs/design/v2.10.1/v2.10.1-mobile` — `.mtab`): the same
+// top-level modules as the desktop rail, each a
 // full-width tap target. Tapping a tab navigates to that module's default page
 // (its col② list, now full-screen); the desktop rail + col② are `md:`-only.
 //

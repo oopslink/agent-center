@@ -38,6 +38,7 @@ function renderShell(initial = '/channels') {
             <Route path="/channels" element={<div data-testid="page-Channels">x</div>} />
             <Route path="/projects" element={<div data-testid="page-Projects">x</div>} />
             <Route path="/environment" element={<div data-testid="page-Environment">x</div>} />
+            <Route path="/access" element={<div data-testid="page-Access">x</div>} />
             <Route path="/reminders" element={<div data-testid="page-Reminders">x</div>} />
             <Route path="/panel" element={<PageWithPanel />} />
           </Route>
@@ -52,11 +53,12 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
 
   it('renders the four-column scaffold: module rail (col①), secondary nav (col②), content (col③), context slot (col④)', () => {
     renderShell();
-    // col① — the module rail with all four modules.
+    // col① — the module rail with the top-level modules.
     const rail = screen.getByRole('navigation', { name: /^modules$/ });
     expect(within(rail).getByTestId('rail-module-workspace')).toBeInTheDocument();
     expect(within(rail).getByTestId('rail-module-conversations')).toBeInTheDocument();
     expect(within(rail).getByTestId('rail-module-teamui')).toBeInTheDocument();
+    expect(within(rail).getByTestId('rail-module-access')).toBeInTheDocument();
     expect(within(rail).getByTestId('rail-module-system')).toBeInTheDocument();
     // col② — the active module's secondary nav.
     expect(screen.getByRole('navigation', { name: /^primary$/ })).toBeInTheDocument();
@@ -71,6 +73,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(screen.getByTestId('rail-module-workspace')).toHaveAttribute('href', '/projects');
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('href', '/channels');
     expect(screen.getByTestId('rail-module-teamui')).toHaveAttribute('href', '/teams');
+    expect(screen.getByTestId('rail-module-access')).toHaveAttribute('href', '/access');
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', '/environment');
     // On /channels the Conversations module is active.
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('data-active', 'true');
@@ -157,12 +160,13 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
 
   // v2.10.1 [M1] mobile (<768) shell: bottom Tab Bar (col①) + top bar actions
   // + col④ context as a dismissible bottom sheet + account/org/theme sheet.
-  it('mobile bottom tab bar lists the four modules, links to defaults, marks active, ≥44px targets', () => {
+  it('mobile bottom tab bar lists the modules, links to defaults, marks active, ≥44px targets', () => {
     renderShell('/channels');
     const tabbar = screen.getByRole('navigation', { name: 'modules mobile' });
     expect(within(tabbar).getByTestId('tab-workspace')).toHaveAttribute('href', '/projects');
     expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('href', '/channels');
     expect(within(tabbar).getByTestId('tab-teamui')).toHaveAttribute('href', '/teams');
+    expect(within(tabbar).getByTestId('tab-access')).toHaveAttribute('href', '/access');
     expect(within(tabbar).getByTestId('tab-system')).toHaveAttribute('href', '/environment');
     // On /channels the Conversations tab is active.
     expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('data-active', 'true');
