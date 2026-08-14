@@ -480,24 +480,20 @@ func (s *Service) requireAssignmentSubjectApplicable(ctx context.Context, subjec
 }
 
 func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, orgID string, in RevokeInput) error {
-	var assignment *RoleAssignment
-	if strings.TrimSpace(in.AssignmentID) != "" {
-		a, err := s.store.getAssignment(ctx, in.AssignmentID)
+	target, err := s.resolveRevokeTarget(ctx, orgID, in)
+	if err != nil {
+		return err
+	}
+	if target.OrgID != strings.TrimSpace(orgID) {
+		return ErrNotFound
+	}
+	if target.RoleID == "sys-org-owner" {
+		remaining, err := s.remainingOrgOwners(ctx, orgID, target.ID)
 		if err != nil {
 			return err
 		}
-		if a.OrgID != orgID {
-			return fmt.Errorf("%w: assignment belongs to another org", ErrAssignmentNotFound)
-		}
-		assignment = &a
-		if a.RoleID == "sys-org-owner" {
-			remaining, err := s.remainingOrgOwners(ctx, orgID, a.ID)
-			if err != nil {
-				return err
-			}
-			if remaining == 0 {
-				return fmt.Errorf("%w: cannot revoke the last organization owner", ErrConflict)
-			}
+		if remaining == 0 {
+			return fmt.Errorf("%w: cannot revoke the last organization owner", ErrConflict)
 		}
 	}
 	if actor == "system" {
@@ -506,15 +502,40 @@ func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, or
 	if _, err := s.Check(ctx, CheckRequest{SubjectRef: actor, Transport: TransportSystem, Permission: "org.member.role.manage", Resource: ResourceScope{Kind: "org", ID: orgID}}); err == nil {
 		return nil
 	}
-	roleID := strings.TrimSpace(in.RoleID)
-	if roleID == "" && assignment != nil {
-		roleID = assignment.RoleID
-		in.Resource = ResourceScope{Kind: assignment.ResourceKind, ID: assignment.ResourceID, OrgID: assignment.OrgID}
+	return s.requireDelegatableRole(ctx, actor, target.RoleID, ResourceScope{
+		Kind:  target.ResourceKind,
+		ID:    target.ResourceID,
+		OrgID: target.OrgID,
+	})
+}
+
+func (s *Service) resolveRevokeTarget(ctx context.Context, orgID string, in RevokeInput) (RoleAssignment, error) {
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return RoleAssignment{}, fmt.Errorf("%w: org_id required", ErrInvalid)
 	}
-	if roleID == "" {
-		return fmt.Errorf("%w: role id required for revoke", ErrInvalid)
+	target, err := s.store.assignmentForRevoke(ctx, orgID, in)
+	if err != nil {
+		if errors.Is(err, ErrAssignmentNotFound) {
+			return RoleAssignment{}, ErrNotFound
+		}
+		return RoleAssignment{}, err
 	}
-	return s.requireDelegatableRole(ctx, actor, roleID, in.Resource)
+	if target.OrgID != orgID {
+		return RoleAssignment{}, ErrNotFound
+	}
+	resolved, _, err := s.resolveResource(ctx, ResourceScope{
+		Kind:  target.ResourceKind,
+		ID:    target.ResourceID,
+		OrgID: target.OrgID,
+	})
+	if err != nil {
+		return RoleAssignment{}, err
+	}
+	if resolved.OrgID != orgID {
+		return RoleAssignment{}, ErrNotFound
+	}
+	return target, nil
 }
 
 func (s *Service) remainingOrgOwners(ctx context.Context, orgID, excludingAssignmentID string) (int, error) {

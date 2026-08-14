@@ -432,7 +432,7 @@ func TestClosedDatabaseFailsClosedAcrossStoreAndResolvers(t *testing.T) {
 			_, _, err := s.assignRole(ctx, RoleAssignment{OrgID: "o", SubjectRef: "user:u", RoleID: "r", ResourceKind: "org", ResourceID: "o", CreatedBy: "system"}, now)
 			return err
 		},
-		func() error { _, err := s.getAssignment(ctx, "x"); return err },
+		func() error { _, err := s.getAssignmentInOrg(ctx, "o", "x"); return err },
 		func() error { _, err := s.findActiveAssignment(ctx, "o", "user:u", "r", "org", "o"); return err },
 		func() error { _, err := s.activeAssignmentsFor(ctx, "o", "user:u", "org", "o"); return err },
 		func() error {
@@ -697,4 +697,88 @@ func TestFailClosedDerivationAndDelegationEdges(t *testing.T) {
 	if _, err := svc.ApplyBatch(ctx, BatchRequest{IdempotencyKey: "foreign-role-assignment", ActorRef: "system", OrgID: "org-1", Operations: []BatchOperation{{Type: "assign_role", Assignment: AssignmentInput{SubjectRef: "user:user-member", RoleID: "foreign-role", Resource: ResourceScope{Kind: "org", ID: "org-1"}}}}}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("foreign custom role assignment err=%v", err)
 	}
+}
+
+func TestRevokeAndRegistryPersistenceErrorsFailClosed(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+
+	if _, err := svc.resolveRevokeTarget(ctx, "", RevokeInput{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("empty revoke org err=%v", err)
+	}
+	if _, err := svc.resolveRevokeTarget(ctx, "org-1", RevokeInput{AssignmentID: "missing"}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing revoke target err=%v", err)
+	}
+	if _, err := svc.store.assignmentForRevoke(ctx, "", RevokeInput{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("store empty revoke org err=%v", err)
+	}
+	if _, err := svc.store.assignmentForRevoke(ctx, "org-1", RevokeInput{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("store empty revoke target err=%v", err)
+	}
+
+	execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-trigger','org-1','custom','trigger','system',?,?)`, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-trigger','org-1','user:user-member','role-trigger','org','org-1','system',?)`, now.Format(time.RFC3339Nano))
+	execMany(t, db, `CREATE TRIGGER reject_authz_revoke BEFORE UPDATE OF revoked_at ON authorization_role_assignments BEGIN SELECT RAISE(ABORT, 'reject revoke'); END`)
+	if _, _, err := svc.store.revokeAssignment(ctx, RevokeInput{AssignmentID: "asgn-trigger"}, "system", "org-1", now); err == nil {
+		t.Fatal("revoke update storage error did not fail closed")
+	}
+
+	for column, restore := range map[string]string{
+		"actions_json":        `["read"]`,
+		"legacy_sources_json": `["members"]`,
+	} {
+		if _, err := db.ExecContext(ctx, `UPDATE permission_definitions SET `+column+`='bad-json' WHERE key='org.read'`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.ListDefinitions(ctx); err == nil {
+			t.Fatalf("malformed %s did not fail", column)
+		}
+		if _, err := db.ExecContext(ctx, `UPDATE permission_definitions SET `+column+`=? WHERE key='org.read'`, restore); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestOwnerCountResourceResolutionAndAuditSinkErrorsFailClosed(t *testing.T) {
+	t.Run("legacy owner query", func(t *testing.T) {
+		db, svc := newAuthzTestService(t)
+		if _, err := db.Exec(`DROP TABLE members`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.remainingOrgOwners(context.Background(), "org-1", "x"); err == nil {
+			t.Fatal("missing membership storage did not fail owner count")
+		}
+	})
+	t.Run("assignment owner query", func(t *testing.T) {
+		db, svc := newAuthzTestService(t)
+		if _, err := db.Exec(`DROP TABLE authorization_role_assignments`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.remainingOrgOwners(context.Background(), "org-1", "x"); err == nil {
+			t.Fatal("missing assignment storage did not fail owner count")
+		}
+	})
+	t.Run("invalid persisted resource", func(t *testing.T) {
+		ctx := context.Background()
+		db, svc := newAuthzTestService(t)
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-invalid-resource','org-1','custom','invalid','system',?,?)`, now, now)
+		execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-invalid-resource','org-1','user:u','role-invalid-resource','invalid','x','system',?)`, now)
+		if _, err := svc.resolveRevokeTarget(ctx, "org-1", RevokeInput{AssignmentID: "asgn-invalid-resource"}); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("invalid persisted resource err=%v", err)
+		}
+	})
+	t.Run("event sink", func(t *testing.T) {
+		ctx := context.Background()
+		db, base := newAuthzTestService(t)
+		svc := New(Deps{DB: db, EventSink: observability.NewEventSink(nil, nil, nil, nil)})
+		if err := svc.audit(ctx, auditEvent{EventType: "authorization.test.sink", ActorRef: "system", CreatedAt: time.Now()}); err == nil {
+			t.Fatal("broken domain event sink did not fail audit")
+		}
+		if base == nil {
+			t.Fatal("nil setup service")
+		}
+	})
 }

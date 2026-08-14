@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestSupervisorCrossOrgRevokeMustFailClosed(t *testing.T) {
+func TestSupervisorCrossOrgRevokeByIDMustFailClosedPersistenceDefense(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)
 	seedAuthzBase(t, db)
