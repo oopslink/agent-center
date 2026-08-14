@@ -260,7 +260,8 @@ func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method,
 // admin Client (Phase B), so a missing dep here = a dead CLI path.
 func adminDepsFromApp(a *App) api.HandlerDeps {
 	return api.HandlerDeps{
-		Actor: a.operatorActor(),
+		Actor:      a.operatorActor(),
+		Authorizer: a.Authorization,
 
 		// Raw DB for composite endpoints (v2.3-2 ADR-0014 § 2).
 		DB: a.DB,

@@ -14,6 +14,7 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
@@ -96,6 +97,7 @@ type App struct {
 	MsgRepo       conversation.MessageRepository
 	EventRepo     *obsqlite.EventRepo
 	Sink          *observability.EventSink
+	Authorization *authorization.Service
 
 	// Usage BC (v2.15.0 I28/F2): usage_events + model_prices repos backing the
 	// report_usage agent-tool.
@@ -256,6 +258,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		return nil, fmt.Errorf("event repo: %w", err)
 	}
 	sink := observability.NewEventSink(er, er, gen, clk)
+	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink})
 	wr := wfsqlite.NewWorkerRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.
@@ -577,6 +580,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		MsgRepo:             mgRepo,
 		EventRepo:           er,
 		Sink:                sink,
+		Authorization:       authorizationSvc,
 		UsageEventRepo:      usageEventRepo,
 		ModelPriceRepo:      modelPriceRepo,
 		EnrollSvc:           enroll,
