@@ -12,27 +12,32 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedGet(t, server.URL+"/api/permissions/effective?view=access&status=not_applicable", sess)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("effective status=%d", resp.StatusCode)
-	}
-	var effective struct {
-		Decisions []struct {
-			Permission string `json:"permission"`
-			Status     string `json:"status"`
-			Reason     string `json:"reason"`
-		} `json:"decisions"`
-		Summary map[string]int `json:"summary"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&effective); err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if effective.Summary["not_applicable"] == 0 {
-		t.Fatalf("summary missing not_applicable: %+v", effective.Summary)
-	}
-	if len(effective.Decisions) == 0 || effective.Decisions[0].Status != "not_applicable" {
-		t.Fatalf("effective decisions did not expose not_applicable: %+v", effective.Decisions)
+	for _, url := range []string{
+		server.URL + "/api/permissions/effective?view=access&status=not_applicable",
+		server.URL + "/api/access/overview?status=not_applicable",
+	} {
+		resp := orgScopedGet(t, url, sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("effective status=%d for %s", resp.StatusCode, url)
+		}
+		var effective struct {
+			Decisions []struct {
+				Permission string `json:"permission"`
+				Status     string `json:"status"`
+				Reason     string `json:"reason"`
+			} `json:"decisions"`
+			Summary map[string]int `json:"summary"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&effective); err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if effective.Summary["not_applicable"] == 0 {
+			t.Fatalf("summary missing not_applicable for %s: %+v", url, effective.Summary)
+		}
+		if len(effective.Decisions) == 0 || effective.Decisions[0].Status != "not_applicable" {
+			t.Fatalf("effective decisions did not expose not_applicable for %s: %+v", url, effective.Decisions)
+		}
 	}
 
 	body := `{
@@ -42,7 +47,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		"expires_at":"2026-08-20T12:30:00Z",
 		"reason":"temporary release support"
 	}`
-	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/preview", body, sess)
+	resp := orgScopedPost(t, server.URL+"/api/access/batch/preview", body, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("preview status=%d", resp.StatusCode)
 	}
@@ -69,7 +74,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("preview did not expose expiry/high-risk/unauthorized/not-applicable: %+v", preview)
 	}
 
-	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/apply", body, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("apply status=%d", resp.StatusCode)
 	}
@@ -90,29 +95,34 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
-	resp = orgScopedPost(t, server.URL+"/api/permissions/batch/revoke", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("revoke status=%d", resp.StatusCode)
-	}
-	var revoked struct {
-		Summary struct {
-			PartialFailure bool `json:"partial_failure"`
-			NotApplicable  int  `json:"not_applicable"`
-		} `json:"summary"`
-		Items []struct {
-			Status string `json:"status"`
-			Reason string `json:"reason"`
-		} `json:"items"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if !revoked.Summary.PartialFailure || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
-		t.Fatalf("revoke did not expose derived-grant not_applicable: %+v", revoked)
+	for _, url := range []string{
+		server.URL + "/api/permissions/batch/revoke",
+		server.URL + "/api/access/grants/revoke",
+	} {
+		resp = orgScopedPost(t, url, `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("revoke status=%d for %s", resp.StatusCode, url)
+		}
+		var revoked struct {
+			Summary struct {
+				PartialFailure bool `json:"partial_failure"`
+				NotApplicable  int  `json:"not_applicable"`
+			} `json:"summary"`
+			Items []struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+			} `json:"items"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if !revoked.Summary.PartialFailure || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
+			t.Fatalf("revoke did not expose derived-grant not_applicable for %s: %+v", url, revoked)
+		}
 	}
 
-	resp = orgScopedPatch(t, server.URL+"/api/permissions/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
+	resp = orgScopedPatch(t, server.URL+"/api/access/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("role update status=%d want 409", resp.StatusCode)
 	}

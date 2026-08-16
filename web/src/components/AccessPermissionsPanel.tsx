@@ -2,6 +2,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
+import { AccessMetaPill, accessResourceLabel } from '@/components/access/kit';
 import {
   useEffectivePermissions,
   useGrantDirectPermission,
@@ -49,8 +50,7 @@ function sourceLabel(source: string, t: (key: string, options?: Record<string, u
 }
 
 function resourceText(resource: ResourceScope): string {
-  const id = resource.uri || resource.id || resource.org_id || '*';
-  return `${resource.kind}:${id}`;
+  return accessResourceLabel(resource);
 }
 
 function evidenceText(p: EffectivePermission): string {
@@ -182,7 +182,7 @@ function PermissionRows({
             <PermissionPill permission={p.key} />
           </span>
           <SourceCell permission={p} resource={resource} subjectRef={subjectRef} />
-          <span className="text-xs text-text-muted">{p.delegatable ? 'delegable' : 'fixed'}</span>
+          <AccessMetaPill>{p.delegatable ? 'delegable' : 'fixed'}</AccessMetaPill>
         </li>
       ))}
     </ul>

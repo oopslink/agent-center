@@ -446,12 +446,12 @@
       "breadcrumbAgents": "Agents",
       "tabs": {
         "profile": "Profile",
+        "permissions": "Permissions",
         "activity": "Activity",
-      "runtime": "Runtime",
-      "memory": "Memory",
-      "tasks": "Tasks",
-      "analytics": "Analytics",
-      "permissions": "Permissions"
+        "runtime": "Runtime",
+        "memory": "Memory",
+        "tasks": "Tasks",
+        "analytics": "Analytics"
       },
       "controls": {
         "messageTitle": "Send message",
@@ -704,12 +704,12 @@
         "members": "Members",
         "humans": "Humans"
       },
-    "tabs": {
-      "profile": "Profile",
-      "organizations": "Organizations",
-      "account": "Account",
-      "permissions": "Permissions"
-    },
+      "tabs": {
+        "profile": "Profile",
+        "permissions": "Permissions",
+        "organizations": "Organizations",
+        "account": "Account"
+      },
       "profile": {
         "email": "Email",
         "created": "Created",

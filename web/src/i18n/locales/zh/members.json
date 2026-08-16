@@ -446,12 +446,12 @@
       "breadcrumbAgents": "智能体",
       "tabs": {
         "profile": "资料",
+        "permissions": "权限",
         "activity": "活动",
-      "runtime": "运行时",
-      "memory": "记忆",
-      "tasks": "任务",
-      "analytics": "分析",
-      "permissions": "权限"
+        "runtime": "运行时",
+        "memory": "记忆",
+        "tasks": "任务",
+        "analytics": "分析"
       },
       "controls": {
         "messageTitle": "发送消息",
@@ -704,12 +704,12 @@
         "members": "成员",
         "humans": "成员"
       },
-    "tabs": {
-      "profile": "资料",
-      "organizations": "组织",
-      "account": "账户",
-      "permissions": "权限"
-    },
+      "tabs": {
+        "profile": "资料",
+        "permissions": "权限",
+        "organizations": "组织",
+        "account": "账户"
+      },
       "profile": {
         "email": "邮箱",
         "created": "创建时间",

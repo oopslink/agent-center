@@ -24,7 +24,15 @@ import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/ico
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { useModalA11y } from '@/components/useModalA11y';
-import { formatLocalTime } from '@/utils/time';
+import {
+  AccessMetaPill,
+  AccessRiskBadge,
+  AccessStatusBadge,
+  accessResourceKey,
+  accessResourceLabel,
+  accessRiskLabel,
+  displayAccessDate,
+} from '@/components/access/kit';
 
 type AccessView = 'subjects' | 'roles';
 
@@ -55,37 +63,11 @@ function emptyBatchRequest(resources: AccessResourceScope[]): AccessBatchRequest
   };
 }
 
-function resourceKey(resource: AccessResourceScope): string {
-  return `${resource.kind}:${resource.id}`;
-}
-
-function resourceLabel(resource: AccessResourceScope): string {
-  return resource.label || `${resource.kind}:${resource.id}`;
-}
-
-function statusLabel(status: AccessStatus | undefined): string {
-  if (status === 'not_applicable') return 'Not applicable';
-  if (status === 'unauthorized') return 'No access';
-  if (status === 'denied') return 'Denied';
-  return 'Allowed';
-}
-
-function riskLabel(risk: AccessRisk | undefined): string {
-  if (risk === 'high') return 'High risk';
-  if (risk === 'medium') return 'Medium';
-  return 'Low';
-}
-
-function displayDate(value?: string | null): string {
-  if (!value) return '-';
-  return formatLocalTime(value);
-}
-
 function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): AccessResourceScope[] {
   const byKey = new Map<string, AccessResourceScope>();
-  for (const d of decisions) byKey.set(resourceKey(d.resource), d.resource);
-  for (const g of grants) byKey.set(resourceKey(g.resource), g.resource);
-  return [...byKey.values()].sort((a, b) => resourceLabel(a).localeCompare(resourceLabel(b)));
+  for (const d of decisions) byKey.set(accessResourceKey(d.resource), d.resource);
+  for (const g of grants) byKey.set(accessResourceKey(g.resource), g.resource);
+  return [...byKey.values()].sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b)));
 }
 
 export default function Access(): React.ReactElement {
@@ -313,8 +295,8 @@ function SubjectDecisionView({
                 <p className="text-xs text-text-muted">{subjectRef}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {subject?.role && <MetaPill>{subject.role}</MetaPill>}
-                {subject?.status && <MetaPill>{subject.status}</MetaPill>}
+                {subject?.role && <AccessMetaPill>{subject.role}</AccessMetaPill>}
+                {subject?.status && <AccessMetaPill>{subject.status}</AccessMetaPill>}
               </div>
             </div>
             <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
@@ -353,7 +335,7 @@ function RoleDecisionView({
         <section key={role} className="rounded border border-border-base bg-bg-elevated">
           <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
             <h2 className="text-sm font-semibold text-text-primary">{role}</h2>
-            <MetaPill>{rows.length} decisions</MetaPill>
+            <AccessMetaPill>{rows.length} decisions</AccessMetaPill>
           </div>
           <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
         </section>
@@ -391,7 +373,7 @@ function DecisionTable({
           {decisions.map((decision) => {
             const subject = subjectByRef.get(decision.subject_ref);
             const permission = permissionByKey.get(decision.permission);
-            const rowKey = `${decision.subject_ref}-${decision.permission}-${resourceKey(decision.resource)}-${decision.status}`;
+            const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.status}`;
             return (
               <tr key={rowKey} className="border-b border-border-base last:border-0">
                 <td className="px-4 py-3">
@@ -403,14 +385,14 @@ function DecisionTable({
                   {permission?.label && <div className="text-xs text-text-muted">{permission.label}</div>}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-text-primary">{resourceLabel(decision.resource)}</div>
+                  <div className="font-medium text-text-primary">{accessResourceLabel(decision.resource)}</div>
                   <div className="text-xs text-text-muted">{decision.resource.kind}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={decision.status ?? (decision.allowed ? 'allowed' : 'denied')} />
+                  <AccessStatusBadge status={decision.status ?? (decision.allowed ? 'allowed' : 'denied')} />
                   <div className="mt-1 max-w-xs text-xs text-text-muted">{decision.reason}</div>
                 </td>
-                <td className="px-4 py-3"><RiskBadge risk={decision.risk ?? permission?.risk ?? 'low'} /></td>
+                <td className="px-4 py-3"><AccessRiskBadge risk={decision.risk ?? permission?.risk ?? 'low'} /></td>
                 <td className="px-4 py-3 font-mono text-xs text-text-secondary">{decision.source}</td>
                 {!compact && <td className="px-4 py-3 font-mono text-xs text-text-muted">{decision.evidence_ref}</td>}
               </tr>
@@ -446,7 +428,7 @@ function PermissionCatalog({ catalog }: { catalog: AccessPermissionDefinition[] 
                   <div className="mt-1 text-xs text-text-muted">{permission.description}</div>
                 </td>
                 <td className="px-4 py-3 text-xs text-text-secondary">{permission.resource_kinds.join(', ')}</td>
-                <td className="px-4 py-3"><RiskBadge risk={permission.risk} /></td>
+                <td className="px-4 py-3"><AccessRiskBadge risk={permission.risk} /></td>
                 <td className="px-4 py-3 font-mono text-xs text-text-secondary">{permission.legacy_sources.join(', ')}</td>
               </tr>
             ))}
@@ -500,7 +482,7 @@ function RoleManagement({
                 <h3 className="text-sm font-semibold text-text-primary">{role.name}</h3>
                 <p className="text-xs text-text-muted">{role.description}</p>
               </div>
-              {role.high_risk && <RiskBadge risk="high" />}
+              {role.high_risk && <AccessRiskBadge risk="high" />}
             </div>
             <div className="mt-3 space-y-1">
               {catalog.map((permission) => {
@@ -603,16 +585,16 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
                     <span className="block truncate text-xs text-text-secondary">
                       {grant.subject_name}
                       {' -> '}
-                      {resourceLabel(grant.resource)}
+                      {accessResourceLabel(grant.resource)}
                     </span>
                     <span className="mt-1 flex flex-wrap gap-1">
-                      <RiskBadge risk={grant.risk} />
-                      <MetaPill>{grant.source}</MetaPill>
-                      <MetaPill>{grant.status}</MetaPill>
+                      <AccessRiskBadge risk={grant.risk} />
+                      <AccessMetaPill>{grant.source}</AccessMetaPill>
+                      <AccessMetaPill>{grant.status}</AccessMetaPill>
                     </span>
                     <span className="mt-1 block text-xs text-text-muted">
                       <IconCalendar className="mr-1 inline h-3.5 w-3.5" />
-                      {displayDate(grant.expires_at)}
+                      {displayAccessDate(grant.expires_at)}
                     </span>
                   </td>
                 </tr>
@@ -662,9 +644,9 @@ function BatchGrantDrawer({
   };
   const toggleResource = (resource: AccessResourceScope): void => {
     setRequest((prev) => {
-      const keys = new Set(prev.resources.map(resourceKey));
-      const next = keys.has(resourceKey(resource))
-        ? prev.resources.filter((r) => resourceKey(r) !== resourceKey(resource))
+      const keys = new Set(prev.resources.map(accessResourceKey));
+      const next = keys.has(accessResourceKey(resource))
+        ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
         : [...prev.resources, resource];
       return { ...prev, resources: next };
     });
@@ -749,18 +731,18 @@ function BatchGrantDrawer({
                     checked={request.permission_keys.includes(permission.key)}
                     onChange={() => togglePermission(permission.key)}
                     label={permission.key}
-                    detail={`${permission.label} · ${riskLabel(permission.risk)}`}
-                    badge={<RiskBadge risk={permission.risk} />}
+                    detail={`${permission.label} · ${accessRiskLabel(permission.risk)}`}
+                    badge={<AccessRiskBadge risk={permission.risk} />}
                   />
                 ))}
               </Picker>
               <Picker title="Resources">
                 {resources.map((resource) => (
                   <ChoiceRow
-                    key={resourceKey(resource)}
-                    checked={request.resources.some((r) => resourceKey(r) === resourceKey(resource))}
+                    key={accessResourceKey(resource)}
+                    checked={request.resources.some((r) => accessResourceKey(r) === accessResourceKey(resource))}
                     onChange={() => toggleResource(resource)}
-                    label={resourceLabel(resource)}
+                    label={accessResourceLabel(resource)}
                     detail={resource.kind}
                   />
                 ))}
@@ -935,7 +917,7 @@ function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.Rea
       </div>
       <div className="rounded border border-border-base bg-bg-base px-3 py-2 text-sm text-text-secondary">
         <span className="font-semibold text-text-primary">Expires</span>
-        <span className="ml-2">{displayDate(preview.expires_at)}</span>
+        <span className="ml-2">{displayAccessDate(preview.expires_at)}</span>
       </div>
     </div>
   );
@@ -959,8 +941,8 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
             <tr key={item.id} className="border-b border-border-base last:border-0">
               <td className="px-3 py-2">{item.subject_name}</td>
               <td className="px-3 py-2 font-mono text-xs">{item.permission}</td>
-              <td className="px-3 py-2">{resourceLabel(item.resource)}</td>
-              <td className="px-3 py-2"><StatusBadge status={item.status} /></td>
+              <td className="px-3 py-2">{accessResourceLabel(item.resource)}</td>
+              <td className="px-3 py-2"><AccessStatusBadge status={item.status} /></td>
               <td className="px-3 py-2 text-xs text-text-secondary">{item.reason}</td>
             </tr>
           ))}
@@ -989,40 +971,5 @@ function ResultPanel({ result, title }: { result: AccessBatchResult; title: stri
       </div>
       <BatchItemsTable items={result.items} />
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: AccessStatus }): React.ReactElement {
-  const cls = {
-    allowed: 'bg-status-emerald-bg text-status-emerald-fg border-status-emerald-border',
-    denied: 'bg-status-rose-bg text-status-rose-fg border-status-rose-border',
-    unauthorized: 'bg-status-amber-bg text-status-amber-fg border-status-amber-border',
-    not_applicable: 'bg-status-slate-bg text-status-slate-fg border-status-slate-border',
-  }[status];
-  return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-semibold ${cls}`} data-status={status}>
-      {statusLabel(status)}
-    </span>
-  );
-}
-
-function RiskBadge({ risk }: { risk: AccessRisk }): React.ReactElement {
-  const cls = {
-    high: 'bg-status-rose-bg text-status-rose-fg border-status-rose-border',
-    medium: 'bg-status-amber-bg text-status-amber-fg border-status-amber-border',
-    low: 'bg-status-slate-bg text-status-slate-fg border-status-slate-border',
-  }[risk];
-  return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-semibold ${cls}`}>
-      {riskLabel(risk)}
-    </span>
-  );
-}
-
-function MetaPill({ children }: { children: React.ReactNode }): React.ReactElement {
-  return (
-    <span className="inline-flex rounded border border-border-base bg-bg-subtle px-2 py-0.5 text-xs font-semibold text-text-secondary">
-      {children}
-    </span>
   );
 }

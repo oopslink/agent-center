@@ -194,8 +194,9 @@ function idempotencyKey(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function directRoleID(resourceKind: string, permissionKey: string): string {
-  const key = `${resourceKind}-${permissionKey}`
+function directRoleID(resource: ResourceScope, permissionKey: string): string {
+  const scope = resource.org_id || (resource.kind === 'org' ? resource.id : '') || resource.project_id || resource.id || 'resource';
+  const key = `${scope}-${resource.kind}-${permissionKey}`
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
@@ -249,7 +250,7 @@ export function useGrantDirectPermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ subjectRef, permissionKey, resource }: DirectGrantInput) => {
-      const roleID = directRoleID(resource.kind, permissionKey);
+      const roleID = directRoleID(resource, permissionKey);
       const body: BatchRequest = {
         idempotency_key: idempotencyKey('grant-direct'),
         operations: [
