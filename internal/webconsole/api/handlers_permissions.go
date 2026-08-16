@@ -212,7 +212,7 @@ func (s *Server) permissionsBatchHandler(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if len(env.SubjectRefs) > 0 || len(env.PermissionKeys) > 0 || len(env.GrantIDs) > 0 {
+	if len(env.SubjectRefs) > 0 || len(env.PermissionKeys) > 0 || len(env.Resources) > 0 || len(env.GrantIDs) > 0 {
 		body := accessBatchRequestDTO{
 			SubjectRefs:      env.SubjectRefs,
 			PermissionKeys:   env.PermissionKeys,
