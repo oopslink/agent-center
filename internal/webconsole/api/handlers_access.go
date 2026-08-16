@@ -676,6 +676,7 @@ func (s *accessDerivedState) addDecision(subjectRef, permission string, resource
 func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.Service) []accessDecisionDTO {
 	out := make([]accessDecisionDTO, 0, len(s.decisions))
 	seen := map[string]struct{}{}
+	resources := s.decisionResources()
 	for _, decision := range s.decisions {
 		key := strings.Join([]string{decision.SubjectRef, decision.Permission, resourceKey(decision.Resource)}, "|")
 		if _, ok := seen[key]; ok {
@@ -723,7 +724,63 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 		}
 		out = append(out, decision)
 	}
+	out = s.appendCustomRoleDecisions(ctx, svc, out, seen, resources)
 	return out
+}
+
+func (s accessDerivedState) decisionResources() []accessResourceScopeDTO {
+	seen := map[string]struct{}{}
+	var resources []accessResourceScopeDTO
+	for _, decision := range s.decisions {
+		key := resourceKey(decision.Resource)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		resources = append(resources, decision.Resource)
+	}
+	return resources
+}
+
+func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *authz.Service, decisions []accessDecisionDTO, seen map[string]struct{}, resources []accessResourceScopeDTO) []accessDecisionDTO {
+	for _, subj := range s.subjects {
+		for _, resource := range resources {
+			effective, err := svc.ListEffective(ctx, authz.SubjectRef(subj.Ref), accessAuthzResource(resource))
+			if err != nil {
+				continue
+			}
+			resolved := accessResourceFromAuthz(effective.Resource, resource)
+			for _, permission := range effective.Permissions {
+				if permission.Source != authz.SourceCustomRole {
+					continue
+				}
+				key := strings.Join([]string{subj.Ref, string(permission.Key), resourceKey(resolved)}, "|")
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				def := s.catalogByKey[string(permission.Key)]
+				decision := accessDecisionDTO{
+					Allowed:     true,
+					SubjectRef:  subj.Ref,
+					Permission:  string(permission.Key),
+					Resource:    resolved,
+					Source:      string(permission.Source),
+					Reason:      "matched unified authorization service",
+					EvidenceRef: permission.EvidenceRef,
+					Status:      "allowed",
+					Risk:        fallback(def.Risk, "medium"),
+				}
+				if permission.ExpiresAt != nil {
+					value := permission.ExpiresAt.UTC().Format(time.RFC3339)
+					decision.ExpiresAt = &value
+				}
+				decision.GrantID = accessGrantIDForDecision(decision)
+				decisions = append(decisions, decision)
+			}
+		}
+	}
+	return decisions
 }
 
 func accessDecisionExpiry(effective []authz.EffectivePermission, permission, evidenceRef string) *string {
