@@ -115,6 +115,8 @@ export const qk = {
   // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
   modelCatalog: () => o('model-catalog'),
   aiRuntimeCatalog: () => o('ai-runtime'),
+  accessOverview: (filters?: unknown) =>
+    filters === undefined ? o('access', 'overview') : o('access', 'overview', filters ?? null),
   workspaceRepos: () => o('workspaceRepos'),
   repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),
   repoBranches: (repoId: string) => o('repoBranches', repoId),

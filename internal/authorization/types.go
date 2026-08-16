@@ -94,6 +94,7 @@ type EffectivePermission struct {
 	Delegatable  bool           `json:"delegatable,omitempty"`
 	RoleID       string         `json:"role_id,omitempty"`
 	AssignmentID string         `json:"assignment_id,omitempty"`
+	ExpiresAt    *time.Time     `json:"expires_at,omitempty"`
 }
 
 type EffectivePermissions struct {
@@ -145,6 +146,7 @@ type RoleAssignment struct {
 	ResourceID    string     `json:"resource_id"`
 	CreatedBy     string     `json:"created_by"`
 	CreatedAt     time.Time  `json:"created_at"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
 	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
 	RevokedBy     string     `json:"revoked_by,omitempty"`
 	RevokedReason string     `json:"revoked_reason,omitempty"`
@@ -184,6 +186,7 @@ type AssignmentInput struct {
 	SubjectRef SubjectRef    `json:"subject_ref"`
 	RoleID     string        `json:"role_id"`
 	Resource   ResourceScope `json:"resource"`
+	ExpiresAt  *time.Time    `json:"expires_at,omitempty"`
 }
 
 type RevokeInput struct {

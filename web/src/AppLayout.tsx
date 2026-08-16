@@ -115,6 +115,14 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     pathPrefixes: ['teams', 'agents', 'users', 'members'],
   },
   {
+    id: 'access',
+    label: 'Access',
+    short: 'Access',
+    defaultPath: 'access',
+    Icon: AccessIcon,
+    pathPrefixes: ['access'],
+  },
+  {
     id: 'reminders',
     label: 'Reminders',
     short: 'Remind',
@@ -195,6 +203,10 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'reminders':
       return [{ label: 'Reminders', items: [
         { to: p('reminders'), label: 'Reminders', Icon: ReminderIcon },
+      ] }];
+    case 'access':
+      return [{ label: 'Access', items: [
+        { to: p('access'), label: 'Access overview', Icon: AccessIcon },
       ] }];
     case 'system':
       return [{ label: 'System', items: [
@@ -1375,6 +1387,9 @@ function VersionIcon(): React.ReactElement {
 }
 function TeamsRailIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="4" rx="1" /><rect x="2.5" y="12.5" width="5" height="4" rx="1" /><rect x="12.5" y="12.5" width="5" height="4" rx="1" /><path d="M10 6.5v2.5M5 12.5v-1.5h10v1.5" strokeLinecap="round" /></svg>);
+}
+function AccessIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="8.5" width="12" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" strokeLinecap="round" /><path d="M10 12v1.8" strokeLinecap="round" /></svg>);
 }
 function TrashIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" /></svg>);

@@ -12,6 +12,7 @@ const MODULES: ReadonlyArray<TabBarModule> = [
   { id: 'workspace', label: 'Workspace', short: 'Work', defaultPath: 'projects', Icon: Dot },
   { id: 'conversations', label: 'Conversations', short: 'Chat', defaultPath: 'channels', Icon: Dot },
   { id: 'teamui', label: 'Teams', short: 'Teams', defaultPath: 'teams', Icon: Dot },
+  { id: 'access', label: 'Access', short: 'Access', defaultPath: 'access', Icon: Dot },
   { id: 'system', label: 'System', short: 'System', defaultPath: 'environment', Icon: Dot },
 ];
 
@@ -36,12 +37,13 @@ function renderBar(
 describe('MobileTabBar (v2.10.1 [M1] mobile bottom nav)', () => {
   afterEach(() => cleanup());
 
-  it('renders the four module tabs linking to their default pages', () => {
+  it('renders module tabs linking to their default pages', () => {
     renderBar('conversations');
     const bar = screen.getByTestId('mobile-tabbar');
     expect(within(bar).getByTestId('tab-workspace')).toHaveAttribute('href', '/projects');
     expect(within(bar).getByTestId('tab-conversations')).toHaveAttribute('href', '/channels');
     expect(within(bar).getByTestId('tab-teamui')).toHaveAttribute('href', '/teams');
+    expect(within(bar).getByTestId('tab-access')).toHaveAttribute('href', '/access');
     expect(within(bar).getByTestId('tab-system')).toHaveAttribute('href', '/environment');
   });
 

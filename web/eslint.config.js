@@ -97,7 +97,7 @@ export default [
           // ux-standards §1a: a checkbox-typed <input> is banned except for the
           // two allowlisted idioms (table row-select, destructive-confirm ack).
           selector:
-            'JSXOpeningElement[name.name="input"]:has(JSXAttribute[name.name="type"][value.value="checkbox"]):not(:has(JSXAttribute[name.name="data-testid"][value.value=/^(agents-select-all|agent-select-checkbox|agent-reset-confirm|ai-runtime-select-all-(models|clis)|ai-runtime-select-(model|cli))$/]))',
+            'JSXOpeningElement[name.name="input"]:has(JSXAttribute[name.name="type"][value.value="checkbox"]):not(:has(JSXAttribute[name.name="data-testid"][value.value=/^(agents-select-all|agent-select-checkbox|agent-reset-confirm|ai-runtime-select-all-(models|clis)|ai-runtime-select-(model|cli)|access-grant-select|access-high-risk-ack)$/]))',
           message:
             'A checkbox is banned for entity multi-pick or a boolean setting (ux-standards §1a). Use EntityMultiSelect (dropdown + chips) for multi-pick, or a role="switch" toggle for a boolean. The only allowlisted checkboxes are table row-selection and destructive-action acknowledgment.',
         },

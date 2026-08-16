@@ -197,7 +197,53 @@ func (s *Service) auditEventInOrg(ctx context.Context, e AuditEvent, orgID strin
 }
 
 func (s *Service) PreviewBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
-	return s.runBatch(ctx, req, true)
+	if s == nil || s.db == nil {
+		return BatchResult{}, errors.New("authorization service: nil db")
+	}
+	var out BatchResult
+	rollbackPreview := errors.New("authorization: rollback preview")
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		req.ActorRef = SubjectRef(strings.TrimSpace(string(req.ActorRef)))
+		req.OrgID = strings.TrimSpace(req.OrgID)
+		if req.ActorRef == "" || req.OrgID == "" {
+			return fmt.Errorf("%w: actor_ref and org_id required", ErrInvalid)
+		}
+		if err := req.ActorRef.Validate(); err != nil {
+			return err
+		}
+		out = BatchResult{IdempotencyKey: req.IdempotencyKey, Preview: true}
+		for _, op := range req.Operations {
+			result, err := s.runOperation(txCtx, req.ActorRef, req.OrgID, op)
+			if err != nil {
+				out.Operations = append(out.Operations, OperationResult{ID: op.ID, Type: op.Type, Status: "denied", Reason: err.Error()})
+				continue
+			}
+			result.Status = previewStatus(result.Status)
+			out.Operations = append(out.Operations, result)
+		}
+		return rollbackPreview
+	})
+	if errors.Is(err, rollbackPreview) {
+		return out, nil
+	}
+	return BatchResult{}, err
+}
+
+func previewStatus(status string) string {
+	switch status {
+	case "created":
+		return "would_create"
+	case "updated":
+		return "would_update"
+	case "set":
+		return "would_set"
+	case "revoked":
+		return "would_revoke"
+	case "unchanged":
+		return "would_leave_unchanged"
+	default:
+		return "would_" + status
+	}
 }
 
 func (s *Service) ApplyBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
@@ -220,7 +266,7 @@ func (s *Service) ApplyBatch(ctx context.Context, req BatchRequest) (BatchResult
 			out.Replayed = true
 			return nil
 		}
-		res, err := s.runBatchInTx(txCtx, req, false)
+		res, err := s.runBatchInTx(txCtx, req)
 		if err != nil {
 			return err
 		}
@@ -244,20 +290,7 @@ func (s *Service) RevokeBatch(ctx context.Context, req BatchRequest) (BatchResul
 	return s.ApplyBatch(ctx, req)
 }
 
-func (s *Service) runBatch(ctx context.Context, req BatchRequest, preview bool) (BatchResult, error) {
-	if s == nil || s.db == nil {
-		return BatchResult{}, errors.New("authorization service: nil db")
-	}
-	var out BatchResult
-	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		var err error
-		out, err = s.runBatchInTx(txCtx, req, preview)
-		return err
-	})
-	return out, err
-}
-
-func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest, preview bool) (BatchResult, error) {
+func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest) (BatchResult, error) {
 	req.ActorRef = SubjectRef(strings.TrimSpace(string(req.ActorRef)))
 	req.OrgID = strings.TrimSpace(req.OrgID)
 	if req.ActorRef == "" || req.OrgID == "" {
@@ -266,15 +299,10 @@ func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest, preview bo
 	if err := req.ActorRef.Validate(); err != nil {
 		return BatchResult{}, err
 	}
-	res := BatchResult{IdempotencyKey: req.IdempotencyKey, Preview: preview}
+	res := BatchResult{IdempotencyKey: req.IdempotencyKey}
 	for _, op := range req.Operations {
-		or, err := s.runOperation(ctx, req.ActorRef, req.OrgID, op, preview)
+		or, err := s.runOperation(ctx, req.ActorRef, req.OrgID, op)
 		if err != nil {
-			if preview {
-				or = OperationResult{ID: op.ID, Type: op.Type, Status: "denied", Reason: err.Error()}
-				res.Operations = append(res.Operations, or)
-				continue
-			}
 			return BatchResult{}, err
 		}
 		res.Operations = append(res.Operations, or)
@@ -282,7 +310,7 @@ func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest, preview bo
 	return res, nil
 }
 
-func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID string, op BatchOperation, preview bool) (OperationResult, error) {
+func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID string, op BatchOperation) (OperationResult, error) {
 	switch strings.TrimSpace(op.Type) {
 	case "upsert_role":
 		if err := s.requireManageRBAC(ctx, actor, orgID); err != nil {
@@ -291,9 +319,6 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		id := strings.TrimSpace(op.Role.ID)
 		if id == "" {
 			id = "role-" + shortHash(orgID+"|"+op.Role.Name)
-		}
-		if preview {
-			return OperationResult{ID: op.ID, Type: op.Type, Status: "would_upsert", RoleID: id}, nil
 		}
 		role, status, err := s.store.upsertCustomRole(ctx, Role{
 			ID:          id,
@@ -322,13 +347,17 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if roleID == "" {
 			return OperationResult{}, fmt.Errorf("%w: role id required", ErrInvalid)
 		}
+		role, err := s.store.getRole(ctx, roleID)
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if role.Kind == "custom" && role.OrgID != orgID {
+			return OperationResult{}, fmt.Errorf("%w: role belongs to another org", ErrNotFound)
+		}
 		for _, p := range op.Permissions {
 			if !PermissionDefinedForResource(p.PermissionKey, p.ResourceKind) {
 				return OperationResult{}, fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, p.PermissionKey, p.ResourceKind)
 			}
-		}
-		if preview {
-			return OperationResult{ID: op.ID, Type: op.Type, Status: "would_set", RoleID: roleID}, nil
 		}
 		if err := s.store.replaceRolePermissions(ctx, roleID, op.Permissions, s.clock.Now()); err != nil {
 			return OperationResult{}, err
@@ -354,15 +383,23 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err := op.Assignment.SubjectRef.Validate(); err != nil {
 			return OperationResult{}, err
 		}
+		resolved, _, err := s.resolveResource(ctx, op.Assignment.Resource)
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if resolved.OrgID == "" || resolved.OrgID != orgID {
+			return OperationResult{}, fmt.Errorf("%w: assignment resource belongs to another org", ErrNotFound)
+		}
+		op.Assignment.Resource = resolved
+		if err := s.requireAssignmentSubjectApplicable(ctx, op.Assignment.SubjectRef, roleID, resolved); err != nil {
+			return OperationResult{}, err
+		}
 		if err := s.requireDelegatableRole(ctx, actor, roleID, op.Assignment.Resource); err != nil {
 			return OperationResult{}, err
 		}
 		assignID := strings.TrimSpace(op.Assignment.ID)
 		if assignID == "" {
 			assignID = "asgn-" + shortHash(orgID+"|"+string(op.Assignment.SubjectRef)+"|"+roleID+"|"+kind+"|"+resourceID)
-		}
-		if preview {
-			return OperationResult{ID: op.ID, Type: op.Type, Status: "would_assign", RoleID: roleID, AssignmentID: assignID}, nil
 		}
 		a, status, err := s.store.assignRole(ctx, RoleAssignment{
 			ID:           assignID,
@@ -372,6 +409,7 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 			ResourceKind: kind,
 			ResourceID:   resourceID,
 			CreatedBy:    string(actor),
+			ExpiresAt:    op.Assignment.ExpiresAt,
 		}, s.clock.Now())
 		if err != nil {
 			return OperationResult{}, err
@@ -384,9 +422,6 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 	case "revoke_assignment":
 		if err := s.requireRevokeAllowed(ctx, actor, orgID, op.Revoke); err != nil {
 			return OperationResult{}, err
-		}
-		if preview {
-			return OperationResult{ID: op.ID, Type: op.Type, Status: "would_revoke", AssignmentID: op.Revoke.AssignmentID}, nil
 		}
 		a, status, err := s.store.revokeAssignment(ctx, op.Revoke, actor, orgID, s.clock.Now())
 		if err != nil {
@@ -460,6 +495,39 @@ func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, 
 	return nil
 }
 
+var agentForbiddenPermissions = map[PermissionKey]struct{}{
+	"org.settings.manage":    {},
+	"org.lifecycle.manage":   {},
+	"org.member.role.manage": {},
+	"org.member.disable":     {},
+	"admin_token.manage":     {},
+	"secret.resolve":         {},
+}
+
+func (s *Service) requireAssignmentSubjectApplicable(ctx context.Context, subject SubjectRef, roleID string, resource ResourceScope) error {
+	if !(subject.IsUser() || subject.IsAgent()) {
+		return fmt.Errorf("%w: role assignments require a human or agent subject", ErrInvalid)
+	}
+	if _, ok, err := s.orgMember(ctx, resource.OrgID, subject); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("%w: assignment subject is not a joined org member", ErrNotFound)
+	}
+	if !subject.IsAgent() {
+		return nil
+	}
+	perms, err := s.store.rolePermissions(ctx, roleID)
+	if err != nil {
+		return err
+	}
+	for _, p := range perms {
+		if _, forbidden := agentForbiddenPermissions[p.PermissionKey]; forbidden {
+			return fmt.Errorf("%w: agents cannot receive high-risk permission %s", ErrInvalid, p.PermissionKey)
+		}
+	}
+	return nil
+}
+
 func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, orgID string, in RevokeInput) error {
 	target, err := s.resolveRevokeTarget(ctx, orgID, in)
 	if err != nil {
@@ -467,6 +535,15 @@ func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, or
 	}
 	if target.OrgID != strings.TrimSpace(orgID) {
 		return ErrNotFound
+	}
+	if target.RoleID == "sys-org-owner" {
+		remaining, err := s.remainingOrgOwners(ctx, orgID, target.ID)
+		if err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return fmt.Errorf("%w: cannot revoke the last organization owner", ErrConflict)
+		}
 	}
 	if actor == "system" {
 		return nil
@@ -508,6 +585,22 @@ func (s *Service) resolveRevokeTarget(ctx context.Context, orgID string, in Revo
 		return RoleAssignment{}, ErrNotFound
 	}
 	return target, nil
+}
+
+func (s *Service) remainingOrgOwners(ctx context.Context, orgID, excludingAssignmentID string) (int, error) {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var legacy, assigned int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE organization_id = ? AND role = 'owner' AND status = 'joined'`, orgID).Scan(&legacy); err != nil {
+		return 0, err
+	}
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments
+		WHERE org_id = ? AND role_id = 'sys-org-owner' AND id <> ? AND revoked_at IS NULL`, orgID, excludingAssignmentID).Scan(&assigned); err != nil {
+		return 0, err
+	}
+	return legacy + assigned, nil
 }
 
 func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
@@ -963,6 +1056,9 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 		return err
 	}
 	for _, a := range assignments {
+		if a.ExpiresAt != nil && !a.ExpiresAt.After(s.clock.Now()) {
+			continue
+		}
 		perms, err := s.store.rolePermissions(ctx, a.RoleID)
 		if err != nil {
 			return err
@@ -978,6 +1074,7 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 				Delegatable:  p.Delegatable,
 				RoleID:       a.RoleID,
 				AssignmentID: a.ID,
+				ExpiresAt:    a.ExpiresAt,
 			})
 		}
 	}
