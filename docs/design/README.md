@@ -28,6 +28,7 @@
 
 当前功能设计：
 
+- [Access Management Redesign API / Security / Migration Contract](features/2026-08-17-access-management-redesign.md)
 - [Team Rule Registry：索引常驻、正文按需加载](features/2026-08-13-team-rule-registry.md)
 - [Access 管理页与角色治理改造方案](features/2026-08-17-access-management-redesign.md)
 

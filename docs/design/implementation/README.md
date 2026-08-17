@@ -14,5 +14,6 @@
 | 04 | [配置文件 schema](04-configuration.md) | Draft |
 | 05 | [Agent CLI Adapters](05-agent-adapters.md) | Draft |
 | 06 | [部署 / systemd / 升级](06-deployment.md) | Draft |
+| 07 | [Access Redesign Implementation Protocol](07-access-redesign-protocol.md) | Frozen |
 
 按需添加。
