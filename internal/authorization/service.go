@@ -1269,6 +1269,9 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 	case "team":
 		orgID, err := s.teamOrg(ctx, r.ID)
 		if err != nil {
+			if r.OrgID != "" && r.OwnerRef == "pending_team_instantiation:"+r.OrgID+":"+r.ID {
+				return r, nil, nil
+			}
 			return r, []string{"team not found"}, err
 		}
 		if r.OrgID != "" && r.OrgID != orgID {

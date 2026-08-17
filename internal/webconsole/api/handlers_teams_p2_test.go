@@ -293,6 +293,18 @@ func TestInstantiateTeamPreviewApplyCreatesProfileAssignmentsOnlyAfterConfirm(t 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("delete revoke preview = %d body=%v, want 200", resp.StatusCode, decodeBody(t, resp))
 	}
+	revokePreview := decodeBody(t, resp)
+	resp = orgScopedDelete(t, ts.URL+"/api/teams/"+teamID+"?preview_request_id="+revokePreview["request_id"].(string)+"&idempotency_key=idem-delete-profile-team", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete with revoke preview = %d body=%v, want 200", resp.StatusCode, decodeBody(t, resp))
+	}
+	var remainingTeams, activeAssignments int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM teams WHERE id = ?`, teamID).Scan(&remainingTeams); err != nil || remainingTeams != 0 {
+		t.Fatalf("team remained count=%d err=%v", remainingTeams, err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE org_id = ? AND resource_id = ? AND revoked_at IS NULL`, sess.OrgID, teamID).Scan(&activeAssignments); err != nil || activeAssignments != 0 {
+		t.Fatalf("active assignments after delete=%d err=%v", activeAssignments, err)
+	}
 }
 
 func TestInstantiateTeam_ProfileBackedLegacyPathRequiresPreview(t *testing.T) {
@@ -331,6 +343,109 @@ func TestInstantiateTeamPreviewRejectsMembershipDerivedProfilePermission(t *test
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("preview membership-derived profile = %d body=%v, want 422", resp.StatusCode, decodeBody(t, resp))
 	}
+}
+
+func TestInstantiateTeamApplyRejectsTamperedAssignmentsAndDoesNotCreateTeam(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	seedAccessProfile(t, db, sess.OrgID, "profile-review", 1, []authz.RolePermissionInput{{PermissionKey: "team.memory.review", ResourceKind: "team"}})
+
+	body := `{"team_name":"Tamper Squad","roles":[
+		{"role":"curator","cli":"codex","model":"gpt-5","max_concurrency":1,"count":1,"tags":"review",
+		 "access_profiles":[{"profile_id":"profile-review","version":1,"mode":"default"}]}
+	],"assignments":[{"subject_ref":"user:` + sess.IdentityID + `","role":"curator"}]}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/instantiate/preview", body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	preview := decodeBody(t, resp)
+	tampered := strings.Replace(body, `"subject_ref":"user:`+sess.IdentityID+`"`, `"subject_ref":"user:tampered"`, 1)
+	applyBody := strings.TrimSuffix(tampered, "}") + `,"preview_request_id":"` + preview["request_id"].(string) + `","idempotency_key":"idem-tamper"}`
+	resp = orgScopedPost(t, ts.URL+"/api/teams/instantiate/apply", applyBody, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("tampered apply = %d body=%v, want 409", resp.StatusCode, decodeBody(t, resp))
+	}
+	var teams int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM teams WHERE org_id = ? AND name = 'Tamper Squad'`, sess.OrgID).Scan(&teams); err != nil || teams != 0 {
+		t.Fatalf("tampered apply created team count=%d err=%v", teams, err)
+	}
+}
+
+func TestInstantiateTeamApplyRejectsProfilePermissionDrift(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	seedAccessProfile(t, db, sess.OrgID, "profile-drift", 1, []authz.RolePermissionInput{{PermissionKey: "team.memory.review", ResourceKind: "team"}})
+
+	body := `{"team_name":"Drift Squad","roles":[
+		{"role":"curator","cli":"codex","model":"gpt-5","max_concurrency":1,"count":1,"tags":"review",
+		 "access_profiles":[{"profile_id":"profile-drift","version":1,"mode":"default"}]}
+	],"assignments":[{"subject_ref":"user:` + sess.IdentityID + `","role":"curator"}]}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/instantiate/preview", body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	preview := decodeBody(t, resp)
+	perms, _ := json.Marshal([]authz.RolePermissionInput{{PermissionKey: "file.download", ResourceKind: "file"}})
+	if _, err := db.Exec(`UPDATE access_profile_versions SET permissions_json = ? WHERE org_id = ? AND profile_id = 'profile-drift' AND version = 1`, string(perms), sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	applyBody := strings.TrimSuffix(body, "}") + `,"preview_request_id":"` + preview["request_id"].(string) + `","idempotency_key":"idem-drift"}`
+	resp = orgScopedPost(t, ts.URL+"/api/teams/instantiate/apply", applyBody, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("drift apply = %d body=%v, want 409", resp.StatusCode, decodeBody(t, resp))
+	}
+}
+
+func TestResolveRoleAccessProfilePermissionsModes(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	seedAccessProfile(t, db, sess.OrgID, "profile-default", 1, []authz.RolePermissionInput{{PermissionKey: "team.memory.review", ResourceKind: "team"}})
+	seedAccessProfile(t, db, sess.OrgID, "profile-extra", 1, []authz.RolePermissionInput{{PermissionKey: "file.download", ResourceKind: "file"}})
+	seedAccessProfile(t, db, sess.OrgID, "profile-override", 1, []authz.RolePermissionInput{{PermissionKey: "org.settings.manage", ResourceKind: "org"}})
+
+	perms, _, err := resolveRoleAccessProfilePermissions(context.Background(), deps, sess.OrgID, []team.AccessProfileRef{
+		{ProfileID: "profile-default", Version: 1, Mode: team.AccessProfileDefault},
+		{ProfileID: "profile-extra", Version: 1, Mode: team.AccessProfileAdditional},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := permissionKeys(perms); strings.Join(got, ",") != "file.download,team.memory.review" {
+		t.Fatalf("default+additional perms = %v", got)
+	}
+	perms, _, err = resolveRoleAccessProfilePermissions(context.Background(), deps, sess.OrgID, []team.AccessProfileRef{
+		{ProfileID: "profile-default", Version: 1, Mode: team.AccessProfileDefault},
+		{ProfileID: "profile-extra", Version: 1, Mode: team.AccessProfileAdditional},
+		{ProfileID: "profile-override", Version: 1, Mode: team.AccessProfileOverride},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := permissionKeys(perms); strings.Join(got, ",") != "org.settings.manage" {
+		t.Fatalf("override perms = %v", got)
+	}
+}
+
+func seedAccessProfile(t *testing.T, db *sql.DB, orgID, profileID string, version int, permissions []authz.RolePermissionInput) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO access_profiles (id, org_id, name, created_at, updated_at)
+		VALUES (?, ?, ?, datetime('now'), datetime('now'))`, profileID, orgID, profileID); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	perms, _ := json.Marshal(permissions)
+	if _, err := db.Exec(`INSERT INTO access_profile_versions (org_id, profile_id, version, role_id, permissions_json, created_at)
+		VALUES (?, ?, ?, ?, ?, datetime('now'))`, orgID, profileID, version, "role-"+profileID, string(perms)); err != nil {
+		t.Fatalf("seed profile version: %v", err)
+	}
+}
+
+func permissionKeys(perms []authz.RolePermissionInput) []string {
+	out := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		out = append(out, string(perm.PermissionKey))
+	}
+	return out
 }
 
 // --- team templates ----------------------------------------------------------

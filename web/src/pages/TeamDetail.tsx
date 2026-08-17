@@ -8,6 +8,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useOptionalOrgContext } from '@/OrgContext';
 import {
   useAssociateProject,
+  useDeleteTeam,
   useDisassociateProject,
   useDirectoryAgents,
   useRemoveMember,
@@ -53,6 +54,11 @@ import {
   roleColorChip,
 } from '@/components/teams/teamsUi';
 import { roleColor, type TeamView } from '@/api/teams';
+
+interface RevokePreview {
+  request_id: string;
+  operations: Array<{ id: string; status: string; assignment_id?: string }>;
+}
 
 export default function TeamDetail(): React.ReactElement {
   const { t } = useTranslation('teams');
@@ -195,6 +201,8 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     max_concurrency: role.max_concurrency,
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),
+    access_profiles: role.access_profiles ?? [],
+    access_requirements: role.access_requirements ?? [],
   })));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
@@ -242,6 +250,7 @@ function MembersPane({
   const remove = useRemoveMember();
   const [adding, setAdding] = useState(false);
   const [removingRef, setRemovingRef] = useState<string | null>(null);
+  const [removePreview, setRemovePreview] = useState<RevokePreview | null>(null);
 
   return (
     <div>
@@ -310,7 +319,16 @@ function MembersPane({
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
                     <td className="px-4 py-3 text-right">
-                      <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => setRemovingRef(m.member_ref)}>
+                      <button
+                        type="button"
+                        className={btnSmDanger}
+                        data-testid={`member-remove-${m.member_ref}`}
+                        onClick={async () => {
+                          setRemovingRef(m.member_ref);
+                          const preview = await remove.mutateAsync({ team_id: teamId, member_ref: m.member_ref, preview: true }) as RevokePreview;
+                          setRemovePreview(preview);
+                        }}
+                      >
                         {t('teamDetail.members.remove')}
                       </button>
                     </td>
@@ -328,14 +346,22 @@ function MembersPane({
       <ConfirmModal
         open={removingRef !== null}
         title={t('teamDetail.members.removeTitle')}
-        message={removingRef ? t('teamDetail.members.removeMessage', { ref: removingRef }) : undefined}
+        message={removingRef ? `${t('teamDetail.members.removeMessage', { ref: removingRef })} ${t('teamDetail.members.revokePreview', { defaultValue: 'Authorization revokes pending: {{count}}.', count: removePreview?.operations?.length ?? 0 })}` : undefined}
         confirmLabel={t('teamDetail.members.removeConfirm')}
         danger
         busy={remove.isPending}
-        onCancel={() => setRemovingRef(null)}
-        onConfirm={async () => {
-          if (removingRef) await remove.mutateAsync({ team_id: teamId, member_ref: removingRef });
+        onCancel={() => {
           setRemovingRef(null);
+          setRemovePreview(null);
+        }}
+        onConfirm={async () => {
+          if (removingRef && removePreview?.request_id) {
+            await remove.mutateAsync({ team_id: teamId, member_ref: removingRef, preview_request_id: removePreview.request_id, idempotency_key: crypto.randomUUID() });
+          } else if (removingRef) {
+            await remove.mutateAsync({ team_id: teamId, member_ref: removingRef });
+          }
+          setRemovingRef(null);
+          setRemovePreview(null);
         }}
       />
     </div>
@@ -534,13 +560,17 @@ function ProjectPickerModal({
 
 function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const navigate = useNavigate();
+  const org = useOptionalOrgContext();
   const settings = useTeamMemorySettings(team.id);
   const agents = useDirectoryAgents();
   const update = useUpdateTeamMemorySettings(team.id);
+  const deleteTeam = useDeleteTeam();
   const canManage = team.memory_permissions?.can_manage === true;
   const [policy, setPolicy] = useState<TeamMemoryPolicy>('owner_admin_review');
   const [curators, setCurators] = useState<string[]>([]);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<RevokePreview | null>(null);
   const curatorPolicyActive = policy === 'curator_review';
 
   useEffect(() => {
@@ -651,7 +681,35 @@ function TeamSettingsPane({ team }: { team: TeamView }): React.ReactElement {
           <p>{t('teamDetail.settings.agentSelfGrant')}</p>
           <p>{t('teamDetail.settings.reviewSurface')}</p>
         </div>
+        <div className="mt-4 border-t border-border-base pt-4">
+          <button
+            type="button"
+            className={btnSmDanger}
+            data-testid="team-delete-preview"
+            onClick={async () => {
+              const preview = await deleteTeam.mutateAsync({ id: team.id, preview: true }) as RevokePreview;
+              setDeletePreview(preview);
+            }}
+          >
+            {t('teamDetail.settings.deleteTeam', { defaultValue: 'Delete team' })}
+          </button>
+        </div>
       </Card>
+      <ConfirmModal
+        open={deletePreview !== null}
+        title={t('teamDetail.settings.deleteTitle', { defaultValue: 'Delete team' })}
+        message={t('teamDetail.settings.deleteMessage', { defaultValue: 'This will revoke {{count}} custom assignments before deleting the team.', count: deletePreview?.operations?.length ?? 0 })}
+        confirmLabel={t('teamDetail.settings.deleteConfirm', { defaultValue: 'Delete team' })}
+        danger
+        busy={deleteTeam.isPending}
+        onCancel={() => setDeletePreview(null)}
+        onConfirm={async () => {
+          if (!deletePreview?.request_id) return;
+          await deleteTeam.mutateAsync({ id: team.id, preview_request_id: deletePreview.request_id, idempotency_key: crypto.randomUUID() });
+          setDeletePreview(null);
+          navigate(`${org ? `/organizations/${org.slug}` : ''}/teams`);
+        }}
+      />
     </div>
   );
 }

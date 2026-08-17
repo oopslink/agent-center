@@ -467,6 +467,12 @@ func writeAuthorizationError(w http.ResponseWriter, decision authz.AccessDecisio
 	case errors.Is(err, authz.ErrConflict), errors.Is(err, authz.ErrIdempotencyConflict):
 		status = http.StatusConflict
 		code = "authorization_conflict"
+	case errors.Is(err, authz.ErrPreviewStale), errors.Is(err, authz.ErrPreviewExpired), errors.Is(err, authz.ErrPreviewConsumed):
+		status = http.StatusConflict
+		code = "preview_stale"
+	case errors.Is(err, authz.ErrPreviewNotFound):
+		status = http.StatusNotFound
+		code = "preview_not_found"
 	case errors.Is(err, authz.ErrIdempotencyRequired):
 		status = http.StatusBadRequest
 		code = "idempotency_required"

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sort"
@@ -10,10 +11,13 @@ import (
 
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
+
+var errTeamResponseWritten = errors.New("team response already written")
 
 // Team WebUI Phase-1 facade — browser-facing REST under /api/orgs/{slug}/teams/...
 // (plan-32dd9107). Response JSON is field-for-field the TS types in
@@ -445,6 +449,10 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(ri.Role) == "" {
 			continue
 		}
+		if len(ri.AccessProfiles) > 0 || len(ri.AccessRequirements) > 0 {
+			writeError(w, http.StatusConflict, "preview_required", "team access profiles require /teams/instantiate/preview then /teams/instantiate/apply")
+			return
+		}
 		roles = append(roles, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
 			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
@@ -479,10 +487,22 @@ func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 		mapTeamWebError(w, err)
 		return
 	}
-	if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, team.TeamID(r.PathValue("id")), ""); handled || !ok {
-		return
+	if r.URL.Query().Get("preview") == "true" || r.URL.Query().Get("preview_request_id") == "" {
+		if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, team.TeamID(r.PathValue("id")), ""); handled || !ok {
+			return
+		}
 	}
-	if err := d.TeamService.DeleteTeam(r.Context(), team.TeamID(r.PathValue("id"))); err != nil {
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		txReq := r.WithContext(txCtx)
+		if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, txReq, d, orgID, team.TeamID(r.PathValue("id")), ""); handled || !ok {
+			return errTeamResponseWritten
+		}
+		return d.TeamService.DeleteTeam(txCtx, team.TeamID(r.PathValue("id")))
+	})
+	if err != nil {
+		if errors.Is(err, errTeamResponseWritten) {
+			return
+		}
 		mapTeamWebError(w, err)
 		return
 	}
@@ -624,10 +644,22 @@ func (s *Server) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	ref := team.MemberRef(r.PathValue("ref"))
-	if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, t.ID(), ref.String()); handled || !ok {
-		return
+	if r.URL.Query().Get("preview") == "true" || r.URL.Query().Get("preview_request_id") == "" {
+		if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, t.ID(), ref.String()); handled || !ok {
+			return
+		}
 	}
-	if err := d.TeamService.RemoveMember(r.Context(), t.ID(), ref); err != nil {
+	err = persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		txReq := r.WithContext(txCtx)
+		if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, txReq, d, orgID, t.ID(), ref.String()); handled || !ok {
+			return errTeamResponseWritten
+		}
+		return d.TeamService.RemoveMember(txCtx, t.ID(), ref)
+	})
+	if err != nil {
+		if errors.Is(err, errTeamResponseWritten) {
+			return
+		}
 		mapTeamWebError(w, err)
 		return
 	}

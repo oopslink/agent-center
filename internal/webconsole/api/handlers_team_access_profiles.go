@@ -4,11 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"sort"
 	"strings"
+	"time"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
@@ -48,11 +53,20 @@ func (s *Server) instantiateTeamPreviewHandler(w http.ResponseWriter, r *http.Re
 		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
 		return
 	}
-	for i := range ops {
-		ops[i].Type = strings.TrimSpace(ops[i].Type)
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	batch := authz.BatchRequest{ActorRef: authz.UserSubject(caller.ID()), OrgID: orgID, Operations: ops}
+	preview, err := svc.PreviewBatch(r.Context(), batch)
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID}}, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"request_id": "team-instantiate-preview-" + accessHash(orgID+"|"+req.TemplateID+"|"+req.TeamName+"|"+teamID.String()),
+		"request_id": preview.PreviewID,
+		"expires_at": preview.ExpiresAt,
 		"team": map[string]any{
 			"id":               teamID.String(),
 			"org_id":           orgID,
@@ -62,8 +76,8 @@ func (s *Server) instantiateTeamPreviewHandler(w http.ResponseWriter, r *http.Re
 			"template_id":      req.TemplateID,
 			"assignments_only": true,
 		},
-		"candidate_assignments": previewOperationResults(ops),
-		"operations":            ops,
+		"candidate_assignments": previewAuthzResults(preview.Operations),
+		"operations":            preview.Operations,
 	})
 }
 
@@ -87,42 +101,82 @@ func (s *Server) instantiateTeamApplyHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	teamID := pendingTeamID(orgID, req.TemplateID, req.TeamName, roles)
-	expected := "team-instantiate-preview-" + accessHash(orgID+"|"+req.TemplateID+"|"+req.TeamName+"|"+teamID.String())
-	if req.PreviewRequestID != expected {
-		writeError(w, http.StatusConflict, "preview_stale", "preview_request_id does not match the current team instantiation request")
-		return
-	}
-	t, err := d.TeamService.CreateTeam(r.Context(), teamservice.CreateTeamInput{
-		ID: teamID, OrgID: orgID, Name: req.TeamName, Roles: roles,
-	})
-	if err != nil {
-		mapTeamWebError(w, err)
-		return
-	}
 	ops, err := s.teamAccessAssignmentOps(r.Context(), d, orgID, authz.UserSubject(caller.ID()), teamID, roles, req.Assignments)
 	if err != nil {
 		mapTeamWebError(w, err)
 		return
 	}
-	if len(ops) > 0 {
-		svc := permissionAuthorizer(d)
-		if svc == nil {
-			writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
-			return
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	currentBatch := authz.BatchRequest{ActorRef: authz.UserSubject(caller.ID()), OrgID: orgID, Operations: ops}
+	storedPreview, err := teamStoredPreview(r.Context(), d, req.PreviewRequestID)
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID}}, err)
+		return
+	}
+	if !sameTeamPreviewBatch(storedPreview.Batch, currentBatch) {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID}}, authz.ErrPreviewStale)
+		return
+	}
+	idem := strings.TrimSpace(req.IdempotencyKey)
+	if idem == "" {
+		idem = "team-instantiate-apply-" + accessHash(orgID+"|"+req.PreviewRequestID)
+	}
+	var t *team.Team
+	err = persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		applyReq := storedPreview.Batch
+		applyReq.IdempotencyKey = idem
+		applyReq.PreviewID = req.PreviewRequestID
+		if _, err := svc.ApplyBatch(txCtx, applyReq); err != nil {
+			return err
 		}
-		idem := strings.TrimSpace(req.IdempotencyKey)
-		if idem == "" {
-			idem = "team-instantiate-apply-" + accessHash(orgID+"|"+req.PreviewRequestID)
+		if err := markTeamPreviewApplied(txCtx, d, req.PreviewRequestID, idem); err != nil {
+			return err
 		}
-		if _, err := svc.ApplyBatch(r.Context(), authz.BatchRequest{IdempotencyKey: idem, ActorRef: authz.UserSubject(caller.ID()), OrgID: orgID, Operations: ops}); err != nil {
+		created, err := d.TeamService.CreateTeam(txCtx, teamservice.CreateTeamInput{
+			ID: teamID, OrgID: orgID, Name: req.TeamName, Roles: roles,
+		})
+		if err != nil {
+			return err
+		}
+		t = created
+		return nil
+	})
+	if err != nil {
+		if isAuthorizationApplyError(err) {
 			writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID}}, err)
 			return
 		}
+		mapTeamWebError(w, err)
+		return
 	}
 	if req.TemplateID != "" {
 		s.teamTemplates.addInstance(orgID, req.TemplateID, string(t.ID()))
 	}
 	writeJSON(w, http.StatusCreated, withMemoryPermissions(instantiatedTeamView(t, countByRole), member.Role(), teamMemoryConfigured(d)))
+}
+
+func isAuthorizationApplyError(err error) bool {
+	return errors.Is(err, authz.ErrDenied) ||
+		errors.Is(err, authz.ErrUnauthenticated) ||
+		errors.Is(err, authz.ErrNotFound) ||
+		errors.Is(err, authz.ErrInvalid) ||
+		errors.Is(err, authz.ErrConflict) ||
+		errors.Is(err, authz.ErrNotDelegatable) ||
+		errors.Is(err, authz.ErrPermissionUndefined) ||
+		errors.Is(err, authz.ErrRoleNotFound) ||
+		errors.Is(err, authz.ErrAssignmentNotFound) ||
+		errors.Is(err, authz.ErrSystemRoleImmutable) ||
+		errors.Is(err, authz.ErrIdempotencyRequired) ||
+		errors.Is(err, authz.ErrIdempotencyConflict) ||
+		errors.Is(err, authz.ErrPreviewRequired) ||
+		errors.Is(err, authz.ErrPreviewNotFound) ||
+		errors.Is(err, authz.ErrPreviewExpired) ||
+		errors.Is(err, authz.ErrPreviewStale) ||
+		errors.Is(err, authz.ErrPreviewConsumed)
 }
 
 func (s *Server) instantiateRolesFromRequest(w http.ResponseWriter, r *http.Request, d HandlerDeps, orgID, templateID string, input []roleInputReq) ([]team.RoleConfig, map[string]int, bool) {
@@ -162,14 +216,10 @@ func rolePreviewViews(roles []team.RoleConfig, countByRole map[string]int) []map
 	return out
 }
 
-func previewOperationResults(ops []authz.BatchOperation) []map[string]any {
-	out := make([]map[string]any, 0, len(ops))
-	for _, op := range ops {
-		status := "would_" + strings.TrimPrefix(op.Type, "upsert_")
-		if op.Type == "assign_role" {
-			status = "would_create"
-		}
-		out = append(out, map[string]any{"id": op.ID, "type": op.Type, "status": status, "role_id": op.Assignment.RoleID, "subject_ref": op.Assignment.SubjectRef})
+func previewAuthzResults(results []authz.OperationResult) []map[string]any {
+	out := make([]map[string]any, 0, len(results))
+	for _, op := range results {
+		out = append(out, map[string]any{"id": op.ID, "type": op.Type, "status": op.Status, "role_id": op.RoleID, "assignment_id": op.AssignmentID, "reason": op.Reason})
 	}
 	return out
 }
@@ -183,25 +233,164 @@ func (s *Server) teamAccessAssignmentOps(ctx context.Context, d HandlerDeps, org
 		roleByName[rc.Role] = rc
 	}
 	var ops []authz.BatchOperation
+	type resolvedRole struct {
+		roleID string
+		perms  []authz.RolePermissionInput
+		refs   []team.AccessProfileRef
+	}
+	resolvedByRole := map[string]resolvedRole{}
+	for _, rc := range roles {
+		if len(rc.AccessProfiles) == 0 {
+			continue
+		}
+		perms, refs, err := resolveRoleAccessProfilePermissions(ctx, d, orgID, rc.AccessProfiles)
+		if err != nil {
+			return nil, err
+		}
+		body, _ := json.Marshal(struct {
+			TeamID string                      `json:"team_id"`
+			Role   string                      `json:"role"`
+			Refs   []team.AccessProfileRef     `json:"refs"`
+			Perms  []authz.RolePermissionInput `json:"permissions"`
+		}{TeamID: teamID.String(), Role: rc.Role, Refs: refs, Perms: perms})
+		roleID := "role-team-profile-" + accessHash(string(body))
+		resolvedByRole[rc.Role] = resolvedRole{roleID: roleID, perms: perms, refs: refs}
+		ops = append(ops,
+			authz.BatchOperation{ID: "profile-role-" + accessHash(teamID.String()+"|"+rc.Role), Type: "upsert_role", Role: authz.RoleInput{ID: roleID, Name: "Team " + teamID.String() + " " + rc.Role, Description: "Profile-backed team role " + string(mustJSON(refs))}},
+			authz.BatchOperation{ID: "profile-permissions-" + accessHash(teamID.String()+"|"+rc.Role), Type: "set_role_permissions", Role: authz.RoleInput{ID: roleID}, Permissions: perms},
+		)
+	}
 	for _, c := range candidates {
 		rc, ok := roleByName[strings.TrimSpace(c.Role)]
 		if !ok {
 			return nil, fmt.Errorf("%w: assignment candidate role not declared", team.ErrRoleNotDeclared)
 		}
-		for _, ref := range rc.AccessProfiles {
-			perms, err := accessProfilePermissions(ctx, d, orgID, ref)
-			if err != nil {
-				return nil, err
-			}
-			roleID := "role-profile-" + accessHash(orgID+"|"+ref.ProfileID+"|"+fmt.Sprint(ref.Version)+"|"+string(ref.Mode))
-			ops = append(ops,
-				authz.BatchOperation{ID: "profile-role-" + roleID, Type: "upsert_role", Role: authz.RoleInput{ID: roleID, Name: "Profile " + ref.ProfileID, Description: "Versioned access profile " + ref.ProfileID}},
-				authz.BatchOperation{ID: "profile-permissions-" + roleID, Type: "set_role_permissions", Role: authz.RoleInput{ID: roleID}, Permissions: perms},
-				authz.BatchOperation{ID: "assign-" + accessHash(string(c.SubjectRef)+"|"+roleID+"|"+teamID.String()), Type: "assign_role", Assignment: authz.AssignmentInput{SubjectRef: authz.SubjectRef(c.SubjectRef), RoleID: roleID, Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID}}},
-			)
+		resolved, ok := resolvedByRole[rc.Role]
+		if !ok {
+			continue
 		}
+		ops = append(ops, authz.BatchOperation{ID: "assign-" + accessHash(string(c.SubjectRef)+"|"+resolved.roleID+"|"+teamID.String()), Type: "assign_role", Assignment: authz.AssignmentInput{SubjectRef: authz.SubjectRef(c.SubjectRef), RoleID: resolved.roleID, Resource: authz.ResourceScope{Kind: "team", ID: teamID.String(), OrgID: orgID, OwnerRef: pendingTeamInstantiationOwnerRef(orgID, teamID)}}})
 	}
 	return ops, nil
+}
+
+func pendingTeamInstantiationOwnerRef(orgID string, teamID team.TeamID) string {
+	return "pending_team_instantiation:" + orgID + ":" + teamID.String()
+}
+
+func resolveRoleAccessProfilePermissions(ctx context.Context, d HandlerDeps, orgID string, refs []team.AccessProfileRef) ([]authz.RolePermissionInput, []team.AccessProfileRef, error) {
+	permsByKey := map[string]authz.RolePermissionInput{}
+	var normalizedRefs []team.AccessProfileRef
+	overrideSeen := false
+	for _, ref := range refs {
+		ref.ProfileID = strings.TrimSpace(ref.ProfileID)
+		if ref.Mode == "" {
+			ref.Mode = team.AccessProfileDefault
+		}
+		if ref.ProfileID == "" || ref.Version <= 0 {
+			return nil, nil, team.ErrInvalidAccessProfileRef
+		}
+		switch ref.Mode {
+		case team.AccessProfileDefault, team.AccessProfileAdditional:
+		case team.AccessProfileOverride:
+			if overrideSeen {
+				return nil, nil, team.ErrInvalidAccessProfileRef
+			}
+			overrideSeen = true
+			permsByKey = map[string]authz.RolePermissionInput{}
+		default:
+			return nil, nil, team.ErrInvalidAccessProfileRef
+		}
+		perms, err := accessProfilePermissions(ctx, d, orgID, ref)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, perm := range perms {
+			permsByKey[string(perm.PermissionKey)+"\x00"+perm.ResourceKind] = perm
+		}
+		normalizedRefs = append(normalizedRefs, ref)
+	}
+	perms := make([]authz.RolePermissionInput, 0, len(permsByKey))
+	for _, perm := range permsByKey {
+		perms = append(perms, perm)
+	}
+	sort.Slice(perms, func(i, j int) bool {
+		left := string(perms[i].PermissionKey) + "\x00" + perms[i].ResourceKind
+		right := string(perms[j].PermissionKey) + "\x00" + perms[j].ResourceKind
+		return left < right
+	})
+	return perms, normalizedRefs, nil
+}
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+type teamPreviewRecord struct {
+	Batch authz.BatchRequest
+}
+
+func teamStoredPreview(ctx context.Context, d HandlerDeps, previewID string) (teamPreviewRecord, error) {
+	if strings.TrimSpace(previewID) == "" {
+		return teamPreviewRecord{}, authz.ErrPreviewRequired
+	}
+	var raw, status, expires string
+	err := d.DB.QueryRowContext(ctx, `SELECT normalized_request_json, status, expires_at FROM authorization_preview_records WHERE preview_id = ?`, strings.TrimSpace(previewID)).Scan(&raw, &status, &expires)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return teamPreviewRecord{}, authz.ErrPreviewNotFound
+		}
+		return teamPreviewRecord{}, err
+	}
+	if status != "pending" {
+		return teamPreviewRecord{}, authz.ErrPreviewConsumed
+	}
+	if expires != "" {
+		expiresAt, err := time.Parse(time.RFC3339Nano, expires)
+		if err == nil && time.Now().UTC().After(expiresAt) {
+			return teamPreviewRecord{}, authz.ErrPreviewExpired
+		}
+	}
+	var req authz.BatchRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		return teamPreviewRecord{}, err
+	}
+	return teamPreviewRecord{Batch: req}, nil
+}
+
+func markTeamPreviewApplied(ctx context.Context, d HandlerDeps, previewID, idempotencyKey string) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, d.DB)
+	if err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `UPDATE authorization_preview_records
+		SET status = 'applied', applied_at = ?, apply_idempotency_key = ?
+		WHERE preview_id = ? AND status = 'pending'`,
+		time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(idempotencyKey), strings.TrimSpace(previewID))
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return authz.ErrPreviewConsumed
+	}
+	return nil
+}
+
+func sameTeamPreviewBatch(stored, current authz.BatchRequest) bool {
+	stored.IdempotencyKey = ""
+	stored.PreviewID = ""
+	current.IdempotencyKey = ""
+	current.PreviewID = ""
+	stored.ActorRef = authz.SubjectRef(strings.TrimSpace(string(stored.ActorRef)))
+	current.ActorRef = authz.SubjectRef(strings.TrimSpace(string(current.ActorRef)))
+	stored.OrgID = strings.TrimSpace(stored.OrgID)
+	current.OrgID = strings.TrimSpace(current.OrgID)
+	return reflect.DeepEqual(stored, current)
 }
 
 func accessProfilePermissions(ctx context.Context, d HandlerDeps, orgID string, ref team.AccessProfileRef) ([]authz.RolePermissionInput, error) {
@@ -240,13 +429,13 @@ func (s *Server) handleTeamRevokeBeforeDestructiveChange(w http.ResponseWriter, 
 		writeError(w, http.StatusInternalServerError, "revoke_preview_failed", err.Error())
 		return true, false
 	}
-	if len(ops) == 0 {
-		return false, true
-	}
 	previewID := "team-revoke-preview-" + accessHash(orgID+"|"+teamID.String()+"|"+subjectRef)
 	if r.URL.Query().Get("preview") == "true" {
 		writeJSON(w, http.StatusOK, map[string]any{"request_id": previewID, "operations": previewRevokeResults(ops), "destructive_change_blocked": true})
 		return true, true
+	}
+	if len(ops) == 0 {
+		return false, true
 	}
 	if r.URL.Query().Get("preview_request_id") != previewID {
 		writeError(w, http.StatusConflict, "revoke_preview_required", "custom team-scoped assignments require revoke preview before this destructive change")
@@ -283,7 +472,11 @@ func activeTeamRevokeOps(ctx context.Context, d HandlerDeps, orgID string, teamI
 		args = append(args, subjectRef)
 	}
 	query += ` ORDER BY created_at, id`
-	rows, err := d.DB.QueryContext(ctx, query, args...)
+	exec, err := persistence.ExecutorFromCtx(ctx, d.DB)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

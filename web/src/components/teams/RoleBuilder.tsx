@@ -3,7 +3,8 @@
 // team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
+import { roleColor, ROLE_DESC, type AccessProfileMode, type AccessProfileRef, type RoleInput } from '@/api/teams';
+import { useAccessOverview } from '@/api/access';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
 import {
@@ -23,6 +24,7 @@ export function newRole(role = ''): RoleInput {
     count: 1,
     tags: '',
     description: role ? ROLE_DESC[role] || '' : '',
+    access_profiles: [],
   };
 }
 
@@ -41,8 +43,28 @@ export function RoleBuilder({
 }): React.ReactElement {
   const { t } = useTranslation('teams');
   const runtimeCatalog = useRuntimeSelectorCatalog();
+  const access = useAccessOverview();
+  const profiles = access.data?.profiles ?? [];
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  };
+  const patchProfile = (roleIndex: number, profileIndex: number, patchRef: Partial<AccessProfileRef>) => {
+    const current = roles[roleIndex].access_profiles ?? [];
+    patch(roleIndex, { access_profiles: current.map((ref, i) => (i === profileIndex ? { ...ref, ...patchRef } : ref)) });
+  };
+  const addProfile = (roleIndex: number) => {
+    const profile = profiles[0];
+    const current = roles[roleIndex].access_profiles ?? [];
+    patch(roleIndex, {
+      access_profiles: [
+        ...current,
+        { profile_id: profile?.id ?? '', version: profile?.version || 1, mode: current.length === 0 ? 'default' : 'additional' },
+      ],
+    });
+  };
+  const removeProfile = (roleIndex: number, profileIndex: number) => {
+    const current = roles[roleIndex].access_profiles ?? [];
+    patch(roleIndex, { access_profiles: current.filter((_ref, i) => i !== profileIndex) });
   };
   const remove = (i: number) => onChange(roles.filter((_, j) => j !== i));
   const add = () => onChange([...roles, newRole()]);
@@ -175,6 +197,66 @@ export function RoleBuilder({
               data-testid={`${idPrefix}-role-${i}-tags`}
               onChange={(e) => patch(i, { tags: e.target.value })}
             />
+          </div>
+          <div className="mt-3 border-t border-border-base pt-3" data-testid={`${idPrefix}-role-${i}-access-profiles`}>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <SmallLabel>{t('roleBuilder.accessProfilesLabel', { defaultValue: 'Access profiles' })}</SmallLabel>
+              <button
+                type="button"
+                className="text-xs font-semibold text-brand disabled:text-text-muted"
+                data-testid={`${idPrefix}-role-${i}-add-profile`}
+                disabled={access.isLoading}
+                onClick={() => addProfile(i)}
+              >
+                {t('roleBuilder.addProfile', { defaultValue: 'Add profile' })}
+              </button>
+            </div>
+            {(r.access_profiles ?? []).map((ref, profileIndex) => (
+              <div key={`${ref.profile_id}-${profileIndex}`} className="mb-2 grid grid-cols-1 gap-2 md:grid-cols-[1fr_6rem_9rem_auto]">
+                <select
+                  className={inputCls}
+                  value={ref.profile_id}
+                  data-testid={`${idPrefix}-role-${i}-profile-${profileIndex}-id`}
+                  onChange={(e) => {
+                    const selected = profiles.find((profile) => profile.id === e.target.value);
+                    patchProfile(i, profileIndex, { profile_id: e.target.value, version: selected?.version || ref.version || 1 });
+                  }}
+                >
+                  <option value="">{t('roleBuilder.profilePlaceholder', { defaultValue: 'Select profile' })}</option>
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name || profile.id}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={1}
+                  value={ref.version}
+                  data-testid={`${idPrefix}-role-${i}-profile-${profileIndex}-version`}
+                  onChange={(e) => patchProfile(i, profileIndex, { version: Math.max(1, Number(e.target.value) || 1) })}
+                />
+                <select
+                  className={inputCls}
+                  value={ref.mode}
+                  data-testid={`${idPrefix}-role-${i}-profile-${profileIndex}-mode`}
+                  onChange={(e) => patchProfile(i, profileIndex, { mode: e.target.value as AccessProfileMode })}
+                >
+                  <option value="default">{t('roleBuilder.profileModeDefault', { defaultValue: 'default' })}</option>
+                  <option value="additional">{t('roleBuilder.profileModeAdditional', { defaultValue: 'additional' })}</option>
+                  <option value="override">{t('roleBuilder.profileModeOverride', { defaultValue: 'override' })}</option>
+                </select>
+                <button
+                  type="button"
+                  className="text-xs text-text-muted hover:text-danger"
+                  data-testid={`${idPrefix}-role-${i}-profile-${profileIndex}-remove`}
+                  onClick={() => removeProfile(i, profileIndex)}
+                >
+                  {t('roleBuilder.remove')}
+                </button>
+              </div>
+            ))}
           </div>
         </div>
         );

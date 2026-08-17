@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCreateTeam, type RoleInput } from '@/api/teams';
+import { useCreateTeam, useInstantiateTeamApply, useInstantiateTeamPreview, type RoleInput, type TeamInstantiatePreview } from '@/api/teams';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell } from './kit';
 import { newRole, RoleBuilder, totalSlots } from './RoleBuilder';
 import { isSelectableRuntimePair, useRuntimeSelectorCatalog } from '@/components/RuntimeSelectors';
@@ -22,7 +23,10 @@ export function NewTeamModal({
   const [visibility, setVisibility] = useState('org-private');
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<RoleInput[]>([newRole('planner'), { ...newRole('coder'), count: 2 }]);
+  const [preview, setPreview] = useState<TeamInstantiatePreview | null>(null);
   const create = useCreateTeam();
+  const previewTeam = useInstantiateTeamPreview();
+  const applyTeam = useInstantiateTeamApply();
   const runtimeCatalog = useRuntimeSelectorCatalog();
 
   const roleNames = roles.map((r) => r.role.trim());
@@ -46,16 +50,29 @@ export function NewTeamModal({
     : hasDuplicateRole
       ? t('newTeamModal.errRoleNameDuplicate')
       : '';
-  const canSubmit = name.trim().length > 0 && !roleValidationError && !runtimeValidationError && !create.isPending;
+  const canSubmit = name.trim().length > 0 && !roleValidationError && !runtimeValidationError && !create.isPending && !previewTeam.isPending && !applyTeam.isPending;
+
+  const rolePayload = () => roles.map((r) => ({ ...r, role: r.role.trim(), tags: r.tags.trim() }));
+  const needsAccessPreview = roles.some((role) => (role.access_profiles ?? []).length > 0 || (role.access_requirements ?? []).length > 0);
 
   const submit = async () => {
     if (!canSubmit) return;
     try {
+      if (needsAccessPreview) {
+        const nextPreview = await previewTeam.mutateAsync({
+          template_id: '',
+          team_name: name.trim(),
+          roles: rolePayload(),
+          assignments: [],
+        });
+        setPreview(nextPreview);
+        return;
+      }
       const team = await create.mutateAsync({
         name: name.trim(),
         description,
         visibility,
-        roles: roles.map((r) => ({ ...r, role: r.role.trim(), tags: r.tags.trim() })),
+        roles: rolePayload(),
       });
       onClose();
       onCreated(team.id);
@@ -66,6 +83,7 @@ export function NewTeamModal({
 
   if (!open) return null;
   return (
+    <>
     <ModalShell
       open={open}
       onClose={onClose}
@@ -139,6 +157,34 @@ export function NewTeamModal({
           {(create.error as Error).message}
         </p>
       )}
+      {previewTeam.isError && (
+        <p className="mt-3 text-xs text-danger" data-testid="new-team-preview-error">
+          {(previewTeam.error as Error).message}
+        </p>
+      )}
     </ModalShell>
+    <ConfirmModal
+      open={preview !== null}
+      title={t('newTeamModal.previewTitle', { defaultValue: 'Confirm access profile changes' })}
+      message={t('newTeamModal.previewMessage', { defaultValue: 'This will apply {{count}} authorization operations before creating the team.', count: preview?.operations.length ?? 0 })}
+      confirmLabel={t('newTeamModal.previewConfirm', { defaultValue: 'Apply and create' })}
+      busy={applyTeam.isPending}
+      onCancel={() => setPreview(null)}
+      onConfirm={async () => {
+        if (!preview) return;
+        const team = await applyTeam.mutateAsync({
+          template_id: '',
+          team_name: name.trim(),
+          roles: rolePayload(),
+          assignments: [],
+          preview_request_id: preview.request_id,
+          idempotency_key: crypto.randomUUID(),
+        });
+        setPreview(null);
+        onClose();
+        onCreated(team.id);
+      }}
+    />
+    </>
   );
 }

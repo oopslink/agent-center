@@ -340,7 +340,17 @@ export function useCreateTeam() {
 export function useDeleteTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.del(`/teams/${id}`),
+    mutationFn: (input: string | { id: string; preview?: boolean; preview_request_id?: string; idempotency_key?: string }) => {
+      const id = typeof input === 'string' ? input : input.id;
+      const params = new URLSearchParams();
+      if (typeof input !== 'string') {
+        if (input.preview) params.set('preview', 'true');
+        if (input.preview_request_id) params.set('preview_request_id', input.preview_request_id);
+        if (input.idempotency_key) params.set('idempotency_key', input.idempotency_key);
+      }
+      const qs = params.toString();
+      return api.del(`/teams/${id}${qs ? `?${qs}` : ''}`);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.list() }),
   });
 }
@@ -409,8 +419,14 @@ export function useAddMember() {
 export function useRemoveMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { team_id: string; member_ref: string }) =>
-      api.del(`/teams/${v.team_id}/members/${encodeURIComponent(v.member_ref)}`),
+    mutationFn: (v: { team_id: string; member_ref: string; preview?: boolean; preview_request_id?: string; idempotency_key?: string }) => {
+      const params = new URLSearchParams();
+      if (v.preview) params.set('preview', 'true');
+      if (v.preview_request_id) params.set('preview_request_id', v.preview_request_id);
+      if (v.idempotency_key) params.set('idempotency_key', v.idempotency_key);
+      const qs = params.toString();
+      return api.del(`/teams/${v.team_id}/members/${encodeURIComponent(v.member_ref)}${qs ? `?${qs}` : ''}`);
+    },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.members(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });
