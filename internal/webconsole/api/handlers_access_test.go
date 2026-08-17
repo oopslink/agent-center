@@ -100,31 +100,133 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		server.URL + "/api/access/grants/revoke",
 	} {
 		resp = orgScopedPost(t, url, `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("revoke status=%d for %s", resp.StatusCode, url)
-		}
-		var revoked struct {
-			Summary struct {
-				PartialFailure bool `json:"partial_failure"`
-				NotApplicable  int  `json:"not_applicable"`
-			} `json:"summary"`
-			Items []struct {
-				Status string `json:"status"`
-				Reason string `json:"reason"`
-			} `json:"items"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
-			t.Fatal(err)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("direct revoke status=%d for %s, want 400", resp.StatusCode, url)
 		}
 		resp.Body.Close()
-		if !revoked.Summary.PartialFailure || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
-			t.Fatalf("revoke did not expose derived-grant not_applicable for %s: %+v", url, revoked)
-		}
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("revoke preview status=%d", resp.StatusCode)
+	}
+	var revoked struct {
+		PreviewID string `json:"preview_id"`
+		ExpiresAt string `json:"expires_at"`
+		Summary   struct {
+			NotApplicable int `json:"not_applicable"`
+		} `json:"summary"`
+		Items []struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if revoked.PreviewID == "" || revoked.ExpiresAt == "" || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
+		t.Fatalf("revoke preview did not expose derived-grant not_applicable: %+v", revoked)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/confirm", `{"grant_ids":["`+grantID+`"],"reason":"cleanup","preview_id":"`+revoked.PreviewID+`","token":"wrong"}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("revoke confirm without persisted preview status=%d want 404", resp.StatusCode)
+	}
+	resp.Body.Close()
 
 	resp = orgScopedPatch(t, server.URL+"/api/access/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("role update status=%d want 409", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestAccessProfilesPersistVersionsAndCAS(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/access/profiles", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list profiles status=%d", resp.StatusCode)
+	}
+	var listed struct {
+		Profiles []struct {
+			ID      string   `json:"id"`
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"profiles"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(listed.Profiles) == 0 || listed.Profiles[0].Version == 0 || len(listed.Profiles[0].Perms) == 0 {
+		t.Fatalf("seeded persistent profiles missing: %+v", listed.Profiles)
+	}
+
+	createBody := `{"name":"Release operator","description":"ship access","permissions":["team.read","team.write"]}`
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles", createBody, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create profile status=%d", resp.StatusCode)
+	}
+	var created struct {
+		ID     string `json:"id"`
+		Latest struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"latest"`
+		Versions []struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if created.ID == "" || created.Latest.Version != 1 || len(created.Versions) != 1 {
+		t.Fatalf("created profile shape wrong: %+v", created)
+	}
+
+	stale := orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
+	if stale.StatusCode != http.StatusConflict {
+		t.Fatalf("stale new-version status=%d want 409", stale.StatusCode)
+	}
+	stale.Body.Close()
+
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":1,"permissions":["team.read","team.memory.review"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("new-version status=%d", resp.StatusCode)
+	}
+	var updated struct {
+		Latest struct {
+			Version int      `json:"version"`
+			Risk    string   `json:"risk"`
+			Perms   []string `json:"permissions"`
+		} `json:"latest"`
+		Versions []struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if updated.Latest.Version != 2 || updated.Latest.Risk != "high" || len(updated.Versions) != 2 {
+		t.Fatalf("new version shape wrong: %+v", updated)
+	}
+	if len(updated.Versions[1].Perms) != 2 {
+		t.Fatalf("v1 mutated; versions must be immutable: %+v", updated.Versions)
+	}
+
+	if _, err := db.Exec(`UPDATE members SET role='member' WHERE identity_id=?`, sess.IdentityID); err != nil {
+		t.Fatal(err)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles", `{"name":"Blocked","permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member create profile status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
 }

@@ -50,6 +50,8 @@ var (
 	ErrSystemRoleImmutable = errors.New("authorization: system role is immutable")
 	ErrIdempotencyRequired = errors.New("authorization: idempotency key required")
 	ErrIdempotencyConflict = errors.New("authorization: idempotency key reused with different request")
+	ErrPreviewExpired      = errors.New("authorization: revoke preview expired")
+	ErrPreviewRejected     = errors.New("authorization: revoke preview rejected")
 )
 
 type ResourceScope struct {
@@ -190,10 +192,48 @@ type AssignmentInput struct {
 }
 
 type RevokeInput struct {
-	AssignmentID string        `json:"assignment_id,omitempty"`
-	SubjectRef   SubjectRef    `json:"subject_ref,omitempty"`
-	RoleID       string        `json:"role_id,omitempty"`
-	Resource     ResourceScope `json:"resource,omitempty"`
+	AssignmentID    string        `json:"assignment_id,omitempty"`
+	SubjectRef      SubjectRef    `json:"subject_ref,omitempty"`
+	RoleID          string        `json:"role_id,omitempty"`
+	Resource        ResourceScope `json:"resource,omitempty"`
+	Reason          string        `json:"reason,omitempty"`
+	ExpectedVersion int           `json:"expected_version,omitempty"`
+}
+
+type RevokePreviewRequest struct {
+	ActorRef   SubjectRef       `json:"actor_ref"`
+	OrgID      string           `json:"org_id"`
+	Operations []BatchOperation `json:"operations"`
+	TTL        time.Duration    `json:"-"`
+}
+
+type RevokePreview struct {
+	PreviewID   string             `json:"preview_id"`
+	Token       string             `json:"token,omitempty"`
+	ActorRef    SubjectRef         `json:"actor_ref"`
+	OrgID       string             `json:"org_id"`
+	ExpiresAt   time.Time          `json:"expires_at"`
+	Operations  []OperationResult  `json:"operations"`
+	Targets     []RevokeTargetSpec `json:"targets"`
+	RequestHash string             `json:"request_hash"`
+}
+
+type RevokeConfirmRequest struct {
+	PreviewID      string           `json:"preview_id"`
+	Token          string           `json:"token"`
+	IdempotencyKey string           `json:"idempotency_key,omitempty"`
+	ActorRef       SubjectRef       `json:"actor_ref"`
+	OrgID          string           `json:"org_id"`
+	Operations     []BatchOperation `json:"operations"`
+}
+
+type RevokeTargetSpec struct {
+	OperationID  string        `json:"operation_id"`
+	AssignmentID string        `json:"assignment_id"`
+	SubjectRef   SubjectRef    `json:"subject_ref"`
+	RoleID       string        `json:"role_id"`
+	Resource     ResourceScope `json:"resource"`
+	Version      int           `json:"version"`
 	Reason       string        `json:"reason,omitempty"`
 }
 

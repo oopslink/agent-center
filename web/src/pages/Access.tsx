@@ -7,6 +7,7 @@ import {
   type AccessBatchResult,
   type AccessDecision,
   type AccessGrant,
+  type AccessProfile,
   type AccessPermissionDefinition,
   type AccessResourceKind,
   type AccessResourceScope,
@@ -18,6 +19,12 @@ import {
   useAccessBatchPreview,
   useAccessBulkRevoke,
   useAccessOverview,
+  useAccessProfile,
+  useAccessProfileCreate,
+  useAccessProfileDisable,
+  useAccessProfileNewVersion,
+  useAccessProfiles,
+  useAccessRevokePreview,
   useAccessRoleUpdate,
 } from '@/api/access';
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
@@ -34,7 +41,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'subjects' | 'roles';
+type AccessView = 'subjects' | 'roles' | 'profiles';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -147,6 +154,16 @@ export default function Access(): React.ReactElement {
           >
             Roles
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'profiles'}
+            className={segmentedClass(view === 'profiles')}
+            onClick={() => setView('profiles')}
+            data-testid="access-view-profiles"
+          >
+            Profiles
+          </button>
         </div>
         <label className="relative min-w-[14rem] flex-1 md:max-w-xs">
           <span className="sr-only">Search access</span>
@@ -174,6 +191,9 @@ export default function Access(): React.ReactElement {
       )}
 
       {!overview.isLoading && !overview.isError && data && (
+        view === 'profiles' ? (
+          <AccessProfilesView catalog={data.catalog} />
+        ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
             {view === 'subjects' ? (
@@ -196,6 +216,7 @@ export default function Access(): React.ReactElement {
             <GrantRevoke grants={data.grants} />
           </aside>
         </div>
+        )
       )}
 
       {drawerOpen && data && (
@@ -259,6 +280,201 @@ function Select({
         ))}
       </select>
     </label>
+  );
+}
+
+function AccessProfilesView({ catalog }: { catalog: AccessPermissionDefinition[] }): React.ReactElement {
+  const profiles = useAccessProfiles();
+  const create = useAccessProfileCreate();
+  const newVersion = useAccessProfileNewVersion();
+  const disable = useAccessProfileDisable();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
+  const [createPermissions, setCreatePermissions] = useState<string[]>([]);
+  const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
+  const selected = selectedId ?? profiles.data?.profiles[0]?.id ?? null;
+  const detail = useAccessProfile(selected);
+  const latest = detail.data?.latest;
+  const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
+
+  const toggleDraftPermission = (permission: string): void => {
+    setDraftPermissions((prev) => toggleValue(prev, permission).sort());
+  };
+  const toggleCreatePermission = (permission: string): void => {
+    setCreatePermissions((prev) => toggleValue(prev, permission).sort());
+  };
+  const resetDraft = (profile?: AccessProfile): void => {
+    setDraftName('');
+    setDraftDescription('');
+    setDraftPermissions(profile?.permissions ?? []);
+  };
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-profiles-view">
+      <section className="rounded border border-border-base bg-bg-elevated">
+        <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
+          <h2 className="text-sm font-semibold text-text-primary">Access profiles</h2>
+          <AccessMetaPill>{profiles.data?.profiles.length ?? 0} current versions</AccessMetaPill>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[42rem] text-left text-sm">
+            <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
+              <tr>
+                <th className="px-4 py-2 font-semibold">Profile</th>
+                <th className="px-4 py-2 font-semibold">Version</th>
+                <th className="px-4 py-2 font-semibold">Risk</th>
+                <th className="px-4 py-2 font-semibold">Permissions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(profiles.data?.profiles ?? []).map((profile) => (
+                <tr
+                  key={profile.id}
+                  className={['cursor-pointer border-b border-border-base last:border-0', selected === profile.id ? 'bg-brand/5' : 'hover:bg-bg-subtle'].join(' ')}
+                  onClick={() => {
+                    setSelectedId(profile.id);
+                    resetDraft(profile);
+                  }}
+                  data-testid={`access-profile-row-${profile.id}`}
+                >
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-text-primary">{profile.name}</div>
+                    <div className="text-xs text-text-muted">{profile.description}</div>
+                    <div className="font-mono text-[0.6875rem] text-text-muted">{profile.id}</div>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{profile.version}</td>
+                  <td className="px-4 py-3"><AccessRiskBadge risk={profile.risk} /></td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{profile.permissions.join(', ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside className="space-y-4">
+        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-profile-create">
+          <h2 className="text-sm font-semibold text-text-primary">Create profile</h2>
+          <ProfileTextField label="Name" value={draftName} onChange={setDraftName} testId="access-profile-name" />
+          <ProfileTextField label="Description" value={draftDescription} onChange={setDraftDescription} testId="access-profile-description" />
+          <PermissionChecklist catalog={catalog} selected={createPermissions} onToggle={toggleCreatePermission} />
+          <button
+            type="button"
+            className="mt-3 rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg disabled:opacity-50"
+            disabled={!draftName.trim() || createPermissions.length === 0 || create.isPending}
+            data-testid="access-profile-create-submit"
+            onClick={() => create.mutate({
+              name: draftName,
+              description: draftDescription,
+              permissions: createPermissions,
+            }, {
+              onSuccess: (created) => {
+                setSelectedId(created.id);
+                setCreatePermissions([]);
+                resetDraft(created.latest);
+              },
+            })}
+          >
+            Create
+          </button>
+          {create.isError && <p className="mt-2 text-xs text-danger" role="alert">{(create.error as Error).message}</p>}
+        </section>
+
+        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-profile-detail">
+          <h2 className="text-sm font-semibold text-text-primary">Version history</h2>
+          {detail.isLoading && <Skeleton height="8rem" />}
+          {detail.data && (
+            <>
+              <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
+                <div className="font-semibold text-text-primary">{detail.data.name}</div>
+                <div className="text-xs text-text-muted">Latest v{detail.data.latest.version}</div>
+              </div>
+              <div className="mt-3 space-y-2" data-testid="access-profile-versions">
+                {detail.data.versions.map((version) => (
+                  <div key={version.version} className="rounded border border-border-base p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-semibold">v{version.version}</span>
+                      <AccessRiskBadge risk={version.risk} />
+                    </div>
+                    <div className="mt-1 font-mono text-[0.6875rem] text-text-secondary">{version.permissions.join(', ')}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 border-t border-border-base pt-3">
+                <h3 className="text-xs font-semibold uppercase text-text-muted">Publish new version</h3>
+                <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
+                <button
+                  type="button"
+                  className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                  disabled={!latest || !selected || selected.startsWith('team-') || versionPermissions.length === 0 || newVersion.isPending}
+                  data-testid="access-profile-new-version-submit"
+                  onClick={() => {
+                    if (!latest || !selected) return;
+                    newVersion.mutate({
+                      id: selected,
+                      payload: {
+                        permissions: versionPermissions,
+                        expected_latest_version: latest.version,
+                      },
+                    }, { onSuccess: (updated) => resetDraft(updated.latest) });
+                  }}
+                >
+                  Publish v{(latest?.version ?? 0) + 1}
+                </button>
+                <button
+                  type="button"
+                  className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
+                  disabled={!selected || disable.isPending || selected.startsWith('team-')}
+                  data-testid="access-profile-disable-submit"
+                  onClick={() => selected && disable.mutate(selected)}
+                >
+                  Disable
+                </button>
+              </div>
+            </>
+          )}
+          {newVersion.isError && <p className="mt-2 text-xs text-danger" role="alert">{(newVersion.error as Error).message}</p>}
+          {disable.isError && <p className="mt-2 text-xs text-danger" role="alert">{(disable.error as Error).message}</p>}
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+function ProfileTextField({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId: string }): React.ReactElement {
+  return (
+    <label className="mt-3 block">
+      <span className="text-xs font-semibold uppercase text-text-muted">{label}</span>
+      <input
+        className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary"
+        value={value}
+        data-testid={testId}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessPermissionDefinition[]; selected: string[]; onToggle: (permission: string) => void }): React.ReactElement {
+  return (
+    <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded border border-border-base p-2" data-testid="access-profile-permissions">
+      {catalog.map((permission) => (
+        <button
+          key={permission.key}
+          type="button"
+          aria-pressed={selected.includes(permission.key)}
+          className={[
+            'flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs',
+            selected.includes(permission.key) ? 'bg-status-emerald-bg text-status-emerald-fg' : 'text-text-secondary hover:bg-bg-subtle',
+          ].join(' ')}
+          onClick={() => onToggle(permission.key)}
+        >
+          <span className="font-mono">{permission.key}</span>
+          <AccessRiskBadge risk={permission.risk} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -525,8 +741,10 @@ function RoleManagement({
 
 function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement {
   const revoke = useAccessBulkRevoke();
+  const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('access cleanup');
+  const [preview, setPreview] = useState<(AccessBatchPreview & { preview_id: string; token: string }) | null>(null);
   const toggle = (id: string): void => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -542,13 +760,13 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
         <h2 className="text-sm font-semibold text-text-primary">Active grants</h2>
         <button
           type="button"
-          disabled={selectedIds.length === 0 || revoke.isPending || !reason.trim()}
-          onClick={() => revoke.mutate({ grant_ids: selectedIds, reason })}
+          disabled={selectedIds.length === 0 || previewRevoke.isPending || !reason.trim()}
+          onClick={() => previewRevoke.mutate({ grant_ids: selectedIds, reason }, { onSuccess: setPreview })}
           className="inline-flex items-center gap-1 rounded border border-danger/40 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-          data-testid="access-revoke-selected"
+          data-testid="access-revoke-preview"
         >
           <IconTrash className="h-3.5 w-3.5" />
-          Revoke
+          Preview revoke
         </button>
       </div>
       <div className="space-y-3 p-4">
@@ -602,7 +820,28 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
             </tbody>
           </table>
         </div>
+        {preview && (
+          <div className="rounded border border-warning/40 bg-warning/5 p-2" data-testid="access-revoke-preview-panel">
+            <ResultPanel result={preview} title="Revoke preview" />
+            <button
+              type="button"
+              className="mt-2 rounded bg-danger px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              data-testid="access-revoke-confirm"
+              disabled={revoke.isPending}
+              onClick={() => revoke.mutate({
+                grant_ids: selectedIds,
+                reason,
+                preview_id: preview.preview_id,
+                token: preview.token,
+                idempotency_key: `access-revoke-${preview.preview_id}`,
+              })}
+            >
+              Confirm revoke
+            </button>
+          </div>
+        )}
         {revoke.data && <ResultPanel result={revoke.data} title="Revoke result" />}
+        {previewRevoke.isError && <p className="text-xs text-danger" role="alert">{(previewRevoke.error as Error).message}</p>}
         {revoke.isError && <p className="text-xs text-danger" role="alert">{(revoke.error as Error).message}</p>}
       </div>
     </section>
@@ -952,21 +1191,24 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
   );
 }
 
-function ResultPanel({ result, title }: { result: AccessBatchResult; title: string }): React.ReactElement {
+function ResultPanel({ result, title }: { result: AccessBatchResult | AccessBatchPreview; title: string }): React.ReactElement {
+  const failed = 'failed' in result.summary ? result.summary.failed : result.summary.total - result.summary.grantable;
+  const succeeded = 'succeeded' in result.summary ? result.summary.succeeded : result.summary.grantable;
+  const partialFailure = 'partial_failure' in result.summary ? result.summary.partial_failure : failed > 0;
   return (
     <div className="space-y-3" data-testid="access-result">
       <div
         className={[
           'rounded border px-3 py-2 text-sm',
-          result.summary.partial_failure
+          partialFailure
             ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
             : 'border-status-emerald-border bg-status-emerald-bg text-status-emerald-fg',
         ].join(' ')}
         role="status"
       >
-        <p className="font-semibold">{result.summary.partial_failure ? 'Partial failure' : title}</p>
+        <p className="font-semibold">{partialFailure ? 'Partial failure' : title}</p>
         <p className="mt-1">
-          {result.summary.succeeded} succeeded, {result.summary.failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
+          {succeeded} succeeded, {failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
         </p>
       </div>
       <BatchItemsTable items={result.items} />

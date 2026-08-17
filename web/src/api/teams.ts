@@ -27,6 +27,8 @@ export interface RoleView {
   cli: string;
   model: string;
   capability_tags: string[];
+  access_requirements?: string[];
+  access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
   max_concurrency: number;
   count?: number;
 }
@@ -231,6 +233,8 @@ export interface RoleInput {
   count: number;
   tags: string;
   description?: string;
+  access_requirements?: string[];
+  access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
 }
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
@@ -301,6 +305,7 @@ export interface CreateTeamInput {
   description: string;
   visibility: string;
   roles: RoleInput[];
+  candidate_assignments?: Array<{ subject_ref: string; role: string }>;
 }
 
 export function useCreateTeam() {

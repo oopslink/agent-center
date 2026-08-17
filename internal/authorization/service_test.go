@@ -203,6 +203,76 @@ func TestService_RevokeAssignmentSameOrgValidAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestService_RevokePreviewConfirmStrongCAS(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedRoleAssignment(t, db, "org-1", "role-revoke-cas", "asgn-revoke-cas", "user:user-member", "org", "org-1")
+
+	ops := []BatchOperation{{ID: "revoke", Revoke: RevokeInput{AssignmentID: "asgn-revoke-cas", Reason: "cas"}}}
+	preview, err := svc.PreviewRevoke(ctx, RevokePreviewRequest{ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops, TTL: time.Minute})
+	if err != nil {
+		t.Fatalf("PreviewRevoke: %v", err)
+	}
+	if preview.PreviewID == "" || preview.Token == "" || len(preview.Targets) != 1 || preview.Targets[0].Version != 1 {
+		t.Fatalf("preview = %#v", preview)
+	}
+	var persisted int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_revoke_previews WHERE preview_id = ? AND status = 'pending'`, preview.PreviewID).Scan(&persisted); err != nil || persisted != 1 {
+		t.Fatalf("persisted preview count=%d err=%v", persisted, err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: "tampered", ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("tampered token err=%v want ErrPreviewRejected", err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-admin", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("actor drift err=%v want ErrPreviewRejected", err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-2", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("org drift err=%v want ErrPreviewRejected", err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: []BatchOperation{{ID: "revoke", Revoke: RevokeInput{SubjectRef: "user:user-admin", RoleID: "role-revoke-cas", Resource: ResourceScope{Kind: "org", ID: "org-1"}, Reason: "cas"}}}}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("subject drift err=%v want ErrNotFound", err)
+	}
+	res, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops})
+	if err != nil || len(res.Operations) != 1 || res.Operations[0].Status != "revoked" {
+		t.Fatalf("ConfirmRevoke = %#v err=%v", res, err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("replay err=%v want ErrPreviewRejected", err)
+	}
+}
+
+func TestService_RevokePreviewRejectsExpiredAndRevisionDrift(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedRoleAssignment(t, db, "org-1", "role-revoke-drift", "asgn-revoke-drift", "user:user-member", "org", "org-1")
+
+	ops := []BatchOperation{{ID: "revoke", Revoke: RevokeInput{AssignmentID: "asgn-revoke-drift", Reason: "drift"}}}
+	expired, err := svc.PreviewRevoke(ctx, RevokePreviewRequest{ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops, TTL: time.Nanosecond})
+	if err != nil {
+		t.Fatalf("PreviewRevoke expired setup: %v", err)
+	}
+	if fc, ok := svc.clock.(*clock.FakeClock); ok {
+		fc.Advance(time.Millisecond)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: expired.PreviewID, Token: expired.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewExpired) {
+		t.Fatalf("expired err=%v want ErrPreviewExpired", err)
+	}
+
+	fresh, err := svc.PreviewRevoke(ctx, RevokePreviewRequest{ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops, TTL: time.Minute})
+	if err != nil {
+		t.Fatalf("PreviewRevoke drift setup: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE authorization_role_assignments SET version = version + 1 WHERE id = 'asgn-revoke-drift'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: fresh.PreviewID, Token: fresh.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("revision drift err=%v want ErrPreviewRejected", err)
+	}
+	assertAssignmentRevoked(t, db, "org-1", "asgn-revoke-drift", false)
+}
+
 func TestService_RevokeAssignmentConcurrentRaceIdempotent(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)

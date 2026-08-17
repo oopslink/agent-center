@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -288,6 +290,144 @@ func (s *Service) RevokeBatch(ctx context.Context, req BatchRequest) (BatchResul
 		req.Operations[i].Type = "revoke_assignment"
 	}
 	return s.ApplyBatch(ctx, req)
+}
+
+func (s *Service) PreviewRevoke(ctx context.Context, req RevokePreviewRequest) (RevokePreview, error) {
+	if s == nil || s.db == nil || s.store == nil {
+		return RevokePreview{}, errors.New("authorization service: nil db")
+	}
+	req.ActorRef = SubjectRef(strings.TrimSpace(string(req.ActorRef)))
+	req.OrgID = strings.TrimSpace(req.OrgID)
+	if req.ActorRef == "" || req.OrgID == "" {
+		return RevokePreview{}, fmt.Errorf("%w: actor_ref and org_id required", ErrInvalid)
+	}
+	if err := req.ActorRef.Validate(); err != nil {
+		return RevokePreview{}, err
+	}
+	if req.TTL <= 0 {
+		req.TTL = 5 * time.Minute
+	}
+	now := s.clock.Now().UTC()
+	token, err := randomToken()
+	if err != nil {
+		return RevokePreview{}, err
+	}
+	var out RevokePreview
+	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		spec, operations, err := s.normalizedRevokeSpec(txCtx, req.ActorRef, req.OrgID, req.Operations)
+		if err != nil {
+			return err
+		}
+		body, err := json.Marshal(spec)
+		if err != nil {
+			return err
+		}
+		requestHash := hashBytes(body)
+		subjectHash := hashSubjects(spec.Targets)
+		previewID := "rvp-" + accessSafeHash(string(body)+"|"+now.Format(time.RFC3339Nano))
+		rec := revokePreviewRecord{
+			PreviewID: previewID, TokenHash: hashString(token), ActorRef: req.ActorRef, OrgID: req.OrgID,
+			SubjectHash: subjectHash, RequestHash: requestHash, RequestJSON: string(body), CreatedAt: now, ExpiresAt: now.Add(req.TTL),
+		}
+		if err := s.store.saveRevokePreview(txCtx, rec); err != nil {
+			return err
+		}
+		out = RevokePreview{
+			PreviewID: previewID, Token: token, ActorRef: req.ActorRef, OrgID: req.OrgID,
+			ExpiresAt: rec.ExpiresAt, Operations: operations, Targets: spec.Targets, RequestHash: requestHash,
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (s *Service) ConfirmRevoke(ctx context.Context, req RevokeConfirmRequest) (BatchResult, error) {
+	if s == nil || s.db == nil || s.store == nil {
+		return BatchResult{}, errors.New("authorization service: nil db")
+	}
+	req.ActorRef = SubjectRef(strings.TrimSpace(string(req.ActorRef)))
+	req.OrgID = strings.TrimSpace(req.OrgID)
+	if req.PreviewID == "" || req.Token == "" || req.ActorRef == "" || req.OrgID == "" {
+		return BatchResult{}, fmt.Errorf("%w: preview_id, token, actor_ref and org_id required", ErrInvalid)
+	}
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = "revoke-confirm-" + shortHash(req.PreviewID)
+	}
+	var out BatchResult
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		rec, err := s.store.getRevokePreview(txCtx, req.PreviewID)
+		if err != nil {
+			return err
+		}
+		now := s.clock.Now().UTC()
+		switch {
+		case rec.Status != "pending":
+			return ErrPreviewRejected
+		case !rec.ExpiresAt.After(now):
+			return ErrPreviewExpired
+		case rec.ActorRef != req.ActorRef || rec.OrgID != req.OrgID:
+			return ErrPreviewRejected
+		case rec.TokenHash != hashString(req.Token):
+			return ErrPreviewRejected
+		}
+		spec, _, err := s.normalizedRevokeSpec(txCtx, req.ActorRef, req.OrgID, req.Operations)
+		if err != nil {
+			return err
+		}
+		body, err := json.Marshal(spec)
+		if err != nil {
+			return err
+		}
+		if rec.RequestHash != hashBytes(body) || rec.SubjectHash != hashSubjects(spec.Targets) || rec.RequestJSON != string(body) {
+			return ErrPreviewRejected
+		}
+		if err := s.store.consumeRevokePreview(txCtx, req.PreviewID, now); err != nil {
+			return err
+		}
+		batch := BatchRequest{IdempotencyKey: req.IdempotencyKey, ActorRef: req.ActorRef, OrgID: req.OrgID}
+		for i, op := range req.Operations {
+			op.Type = "revoke_assignment"
+			if i < len(spec.Targets) {
+				op.Revoke.AssignmentID = spec.Targets[i].AssignmentID
+				op.Revoke.ExpectedVersion = spec.Targets[i].Version
+			}
+			batch.Operations = append(batch.Operations, op)
+		}
+		out, err = s.runBatchInTx(txCtx, batch)
+		return err
+	})
+	return out, err
+}
+
+type normalizedRevokeRequest struct {
+	ActorRef SubjectRef         `json:"actor_ref"`
+	OrgID    string             `json:"org_id"`
+	Targets  []RevokeTargetSpec `json:"targets"`
+}
+
+func (s *Service) normalizedRevokeSpec(ctx context.Context, actor SubjectRef, orgID string, operations []BatchOperation) (normalizedRevokeRequest, []OperationResult, error) {
+	spec := normalizedRevokeRequest{ActorRef: actor, OrgID: orgID}
+	results := make([]OperationResult, 0, len(operations))
+	for i, op := range operations {
+		op.Type = "revoke_assignment"
+		if strings.TrimSpace(op.ID) == "" {
+			op.ID = fmt.Sprintf("revoke-%d", i+1)
+		}
+		if err := s.requireRevokeAllowed(ctx, actor, orgID, op.Revoke); err != nil {
+			return spec, results, err
+		}
+		target, err := s.resolveRevokeTarget(ctx, orgID, op.Revoke)
+		if err != nil {
+			return spec, results, err
+		}
+		spec.Targets = append(spec.Targets, RevokeTargetSpec{
+			OperationID: op.ID, AssignmentID: target.ID, SubjectRef: target.SubjectRef, RoleID: target.RoleID,
+			Resource: ResourceScope{Kind: target.ResourceKind, ID: target.ResourceID, OrgID: target.OrgID},
+			Version:  target.Version, Reason: strings.TrimSpace(op.Revoke.Reason),
+		})
+		results = append(results, OperationResult{ID: op.ID, Type: op.Type, Status: previewStatus("revoked"), RoleID: target.RoleID, AssignmentID: target.ID})
+	}
+	return spec, results, nil
 }
 
 func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest) (BatchResult, error) {
@@ -1315,4 +1455,34 @@ func batchDigest(req BatchRequest) (string, error) {
 	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func randomToken() (string, error) {
+	var b [24]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+func hashString(v string) string {
+	return hashBytes([]byte(v))
+}
+
+func hashBytes(v []byte) string {
+	sum := sha256.Sum256(v)
+	return hex.EncodeToString(sum[:])
+}
+
+func accessSafeHash(v string) string {
+	return hashString(v)[:16]
+}
+
+func hashSubjects(targets []RevokeTargetSpec) string {
+	subjects := make([]string, 0, len(targets))
+	for _, target := range targets {
+		subjects = append(subjects, string(target.SubjectRef))
+	}
+	sort.Strings(subjects)
+	return hashString(strings.Join(subjects, "\x00"))
 }

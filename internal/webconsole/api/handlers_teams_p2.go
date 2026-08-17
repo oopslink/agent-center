@@ -82,7 +82,7 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 		converted := make([]team.RoleConfig, 0, len(*req.Roles))
 		for _, ri := range *req.Roles {
 			converted = append(converted, team.RoleConfig{Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-				CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency})
+				CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, MaxConcurrency: ri.MaxConcurrency})
 		}
 		var valid bool
 		converted, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, converted)

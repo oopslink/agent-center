@@ -81,17 +81,45 @@ describe('Access page', () => {
     expect(result).toHaveTextContent('not applicable');
   });
 
-  it('bulk revokes selected grants and exposes non-revocable derived permissions', async () => {
+  it('previews, confirms, and reports selected grant revokes', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     const grants = await screen.findByTestId('access-grants');
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select org\.member\.role\.manage for revoke/ }));
-    fireEvent.click(within(grants).getByTestId('access-revoke-selected'));
+    fireEvent.click(within(grants).getByTestId('access-revoke-preview'));
+
+    const preview = await within(grants).findByTestId('access-revoke-preview-panel');
+    expect(preview).toHaveTextContent('derived permission and must be revoked at its source');
+    fireEvent.click(within(preview).getByTestId('access-revoke-confirm'));
 
     const result = await within(grants).findByTestId('access-result');
     expect(result).toHaveTextContent('Partial failure');
     expect(result).toHaveTextContent('derived permission and must be revoked at its source');
     expect(result).toHaveTextContent('Not applicable');
+  });
+
+  it('browses profile versions and creates then publishes explicit profile versions', async () => {
+    renderPage();
+    expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('access-view-profiles'));
+
+    const view = await screen.findByTestId('access-profiles-view');
+    expect(await within(view).findByTestId('access-profile-row-team-curator')).toHaveTextContent('v2');
+    fireEvent.click(within(view).getByTestId('access-profile-row-team-curator'));
+    expect(await within(view).findByTestId('access-profile-versions')).toHaveTextContent('v1');
+    expect(within(view).getByTestId('access-profile-versions')).toHaveTextContent('v2');
+
+    const create = within(view).getByTestId('access-profile-create');
+    fireEvent.change(within(create).getByTestId('access-profile-name'), { target: { value: 'Release operator' } });
+    fireEvent.change(within(create).getByTestId('access-profile-description'), { target: { value: 'release work' } });
+    fireEvent.click(within(create).getByText('org.read'));
+    fireEvent.click(within(create).getByText('project.write'));
+    fireEvent.click(within(create).getByTestId('access-profile-create-submit'));
+
+    await waitFor(() => expect(screen.getByTestId('access-profile-detail')).toHaveTextContent('Release operator'));
+    const detail = screen.getByTestId('access-profile-detail');
+    await waitFor(() => expect(within(detail).getByTestId('access-profile-new-version-submit')).toHaveTextContent('Publish v2'));
+    expect(within(detail).getByTestId('access-profile-new-version-submit')).not.toBeDisabled();
   });
 });

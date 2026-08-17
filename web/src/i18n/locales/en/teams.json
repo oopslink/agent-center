@@ -197,7 +197,14 @@
     "roleMixLabel": "Role mix",
     "slotsSummary": "Σ {{slots}} slots = {{slots}} agents derived",
     "errRoleNameRequired": "Each role needs a role name.",
-    "errRoleNameDuplicate": "Role names must be unique."
+    "errRoleNameDuplicate": "Role names must be unique.",
+    "assignmentsLabel": "Candidate assignments",
+    "assignmentsCount": "{{count}} selected",
+    "assignmentSubjectPlaceholder": "Select subject",
+    "assignmentAdd": "Add assignment",
+    "assignmentsEmpty": "Select a subject and role to preview access changes.",
+    "assignmentRiskHigh": "{{count}} permissions · high risk",
+    "assignmentRiskLow": "{{count}} permissions · standard risk"
   },
   "addMemberModal": {
     "errIdentityNotFound": "This agent / human no longer exists or was deactivated; please re-select.",
@@ -251,6 +258,11 @@
     "concurrencyHint": "Per-agent task concurrency, not role headcount.",
     "tagsLabel": "Tags (routing/skills)",
     "tagsPlaceholder": "go, security, react …",
+    "accessProfileLabel": "Access profile",
+    "accessProfileNone": "No access profile",
+    "accessProfileOption": "{{name}} v{{version}}",
+    "accessRiskLabel": "Access",
+    "accessPermissionCount": "{{count}} permissions",
     "addRole": "Add role"
   },
   "memoryPane": {
