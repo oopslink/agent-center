@@ -479,6 +479,22 @@ body {
   color: var(--color-chatbubble-fg);
 }
 
+/* Mermaid message previews and modal viewer. SVG is produced by Mermaid under
+ * strict security config, then validated before insertion. Keep sizing in CSS so
+ * diagrams remain responsive in both chat bubbles and the full-screen viewer. */
+.mermaid-rendered-svg svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.mermaid-viewer-svg svg {
+  display: block;
+  max-width: none;
+  height: auto;
+  background: var(--color-bg-elevated);
+}
+
 /*
  * ── Hex texture utilities (spec §03.5) ──
  * Reusable surface-quality patterns that give the UI a "physical" feel.

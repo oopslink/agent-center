@@ -3,6 +3,7 @@ import { Children } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
+import { MermaidDiagram, isMermaidLanguage } from './MermaidDiagram';
 import {
   MentionText,
   useMentionResolver,
@@ -23,7 +24,8 @@ import { useSenderSidebar } from './SenderSidebarContext';
 // never execute. react-markdown's default urlTransform also strips dangerous
 // link/image schemes (javascript:, vbscript:, data: …). GFM (Q-A2) via remark-gfm
 // adds tables / task lists / strikethrough / autolinks. Fenced code blocks render
-// through the shared <CollapsibleCodeBlock>; syntax highlighting is v2.9.
+// through the shared <CollapsibleCodeBlock>; Mermaid fences route to the strict,
+// lazy <MermaidDiagram> renderer. Syntax highlighting is v2.9.
 function flattenText(node: React.ReactNode): string {
   if (typeof node === 'string') return node;
   if (Array.isArray(node)) return node.map(flattenText).join('');
@@ -45,8 +47,11 @@ function PreBlock({ children }: { children?: React.ReactNode }): React.ReactElem
     | React.ReactElement<{ className?: string; children?: React.ReactNode }>
     | undefined;
   const className = codeEl?.props?.className ?? '';
-  const match = /language-(\w+)/.exec(className);
+  const match = /language-([^\s]+)/.exec(className);
   const code = flattenText(codeEl?.props?.children).replace(/\n$/, '');
+  if (isMermaidLanguage(match?.[1])) {
+    return <MermaidDiagram code={code} />;
+  }
   return <CollapsibleCodeBlock code={code} language={match?.[1]} contextLabel="code" />;
 }
 
