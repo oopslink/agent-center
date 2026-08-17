@@ -43,6 +43,15 @@ func NewMigratorFS(db *sql.DB, fsys fs.FS) *Migrator {
 	return &Migrator{db: db, fs: fsys}
 }
 
+// LatestMigrationVersion returns the highest embedded up-migration version.
+func LatestMigrationVersion() (int, error) {
+	migs, err := (&Migrator{fs: subFS(MigrationsFS, "migrations")}).loadMigrations()
+	if err != nil {
+		return 0, err
+	}
+	return migs[len(migs)-1].version, nil
+}
+
 type migration struct {
 	version int
 	name    string

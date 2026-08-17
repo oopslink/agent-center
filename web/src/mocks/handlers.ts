@@ -740,7 +740,6 @@ function accessHandlers() {
         reason: `${id} is a derived permission and must be revoked at its source`,
         grant_id: id,
       }));
-      const failed = items.filter((i) => i.status !== 'allowed').length;
       return ok({
         preview_id: 'revoke-preview-mock-1',
         token: 'revoke-token-mock-1',

@@ -76,10 +76,11 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 64
 fi
 if [[ ! -d "tests/e2e/v2/node_modules" ]]; then
-  echo "tests/e2e/v2/node_modules missing — run \`make e2e-install\` first" >&2
-  CURRENT_STEP="preflight:node_modules-missing"
-  exit 64
+  step "preflight:e2e-install"
+  ( cd tests/e2e/v2 && pnpm install --frozen-lockfile )
 fi
+step "preflight:playwright-install"
+( cd tests/e2e/v2 && pnpm exec playwright install chromium )
 
 # --- build fresh binaries -------------------------------------------
 # `make build` already chains build-frontend + build-backend +

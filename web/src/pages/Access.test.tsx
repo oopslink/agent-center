@@ -141,7 +141,7 @@ describe('Access page', () => {
       }),
       http.post('/api/orgs/:slug/access/profiles/profile-created/versions', async ({ request }) => {
         publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
-        const latest = { ...profileDetail.latest, version: 2, permissions: publishBody.permissions, risk: 'high' };
+        const latest = { ...profileDetail.latest, version: 2, permissions: publishBody.permissions ?? [], risk: 'high' };
         profileDetail = { ...profileDetail, latest, versions: [latest, profileDetail.latest] };
         return HttpResponse.json(profileDetail, { status: 201 });
       }),
