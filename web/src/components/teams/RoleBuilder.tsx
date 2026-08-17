@@ -218,9 +218,9 @@ export function RoleBuilder({
                 ))}
               </div>
             )}
-            {roleAccessLint(r.access_requirements ?? [], accessProfiles.data?.profiles ?? []).map((message) => (
-              <p key={message} className="mt-1 text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-access-lint`}>
-                {message}
+            {(r.access_lint ?? []).map((lint) => (
+              <p key={`${lint.permission ?? ''}:${lint.message}`} className="mt-1 text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-access-lint`}>
+                {lint.permission ? `${lint.permission}: ${lint.message}` : lint.message}
               </p>
             ))}
           </div>
@@ -247,10 +247,4 @@ function profileValue(requirements: string[], profiles: Array<{ id: string; vers
   const normalized = requirements.slice().sort().join('\n');
   const profile = profiles.find((p) => p.permissions.slice().sort().join('\n') === normalized);
   return profile ? `${profile.id}@${profile.version}` : '';
-}
-
-function roleAccessLint(requirements: string[], profiles: Array<{ permissions: string[] }>): string[] {
-  if (requirements.length === 0) return [];
-  const known = new Set(profiles.flatMap((profile) => profile.permissions));
-  return requirements.filter((permission) => !known.has(permission)).map((permission) => `Unknown permission: ${permission}`);
 }

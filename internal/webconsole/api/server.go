@@ -322,6 +322,10 @@ func (s *Server) routes() {
 	// compatibility routes delegate to the same service-backed handlers.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/access/overview", s.accessEffectiveHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/access/profiles", s.accessProfilesHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/profiles", s.accessProfileCreateHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/access/profiles/{id}", s.accessProfileDetailHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/profiles/{id}/versions", s.accessProfileNewVersionHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/profiles/{id}/disable", s.accessProfileDisableHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/batch/preview", s.accessBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/batch/apply", s.accessBatchApplyHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/grants/revoke/preview", s.accessBulkRevokePreviewHandler)

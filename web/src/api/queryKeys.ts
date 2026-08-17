@@ -111,6 +111,7 @@ export const qk = {
   accessOverview: (filters?: unknown) =>
     filters === undefined ? o('access', 'overview') : o('access', 'overview', filters ?? null),
   accessProfiles: () => o('access', 'profiles'),
+  accessProfile: (id: string) => o('access', 'profiles', id),
   permissions: () => o('permissions'),
   permissionDefinitions: () => o('permissions', 'definitions'),
   permissionEffective: (subjectRef: string, resourceKey: string) =>

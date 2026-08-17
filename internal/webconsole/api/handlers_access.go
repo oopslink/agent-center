@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -65,6 +66,24 @@ type accessProfileDTO struct {
 	Description string   `json:"description"`
 	Permissions []string `json:"permissions"`
 	Risk        string   `json:"risk"`
+	DisabledAt  *string  `json:"disabled_at,omitempty"`
+	CreatedAt   string   `json:"created_at,omitempty"`
+}
+
+type accessProfileDetailDTO struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	DisabledAt  *string            `json:"disabled_at,omitempty"`
+	Latest      accessProfileDTO   `json:"latest"`
+	Versions    []accessProfileDTO `json:"versions"`
+}
+
+type accessProfileWriteDTO struct {
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	Permissions           []string `json:"permissions"`
+	ExpectedLatestVersion *int     `json:"expected_latest_version,omitempty"`
 }
 
 type accessDecisionDTO struct {
@@ -332,18 +351,356 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) accessProfilesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, _, ok := requireOrgMember(w, r, d)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profiles": accessProfiles()})
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "access_profiles_not_wired", "access profile store not wired")
+		return
+	}
+	profiles, err := accessListProfiles(r.Context(), d.DB, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_profiles_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": profiles})
 }
 
-func accessProfiles() []accessProfileDTO {
-	return []accessProfileDTO{
-		{ID: "team-basic", Name: "Team basic", Version: 1, Description: "Read team metadata and memory.", Permissions: []string{"team.read", "team.memory.read"}, Risk: "low"},
-		{ID: "team-contributor", Name: "Team contributor", Version: 1, Description: "Read/write team work and propose memory.", Permissions: []string{"team.read", "team.write", "team.memory.read", "team.memory.propose"}, Risk: "medium"},
-		{ID: "team-curator", Name: "Team curator", Version: 2, Description: "Review team memory in addition to contributor access.", Permissions: []string{"team.read", "team.write", "team.memory.read", "team.memory.propose", "team.memory.review"}, Risk: "high"},
+func (s *Server) accessProfileDetailHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	detail, found, err := accessProfileDetail(r.Context(), d.DB, orgID, r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) accessProfileCreateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	var body accessProfileWriteDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	profile, err := accessCreateProfile(r.Context(), d.DB, orgID, string(authz.UserSubject(caller.ID())), body)
+	if err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, profile)
+}
+
+func (s *Server) accessProfileNewVersionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	var body accessProfileWriteDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	profile, err := accessCreateProfileVersion(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body)
+	if err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, profile)
+}
+
+func (s *Server) accessProfileDisableHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	if err := accessDisableProfile(r.Context(), d.DB, orgID, r.PathValue("id")); err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+var (
+	errAccessProfileNotFound = errors.New("access profile not found")
+	errAccessProfileConflict = errors.New("access profile version conflict")
+	errAccessProfileInvalid  = errors.New("invalid access profile")
+)
+
+func accessListProfiles(ctx context.Context, db *sql.DB, orgID string) ([]accessProfileDTO, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
+		FROM access_profiles p
+		JOIN access_profile_versions v ON v.profile_id = p.id
+		JOIN (
+			SELECT profile_id, MAX(version) AS version
+			FROM access_profile_versions
+			GROUP BY profile_id
+		) latest ON latest.profile_id = v.profile_id AND latest.version = v.version
+		WHERE p.org_id IN ('', ?) AND p.disabled_at IS NULL
+		ORDER BY p.name, p.id`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []accessProfileDTO
+	for rows.Next() {
+		profile, err := scanAccessProfileVersion(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, profile)
+	}
+	return out, rows.Err()
+}
+
+func accessProfileDetail(ctx context.Context, db *sql.DB, orgID, profileID string) (accessProfileDetailDTO, bool, error) {
+	if db == nil {
+		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+	}
+	var detail accessProfileDetailDTO
+	var disabled sql.NullString
+	err := db.QueryRowContext(ctx, `
+		SELECT id, name, description, disabled_at
+		FROM access_profiles
+		WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).
+		Scan(&detail.ID, &detail.Name, &detail.Description, &disabled)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessProfileDetailDTO{}, false, nil
+		}
+		return accessProfileDetailDTO{}, false, err
+	}
+	if disabled.Valid {
+		detail.DisabledAt = &disabled.String
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
+		FROM access_profiles p
+		JOIN access_profile_versions v ON v.profile_id = p.id
+		WHERE p.id = ?
+		ORDER BY v.version DESC`, profileID)
+	if err != nil {
+		return accessProfileDetailDTO{}, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		version, err := scanAccessProfileVersion(rows)
+		if err != nil {
+			return accessProfileDetailDTO{}, false, err
+		}
+		detail.Versions = append(detail.Versions, version)
+	}
+	if err := rows.Err(); err != nil {
+		return accessProfileDetailDTO{}, false, err
+	}
+	if len(detail.Versions) == 0 {
+		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+	}
+	detail.Latest = detail.Versions[0]
+	return detail, true, nil
+}
+
+type accessProfileScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanAccessProfileVersion(row accessProfileScanner) (accessProfileDTO, error) {
+	var profile accessProfileDTO
+	var permissionsJSON string
+	var disabled sql.NullString
+	if err := row.Scan(&profile.ID, &profile.Name, &profile.Description, &disabled, &profile.Version, &permissionsJSON, &profile.Risk, &profile.CreatedAt); err != nil {
+		return accessProfileDTO{}, err
+	}
+	if disabled.Valid {
+		profile.DisabledAt = &disabled.String
+	}
+	if err := json.Unmarshal([]byte(permissionsJSON), &profile.Permissions); err != nil {
+		return accessProfileDTO{}, err
+	}
+	return profile, nil
+}
+
+func accessCreateProfile(ctx context.Context, db *sql.DB, orgID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	id := "profile-" + accessHash(orgID+"|"+name+"|"+time.Now().UTC().Format(time.RFC3339Nano))
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO access_profiles (id, org_id, name, description, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, id, orgID, name, strings.TrimSpace(body.Description), actor, now, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := insertAccessProfileVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	detail, _, err := accessProfileDetail(ctx, db, orgID, id)
+	return detail, err
+}
+
+func accessCreateProfileVersion(ctx context.Context, db *sql.DB, orgID, profileID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
+	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	defer tx.Rollback()
+	var ownerOrg string
+	var disabled sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, disabled_at FROM access_profiles WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).Scan(&ownerOrg, &disabled); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessProfileDetailDTO{}, errAccessProfileNotFound
+		}
+		return accessProfileDetailDTO{}, err
+	}
+	if ownerOrg == "" {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	if disabled.Valid {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	var latest int
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM access_profile_versions WHERE profile_id = ?`, profileID).Scan(&latest); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if body.ExpectedLatestVersion == nil || *body.ExpectedLatestVersion != latest {
+		return accessProfileDetailDTO{}, errAccessProfileConflict
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if err := insertAccessProfileVersion(ctx, tx, profileID, latest+1, permissions, risk, actor, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE access_profiles SET updated_at = ? WHERE id = ?`, now, profileID); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	detail, _, err := accessProfileDetail(ctx, db, orgID, profileID)
+	return detail, err
+}
+
+func insertAccessProfileVersion(ctx context.Context, exec interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, profileID string, version int, permissions []string, risk, actor, now string) error {
+	raw, err := json.Marshal(permissions)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `
+		INSERT INTO access_profile_versions (profile_id, version, permissions_json, risk, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, profileID, version, string(raw), risk, actor, now)
+	return err
+}
+
+func accessDisableProfile(ctx context.Context, db *sql.DB, orgID, profileID string) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := db.ExecContext(ctx, `
+		UPDATE access_profiles
+		SET disabled_at = ?, updated_at = ?
+		WHERE id = ? AND org_id = ? AND disabled_at IS NULL`, now, now, profileID, orgID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errAccessProfileNotFound
+	}
+	return nil
+}
+
+func normalizeAccessProfilePermissions(in []string) ([]string, string, error) {
+	known := map[string]accessPermissionDefinitionDTO{}
+	for _, def := range accessCatalog {
+		known[def.Key] = def
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	risk := "low"
+	for _, permission := range in {
+		permission = strings.TrimSpace(permission)
+		if permission == "" {
+			continue
+		}
+		def, ok := known[permission]
+		if !ok {
+			return nil, "", fmt.Errorf("%w: permission is not registered: %s", errAccessProfileInvalid, permission)
+		}
+		if _, ok := seen[permission]; ok {
+			continue
+		}
+		seen[permission] = struct{}{}
+		out = append(out, permission)
+		if def.Risk == "high" {
+			risk = "high"
+		} else if def.Risk == "medium" && risk == "low" {
+			risk = "medium"
+		}
+	}
+	if len(out) == 0 {
+		return nil, "", errAccessProfileInvalid
+	}
+	sort.Strings(out)
+	return out, risk, nil
+}
+
+func writeAccessProfileWriteError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errAccessProfileNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
+	case errors.Is(err, errAccessProfileConflict):
+		writeError(w, http.StatusConflict, "version_conflict", "access profile latest version changed")
+	case errors.Is(err, errAccessProfileInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_access_profile", err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
 	}
 }
 

@@ -663,6 +663,29 @@ function accessHandlers() {
         { id: 'team-curator', name: 'Team curator', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
       ],
     })),
+    http.get('/api/access/profiles/:id', ({ params }) => {
+      const id = String(params.id);
+      const base = id === 'team-contributor'
+        ? { id, name: 'Team contributor', description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] }
+        : { id, name: 'Team curator', description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] };
+      const versions = id === 'team-curator'
+        ? [
+            { ...base, version: 2, risk: 'high' },
+            { ...base, version: 1, permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
+          ]
+        : [{ ...base, version: 1, risk: 'medium' }];
+      return ok({ ...base, latest: versions[0], versions });
+    }),
+    http.post('/api/access/profiles', async ({ request }) => {
+      const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
+      const latest = { id: 'profile-created', name: body.name, description: body.description ?? '', version: 1, permissions: body.permissions, risk: 'medium' };
+      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest] }, 201);
+    }),
+    http.post('/api/access/profiles/:id/versions', async ({ params, request }) => {
+      const body = (await request.json()) as { permissions: string[] };
+      const latest = { id: String(params.id), name: 'Team contributor', description: 'Read/write team work and propose memory.', version: 2, permissions: body.permissions, risk: 'high' };
+      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest, { ...latest, version: 1, permissions: ['team.read'], risk: 'low' }] }, 201);
+    }),
     http.post('/api/access/batch/preview', async ({ request }) => {
       const body = (await request.json()) as BatchRequest;
       const items = makeItems(body);

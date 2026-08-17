@@ -139,3 +139,94 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestAccessProfilesPersistVersionsAndCAS(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/access/profiles", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list profiles status=%d", resp.StatusCode)
+	}
+	var listed struct {
+		Profiles []struct {
+			ID      string   `json:"id"`
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"profiles"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(listed.Profiles) == 0 || listed.Profiles[0].Version == 0 || len(listed.Profiles[0].Perms) == 0 {
+		t.Fatalf("seeded persistent profiles missing: %+v", listed.Profiles)
+	}
+
+	createBody := `{"name":"Release operator","description":"ship access","permissions":["team.read","team.write"]}`
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles", createBody, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create profile status=%d", resp.StatusCode)
+	}
+	var created struct {
+		ID     string `json:"id"`
+		Latest struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"latest"`
+		Versions []struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if created.ID == "" || created.Latest.Version != 1 || len(created.Versions) != 1 {
+		t.Fatalf("created profile shape wrong: %+v", created)
+	}
+
+	stale := orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
+	if stale.StatusCode != http.StatusConflict {
+		t.Fatalf("stale new-version status=%d want 409", stale.StatusCode)
+	}
+	stale.Body.Close()
+
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":1,"permissions":["team.read","team.memory.review"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("new-version status=%d", resp.StatusCode)
+	}
+	var updated struct {
+		Latest struct {
+			Version int      `json:"version"`
+			Risk    string   `json:"risk"`
+			Perms   []string `json:"permissions"`
+		} `json:"latest"`
+		Versions []struct {
+			Version int      `json:"version"`
+			Perms   []string `json:"permissions"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if updated.Latest.Version != 2 || updated.Latest.Risk != "high" || len(updated.Versions) != 2 {
+		t.Fatalf("new version shape wrong: %+v", updated)
+	}
+	if len(updated.Versions[1].Perms) != 2 {
+		t.Fatalf("v1 mutated; versions must be immutable: %+v", updated.Versions)
+	}
+
+	if _, err := db.Exec(`UPDATE members SET role='member' WHERE identity_id=?`, sess.IdentityID); err != nil {
+		t.Fatal(err)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/profiles", `{"name":"Blocked","permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member create profile status=%d want 403", resp.StatusCode)
+	}
+	resp.Body.Close()
+}

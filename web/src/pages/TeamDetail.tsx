@@ -196,6 +196,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),
     access_requirements: role.access_requirements ?? [],
+    access_lint: role.access_lint ?? [],
   })));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;

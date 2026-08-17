@@ -79,6 +79,24 @@ export interface AccessProfile {
   description: string;
   permissions: string[];
   risk: AccessRisk;
+  disabled_at?: string | null;
+  created_at?: string;
+}
+
+export interface AccessProfileDetail {
+  id: string;
+  name: string;
+  description: string;
+  disabled_at?: string | null;
+  latest: AccessProfile;
+  versions: AccessProfile[];
+}
+
+export interface AccessProfileWriteRequest {
+  name?: string;
+  description?: string;
+  permissions: string[];
+  expected_latest_version?: number;
 }
 
 export interface AccessDecision {
@@ -215,6 +233,14 @@ export const accessApi = {
     api.get<AccessOverview>(`/access/overview${qs(filters)}`),
   profiles: () =>
     api.get<{ profiles: AccessProfile[] }>('/access/profiles'),
+  profile: (id: string) =>
+    api.get<AccessProfileDetail>(`/access/profiles/${encodeURIComponent(id)}`),
+  createProfile: (payload: AccessProfileWriteRequest) =>
+    api.post<AccessProfileDetail>('/access/profiles', payload),
+  createProfileVersion: (id: string, payload: AccessProfileWriteRequest) =>
+    api.post<AccessProfileDetail>(`/access/profiles/${encodeURIComponent(id)}/versions`, payload),
+  disableProfile: (id: string) =>
+    api.post<void>(`/access/profiles/${encodeURIComponent(id)}/disable`, {}),
   previewBatch: (payload: AccessBatchRequest) =>
     api.post<AccessBatchPreview>('/access/batch/preview', payload),
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
@@ -235,6 +261,48 @@ export function useAccessProfiles() {
     queryKey: qk.accessProfiles(),
     queryFn: () => accessApi.profiles(),
     staleTime: 60_000,
+  });
+}
+
+export function useAccessProfile(id: string | null) {
+  return useQuery({
+    queryKey: id ? qk.accessProfile(id) : qk.accessProfile(''),
+    queryFn: () => accessApi.profile(id ?? ''),
+    enabled: Boolean(id),
+    staleTime: 10_000,
+  });
+}
+
+export function useAccessProfileCreate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AccessProfileWriteRequest) => accessApi.createProfile(payload),
+    onSuccess: (detail) => {
+      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
+      void qc.setQueryData(qk.accessProfile(detail.id), detail);
+    },
+  });
+}
+
+export function useAccessProfileNewVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AccessProfileWriteRequest }) =>
+      accessApi.createProfileVersion(id, payload),
+    onSuccess: (detail) => {
+      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
+      void qc.setQueryData(qk.accessProfile(detail.id), detail);
+    },
+  });
+}
+
+export function useAccessProfileDisable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => accessApi.disableProfile(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
+    },
   });
 }
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import TeamDetail from './TeamDetail';
 import { OrgContext } from '@/OrgContext';
@@ -117,6 +117,53 @@ describe('TeamDetail', () => {
     expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
     fireEvent.click(within(modal).getByTestId('team-save-roles'));
     await waitFor(() => expect(body?.roles?.[0]?.access_requirements).toEqual(['team.read', 'team.memory.read']));
+  });
+
+  it('preserves and refreshes server access_lint in the edit role model', async () => {
+    let patched = false;
+    const invalidTeam = teamDetail({
+      roles: [{
+        role: 'planner',
+        cli: 'claude-code',
+        model: 'claude-opus-4-8',
+        capability_tags: [],
+        access_requirements: ['team.read', 'team.unknown'],
+        access_lint: [{ severity: 'error', permission: 'team.unknown', message: 'server says unknown permission' }],
+        max_concurrency: 1,
+        count: 0,
+      }],
+    });
+    const fixedTeam = teamDetail({
+      roles: [{
+        role: 'planner',
+        cli: 'claude-code',
+        model: 'claude-opus-4-8',
+        capability_tags: [],
+        access_requirements: ['team.read'],
+        access_lint: [{ severity: 'warning', permission: 'team.read', message: 'server refreshed lint' }],
+        max_concurrency: 1,
+        count: 0,
+      }],
+    });
+    server.use(
+      http.get('/api/teams/:id', () => HttpResponse.json(patched ? fixedTeam : invalidTeam)),
+      http.patch('/api/teams/:id', async () => {
+        patched = true;
+        return HttpResponse.json(fixedTeam);
+      }),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('team-edit-roles'));
+    let modal = await screen.findByTestId('edit-team-roles-modal');
+    expect(within(modal).getByTestId('edit-team-role-0-access-lint')).toHaveTextContent('team.unknown: server says unknown permission');
+    expect(within(modal).queryByText('Unknown permission: team.unknown')).not.toBeInTheDocument();
+
+    patched = true;
+    cleanup();
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('team-edit-roles'));
+    modal = await screen.findByTestId('edit-team-roles-modal');
+    expect(within(modal).getByTestId('edit-team-role-0-access-lint')).toHaveTextContent('team.read: server refreshed lint');
   });
 
   it('renders an error for an unknown team', async () => {

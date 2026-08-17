@@ -234,6 +234,7 @@ export interface RoleInput {
   tags: string;
   description?: string;
   access_requirements?: string[];
+  access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
 }
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
