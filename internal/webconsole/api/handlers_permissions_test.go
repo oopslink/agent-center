@@ -307,6 +307,92 @@ func hasDirectAccessGrant(grants []struct {
 	return false
 }
 
+func TestPermissionsHTTP_AccessGraphRoutePaginationRedactionAndRollbackSwitch(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
+	srv := NewServer("127.0.0.1:0", Deps{})
+	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer ts.Close()
+
+	resp := orgScopedGet(t, ts.URL+"/api/permissions/access-graph?layer=permissions&limit=1", sess)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("access graph status=%d", resp.StatusCode)
+	}
+	var graph authz.AccessGraphPage
+	if err := json.NewDecoder(resp.Body).Decode(&graph); err != nil {
+		t.Fatal(err)
+	}
+	if graph.Complete || !graph.Completeness.HasMore || graph.NextCursor == "" {
+		t.Fatalf("graph completeness = %#v complete=%v next=%q", graph.Completeness, graph.Complete, graph.NextCursor)
+	}
+	if len(graph.Permissions) != 1 {
+		t.Fatalf("graph permissions len=%d", len(graph.Permissions))
+	}
+	if !graph.Permissions[0].Evidence.Redacted || graph.Permissions[0].Evidence.Ref != "members:redacted" {
+		t.Fatalf("graph evidence not redacted: %#v", graph.Permissions[0].Evidence)
+	}
+	if graph.ParityShadow.Checked == 0 || graph.ParityShadow.Mismatches != 0 {
+		t.Fatalf("graph parity = %#v", graph.ParityShadow)
+	}
+
+	disabledDeps := deps
+	disabledDeps.AccessGovernanceReadModelDisabled = true
+	disabledSrv := NewServer("127.0.0.1:0", Deps{})
+	disabledTS := httptest.NewServer(WithDeps(disabledDeps)(disabledSrv.Handler()))
+	defer disabledTS.Close()
+	disabledResp := orgScopedGet(t, disabledTS.URL+"/api/permissions/access-graph", sess)
+	defer disabledResp.Body.Close()
+	if disabledResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("disabled access graph status=%d, want 404", disabledResp.StatusCode)
+	}
+}
+
+func TestPermissionsHTTP_ExplainVisibilityGateCrossOrg404AndRedactsEvidence(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
+	insertOtherHTTPOrg(t, db, "org-http-visibility-other")
+	srv := NewServer("127.0.0.1:0", Deps{})
+	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer ts.Close()
+
+	cross := orgScopedPost(t, ts.URL+"/api/permissions/explain",
+		`{"permission":"org.read","resource":{"kind":"org","id":"org-http-visibility-other"}}`, sess)
+	defer cross.Body.Close()
+	if cross.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org explain status=%d, want 404", cross.StatusCode)
+	}
+	var crossBody map[string]any
+	if err := json.NewDecoder(cross.Body).Decode(&crossBody); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(crossBody)
+	if strings.Contains(string(raw), "org-http-visibility-other") {
+		t.Fatalf("cross-org explain leaked target org id: %s", raw)
+	}
+
+	own := orgScopedPost(t, ts.URL+"/api/permissions/explain",
+		`{"permission":"org.read","resource":{"kind":"org","id":"`+sess.OrgID+`"}}`, sess)
+	defer own.Body.Close()
+	if own.StatusCode != http.StatusOK {
+		t.Fatalf("own explain status=%d", own.StatusCode)
+	}
+	var explain authz.ExplainResult
+	if err := json.NewDecoder(own.Body).Decode(&explain); err != nil {
+		t.Fatal(err)
+	}
+	if !explain.Decision.Allowed || explain.Decision.EvidenceRef != "members:redacted" {
+		t.Fatalf("own explain decision not redacted/allowed: %#v", explain.Decision)
+	}
+	for _, eff := range explain.Effective {
+		if strings.HasPrefix(eff.EvidenceRef, "members:mem-") {
+			t.Fatalf("raw evidence leaked in effective: %#v", eff)
+		}
+	}
+}
+
 func seedHTTPAuthzAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignmentID string) {
 	t.Helper()
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
@@ -330,6 +416,16 @@ func seedHTTPAuthzAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignment
 		 (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
 		 VALUES (?, ?, 'user:testuser', ?, 'org', ?, 'system', ?, 1)`,
 		assignmentID, orgID, roleID, orgID, now,
+	)
+}
+
+func insertOtherHTTPOrg(t *testing.T, db *sql.DB, orgID string) {
+	t.Helper()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execHTTPAuthz(t, db,
+		`INSERT INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at)
+		 VALUES (?, ?, 'Other Org', 'testuser', ?, ?)`,
+		orgID, orgID, now, now,
 	)
 }
 

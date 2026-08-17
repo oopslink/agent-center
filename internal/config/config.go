@@ -53,8 +53,9 @@ type WorkerConfig struct {
 // Enabled defaults to true when ListenAddr is set; ListenAddr defaults
 // to ":7100" (loopback only — refuses non-127.0.0.1 binds per ADR-0037).
 type WebConsoleConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	ListenAddr string `yaml:"listen_addr"`
+	Enabled                          bool   `yaml:"enabled"`
+	ListenAddr                       string `yaml:"listen_addr"`
+	AccessGovernanceReadModelEnabled bool   `yaml:"access_governance_read_model_enabled"`
 }
 
 // SecretManagementConfig holds Secret BC settings (ADR-0026 § 5).
@@ -224,8 +225,9 @@ func DefaultConfig() Config {
 		// explicitly with `web_console: {enabled: false}` if they
 		// truly want a headless server.
 		WebConsole: WebConsoleConfig{
-			Enabled:    true,
-			ListenAddr: "127.0.0.1:7100",
+			Enabled:                          true,
+			ListenAddr:                       "127.0.0.1:7100",
+			AccessGovernanceReadModelEnabled: true,
 		},
 	}
 }
@@ -375,8 +377,9 @@ func collectKnownKeys(cfg Config) keyTree {
 			"skip_perms_check": nil,
 		},
 		"web_console": keyTree{
-			"enabled":     nil,
-			"listen_addr": nil,
+			"enabled":                              nil,
+			"listen_addr":                          nil,
+			"access_governance_read_model_enabled": nil,
 		},
 		"worker": keyTree{ // v2.7.1 #249: worker enrollment identity (config single-source)
 			"worker_id":          nil,
@@ -535,6 +538,14 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 		}},
 		{"AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL", func(v string) error {
 			cfg.Notification.DefaultChannel = v
+			return nil
+		}},
+		{"AGENT_CENTER_WEB_CONSOLE_ACCESS_GOVERNANCE_READ_MODEL_ENABLED", func(v string) error {
+			parsed, err := strconv.ParseBool(v)
+			if err != nil {
+				return err
+			}
+			cfg.WebConsole.AccessGovernanceReadModelEnabled = parsed
 			return nil
 		}},
 	}

@@ -115,6 +115,118 @@ type ExplainResult struct {
 	ResolvedOrg string                `json:"resolved_org,omitempty"`
 }
 
+type AccessGraphRequest struct {
+	SubjectRef     SubjectRef `json:"subject_ref"`
+	OrgID          string     `json:"org_id"`
+	Layer          string     `json:"layer,omitempty"`
+	Cursor         string     `json:"cursor,omitempty"`
+	Limit          int        `json:"limit,omitempty"`
+	RedactEvidence bool       `json:"redact_evidence,omitempty"`
+	ShadowParity   bool       `json:"shadow_parity,omitempty"`
+	RequestID      string     `json:"request_id,omitempty"`
+	ActorRef       SubjectRef `json:"actor_ref,omitempty"`
+}
+
+type AccessGraphPage struct {
+	SubjectRef    SubjectRef                `json:"subject_ref"`
+	OrgID         string                    `json:"org_id"`
+	Layer         string                    `json:"layer"`
+	Limit         int                       `json:"limit"`
+	Cursor        string                    `json:"cursor,omitempty"`
+	NextCursor    string                    `json:"next_cursor,omitempty"`
+	Complete      bool                      `json:"complete"`
+	Completeness  AccessGraphCompleteness   `json:"completeness"`
+	Relationships []AccessGraphRelationship `json:"relationships"`
+	Scopes        []AccessGraphScope        `json:"scopes"`
+	Permissions   []AccessGraphPermission   `json:"permissions"`
+	RiskSummary   AccessGraphRiskSummary    `json:"risk_summary"`
+	ParityShadow  AccessGraphParityShadow   `json:"parity_shadow"`
+}
+
+type AccessGraphCompleteness struct {
+	RequestedLayer string `json:"requested_layer"`
+	Returned       int    `json:"returned"`
+	Total          int    `json:"total"`
+	HasMore        bool   `json:"has_more"`
+	Reason         string `json:"reason,omitempty"`
+}
+
+type AccessGraphEvidence struct {
+	Source   DecisionSource `json:"source"`
+	Ref      string         `json:"ref,omitempty"`
+	Hash     string         `json:"hash,omitempty"`
+	Redacted bool           `json:"redacted,omitempty"`
+}
+
+type AccessGraphRelationship struct {
+	ID              string              `json:"id"`
+	SubjectRef      SubjectRef          `json:"subject_ref"`
+	Source          DecisionSource      `json:"source"`
+	Role            string              `json:"role,omitempty"`
+	Evidence        AccessGraphEvidence `json:"evidence"`
+	ScopeCount      int                 `json:"scope_count"`
+	PermissionCount int                 `json:"permission_count"`
+}
+
+type AccessGraphScope struct {
+	ID              string              `json:"id"`
+	RelationshipID  string              `json:"relationship_id"`
+	Resource        ResourceScope       `json:"resource"`
+	Source          DecisionSource      `json:"source"`
+	Evidence        AccessGraphEvidence `json:"evidence"`
+	PermissionCount int                 `json:"permission_count"`
+}
+
+type AccessGraphPermission struct {
+	ID             string              `json:"id"`
+	RelationshipID string              `json:"relationship_id"`
+	ScopeID        string              `json:"scope_id"`
+	Resource       ResourceScope       `json:"resource"`
+	Key            PermissionKey       `json:"key"`
+	Source         DecisionSource      `json:"source"`
+	Evidence       AccessGraphEvidence `json:"evidence"`
+	Delegatable    bool                `json:"delegatable,omitempty"`
+	RoleID         string              `json:"role_id,omitempty"`
+	AssignmentID   string              `json:"assignment_id,omitempty"`
+}
+
+type AccessGraphRiskSummary struct {
+	SubjectRef                 SubjectRef               `json:"subject_ref"`
+	ActiveAdminTokens          int                      `json:"active_admin_tokens"`
+	ActiveWorkerTokens         int                      `json:"active_worker_tokens"`
+	ActiveEnrollTokens         int                      `json:"active_enroll_tokens"`
+	WildcardAdminTokens        int                      `json:"wildcard_admin_tokens"`
+	InactiveAdminTokens        int                      `json:"inactive_admin_tokens"`
+	WorkerStatus               string                   `json:"worker_status,omitempty"`
+	WorkerLastHeartbeatAt      string                   `json:"worker_last_heartbeat_at,omitempty"`
+	WorkerDisabledCapabilities int                      `json:"worker_disabled_capabilities,omitempty"`
+	Findings                   []AccessGraphRiskFinding `json:"findings,omitempty"`
+}
+
+type AccessGraphRiskFinding struct {
+	Severity string              `json:"severity"`
+	Kind     string              `json:"kind"`
+	Message  string              `json:"message"`
+	Evidence AccessGraphEvidence `json:"evidence"`
+}
+
+type AccessGraphParityShadow struct {
+	Checked    int                        `json:"checked"`
+	Mismatches int                        `json:"mismatches"`
+	Complete   bool                       `json:"complete"`
+	Findings   []AccessGraphParityFinding `json:"findings,omitempty"`
+}
+
+type AccessGraphParityFinding struct {
+	Permission PermissionKey       `json:"permission"`
+	Resource   ResourceScope       `json:"resource"`
+	Source     DecisionSource      `json:"source"`
+	Evidence   AccessGraphEvidence `json:"evidence"`
+	Expected   bool                `json:"expected"`
+	Actual     bool                `json:"actual"`
+	Reason     string              `json:"reason,omitempty"`
+}
+
 type PermissionDefinition struct {
 	Key           PermissionKey `json:"key"`
 	Category      string        `json:"category"`
