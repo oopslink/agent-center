@@ -744,7 +744,7 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
   const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('access cleanup');
-  const [preview, setPreview] = useState<(AccessBatchPreview & { preview_id: string; token: string }) | null>(null);
+  const [preview, setPreview] = useState<((AccessBatchPreview & { preview_id: string; token: string }) & { grant_ids: string[]; reason: string; message: string; idempotency_key: string }) | null>(null);
   const toggle = (id: string): void => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -761,7 +761,19 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
         <button
           type="button"
           disabled={selectedIds.length === 0 || previewRevoke.isPending || !reason.trim()}
-          onClick={() => previewRevoke.mutate({ grant_ids: selectedIds, reason }, { onSuccess: setPreview })}
+          onClick={() => {
+            const grant_ids = selectedIds;
+            const message = reason.trim();
+            previewRevoke.mutate({ grant_ids, reason: message, message }, {
+              onSuccess: (data) => setPreview({
+                ...data,
+                grant_ids,
+                reason: message,
+                message,
+                idempotency_key: `access-revoke-${data.preview_id}`,
+              }),
+            });
+          }}
           className="inline-flex items-center gap-1 rounded border border-danger/40 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
           data-testid="access-revoke-preview"
         >
@@ -829,11 +841,12 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
               data-testid="access-revoke-confirm"
               disabled={revoke.isPending}
               onClick={() => revoke.mutate({
-                grant_ids: selectedIds,
-                reason,
+                grant_ids: preview.grant_ids,
+                reason: preview.reason,
+                message: preview.message,
                 preview_id: preview.preview_id,
                 token: preview.token,
-                idempotency_key: `access-revoke-${preview.preview_id}`,
+                idempotency_key: preview.idempotency_key,
               })}
             >
               Confirm revoke

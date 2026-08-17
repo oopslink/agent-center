@@ -205,6 +205,7 @@ export interface AccessBatchResult {
 export interface AccessBulkRevokeRequest {
   grant_ids: string[];
   reason: string;
+  message?: string;
   preview_id?: string;
   token?: string;
   idempotency_key?: string;

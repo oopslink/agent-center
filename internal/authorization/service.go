@@ -215,7 +215,7 @@ func (s *Service) PreviewBatch(ctx context.Context, req BatchRequest) (BatchResu
 		}
 		out = BatchResult{IdempotencyKey: req.IdempotencyKey, Preview: true}
 		for _, op := range req.Operations {
-			result, err := s.runOperation(txCtx, req.ActorRef, req.OrgID, op)
+			result, err := s.runOperation(txCtx, req.ActorRef, req.OrgID, req.IdempotencyKey, op)
 			if err != nil {
 				out.Operations = append(out.Operations, OperationResult{ID: op.ID, Type: op.Type, Status: "denied", Reason: err.Error()})
 				continue
@@ -390,6 +390,8 @@ func (s *Service) ConfirmRevoke(ctx context.Context, req RevokeConfirmRequest) (
 			if i < len(spec.Targets) {
 				op.Revoke.AssignmentID = spec.Targets[i].AssignmentID
 				op.Revoke.ExpectedVersion = spec.Targets[i].Version
+				op.Revoke.Reason = spec.Targets[i].Reason
+				op.Revoke.Message = spec.Targets[i].Message
 			}
 			batch.Operations = append(batch.Operations, op)
 		}
@@ -423,7 +425,7 @@ func (s *Service) normalizedRevokeSpec(ctx context.Context, actor SubjectRef, or
 		spec.Targets = append(spec.Targets, RevokeTargetSpec{
 			OperationID: op.ID, AssignmentID: target.ID, SubjectRef: target.SubjectRef, RoleID: target.RoleID,
 			Resource: ResourceScope{Kind: target.ResourceKind, ID: target.ResourceID, OrgID: target.OrgID},
-			Version:  target.Version, Reason: strings.TrimSpace(op.Revoke.Reason),
+			Version:  target.Version, Reason: strings.TrimSpace(op.Revoke.Reason), Message: strings.TrimSpace(op.Revoke.Message),
 		})
 		results = append(results, OperationResult{ID: op.ID, Type: op.Type, Status: previewStatus("revoked"), RoleID: target.RoleID, AssignmentID: target.ID})
 	}
@@ -441,7 +443,7 @@ func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest) (BatchResu
 	}
 	res := BatchResult{IdempotencyKey: req.IdempotencyKey}
 	for _, op := range req.Operations {
-		or, err := s.runOperation(ctx, req.ActorRef, req.OrgID, op)
+		or, err := s.runOperation(ctx, req.ActorRef, req.OrgID, req.IdempotencyKey, op)
 		if err != nil {
 			return BatchResult{}, err
 		}
@@ -450,7 +452,7 @@ func (s *Service) runBatchInTx(ctx context.Context, req BatchRequest) (BatchResu
 	return res, nil
 }
 
-func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID string, op BatchOperation) (OperationResult, error) {
+func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID string, requestID string, op BatchOperation) (OperationResult, error) {
 	switch strings.TrimSpace(op.Type) {
 	case "upsert_role":
 		if err := s.requireManageRBAC(ctx, actor, orgID); err != nil {
@@ -567,7 +569,17 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err != nil {
 			return OperationResult{}, err
 		}
-		if err := s.audit(ctx, auditEvent{EventType: "authorization.assignment.revoked", ActorRef: actor, SubjectRef: a.SubjectRef, RoleID: a.RoleID, AssignmentID: a.ID, ResourceKind: a.ResourceKind, ResourceID: a.ResourceID, Payload: map[string]any{"status": status, "reason": op.Revoke.Reason}}); err != nil {
+		reason := strings.TrimSpace(op.Revoke.Reason)
+		message := strings.TrimSpace(op.Revoke.Message)
+		if message == "" {
+			message = reason
+		}
+		payload := map[string]any{"status": status}
+		if reason != "" {
+			payload["reason"] = reason
+			payload["message"] = message
+		}
+		if err := s.audit(ctx, auditEvent{EventType: "authorization.assignment.revoked", ActorRef: actor, SubjectRef: a.SubjectRef, RoleID: a.RoleID, AssignmentID: a.ID, ResourceKind: a.ResourceKind, ResourceID: a.ResourceID, RequestID: requestID, Payload: payload}); err != nil {
 			return OperationResult{}, err
 		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: a.RoleID, AssignmentID: a.ID}, nil
