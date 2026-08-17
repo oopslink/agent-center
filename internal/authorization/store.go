@@ -318,10 +318,15 @@ func (s *Store) revokeAssignment(ctx context.Context, in RevokeInput, actor Subj
 		return a, "unchanged", nil
 	}
 	ts := now.UTC().Format(time.RFC3339Nano)
-	result, err := exec.ExecContext(ctx, `UPDATE authorization_role_assignments
+	query := `UPDATE authorization_role_assignments
 		SET revoked_at = ?, revoked_by = ?, revoked_reason = ?, version = version + 1
-		WHERE org_id = ? AND id = ? AND revoked_at IS NULL`,
-		ts, actor, strings.TrimSpace(in.Reason), strings.TrimSpace(orgID), a.ID)
+		WHERE org_id = ? AND id = ? AND revoked_at IS NULL`
+	args := []any{ts, actor, strings.TrimSpace(in.Reason), strings.TrimSpace(orgID), a.ID}
+	if in.ExpectedVersion > 0 {
+		query += ` AND version = ?`
+		args = append(args, in.ExpectedVersion)
+	}
+	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
 		return RoleAssignment{}, "", err
 	}
@@ -337,6 +342,71 @@ func (s *Store) revokeAssignment(ctx context.Context, in RevokeInput, actor Subj
 	}
 	revoked, err := s.getAssignmentInOrg(ctx, orgID, a.ID)
 	return revoked, "revoked", err
+}
+
+type revokePreviewRecord struct {
+	PreviewID   string
+	TokenHash   string
+	ActorRef    SubjectRef
+	OrgID       string
+	SubjectHash string
+	RequestHash string
+	RequestJSON string
+	Status      string
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
+}
+
+func (s *Store) saveRevokePreview(ctx context.Context, rec revokePreviewRecord) error {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_revoke_previews
+		(preview_id, token_hash, actor_ref, org_id, subject_hash, request_hash, request_json, status, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		rec.PreviewID, rec.TokenHash, rec.ActorRef, rec.OrgID, rec.SubjectHash, rec.RequestHash, rec.RequestJSON,
+		rec.CreatedAt.UTC().Format(time.RFC3339Nano), rec.ExpiresAt.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) getRevokePreview(ctx context.Context, previewID string) (revokePreviewRecord, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return revokePreviewRecord{}, err
+	}
+	var rec revokePreviewRecord
+	var created, expires string
+	row := exec.QueryRowContext(ctx, `SELECT preview_id, token_hash, actor_ref, org_id, subject_hash, request_hash,
+			request_json, status, created_at, expires_at
+		FROM authorization_revoke_previews WHERE preview_id = ?`, strings.TrimSpace(previewID))
+	if err := row.Scan(&rec.PreviewID, &rec.TokenHash, &rec.ActorRef, &rec.OrgID, &rec.SubjectHash, &rec.RequestHash, &rec.RequestJSON, &rec.Status, &created, &expires); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return revokePreviewRecord{}, ErrNotFound
+		}
+		return revokePreviewRecord{}, err
+	}
+	rec.CreatedAt = parseDBTime(created)
+	rec.ExpiresAt = parseDBTime(expires)
+	return rec, nil
+}
+
+func (s *Store) consumeRevokePreview(ctx context.Context, previewID string, now time.Time) error {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `UPDATE authorization_revoke_previews
+		SET status = 'confirmed', confirmed_at = ?
+		WHERE preview_id = ? AND status = 'pending'`,
+		now.UTC().Format(time.RFC3339Nano), strings.TrimSpace(previewID))
+	if err != nil {
+		return err
+	}
+	if rows, err := res.RowsAffected(); err == nil && rows == 0 {
+		return ErrPreviewRejected
+	}
+	return nil
 }
 
 func (s *Store) assignmentForRevoke(ctx context.Context, orgID string, in RevokeInput) (RoleAssignment, error) {

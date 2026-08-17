@@ -72,6 +72,15 @@ export interface AccessRole {
   high_risk?: boolean;
 }
 
+export interface AccessProfile {
+  id: string;
+  name: string;
+  version: number;
+  description: string;
+  permissions: string[];
+  risk: AccessRisk;
+}
+
 export interface AccessDecision {
   allowed: boolean;
   subject_ref: string;
@@ -178,6 +187,9 @@ export interface AccessBatchResult {
 export interface AccessBulkRevokeRequest {
   grant_ids: string[];
   reason: string;
+  preview_id?: string;
+  token?: string;
+  idempotency_key?: string;
 }
 
 export interface AccessRoleUpdateRequest {
@@ -201,18 +213,30 @@ function qs(filters?: AccessFilters): string {
 export const accessApi = {
   overview: (filters?: AccessFilters) =>
     api.get<AccessOverview>(`/access/overview${qs(filters)}`),
+  profiles: () =>
+    api.get<{ profiles: AccessProfile[] }>('/access/profiles'),
   previewBatch: (payload: AccessBatchRequest) =>
     api.post<AccessBatchPreview>('/access/batch/preview', payload),
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
     api.post<AccessBatchResult>('/access/batch/apply', payload),
-  bulkRevoke: (payload: AccessBulkRevokeRequest) =>
-    api.post<AccessBatchResult>('/access/grants/revoke', payload),
+  previewRevoke: (payload: AccessBulkRevokeRequest) =>
+    api.post<AccessBatchPreview & { preview_id: string; token: string }>('/access/grants/revoke/preview', payload),
+  confirmRevoke: (payload: AccessBulkRevokeRequest) =>
+    api.post<AccessBatchResult>('/access/grants/revoke/confirm', payload),
   updateRole: (payload: AccessRoleUpdateRequest) =>
     api.patch<AccessRole>(`/access/roles/${encodeURIComponent(payload.role_id)}`, {
       permissions: payload.permissions,
       reason: payload.reason,
     }),
 };
+
+export function useAccessProfiles() {
+  return useQuery({
+    queryKey: qk.accessProfiles(),
+    queryFn: () => accessApi.profiles(),
+    staleTime: 60_000,
+  });
+}
 
 export function useAccessOverview(filters?: AccessFilters) {
   return useQuery({
@@ -242,10 +266,16 @@ export function useAccessBatchApply() {
 export function useAccessBulkRevoke() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: AccessBulkRevokeRequest) => accessApi.bulkRevoke(payload),
+    mutationFn: (payload: AccessBulkRevokeRequest) => accessApi.confirmRevoke(payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.accessOverview() });
     },
+  });
+}
+
+export function useAccessRevokePreview() {
+  return useMutation({
+    mutationFn: (payload: AccessBulkRevokeRequest) => accessApi.previewRevoke(payload),
   });
 }
 

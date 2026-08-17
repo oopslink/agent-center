@@ -75,14 +75,45 @@ func roleViewMap(rc team.RoleConfig, count int) map[string]any {
 	if tags == nil {
 		tags = []string{}
 	}
-	return map[string]any{
-		"role":            rc.Role,
-		"cli":             rc.CLI,
-		"model":           rc.Model,
-		"capability_tags": tags,
-		"max_concurrency": rc.MaxConcurrency,
-		"count":           count,
+	requirements := rc.AccessRequirements
+	if requirements == nil {
+		requirements = []string{}
 	}
+	return map[string]any{
+		"role":                rc.Role,
+		"cli":                 rc.CLI,
+		"model":               rc.Model,
+		"capability_tags":     tags,
+		"access_requirements": requirements,
+		"access_lint":         accessRequirementsLint(requirements),
+		"max_concurrency":     rc.MaxConcurrency,
+		"count":               count,
+	}
+}
+
+func accessRequirementsLint(requirements []string) []map[string]string {
+	if len(requirements) == 0 {
+		return nil
+	}
+	known := map[string]struct{}{}
+	for _, def := range accessCatalog {
+		known[def.Key] = struct{}{}
+	}
+	out := []map[string]string{}
+	for _, permission := range requirements {
+		permission = strings.TrimSpace(permission)
+		if permission == "" {
+			continue
+		}
+		if _, ok := known[permission]; !ok {
+			out = append(out, map[string]string{
+				"severity":   "error",
+				"permission": permission,
+				"message":    "permission is not registered in the access catalog",
+			})
+		}
+	}
+	return out
 }
 
 // teamViewMap renders the TS TeamView. members drives members_count + the per-role
@@ -406,13 +437,14 @@ type createTeamReq struct {
 }
 
 type roleInputReq struct {
-	Role           string `json:"role"`
-	CLI            string `json:"cli"`
-	Model          string `json:"model"`
-	MaxConcurrency int    `json:"max_concurrency"`
-	Count          int    `json:"count"`
-	Tags           string `json:"tags"`
-	Description    string `json:"description"`
+	Role               string   `json:"role"`
+	CLI                string   `json:"cli"`
+	Model              string   `json:"model"`
+	MaxConcurrency     int      `json:"max_concurrency"`
+	Count              int      `json:"count"`
+	Tags               string   `json:"tags"`
+	Description        string   `json:"description"`
+	AccessRequirements []string `json:"access_requirements"`
 }
 
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
@@ -434,7 +466,7 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		roles = append(roles, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
+			CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, MaxConcurrency: ri.MaxConcurrency,
 		})
 	}
 	var valid bool

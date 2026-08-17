@@ -88,6 +88,37 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
   });
 
+  it('selects an explicit access profile version in RoleBuilder and saves access requirements', async () => {
+    let body: { roles?: Array<{ role: string; access_requirements?: string[] }> } | undefined;
+    const validTeam = teamDetail({
+        roles: [{
+          role: 'planner',
+          cli: 'claude-code',
+          model: 'claude-opus-4-8',
+          capability_tags: [],
+          access_requirements: ['team.read', 'team.memory.read'],
+          max_concurrency: 1,
+          count: 0,
+        }],
+      });
+    server.use(
+      http.get('/api/teams/:id', () => HttpResponse.json(validTeam)),
+      http.patch('/api/teams/:id', async ({ request }) => {
+        body = await request.json() as typeof body;
+        return HttpResponse.json(validTeam);
+      }),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('team-edit-roles'));
+    const modal = await screen.findByTestId('edit-team-roles-modal');
+    const profile = await within(modal).findByTestId('edit-team-role-0-access-profile');
+    await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
+    fireEvent.change(profile, { target: { value: 'team-basic@1' } });
+    expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
+    fireEvent.click(within(modal).getByTestId('team-save-roles'));
+    await waitFor(() => expect(body?.roles?.[0]?.access_requirements).toEqual(['team.read', 'team.memory.read']));
+  });
+
   it('renders an error for an unknown team', async () => {
     renderAt('team-does-not-exist');
     expect(await screen.findByTestId('team-detail-error')).toHaveTextContent('team_not_found');
@@ -236,6 +267,33 @@ describe('TeamDetail', () => {
     fireEvent.click(await screen.findByTestId('member-remove-agent:9a70…'));
     fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(screen.queryByText('planner-01')).not.toBeInTheDocument());
+  });
+
+  it('cancels member removal without calling delete', async () => {
+    let called = false;
+    server.use(http.delete('/api/teams/:id/members/:ref', () => {
+      called = true;
+      return HttpResponse.json({});
+    }));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    fireEvent.click(await screen.findByTestId('member-remove-agent:9a70…'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('confirm-modal')).not.toBeInTheDocument());
+    expect(called).toBe(false);
+    expect(screen.getByText('planner-01')).toBeInTheDocument();
+  });
+
+  it('keeps the remove confirm open and shows an error when removal fails', async () => {
+    server.use(http.delete('/api/teams/:id/members/:ref', () =>
+      HttpResponse.json({ error: 'conflict', message: 'member has running work' }, { status: 409 }),
+    ));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    fireEvent.click(await screen.findByTestId('member-remove-agent:9a70…'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    expect(await screen.findByTestId('member-remove-error')).toHaveTextContent('member has running work');
+    expect(screen.getByTestId('confirm-modal')).toBeInTheDocument();
   });
 
   it('associates a real picked project and unlinks a project', async () => {

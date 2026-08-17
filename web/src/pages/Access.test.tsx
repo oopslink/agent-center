@@ -81,13 +81,17 @@ describe('Access page', () => {
     expect(result).toHaveTextContent('not applicable');
   });
 
-  it('bulk revokes selected grants and exposes non-revocable derived permissions', async () => {
+  it('previews, confirms, and reports selected grant revokes', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     const grants = await screen.findByTestId('access-grants');
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select org\.member\.role\.manage for revoke/ }));
-    fireEvent.click(within(grants).getByTestId('access-revoke-selected'));
+    fireEvent.click(within(grants).getByTestId('access-revoke-preview'));
+
+    const preview = await within(grants).findByTestId('access-revoke-preview-panel');
+    expect(preview).toHaveTextContent('derived permission and must be revoked at its source');
+    fireEvent.click(within(preview).getByTestId('access-revoke-confirm'));
 
     const result = await within(grants).findByTestId('access-result');
     expect(result).toHaveTextContent('Partial failure');

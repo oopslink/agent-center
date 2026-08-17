@@ -97,6 +97,8 @@ type RoleConfig struct {
 	Model string
 	// CapabilityTags are free-form capability requirements for the role.
 	CapabilityTags []string
+	// AccessRequirements are permission keys the role is expected to receive.
+	AccessRequirements []string
 	// MaxConcurrency caps how many members of this role may run at once.
 	MaxConcurrency int
 }

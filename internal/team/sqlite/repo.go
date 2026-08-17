@@ -69,11 +69,18 @@ func insertRole(ctx context.Context, exec persistence.SQLExecutor, id team.TeamI
 	if len(rc.CapabilityTags) == 0 {
 		tags = []byte("[]")
 	}
-	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-		VALUES (?,?,?,?,?,?,?)`
+	requirements, err := json.Marshal(rc.AccessRequirements)
+	if err != nil {
+		return fmt.Errorf("marshal access_requirements: %w", err)
+	}
+	if len(rc.AccessRequirements) == 0 {
+		requirements = []byte("[]")
+	}
+	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at, access_requirements)
+		VALUES (?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		id.String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
-		now.UTC().Format(tsLayout),
+		now.UTC().Format(tsLayout), string(requirements),
 	)
 	return err
 }
@@ -115,12 +122,16 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 		if err != nil {
 			return fmt.Errorf("marshal capability_tags: %w", err)
 		}
+		requirements, err := json.Marshal(rc.AccessRequirements)
+		if err != nil {
+			return fmt.Errorf("marshal access_requirements: %w", err)
+		}
 		_, err = exec.ExecContext(ctx, `INSERT INTO team_roles
-			(team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-			VALUES (?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
+			(team_id, role, cli, model, capability_tags, max_concurrency, created_at, access_requirements)
+			VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
 			cli=excluded.cli, model=excluded.model, capability_tags=excluded.capability_tags,
-			max_concurrency=excluded.max_concurrency`, t.ID().String(), rc.Role, rc.CLI,
-			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
+			max_concurrency=excluded.max_concurrency, access_requirements=excluded.access_requirements`, t.ID().String(), rc.Role, rc.CLI,
+			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout), string(requirements))
 		if err != nil {
 			return err
 		}
@@ -241,7 +252,7 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 
 func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID) ([]team.RoleConfig, error) {
 	rows, err := exec.QueryContext(ctx,
-		`SELECT role, cli, model, capability_tags, max_concurrency FROM team_roles WHERE team_id=? ORDER BY role`,
+		`SELECT role, cli, model, capability_tags, max_concurrency, COALESCE(access_requirements, '[]') FROM team_roles WHERE team_id=? ORDER BY role`,
 		id.String())
 	if err != nil {
 		return nil, err
@@ -252,8 +263,9 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 		var (
 			role, cli, model, tagsJSON string
 			maxConc                    int
+			requirementsJSON           string
 		)
-		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc); err != nil {
+		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc, &requirementsJSON); err != nil {
 			return nil, err
 		}
 		var tags []string
@@ -262,9 +274,15 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 				return nil, fmt.Errorf("unmarshal capability_tags: %w", err)
 			}
 		}
+		var requirements []string
+		if requirementsJSON != "" {
+			if err := json.Unmarshal([]byte(requirementsJSON), &requirements); err != nil {
+				return nil, fmt.Errorf("unmarshal access_requirements: %w", err)
+			}
+		}
 		out = append(out, team.RoleConfig{
 			Role: role, CLI: cli, Model: model,
-			CapabilityTags: tags, MaxConcurrency: maxConc,
+			CapabilityTags: tags, AccessRequirements: requirements, MaxConcurrency: maxConc,
 		})
 	}
 	return out, rows.Err()

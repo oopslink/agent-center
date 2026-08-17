@@ -100,27 +100,38 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		server.URL + "/api/access/grants/revoke",
 	} {
 		resp = orgScopedPost(t, url, `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("revoke status=%d for %s", resp.StatusCode, url)
-		}
-		var revoked struct {
-			Summary struct {
-				PartialFailure bool `json:"partial_failure"`
-				NotApplicable  int  `json:"not_applicable"`
-			} `json:"summary"`
-			Items []struct {
-				Status string `json:"status"`
-				Reason string `json:"reason"`
-			} `json:"items"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
-			t.Fatal(err)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("direct revoke status=%d for %s, want 400", resp.StatusCode, url)
 		}
 		resp.Body.Close()
-		if !revoked.Summary.PartialFailure || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
-			t.Fatalf("revoke did not expose derived-grant not_applicable for %s: %+v", url, revoked)
-		}
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+grantID+`"],"reason":"cleanup"}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("revoke preview status=%d", resp.StatusCode)
+	}
+	var revoked struct {
+		PreviewID string `json:"preview_id"`
+		ExpiresAt string `json:"expires_at"`
+		Summary   struct {
+			NotApplicable int `json:"not_applicable"`
+		} `json:"summary"`
+		Items []struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&revoked); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if revoked.PreviewID == "" || revoked.ExpiresAt == "" || revoked.Summary.NotApplicable != 1 || revoked.Items[0].Status != "not_applicable" {
+		t.Fatalf("revoke preview did not expose derived-grant not_applicable: %+v", revoked)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/confirm", `{"grant_ids":["`+grantID+`"],"reason":"cleanup","preview_id":"`+revoked.PreviewID+`","token":"wrong"}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("revoke confirm without persisted preview status=%d want 404", resp.StatusCode)
+	}
+	resp.Body.Close()
 
 	resp = orgScopedPatch(t, server.URL+"/api/access/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
 	if resp.StatusCode != http.StatusConflict {

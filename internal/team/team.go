@@ -89,14 +89,35 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 			mc = 1 // default one concurrent slot per role
 		}
 		out = append(out, RoleConfig{
-			Role:           role,
-			CLI:            rc.CLI,
-			Model:          rc.Model,
-			CapabilityTags: append([]string(nil), rc.CapabilityTags...),
-			MaxConcurrency: mc,
+			Role:               role,
+			CLI:                rc.CLI,
+			Model:              rc.Model,
+			CapabilityTags:     append([]string(nil), rc.CapabilityTags...),
+			AccessRequirements: normalizeAccessRequirements(rc.AccessRequirements),
+			MaxConcurrency:     mc,
 		})
 	}
 	return out, nil
+}
+
+func normalizeAccessRequirements(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }
 
 // Rename updates the team name (validated) and bumps updatedAt.
