@@ -1,0 +1,8 @@
+# 31-repro-workerdaemon-detach
+2026-08-17T21:50:53Z
++ go test ./internal/workerdaemon -run ^TestSupervisorSession_DetachSurvives$ -count=1 -v
+=== RUN   TestSupervisorSession_DetachSurvives
+--- PASS: TestSupervisorSession_DetachSurvives (2.28s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	2.522s
+exit_code:0

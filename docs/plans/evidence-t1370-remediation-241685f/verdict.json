@@ -1,0 +1,86 @@
+{
+  "verdict": "REJECT",
+  "review_sha": "241685f5776cd542572f4c32b767d41690f1f355",
+  "candidate_ref": "refs/heads/fix/t1366-access-migration-smoke",
+  "origin_main_sha": "997470a51878726145796c39973028ea6813788d",
+  "old_sha_reused": false,
+  "target_lock": {
+    "remote_candidate_reachable": true,
+    "remote_main_reachable": true,
+    "merge_base": "997470a51878726145796c39973028ea6813788d",
+    "origin_main_is_ancestor": true
+  },
+  "checks": [
+    {
+      "name": "lineage",
+      "command": "git ls-remote origin refs/heads/fix/t1366-access-migration-smoke refs/heads/main && git merge-base ...",
+      "exit_code": 0,
+      "evidence": "logs/00-lineage.log"
+    },
+    {
+      "name": "spa_install",
+      "command": "pnpm --dir web install --frozen-lockfile",
+      "exit_code": 0,
+      "evidence": "logs/10-web-pnpm-install.log"
+    },
+    {
+      "name": "spa_typecheck",
+      "command": "pnpm --dir web run typecheck",
+      "exit_code": 0,
+      "evidence": "logs/11-web-typecheck.log"
+    },
+    {
+      "name": "spa_build",
+      "command": "pnpm --dir web run build",
+      "exit_code": 0,
+      "evidence": "logs/12-web-build.log"
+    },
+    {
+      "name": "spa_access_team_tests",
+      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx src/pages/TeamDetail.test.tsx src/pages/Teams.test.tsx",
+      "exit_code": 0,
+      "evidence": "logs/20-web-access-team-tests.log"
+    },
+    {
+      "name": "access_auth_profile_team_backend",
+      "command": "go test ./internal/authorization ./internal/webconsole/api ./internal/team/... -count=1",
+      "exit_code": 0,
+      "evidence": "logs/21-go-access-auth-team.log"
+    },
+    {
+      "name": "conversation_core_team_sqlite_migration",
+      "command": "go test ./internal/persistence ./internal/conversation/... ./internal/cli -run 'Migration|Migrate|Migrator|RoundTrip|Legacy|FollowState|MessageThread|Thread|V1ToV2|Authorization|Access|Profile|Team' -count=1",
+      "exit_code": 0,
+      "evidence": "logs/22-go-conversation-migration.log"
+    },
+    {
+      "name": "full_go_regression",
+      "command": "make test",
+      "exit_code": 2,
+      "evidence": "logs/30-make-test.log"
+    },
+    {
+      "name": "workerdaemon_detach_minimal_repro",
+      "command": "go test ./internal/workerdaemon -run '^TestSupervisorSession_DetachSurvives$' -count=1 -v",
+      "exit_code": 0,
+      "evidence": "logs/31-repro-workerdaemon-detach.log"
+    },
+    {
+      "name": "deployed_smoke",
+      "command": "make smoke",
+      "exit_code": 0,
+      "evidence": "logs/40-make-smoke.log"
+    }
+  ],
+  "blocking": [
+    {
+      "gate": "make test",
+      "exit_code": 2,
+      "package": "github.com/oopslink/agent-center/internal/workerdaemon",
+      "test": "TestSupervisorSession_DetachSurvives",
+      "failure": "supervisor not reattachable within 45s + 45s generous dial: state=1 reason=dead pidAlive=true",
+      "minimal_repro_command": "go test ./internal/workerdaemon -run '^TestSupervisorSession_DetachSurvives$' -count=1 -v",
+      "minimal_repro_exit_code": 0
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+# 20-web-access-team-tests
+2026-08-17T21:47:37Z
++ pnpm --dir web exec vitest run src/pages/Access.test.tsx src/pages/TeamDetail.test.tsx src/pages/Teams.test.tsx
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-cb5b1cf8/web
+
+(node:45106) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:45107) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:45108) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Teams.test.tsx (7 tests) 499ms
+ ✓ src/pages/Access.test.tsx (5 tests) 674ms
+ ✓ src/pages/TeamDetail.test.tsx (30 tests) 1371ms
+
+ Test Files  3 passed (3)
+      Tests  42 passed (42)
+   Start at  05:47:38
+   Duration  2.32s (transform 211ms, setup 936ms, collect 351ms, tests 2.54s, environment 772ms, prepare 122ms)
+
+exit_code:0

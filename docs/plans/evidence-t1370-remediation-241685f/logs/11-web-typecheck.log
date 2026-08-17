@@ -1,0 +1,8 @@
+# 11-web-typecheck
+2026-08-17T21:47:18Z
++ pnpm --dir web run typecheck
+
+> agent-center-web@0.1.0 typecheck /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-cb5b1cf8/web
+> tsc --noEmit
+
+exit_code:0

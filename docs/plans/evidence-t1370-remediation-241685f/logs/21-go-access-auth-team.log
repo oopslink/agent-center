@@ -1,0 +1,11 @@
+# 21-go-access-auth-team
+2026-08-17T21:47:40Z
++ go test ./internal/authorization ./internal/webconsole/api ./internal/team/... -count=1
+ok  	github.com/oopslink/agent-center/internal/authorization	3.528s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	33.238s
+ok  	github.com/oopslink/agent-center/internal/team	0.810s
+ok  	github.com/oopslink/agent-center/internal/team/migration	2.029s
+ok  	github.com/oopslink/agent-center/internal/team/service	3.927s
+ok  	github.com/oopslink/agent-center/internal/team/sqlite	2.206s
+ok  	github.com/oopslink/agent-center/internal/team/tool	2.465s
+exit_code:0

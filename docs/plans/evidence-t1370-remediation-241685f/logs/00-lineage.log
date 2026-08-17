@@ -1,0 +1,65 @@
+# lineage and target lock
+2026-08-17T21:47:05Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-cb5b1cf8
++ git rev-parse HEAD
+241685f5776cd542572f4c32b767d41690f1f355
+exit_code:0
++ git status --porcelain=v1
+?? docs/plans/evidence-t1370-remediation-241685f/
+exit_code:0
++ git ls-remote origin refs/heads/fix/t1366-access-migration-smoke refs/heads/main
+241685f5776cd542572f4c32b767d41690f1f355	refs/heads/fix/t1366-access-migration-smoke
+997470a51878726145796c39973028ea6813788d	refs/heads/main
+exit_code:0
++ git merge-base 997470a51878726145796c39973028ea6813788d 241685f5776cd542572f4c32b767d41690f1f355
+997470a51878726145796c39973028ea6813788d
+exit_code:0
++ git merge-base --is-ancestor origin_main_sha candidate_sha
+exit_code:0
++ git diff --name-only main..candidate
+internal/authorization/service.go
+internal/authorization/service_test.go
+internal/authorization/store.go
+internal/authorization/types.go
+internal/cli/handlers_migrate_v1_to_v2.go
+internal/conversation/service/follow_state_upgrade_test.go
+internal/conversation/sqlite/message_thread_upgrade_acc_test.go
+internal/persistence/migration_0129_unified_authorization_test.go
+internal/persistence/migration_finalize_archived_open_tasks_test.go
+internal/persistence/migration_round_trip_test.go
+internal/persistence/migrations/0130_authorization_revoke_previews.down.sql
+internal/persistence/migrations/0130_authorization_revoke_previews.up.sql
+internal/persistence/migrations/0131_team_role_access_requirements.down.sql
+internal/persistence/migrations/0131_team_role_access_requirements.up.sql
+internal/persistence/migrations/0132_access_profile_versions.down.sql
+internal/persistence/migrations/0132_access_profile_versions.up.sql
+internal/persistence/migrations_adr46_test.go
+internal/persistence/migrations_adr47_test.go
+internal/persistence/migrations_awi_f4_test.go
+internal/persistence/migrator.go
+internal/persistence/migrator_legacy_collision_test.go
+internal/persistence/migrator_test.go
+internal/team/sqlite/repo.go
+internal/team/team.go
+internal/team/types.go
+internal/webconsole/api/handlers_access.go
+internal/webconsole/api/handlers_access_test.go
+internal/webconsole/api/handlers_permissions.go
+internal/webconsole/api/handlers_teams.go
+internal/webconsole/api/handlers_teams_p2.go
+internal/webconsole/api/server.go
+scripts/smoke/deploy-smoke.sh
+web/src/api/access.ts
+web/src/api/queryKeys.ts
+web/src/api/teams.ts
+web/src/components/teams/NewTeamModal.tsx
+web/src/components/teams/RoleBuilder.tsx
+web/src/i18n/locales/en/teams.json
+web/src/i18n/locales/zh/teams.json
+web/src/mocks/handlers.ts
+web/src/pages/Access.test.tsx
+web/src/pages/Access.tsx
+web/src/pages/TeamDetail.test.tsx
+web/src/pages/TeamDetail.tsx
+web/src/pages/Teams.test.tsx
+exit_code:0

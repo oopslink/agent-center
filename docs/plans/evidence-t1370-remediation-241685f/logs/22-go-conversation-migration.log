@@ -1,0 +1,10 @@
+# 22-go-conversation-migration
+2026-08-17T21:48:16Z
++ go test ./internal/persistence ./internal/conversation/... ./internal/cli -run Migration|Migrate|Migrator|RoundTrip|Legacy|FollowState|MessageThread|Thread|V1ToV2|Authorization|Access|Profile|Team -count=1
+ok  	github.com/oopslink/agent-center/internal/persistence	8.168s
+ok  	github.com/oopslink/agent-center/internal/conversation	0.860s
+ok  	github.com/oopslink/agent-center/internal/conversation/replyguard	1.199s
+ok  	github.com/oopslink/agent-center/internal/conversation/service	3.075s
+ok  	github.com/oopslink/agent-center/internal/conversation/sqlite	3.788s
+ok  	github.com/oopslink/agent-center/internal/cli	3.619s
+exit_code:0
