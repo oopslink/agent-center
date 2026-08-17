@@ -197,7 +197,14 @@
     "roleMixLabel": "角色配比",
     "slotsSummary": "Σ {{slots}} slots = 派生 {{slots}} 个 agent",
     "errRoleNameRequired": "每个角色都需要填写角色名。",
-    "errRoleNameDuplicate": "角色名不能重复。"
+    "errRoleNameDuplicate": "角色名不能重复。",
+    "assignmentsLabel": "候选授权分配",
+    "assignmentsCount": "已选择 {{count}} 项",
+    "assignmentSubjectPlaceholder": "选择 subject",
+    "assignmentAdd": "添加分配",
+    "assignmentsEmpty": "选择 subject 和角色后预览授权变化。",
+    "assignmentRiskHigh": "{{count}} 项权限 · 高风险",
+    "assignmentRiskLow": "{{count}} 项权限 · 标准风险"
   },
   "addMemberModal": {
     "errIdentityNotFound": "该 agent / human 不存在或已注销，请重新选择。",
@@ -251,6 +258,11 @@
     "concurrencyHint": "单个 Agent 的任务并发上限，不是角色人数。",
     "tagsLabel": "Tags（路由/技能）",
     "tagsPlaceholder": "go, security, react …",
+    "accessProfileLabel": "Access Profile",
+    "accessProfileNone": "不使用 Access Profile",
+    "accessProfileOption": "{{name}} v{{version}}",
+    "accessRiskLabel": "授权",
+    "accessPermissionCount": "{{count}} 项权限",
     "addRole": "添加角色"
   },
   "memoryPane": {

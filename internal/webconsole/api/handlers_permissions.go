@@ -222,7 +222,7 @@ func (s *Server) permissionsBatchHandler(w http.ResponseWriter, r *http.Request,
 			PreviewRequestID: env.PreviewRequestID,
 		}
 		if revoke || len(env.GrantIDs) > 0 {
-			s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, env.GrantIDs, env.Reason)
+			writeError(w, http.StatusBadRequest, "revoke_preview_required", "revoke requires /access/grants/revoke/preview followed by /confirm")
 			return
 		}
 		s.accessBatchUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body, preview)
@@ -312,6 +312,12 @@ func writeAuthorizationError(w http.ResponseWriter, decision authz.AccessDecisio
 	case errors.Is(err, authz.ErrConflict), errors.Is(err, authz.ErrIdempotencyConflict):
 		status = http.StatusConflict
 		code = "authorization_conflict"
+	case errors.Is(err, authz.ErrPreviewExpired):
+		status = http.StatusGone
+		code = "revoke_preview_expired"
+	case errors.Is(err, authz.ErrPreviewRejected):
+		status = http.StatusConflict
+		code = "revoke_preview_rejected"
 	case errors.Is(err, authz.ErrIdempotencyRequired):
 		status = http.StatusBadRequest
 		code = "idempotency_required"

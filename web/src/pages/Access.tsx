@@ -18,6 +18,7 @@ import {
   useAccessBatchPreview,
   useAccessBulkRevoke,
   useAccessOverview,
+  useAccessRevokePreview,
   useAccessRoleUpdate,
 } from '@/api/access';
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
@@ -525,8 +526,10 @@ function RoleManagement({
 
 function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement {
   const revoke = useAccessBulkRevoke();
+  const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('access cleanup');
+  const [preview, setPreview] = useState<(AccessBatchPreview & { preview_id: string; token: string }) | null>(null);
   const toggle = (id: string): void => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -542,13 +545,13 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
         <h2 className="text-sm font-semibold text-text-primary">Active grants</h2>
         <button
           type="button"
-          disabled={selectedIds.length === 0 || revoke.isPending || !reason.trim()}
-          onClick={() => revoke.mutate({ grant_ids: selectedIds, reason })}
+          disabled={selectedIds.length === 0 || previewRevoke.isPending || !reason.trim()}
+          onClick={() => previewRevoke.mutate({ grant_ids: selectedIds, reason }, { onSuccess: setPreview })}
           className="inline-flex items-center gap-1 rounded border border-danger/40 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-          data-testid="access-revoke-selected"
+          data-testid="access-revoke-preview"
         >
           <IconTrash className="h-3.5 w-3.5" />
-          Revoke
+          Preview revoke
         </button>
       </div>
       <div className="space-y-3 p-4">
@@ -602,7 +605,28 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
             </tbody>
           </table>
         </div>
+        {preview && (
+          <div className="rounded border border-warning/40 bg-warning/5 p-2" data-testid="access-revoke-preview-panel">
+            <ResultPanel result={preview} title="Revoke preview" />
+            <button
+              type="button"
+              className="mt-2 rounded bg-danger px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              data-testid="access-revoke-confirm"
+              disabled={revoke.isPending}
+              onClick={() => revoke.mutate({
+                grant_ids: selectedIds,
+                reason,
+                preview_id: preview.preview_id,
+                token: preview.token,
+                idempotency_key: `access-revoke-${preview.preview_id}`,
+              })}
+            >
+              Confirm revoke
+            </button>
+          </div>
+        )}
         {revoke.data && <ResultPanel result={revoke.data} title="Revoke result" />}
+        {previewRevoke.isError && <p className="text-xs text-danger" role="alert">{(previewRevoke.error as Error).message}</p>}
         {revoke.isError && <p className="text-xs text-danger" role="alert">{(revoke.error as Error).message}</p>}
       </div>
     </section>
@@ -952,21 +976,24 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
   );
 }
 
-function ResultPanel({ result, title }: { result: AccessBatchResult; title: string }): React.ReactElement {
+function ResultPanel({ result, title }: { result: AccessBatchResult | AccessBatchPreview; title: string }): React.ReactElement {
+  const failed = 'failed' in result.summary ? result.summary.failed : result.summary.total - result.summary.grantable;
+  const succeeded = 'succeeded' in result.summary ? result.summary.succeeded : result.summary.grantable;
+  const partialFailure = 'partial_failure' in result.summary ? result.summary.partial_failure : failed > 0;
   return (
     <div className="space-y-3" data-testid="access-result">
       <div
         className={[
           'rounded border px-3 py-2 text-sm',
-          result.summary.partial_failure
+          partialFailure
             ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
             : 'border-status-emerald-border bg-status-emerald-bg text-status-emerald-fg',
         ].join(' ')}
         role="status"
       >
-        <p className="font-semibold">{result.summary.partial_failure ? 'Partial failure' : title}</p>
+        <p className="font-semibold">{partialFailure ? 'Partial failure' : title}</p>
         <p className="mt-1">
-          {result.summary.succeeded} succeeded, {result.summary.failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
+          {succeeded} succeeded, {failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
         </p>
       </div>
       <BatchItemsTable items={result.items} />

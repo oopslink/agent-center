@@ -58,6 +58,15 @@ type accessRoleDTO struct {
 	HighRisk    bool     `json:"high_risk,omitempty"`
 }
 
+type accessProfileDTO struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Version     int      `json:"version"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+	Risk        string   `json:"risk"`
+}
+
 type accessDecisionDTO struct {
 	Allowed     bool                   `json:"allowed"`
 	SubjectRef  string                 `json:"subject_ref"`
@@ -109,6 +118,14 @@ type accessBatchItemDTO struct {
 	Reason      string                 `json:"reason"`
 	EvidenceRef string                 `json:"evidence_ref,omitempty"`
 	GrantID     string                 `json:"grant_id,omitempty"`
+}
+
+type accessRevokeRequestDTO struct {
+	GrantIDs       []string `json:"grant_ids"`
+	Reason         string   `json:"reason"`
+	PreviewID      string   `json:"preview_id,omitempty"`
+	Token          string   `json:"token,omitempty"`
+	IdempotencyKey string   `json:"idempotency_key,omitempty"`
 }
 
 type accessDerivedState struct {
@@ -313,6 +330,23 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) accessProfilesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, _, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": accessProfiles()})
+}
+
+func accessProfiles() []accessProfileDTO {
+	return []accessProfileDTO{
+		{ID: "team-basic", Name: "Team basic", Version: 1, Description: "Read team metadata and memory.", Permissions: []string{"team.read", "team.memory.read"}, Risk: "low"},
+		{ID: "team-contributor", Name: "Team contributor", Version: 1, Description: "Read/write team work and propose memory.", Permissions: []string{"team.read", "team.write", "team.memory.read", "team.memory.propose"}, Risk: "medium"},
+		{ID: "team-curator", Name: "Team curator", Version: 2, Description: "Review team memory in addition to contributor access.", Permissions: []string{"team.read", "team.write", "team.memory.read", "team.memory.propose", "team.memory.review"}, Risk: "high"},
+	}
+}
+
 func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, _, orgID, ok := requireOrgMember(w, r, d)
@@ -352,6 +386,10 @@ func (s *Server) accessBatchApplyHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusBadRequest, "revoke_preview_required", "revoke requires /access/grants/revoke/preview followed by /confirm")
+}
+
+func (s *Server) accessBulkRevokePreviewHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
@@ -362,15 +400,31 @@ func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
-	var body struct {
-		GrantIDs []string `json:"grant_ids"`
-		Reason   string   `json:"reason"`
-	}
+	var body accessRevokeRequestDTO
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason)
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, true, "", "", "")
+}
+
+func (s *Server) accessBulkRevokeConfirmHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	var body accessRevokeRequestDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, false, body.PreviewID, body.Token, body.IdempotencyKey)
 }
 
 func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -1249,7 +1303,7 @@ func accessBatchStatusForReason(reason string) string {
 	}
 }
 
-func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string) {
+func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string, preview bool, previewID string, token string, idempotencyKey string) {
 	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
@@ -1260,8 +1314,74 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 		grants[grant.ID] = grant
 	}
 	items := make([]accessBatchItemDTO, 0, len(grantIDs))
+	operations := make([]authz.BatchOperation, 0, len(grantIDs))
 	for i, id := range grantIDs {
-		items = append(items, accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason))
+		item, op := accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, false)
+		items = append(items, item)
+		if op.Type != "" {
+			operations = append(operations, op)
+		}
+	}
+	if preview {
+		if len(operations) > 0 {
+			rp, err := svc.PreviewRevoke(r.Context(), authz.RevokePreviewRequest{
+				ActorRef: actor, OrgID: orgID, Operations: operations, TTL: 5 * time.Minute,
+			})
+			if err != nil {
+				writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+				return
+			}
+			allowed := map[string]authz.OperationResult{}
+			for _, op := range rp.Operations {
+				allowed[op.AssignmentID] = op
+			}
+			for i := range items {
+				if op, ok := allowed[items[i].GrantID]; ok {
+					items[i].Status = "allowed"
+					items[i].Reason = "grant can be revoked by unified authorization API"
+					items[i].EvidenceRef = "authorization_revoke_preview:" + rp.PreviewID
+					items[i].GrantID = op.AssignmentID
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"preview_id": rp.PreviewID,
+				"token":      rp.Token,
+				"expires_at": rp.ExpiresAt.UTC().Format(time.RFC3339),
+				"items":      items,
+				"summary":    accessPreviewSummary(items),
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"preview_id": fmt.Sprintf("access-revoke-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
+			"expires_at": time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339),
+			"items":      items,
+			"summary":    accessPreviewSummary(items),
+		})
+		return
+	}
+	if strings.TrimSpace(previewID) == "" || strings.TrimSpace(token) == "" {
+		writeError(w, http.StatusBadRequest, "revoke_preview_required", "preview_id and token are required")
+		return
+	}
+	res, err := svc.ConfirmRevoke(r.Context(), authz.RevokeConfirmRequest{
+		PreviewID: previewID, Token: token, IdempotencyKey: idempotencyKey, ActorRef: actor, OrgID: orgID, Operations: operations,
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	confirmed := map[string]authz.OperationResult{}
+	for _, op := range res.Operations {
+		confirmed[op.AssignmentID] = op
+	}
+	for i := range items {
+		if op, ok := confirmed[items[i].GrantID]; ok {
+			items[i].Status = "allowed"
+			items[i].Reason = "grant revoked by unified authorization API"
+			items[i].EvidenceRef = "authorization_revoke_confirm:" + previewID
+			items[i].GrantID = op.AssignmentID
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation_id": fmt.Sprintf("access-revoke-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
@@ -1271,7 +1391,7 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	})
 }
 
-func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string) accessBatchItemDTO {
+func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string, apply bool) (accessBatchItemDTO, authz.BatchOperation) {
 	grant, found := grants[id]
 	item := accessBatchItemDTO{
 		ID:          fmt.Sprintf("revoke-%d", idx),
@@ -1285,7 +1405,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 		GrantID:     id,
 	}
 	if !found {
-		return item
+		return item, authz.BatchOperation{}
 	}
 	item.SubjectRef = grant.SubjectRef
 	item.SubjectName = grant.SubjectName
@@ -1295,35 +1415,39 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 	item.HighRisk = grant.Risk == "high"
 	item.Reason = fmt.Sprintf("%s is a derived permission and must be revoked at its source", id)
 	if grant.Source != string(authz.SourceCustomRole) {
-		return item
+		return item, authz.BatchOperation{}
+	}
+	op := authz.BatchOperation{
+		ID:     item.ID,
+		Type:   "revoke_assignment",
+		Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
+	}
+	if !apply {
+		return item, op
 	}
 	req := authz.BatchRequest{
 		IdempotencyKey: accessBatchIdempotencyKey("revoke", orgID, actor, "", item),
 		ActorRef:       actor,
 		OrgID:          orgID,
-		Operations: []authz.BatchOperation{{
-			ID:     item.ID,
-			Type:   "revoke_assignment",
-			Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
-		}},
+		Operations:     []authz.BatchOperation{op},
 	}
 	res, err := svc.RevokeBatch(ctx, req)
 	if err != nil {
 		item.Status = accessBatchStatusForError(err)
 		item.Reason = err.Error()
-		return item
+		return item, op
 	}
-	for _, op := range res.Operations {
-		if op.Reason != "" || op.Status == "denied" {
-			item.Status = accessBatchStatusForReason(op.Reason)
-			item.Reason = fallback(op.Reason, op.Status)
-			return item
+	for _, result := range res.Operations {
+		if result.Reason != "" || result.Status == "denied" {
+			item.Status = accessBatchStatusForReason(result.Reason)
+			item.Reason = fallback(result.Reason, result.Status)
+			return item, op
 		}
 	}
 	item.Status = "allowed"
 	item.Reason = "grant revoked by unified authorization API"
 	item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
-	return item
+	return item, op
 }
 
 func accessPermissionApplies(def accessPermissionDefinitionDTO, kind string) bool {

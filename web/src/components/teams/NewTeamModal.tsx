@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCreateTeam, type RoleInput } from '@/api/teams';
+import { useCreateTeam, useDirectoryAgents, useDirectoryHumans, type RoleInput } from '@/api/teams';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell } from './kit';
 import { newRole, RoleBuilder, totalSlots } from './RoleBuilder';
 import { isSelectableRuntimePair, useRuntimeSelectorCatalog } from '@/components/RuntimeSelectors';
@@ -22,8 +22,13 @@ export function NewTeamModal({
   const [visibility, setVisibility] = useState('org-private');
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<RoleInput[]>([newRole('planner'), { ...newRole('coder'), count: 2 }]);
+  const [assignmentSubject, setAssignmentSubject] = useState('');
+  const [assignmentRole, setAssignmentRole] = useState('planner');
+  const [candidateAssignments, setCandidateAssignments] = useState<Array<{ subject_ref: string; role: string }>>([]);
   const create = useCreateTeam();
   const runtimeCatalog = useRuntimeSelectorCatalog();
+  const agents = useDirectoryAgents();
+  const humans = useDirectoryHumans();
 
   const roleNames = roles.map((r) => r.role.trim());
   const hasBlankRole = roleNames.some((role) => role.length === 0);
@@ -56,6 +61,7 @@ export function NewTeamModal({
         description,
         visibility,
         roles: roles.map((r) => ({ ...r, role: r.role.trim(), tags: r.tags.trim() })),
+        candidate_assignments: candidateAssignments,
       });
       onClose();
       onCreated(team.id);
@@ -122,6 +128,63 @@ export function NewTeamModal({
         <span className="text-[0.6875rem] text-text-muted">{t('newTeamModal.slotsSummary', { slots: totalSlots(roles) })}</span>
       </div>
       <RoleBuilder roles={roles} onChange={setRoles} idPrefix="new-team" />
+
+      <div className="mt-4 rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="new-team-assignment-preview">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <label className="text-xs font-semibold text-text-secondary">{t('newTeamModal.assignmentsLabel')}</label>
+          <span className="text-[0.6875rem] text-text-muted">{t('newTeamModal.assignmentsCount', { count: candidateAssignments.length })}</span>
+        </div>
+        <div className="grid gap-2 md:grid-cols-[1fr_10rem_auto]">
+          <select
+            className={inputCls}
+            value={assignmentSubject}
+            data-testid="new-team-assignment-subject"
+            onChange={(e) => setAssignmentSubject(e.target.value)}
+          >
+            <option value="">{t('newTeamModal.assignmentSubjectPlaceholder')}</option>
+            {[...(agents.data ?? []), ...(humans.data ?? [])].map((subject) => (
+              <option key={subject.ref} value={subject.ref}>{subject.name} · {subject.ref}</option>
+            ))}
+          </select>
+          <select
+            className={inputCls}
+            value={assignmentRole}
+            data-testid="new-team-assignment-role"
+            onChange={(e) => setAssignmentRole(e.target.value)}
+          >
+            {roles.map((role) => (
+              <option key={role.role} value={role.role}>{role.role || t('roleBuilder.roleNamePlaceholder')}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={btnGhost}
+            data-testid="new-team-assignment-add"
+            disabled={!assignmentSubject || !assignmentRole}
+            onClick={() => {
+              setCandidateAssignments((prev) => [...prev.filter((a) => a.subject_ref !== assignmentSubject), { subject_ref: assignmentSubject, role: assignmentRole }]);
+            }}
+          >
+            {t('newTeamModal.assignmentAdd')}
+          </button>
+        </div>
+        <div className="mt-2 space-y-1">
+          {candidateAssignments.length === 0 && <p className="text-xs text-text-muted">{t('newTeamModal.assignmentsEmpty')}</p>}
+          {candidateAssignments.map((assignment) => {
+            const role = roles.find((r) => r.role === assignment.role);
+            const permissions = role?.access_requirements ?? [];
+            const highRisk = permissions.some((permission) => permission.includes('manage') || permission.includes('review') || permission.includes('delete') || permission.includes('remove'));
+            return (
+              <div key={`${assignment.subject_ref}:${assignment.role}`} className="flex items-center justify-between gap-2 rounded border border-border-base bg-bg-base px-2 py-1.5 text-xs" data-testid="new-team-assignment-row">
+                <span className="font-mono">{assignment.subject_ref} -&gt; {assignment.role}</span>
+                <span className={highRisk ? 'font-semibold text-danger' : 'text-text-muted'}>
+                  {t(highRisk ? 'newTeamModal.assignmentRiskHigh' : 'newTeamModal.assignmentRiskLow', { count: permissions.length })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {roleValidationError && (
         <p className="mt-3 text-xs text-danger" data-testid="new-team-validation-error">
