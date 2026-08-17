@@ -826,18 +826,59 @@
     "loading": "Loading permissions...",
     "unavailable": "No organization scope is available for this subject.",
     "definitionsError": "Permission definitions could not be loaded; existing effective permissions remain visible.",
+    "readonly": {
+      "banner": "P0 observe mode: this view is read-only. Grants, revokes, and persisted combined roles are not exposed here.",
+      "mode": "read-only"
+    },
     "overview": {
+      "aria": "Access overview",
       "title": "Access overview",
       "total": "Effective permissions",
-      "direct": "Direct grants",
-      "inherited": "Inherited"
+      "accessRoles": "Access-role grants",
+      "legacySources": "Legacy-derived sources",
+      "risks": "Warnings"
+    },
+    "subject": {
+      "label": "Subject",
+      "ref": "Subject ref",
+      "kindLabel": "Kind",
+      "kind": {
+        "user": "Human user",
+        "agent": "Agent business identity",
+        "worker": "Worker runtime subject",
+        "system": "System actor",
+        "unknown": "Unknown subject"
+      }
+    },
+    "resource": {
+      "label": "Resource",
+      "kind": "Kind",
+      "id": "ID",
+      "org": "Resolved org"
+    },
+    "drilldown": {
+      "aria": "Access subject and resource drill-down",
+      "title": "Subject / resource drill-down"
     },
     "effective": {
       "title": "Effective permissions",
       "empty": "No effective permissions for this resource."
     },
+    "graph": {
+      "aria": "Access graph",
+      "title": "Access graph",
+      "subtitle": "Subject -> source fact -> effective permission -> resource.",
+      "empty": "No access edges for this subject and resource.",
+      "subject": "Subject",
+      "source": "Source",
+      "permissions": "Permissions",
+      "resource": "Resource"
+    },
     "explain": {
       "title": "Source explanation tree",
+      "subtitle": "Explain is diagnostic only; handlers still re-check server-side authorization.",
+      "permissionLabel": "Permission to explain",
+      "noPermissions": "No permissions available",
       "subject": "Subject",
       "resource": "Resource",
       "decision": "Decision",
@@ -845,27 +886,86 @@
       "denied": "Denied",
       "empty": "No source currently grants this permission."
     },
-    "direct": {
-      "title": "Direct authorization",
-      "grant": "Grant",
-      "granting": "Granting...",
-      "alreadyGranted": "Already granted",
-      "empty": "No direct custom-role grants.",
-      "revoke": "Revoke",
-      "revoking": "Revoking...",
-      "revokeAria": "Revoke {{permission}}"
-    },
-    "inherited": {
-      "title": "Inherited permissions and sources",
-      "empty": "No inherited permissions for this resource."
-    },
     "source": {
-      "open": "Open source"
+      "openLocation": "Open location"
     },
-    "notice": {
-      "granted": "Direct grant added for {{permission}}.",
-      "revoked": "Direct grant revoked for {{permission}}.",
-      "revokedInherited": "Direct grant revoked for {{permission}}, but it is still effective through {{source}} ({{evidence}})."
+    "sourceLocations": {
+      "aria": "Permission sources and editable locations",
+      "title": "Sources and editable locations",
+      "empty": "No sources to inspect."
+    },
+    "sourceFacts": {
+      "org_role": "Derived from the org membership row and org role.",
+      "project_member": "Derived from project membership in the Project bounded context.",
+      "team_member": "Derived from team membership / roster evidence.",
+      "team_memory_policy": "Derived from team memory policy and curator membership.",
+      "conversation_participant": "Derived from active conversation participant membership.",
+      "file_scope": "Derived from live file placement references and caller scope.",
+      "admin_token_scope": "Derived from an internal bearer scope mapping.",
+      "worker_owner": "Derived from worker token ownership.",
+      "agent_worker_binding": "Derived from the worker-to-agent runtime binding.",
+      "system": "Derived from an internal system actor.",
+      "custom_role": "Derived from an explicit authorization role assignment.",
+      "unknown": "Derived from an unrecognized source reported by the server."
+    },
+    "editLocations": {
+      "org_role": "Org members.",
+      "project_member": "Project members.",
+      "team_member": "Team roster; the role is runtime configuration, not an access role.",
+      "team_memory_policy": "Team memory policy.",
+      "conversation_participant": "Conversation participants.",
+      "file_scope": "The file attachment or reference owner.",
+      "admin_token_scope": "Internal admin token management.",
+      "worker_owner": "Worker registration.",
+      "agent_worker_binding": "Agent runtime binding.",
+      "system": "System configuration.",
+      "custom_role": "Authorization role assignment. P0 does not expose editing.",
+      "unknown": "No editable location is advertised by this source."
+    },
+    "roles": {
+      "title": "Team Role vs Access Role",
+      "teamRoleTitle": "Team Role",
+      "teamRoleBody": "Runtime roster config: CLI, model, capability tags, and concurrency. It does not grant access by itself.",
+      "teamRoleEmpty": "No team role source is visible in this projection.",
+      "accessRoleTitle": "Access Role",
+      "accessRoleBody": "Authorization source that yields PermissionKeys on resources.",
+      "accessRoleEmpty": "No access role or source is visible yet.",
+      "customAccessRole": "Custom access role",
+      "orgAccessRole": "Org role",
+      "projectAccessRole": "Project role",
+      "teamMemoryPolicy": "Team memory policy",
+      "accessRoleChip": "Access {{role}}",
+      "combinationChip": "Team {{teamRole}} + Access {{accessRole}}",
+      "delegatable": "delegatable",
+      "fixed": "fixed",
+      "combinationTitle": "Combination labels",
+      "combinationBody": "Combination labels are display-only in P0 and are never saved as composite roles.",
+      "combinationEmpty": "No Team Role + Access Role combination is visible."
+    },
+    "risks": {
+      "aria": "Access risk and truncation warnings",
+      "title": "Risk and truncation",
+      "empty": "No additional warnings for the loaded projection.",
+      "legacyDerived": "Legacy-derived source; membership remains authoritative.",
+      "teamRoleRuntime": "Team Role is runtime configuration and must not be treated as an access grant.",
+      "policyDerived": "Policy-derived access depends on current team policy and curator membership.",
+      "fileReachability": "File access depends on live references; stale or deleted references must not grant access.",
+      "internalOnly": "Internal diagnostic source; do not expose credentials or bearer details.",
+      "runtimeBinding": "Runtime binding proves transport authority only; business resource access is checked separately.",
+      "deniedExplain": "The selected explain result includes denied-by details.",
+      "none": "No source-specific risk."
+    },
+    "completeness": {
+      "effective": {
+        "complete": "Effective projection is marked complete by the server.",
+        "truncated": "Effective projection is truncated; additional permissions may exist outside this response.",
+        "unknown": "Effective projection completeness is not asserted; treat it as a diagnostic snapshot."
+      },
+      "audit": {
+        "complete": "Audit projection is marked complete by the server.",
+        "truncated": "Audit projection is truncated; additional events may exist outside this response.",
+        "unknown": "Audit is a capped diagnostic window and may omit additional events."
+      }
     },
     "audit": {
       "title": "Subject audit",
@@ -886,7 +986,8 @@
       "worker_owner": "Worker owner",
       "agent_worker_binding": "Agent worker binding",
       "system": "System",
-      "custom_role": "Direct custom role"
+      "custom_role": "Direct custom role",
+      "unknown": "Unknown source"
     }
   },
   "workers": {

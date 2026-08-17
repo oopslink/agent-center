@@ -55,6 +55,10 @@ export interface EffectivePermissions {
   subject_ref: string;
   resource: ResourceScope;
   permissions: EffectivePermission[];
+  complete?: boolean;
+  truncated?: boolean;
+  has_more?: boolean;
+  warnings?: string[];
 }
 
 export interface ExplainResult {
@@ -93,6 +97,11 @@ export interface PermissionAuditEvent {
 
 export interface PermissionAuditResponse {
   events: PermissionAuditEvent[];
+  complete?: boolean;
+  truncated?: boolean;
+  has_more?: boolean;
+  limit?: number;
+  warnings?: string[];
 }
 
 interface RoleInput {
