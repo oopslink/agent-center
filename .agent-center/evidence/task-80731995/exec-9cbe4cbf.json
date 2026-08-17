@@ -1,0 +1,257 @@
+{
+  "task_id": "task-80731995",
+  "execution_id": "exec-9cbe4cbf",
+  "reviewed_sha": "0c214d74c3cb09734c8a9ee94131c4b718d55768",
+  "base_sha": "997470a51878726145796c39973028ea6813788d",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"rg --files -g '*evidence*' -g '*T1374*' -g '*task*' -g '*remediation*' -g 'package.json' -g 'Makefile' -g 'pnpm-lock.yaml' -g 'package-lock.json' -g 'yarn.lock'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git remote -v \u0026\u0026 git log --oneline --decorate -n 8'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'rg -n \"T1374|workerdaemon|remediation|review_sha|delivery branch|delivery_branch|ac-fix|task-80731995|exec-9cbe4cbf\" .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git fetch --prune origin'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch \u0026\u0026 git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git branch -a --contains 1281ddf9ed5bbc0b320f44538f617bd8ce53231f || true \u0026\u0026 git cat-file -t 1281ddf9ed5bbc0b320f44538f617bd8ce53231f || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git ls-remote --heads origin '*t1370*' '*workerdaemon*' '*detach*' '*remediation*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git merge-base --is-ancestor origin/main 1281ddf9ed5bbc0b320f44538f617bd8ce53231f; echo origin_main_is_ancestor=$?; git merge-base --is-ancestor 1281ddf9ed5bbc0b320f44538f617bd8ce53231f origin/main; echo candidate_is_ancestor_of_origin_main=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph origin/main..1281ddf9ed5bbc0b320f44538f617bd8ce53231f \u0026\u0026 git diff --stat origin/main..1281ddf9ed5bbc0b320f44538f617bd8ce53231f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'Makefile' -o -name '*.env*' \\\\) | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --name-only 1281ddf9ed5bbc0b320f44538f617bd8ce53231f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate 1281ddf9ed5bbc0b320f44538f617bd8ce53231f..origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git merge --ff-only 1281ddf9ed5bbc0b320f44538f617bd8ce53231f \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"mkdir -p docs/acceptance/t1374-workerdaemon-remediation/logs \u0026\u0026 \\\\\n{ echo '\"'$ git status --short --branch'\"'; git status --short --branch; echo; echo '\"'$ git rev-parse HEAD'\"'; git rev-parse HEAD; echo; echo '\"'$ git ls-remote origin refs/heads/fix/t1370-detach-full-gate-executor-sync'\"'; git ls-remote origin refs/heads/fix/t1370-detach-full-gate-executor-sync; echo; echo '\"'$ git merge-base --is-ancestor origin/main HEAD'\"'; git merge-base --is-ancestor origin/main HEAD; echo exit=\"'$?; } | tee docs/acceptance/t1374-workerdaemon-remediation/logs/00-ref-clean.txt\ncd web \u0026\u0026 pnpm install --frozen-lockfile 2\u003e\u00261 | tee ../docs/acceptance/t1374-workerdaemon-remediation/logs/01-spa-install.txt\ncd web \u0026\u0026 pnpm run typecheck 2\u003e\u00261 | tee ../docs/acceptance/t1374-workerdaemon-remediation/logs/02-spa-typecheck.txt\ncd web \u0026\u0026 pnpm run build 2\u003e\u00261 | tee ../docs/acceptance/t1374-workerdaemon-remediation/logs/03-spa-build.txt'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc '(cd web \u0026\u0026 pnpm run typecheck) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/02-spa-typecheck.txt\n(cd web \u0026\u0026 pnpm run build) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/03-spa-build.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"rg -n \\\"Detach|detach|duplicate|Cancel|cancel|worktree|git runner|GitRunner|isolation|isolat\\\" internal/workerdaemon internal/agentruntime internal -g '*_test.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'rg -n \"Access|access|Team|team|CAS|cas|auth|profile|Profile|revoke|permission\" internal/*/**/*_test.go internal/*/*_test.go web/src/**/*.test.tsx web/src/**/*.test.ts'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'rg -n \"migration|Migration|conversation|Conversation|core|team|Team|0129|0130|0131|0132|unified_authorization|migrate\" internal/**/*_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"set -o pipefail\n(go test ./internal/authorization ./internal/team/... ./internal/webconsole/api -run 'Access|Team|CAS|Auth|Profile|Revoke|Permission|Role' -count=1 -v) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/04-access-team-auth-profile-go.txt\n(cd web \u0026\u0026 pnpm vitest run src/pages/Access.test.tsx src/pages/Teams.test.tsx src/pages/TeamDetail.test.tsx src/components/teams/NewTeamModal.test.tsx src/components/teams/RoleBuilder.test.tsx) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/05-access-team-spa-tests.txt\n(go test ./internal/persistence ./internal/conversation/... ./internal/team/... -count=1 -v) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/06-conversation-core-team-migrations.txt\n(go test ./internal/workerdaemon/... ./internal/agentruntime/... -count=1 -v) 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/07-workerdaemon-detach-isolation.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'set -o pipefail\nmake smoke 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/08-deployed-smoke.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'set -o pipefail\nmake test 2\u003e\u00261 | tee docs/acceptance/t1374-workerdaemon-remediation/logs/09-make-test.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t1374-workerdaemon-remediation/logs/*.txt; do printf '%s\\\\t' \\\"\"'$f\"; tail -n 5 \"$f\" | tr '\"'\\\\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g'; printf '\\\\n'; done\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'git rev-parse --abbrev-ref HEAD \u0026\u0026 git rev-parse HEAD \u0026\u0026 git ls-remote origin refs/heads/fix/t1370-detach-full-gate-executor-sync refs/heads/ac-exec/task-80731995/exec-9cbe4cbf refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'git restore tests/e2e/v2/artifacts/playwright-report \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'git diff -- docs/acceptance/t1374-workerdaemon-remediation/README.md docs/acceptance/t1374-workerdaemon-remediation/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 find docs/acceptance/t1374-workerdaemon-remediation -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1374-workerdaemon-remediation \u0026\u0026 git commit -m \"test: add T1374 workerdaemon remediation acceptance evidence\" \u0026\u0026 git push origin HEAD:refs/heads/ac-exec/task-80731995/exec-9cbe4cbf \u0026\u0026 echo pushed_head=$(git rev-parse HEAD) \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-80731995/exec-9cbe4cbf'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.origin\\\\.' \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-80731995/exec-9cbe4cbf refs/heads/fix/t1370-detach-full-gate-executor-sync'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push origin HEAD:refs/heads/ac-exec/task-80731995/exec-9cbe4cbf \u0026\u0026 echo pushed_head=$(git rev-parse HEAD) \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-80731995/exec-9cbe4cbf refs/heads/fix/t1370-detach-full-gate-executor-sync'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-80731995/exec-9cbe4cbf refs/heads/fix/t1370-detach-full-gate-executor-sync refs/heads/main'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-9cbe4cbf/command_events.jsonl",
+  "command_event_digest": "sha256:412fec31716d015da3adbaaae2f127c8b3e8dd31ba860c4c7a37f8452e254a36",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "T1374 独立全量安全验收完成：**PASS**。",
+  "artifact_digest": "sha256:1e821baa8abc6a7b4afdd2c2c9b8a5feb3adf8faa36017d6b62fb2234201e97b",
+  "path": ".agent-center/evidence/task-80731995/exec-9cbe4cbf.json",
+  "branch": "ac-exec/task-80731995/exec-9cbe4cbf"
+}
