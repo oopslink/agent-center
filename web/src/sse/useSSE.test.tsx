@@ -89,6 +89,18 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unreadConversations() });
   });
 
+  it('conversation.catch_up refreshes the subscribed conversation after SSE subscribe races', () => {
+    dispatchToQueryClient(qc, ev('conversation.catch_up', 'C1'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversations() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unreadConversations() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationThreads('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.threadRepliesByConversation('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.refs('C1') });
+  });
+
   it('I23: lifecycle + read_state events invalidate the unread-conversations digest', () => {
     for (const t of [
       'conversation.opened',

@@ -47,6 +47,8 @@ type Event struct {
 	OccurredAt     time.Time       `json:"occurred_at"`
 }
 
+const EventTypeConversationCatchUp = "conversation.catch_up"
+
 // Bus is the subscriber pool + ringbuffer. v2 single-user case has 1
 // connection per user (typically 1-3 tabs at most).
 type Bus struct {
@@ -80,17 +82,24 @@ func NewBus() *Bus {
 
 // Subscribe registers a userID's interest in a conversation. The user
 // must already have an active SSE connection (or will get events once
-// they connect — subscription persists across reconnects).
+// they connect — subscription persists across reconnects). When a subscriber is
+// active, Subscribe also sends a synthetic catch-up frame so the UI refetches the
+// conversation after any message that landed between its initial GET and this
+// side-channel registration.
 func (b *Bus) Subscribe(userID, conversationID string) error {
 	if userID == "" || conversationID == "" {
 		return errors.New("sse: user_id and conversation_id required")
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.channels[userID] == nil {
 		b.channels[userID] = make(map[string]struct{})
 	}
 	b.channels[userID][conversationID] = struct{}{}
+	sub := b.subs[userID]
+	b.mu.Unlock()
+	if sub != nil {
+		deliver(sub, catchUpEvent(conversationID))
+	}
 	return nil
 }
 
@@ -138,13 +147,25 @@ func (b *Bus) Publish(ev Event) {
 				continue
 			}
 		}
-		select {
-		case sub.ch <- ev:
-		case <-sub.done:
-		default:
-			// Channel full; drop. Reconnect with Last-Event-ID will
-			// catch up via the ringbuffer.
-		}
+		deliver(sub, ev)
+	}
+}
+
+func deliver(sub *subscriber, ev Event) {
+	select {
+	case sub.ch <- ev:
+	case <-sub.done:
+	default:
+		// Channel full; drop. Reconnect with Last-Event-ID will
+		// catch up via the ringbuffer.
+	}
+}
+
+func catchUpEvent(conversationID string) Event {
+	return Event{
+		EventType:      EventTypeConversationCatchUp,
+		ConversationID: conversationID,
+		OccurredAt:     time.Now().UTC(),
 	}
 }
 
@@ -205,16 +226,54 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if lastEventID == "" {
 		lastEventID = r.URL.Query().Get("last_event_id")
 	}
+	var afterID int64
+	hasValidLastEventID := false
 	if lastEventID != "" {
-		if afterID, err := strconv.ParseInt(lastEventID, 10, 64); err == nil {
-			for _, ev := range b.ring.since(afterID) {
-				if !b.matches(userID, ev) {
-					continue
-				}
-				writeSSE(w, ev)
-			}
-			flusher.Flush()
+		if parsed, err := strconv.ParseInt(lastEventID, 10, 64); err == nil {
+			afterID = parsed
+			hasValidLastEventID = true
 		}
+	}
+
+	// Install the subscriber before replay/heartbeat so committed events cannot
+	// fall into the connect-time gap between "client has an open EventSource" and
+	// "bus has a channel to deliver to". A new connection still replaces the old
+	// one atomically for this user.
+	sub := &subscriber{
+		userID: userID,
+		ch:     make(chan Event, 64),
+		done:   make(chan struct{}),
+	}
+	b.mu.Lock()
+	if old, ok := b.subs[userID]; ok {
+		close(old.done)
+	}
+	b.subs[userID] = sub
+	catchUpIDs := make([]string, 0, len(b.channels[userID]))
+	for convID := range b.channels[userID] {
+		catchUpIDs = append(catchUpIDs, convID)
+	}
+	b.mu.Unlock()
+	defer func() {
+		b.mu.Lock()
+		if b.subs[userID] == sub {
+			delete(b.subs, userID)
+		}
+		b.mu.Unlock()
+	}()
+
+	if hasValidLastEventID {
+		for _, ev := range b.ring.since(afterID) {
+			if !b.matches(userID, ev) {
+				continue
+			}
+			writeSSE(w, ev)
+		}
+		flusher.Flush()
+	}
+
+	for _, convID := range catchUpIDs {
+		deliver(sub, catchUpEvent(convID))
 	}
 
 	// v2.10.2 [T135]: send an immediate heartbeat data frame right after connect
@@ -227,26 +286,6 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// lastEventId is unchanged; the client dispatch table treats it as a no-op.
 	fmt.Fprint(w, "data: {\"event_type\":\"sse.heartbeat\"}\n\n")
 	flusher.Flush()
-
-	// Install the subscriber (replaces any existing connection for this user).
-	sub := &subscriber{
-		userID: userID,
-		ch:     make(chan Event, 64),
-		done:   make(chan struct{}),
-	}
-	b.mu.Lock()
-	if old, ok := b.subs[userID]; ok {
-		close(old.done)
-	}
-	b.subs[userID] = sub
-	b.mu.Unlock()
-	defer func() {
-		b.mu.Lock()
-		if b.subs[userID] == sub {
-			delete(b.subs, userID)
-		}
-		b.mu.Unlock()
-	}()
 
 	ticker := time.NewTicker(b.heartbeat)
 	defer ticker.Stop()
@@ -303,7 +342,10 @@ func (b *Bus) matches(userID string, ev Event) bool {
 // already switches on.
 func writeSSE(w http.ResponseWriter, ev Event) {
 	body, _ := json.Marshal(ev)
-	fmt.Fprintf(w, "id: %d\ndata: %s\n\n", ev.ID, body)
+	if ev.ID > 0 {
+		fmt.Fprintf(w, "id: %d\n", ev.ID)
+	}
+	fmt.Fprintf(w, "data: %s\n\n", body)
 }
 
 // SubscriberCount returns the count of active connections (test helper).

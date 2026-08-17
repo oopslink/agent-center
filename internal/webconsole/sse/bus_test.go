@@ -267,11 +267,97 @@ func TestServeHTTP_T135_ImmediateHeartbeatOnConnect(t *testing.T) {
 	t.Fatal("no immediate heartbeat data frame within 1s of connect")
 }
 
+func TestBus_SubscribeSendsCatchUpForActiveSubscriber(t *testing.T) {
+	b := NewBus()
+	b.heartbeat = 10 * time.Second
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := httpGetStream(ctx, srv.URL+"?user_id=u1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for b.SubscriberCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if b.SubscriberCount() == 0 {
+		t.Fatal("subscriber didn't register")
+	}
+
+	if err := b.Subscribe("u1", "c1"); err != nil {
+		t.Fatal(err)
+	}
+	if body := readStreamUntil(t, resp, "conversation.catch_up", 2*time.Second); !strings.Contains(body, "c1") {
+		t.Fatalf("catch-up should name the subscribed conversation, got %q", safePrefix(body, 160))
+	}
+}
+
+func TestServeHTTP_SendsCatchUpForExistingSubscriptions(t *testing.T) {
+	b := NewBus()
+	b.heartbeat = 10 * time.Second
+	if err := b.Subscribe("u1", "c1"); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := httpGetStream(ctx, srv.URL+"?user_id=u1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Close()
+
+	if body := readStreamUntil(t, resp, "conversation.catch_up", 2*time.Second); !strings.Contains(body, "c1") {
+		t.Fatalf("connect catch-up should name existing subscription, got %q", safePrefix(body, 160))
+	}
+}
+
+func TestWriteSSE_OmitsIDForSyntheticEvents(t *testing.T) {
+	rr := httptest.NewRecorder()
+	writeSSE(rr, Event{EventType: "conversation.catch_up", ConversationID: "c1"})
+	body := rr.Body.String()
+	if strings.Contains(body, "id:") {
+		t.Fatalf("synthetic catch-up events must not advance Last-Event-ID, got %q", body)
+	}
+	if !strings.Contains(body, "conversation.catch_up") {
+		t.Fatalf("catch-up event missing from body: %q", body)
+	}
+}
+
 func safePrefix(s string, n int) string {
 	if len(s) > n {
 		return s[:n]
 	}
 	return s
+}
+
+func readStreamUntil(t *testing.T, r interface{ Read([]byte) (int, error) }, needle string, timeout time.Duration) string {
+	t.Helper()
+	buf := make([]byte, 4096)
+	var acc strings.Builder
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n, rerr := r.Read(buf)
+		if rerr != nil {
+			t.Fatalf("read stream: %v", rerr)
+		}
+		if n == 0 {
+			continue
+		}
+		acc.Write(buf[:n])
+		if strings.Contains(acc.String(), needle) {
+			return acc.String()
+		}
+	}
+	t.Fatalf("did not see %q within %v; body=%q", needle, timeout, safePrefix(acc.String(), 200))
+	return acc.String()
 }
 
 func TestServeHTTP_RequiresUserID(t *testing.T) {

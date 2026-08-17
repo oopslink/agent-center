@@ -186,8 +186,11 @@ export function startSSE(args: StartArgs): Controller {
 // `workforce.agent_instance.created` are what arrives at the client —
 // NOT the unprefixed `agent_instance.created` we used to assume.
 //
-// Adding a new event type? Find the literal `EventType: "..."` string
-// via `rg '^\s*EventType:\s*"' internal/` and wire here.
+// Adding a new persisted event type? Find the literal `EventType: "..."`
+// string via `rg '^\s*EventType:\s*"' internal/` and wire here. The
+// `conversation.catch_up` case below is the one exception: it is a synthetic,
+// no-id SSE frame emitted by the Bus when a page subscribes/reconnects to a
+// conversation, used to close the subscribe-vs-message race.
 export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev: SSEEvent): void {
   const invalidate = (key: readonly unknown[]) =>
     void qc.invalidateQueries({ queryKey: key as readonly unknown[] });
@@ -242,6 +245,18 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         invalidate(qk.orgTasksAll());
         invalidate(qk.orgIssuesAll());
         invalidate(qk.orgPlansAll());
+      }
+      return;
+    case 'conversation.catch_up':
+      if (ev.conversation_id) {
+        invalidate(qk.conversations());
+        invalidate(qk.conversation(ev.conversation_id));
+        invalidate(qk.messages(ev.conversation_id));
+        invalidate(qk.unread(ev.conversation_id));
+        invalidate(qk.unreadConversations());
+        invalidate(qk.conversationThreads(ev.conversation_id));
+        invalidate(qk.threadRepliesByConversation(ev.conversation_id));
+        invalidate(qk.refs(ev.conversation_id));
       }
       return;
     case 'conversation.read_state.changed':
