@@ -171,7 +171,34 @@ func assertAccessApplyRoundTrip(t *testing.T, endpoint, permission string, sess 
 		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
 		"reason":"regression coverage"
 	}`
-	resp := orgScopedPost(t, endpoint, body, sess)
+	previewEndpoint := strings.TrimSuffix(endpoint, "/apply") + "/preview"
+	resp := orgScopedPost(t, previewEndpoint, body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("access preview %s status=%d", previewEndpoint, resp.StatusCode)
+	}
+	var preview struct {
+		RequestID string `json:"request_id"`
+		Items     []struct {
+			ID       string `json:"id"`
+			HighRisk bool   `json:"high_risk"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	var highRisk []string
+	for _, item := range preview.Items {
+		if item.HighRisk {
+			highRisk = append(highRisk, `"`+item.ID+`"`)
+		}
+	}
+	applyBody := body[:strings.LastIndex(body, "}")] + `,
+		"preview_request_id":"` + preview.RequestID + `",
+		"idempotency_key":"idem-` + accessHash(endpoint+"|"+permission) + `",
+		"high_risk_confirmed_item_ids":[` + strings.Join(highRisk, ",") + `]
+	}`
+	resp = orgScopedPost(t, endpoint, applyBody, sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("access apply %s status=%d", endpoint, resp.StatusCode)

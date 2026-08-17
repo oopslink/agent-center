@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,33 @@ func TestT1343LegacyAccessApplyMustMatchPermissionsEffectiveState(t *testing.T) 
 		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
 		"reason":"t1343 consistency"
 	}`
-	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
+	resp := orgScopedPost(t, server.URL+"/api/access/batch/preview", body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy access preview status=%d", resp.StatusCode)
+	}
+	var preview struct {
+		RequestID string `json:"request_id"`
+		Items     []struct {
+			ID       string `json:"id"`
+			HighRisk bool   `json:"high_risk"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	var highRisk []string
+	for _, item := range preview.Items {
+		if item.HighRisk {
+			highRisk = append(highRisk, `"`+item.ID+`"`)
+		}
+	}
+	applyBody := body[:strings.LastIndex(body, "}")] + `,
+		"preview_request_id":"` + preview.RequestID + `",
+		"idempotency_key":"t1343-legacy-access-apply",
+		"high_risk_confirmed_item_ids":[` + strings.Join(highRisk, ",") + `]
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("legacy access apply status=%d", resp.StatusCode)

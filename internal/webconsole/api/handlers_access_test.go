@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -52,6 +53,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("preview status=%d", resp.StatusCode)
 	}
 	var preview struct {
+		RequestID string `json:"request_id"`
 		ExpiresAt string `json:"expires_at"`
 		Summary   struct {
 			Total         int `json:"total"`
@@ -61,9 +63,11 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 			NotApplicable int `json:"not_applicable"`
 		} `json:"summary"`
 		Items []struct {
-			Status string `json:"status"`
-			Risk   string `json:"risk"`
-			Reason string `json:"reason"`
+			ID       string `json:"id"`
+			Status   string `json:"status"`
+			Risk     string `json:"risk"`
+			HighRisk bool   `json:"high_risk"`
+			Reason   string `json:"reason"`
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
@@ -73,8 +77,19 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	if preview.ExpiresAt == "" || preview.Summary.HighRisk == 0 || preview.Summary.Unauthorized == 0 || preview.Summary.NotApplicable == 0 {
 		t.Fatalf("preview did not expose expiry/high-risk/unauthorized/not-applicable: %+v", preview)
 	}
+	var highRisk []string
+	for _, item := range preview.Items {
+		if item.HighRisk && item.Status == "allowed" {
+			highRisk = append(highRisk, `"`+item.ID+`"`)
+		}
+	}
+	applyBody := body[:strings.LastIndex(body, "}")] + `,
+		"preview_request_id":"` + preview.RequestID + `",
+		"idempotency_key":"access-test-apply",
+		"high_risk_confirmed_item_ids":[` + strings.Join(highRisk, ",") + `]
+	}`
 
-	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("apply status=%d", resp.StatusCode)
 	}

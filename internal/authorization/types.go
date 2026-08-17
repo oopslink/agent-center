@@ -50,6 +50,11 @@ var (
 	ErrSystemRoleImmutable = errors.New("authorization: system role is immutable")
 	ErrIdempotencyRequired = errors.New("authorization: idempotency key required")
 	ErrIdempotencyConflict = errors.New("authorization: idempotency key reused with different request")
+	ErrPreviewRequired     = errors.New("authorization: preview id required")
+	ErrPreviewNotFound     = errors.New("authorization: preview not found")
+	ErrPreviewExpired      = errors.New("authorization: preview expired")
+	ErrPreviewStale        = errors.New("authorization: preview stale")
+	ErrPreviewConsumed     = errors.New("authorization: preview already applied")
 )
 
 type ResourceScope struct {
@@ -155,6 +160,7 @@ type RoleAssignment struct {
 
 type BatchRequest struct {
 	IdempotencyKey string           `json:"idempotency_key,omitempty"`
+	PreviewID      string           `json:"preview_id,omitempty"`
 	ActorRef       SubjectRef       `json:"actor_ref"`
 	OrgID          string           `json:"org_id"`
 	Operations     []BatchOperation `json:"operations"`
@@ -199,6 +205,8 @@ type RevokeInput struct {
 
 type BatchResult struct {
 	IdempotencyKey string            `json:"idempotency_key,omitempty"`
+	PreviewID      string            `json:"preview_id,omitempty"`
+	ExpiresAt      *time.Time        `json:"expires_at,omitempty"`
 	Replayed       bool              `json:"replayed,omitempty"`
 	Preview        bool              `json:"preview"`
 	Operations     []OperationResult `json:"operations"`

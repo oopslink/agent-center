@@ -184,9 +184,20 @@ func TestBatchPreviewRollbackIdempotencyAndStoreFailures(t *testing.T) {
 	if err != nil || preview.Operations[0].Status != "would_create" {
 		t.Fatalf("preview=%#v err=%v", preview, err)
 	}
+	applied, err := svc.ApplyPreviewBatch(ctx, BatchRequest{PreviewID: preview.PreviewID, IdempotencyKey: "preview-apply", ActorRef: previewReq.ActorRef, OrgID: previewReq.OrgID})
+	if err != nil || applied.PreviewID != preview.PreviewID || applied.Replayed {
+		t.Fatalf("apply preview=%#v err=%v", applied, err)
+	}
+	replayed, err := svc.ApplyPreviewBatch(ctx, BatchRequest{PreviewID: preview.PreviewID, IdempotencyKey: "preview-apply", ActorRef: previewReq.ActorRef, OrgID: previewReq.OrgID})
+	if err != nil || !replayed.Replayed || replayed.PreviewID != preview.PreviewID {
+		t.Fatalf("replay preview=%#v err=%v", replayed, err)
+	}
+	if _, err := svc.ApplyPreviewBatch(ctx, BatchRequest{PreviewID: preview.PreviewID, IdempotencyKey: "different-key", ActorRef: previewReq.ActorRef, OrgID: previewReq.OrgID}); !errors.Is(err, ErrPreviewConsumed) {
+		t.Fatalf("different apply idempotency key err=%v", err)
+	}
 	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='role-preview'`).Scan(&count); err != nil || count != 0 {
-		t.Fatalf("preview persisted role count=%d err=%v", count, err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='role-preview'`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("applied preview role count=%d err=%v", count, err)
 	}
 	rollback := BatchRequest{IdempotencyKey: "rollback", ActorRef: "user:user-owner", OrgID: "org-1", Operations: []BatchOperation{
 		{Type: "upsert_role", Role: RoleInput{ID: "role-rollback", Name: "rollback"}},

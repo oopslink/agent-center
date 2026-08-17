@@ -18,6 +18,22 @@ type Store struct {
 	db *sql.DB
 }
 
+type previewRecord struct {
+	PreviewID      string
+	ActorRef       SubjectRef
+	OrgID          string
+	Operation      string
+	RequestJSON    string
+	RequestHash    string
+	ResultHash     string
+	RevisionHash   string
+	Status         string
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+	AppliedAt      *time.Time
+	IdempotencyKey string
+}
+
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
@@ -179,6 +195,43 @@ func (s *Store) replaceRolePermissions(ctx context.Context, roleID string, perms
 	_, err = exec.ExecContext(ctx, `UPDATE authorization_roles
 		SET updated_at = ?, version = version + 1 WHERE id = ?`, ts, roleID)
 	return err
+}
+
+func (s *Store) disableCustomRole(ctx context.Context, orgID, roleID string, now time.Time) (Role, string, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return Role{}, "", err
+	}
+	role, err := s.getRole(ctx, roleID)
+	if err != nil {
+		return Role{}, "", err
+	}
+	if role.Kind != "custom" {
+		return Role{}, "", ErrSystemRoleImmutable
+	}
+	if role.OrgID != strings.TrimSpace(orgID) {
+		return Role{}, "", ErrRoleNotFound
+	}
+	var active int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments WHERE org_id = ? AND role_id = ? AND revoked_at IS NULL`, orgID, roleID).Scan(&active); err != nil {
+		return Role{}, "", err
+	}
+	if active > 0 {
+		return Role{}, "", fmt.Errorf("%w: role has active assignments", ErrConflict)
+	}
+	ts := now.UTC().Format(time.RFC3339Nano)
+	res, err := exec.ExecContext(ctx, `UPDATE authorization_roles
+		SET revoked_at = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND org_id = ? AND kind = 'custom' AND revoked_at IS NULL`, ts, ts, roleID, orgID)
+	if err != nil {
+		return Role{}, "", err
+	}
+	if rows, err := res.RowsAffected(); err == nil && rows == 0 {
+		return Role{}, "", ErrRoleNotFound
+	}
+	role.UpdatedAt = now
+	role.Version++
+	return role, "disabled", nil
 }
 
 func (s *Store) rolePermissions(ctx context.Context, roleID string) ([]RolePermission, error) {
@@ -396,6 +449,119 @@ func (s *Store) completeIdempotency(ctx context.Context, key string, response []
 		SET response_json = ?, status = 'completed', completed_at = ?
 		WHERE idempotency_key = ?`, string(response), now.UTC().Format(time.RFC3339Nano), strings.TrimSpace(key))
 	return err
+}
+
+func (s *Store) savePreviewRecord(ctx context.Context, rec previewRecord) error {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_preview_records
+		(preview_id, actor_ref, org_id, operation, normalized_request_json, request_hash, result_hash, revision_hash, status, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		rec.PreviewID, rec.ActorRef, rec.OrgID, rec.Operation, rec.RequestJSON, rec.RequestHash, rec.ResultHash, rec.RevisionHash,
+		rec.ExpiresAt.UTC().Format(time.RFC3339Nano), rec.CreatedAt.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) getPreviewRecord(ctx context.Context, previewID string) (previewRecord, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return previewRecord{}, err
+	}
+	var rec previewRecord
+	var expires, created string
+	var applied sql.NullString
+	err = exec.QueryRowContext(ctx, `SELECT preview_id, actor_ref, org_id, operation,
+			normalized_request_json, request_hash, result_hash, revision_hash, status,
+			expires_at, created_at, applied_at, apply_idempotency_key
+		FROM authorization_preview_records WHERE preview_id = ?`, strings.TrimSpace(previewID)).
+		Scan(&rec.PreviewID, &rec.ActorRef, &rec.OrgID, &rec.Operation, &rec.RequestJSON, &rec.RequestHash, &rec.ResultHash,
+			&rec.RevisionHash, &rec.Status, &expires, &created, &applied, &rec.IdempotencyKey)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return previewRecord{}, ErrPreviewNotFound
+		}
+		return previewRecord{}, err
+	}
+	rec.ExpiresAt = parseDBTime(expires)
+	rec.CreatedAt = parseDBTime(created)
+	if applied.Valid && applied.String != "" {
+		t := parseDBTime(applied.String)
+		rec.AppliedAt = &t
+	}
+	return rec, nil
+}
+
+func (s *Store) markPreviewApplied(ctx context.Context, previewID, idempotencyKey string, now time.Time) error {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `UPDATE authorization_preview_records
+		SET status = 'applied', applied_at = ?, apply_idempotency_key = ?
+		WHERE preview_id = ? AND status = 'pending'`,
+		now.UTC().Format(time.RFC3339Nano), strings.TrimSpace(idempotencyKey), strings.TrimSpace(previewID))
+	if err != nil {
+		return err
+	}
+	if rows, err := res.RowsAffected(); err == nil && rows == 0 {
+		return ErrPreviewConsumed
+	}
+	return nil
+}
+
+func (s *Store) authorizationRevisionHash(ctx context.Context, orgID string) (string, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return "", err
+	}
+	type part struct {
+		name string
+		sql  string
+		args []any
+	}
+	parts := []part{
+		{"roles", `SELECT COUNT(*), COALESCE(MAX(version),0), COALESCE(MAX(updated_at),'') FROM authorization_roles WHERE org_id = ? OR org_id = ''`, []any{orgID}},
+		{"role_permissions", `SELECT COUNT(*), COALESCE(MAX(created_at),'') FROM authorization_role_permissions WHERE role_id IN (SELECT id FROM authorization_roles WHERE org_id = ? OR org_id = '')`, []any{orgID}},
+		{"assignments", `SELECT COUNT(*), COALESCE(MAX(version),0), COALESCE(MAX(created_at),''), COALESCE(MAX(COALESCE(revoked_at,'')),'') FROM authorization_role_assignments WHERE org_id = ?`, []any{orgID}},
+		{"members", `SELECT COUNT(*), COALESCE(MAX(joined_at),''), COALESCE(MAX(COALESCE(disabled_at,'')),'') FROM members WHERE organization_id = ?`, []any{orgID}},
+		{"projects", `SELECT COUNT(*), COALESCE(MAX(created_at),''), COALESCE(MAX(updated_at),'') FROM pm_projects WHERE organization_id = ?`, []any{orgID}},
+		{"project_members", `SELECT COUNT(*), COALESCE(MAX(created_at),'') FROM pm_project_members WHERE project_id IN (SELECT id FROM pm_projects WHERE organization_id = ?)`, []any{orgID}},
+		{"teams", `SELECT COUNT(*), COALESCE(MAX(created_at),''), COALESCE(MAX(updated_at),'') FROM teams WHERE org_id = ?`, []any{orgID}},
+	}
+	var b strings.Builder
+	for _, p := range parts {
+		rows, err := exec.QueryContext(ctx, p.sql, p.args...)
+		if err != nil {
+			return "", err
+		}
+		cols, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			return "", err
+		}
+		values := make([]sql.NullString, len(cols))
+		dest := make([]any, len(cols))
+		for i := range values {
+			dest[i] = &values[i]
+		}
+		if rows.Next() {
+			if err := rows.Scan(dest...); err != nil {
+				rows.Close()
+				return "", err
+			}
+		}
+		rows.Close()
+		b.WriteString(p.name)
+		for _, v := range values {
+			b.WriteByte('|')
+			b.WriteString(v.String)
+		}
+		b.WriteByte('\n')
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (s *Store) appendAudit(ctx context.Context, e auditEvent) error {

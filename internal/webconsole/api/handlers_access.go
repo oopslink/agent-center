@@ -89,12 +89,14 @@ type accessGrantDTO struct {
 }
 
 type accessBatchRequestDTO struct {
-	SubjectRefs      []string                 `json:"subject_refs"`
-	PermissionKeys   []string                 `json:"permission_keys"`
-	Resources        []accessResourceScopeDTO `json:"resources"`
-	ExpiresAt        *string                  `json:"expires_at"`
-	Reason           string                   `json:"reason"`
-	PreviewRequestID string                   `json:"preview_request_id"`
+	SubjectRefs              []string                 `json:"subject_refs"`
+	PermissionKeys           []string                 `json:"permission_keys"`
+	Resources                []accessResourceScopeDTO `json:"resources"`
+	ExpiresAt                *string                  `json:"expires_at"`
+	Reason                   string                   `json:"reason"`
+	PreviewRequestID         string                   `json:"preview_request_id"`
+	IdempotencyKey           string                   `json:"idempotency_key"`
+	HighRiskConfirmedItemIDs []string                 `json:"high_risk_confirmed_item_ids"`
 }
 
 type accessBatchItemDTO struct {
@@ -363,19 +365,21 @@ func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		GrantIDs []string `json:"grant_ids"`
-		Reason   string   `json:"reason"`
+		GrantIDs         []string `json:"grant_ids"`
+		Reason           string   `json:"reason"`
+		PreviewRequestID string   `json:"preview_request_id"`
+		IdempotencyKey   string   `json:"idempotency_key"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason)
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, body.PreviewRequestID, body.IdempotencyKey)
 }
 
 func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, callerMember, orgID, ok := requireOrgMember(w, r, d)
+	_, callerMember, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -412,10 +416,124 @@ func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "not_found", "access role not found")
 		return
 	}
-	definitions, err := svc.ListDefinitions(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "authorization_failed", err.Error())
+	writeError(w, http.StatusConflict, "preview_required", "custom role updates require /access/roles/preview then /access/roles/apply")
+	_ = role
+	return
+}
+
+type accessRoleMutationDTO struct {
+	RoleID                 string   `json:"role_id"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description"`
+	Permissions            []string `json:"permissions"`
+	PreviewRequestID       string   `json:"preview_request_id"`
+	IdempotencyKey         string   `json:"idempotency_key"`
+	HighRiskPermissionKeys []string `json:"high_risk_permission_keys"`
+	Reason                 string   `json:"reason"`
+}
+
+func (s *Server) accessRolePreviewHandler(w http.ResponseWriter, r *http.Request) {
+	s.accessRoleMutationHandler(w, r, false, true)
+}
+
+func (s *Server) accessRoleApplyHandler(w http.ResponseWriter, r *http.Request) {
+	s.accessRoleMutationHandler(w, r, false, false)
+}
+
+func (s *Server) accessRoleDisablePreviewHandler(w http.ResponseWriter, r *http.Request) {
+	s.accessRoleMutationHandler(w, r, true, true)
+}
+
+func (s *Server) accessRoleDisableApplyHandler(w http.ResponseWriter, r *http.Request) {
+	s.accessRoleMutationHandler(w, r, true, false)
+}
+
+func (s *Server) accessRoleMutationHandler(w http.ResponseWriter, r *http.Request, disable bool, preview bool) {
+	d := hd(r)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
 		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	var body accessRoleMutationDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	if id := strings.TrimSpace(r.PathValue("id")); id != "" {
+		body.RoleID = id
+	}
+	actor := authz.UserSubject(caller.ID())
+	if preview {
+		req, highRisk, err := accessRoleMutationRequest(r.Context(), svc, orgID, actor, body, disable)
+		if err != nil {
+			writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+			return
+		}
+		res, err := svc.PreviewBatch(r.Context(), req)
+		if err != nil {
+			writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+			return
+		}
+		expiresAt := ""
+		if res.ExpiresAt != nil {
+			expiresAt = res.ExpiresAt.UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"request_id":            res.PreviewID,
+			"expires_at":            expiresAt,
+			"operations":            res.Operations,
+			"high_risk_permissions": highRisk,
+		})
+		return
+	}
+	if strings.TrimSpace(body.PreviewRequestID) == "" {
+		writeError(w, http.StatusConflict, "preview_required", "apply requires a server preview_request_id")
+		return
+	}
+	if missing := accessMissingHighRiskPermissions(r.Context(), svc, body, orgID); len(missing) > 0 {
+		writeError(w, http.StatusConflict, "high_risk_confirmation_required", "missing high-risk confirmations for permissions: "+strings.Join(missing, ","))
+		return
+	}
+	idempotencyKey := strings.TrimSpace(body.IdempotencyKey)
+	if idempotencyKey == "" {
+		idempotencyKey = "access-role-apply-" + accessHash(orgID+"|"+string(actor)+"|"+body.PreviewRequestID)
+	}
+	res, err := svc.ApplyPreviewBatch(r.Context(), authz.BatchRequest{
+		PreviewID:      body.PreviewRequestID,
+		IdempotencyKey: idempotencyKey,
+		ActorRef:       actor,
+		OrgID:          orgID,
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"operation_id": idempotencyKey,
+		"preview_id":   res.PreviewID,
+		"operations":   res.Operations,
+	})
+}
+
+func accessRoleMutationRequest(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessRoleMutationDTO, disable bool) (authz.BatchRequest, []string, error) {
+	roleID := strings.TrimSpace(body.RoleID)
+	if roleID == "" {
+		roleID = "role-" + accessHash(orgID+"|"+strings.TrimSpace(body.Name))
+	}
+	req := authz.BatchRequest{ActorRef: actor, OrgID: orgID}
+	if disable {
+		req.Operations = []authz.BatchOperation{{ID: "disable-role", Type: "disable_role", Role: authz.RoleInput{ID: roleID}}}
+		return req, nil, nil
+	}
+	req.Operations = append(req.Operations, authz.BatchOperation{ID: "upsert-role", Type: "upsert_role", Role: authz.RoleInput{ID: roleID, Name: body.Name, Description: body.Description}})
+	definitions, err := svc.ListDefinitions(ctx)
+	if err != nil {
+		return authz.BatchRequest{}, nil, err
 	}
 	catalog := accessCatalogFromDefinitions(definitions)
 	catalogByKey := make(map[string]accessPermissionDefinitionDTO, len(catalog))
@@ -426,37 +544,50 @@ func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request)
 	for _, permission := range body.Permissions {
 		def := catalogByKey[permission]
 		if def.Key == "" || len(def.ResourceKinds) == 0 {
-			writeError(w, http.StatusUnprocessableEntity, "invalid_permission_request", "permission is not registered: "+permission)
-			return
+			return authz.BatchRequest{}, nil, fmt.Errorf("%w: permission is not registered: %s", authz.ErrPermissionUndefined, permission)
 		}
 		perms = append(perms, authz.RolePermissionInput{PermissionKey: authz.PermissionKey(permission), ResourceKind: def.ResourceKinds[0]})
 	}
-	_, err = svc.ApplyBatch(r.Context(), authz.BatchRequest{
-		IdempotencyKey: "access-role-" + accessHash(orgID+"|"+authz.UserSubject(caller.ID()).BareID()+"|"+roleID+"|"+strings.Join(body.Permissions, ",")),
-		ActorRef:       authz.UserSubject(caller.ID()),
-		OrgID:          orgID,
-		Operations: []authz.BatchOperation{{
-			ID:          "set-role-permissions",
-			Type:        "set_role_permissions",
-			Role:        authz.RoleInput{ID: roleID},
-			Permissions: perms,
-		}},
-	})
-	if err != nil {
-		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.UserSubject(caller.ID()), Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
-		return
-	}
-	role.Permissions = append([]string(nil), body.Permissions...)
-	sort.Strings(role.Permissions)
-	role.ScopeKind = accessRoleScopeKind(role.Permissions, catalogByKey)
-	role.HighRisk = false
-	for _, permission := range role.Permissions {
-		if catalogByKey[permission].Risk == "high" {
-			role.HighRisk = true
-			break
+	req.Operations = append(req.Operations, authz.BatchOperation{ID: "set-role-permissions", Type: "set_role_permissions", Role: authz.RoleInput{ID: roleID}, Permissions: perms})
+	return req, accessHighRiskPermissions(body.Permissions, catalogByKey), nil
+}
+
+func accessHighRiskPermissions(permissions []string, catalog map[string]accessPermissionDefinitionDTO) []string {
+	var out []string
+	for _, permission := range permissions {
+		if catalog[permission].HighRisk {
+			out = append(out, permission)
 		}
 	}
-	writeJSON(w, http.StatusOK, role)
+	sort.Strings(out)
+	return out
+}
+
+func accessMissingHighRiskPermissions(ctx context.Context, svc *authz.Service, body accessRoleMutationDTO, orgID string) []string {
+	defs, err := svc.ListDefinitions(ctx)
+	if err != nil {
+		return nil
+	}
+	catalog := accessCatalogFromDefinitions(defs)
+	catalogByKey := make(map[string]accessPermissionDefinitionDTO, len(catalog))
+	for _, def := range catalog {
+		catalogByKey[def.Key] = def
+	}
+	required := accessHighRiskPermissions(body.Permissions, catalogByKey)
+	if len(required) == 0 {
+		return nil
+	}
+	confirmed := map[string]struct{}{}
+	for _, key := range body.HighRiskPermissionKeys {
+		confirmed[strings.TrimSpace(key)] = struct{}{}
+	}
+	var missing []string
+	for _, key := range required {
+		if _, ok := confirmed[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 func accessCustomRole(ctx context.Context, d HandlerDeps, orgID, roleID string) (accessRoleDTO, bool, error) {
@@ -1056,22 +1187,113 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
 	}
-	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
+	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, false)
 	if preview {
+		req := accessBatchPreviewRequest(orgID, actor, body, items)
+		previewResult, err := svc.PreviewBatch(r.Context(), req)
+		if err != nil {
+			writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+			return
+		}
+		expiresAt := ""
+		if previewResult.ExpiresAt != nil {
+			expiresAt = previewResult.ExpiresAt.UTC().Format(time.RFC3339)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"request_id": fmt.Sprintf("access-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
-			"expires_at": body.ExpiresAt,
+			"request_id": previewResult.PreviewID,
+			"expires_at": expiresAt,
 			"items":      items,
 			"summary":    accessPreviewSummary(items),
 		})
 		return
 	}
+	if strings.TrimSpace(body.PreviewRequestID) == "" {
+		writeError(w, http.StatusConflict, "preview_required", "apply requires a server preview_request_id")
+		return
+	}
+	if err := accessRequireHighRiskConfirmations(items, body.HighRiskConfirmedItemIDs); err != nil {
+		writeError(w, http.StatusConflict, "high_risk_confirmation_required", err.Error())
+		return
+	}
+	idempotencyKey := strings.TrimSpace(body.IdempotencyKey)
+	if idempotencyKey == "" {
+		idempotencyKey = "access-apply-" + accessHash(orgID+"|"+string(actor)+"|"+body.PreviewRequestID)
+	}
+	applied, err := svc.ApplyPreviewBatch(r.Context(), authz.BatchRequest{
+		PreviewID:      body.PreviewRequestID,
+		IdempotencyKey: idempotencyKey,
+		ActorRef:       actor,
+		OrgID:          orgID,
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	accessMarkAppliedItems(items, applied)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"operation_id": fmt.Sprintf("access-apply-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
+		"operation_id": idempotencyKey,
 		"applied_at":   time.Now().UTC().Format(time.RFC3339),
 		"items":        items,
 		"summary":      accessResultSummary(items),
 	})
+}
+
+func accessBatchPreviewRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, items []accessBatchItemDTO) authz.BatchRequest {
+	req := authz.BatchRequest{ActorRef: actor, OrgID: orgID}
+	for _, item := range items {
+		if item.Status != "allowed" {
+			continue
+		}
+		itemReq := accessBatchAuthorizationRequest(orgID, actor, body, item, mustParseAccessExpiry(body.ExpiresAt))
+		req.Operations = append(req.Operations, itemReq.Operations...)
+	}
+	return req
+}
+
+func mustParseAccessExpiry(raw *string) *time.Time {
+	t, err := parseAccessExpiry(raw)
+	if err != nil {
+		return nil
+	}
+	return t
+}
+
+func accessRequireHighRiskConfirmations(items []accessBatchItemDTO, confirmed []string) error {
+	ok := map[string]struct{}{}
+	for _, id := range confirmed {
+		ok[strings.TrimSpace(id)] = struct{}{}
+	}
+	var missing []string
+	for _, item := range items {
+		if item.Status == "allowed" && item.HighRisk {
+			if _, found := ok[item.ID]; !found {
+				missing = append(missing, item.ID)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing high-risk confirmations for items: %s", strings.Join(missing, ","))
+	}
+	return nil
+}
+
+func accessMarkAppliedItems(items []accessBatchItemDTO, applied authz.BatchResult) {
+	appliedAssignments := map[string]string{}
+	for _, op := range applied.Operations {
+		if op.AssignmentID != "" {
+			appliedAssignments[op.ID] = op.AssignmentID
+		}
+	}
+	for i := range items {
+		if items[i].Status != "allowed" {
+			continue
+		}
+		if assignmentID, ok := appliedAssignments[items[i].ID]; ok {
+			items[i].GrantID = assignmentID
+		}
+		items[i].Reason = "grant applied by unified authorization preview CAS"
+		items[i].EvidenceRef = "authorization_preview:" + applied.PreviewID
+	}
 }
 
 func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, applied bool) []accessBatchItemDTO {
@@ -1131,7 +1353,7 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 	if applied {
 		res, err = svc.ApplyBatch(ctx, req)
 	} else {
-		res, err = svc.PreviewBatch(ctx, req)
+		res, err = svc.PreviewBatchDryRun(ctx, req)
 	}
 	if err != nil {
 		item.Status = accessBatchStatusForError(err)
@@ -1249,7 +1471,7 @@ func accessBatchStatusForReason(reason string) string {
 	}
 }
 
-func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string) {
+func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason, previewID, idempotencyKey string) {
 	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
@@ -1261,17 +1483,77 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	}
 	items := make([]accessBatchItemDTO, 0, len(grantIDs))
 	for i, id := range grantIDs {
-		items = append(items, accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason))
+		items = append(items, accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, false))
 	}
+	if strings.TrimSpace(previewID) == "" {
+		res, err := svc.PreviewBatch(r.Context(), accessRevokePreviewRequest(orgID, actor, items, reason))
+		if err != nil {
+			writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+			return
+		}
+		expiresAt := ""
+		if res.ExpiresAt != nil {
+			expiresAt = res.ExpiresAt.UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"request_id": res.PreviewID,
+			"expires_at": expiresAt,
+			"items":      items,
+			"summary":    accessPreviewSummary(items),
+		})
+		return
+	}
+	if strings.TrimSpace(idempotencyKey) == "" {
+		idempotencyKey = "access-revoke-apply-" + accessHash(orgID+"|"+string(actor)+"|"+previewID)
+	}
+	applied, err := svc.ApplyPreviewBatch(r.Context(), authz.BatchRequest{PreviewID: previewID, IdempotencyKey: idempotencyKey, ActorRef: actor, OrgID: orgID})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	accessMarkRevokedItems(items, applied)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"operation_id": fmt.Sprintf("access-revoke-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
+		"operation_id": idempotencyKey,
 		"applied_at":   time.Now().UTC().Format(time.RFC3339),
 		"items":        items,
 		"summary":      accessResultSummary(items),
 	})
 }
 
-func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string) accessBatchItemDTO {
+func accessRevokePreviewRequest(orgID string, actor authz.SubjectRef, items []accessBatchItemDTO, reason string) authz.BatchRequest {
+	req := authz.BatchRequest{ActorRef: actor, OrgID: orgID}
+	for _, item := range items {
+		if item.Status != "allowed" || item.GrantID == "" {
+			continue
+		}
+		req.Operations = append(req.Operations, authz.BatchOperation{
+			ID:     item.ID,
+			Type:   "revoke_assignment",
+			Revoke: authz.RevokeInput{AssignmentID: item.GrantID, Reason: reason},
+		})
+	}
+	return req
+}
+
+func accessMarkRevokedItems(items []accessBatchItemDTO, applied authz.BatchResult) {
+	revoked := map[string]struct{}{}
+	for _, op := range applied.Operations {
+		if op.AssignmentID != "" {
+			revoked[op.ID] = struct{}{}
+		}
+	}
+	for i := range items {
+		if items[i].Status != "allowed" {
+			continue
+		}
+		if _, ok := revoked[items[i].ID]; ok {
+			items[i].Reason = "grant revoked by unified authorization preview CAS"
+			items[i].EvidenceRef = "authorization_preview:" + applied.PreviewID
+		}
+	}
+}
+
+func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string, applied bool) accessBatchItemDTO {
 	grant, found := grants[id]
 	item := accessBatchItemDTO{
 		ID:          fmt.Sprintf("revoke-%d", idx),
@@ -1307,7 +1589,15 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 			Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
 		}},
 	}
-	res, err := svc.RevokeBatch(ctx, req)
+	var (
+		res authz.BatchResult
+		err error
+	)
+	if applied {
+		res, err = svc.RevokeBatch(ctx, req)
+	} else {
+		res, err = svc.PreviewBatchDryRun(ctx, req)
+	}
 	if err != nil {
 		item.Status = accessBatchStatusForError(err)
 		item.Reason = err.Error()
@@ -1321,8 +1611,13 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 		}
 	}
 	item.Status = "allowed"
-	item.Reason = "grant revoked by unified authorization API"
-	item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	if applied {
+		item.Reason = "grant revoked by unified authorization API"
+		item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	} else {
+		item.Reason = "grant can be revoked by unified authorization API"
+		item.EvidenceRef = "authorization_preview:" + item.ID
+	}
 	return item
 }
 
@@ -1335,22 +1630,23 @@ func accessPermissionApplies(def accessPermissionDefinitionDTO, kind string) boo
 	return false
 }
 
-func accessPreviewSummary(items []accessBatchItemDTO) map[string]int {
-	out := map[string]int{"total": len(items), "grantable": 0, "high_risk": 0, "unauthorized": 0, "not_applicable": 0}
+func accessPreviewSummary(items []accessBatchItemDTO) map[string]any {
+	out := map[string]any{"total": len(items), "grantable": 0, "high_risk": 0, "unauthorized": 0, "not_applicable": 0}
 	for _, item := range items {
 		if item.Status == "allowed" {
-			out["grantable"]++
+			out["grantable"] = out["grantable"].(int) + 1
 		}
 		if item.HighRisk {
-			out["high_risk"]++
+			out["high_risk"] = out["high_risk"].(int) + 1
 		}
 		if item.Status == "unauthorized" {
-			out["unauthorized"]++
+			out["unauthorized"] = out["unauthorized"].(int) + 1
 		}
 		if item.Status == "not_applicable" {
-			out["not_applicable"]++
+			out["not_applicable"] = out["not_applicable"].(int) + 1
 		}
 	}
+	out["partial_failure"] = out["unauthorized"].(int) > 0 || out["not_applicable"].(int) > 0
 	return out
 }
 

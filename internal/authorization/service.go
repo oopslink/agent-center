@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -197,10 +198,20 @@ func (s *Service) auditEventInOrg(ctx context.Context, e AuditEvent, orgID strin
 }
 
 func (s *Service) PreviewBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
+	return s.previewBatch(ctx, req, true)
+}
+
+func (s *Service) PreviewBatchDryRun(ctx context.Context, req BatchRequest) (BatchResult, error) {
+	return s.previewBatch(ctx, req, false)
+}
+
+func (s *Service) previewBatch(ctx context.Context, req BatchRequest, persist bool) (BatchResult, error) {
 	if s == nil || s.db == nil {
 		return BatchResult{}, errors.New("authorization service: nil db")
 	}
 	var out BatchResult
+	req.IdempotencyKey = ""
+	req.PreviewID = ""
 	rollbackPreview := errors.New("authorization: rollback preview")
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
 		req.ActorRef = SubjectRef(strings.TrimSpace(string(req.ActorRef)))
@@ -224,6 +235,43 @@ func (s *Service) PreviewBatch(ctx context.Context, req BatchRequest) (BatchResu
 		return rollbackPreview
 	})
 	if errors.Is(err, rollbackPreview) {
+		if !persist {
+			return out, nil
+		}
+		requestJSON, requestHash, err := normalizedBatchRequest(req)
+		if err != nil {
+			return BatchResult{}, err
+		}
+		resultHash, err := resultDigest(out)
+		if err != nil {
+			return BatchResult{}, err
+		}
+		revisionHash, err := s.store.authorizationRevisionHash(ctx, req.OrgID)
+		if err != nil {
+			return BatchResult{}, err
+		}
+		now := s.clock.Now().UTC()
+		expiresAt := now.Add(10 * time.Minute)
+		previewID := "authz-preview-" + shortHash(strings.Join([]string{string(req.ActorRef), req.OrgID, requestHash, resultHash, revisionHash, now.Format(time.RFC3339Nano)}, "|"))
+		out.PreviewID = previewID
+		out.ExpiresAt = &expiresAt
+		if err := s.store.savePreviewRecord(ctx, previewRecord{
+			PreviewID:    previewID,
+			ActorRef:     req.ActorRef,
+			OrgID:        req.OrgID,
+			Operation:    "batch",
+			RequestJSON:  requestJSON,
+			RequestHash:  requestHash,
+			ResultHash:   resultHash,
+			RevisionHash: revisionHash,
+			ExpiresAt:    expiresAt,
+			CreatedAt:    now,
+		}); err != nil {
+			return BatchResult{}, err
+		}
+		if err := s.audit(ctx, auditEvent{EventType: "authorization.preview.created", ActorRef: req.ActorRef, ResourceKind: "org", ResourceID: req.OrgID, RequestID: previewID, Payload: map[string]any{"request_hash": requestHash, "result_hash": resultHash, "revision_hash": revisionHash, "expires_at": expiresAt.Format(time.RFC3339)}}); err != nil {
+			return BatchResult{}, err
+		}
 		return out, nil
 	}
 	return BatchResult{}, err
@@ -281,6 +329,80 @@ func (s *Service) ApplyBatch(ctx context.Context, req BatchRequest) (BatchResult
 		return nil
 	})
 	return out, err
+}
+
+func (s *Service) ApplyPreviewBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
+	if strings.TrimSpace(req.PreviewID) == "" {
+		return BatchResult{}, ErrPreviewRequired
+	}
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		return BatchResult{}, ErrIdempotencyRequired
+	}
+	rec, err := s.store.getPreviewRecord(ctx, req.PreviewID)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	if req.ActorRef != "" && SubjectRef(strings.TrimSpace(string(req.ActorRef))) != rec.ActorRef {
+		return BatchResult{}, ErrPreviewStale
+	}
+	if strings.TrimSpace(req.OrgID) != "" && strings.TrimSpace(req.OrgID) != rec.OrgID {
+		return BatchResult{}, ErrPreviewStale
+	}
+	var storedReq BatchRequest
+	if err := json.Unmarshal([]byte(rec.RequestJSON), &storedReq); err != nil {
+		return BatchResult{}, err
+	}
+	storedReq.IdempotencyKey = req.IdempotencyKey
+	storedReq.PreviewID = req.PreviewID
+	if rec.Status == "applied" {
+		if rec.IdempotencyKey != req.IdempotencyKey {
+			return BatchResult{}, ErrPreviewConsumed
+		}
+		replayed, err := s.ApplyBatch(ctx, storedReq)
+		if err != nil {
+			return BatchResult{}, err
+		}
+		replayed.PreviewID = rec.PreviewID
+		return replayed, nil
+	}
+	now := s.clock.Now().UTC()
+	if !rec.ExpiresAt.IsZero() && now.After(rec.ExpiresAt) {
+		return BatchResult{}, ErrPreviewExpired
+	}
+	requestJSON, requestHash, err := normalizedBatchRequest(storedReq)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	if requestHash != rec.RequestHash || requestJSON != rec.RequestJSON {
+		return BatchResult{}, ErrPreviewStale
+	}
+	currentPreview, err := s.previewBatch(ctx, storedReq, false)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	currentResultHash, err := resultDigest(currentPreview)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	currentRevisionHash, err := s.store.authorizationRevisionHash(ctx, rec.OrgID)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	if currentResultHash != rec.ResultHash || currentRevisionHash != rec.RevisionHash {
+		return BatchResult{}, ErrPreviewStale
+	}
+	applied, err := s.ApplyBatch(ctx, storedReq)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	applied.PreviewID = rec.PreviewID
+	if err := s.store.markPreviewApplied(ctx, rec.PreviewID, req.IdempotencyKey, now); err != nil {
+		return BatchResult{}, err
+	}
+	if err := s.audit(ctx, auditEvent{EventType: "authorization.preview.applied", ActorRef: rec.ActorRef, ResourceKind: "org", ResourceID: rec.OrgID, RequestID: rec.PreviewID, Payload: map[string]any{"idempotency_key": req.IdempotencyKey}}); err != nil {
+		return BatchResult{}, err
+	}
+	return applied, nil
 }
 
 func (s *Service) RevokeBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
@@ -366,6 +488,23 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 			return OperationResult{}, err
 		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: "set", RoleID: roleID}, nil
+
+	case "disable_role":
+		if err := s.requireManageRBAC(ctx, actor, orgID); err != nil {
+			return OperationResult{}, err
+		}
+		roleID := strings.TrimSpace(op.Role.ID)
+		if roleID == "" {
+			return OperationResult{}, fmt.Errorf("%w: role id required", ErrInvalid)
+		}
+		role, status, err := s.store.disableCustomRole(ctx, orgID, roleID, s.clock.Now())
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if err := s.audit(ctx, auditEvent{EventType: "authorization.role.disabled", ActorRef: actor, RoleID: role.ID, ResourceKind: "org", ResourceID: orgID, Payload: map[string]any{"status": status, "name": role.Name}}); err != nil {
+			return OperationResult{}, err
+		}
+		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: role.ID}, nil
 
 	case "assign_role":
 		roleID := strings.TrimSpace(op.Assignment.RoleID)
@@ -1309,6 +1448,35 @@ func (s *Service) audit(ctx context.Context, e auditEvent) error {
 func batchDigest(req BatchRequest) (string, error) {
 	cp := req
 	cp.IdempotencyKey = ""
+	cp.PreviewID = ""
+	b, err := json.Marshal(cp)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func normalizedBatchRequest(req BatchRequest) (string, string, error) {
+	cp := req
+	cp.IdempotencyKey = ""
+	cp.PreviewID = ""
+	cp.ActorRef = SubjectRef(strings.TrimSpace(string(cp.ActorRef)))
+	cp.OrgID = strings.TrimSpace(cp.OrgID)
+	b, err := json.Marshal(cp)
+	if err != nil {
+		return "", "", err
+	}
+	sum := sha256.Sum256(b)
+	return string(b), hex.EncodeToString(sum[:]), nil
+}
+
+func resultDigest(res BatchResult) (string, error) {
+	cp := res
+	cp.IdempotencyKey = ""
+	cp.PreviewID = ""
+	cp.ExpiresAt = nil
+	cp.Replayed = false
 	b, err := json.Marshal(cp)
 	if err != nil {
 		return "", err

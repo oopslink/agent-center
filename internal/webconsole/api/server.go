@@ -177,6 +177,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/preview", s.permissionsBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/apply", s.permissionsBatchApplyHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/revoke", s.permissionsBatchRevokeHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/preview", s.accessBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/apply", s.accessBatchApplyHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs
@@ -324,6 +325,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/batch/preview", s.accessBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/batch/apply", s.accessBatchApplyHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/grants/revoke", s.accessBulkRevokeHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/grants/revoke/preview", s.accessBulkRevokeHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/grants/revoke/apply", s.accessBulkRevokeHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/roles/preview", s.accessRolePreviewHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/roles/apply", s.accessRoleApplyHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/roles/{id}/disable/preview", s.accessRoleDisablePreviewHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/access/roles/{id}/disable/apply", s.accessRoleDisableApplyHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/access/roles/{id}", s.accessRoleUpdateHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/permissions/roles/{id}", s.accessRoleUpdateHandler)
 	// Team WebUI facade P3 (this slice): disassociate / template save·import /

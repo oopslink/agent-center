@@ -222,7 +222,7 @@ func (s *Server) permissionsBatchHandler(w http.ResponseWriter, r *http.Request,
 			PreviewRequestID: env.PreviewRequestID,
 		}
 		if revoke || len(env.GrantIDs) > 0 {
-			s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, env.GrantIDs, env.Reason)
+			s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, env.GrantIDs, env.Reason, env.PreviewRequestID, env.IdempotencyKey)
 			return
 		}
 		s.accessBatchUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body, preview)
