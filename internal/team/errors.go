@@ -39,6 +39,12 @@ var (
 	// ErrInvalidRole is returned when a RoleConfig fails validation.
 	ErrInvalidRole = errors.New("team: invalid role config")
 	ErrRoleInUse   = errors.New("team: role is assigned to one or more members")
+	// ErrInvalidAccessRequirements is returned when role access requirements do
+	// not lint cleanly.
+	ErrInvalidAccessRequirements = errors.New("team: invalid role access requirements")
+	// ErrInvalidAccessProfileRef is returned when a role references a missing,
+	// unversioned, or invalid-mode Access Profile.
+	ErrInvalidAccessProfileRef = errors.New("team: invalid access profile reference")
 
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.

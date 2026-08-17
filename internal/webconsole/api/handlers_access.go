@@ -58,6 +58,14 @@ type accessRoleDTO struct {
 	HighRisk    bool     `json:"high_risk,omitempty"`
 }
 
+type accessProfileDTO struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Version     int    `json:"version"`
+	RoleID      string `json:"role_id"`
+}
+
 type accessDecisionDTO struct {
 	Allowed     bool                   `json:"allowed"`
 	SubjectRef  string                 `json:"subject_ref"`
@@ -118,6 +126,7 @@ type accessDerivedState struct {
 	subjects     []accessSubjectDTO
 	subjectByRef map[string]accessSubjectDTO
 	roles        []accessRoleDTO
+	profiles     []accessProfileDTO
 	catalog      []accessPermissionDefinitionDTO
 	catalogByKey map[string]accessPermissionDefinitionDTO
 	decisions    []accessDecisionDTO
@@ -197,6 +206,32 @@ func accessRolesForOrg(ctx context.Context, d HandlerDeps, orgID string, catalog
 		roles = append(roles, role)
 	}
 	return roles
+}
+
+func accessProfilesForOrg(ctx context.Context, d HandlerDeps, orgID string) []accessProfileDTO {
+	if d.DB == nil {
+		return nil
+	}
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT p.id, p.name, COALESCE(p.description, ''), COALESCE(MAX(v.version), 0), COALESCE(MAX(v.role_id), '')
+		FROM access_profiles p
+		LEFT JOIN access_profile_versions v ON v.org_id = p.org_id AND v.profile_id = p.id
+		WHERE p.org_id = ?
+		GROUP BY p.id, p.name, p.description
+		ORDER BY p.name, p.id`, orgID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []accessProfileDTO
+	for rows.Next() {
+		var p accessProfileDTO
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Version, &p.RoleID); err != nil {
+			return out
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func accessRolePermissions(ctx context.Context, d HandlerDeps, roleID string) []string {
@@ -308,6 +343,7 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 		"generated_at": state.generatedAt.Format(time.RFC3339),
 		"subjects":     state.subjects,
 		"roles":        state.roles,
+		"profiles":     state.profiles,
 		"catalog":      state.catalog,
 		"decisions":    decisions,
 		"grants":       accessFilterGrants(state.grants, decisions),
@@ -631,6 +667,7 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 		subjectByRef: map[string]accessSubjectDTO{},
 	}
 	state.roles = accessRolesForOrg(ctx, d, orgID, catalogByKey)
+	state.profiles = accessProfilesForOrg(ctx, d, orgID)
 	members, err := d.MemberRepo.ListByOrganization(ctx, orgID)
 	if err != nil {
 		return state, err

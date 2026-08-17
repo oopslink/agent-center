@@ -59,6 +59,7 @@ func (s *Service) WithMemberResolver(r MemberResolver) *Service {
 
 // CreateTeamInput is the create_team tool payload.
 type CreateTeamInput struct {
+	ID          team.TeamID
 	OrgID       string
 	Name        string
 	Description string
@@ -68,8 +69,12 @@ type CreateTeamInput struct {
 
 // CreateTeam creates a team and its declared roles atomically.
 func (s *Service) CreateTeam(ctx context.Context, in CreateTeamInput) (*team.Team, error) {
+	id := in.ID
+	if id == "" {
+		id = team.TeamID(s.idgen.NewEntityID("team"))
+	}
 	t, err := team.NewTeam(team.NewTeamInput{
-		ID:          team.TeamID(s.idgen.NewEntityID("team")),
+		ID:          id,
 		OrgID:       in.OrgID,
 		Name:        in.Name,
 		Description: in.Description,

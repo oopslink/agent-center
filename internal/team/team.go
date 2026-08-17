@@ -83,17 +83,23 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 		if rc.MaxConcurrency < 0 {
 			return nil, ErrInvalidRole
 		}
+		reqs, refs, _, err := normalizeRoleAccess(role, rc.AccessRequirements, rc.AccessProfiles)
+		if err != nil {
+			return nil, err
+		}
 		seen[role] = struct{}{}
 		mc := rc.MaxConcurrency
 		if mc == 0 {
 			mc = 1 // default one concurrent slot per role
 		}
 		out = append(out, RoleConfig{
-			Role:           role,
-			CLI:            rc.CLI,
-			Model:          rc.Model,
-			CapabilityTags: append([]string(nil), rc.CapabilityTags...),
-			MaxConcurrency: mc,
+			Role:               role,
+			CLI:                rc.CLI,
+			Model:              rc.Model,
+			CapabilityTags:     append([]string(nil), rc.CapabilityTags...),
+			MaxConcurrency:     mc,
+			AccessRequirements: reqs,
+			AccessProfiles:     refs,
 		})
 	}
 	return out, nil

@@ -69,13 +69,35 @@ func insertRole(ctx context.Context, exec persistence.SQLExecutor, id team.TeamI
 	if len(rc.CapabilityTags) == 0 {
 		tags = []byte("[]")
 	}
-	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-		VALUES (?,?,?,?,?,?,?)`
+	reqs, refs, err := marshalRoleAccess(rc)
+	if err != nil {
+		return err
+	}
+	const stmt = `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at, access_requirements_json, access_profiles_json)
+		VALUES (?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		id.String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
-		now.UTC().Format(tsLayout),
+		now.UTC().Format(tsLayout), reqs, refs,
 	)
 	return err
+}
+
+func marshalRoleAccess(rc team.RoleConfig) (string, string, error) {
+	reqs, err := json.Marshal(rc.AccessRequirements)
+	if err != nil {
+		return "", "", fmt.Errorf("marshal access_requirements: %w", err)
+	}
+	if len(rc.AccessRequirements) == 0 {
+		reqs = []byte("[]")
+	}
+	refs, err := json.Marshal(rc.AccessProfiles)
+	if err != nil {
+		return "", "", fmt.Errorf("marshal access_profiles: %w", err)
+	}
+	if len(rc.AccessProfiles) == 0 {
+		refs = []byte("[]")
+	}
+	return string(reqs), string(refs), nil
 }
 
 // UpdateTeam persists name/description/version for an existing team.
@@ -115,12 +137,18 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 		if err != nil {
 			return fmt.Errorf("marshal capability_tags: %w", err)
 		}
+		reqs, refs, err := marshalRoleAccess(rc)
+		if err != nil {
+			return err
+		}
 		_, err = exec.ExecContext(ctx, `INSERT INTO team_roles
-			(team_id, role, cli, model, capability_tags, max_concurrency, created_at)
-			VALUES (?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
+			(team_id, role, cli, model, capability_tags, max_concurrency, created_at, access_requirements_json, access_profiles_json)
+			VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(team_id, role) DO UPDATE SET
 			cli=excluded.cli, model=excluded.model, capability_tags=excluded.capability_tags,
-			max_concurrency=excluded.max_concurrency`, t.ID().String(), rc.Role, rc.CLI,
-			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout))
+			max_concurrency=excluded.max_concurrency,
+			access_requirements_json=excluded.access_requirements_json,
+			access_profiles_json=excluded.access_profiles_json`, t.ID().String(), rc.Role, rc.CLI,
+			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout), reqs, refs)
 		if err != nil {
 			return err
 		}
@@ -241,7 +269,7 @@ func (r *Repo) GetTeam(ctx context.Context, id team.TeamID) (*team.Team, error) 
 
 func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID) ([]team.RoleConfig, error) {
 	rows, err := exec.QueryContext(ctx,
-		`SELECT role, cli, model, capability_tags, max_concurrency FROM team_roles WHERE team_id=? ORDER BY role`,
+		`SELECT role, cli, model, capability_tags, max_concurrency, access_requirements_json, access_profiles_json FROM team_roles WHERE team_id=? ORDER BY role`,
 		id.String())
 	if err != nil {
 		return nil, err
@@ -252,8 +280,9 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 		var (
 			role, cli, model, tagsJSON string
 			maxConc                    int
+			reqsJSON, refsJSON         string
 		)
-		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc); err != nil {
+		if err := rows.Scan(&role, &cli, &model, &tagsJSON, &maxConc, &reqsJSON, &refsJSON); err != nil {
 			return nil, err
 		}
 		var tags []string
@@ -262,9 +291,22 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 				return nil, fmt.Errorf("unmarshal capability_tags: %w", err)
 			}
 		}
+		var reqs []team.AccessRequirement
+		if reqsJSON != "" {
+			if err := json.Unmarshal([]byte(reqsJSON), &reqs); err != nil {
+				return nil, fmt.Errorf("unmarshal access_requirements: %w", err)
+			}
+		}
+		var refs []team.AccessProfileRef
+		if refsJSON != "" {
+			if err := json.Unmarshal([]byte(refsJSON), &refs); err != nil {
+				return nil, fmt.Errorf("unmarshal access_profiles: %w", err)
+			}
+		}
 		out = append(out, team.RoleConfig{
 			Role: role, CLI: cli, Model: model,
 			CapabilityTags: tags, MaxConcurrency: maxConc,
+			AccessRequirements: reqs, AccessProfiles: refs,
 		})
 	}
 	return out, rows.Err()

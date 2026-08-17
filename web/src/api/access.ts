@@ -72,6 +72,14 @@ export interface AccessRole {
   high_risk?: boolean;
 }
 
+export interface AccessProfile {
+  id: string;
+  name: string;
+  description: string;
+  version: number;
+  role_id: string;
+}
+
 export interface AccessDecision {
   allowed: boolean;
   subject_ref: string;
@@ -106,6 +114,7 @@ export interface AccessOverview {
   generated_at: string;
   subjects: AccessSubject[];
   roles: AccessRole[];
+  profiles?: AccessProfile[];
   catalog: AccessPermissionDefinition[];
   decisions: AccessDecision[];
   grants: AccessGrant[];

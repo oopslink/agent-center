@@ -179,8 +179,9 @@ func MigrateV1ToV2Command() *Command {
 // 0122 adds the explicit task delivery contract; 0123 makes worker control
 // command status observable; 0124 adds controlled Team Memory policy; 0125 checkpoints
 // Team Memory observability projection; 0126 retires AI Runtime Profile schema;
-// 0127 adds immutable Plan Generation snapshots.
-const targetSchemaVersion = 130
+// 0127 adds immutable Plan Generation snapshots; 0131 adds Team role access
+// profile references.
+const targetSchemaVersion = 131
 
 func runMigrateV1ToV2(
 	ctx context.Context,

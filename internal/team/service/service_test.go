@@ -46,6 +46,46 @@ func reviewRole() team.RoleConfig {
 	return team.RoleConfig{Role: "review", CLI: "codex", MaxConcurrency: 1}
 }
 
+func TestService_RoleAccessProfilesRoundTripAndLint(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+	role := team.RoleConfig{
+		Role: "ops", CLI: "codex", Model: "gpt-5", MaxConcurrency: 1,
+		AccessRequirements: []team.AccessRequirement{{PermissionKey: "team.memory.review", ResourceKind: "team", Required: true}},
+		AccessProfiles:     []team.AccessProfileRef{{ProfileID: "profile-reviewer", Version: 3, Mode: team.AccessProfileAdditional}},
+	}
+	tm := createTeam(t, svc, "Access Profile Team", role)
+	got, err := svc.GetTeam(ctx, tm.ID())
+	if err != nil {
+		t.Fatalf("GetTeam: %v", err)
+	}
+	if len(got.Roles()) != 1 || len(got.Roles()[0].AccessProfiles) != 1 {
+		t.Fatalf("access profile refs were not persisted: %+v", got.Roles())
+	}
+	if got.Roles()[0].AccessProfiles[0].Version != 3 || got.Roles()[0].AccessProfiles[0].Mode != team.AccessProfileAdditional {
+		t.Fatalf("wrong profile ref: %+v", got.Roles()[0].AccessProfiles[0])
+	}
+	lints := team.LintRoleAccessRequirements(got.Roles())
+	if len(lints) != 1 || lints[0].Code != "required-profile" {
+		t.Fatalf("lint = %+v, want required-profile info", lints)
+	}
+}
+
+func TestService_RoleAccessRequirementsRejectMembershipDerivedCustomCopy(t *testing.T) {
+	svc, _ := newService(t)
+	_, err := svc.CreateTeam(context.Background(), CreateTeamInput{
+		OrgID: "org-1",
+		Name:  "Bad Access Role",
+		Roles: []team.RoleConfig{{
+			Role: "member-copy", CLI: "codex", MaxConcurrency: 1,
+			AccessRequirements: []team.AccessRequirement{{PermissionKey: "membership.project.write", ResourceKind: "membership.project", Required: true}},
+		}},
+	})
+	if !errors.Is(err, team.ErrInvalidAccessRequirements) {
+		t.Fatalf("CreateTeam err=%v, want ErrInvalidAccessRequirements", err)
+	}
+}
+
 func TestService_CreateTeam_GeneratesIDAndPersistsRoles(t *testing.T) {
 	svc, _ := newService(t)
 	ctx := context.Background()

@@ -99,6 +99,14 @@ type RoleConfig struct {
 	CapabilityTags []string
 	// MaxConcurrency caps how many members of this role may run at once.
 	MaxConcurrency int
+	// AccessRequirements declares the permissions this team role expects. These
+	// are linted metadata; membership-derived permissions are never copied into
+	// custom authorization assignments from this list.
+	AccessRequirements []AccessRequirement
+	// AccessProfiles binds versioned Access Profile references to the role. Mode
+	// is default/additional/override so a single product entry can compose onto
+	// the lower-level authorization model without losing provenance.
+	AccessProfiles []AccessProfileRef
 }
 
 // TeamMember is a membership record binding a MemberRef to a team under a role.

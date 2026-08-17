@@ -153,7 +153,9 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 				roles = append(roles, roleInputReq{
 					Role: sl.Config.Role, CLI: sl.Config.CLI, Model: sl.Config.Model,
 					MaxConcurrency: sl.Config.MaxConcurrency, Count: sl.Count,
-					Tags: strings.Join(sl.Config.CapabilityTags, ","),
+					Tags:               strings.Join(sl.Config.CapabilityTags, ","),
+					AccessRequirements: sl.Config.AccessRequirements,
+					AccessProfiles:     sl.Config.AccessProfiles,
 				})
 			}
 		}
@@ -165,6 +167,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		configs = append(configs, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
 			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
+			AccessRequirements: ri.AccessRequirements, AccessProfiles: ri.AccessProfiles,
 		})
 		count := ri.Count
 		if count <= 0 {
@@ -175,6 +178,10 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	var valid bool
 	configs, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, configs)
 	if !valid {
+		return
+	}
+	if rolesRequireAccessPreview(configs) {
+		writeError(w, http.StatusConflict, "preview_required", "access-profile-backed team instantiation requires /teams/instantiate/preview then /teams/instantiate/apply")
 		return
 	}
 
@@ -192,6 +199,15 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		s.teamTemplates.addInstance(orgID, req.TemplateID, string(t.ID()))
 	}
 	writeJSON(w, http.StatusCreated, withMemoryPermissions(instantiatedTeamView(t, countByRole), member.Role(), teamMemoryConfigured(d)))
+}
+
+func rolesRequireAccessPreview(roles []team.RoleConfig) bool {
+	for _, rc := range roles {
+		if len(rc.AccessProfiles) > 0 || len(rc.AccessRequirements) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // instantiatedTeamView renders the TeamView for a freshly instantiated team: the
@@ -1013,12 +1029,14 @@ type createTeamTemplateReq struct {
 // config + per-role count. capability_tags is already a []string (unlike the
 // create-team RoleInput's comma-string).
 type templateRoleReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role               string                   `json:"role"`
+	CLI                string                   `json:"cli"`
+	Model              string                   `json:"model"`
+	CapabilityTags     []string                 `json:"capability_tags"`
+	MaxConcurrency     int                      `json:"max_concurrency"`
+	Count              int                      `json:"count"`
+	AccessRequirements []team.AccessRequirement `json:"access_requirements"`
+	AccessProfiles     []team.AccessProfileRef  `json:"access_profiles"`
 }
 
 // listTeamTemplatesHandler serves GET /api/orgs/{slug}/team-templates → TeamTemplate[].
@@ -1102,6 +1120,7 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 			Config: team.RoleConfig{
 				Role: rr.Role, CLI: rr.CLI, Model: rr.Model,
 				CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
+				AccessRequirements: rr.AccessRequirements, AccessProfiles: rr.AccessProfiles,
 			},
 			Count: rr.Count,
 		})
@@ -1183,12 +1202,15 @@ func templateRoleViews(slots []team.RoleSlot) []map[string]any {
 			tags = []string{}
 		}
 		out = append(out, map[string]any{
-			"role":            sl.Config.Role,
-			"cli":             sl.Config.CLI,
-			"model":           sl.Config.Model,
-			"capability_tags": tags,
-			"max_concurrency": sl.Config.MaxConcurrency,
-			"count":           sl.Count,
+			"role":                sl.Config.Role,
+			"cli":                 sl.Config.CLI,
+			"model":               sl.Config.Model,
+			"capability_tags":     tags,
+			"max_concurrency":     sl.Config.MaxConcurrency,
+			"count":               sl.Count,
+			"access_requirements": sl.Config.AccessRequirements,
+			"access_profiles":     sl.Config.AccessProfiles,
+			"access_lint":         team.LintRoleAccessRequirements([]team.RoleConfig{sl.Config}),
 		})
 	}
 	return out

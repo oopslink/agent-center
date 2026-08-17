@@ -75,13 +75,24 @@ func roleViewMap(rc team.RoleConfig, count int) map[string]any {
 	if tags == nil {
 		tags = []string{}
 	}
+	reqs := rc.AccessRequirements
+	if reqs == nil {
+		reqs = []team.AccessRequirement{}
+	}
+	refs := rc.AccessProfiles
+	if refs == nil {
+		refs = []team.AccessProfileRef{}
+	}
 	return map[string]any{
-		"role":            rc.Role,
-		"cli":             rc.CLI,
-		"model":           rc.Model,
-		"capability_tags": tags,
-		"max_concurrency": rc.MaxConcurrency,
-		"count":           count,
+		"role":                rc.Role,
+		"cli":                 rc.CLI,
+		"model":               rc.Model,
+		"capability_tags":     tags,
+		"max_concurrency":     rc.MaxConcurrency,
+		"count":               count,
+		"access_requirements": reqs,
+		"access_profiles":     refs,
+		"access_lint":         team.LintRoleAccessRequirements([]team.RoleConfig{rc}),
 	}
 }
 
@@ -406,13 +417,15 @@ type createTeamReq struct {
 }
 
 type roleInputReq struct {
-	Role           string `json:"role"`
-	CLI            string `json:"cli"`
-	Model          string `json:"model"`
-	MaxConcurrency int    `json:"max_concurrency"`
-	Count          int    `json:"count"`
-	Tags           string `json:"tags"`
-	Description    string `json:"description"`
+	Role               string                   `json:"role"`
+	CLI                string                   `json:"cli"`
+	Model              string                   `json:"model"`
+	MaxConcurrency     int                      `json:"max_concurrency"`
+	Count              int                      `json:"count"`
+	Tags               string                   `json:"tags"`
+	Description        string                   `json:"description"`
+	AccessRequirements []team.AccessRequirement `json:"access_requirements"`
+	AccessProfiles     []team.AccessProfileRef  `json:"access_profiles"`
 }
 
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
@@ -435,6 +448,7 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		roles = append(roles, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
 			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
+			AccessRequirements: ri.AccessRequirements, AccessProfiles: ri.AccessProfiles,
 		})
 	}
 	var valid bool
@@ -463,6 +477,9 @@ func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 	// enforce org ownership before delete.
 	if _, err := getTeamInOrg(r, d, orgID, r.PathValue("id")); err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, team.TeamID(r.PathValue("id")), ""); handled || !ok {
 		return
 	}
 	if err := d.TeamService.DeleteTeam(r.Context(), team.TeamID(r.PathValue("id"))); err != nil {
@@ -606,7 +623,11 @@ func (s *Server) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request)
 		mapTeamWebError(w, err)
 		return
 	}
-	if err := d.TeamService.RemoveMember(r.Context(), t.ID(), team.MemberRef(r.PathValue("ref"))); err != nil {
+	ref := team.MemberRef(r.PathValue("ref"))
+	if handled, ok := s.handleTeamRevokeBeforeDestructiveChange(w, r, d, orgID, t.ID(), ref.String()); handled || !ok {
+		return
+	}
+	if err := d.TeamService.RemoveMember(r.Context(), t.ID(), ref); err != nil {
 		mapTeamWebError(w, err)
 		return
 	}

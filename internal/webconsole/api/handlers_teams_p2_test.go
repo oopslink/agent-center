@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
@@ -232,6 +233,103 @@ func TestInstantiateTeam_HappyPath(t *testing.T) {
 	// project-decoupled: no project bound on instantiate.
 	if view["projects_count"].(float64) != 0 {
 		t.Errorf("projects_count = %v, want 0 (project-decoupled)", view["projects_count"])
+	}
+}
+
+func TestInstantiateTeamPreviewApplyCreatesProfileAssignmentsOnlyAfterConfirm(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	_, err := db.Exec(`INSERT INTO access_profiles (id, org_id, name, created_at, updated_at)
+		VALUES ('profile-curator', ?, 'Curator profile', datetime('now'), datetime('now'))`, sess.OrgID)
+	if err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	perms, _ := json.Marshal([]authz.RolePermissionInput{{PermissionKey: "team.memory.review", ResourceKind: "team", Delegatable: false}})
+	_, err = db.Exec(`INSERT INTO access_profile_versions (org_id, profile_id, version, role_id, permissions_json, created_at)
+		VALUES (?, 'profile-curator', 1, 'role-profile-curator-v1', ?, datetime('now'))`, sess.OrgID, string(perms))
+	if err != nil {
+		t.Fatalf("seed profile version: %v", err)
+	}
+
+	body := `{"team_name":"Profile Squad","roles":[
+		{"role":"curator","cli":"codex","model":"gpt-5","max_concurrency":1,"count":1,"tags":"review",
+		 "access_requirements":[{"permission_key":"team.memory.review","resource_kind":"team","required":true}],
+		 "access_profiles":[{"profile_id":"profile-curator","version":1,"mode":"default"}]}
+	],"assignments":[{"subject_ref":"user:` + sess.IdentityID + `","role":"curator"}]}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/instantiate/preview", body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	preview := decodeBody(t, resp)
+	if preview["request_id"] == "" {
+		t.Fatalf("preview missing request_id: %v", preview)
+	}
+	var before int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE org_id = ?`, sess.OrgID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if before != 0 {
+		t.Fatalf("preview wrote assignments: got %d", before)
+	}
+	applyBody := strings.TrimSuffix(body, "}") + `,"preview_request_id":"` + preview["request_id"].(string) + `","idempotency_key":"idem-team-profile-1"}`
+	resp = orgScopedPost(t, ts.URL+"/api/teams/instantiate/apply", applyBody, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("apply = %d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var after int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE org_id = ? AND subject_ref = ? AND resource_kind = 'team' AND revoked_at IS NULL`, sess.OrgID, "user:"+sess.IdentityID).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != 1 {
+		t.Fatalf("apply assignments = %d, want 1", after)
+	}
+	teamID := decodeBody(t, resp)["id"].(string)
+	resp = orgScopedDelete(t, ts.URL+"/api/teams/"+teamID, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("delete without revoke preview = %d body=%v, want 409", resp.StatusCode, decodeBody(t, resp))
+	}
+	resp = orgScopedDelete(t, ts.URL+"/api/teams/"+teamID+"?preview=true", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete revoke preview = %d body=%v, want 200", resp.StatusCode, decodeBody(t, resp))
+	}
+}
+
+func TestInstantiateTeam_ProfileBackedLegacyPathRequiresPreview(t *testing.T) {
+	deps, _, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	body := `{"team_name":"Needs Preview","roles":[
+		{"role":"curator","cli":"codex","model":"gpt-5","max_concurrency":1,"count":1,"tags":"review",
+		 "access_requirements":[{"permission_key":"team.memory.review","resource_kind":"team","required":true}],
+		 "access_profiles":[{"profile_id":"profile-curator","version":1,"mode":"default"}]}
+	]}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/instantiate", body, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("legacy instantiate with access profile = %d body=%v, want 409", resp.StatusCode, decodeBody(t, resp))
+	}
+}
+
+func TestInstantiateTeamPreviewRejectsMembershipDerivedProfilePermission(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+	if _, err := db.Exec(`INSERT INTO access_profiles (id, org_id, name, created_at, updated_at)
+		VALUES ('profile-member-copy', ?, 'Bad profile', datetime('now'), datetime('now'))`, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	perms, _ := json.Marshal([]authz.RolePermissionInput{{PermissionKey: "team.memory.read", ResourceKind: "team"}})
+	if _, err := db.Exec(`INSERT INTO access_profile_versions (org_id, profile_id, version, role_id, permissions_json, created_at)
+		VALUES (?, 'profile-member-copy', 1, 'role-profile-member-copy-v1', ?, datetime('now'))`, sess.OrgID, string(perms)); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"team_name":"Bad Profile Squad","roles":[
+		{"role":"reader","cli":"codex","model":"gpt-5","max_concurrency":1,"count":1,"tags":"read",
+		 "access_profiles":[{"profile_id":"profile-member-copy","version":1,"mode":"default"}]}
+	],"assignments":[{"subject_ref":"user:` + sess.IdentityID + `","role":"reader"}]}`
+	resp := orgScopedPost(t, ts.URL+"/api/teams/instantiate/preview", body, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("preview membership-derived profile = %d body=%v, want 422", resp.StatusCode, decodeBody(t, resp))
 	}
 }
 

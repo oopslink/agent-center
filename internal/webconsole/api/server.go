@@ -307,6 +307,8 @@ func (s *Server) routes() {
 	// + the org-level team-template catalog (in-memory, Phase-1).
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/teams/{id}", s.updateTeamHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate", s.instantiateTeamHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate/preview", s.instantiateTeamPreviewHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate/apply", s.instantiateTeamApplyHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/extract", s.extractFromTeamHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory", s.teamMemoryIndexHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory/settings", s.getTeamMemorySettingsHandler)

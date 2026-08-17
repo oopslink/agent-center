@@ -22,12 +22,36 @@ import { type TeamProjectLink } from './teamsFixtures';
 // ---------------------------------------------------------------------------
 
 /** RoleView — a declared role slot. `count` is present on templates/instances. */
+export interface AccessRequirement {
+  permission_key: string;
+  resource_kind: string;
+  required?: boolean;
+}
+
+export type AccessProfileMode = 'default' | 'additional' | 'override';
+
+export interface AccessProfileRef {
+  profile_id: string;
+  version: number;
+  mode: AccessProfileMode;
+}
+
+export interface RoleAccessLint {
+  role: string;
+  code: string;
+  message: string;
+  severity: 'info' | 'warning' | 'error' | string;
+}
+
 export interface RoleView {
   role: string;
   cli: string;
   model: string;
   capability_tags: string[];
   max_concurrency: number;
+  access_requirements?: AccessRequirement[];
+  access_profiles?: AccessProfileRef[];
+  access_lint?: RoleAccessLint[];
   count?: number;
 }
 
@@ -231,6 +255,8 @@ export interface RoleInput {
   count: number;
   tags: string;
   description?: string;
+  access_requirements?: AccessRequirement[];
+  access_profiles?: AccessProfileRef[];
 }
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
@@ -636,6 +662,44 @@ export function useInstantiateTeam() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.list() });
       qc.invalidateQueries({ queryKey: teamKeys.templateInstances(v.template_id) });
+    },
+  });
+}
+
+export interface TeamInstantiationAssignmentCandidate {
+  subject_ref: string;
+  role: string;
+}
+
+export interface TeamInstantiatePreviewInput {
+  template_id: string;
+  team_name: string;
+  roles: RoleInput[];
+  assignments?: TeamInstantiationAssignmentCandidate[];
+}
+
+export interface TeamInstantiatePreview {
+  request_id: string;
+  team: TeamView & { template_id?: string; assignments_only?: boolean; access_lint?: RoleAccessLint[] };
+  candidate_assignments: Array<Record<string, unknown>>;
+  operations: Array<Record<string, unknown>>;
+}
+
+export function useInstantiateTeamPreview() {
+  return useMutation({
+    mutationFn: (input: TeamInstantiatePreviewInput) =>
+      api.post<TeamInstantiatePreview>('/teams/instantiate/preview', input),
+  });
+}
+
+export function useInstantiateTeamApply() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TeamInstantiatePreviewInput & { preview_request_id: string; idempotency_key?: string }) =>
+      api.post<TeamView>('/teams/instantiate/apply', input),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: teamKeys.list() });
+      if (v.id) qc.invalidateQueries({ queryKey: teamKeys.detail(v.id) });
     },
   });
 }
