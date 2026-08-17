@@ -1,0 +1,38 @@
+
+Running 2 tests using 2 workers
+
+(node:36758) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36757) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36757) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36758) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations (13ms)
+  ✘  2 [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible (141ms)
+
+
+  1) [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/error-context.md
+
+  2) [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/smoke-smoke-API-mux-DB-respond-to-api-conversations-chromium-mac/error-context.md
+
+  2 failed
+    [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible ─
+    [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations ─

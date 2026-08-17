@@ -1,0 +1,11 @@
+=== RUN   TestFollowState_CrossVersionUpgrade_NonEmptyDB
+    follow_state_upgrade_test.go:84: post-upgrade version=132 want 129
+--- FAIL: TestFollowState_CrossVersionUpgrade_NonEmptyDB (0.29s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation/service	0.620s
+=== RUN   TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots
+    message_thread_upgrade_acc_test.go:60: post-upgrade version = 132 want 129
+--- FAIL: TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots (0.27s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation/sqlite	0.733s
+FAIL

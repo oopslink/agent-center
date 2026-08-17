@@ -1,0 +1,17 @@
+reviewed_sha=1467848d08a43395b2740d921836727d989aafff
+reviewed_sha_expected=1467848d08a43395b2740d921836727d989aafff
+reviewed_commit_subject=test(web): verify access profile publish conflicts
+reviewed_commit_date=2026-08-18T03:05:00+08:00
+remote_origin=git@github.com:oopslink/agent-center.git
+worktree_status_begin=1
+go_version=go version go1.26.3 darwin/arm64
+node_version=v25.6.0
+pnpm_version=10.31.0
+
+command_statuses:
+e2e_smoke_exit=1
+go_migration_exit=1
+make_build_exit=2
+
+artifact_count=82
+final_reviewed_head=1467848d08a43395b2740d921836727d989aafff

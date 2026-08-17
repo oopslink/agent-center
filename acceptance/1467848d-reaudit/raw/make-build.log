@@ -1,0 +1,21 @@
+cd web && pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 325ms using pnpm v10.31.0
+cd web && pnpm run build
+
+> agent-center-web@0.1.0 build /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/web
+> tsc -b && vite build
+
+src/mocks/handlers.ts(743,13): error TS6133: 'failed' is declared but its value is never read.
+src/pages/Access.test.tsx(145,45): error TS2322: Type '{ version: number; permissions: string[] | undefined; risk: string; id: string; name: string; description: string; }' is not assignable to type '{ id: string; name: string; description: string; version: number; permissions: string[]; risk: string; }'.
+  Types of property 'permissions' are incompatible.
+    Type 'string[] | undefined' is not assignable to type 'string[]'.
+      Type 'undefined' is not assignable to type 'string[]'.
+src/pages/Access.test.tsx(145,64): error TS2322: Type '{ version: number; permissions: string[] | undefined; risk: string; id: string; name: string; description: string; }' is not assignable to type '{ id: string; name: string; description: string; version: number; permissions: string[]; risk: string; }'.
+  Types of property 'permissions' are incompatible.
+    Type 'string[] | undefined' is not assignable to type 'string[]'.
+      Type 'undefined' is not assignable to type 'string[]'.
+ ELIFECYCLE  Command failed with exit code 2.
+make: *** [build-frontend] Error 2

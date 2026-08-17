@@ -1,0 +1,2597 @@
+=== RUN   TestRequiresAcceptance_Detection
+=== RUN   TestRequiresAcceptance_Detection/tag_merge
+=== RUN   TestRequiresAcceptance_Detection/tag_ship
+=== RUN   TestRequiresAcceptance_Detection/tag_merge-to-main
+=== RUN   TestRequiresAcceptance_Detection/tag_needs-acceptance
+=== RUN   TestRequiresAcceptance_Detection/tag_case-insensitive
+=== RUN   TestRequiresAcceptance_Detection/title_merge_to_main
+=== RUN   TestRequiresAcceptance_Detection/title_merge-to-main_hyphen
+=== RUN   TestRequiresAcceptance_Detection/title_merge_into_main
+=== RUN   TestRequiresAcceptance_Detection/title_merge_to_master
+=== RUN   TestRequiresAcceptance_Detection/title_chinese_合并_main
+=== RUN   TestRequiresAcceptance_Detection/P67_real_title_arrow_release
+=== RUN   TestRequiresAcceptance_Detection/integrate_arrow_no-space
+=== RUN   TestRequiresAcceptance_Detection/integrate_arrow_spaced
+=== RUN   TestRequiresAcceptance_Detection/ship_ascii_arrow
+=== RUN   TestRequiresAcceptance_Detection/fat_arrow_to_main
+=== RUN   TestRequiresAcceptance_Detection/chinese_合并到_main_no_space
+=== RUN   TestRequiresAcceptance_Detection/sync_main_into_dev_(main_is_source)
+=== RUN   TestRequiresAcceptance_Detection/arrow_main_to_dev_(main_is_source)
+=== RUN   TestRequiresAcceptance_Detection/plain_dev_task
+=== RUN   TestRequiresAcceptance_Detection/incidental_main+merge_non-adjacent
+=== RUN   TestRequiresAcceptance_Detection/arrow_to_mainframe_(boundary)
+=== RUN   TestRequiresAcceptance_Detection/review_task
+=== RUN   TestRequiresAcceptance_Detection/unrelated_tag
+=== RUN   TestRequiresAcceptance_Detection/main_only
+--- PASS: TestRequiresAcceptance_Detection (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/tag_merge (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/tag_ship (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/tag_merge-to-main (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/tag_needs-acceptance (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/tag_case-insensitive (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/title_merge_to_main (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/title_merge-to-main_hyphen (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/title_merge_into_main (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/title_merge_to_master (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/title_chinese_合并_main (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/P67_real_title_arrow_release (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/integrate_arrow_no-space (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/integrate_arrow_spaced (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/ship_ascii_arrow (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/fat_arrow_to_main (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/chinese_合并到_main_no_space (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/sync_main_into_dev_(main_is_source) (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/arrow_main_to_dev_(main_is_source) (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/plain_dev_task (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/incidental_main+merge_non-adjacent (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/arrow_to_mainframe_(boundary) (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/review_task (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/unrelated_tag (0.00s)
+    --- PASS: TestRequiresAcceptance_Detection/main_only (0.00s)
+=== RUN   TestNormalizeCapabilities
+=== RUN   TestNormalizeCapabilities/nil_→_nil
+=== RUN   TestNormalizeCapabilities/empty_→_nil
+=== RUN   TestNormalizeCapabilities/all_blank_→_nil
+=== RUN   TestNormalizeCapabilities/trim_+_lowercase
+=== RUN   TestNormalizeCapabilities/dedup_case-insensitive,_first-seen_order
+=== RUN   TestNormalizeCapabilities/drops_blanks_among_valid
+--- PASS: TestNormalizeCapabilities (0.00s)
+    --- PASS: TestNormalizeCapabilities/nil_→_nil (0.00s)
+    --- PASS: TestNormalizeCapabilities/empty_→_nil (0.00s)
+    --- PASS: TestNormalizeCapabilities/all_blank_→_nil (0.00s)
+    --- PASS: TestNormalizeCapabilities/trim_+_lowercase (0.00s)
+    --- PASS: TestNormalizeCapabilities/dedup_case-insensitive,_first-seen_order (0.00s)
+    --- PASS: TestNormalizeCapabilities/drops_blanks_among_valid (0.00s)
+=== RUN   TestTask_RequiredCapabilities
+--- PASS: TestTask_RequiredCapabilities (0.00s)
+=== RUN   TestSetRequiredCapabilities_ArchivedRejected
+--- PASS: TestSetRequiredCapabilities_ArchivedRejected (0.00s)
+=== RUN   TestADR47_Claimable_Predicate
+--- PASS: TestADR47_Claimable_Predicate (0.00s)
+=== RUN   TestADR47_BuiltinPlan_Immutable
+--- PASS: TestADR47_BuiltinPlan_Immutable (0.00s)
+=== RUN   TestIsDecisionNode
+--- PASS: TestIsDecisionNode (0.00s)
+=== RUN   TestNewIssue_Tags_CleanedAndValidated
+--- PASS: TestNewIssue_Tags_CleanedAndValidated (0.00s)
+=== RUN   TestNewIssue_Tags_TooLongRejected
+--- PASS: TestNewIssue_Tags_TooLongRejected (0.00s)
+=== RUN   TestTask_SetTags_Valid
+--- PASS: TestTask_SetTags_Valid (0.00s)
+=== RUN   TestTask_SetTags_TooMany
+--- PASS: TestTask_SetTags_TooMany (0.00s)
+=== RUN   TestTask_SetTags_TooLong
+--- PASS: TestTask_SetTags_TooLong (0.00s)
+=== RUN   TestTask_SetTags_EmptyRejected
+--- PASS: TestTask_SetTags_EmptyRejected (0.00s)
+=== RUN   TestTask_StatusChangedAt_SetOnConstruct
+--- PASS: TestTask_StatusChangedAt_SetOnConstruct (0.00s)
+=== RUN   TestTask_StatusChangedAt_UpdatesOnSetStatus
+--- PASS: TestTask_StatusChangedAt_UpdatesOnSetStatus (0.00s)
+=== RUN   TestTask_StatusChangedAt_UpdatesOnTransition
+--- PASS: TestTask_StatusChangedAt_UpdatesOnTransition (0.00s)
+=== RUN   TestTask_StatusChangedAt_NotChangedByRenameAssignTags
+--- PASS: TestTask_StatusChangedAt_NotChangedByRenameAssignTags (0.00s)
+=== RUN   TestIssue_SetTags_And_StatusChangedAt
+--- PASS: TestIssue_SetTags_And_StatusChangedAt (0.00s)
+=== RUN   TestProject_GettersRehydrateAndErrors
+--- PASS: TestProject_GettersRehydrateAndErrors (0.00s)
+=== RUN   TestIssue_GettersRehydrate
+--- PASS: TestIssue_GettersRehydrate (0.00s)
+=== RUN   TestTask_GettersRehydrate
+--- PASS: TestTask_GettersRehydrate (0.00s)
+=== RUN   TestMemberSubscriberCodeRepo_GettersAndErrors
+--- PASS: TestMemberSubscriberCodeRepo_GettersAndErrors (0.00s)
+=== RUN   TestIdentityRefValidate
+--- PASS: TestIdentityRefValidate (0.00s)
+=== RUN   TestPlan_Archive_RequiresTerminalLifecycle
+--- PASS: TestPlan_Archive_RequiresTerminalLifecycle (0.00s)
+=== RUN   TestPlan_Archive_IsOrthogonalMarker
+--- PASS: TestPlan_Archive_IsOrthogonalMarker (0.00s)
+=== RUN   TestWaitType_IsValid
+--- PASS: TestWaitType_IsValid (0.00s)
+=== RUN   TestValidateControlEdgeShape
+=== RUN   TestValidateControlEdgeShape/empty_kind_normalizes_to_seq
+=== RUN   TestValidateControlEdgeShape/explicit_seq
+=== RUN   TestValidateControlEdgeShape/conditional_without_When
+=== RUN   TestValidateControlEdgeShape/conditional_with_When
+=== RUN   TestValidateControlEdgeShape/loopback_shape_ok_(rounds_checked_by_ValidateLoopback)
+=== RUN   TestValidateControlEdgeShape/unknown_kind
+--- PASS: TestValidateControlEdgeShape (0.00s)
+    --- PASS: TestValidateControlEdgeShape/empty_kind_normalizes_to_seq (0.00s)
+    --- PASS: TestValidateControlEdgeShape/explicit_seq (0.00s)
+    --- PASS: TestValidateControlEdgeShape/conditional_without_When (0.00s)
+    --- PASS: TestValidateControlEdgeShape/conditional_with_When (0.00s)
+    --- PASS: TestValidateControlEdgeShape/loopback_shape_ok_(rounds_checked_by_ValidateLoopback) (0.00s)
+    --- PASS: TestValidateControlEdgeShape/unknown_kind (0.00s)
+=== RUN   TestDerivePlanView_ConditionalRouting
+--- PASS: TestDerivePlanView_ConditionalRouting (0.00s)
+=== RUN   TestDerivePlanView_PendingDecisionBlocks
+--- PASS: TestDerivePlanView_PendingDecisionBlocks (0.00s)
+=== RUN   TestDerivePlanView_AllDoneWithSkipped
+--- PASS: TestDerivePlanView_AllDoneWithSkipped (0.00s)
+=== RUN   TestDerivePlanView_LoopbackNotForwardBlocking
+--- PASS: TestDerivePlanView_LoopbackNotForwardBlocking (0.00s)
+=== RUN   TestValidateNoCycle_ExcludesLoopback
+--- PASS: TestValidateNoCycle_ExcludesLoopback (0.00s)
+=== RUN   TestWouldCreateCycle_LoopbackValidity
+--- PASS: TestWouldCreateCycle_LoopbackValidity (0.00s)
+=== RUN   TestLoopbackResetSet
+--- PASS: TestLoopbackResetSet (0.00s)
+=== RUN   TestDerivePlanView_CycleControlFlowRouting
+=== RUN   TestDerivePlanView_CycleControlFlowRouting/pass_routes_to_Integrate
+=== RUN   TestDerivePlanView_CycleControlFlowRouting/reject_exhausted_routes_to_Escape
+--- PASS: TestDerivePlanView_CycleControlFlowRouting (0.00s)
+    --- PASS: TestDerivePlanView_CycleControlFlowRouting/pass_routes_to_Integrate (0.00s)
+    --- PASS: TestDerivePlanView_CycleControlFlowRouting/reject_exhausted_routes_to_Escape (0.00s)
+=== RUN   TestDerivePlanView_PureDAGBackCompat
+--- PASS: TestDerivePlanView_PureDAGBackCompat (0.00s)
+=== RUN   TestValidateNoCycle_Empty
+--- PASS: TestValidateNoCycle_Empty (0.00s)
+=== RUN   TestValidateNoCycle_SimpleChainOK
+--- PASS: TestValidateNoCycle_SimpleChainOK (0.00s)
+=== RUN   TestValidateNoCycle_DirectCycle
+--- PASS: TestValidateNoCycle_DirectCycle (0.00s)
+=== RUN   TestValidateNoCycle_TwoNodeCycle
+--- PASS: TestValidateNoCycle_TwoNodeCycle (0.00s)
+=== RUN   TestValidateNoCycle_DiamondOK
+--- PASS: TestValidateNoCycle_DiamondOK (0.00s)
+=== RUN   TestWouldCreateCycle_SelfEdge
+--- PASS: TestWouldCreateCycle_SelfEdge (0.00s)
+=== RUN   TestWouldCreateCycle_CreatesCycle
+--- PASS: TestWouldCreateCycle_CreatesCycle (0.00s)
+=== RUN   TestWouldCreateCycle_Acceptable
+--- PASS: TestWouldCreateCycle_Acceptable (0.00s)
+=== RUN   TestTimeoutAction_IsValid
+--- PASS: TestTimeoutAction_IsValid (0.00s)
+=== RUN   TestDeadlineFor_OverrideAndDefault
+--- PASS: TestDeadlineFor_OverrideAndDefault (0.00s)
+=== RUN   TestDeadlineFor_Disabled
+--- PASS: TestDeadlineFor_Disabled (0.00s)
+=== RUN   TestDeadlineFor_DefaultsActionToEscalate
+--- PASS: TestDeadlineFor_DefaultsActionToEscalate (0.00s)
+=== RUN   TestDeadlineFor_NoDrift
+--- PASS: TestDeadlineFor_NoDrift (0.00s)
+=== RUN   TestDefaultDeadlinePolicy_Sane
+--- PASS: TestDefaultDeadlinePolicy_Sane (0.00s)
+=== RUN   TestPlanFindingKind_IsValid
+--- PASS: TestPlanFindingKind_IsValid (0.00s)
+=== RUN   TestNewPlanFinding_Validation
+=== RUN   TestNewPlanFinding_Validation/ok
+=== RUN   TestNewPlanFinding_Validation/empty_id
+=== RUN   TestNewPlanFinding_Validation/empty_plan
+=== RUN   TestNewPlanFinding_Validation/empty_task
+=== RUN   TestNewPlanFinding_Validation/empty_project
+=== RUN   TestNewPlanFinding_Validation/bad_author
+=== RUN   TestNewPlanFinding_Validation/empty_author
+=== RUN   TestNewPlanFinding_Validation/bad_kind
+=== RUN   TestNewPlanFinding_Validation/empty_content
+=== RUN   TestNewPlanFinding_Validation/too_long
+=== RUN   TestNewPlanFinding_Validation/max_length_ok
+=== RUN   TestNewPlanFinding_Validation/zero_created
+--- PASS: TestNewPlanFinding_Validation (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/ok (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_id (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_plan (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_task (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_project (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/bad_author (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_author (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/bad_kind (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/empty_content (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/too_long (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/max_length_ok (0.00s)
+    --- PASS: TestNewPlanFinding_Validation/zero_created (0.00s)
+=== RUN   TestNewPlanFinding_FieldsAndNormalization
+--- PASS: TestNewPlanFinding_FieldsAndNormalization (0.00s)
+=== RUN   TestRehydratePlanFinding
+--- PASS: TestRehydratePlanFinding (0.00s)
+=== RUN   TestNodeStatus_IsTerminal
+--- PASS: TestNodeStatus_IsTerminal (0.00s)
+=== RUN   TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder
+--- PASS: TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder (0.00s)
+=== RUN   TestDeriveFrontier_Empty
+--- PASS: TestDeriveFrontier_Empty (0.00s)
+=== RUN   TestDeriveFrontier_UnknownWaitTypeAppended
+--- PASS: TestDeriveFrontier_UnknownWaitTypeAppended (0.00s)
+=== RUN   TestDerivePendingDecisions_FiltersHumanDecision
+--- PASS: TestDerivePendingDecisions_FiltersHumanDecision (0.00s)
+=== RUN   TestDerivePendingDecisions_None
+--- PASS: TestDerivePendingDecisions_None (0.00s)
+=== RUN   TestPlanMonotonicLifecycle
+--- PASS: TestPlanMonotonicLifecycle (0.00s)
+=== RUN   TestPlanArchiveIsOrthogonalAndTerminalOnly
+--- PASS: TestPlanArchiveIsOrthogonalAndTerminalOnly (0.00s)
+=== RUN   TestNewPlan_Validation
+=== RUN   TestNewPlan_Validation/ok
+=== RUN   TestNewPlan_Validation/empty_id
+=== RUN   TestNewPlan_Validation/empty_project
+=== RUN   TestNewPlan_Validation/empty_name
+=== RUN   TestNewPlan_Validation/bad_creator
+=== RUN   TestNewPlan_Validation/zero_created
+--- PASS: TestNewPlan_Validation (0.00s)
+    --- PASS: TestNewPlan_Validation/ok (0.00s)
+    --- PASS: TestNewPlan_Validation/empty_id (0.00s)
+    --- PASS: TestNewPlan_Validation/empty_project (0.00s)
+    --- PASS: TestNewPlan_Validation/empty_name (0.00s)
+    --- PASS: TestNewPlan_Validation/bad_creator (0.00s)
+    --- PASS: TestNewPlan_Validation/zero_created (0.00s)
+=== RUN   TestNewPlan_DefaultsDraft
+--- PASS: TestNewPlan_DefaultsDraft (0.00s)
+=== RUN   TestPlan_Lifecycle
+--- PASS: TestPlan_Lifecycle (0.00s)
+=== RUN   TestPlanStatus_TransitionMap
+--- PASS: TestPlanStatus_TransitionMap (0.00s)
+=== RUN   TestPlan_Mutators
+--- PASS: TestPlan_Mutators (0.00s)
+=== RUN   TestRehydratePlan
+--- PASS: TestRehydratePlan (0.00s)
+=== RUN   TestDerivePlanView_AllEightStates
+--- PASS: TestDerivePlanView_AllEightStates (0.00s)
+=== RUN   TestDerivePlanView_DraftPlan
+--- PASS: TestDerivePlanView_DraftPlan (0.00s)
+=== RUN   TestDerivePlanView_FlatPool
+--- PASS: TestDerivePlanView_FlatPool (0.00s)
+=== RUN   TestDerivePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure
+--- PASS: TestDerivePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure (0.00s)
+=== RUN   TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467
+--- PASS: TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467
+--- PASS: TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_DiscardedDevNode_StaysFailed_T467
+--- PASS: TestDerivePlanView_DiscardedDevNode_StaysFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_RunningEscape_NotSkipped_T467
+--- PASS: TestDerivePlanView_RunningEscape_NotSkipped_T467 (0.00s)
+=== RUN   TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467
+--- PASS: TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467 (0.00s)
+=== RUN   TestDeriveNodeStatus_FiveStates
+=== RUN   TestDeriveNodeStatus_FiveStates/done-completed
+=== RUN   TestDeriveNodeStatus_FiveStates/failed-discarded
+=== RUN   TestDeriveNodeStatus_FiveStates/running
+=== RUN   TestDeriveNodeStatus_FiveStates/blocked-upstream-not-done
+=== RUN   TestDeriveNodeStatus_FiveStates/blocked-even-if-dispatched-flag
+=== RUN   TestDeriveNodeStatus_FiveStates/ready-all-upstream-done-not-dispatched
+=== RUN   TestDeriveNodeStatus_FiveStates/dispatched-all-upstream-done-dispatched
+=== RUN   TestDeriveNodeStatus_FiveStates/done-precedence-over-blocked
+=== RUN   TestDeriveNodeStatus_FiveStates/failed-precedence-over-blocked
+=== RUN   TestDeriveNodeStatus_FiveStates/paused-running-work-item
+=== RUN   TestDeriveNodeStatus_FiveStates/paused-ignored-when-done
+=== RUN   TestDeriveNodeStatus_FiveStates/paused-ignored-when-blocked
+--- PASS: TestDeriveNodeStatus_FiveStates (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/done-completed (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/failed-discarded (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/running (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/blocked-upstream-not-done (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/blocked-even-if-dispatched-flag (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/ready-all-upstream-done-not-dispatched (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/dispatched-all-upstream-done-dispatched (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/done-precedence-over-blocked (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/failed-precedence-over-blocked (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/paused-running-work-item (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/paused-ignored-when-done (0.00s)
+    --- PASS: TestDeriveNodeStatus_FiveStates/paused-ignored-when-blocked (0.00s)
+=== RUN   TestDerivePlanView_ReadySet_FanOut
+--- PASS: TestDerivePlanView_ReadySet_FanOut (0.00s)
+=== RUN   TestDerivePlanView_DispatchedNotReady
+--- PASS: TestDerivePlanView_DispatchedNotReady (0.00s)
+=== RUN   TestDerivePlanView_PausedOverlay
+--- PASS: TestDerivePlanView_PausedOverlay (0.00s)
+=== RUN   TestDerivePlanView_FailureIsolation
+--- PASS: TestDerivePlanView_FailureIsolation (0.00s)
+=== RUN   TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly
+--- PASS: TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly (0.00s)
+=== RUN   TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned
+--- PASS: TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned (0.00s)
+=== RUN   TestDerivePlanView_AllDone
+=== RUN   TestDerivePlanView_AllDone/all_done
+=== RUN   TestDerivePlanView_AllDone/one_failed_keeps_not-done
+=== RUN   TestDerivePlanView_AllDone/empty_plan_is_not_all-done
+--- PASS: TestDerivePlanView_AllDone (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/all_done (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/one_failed_keeps_not-done (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/empty_plan_is_not_all-done (0.00s)
+=== RUN   TestCompileRemediationProposalDefaultsEvidenceSupplementOnly
+--- PASS: TestCompileRemediationProposalDefaultsEvidenceSupplementOnly (0.00s)
+=== RUN   TestValidReviewVerdict
+--- PASS: TestValidReviewVerdict (0.00s)
+=== RUN   TestDecisionForReview
+--- PASS: TestDecisionForReview (0.00s)
+=== RUN   TestForwardUpstreams_and_LoopbackTarget
+--- PASS: TestForwardUpstreams_and_LoopbackTarget (0.00s)
+=== RUN   TestNewStage_Validation
+--- PASS: TestNewStage_Validation (0.00s)
+=== RUN   TestNewStage_MaxRoundsDefault
+--- PASS: TestNewStage_MaxRoundsDefault (0.00s)
+=== RUN   TestNewStage_DepsDedupOrder
+--- PASS: TestNewStage_DepsDedupOrder (0.00s)
+=== RUN   TestStage_SetGateNodeID_BumpsVersion
+--- PASS: TestStage_SetGateNodeID_BumpsVersion (0.00s)
+=== RUN   TestProjectStageStatus
+=== RUN   TestProjectStageStatus/empty
+=== RUN   TestProjectStageStatus/all-open-no-gate
+=== RUN   TestProjectStageStatus/one-running
+=== RUN   TestProjectStageStatus/one-done-rest-open
+=== RUN   TestProjectStageStatus/all-done-no-gate
+=== RUN   TestProjectStageStatus/all-done-gate-pending
+=== RUN   TestProjectStageStatus/all-done-gate-passed
+=== RUN   TestProjectStageStatus/gate-reopened-dominates
+=== RUN   TestProjectStageStatus/gate-reopened-while-running
+--- PASS: TestProjectStageStatus (0.00s)
+    --- PASS: TestProjectStageStatus/empty (0.00s)
+    --- PASS: TestProjectStageStatus/all-open-no-gate (0.00s)
+    --- PASS: TestProjectStageStatus/one-running (0.00s)
+    --- PASS: TestProjectStageStatus/one-done-rest-open (0.00s)
+    --- PASS: TestProjectStageStatus/all-done-no-gate (0.00s)
+    --- PASS: TestProjectStageStatus/all-done-gate-pending (0.00s)
+    --- PASS: TestProjectStageStatus/all-done-gate-passed (0.00s)
+    --- PASS: TestProjectStageStatus/gate-reopened-dominates (0.00s)
+    --- PASS: TestProjectStageStatus/gate-reopened-while-running (0.00s)
+=== RUN   TestStageEntries
+--- PASS: TestStageEntries (0.00s)
+=== RUN   TestValidateStageEdges
+--- PASS: TestValidateStageEdges (0.00s)
+=== RUN   TestValidateStageMembership
+--- PASS: TestValidateStageMembership (0.00s)
+=== RUN   TestValidateStageDAG
+--- PASS: TestValidateStageDAG (0.00s)
+=== RUN   TestTask_SetStage
+--- PASS: TestTask_SetStage (0.00s)
+=== RUN   TestTaskStatus_IsTerminal_Partition
+--- PASS: TestTaskStatus_IsTerminal_Partition (0.00s)
+=== RUN   TestNewTask_RequiresProject
+--- PASS: TestNewTask_RequiresProject (0.00s)
+=== RUN   TestNewIssue_RequiresProject
+--- PASS: TestNewIssue_RequiresProject (0.00s)
+=== RUN   TestIssueStateMachine
+--- PASS: TestIssueStateMachine (0.00s)
+=== RUN   TestTaskHappyPath
+--- PASS: TestTaskHappyPath (0.00s)
+=== RUN   TestTaskBlockRequiresReason
+--- PASS: TestTaskBlockRequiresReason (0.00s)
+=== RUN   TestTaskUnassignAndIllegal
+--- PASS: TestTaskUnassignAndIllegal (0.00s)
+=== RUN   TestTaskTerminalStatusesCannotReopen
+--- PASS: TestTaskTerminalStatusesCannotReopen (0.00s)
+=== RUN   TestTaskReopenedIsRetired
+--- PASS: TestTaskReopenedIsRetired (0.00s)
+=== RUN   TestProjectMemberRoleDefault
+--- PASS: TestProjectMemberRoleDefault (0.00s)
+=== RUN   TestProject_LifecycleAndRehydrate
+--- PASS: TestProject_LifecycleAndRehydrate (0.00s)
+=== RUN   TestTaskSetStatus_TerminalMonotonic
+--- PASS: TestTaskSetStatus_TerminalMonotonic (0.00s)
+=== RUN   TestIssueSetStatus_FreeAnyValid
+--- PASS: TestIssueSetStatus_FreeAnyValid (0.00s)
+=== RUN   TestTask_Archive_Happy
+--- PASS: TestTask_Archive_Happy (0.00s)
+=== RUN   TestTask_Archive_StatusPreservedThroughArchive
+--- PASS: TestTask_Archive_StatusPreservedThroughArchive (0.00s)
+=== RUN   TestTask_Archive_DoubleRejected
+--- PASS: TestTask_Archive_DoubleRejected (0.00s)
+=== RUN   TestTask_Archive_InvalidByRejected
+--- PASS: TestTask_Archive_InvalidByRejected (0.00s)
+=== RUN   TestTask_Archived_RejectsMutations
+--- PASS: TestTask_Archived_RejectsMutations (0.00s)
+=== RUN   TestTask_FinalizeForArchive_Open
+--- PASS: TestTask_FinalizeForArchive_Open (0.00s)
+=== RUN   TestTask_FinalizeForArchive_Blocked
+--- PASS: TestTask_FinalizeForArchive_Blocked (0.00s)
+=== RUN   TestTask_FinalizeForArchive_TerminalNoop
+--- PASS: TestTask_FinalizeForArchive_TerminalNoop (0.00s)
+=== RUN   TestTask_FinalizeForArchive_ClearsBlockedReason
+--- PASS: TestTask_FinalizeForArchive_ClearsBlockedReason (0.00s)
+=== RUN   TestTask_FinalizeForArchive_AlreadyArchivedRejected
+--- PASS: TestTask_FinalizeForArchive_AlreadyArchivedRejected (0.00s)
+=== RUN   TestTask_FinalizeArchived_Escape
+--- PASS: TestTask_FinalizeArchived_Escape (0.00s)
+=== RUN   TestTask_FinalizeArchived_LiveRejected
+--- PASS: TestTask_FinalizeArchived_LiveRejected (0.00s)
+=== RUN   TestTask_FinalizeArchived_TerminalNoop
+--- PASS: TestTask_FinalizeArchived_TerminalNoop (0.00s)
+=== RUN   TestTask_Rehydrate_ArchiveRoundTrip
+--- PASS: TestTask_Rehydrate_ArchiveRoundTrip (0.00s)
+=== RUN   TestBlock_SetsAnnotationClearsLeaseLogs
+--- PASS: TestBlock_SetsAnnotationClearsLeaseLogs (0.00s)
+=== RUN   TestBlock_RejectsNonRunning
+--- PASS: TestBlock_RejectsNonRunning (0.00s)
+=== RUN   TestBlock_RejectsNonAssignee
+--- PASS: TestBlock_RejectsNonAssignee (0.00s)
+=== RUN   TestBlock_RejectsEmptyReason
+--- PASS: TestBlock_RejectsEmptyReason (0.00s)
+=== RUN   TestUnblock_ClearsReasonKeepsComment
+--- PASS: TestUnblock_ClearsReasonKeepsComment (0.00s)
+=== RUN   TestUnblock_NotBlockedIsNoOp
+--- PASS: TestUnblock_NotBlockedIsNoOp (0.00s)
+=== RUN   TestRenewLease_SetsDeadline
+--- PASS: TestRenewLease_SetsDeadline (0.00s)
+=== RUN   TestRenewLease_RejectsNonRunning
+--- PASS: TestRenewLease_RejectsNonRunning (0.00s)
+=== RUN   TestRenewLease_RejectsBlocked
+--- PASS: TestRenewLease_RejectsBlocked (0.00s)
+=== RUN   TestExpireLease_ReclaimsLapsedRunning
+--- PASS: TestExpireLease_ReclaimsLapsedRunning (0.00s)
+=== RUN   TestExpireLease_NoOpCases
+--- PASS: TestExpireLease_NoOpCases (0.00s)
+=== RUN   TestNudgeOnLeaseExpiry_RenewsAndNudgesLapsedRunning
+--- PASS: TestNudgeOnLeaseExpiry_RenewsAndNudgesLapsedRunning (0.00s)
+=== RUN   TestNudgeOnLeaseExpiry_NoOpCases
+--- PASS: TestNudgeOnLeaseExpiry_NoOpCases (0.00s)
+=== RUN   TestRecordReassignment_RetargetsAndClears
+--- PASS: TestRecordReassignment_RetargetsAndClears (0.00s)
+=== RUN   TestRecordReassignment_RejectsInvalidAndTerminal
+--- PASS: TestRecordReassignment_RejectsInvalidAndTerminal (0.00s)
+=== RUN   TestActionLogsAndLeaseAreCopies
+--- PASS: TestActionLogsAndLeaseAreCopies (0.00s)
+=== RUN   TestRehydrateTask_RoundTripsI14Fields
+--- PASS: TestRehydrateTask_RoundTripsI14Fields (0.00s)
+=== RUN   TestTask_CompletedAt_SetOnComplete_PreservedByRejectedReopen
+--- PASS: TestTask_CompletedAt_SetOnComplete_PreservedByRejectedReopen (0.00s)
+=== RUN   TestTask_CompletedAt_UnchangedByMetadataEdit
+--- PASS: TestTask_CompletedAt_UnchangedByMetadataEdit (0.00s)
+=== RUN   TestTaskTerminalHistoryCannotReopen
+--- PASS: TestTaskTerminalHistoryCannotReopen (0.00s)
+=== RUN   TestResetToOpen_ClearsAndReturnsToPool
+--- PASS: TestResetToOpen_ClearsAndReturnsToPool (0.00s)
+=== RUN   TestResetToOpen_NilLeasePasses
+--- PASS: TestResetToOpen_NilLeasePasses (0.00s)
+=== RUN   TestResetToOpen_LiveLeaseRejected
+--- PASS: TestResetToOpen_LiveLeaseRejected (0.00s)
+=== RUN   TestResetToOpen_BypassLeaseResetsLiveLease
+--- PASS: TestResetToOpen_BypassLeaseResetsLiveLease (0.00s)
+=== RUN   TestResetToOpen_BypassLeaseStillRejectsBlocked
+--- PASS: TestResetToOpen_BypassLeaseStillRejectsBlocked (0.00s)
+=== RUN   TestResetToOpen_RejectsNonRunning
+--- PASS: TestResetToOpen_RejectsNonRunning (0.00s)
+=== RUN   TestResetToOpen_RejectsBlocked
+--- PASS: TestResetToOpen_RejectsBlocked (0.00s)
+=== RUN   TestComplete_ZeroesRecoveryResetCount
+--- PASS: TestComplete_ZeroesRecoveryResetCount (0.00s)
+=== RUN   TestBlockForResetExhaustion_BlocksWithDistinctLog
+--- PASS: TestBlockForResetExhaustion_BlocksWithDistinctLog (0.00s)
+=== RUN   TestBlockForResetExhaustion_RejectsNonRunning
+--- PASS: TestBlockForResetExhaustion_RejectsNonRunning (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager	2.762s
+=== RUN   TestParseConditionConfig
+--- PASS: TestParseConditionConfig (0.00s)
+=== RUN   TestEvaluateUpstream_And_AllSuccess
+--- PASS: TestEvaluateUpstream_And_AllSuccess (0.00s)
+=== RUN   TestEvaluateUpstream_And_OneFailed
+--- PASS: TestEvaluateUpstream_And_OneFailed (0.00s)
+=== RUN   TestEvaluateUpstream_Or_OneSuccess
+--- PASS: TestEvaluateUpstream_Or_OneSuccess (0.00s)
+=== RUN   TestApplyConditionResult_Success
+--- PASS: TestApplyConditionResult_Success (0.00s)
+=== RUN   TestApplyConditionResult_Failure_ReopensChain
+--- PASS: TestApplyConditionResult_Failure_ReopensChain (0.00s)
+=== RUN   TestApplyConditionResult_MaxRoundsExceeded_Discard
+--- PASS: TestApplyConditionResult_MaxRoundsExceeded_Discard (0.00s)
+=== RUN   TestApplyConditionResult_MaxRoundsExceeded_ForceSuccess
+--- PASS: TestApplyConditionResult_MaxRoundsExceeded_ForceSuccess (0.00s)
+=== RUN   TestEvaluateUpstream_Or_AllFail
+--- PASS: TestEvaluateUpstream_Or_AllFail (0.00s)
+=== RUN   TestValidateNoCycle_SelfEdge
+--- PASS: TestValidateNoCycle_SelfEdge (0.00s)
+=== RUN   TestValidateNoCycle_SimpleChain
+--- PASS: TestValidateNoCycle_SimpleChain (0.00s)
+=== RUN   TestValidateNoCycle_NoCycle
+--- PASS: TestValidateNoCycle_NoCycle (0.00s)
+=== RUN   TestValidateNoCycle_Diamond
+--- PASS: TestValidateNoCycle_Diamond (0.00s)
+=== RUN   TestValidateNoCycle_EmptyGraph
+--- PASS: TestValidateNoCycle_EmptyGraph (0.00s)
+=== RUN   TestReopenChain_LinearPath
+--- PASS: TestReopenChain_LinearPath (0.00s)
+=== RUN   TestReopenChain_BranchingPath
+--- PASS: TestReopenChain_BranchingPath (0.00s)
+=== RUN   TestReopenChain_NoPath
+--- PASS: TestReopenChain_NoPath (0.00s)
+=== RUN   TestNewGraph_AutoStartEnd
+--- PASS: TestNewGraph_AutoStartEnd (0.00s)
+=== RUN   TestGraph_AddNode_AddEdge
+--- PASS: TestGraph_AddNode_AddEdge (0.00s)
+=== RUN   TestGraph_AddEdge_CycleRejected
+--- PASS: TestGraph_AddEdge_CycleRejected (0.00s)
+=== RUN   TestGraph_RemoveNode
+--- PASS: TestGraph_RemoveNode (0.00s)
+=== RUN   TestGraph_RemoveNode_RunningBlocked
+--- PASS: TestGraph_RemoveNode_RunningBlocked (0.00s)
+=== RUN   TestGraph_RemoveEdge
+--- PASS: TestGraph_RemoveEdge (0.00s)
+=== RUN   TestGraph_ReadyNodes
+--- PASS: TestGraph_ReadyNodes (0.00s)
+=== RUN   TestGraph_StatusTransitions
+--- PASS: TestGraph_StatusTransitions (0.00s)
+=== RUN   TestGraph_Finish
+--- PASS: TestGraph_Finish (0.00s)
+=== RUN   TestNewGraph_EmptyID
+--- PASS: TestNewGraph_EmptyID (0.00s)
+=== RUN   TestGraph_RemoveNode_StartEndBlocked
+--- PASS: TestGraph_RemoveNode_StartEndBlocked (0.00s)
+=== RUN   TestGraph_IsAutoDone
+=== RUN   TestGraph_IsAutoDone/empty_graph_returns_false
+=== RUN   TestGraph_IsAutoDone/all_business_nodes_completed_returns_true
+=== RUN   TestGraph_IsAutoDone/one_running_node_returns_false
+--- PASS: TestGraph_IsAutoDone (0.00s)
+    --- PASS: TestGraph_IsAutoDone/empty_graph_returns_false (0.00s)
+    --- PASS: TestGraph_IsAutoDone/all_business_nodes_completed_returns_true (0.00s)
+    --- PASS: TestGraph_IsAutoDone/one_running_node_returns_false (0.00s)
+=== RUN   TestGraph_AddNode_Duplicate
+--- PASS: TestGraph_AddNode_Duplicate (0.00s)
+=== RUN   TestNodeStatus_Transitions
+--- PASS: TestNodeStatus_Transitions (0.00s)
+=== RUN   TestNewNode_BusinessNode
+--- PASS: TestNewNode_BusinessNode (0.00s)
+=== RUN   TestNewNode_ControlNode
+--- PASS: TestNewNode_ControlNode (0.00s)
+=== RUN   TestNewNode_Validation
+--- PASS: TestNewNode_Validation (0.00s)
+=== RUN   TestNode_Start_Complete_Reopen
+--- PASS: TestNode_Start_Complete_Reopen (0.00s)
+=== RUN   TestNode_Discard
+--- PASS: TestNode_Discard (0.00s)
+=== RUN   TestNode_IllegalTransition
+--- PASS: TestNode_IllegalTransition (0.00s)
+=== RUN   TestRehydrateNode_HappyPath
+--- PASS: TestRehydrateNode_HappyPath (0.00s)
+=== RUN   TestRehydrateNode_InvalidStatus
+--- PASS: TestRehydrateNode_InvalidStatus (0.00s)
+=== RUN   TestRehydrateNode_InvalidVersion
+--- PASS: TestRehydrateNode_InvalidVersion (0.00s)
+=== RUN   TestService_CreateGraph_GetGraph
+--- PASS: TestService_CreateGraph_GetGraph (0.07s)
+=== RUN   TestService_AddNode_StartNode_CompleteNode
+--- PASS: TestService_AddNode_StartNode_CompleteNode (0.07s)
+=== RUN   TestService_AddEdge_ReadyNodes
+--- PASS: TestService_AddEdge_ReadyNodes (0.07s)
+=== RUN   TestService_ResolveCondition
+--- PASS: TestService_ResolveCondition (0.07s)
+=== RUN   TestService_BindTask
+--- PASS: TestService_BindTask (0.08s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration	3.490s
+=== RUN   TestGraphRepo_RoundTrip
+--- PASS: TestGraphRepo_RoundTrip (0.07s)
+=== RUN   TestNodeRepo_RoundTrip
+--- PASS: TestNodeRepo_RoundTrip (0.07s)
+=== RUN   TestEdgeRepo_RoundTrip
+--- PASS: TestEdgeRepo_RoundTrip (0.07s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite	3.711s
+=== RUN   TestBuildPlanGraph_AutoStampsShipNode_AndHardGates
+--- PASS: TestBuildPlanGraph_AutoStampsShipNode_AndHardGates (0.07s)
+=== RUN   TestBuildPlanGraph_AutoStampedShipNode_ReleasedOnPass
+--- PASS: TestBuildPlanGraph_AutoStampedShipNode_ReleasedOnPass (0.07s)
+=== RUN   TestCreate_EntityIDPrefixes
+--- PASS: TestCreate_EntityIDPrefixes (0.07s)
+=== RUN   TestAssignTask_GrantsAgentProjectMembership
+--- PASS: TestAssignTask_GrantsAgentProjectMembership (0.07s)
+=== RUN   TestAssignTask_CrossOrgAgentRejected
+--- PASS: TestAssignTask_CrossOrgAgentRejected (0.07s)
+=== RUN   TestAssignTask_UnknownAgentRejected
+--- PASS: TestAssignTask_UnknownAgentRejected (0.07s)
+=== RUN   TestAssignTask_AgentAssignee_NilDirectory_FailsClosed
+--- PASS: TestAssignTask_AgentAssignee_NilDirectory_FailsClosed (0.07s)
+=== RUN   TestAssignTask_HumanAssigneeUnaffected
+--- PASS: TestAssignTask_HumanAssigneeUnaffected (0.07s)
+=== RUN   TestCreateProject_WritesStateMemberAndEvent
+--- PASS: TestCreateProject_WritesStateMemberAndEvent (0.06s)
+=== RUN   TestProjectArchived_ChildMutationsRejected
+--- PASS: TestProjectArchived_ChildMutationsRejected (0.06s)
+=== RUN   TestAddProjectMember_GatedByMembership
+--- PASS: TestAddProjectMember_GatedByMembership (0.08s)
+=== RUN   TestRemoveProjectMember
+--- PASS: TestRemoveProjectMember (0.07s)
+=== RUN   TestCreateTask_EmitsCreatedWithCreatorSubscriber
+--- PASS: TestCreateTask_EmitsCreatedWithCreatorSubscriber (0.07s)
+=== RUN   TestServiceReads_CoverReadThroughs
+--- PASS: TestServiceReads_CoverReadThroughs (0.06s)
+=== RUN   TestUpdateTask_MetadataPatchGatedByMembership
+--- PASS: TestUpdateTask_MetadataPatchGatedByMembership (0.07s)
+=== RUN   TestUpdateIssue_MetadataPatchGatedByMembership
+--- PASS: TestUpdateIssue_MetadataPatchGatedByMembership (0.08s)
+=== RUN   TestEffectiveSubscribers_DerivesCreatorAssigneeManual
+--- PASS: TestEffectiveSubscribers_DerivesCreatorAssigneeManual (0.00s)
+=== RUN   TestValidationAndGatingRejections
+--- PASS: TestValidationAndGatingRejections (0.07s)
+=== RUN   TestUpdateAndArchiveProject
+--- PASS: TestUpdateAndArchiveProject (0.07s)
+=== RUN   TestTransitionIssue
+--- PASS: TestTransitionIssue (0.07s)
+=== RUN   TestCreateIssueAndSubscribe
+--- PASS: TestCreateIssueAndSubscribe (0.07s)
+=== RUN   TestDomainIsolation_CrossProjectRejected
+--- PASS: TestDomainIsolation_CrossProjectRejected (0.08s)
+=== RUN   TestSubscribeUnsubscribe_CreatorStaysEffective
+--- PASS: TestSubscribeUnsubscribe_CreatorStaysEffective (0.08s)
+=== RUN   TestArchivePlan_TerminalOnly
+=== RUN   TestArchivePlan_TerminalOnly/active_plan_rejected
+=== RUN   TestArchivePlan_TerminalOnly/discard_then_archive
+--- PASS: TestArchivePlan_TerminalOnly (0.17s)
+    --- PASS: TestArchivePlan_TerminalOnly/active_plan_rejected (0.08s)
+    --- PASS: TestArchivePlan_TerminalOnly/discard_then_archive (0.08s)
+=== RUN   TestParticipantProjector_BranchHandling
+--- PASS: TestParticipantProjector_BranchHandling (0.09s)
+=== RUN   TestTaskStateFlow_CompleteThenNonSelfVerify
+--- PASS: TestTaskStateFlow_CompleteThenNonSelfVerify (0.09s)
+=== RUN   TestCompleteTaskRejectsReportedZeroDelivery
+--- PASS: TestCompleteTaskRejectsReportedZeroDelivery (0.09s)
+=== RUN   TestReassign_DropsOldAssigneeFromSubscribers
+--- PASS: TestReassign_DropsOldAssigneeFromSubscribers (0.09s)
+=== RUN   TestDiscardTask
+--- PASS: TestDiscardTask (0.08s)
+=== RUN   TestCreateIssue_GatingAndUnsubscribe
+--- PASS: TestCreateIssue_GatingAndUnsubscribe (0.09s)
+=== RUN   TestBlockAnnotates_Unblock
+--- PASS: TestBlockAnnotates_Unblock (0.09s)
+=== RUN   TestUnassignTask_ClearsAssignee
+--- PASS: TestUnassignTask_ClearsAssignee (0.08s)
+=== RUN   TestReopenTask_RetiredAndLeavesCompletionImmutable
+--- PASS: TestReopenTask_RetiredAndLeavesCompletionImmutable (0.09s)
+=== RUN   TestOffboardedAssignee_RetainedAsSubscriber
+--- PASS: TestOffboardedAssignee_RetainedAsSubscriber (0.09s)
+=== RUN   TestUnassignReopen_Gating
+--- PASS: TestUnassignReopen_Gating (0.09s)
+=== RUN   TestAssignmentPool_IsNotPlanAndCanBeClaimedAnytime
+--- PASS: TestAssignmentPool_IsNotPlanAndCanBeClaimedAnytime (0.09s)
+=== RUN   TestAudit_TaskLifecycle
+--- PASS: TestAudit_TaskLifecycle (0.10s)
+=== RUN   TestAudit_IssueAndReadOnly
+--- PASS: TestAudit_IssueAndReadOnly (0.14s)
+=== RUN   TestAudit_PlanDependency_NoOpNotRecorded
+--- PASS: TestAudit_PlanDependency_NoOpNotRecorded (0.09s)
+=== RUN   TestAudit_ForcePlanCompletionRecordsReasonAndBlockers
+--- PASS: TestAudit_ForcePlanCompletionRecordsReasonAndBlockers (0.10s)
+=== RUN   TestAudit_NonBlocking
+2026/08/18 04:03:10 WARN pm: audit append failed (best-effort, mutation unaffected) err="audit backend down" object_type=task object_id=task-9b5c29f6 change_type=created
+2026/08/18 04:03:10 WARN pm: audit append failed (best-effort, mutation unaffected) err="audit backend down" object_type=task object_id=task-9b5c29f6 change_type=assigned
+--- PASS: TestAudit_NonBlocking (0.10s)
+=== RUN   TestAutoAssign_StrictHit
+--- PASS: TestAutoAssign_StrictHit (0.11s)
+=== RUN   TestAutoAssign_StrictMiss_StaysPooled_Starved
+2026/08/18 04:03:10 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-830375c0 project_id=project-0a4a0d04 required_capabilities=[rust]
+--- PASS: TestAutoAssign_StrictMiss_StaysPooled_Starved (0.10s)
+=== RUN   TestAutoAssign_RequiredEmpty_AnyEligible
+--- PASS: TestAutoAssign_RequiredEmpty_AnyEligible (0.10s)
+=== RUN   TestAutoAssign_CapabilityCaseInsensitive
+--- PASS: TestAutoAssign_CapabilityCaseInsensitive (0.11s)
+=== RUN   TestAutoAssign_OptOutExcluded
+2026/08/18 04:03:10 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-6de758c0 project_id=project-62a936cd required_capabilities=[go]
+--- PASS: TestAutoAssign_OptOutExcluded (0.10s)
+=== RUN   TestAutoAssign_OfflineExcluded
+2026/08/18 04:03:10 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-d0da5fa2 project_id=project-604fa9a2 required_capabilities=[go]
+--- PASS: TestAutoAssign_OfflineExcluded (0.11s)
+=== RUN   TestAutoAssign_NonMemberExcluded
+2026/08/18 04:03:11 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-0a96bb1d project_id=project-5062f488 required_capabilities=[go]
+--- PASS: TestAutoAssign_NonMemberExcluded (0.14s)
+=== RUN   TestAutoAssign_LeastBusy_FreeSlot
+--- PASS: TestAutoAssign_LeastBusy_FreeSlot (0.12s)
+=== RUN   TestAutoAssign_ProjectDisabled_NoOp
+--- PASS: TestAutoAssign_ProjectDisabled_NoOp (0.08s)
+=== RUN   TestAutoAssign_NoDirectory_NoOp
+--- PASS: TestAutoAssign_NoDirectory_NoOp (0.10s)
+=== RUN   TestAutoAssign_ConcurrentSweeps_NoDoubleAssign
+--- PASS: TestAutoAssign_ConcurrentSweeps_NoDoubleAssign (0.12s)
+=== RUN   TestAutoAssign_TriggerForProject
+--- PASS: TestAutoAssign_TriggerForProject (0.12s)
+=== RUN   TestCapabilityGatePasses
+=== RUN   TestCapabilityGatePasses/empty_required_⇒_pass
+=== RUN   TestCapabilityGatePasses/subset_⇒_pass
+=== RUN   TestCapabilityGatePasses/exact_⇒_pass
+=== RUN   TestCapabilityGatePasses/missing_one_⇒_fail
+=== RUN   TestCapabilityGatePasses/none_⇒_fail
+=== RUN   TestCapabilityGatePasses/required_but_no_tags_⇒_fail
+--- PASS: TestCapabilityGatePasses (0.00s)
+    --- PASS: TestCapabilityGatePasses/empty_required_⇒_pass (0.00s)
+    --- PASS: TestCapabilityGatePasses/subset_⇒_pass (0.00s)
+    --- PASS: TestCapabilityGatePasses/exact_⇒_pass (0.00s)
+    --- PASS: TestCapabilityGatePasses/missing_one_⇒_fail (0.00s)
+    --- PASS: TestCapabilityGatePasses/none_⇒_fail (0.00s)
+    --- PASS: TestCapabilityGatePasses/required_but_no_tags_⇒_fail (0.00s)
+=== RUN   TestAgentAutoAssignDirectory_NormalisesTagsAndOnline
+--- PASS: TestAgentAutoAssignDirectory_NormalisesTagsAndOnline (0.00s)
+=== RUN   TestBatchUpdateTask_Partial
+--- PASS: TestBatchUpdateTask_Partial (0.09s)
+=== RUN   TestBatchUpdateTask_Atomic
+--- PASS: TestBatchUpdateTask_Atomic (0.14s)
+=== RUN   TestBatchUpdateTask_AssigneeUnassign
+--- PASS: TestBatchUpdateTask_AssigneeUnassign (0.15s)
+=== RUN   TestBatchUpdateIssue_Partial
+--- PASS: TestBatchUpdateIssue_Partial (0.18s)
+=== RUN   TestBatchUpdateIssue_Atomic
+--- PASS: TestBatchUpdateIssue_Atomic (0.11s)
+=== RUN   TestBatchUpdateIssue_MultiField
+--- PASS: TestBatchUpdateIssue_MultiField (0.11s)
+=== RUN   TestCreateProject_AutoCreatesBuiltinPool
+--- PASS: TestCreateProject_AutoCreatesBuiltinPool (0.09s)
+=== RUN   TestBuiltinPool_GuardsReject
+--- PASS: TestBuiltinPool_GuardsReject (0.12s)
+=== RUN   TestBuiltinPool_SelectTaskAllowedWhileRunning
+--- PASS: TestBuiltinPool_SelectTaskAllowedWhileRunning (0.18s)
+=== RUN   TestBuiltinPool_DispatchIsPullNoWake
+--- PASS: TestBuiltinPool_DispatchIsPullNoWake (0.09s)
+=== RUN   TestStructuredPlan_DispatchPostsMention
+--- PASS: TestStructuredPlan_DispatchPostsMention (0.08s)
+=== RUN   TestADR47_BuiltinPool_GetsConversation
+--- PASS: TestADR47_BuiltinPool_GetsConversation (0.09s)
+=== RUN   TestADR47_ArchiveProject_CascadeArchivesBuiltinPool
+--- PASS: TestADR47_ArchiveProject_CascadeArchivesBuiltinPool (0.10s)
+=== RUN   TestBuiltinPool_DispatchWakesAssignedMember
+--- PASS: TestBuiltinPool_DispatchWakesAssignedMember (0.11s)
+=== RUN   TestBuiltinPool_DispatchUnassignedMember_NoWake
+--- PASS: TestBuiltinPool_DispatchUnassignedMember_NoWake (0.12s)
+=== RUN   TestADR47_TaskClaimableByID_BacklogFalse
+--- PASS: TestADR47_TaskClaimableByID_BacklogFalse (0.11s)
+=== RUN   TestADR47_TaskClaimableByID_StoppedPlanFalse
+--- PASS: TestADR47_TaskClaimableByID_StoppedPlanFalse (0.12s)
+=== RUN   TestClaimPoolTask_BacklogRejected
+--- PASS: TestClaimPoolTask_BacklogRejected (0.11s)
+=== RUN   TestClaimPoolTask_MemberClaimsOpenPoolTask
+--- PASS: TestClaimPoolTask_MemberClaimsOpenPoolTask (0.11s)
+=== RUN   TestClaimPoolTask_NonMemberRejected
+--- PASS: TestClaimPoolTask_NonMemberRejected (0.10s)
+=== RUN   TestClaimPoolTask_SecondClaimLoses
+--- PASS: TestClaimPoolTask_SecondClaimLoses (0.11s)
+=== RUN   TestClaimPoolTask_StructuredPlanRejected
+--- PASS: TestClaimPoolTask_StructuredPlanRejected (0.11s)
+=== RUN   TestClaimPoolTask_HoldingCap
+--- PASS: TestClaimPoolTask_HoldingCap (0.11s)
+=== RUN   TestListClaimablePool_DiscoveryAndHandoff
+--- PASS: TestListClaimablePool_DiscoveryAndHandoff (0.11s)
+=== RUN   TestListClaimablePool_NonMemberSeesNothing
+--- PASS: TestListClaimablePool_NonMemberSeesNothing (0.12s)
+=== RUN   TestCodeRepoReference_AddSetPrimaryRemove
+--- PASS: TestCodeRepoReference_AddSetPrimaryRemove (0.12s)
+=== RUN   TestPrimaryRepoURL_ResolvesViaReference
+--- PASS: TestPrimaryRepoURL_ResolvesViaReference (0.11s)
+=== RUN   TestPrimaryRepoURL_LegacyUrlOnly
+--- PASS: TestPrimaryRepoURL_LegacyUrlOnly (0.11s)
+=== RUN   TestCodeRepoReference_CrossProjectGuard
+--- PASS: TestCodeRepoReference_CrossProjectGuard (0.11s)
+=== RUN   TestCodeRepoReference_CrossOrgAndExistenceGuard
+--- PASS: TestCodeRepoReference_CrossOrgAndExistenceGuard (0.23s)
+=== RUN   TestConcurrencyCap_DefaultAgentSingleActive
+--- PASS: TestConcurrencyCap_DefaultAgentSingleActive (0.11s)
+=== RUN   TestConcurrencyCap_EnabledAgentUpToN
+--- PASS: TestConcurrencyCap_EnabledAgentUpToN (0.11s)
+=== RUN   TestConcurrencyCap_UnblockReentersCap_DefaultAgentRejected
+--- PASS: TestConcurrencyCap_UnblockReentersCap_DefaultAgentRejected (0.11s)
+=== RUN   TestConcurrencyCap_ReassignRunningOntoFullAgentRejected
+--- PASS: TestConcurrencyCap_ReassignRunningOntoFullAgentRejected (0.11s)
+=== RUN   TestConcurrencyCap_SetStatusOverrideRespectsCap
+--- PASS: TestConcurrencyCap_SetStatusOverrideRespectsCap (0.10s)
+=== RUN   TestConcurrencyCap_BatchUpdateToRunningRespectsCap
+--- PASS: TestConcurrencyCap_BatchUpdateToRunningRespectsCap (0.12s)
+=== RUN   TestConcurrencyCap_RunningCountObservability
+--- PASS: TestConcurrencyCap_RunningCountObservability (0.14s)
+=== RUN   TestConcurrencyCap_ConcurrentNPlus1_RaceSafe
+=== RUN   TestConcurrencyCap_ConcurrentNPlus1_RaceSafe/enabled_cap3
+=== RUN   TestConcurrencyCap_ConcurrentNPlus1_RaceSafe/default_cap1
+--- PASS: TestConcurrencyCap_ConcurrentNPlus1_RaceSafe (0.23s)
+    --- PASS: TestConcurrencyCap_ConcurrentNPlus1_RaceSafe/enabled_cap3 (0.12s)
+    --- PASS: TestConcurrencyCap_ConcurrentNPlus1_RaceSafe/default_cap1 (0.11s)
+=== RUN   TestConcurrencyCap_UserAssigneeSingleActive
+--- PASS: TestConcurrencyCap_UserAssigneeSingleActive (0.11s)
+=== RUN   TestConcurrencyCap_DirectoryErrorFailsSafeToOne
+--- PASS: TestConcurrencyCap_DirectoryErrorFailsSafeToOne (0.10s)
+=== RUN   TestConcurrencyCap_UnassignedRunningNotCapped
+--- PASS: TestConcurrencyCap_UnassignedRunningNotCapped (0.10s)
+=== RUN   TestCreateTask_Dispatch_NoAssignee_PoolClaimable
+--- PASS: TestCreateTask_Dispatch_NoAssignee_PoolClaimable (0.10s)
+=== RUN   TestCreateTask_Dispatch_WithAssignee_InAssigneeQueue
+--- PASS: TestCreateTask_Dispatch_WithAssignee_InAssigneeQueue (0.10s)
+=== RUN   TestCreateTask_Assignee_NoDispatch_BacklogNotRunnable
+--- PASS: TestCreateTask_Assignee_NoDispatch_BacklogNotRunnable (0.10s)
+=== RUN   TestCreateTask_Plain_Backlog
+--- PASS: TestCreateTask_Plain_Backlog (0.09s)
+=== RUN   TestCreateTask_Dispatch_CrossOrgAssignee_RollsBack
+--- PASS: TestCreateTask_Dispatch_CrossOrgAssignee_RollsBack (0.10s)
+=== RUN   TestCreateTask_Dispatch_PlansUnavailable
+--- PASS: TestCreateTask_Dispatch_PlansUnavailable (0.09s)
+=== RUN   TestCreateTask_BadAssigneeRef_Rejected
+--- PASS: TestCreateTask_BadAssigneeRef_Rejected (0.09s)
+=== RUN   TestRequireBuiltinPool_Missing
+--- PASS: TestRequireBuiltinPool_Missing (0.09s)
+=== RUN   TestPR7_DualStream
+--- PASS: TestPR7_DualStream (0.10s)
+=== RUN   TestRecordDecisionOutcome_RoundTrip
+--- PASS: TestRecordDecisionOutcome_RoundTrip (0.08s)
+=== RUN   TestNotifyDecisionDeferred_PingsHuman
+--- PASS: TestNotifyDecisionDeferred_PingsHuman (0.10s)
+=== RUN   TestNotifyDecisionDeferred_OrdinaryNode_NoOp
+--- PASS: TestNotifyDecisionDeferred_OrdinaryNode_NoOp (0.09s)
+=== RUN   TestHumanDecisionSink_OnlyHumanDecision
+--- PASS: TestHumanDecisionSink_OnlyHumanDecision (0.00s)
+=== RUN   TestHumanDecisionSink_ArmAndEscalateIdempotent
+--- PASS: TestHumanDecisionSink_ArmAndEscalateIdempotent (0.00s)
+=== RUN   TestHumanDecisionSink_NilPortAndErrors
+--- PASS: TestHumanDecisionSink_NilPortAndErrors (0.00s)
+=== RUN   TestHumanDecisionSink_EscalateAfterFloor
+--- PASS: TestHumanDecisionSink_EscalateAfterFloor (0.00s)
+=== RUN   TestHumanDecisionSink_Integration_LiveEngine
+--- PASS: TestHumanDecisionSink_Integration_LiveEngine (0.10s)
+=== RUN   TestDefaultDeadlinePolicy_Wired
+--- PASS: TestDefaultDeadlinePolicy_Wired (0.10s)
+=== RUN   TestUpdateTask_SetAndClearDerivedFromIssue_T192
+--- PASS: TestUpdateTask_SetAndClearDerivedFromIssue_T192 (0.09s)
+=== RUN   TestUpdateTask_NilDerivedFromIssue_LeavesLink_T192
+--- PASS: TestUpdateTask_NilDerivedFromIssue_LeavesLink_T192 (0.09s)
+=== RUN   TestUpdateTask_CrossProjectIssue_Rejected_T192
+--- PASS: TestUpdateTask_CrossProjectIssue_Rejected_T192 (0.10s)
+=== RUN   TestUpdateTask_MissingIssue_Rejected_T192
+--- PASS: TestUpdateTask_MissingIssue_Rejected_T192 (0.09s)
+=== RUN   TestBatchUpdateTask_DerivedFromIssue_T192
+--- PASS: TestBatchUpdateTask_DerivedFromIssue_T192 (0.10s)
+=== RUN   TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected
+--- PASS: TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected (0.10s)
+=== RUN   TestStartTask_SingleActivePerAgent
+--- PASS: TestStartTask_SingleActivePerAgent (0.09s)
+=== RUN   TestBlockTask_ValidatesReasonType
+--- PASS: TestBlockTask_ValidatesReasonType (0.10s)
+=== RUN   TestHeartbeatTask_RenewsAndGuards
+--- PASS: TestHeartbeatTask_RenewsAndGuards (0.08s)
+=== RUN   TestLeaseChecker_NudgesExpiredLease
+--- PASS: TestLeaseChecker_NudgesExpiredLease (0.09s)
+=== RUN   TestLeaseChecker_HeartbeatPreventsNudge
+--- PASS: TestLeaseChecker_HeartbeatPreventsNudge (0.09s)
+=== RUN   TestWorkerRenewLease
+--- PASS: TestWorkerRenewLease (0.09s)
+=== RUN   TestWorkerRenewLease_BlockedRevokes
+--- PASS: TestWorkerRenewLease_BlockedRevokes (0.09s)
+=== RUN   TestActionLog_BlockUnblockPersisted
+--- PASS: TestActionLog_BlockUnblockPersisted (0.10s)
+=== RUN   TestOverdueBlockedReminder_EmitsOncePerEpisode
+--- PASS: TestOverdueBlockedReminder_EmitsOncePerEpisode (0.09s)
+=== RUN   TestF6_InputRequired_SurfacesRequestAndReply
+--- PASS: TestF6_InputRequired_SurfacesRequestAndReply (0.09s)
+=== RUN   TestF6_Obstacle_WritesNoConversationMessage
+--- PASS: TestF6_Obstacle_WritesNoConversationMessage (0.11s)
+=== RUN   TestUpdateTask_RunningTask_DescriptionEditRejected_AndPromptTextUnchanged
+2026/08/18 04:03:19 WARN pm: REJECTED description edit on a running task — its executor's prompt froze at spawn and this edit cannot reach it (I109 ①); re-scope via the judge gate or discard and re-dispatch task_id=task-7d9f9ccc status=running actor=user:a
+--- PASS: TestUpdateTask_RunningTask_DescriptionEditRejected_AndPromptTextUnchanged (0.10s)
+=== RUN   TestBatchUpdateTask_RunningTask_DescriptionEditRejected_AndPromptTextUnchanged
+2026/08/18 04:03:19 WARN pm: REJECTED description edit on a running task — its executor's prompt froze at spawn and this edit cannot reach it (I109 ①); re-scope via the judge gate or discard and re-dispatch task_id=task-70c2679e status=running actor=user:a
+--- PASS: TestBatchUpdateTask_RunningTask_DescriptionEditRejected_AndPromptTextUnchanged (0.10s)
+=== RUN   TestBatchUpdateTask_RunningTask_CannotLaunderDescriptionEditViaStatusChange
+2026/08/18 04:03:19 WARN pm: REJECTED description edit on a running task — its executor's prompt froze at spawn and this edit cannot reach it (I109 ①); re-scope via the judge gate or discard and re-dispatch task_id=task-d498f8b6 status=running actor=user:a
+--- PASS: TestBatchUpdateTask_RunningTask_CannotLaunderDescriptionEditViaStatusChange (0.10s)
+=== RUN   TestUpdateTask_NotSpawnedTask_DescriptionEditStillLands
+--- PASS: TestUpdateTask_NotSpawnedTask_DescriptionEditStillLands (0.09s)
+=== RUN   TestUpdateTask_RunningTask_TitleEditStillAllowed
+--- PASS: TestUpdateTask_RunningTask_TitleEditStillAllowed (0.10s)
+=== RUN   TestUpdateTask_RunningTask_NilDescriptionDoesNotTripGuard
+--- PASS: TestUpdateTask_RunningTask_NilDescriptionDoesNotTripGuard (0.09s)
+=== RUN   TestIssueDerivedDone_EmitsOnlyWhenAllTerminal
+--- PASS: TestIssueDerivedDone_EmitsOnlyWhenAllTerminal (0.08s)
+=== RUN   TestIssueDerivedDone_DiscardedCounts
+--- PASS: TestIssueDerivedDone_DiscardedCounts (0.09s)
+=== RUN   TestIssueDerivedDone_NoEmitWhenIssueConcluded
+--- PASS: TestIssueDerivedDone_NoEmitWhenIssueConcluded (0.09s)
+=== RUN   TestIssueDerivedDone_NoEmitForUnlinkedTask
+--- PASS: TestIssueDerivedDone_NoEmitForUnlinkedTask (0.08s)
+=== RUN   TestIssueDerivedDone_ReArmsOnNewTask
+--- PASS: TestIssueDerivedDone_ReArmsOnNewTask (0.08s)
+=== RUN   TestCreateTaskIssue_245_AllocatesOrgNumber
+--- PASS: TestCreateTaskIssue_245_AllocatesOrgNumber (0.08s)
+=== RUN   TestParticipantProjector_CreatesConvAndSyncsParticipants
+--- PASS: TestParticipantProjector_CreatesConvAndSyncsParticipants (0.09s)
+=== RUN   TestParticipantProjector_IgnoresNonConversationEvents
+--- PASS: TestParticipantProjector_IgnoresNonConversationEvents (0.09s)
+=== RUN   TestBlockedOnRead_UpstreamCompletion_SurfacedOnBothReadPaths
+--- PASS: TestBlockedOnRead_UpstreamCompletion_SurfacedOnBothReadPaths (0.08s)
+=== RUN   TestBlockedOnRead_BuiltinPoolSkipped
+--- PASS: TestBlockedOnRead_BuiltinPoolSkipped (0.09s)
+=== RUN   TestBlockedOnRead_NilDetailGuards
+--- PASS: TestBlockedOnRead_NilDetailGuards (0.08s)
+=== RUN   TestBlockedOnRead_PropagatesListError
+--- PASS: TestBlockedOnRead_PropagatesListError (0.08s)
+=== RUN   TestBlockedOnRead_PendingDecisionQueue
+--- PASS: TestBlockedOnRead_PendingDecisionQueue (0.10s)
+=== RUN   TestBlockedOnRead_EmptyBoundaries
+--- PASS: TestBlockedOnRead_EmptyBoundaries (0.08s)
+=== RUN   TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle
+--- PASS: TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle (0.09s)
+=== RUN   TestBlockedOn_Idempotent
+--- PASS: TestBlockedOn_Idempotent (0.09s)
+=== RUN   TestBlockedOn_HumanDecision
+--- PASS: TestBlockedOn_HumanDecision (0.10s)
+=== RUN   TestBlockedOn_AcceptanceVerdict
+--- PASS: TestBlockedOn_AcceptanceVerdict (0.09s)
+=== RUN   TestBlockedOn_StageBarrier
+--- PASS: TestBlockedOn_StageBarrier (0.10s)
+=== RUN   TestBlockedOn_NoGateRegression
+--- PASS: TestBlockedOn_NoGateRegression (0.09s)
+=== RUN   TestBlockedOn_SkipsBuiltinPool
+--- PASS: TestBlockedOn_SkipsBuiltinPool (0.09s)
+=== RUN   TestBlockedOn_Materialize_PropagatesRepoErrors
+--- PASS: TestBlockedOn_Materialize_PropagatesRepoErrors (0.09s)
+=== RUN   TestBlockedOn_Classify_Fallbacks
+--- PASS: TestBlockedOn_Classify_Fallbacks (0.08s)
+=== RUN   TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape
+--- PASS: TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape (0.11s)
+=== RUN   TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill
+--- PASS: TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill (0.11s)
+=== RUN   TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes
+--- PASS: TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes (0.11s)
+=== RUN   TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure
+--- PASS: TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure (0.10s)
+=== RUN   TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure
+--- PASS: TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure (0.08s)
+=== RUN   TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage
+--- PASS: TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage (0.08s)
+=== RUN   TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion
+--- PASS: TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion (0.10s)
+=== RUN   TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks
+--- PASS: TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks (0.09s)
+=== RUN   TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility
+--- PASS: TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility (0.09s)
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running
+--- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion (0.26s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready (0.08s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched (0.08s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running (0.09s)
+=== RUN   TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools
+--- PASS: TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools (0.10s)
+=== RUN   TestAddPlanControlEdge_ConditionalNeedsWhen
+--- PASS: TestAddPlanControlEdge_ConditionalNeedsWhen (0.08s)
+=== RUN   TestAddPlanControlEdge_UnknownKind
+--- PASS: TestAddPlanControlEdge_UnknownKind (0.09s)
+=== RUN   TestAddPlanControlEdge_LoopbackNeedsMaxRounds
+--- PASS: TestAddPlanControlEdge_LoopbackNeedsMaxRounds (0.09s)
+=== RUN   TestAddPlanControlEdge_PlainSeqStillWorks
+--- PASS: TestAddPlanControlEdge_PlainSeqStillWorks (0.08s)
+=== RUN   TestDeadline_Assign_And_NoDrift
+--- PASS: TestDeadline_Assign_And_NoDrift (0.08s)
+=== RUN   TestDeadline_Routes_OnTimeout_PerAction
+=== RUN   TestDeadline_Routes_OnTimeout_PerAction/reprobe
+=== RUN   TestDeadline_Routes_OnTimeout_PerAction/escalate
+=== RUN   TestDeadline_Routes_OnTimeout_PerAction/route_to_timeout_handler
+--- PASS: TestDeadline_Routes_OnTimeout_PerAction (0.25s)
+    --- PASS: TestDeadline_Routes_OnTimeout_PerAction/reprobe (0.08s)
+    --- PASS: TestDeadline_Routes_OnTimeout_PerAction/escalate (0.08s)
+    --- PASS: TestDeadline_Routes_OnTimeout_PerAction/route_to_timeout_handler (0.08s)
+=== RUN   TestDeadline_GatedNode_NotReleased_OnTimeout
+=== RUN   TestDeadline_GatedNode_NotReleased_OnTimeout/reprobe
+=== RUN   TestDeadline_GatedNode_NotReleased_OnTimeout/escalate
+--- PASS: TestDeadline_GatedNode_NotReleased_OnTimeout (0.17s)
+    --- PASS: TestDeadline_GatedNode_NotReleased_OnTimeout/reprobe (0.08s)
+    --- PASS: TestDeadline_GatedNode_NotReleased_OnTimeout/escalate (0.08s)
+=== RUN   TestDeadline_Sweep_BestEffort_SinkError
+2026/08/18 04:03:24 WARN pm: on_timeout sink failed (best-effort, gates unaffected) err="sink down" plan_id=plan-e6e0f9b8 task_id=task-74cf0b82 wait_type=upstream_completion action=reprobe
+--- PASS: TestDeadline_Sweep_BestEffort_SinkError (0.08s)
+=== RUN   TestDeadline_ProbeBackoff
+--- PASS: TestDeadline_ProbeBackoff (0.08s)
+=== RUN   TestDeadline_InertPolicy_NoDeadlines
+--- PASS: TestDeadline_InertPolicy_NoDeadlines (0.08s)
+=== RUN   TestDeadline_NoSink_RecordsTimeout
+--- PASS: TestDeadline_NoSink_RecordsTimeout (0.08s)
+=== RUN   TestDeadline_RouteTimeouts_PropagatesRepoErrors
+--- PASS: TestDeadline_RouteTimeouts_PropagatesRepoErrors (0.08s)
+=== RUN   TestFormatFindingsForDispatch_Empty
+--- PASS: TestFormatFindingsForDispatch_Empty (0.00s)
+=== RUN   TestFormatFindingsForDispatch_Basic
+--- PASS: TestFormatFindingsForDispatch_Basic (0.00s)
+=== RUN   TestFormatFindingsForDispatch_TruncationNotice
+--- PASS: TestFormatFindingsForDispatch_TruncationNotice (0.00s)
+=== RUN   TestFindingOneLine
+--- PASS: TestFindingOneLine (0.00s)
+=== RUN   TestRecordFinding_Success_AndEvent
+--- PASS: TestRecordFinding_Success_AndEvent (0.08s)
+=== RUN   TestListPlanFindings_Authz
+--- PASS: TestListPlanFindings_Authz (0.07s)
+=== RUN   TestRecordFinding_AdmissionMatrix
+=== RUN   TestRecordFinding_AdmissionMatrix/non-assignee_member_author
+=== RUN   TestRecordFinding_AdmissionMatrix/non-member_author
+=== RUN   TestRecordFinding_AdmissionMatrix/task_not_in_plan
+=== RUN   TestRecordFinding_AdmissionMatrix/empty_content
+=== RUN   TestRecordFinding_AdmissionMatrix/bad_kind
+=== RUN   TestRecordFinding_AdmissionMatrix/plan_not_found
+=== RUN   TestRecordFinding_AdmissionMatrix/bad_author_ref
+--- PASS: TestRecordFinding_AdmissionMatrix (0.08s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/non-assignee_member_author (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/non-member_author (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/task_not_in_plan (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/empty_content (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/bad_kind (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/plan_not_found (0.00s)
+    --- PASS: TestRecordFinding_AdmissionMatrix/bad_author_ref (0.00s)
+=== RUN   TestRetractFinding
+--- PASS: TestRetractFinding (0.09s)
+=== RUN   TestRetractFinding_ByAuthor
+--- PASS: TestRetractFinding_ByAuthor (0.08s)
+=== RUN   TestDeletePlan_CascadesFindings
+--- PASS: TestDeletePlan_CascadesFindings (0.07s)
+=== RUN   TestFindingServices_NilRepoGuards
+--- PASS: TestFindingServices_NilRepoGuards (0.00s)
+=== RUN   TestDispatchReadyNodes_InjectsFindings
+--- PASS: TestDispatchReadyNodes_InjectsFindings (0.07s)
+=== RUN   TestDispatchReadyNodes_NoFindings_NoInjection
+--- PASS: TestDispatchReadyNodes_NoFindings_NoInjection (0.07s)
+=== RUN   TestCreatePlan_CreatesConversationAndBinds
+--- PASS: TestCreatePlan_CreatesConversationAndBinds (0.07s)
+=== RUN   TestPlanParticipantsChanged_LegacyBuiltinPlanDerivesOrgWhenConversationMissing
+--- PASS: TestPlanParticipantsChanged_LegacyBuiltinPlanDerivesOrgWhenConversationMissing (0.07s)
+=== RUN   TestCreatePlan_Unavailable_WhenNoPlanRepo
+--- PASS: TestCreatePlan_Unavailable_WhenNoPlanRepo (0.07s)
+=== RUN   TestSelectTaskIntoPlan_HumanAssignee_BecomesParticipant
+--- PASS: TestSelectTaskIntoPlan_HumanAssignee_BecomesParticipant (0.07s)
+=== RUN   TestSelectTaskIntoPlan_AgentAssignee_BecomesParticipant
+--- PASS: TestSelectTaskIntoPlan_AgentAssignee_BecomesParticipant (0.07s)
+=== RUN   TestSelectTaskIntoPlan_Additive_RemoveDoesNotDropParticipant
+--- PASS: TestSelectTaskIntoPlan_Additive_RemoveDoesNotDropParticipant (0.07s)
+=== RUN   TestSelectTaskIntoPlan_Rejects
+--- PASS: TestSelectTaskIntoPlan_Rejects (0.07s)
+=== RUN   TestRemoveTaskFromPlan_RejectsNonDraft
+--- PASS: TestRemoveTaskFromPlan_RejectsNonDraft (0.08s)
+=== RUN   TestRemoveTaskFromPlan_BuiltinPool_OK
+--- PASS: TestRemoveTaskFromPlan_BuiltinPool_OK (0.07s)
+=== RUN   TestSelectTaskIntoPlan_SamePlan_NoOp
+--- PASS: TestSelectTaskIntoPlan_SamePlan_NoOp (0.07s)
+=== RUN   TestPlanParticipantSync_Idempotent
+--- PASS: TestPlanParticipantSync_Idempotent (0.07s)
+=== RUN   TestAssignAfterSelect_SyncsPlanParticipant
+--- PASS: TestAssignAfterSelect_SyncsPlanParticipant (0.07s)
+=== RUN   TestAssignTask_NoPlan_DoesNotEmitParticipantSync
+--- PASS: TestAssignTask_NoPlan_DoesNotEmitParticipantSync (0.07s)
+=== RUN   TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent
+--- PASS: TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent (0.07s)
+=== RUN   TestStartPlan_G0PersistenceFailureRollsBackActivation
+--- PASS: TestStartPlan_G0PersistenceFailureRollsBackActivation (0.07s)
+=== RUN   TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration
+--- PASS: TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration (0.07s)
+=== RUN   TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates
+--- PASS: TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates (0.07s)
+=== RUN   TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot
+--- PASS: TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot (0.09s)
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected
+--- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions (0.22s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected (0.08s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request (0.07s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected (0.07s)
+=== RUN   TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached
+--- PASS: TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached (0.07s)
+=== RUN   TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch
+--- PASS: TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch (0.08s)
+=== RUN   TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership
+--- PASS: TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership (0.07s)
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/missing_parent
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/cycle
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/cross_plan
+=== RUN   TestLoadPlanGenerationLineage_FailsClosed/snapshot_mismatch
+--- PASS: TestLoadPlanGenerationLineage_FailsClosed (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/missing_parent (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/cycle (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/cross_plan (0.00s)
+    --- PASS: TestLoadPlanGenerationLineage_FailsClosed/snapshot_mismatch (0.00s)
+=== RUN   TestGetPlanGraph_ReflectsEngineGraph
+--- PASS: TestGetPlanGraph_ReflectsEngineGraph (0.08s)
+=== RUN   TestGetPlanGraph_StartEndAnchorsWired
+--- PASS: TestGetPlanGraph_StartEndAnchorsWired (0.07s)
+=== RUN   TestGetPlanGraph_NoGraph_FallbackSignal
+--- PASS: TestGetPlanGraph_NoGraph_FallbackSignal (0.07s)
+=== RUN   TestListPlanSummaries_DerivesPerPlanReadModel
+--- PASS: TestListPlanSummaries_DerivesPerPlanReadModel (0.07s)
+=== RUN   TestListPlanSummaries_ExcludesArchived
+--- PASS: TestListPlanSummaries_ExcludesArchived (0.07s)
+=== RUN   TestListPlanSummaries_BatchedNoNPlus1
+--- PASS: TestListPlanSummaries_BatchedNoNPlus1 (0.07s)
+=== RUN   TestPlanRepo_BatchReads_GroupAndIsolate
+--- PASS: TestPlanRepo_BatchReads_GroupAndIsolate (0.07s)
+=== RUN   TestStartPlan_Validation
+=== RUN   TestStartPlan_Validation/0-task_rejected
+=== RUN   TestStartPlan_Validation/unassigned_task_rejected
+=== RUN   TestStartPlan_Validation/cyclic_DAG_rejected
+=== RUN   TestStartPlan_Validation/valid_start_succeeds_+_pre-done_allowed
+--- PASS: TestStartPlan_Validation (0.07s)
+    --- PASS: TestStartPlan_Validation/0-task_rejected (0.00s)
+    --- PASS: TestStartPlan_Validation/unassigned_task_rejected (0.00s)
+    --- PASS: TestStartPlan_Validation/cyclic_DAG_rejected (0.00s)
+    --- PASS: TestStartPlan_Validation/valid_start_succeeds_+_pre-done_allowed (0.00s)
+=== RUN   TestAdvancePlan_AllReady_Idempotent
+--- PASS: TestAdvancePlan_AllReady_Idempotent (0.07s)
+=== RUN   TestAdvancePlan_FailureIsolation
+--- PASS: TestAdvancePlan_FailureIsolation (0.07s)
+=== RUN   TestAdvancePlan_DoneSemantics
+=== RUN   TestAdvancePlan_DoneSemantics/failed_node_keeps_plan_running
+=== RUN   TestAdvancePlan_DoneSemantics/all_done_marks_plan_done
+--- PASS: TestAdvancePlan_DoneSemantics (0.07s)
+    --- PASS: TestAdvancePlan_DoneSemantics/failed_node_keeps_plan_running (0.00s)
+    --- PASS: TestAdvancePlan_DoneSemantics/all_done_marks_plan_done (0.00s)
+=== RUN   TestStopPlan_AndAdvanceGuards
+--- PASS: TestStopPlan_AndAdvanceGuards (0.07s)
+=== RUN   TestRerunFailedNode_ReDispatches
+--- PASS: TestRerunFailedNode_ReDispatches (0.07s)
+=== RUN   TestDispatch_PostsAtMention_WakeWouldFire
+--- PASS: TestDispatch_PostsAtMention_WakeWouldFire (0.07s)
+=== RUN   TestDispatch_NamesTaskByID
+--- PASS: TestDispatch_NamesTaskByID (0.07s)
+=== RUN   TestTaskRefToken
+--- PASS: TestTaskRefToken (0.00s)
+=== RUN   TestDispatch_UnresolvableRef_FallsBack
+2026/08/18 04:03:27 WARN plan dispatch: assignee display_name unresolved — posting without @mention (idle wake will not fire) assignee_ref=agent:unknown conversation_id=01HF7YAT00GFSXEPFKY6VPWQJS
+--- PASS: TestDispatch_UnresolvableRef_FallsBack (0.07s)
+=== RUN   TestListPlanSummaries_NoNPlus1_QueryCountGuard
+--- PASS: TestListPlanSummaries_NoNPlus1_QueryCountGuard (0.07s)
+=== RUN   TestListPlanSummaries_StageBarrierHeldEntryNotReady
+--- PASS: TestListPlanSummaries_StageBarrierHeldEntryNotReady (0.07s)
+=== RUN   TestListPlanSummaries_StageAware_NoNPlus1_QueryCountGuard
+--- PASS: TestListPlanSummaries_StageAware_NoNPlus1_QueryCountGuard (0.09s)
+=== RUN   TestStartPlan_BuildsGraph_AndDispatchesOffIt
+--- PASS: TestStartPlan_BuildsGraph_AndDispatchesOffIt (0.07s)
+=== RUN   TestGraphCycle_ConditionGate_PassReleasesDownstream
+--- PASS: TestGraphCycle_ConditionGate_PassReleasesDownstream (0.07s)
+=== RUN   TestGraphCycle_Loopback_RejectCreatesNextRound
+--- PASS: TestGraphCycle_Loopback_RejectCreatesNextRound (0.07s)
+=== RUN   TestGraphCycle_Loopback_BoundedRoundsThenExhausts
+--- PASS: TestGraphCycle_Loopback_BoundedRoundsThenExhausts (0.08s)
+=== RUN   TestGraphDispatch_FailedTaskBlocksDownstream
+--- PASS: TestGraphDispatch_FailedTaskBlocksDownstream (0.07s)
+=== RUN   TestGraphHelpers
+--- PASS: TestGraphHelpers (0.00s)
+=== RUN   TestOrchestrator_AutoAdvance_OnTaskDone
+--- PASS: TestOrchestrator_AutoAdvance_OnTaskDone (0.07s)
+=== RUN   TestOrchestrator_ReplayIdempotent
+--- PASS: TestOrchestrator_ReplayIdempotent (0.07s)
+=== RUN   TestOrchestrator_ConcurrentDispatch
+--- PASS: TestOrchestrator_ConcurrentDispatch (0.07s)
+=== RUN   TestOrchestrator_NoopCases
+=== RUN   TestOrchestrator_NoopCases/task_not_in_a_plan
+=== RUN   TestOrchestrator_NoopCases/plan_in_draft
+=== RUN   TestOrchestrator_NoopCases/irrelevant_event_type
+--- PASS: TestOrchestrator_NoopCases (0.07s)
+    --- PASS: TestOrchestrator_NoopCases/task_not_in_a_plan (0.00s)
+    --- PASS: TestOrchestrator_NoopCases/plan_in_draft (0.00s)
+    --- PASS: TestOrchestrator_NoopCases/irrelevant_event_type (0.00s)
+=== RUN   TestOrchestrator_FailureNotifiesCreator
+--- PASS: TestOrchestrator_FailureNotifiesCreator (0.10s)
+=== RUN   TestOrchestrator_FailureIndependentBranchAdvances
+--- PASS: TestOrchestrator_FailureIndependentBranchAdvances (0.09s)
+=== RUN   TestOrchestrator_FailureReplayNotifiesOnce
+--- PASS: TestOrchestrator_FailureReplayNotifiesOnce (0.07s)
+=== RUN   TestOrchestrator_FirstFailureTransitionNotifies
+--- PASS: TestOrchestrator_FirstFailureTransitionNotifies (0.07s)
+=== RUN   TestOrchestrator_ReDiscardDoesNotRenotify
+--- PASS: TestOrchestrator_ReDiscardDoesNotRenotify (0.07s)
+=== RUN   TestOrchestrator_FailureWakesAgentCreator
+--- PASS: TestOrchestrator_FailureWakesAgentCreator (0.07s)
+=== RUN   TestOrchestrator_FailureHumanCreator_NoWake
+--- PASS: TestOrchestrator_FailureHumanCreator_NoWake (0.07s)
+=== RUN   TestOrchestrator_AgentCreatorWakeReplayOnce
+--- PASS: TestOrchestrator_AgentCreatorWakeReplayOnce (0.07s)
+=== RUN   TestCreatePlan_T99_AllocatesOrgNumber
+--- PASS: TestCreatePlan_T99_AllocatesOrgNumber (0.06s)
+=== RUN   TestGetPlanDetail_PausedOverlay
+--- PASS: TestGetPlanDetail_PausedOverlay (0.07s)
+=== RUN   TestResumePausedNode_AuthzAndDelegation
+--- PASS: TestResumePausedNode_AuthzAndDelegation (0.07s)
+=== RUN   TestReconcile_DispatchesMissedReadyNode
+--- PASS: TestReconcile_DispatchesMissedReadyNode (0.07s)
+=== RUN   TestReconcile_Idempotent
+--- PASS: TestReconcile_Idempotent (0.07s)
+=== RUN   TestReconcile_SkipsDraftAndDone
+--- PASS: TestReconcile_SkipsDraftAndDone (0.07s)
+=== RUN   TestListRunningPlans_OnlyRunning
+--- PASS: TestListRunningPlans_OnlyRunning (0.28s)
+=== RUN   TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+--- PASS: TestStageReject_AppendsIncrementalStageWithoutReopeningHistory (0.22s)
+=== RUN   TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+--- PASS: TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume (0.15s)
+=== RUN   TestDeletePlan_NonRunning_UnloadsTasksAndDeletesPlanAndDeps
+--- PASS: TestDeletePlan_NonRunning_UnloadsTasksAndDeletesPlanAndDeps (0.11s)
+=== RUN   TestDeletePlan_Running_Rejected
+--- PASS: TestDeletePlan_Running_Rejected (0.16s)
+=== RUN   TestDiscardTask_ArchivedOpen_EscapeHatch
+--- PASS: TestDiscardTask_ArchivedOpen_EscapeHatch (0.13s)
+=== RUN   TestArchivePlan_OrthogonalAfterDiscard
+--- PASS: TestArchivePlan_OrthogonalAfterDiscard (0.12s)
+=== RUN   TestArchivePlan_Running_Rejected
+--- PASS: TestArchivePlan_Running_Rejected (0.13s)
+=== RUN   TestArchivePlan_DiscardSettlesRunningTask
+--- PASS: TestArchivePlan_DiscardSettlesRunningTask (0.12s)
+=== RUN   TestArchivePlan_DoubleRejected
+--- PASS: TestArchivePlan_DoubleRejected (0.12s)
+=== RUN   TestStage_Barrier_MultiNodeDownstream_RunGate
+--- PASS: TestStage_Barrier_MultiNodeDownstream_RunGate (0.23s)
+=== RUN   TestCreateStage_ProvisionsExecutableGateTask
+--- PASS: TestCreateStage_ProvisionsExecutableGateTask (0.12s)
+=== RUN   TestCreateStage_RejectsEmptyHumanGateContract
+--- PASS: TestCreateStage_RejectsEmptyHumanGateContract (0.28s)
+=== RUN   TestCreateStage_RunningPausedFailClosed
+--- PASS: TestCreateStage_RunningPausedFailClosed (0.11s)
+=== RUN   TestLegacyBareStageGate_RejectsThenReconciles
+--- PASS: TestLegacyBareStageGate_RejectsThenReconciles (0.07s)
+=== RUN   TestStage_Barrier_GatePass
+--- PASS: TestStage_Barrier_GatePass (0.08s)
+=== RUN   TestStage_GateReject_LegacyEntrypointIsRetired
+--- PASS: TestStage_GateReject_LegacyEntrypointIsRetired (0.08s)
+=== RUN   TestStageGateReadiness_RequiresEveryMemberTerminal
+--- PASS: TestStageGateReadiness_RequiresEveryMemberTerminal (0.07s)
+=== RUN   TestStageGateReadiness_ReloadsPersistedMembersFailClosed
+--- PASS: TestStageGateReadiness_ReloadsPersistedMembersFailClosed (0.07s)
+=== RUN   TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal
+--- PASS: TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal (0.08s)
+=== RUN   TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass
+--- PASS: TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass (0.08s)
+=== RUN   TestGetPlanDetail_HidesStageGatesUntilReadinessPasses
+--- PASS: TestGetPlanDetail_HidesStageGatesUntilReadinessPasses (0.07s)
+=== RUN   TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch
+--- PASS: TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch (0.08s)
+=== RUN   TestReopenExhaustedStage_IsRetired
+--- PASS: TestReopenExhaustedStage_IsRetired (0.07s)
+=== RUN   TestStage_ZeroRegression
+--- PASS: TestStage_ZeroRegression (0.07s)
+=== RUN   TestListStagesForPlan_SharesProjectionWithGetStage
+--- PASS: TestListStagesForPlan_SharesProjectionWithGetStage (0.08s)
+=== RUN   TestStage_CrossEdge_RejectedAtBuild
+--- PASS: TestStage_CrossEdge_RejectedAtBuild (0.08s)
+=== RUN   TestStage_StagelessNode_RejectedAtBuild
+--- PASS: TestStage_StagelessNode_RejectedAtBuild (0.08s)
+=== RUN   TestListPlanSummaries_ArchivedInclusion
+--- PASS: TestListPlanSummaries_ArchivedInclusion (0.08s)
+=== RUN   TestEditPlanTopology_DraftEquivalence
+--- PASS: TestEditPlanTopology_DraftEquivalence (0.07s)
+=== RUN   TestEditPlanTopology_CASConflict
+--- PASS: TestEditPlanTopology_CASConflict (0.08s)
+=== RUN   TestEditPlanTopology_ReorderMidCycleTerminalLegal
+--- PASS: TestEditPlanTopology_ReorderMidCycleTerminalLegal (0.07s)
+=== RUN   TestEditPlanTopology_TerminalCycleRejected
+--- PASS: TestEditPlanTopology_TerminalCycleRejected (0.07s)
+=== RUN   TestEditPlanTopology_RunningFailClosed
+--- PASS: TestEditPlanTopology_RunningFailClosed (0.07s)
+=== RUN   TestEditPlanTopology_PausedFailClosed
+--- PASS: TestEditPlanTopology_PausedFailClosed (0.07s)
+=== RUN   TestUpdatePlan_PartialUpdate_NilFieldsUnchanged
+--- PASS: TestUpdatePlan_PartialUpdate_NilFieldsUnchanged (0.07s)
+=== RUN   TestUpdatePlan_TargetDateSet_ThreeStates
+--- PASS: TestUpdatePlan_TargetDateSet_ThreeStates (0.07s)
+=== RUN   TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected
+--- PASS: TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected (0.07s)
+=== RUN   TestUpdatePlan_RejectsArchived
+--- PASS: TestUpdatePlan_RejectsArchived (0.07s)
+=== RUN   TestArchiveProject_TerminatesInFlightTasks
+--- PASS: TestArchiveProject_TerminatesInFlightTasks (0.07s)
+=== RUN   TestProjectArchived_PlanLifecycle_Asymmetry
+--- PASS: TestProjectArchived_PlanLifecycle_Asymmetry (0.07s)
+=== RUN   TestListRelatedIssues_PlanSourceIssues
+--- PASS: TestListRelatedIssues_PlanSourceIssues (0.07s)
+=== RUN   TestListRelatedIssues_NoSourceIssue_Empty
+--- PASS: TestListRelatedIssues_NoSourceIssue_Empty (0.07s)
+=== RUN   TestListRelatedIssues_NonMemberRejected
+--- PASS: TestListRelatedIssues_NonMemberRejected (0.07s)
+=== RUN   TestListPlansForIssue_DerivedPlans
+--- PASS: TestListPlansForIssue_DerivedPlans (0.07s)
+=== RUN   TestListPlansForIssue_NonMemberRejected
+--- PASS: TestListPlansForIssue_NonMemberRejected (0.07s)
+=== RUN   TestListRelatedPlans_SameIssueSiblings
+--- PASS: TestListRelatedPlans_SameIssueSiblings (0.07s)
+=== RUN   TestListRelatedPlans_NoSourceIssue_Empty
+--- PASS: TestListRelatedPlans_NoSourceIssue_Empty (0.07s)
+=== RUN   TestListRelatedPlans_NonMemberRejected
+--- PASS: TestListRelatedPlans_NonMemberRejected (0.07s)
+=== RUN   TestResetTask_ReturnsToPoolAndIncrementsCount
+--- PASS: TestResetTask_ReturnsToPoolAndIncrementsCount (0.07s)
+=== RUN   TestResetTask_LiveLeaseRejected
+--- PASS: TestResetTask_LiveLeaseRejected (0.07s)
+=== RUN   TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+--- PASS: TestResetTask_OwnerConfirmedDeadBypassesLiveLease (0.08s)
+=== RUN   TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease
+--- PASS: TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease (0.07s)
+=== RUN   TestResetTask_CapTripsBlock
+--- PASS: TestResetTask_CapTripsBlock (0.08s)
+=== RUN   TestResetTask_RedispatchesToFreshAgent
+--- PASS: TestResetTask_RedispatchesToFreshAgent (0.08s)
+=== RUN   TestResetTask_ConcurrentSingleIncrement
+--- PASS: TestResetTask_ConcurrentSingleIncrement (0.07s)
+=== RUN   TestCloseResolvedIssues_ClosesAfterThreeDays
+--- PASS: TestCloseResolvedIssues_ClosesAfterThreeDays (0.07s)
+=== RUN   TestCloseResolvedIssues_WaitsForGracePeriod
+--- PASS: TestCloseResolvedIssues_WaitsForGracePeriod (0.07s)
+=== RUN   TestCloseResolvedIssues_ReopenedIssueNotClosed
+--- PASS: TestCloseResolvedIssues_ReopenedIssueNotClosed (0.07s)
+=== RUN   TestCloseResolvedIssues_Idempotent
+--- PASS: TestCloseResolvedIssues_Idempotent (0.07s)
+=== RUN   TestCloseResolvedIssues_SkipsArchivedProject
+--- PASS: TestCloseResolvedIssues_SkipsArchivedProject (0.07s)
+=== RUN   TestReviewVerdict_NewRoundRecordsRound_T468
+--- PASS: TestReviewVerdict_NewRoundRecordsRound_T468 (0.07s)
+=== RUN   TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked
+--- PASS: TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked (0.07s)
+=== RUN   TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass
+--- PASS: TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass (0.19s)
+=== RUN   TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+--- PASS: TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked (0.17s)
+=== RUN   TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked
+--- PASS: TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked (0.18s)
+=== RUN   TestEnsureTaskRunnable_BacklogNoPlan_Rejected
+--- PASS: TestEnsureTaskRunnable_BacklogNoPlan_Rejected (0.11s)
+=== RUN   TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected
+--- PASS: TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected (0.11s)
+=== RUN   TestEnsureTaskRunnable_AssignedReadyPoolMember_OK
+--- PASS: TestEnsureTaskRunnable_AssignedReadyPoolMember_OK (0.16s)
+=== RUN   TestEnsureTaskRunnable_DispatchedPoolMember_OK
+--- PASS: TestEnsureTaskRunnable_DispatchedPoolMember_OK (0.11s)
+=== RUN   TestEnsureTaskRunnable_RealPlanNode_OK
+--- PASS: TestEnsureTaskRunnable_RealPlanNode_OK (0.13s)
+=== RUN   TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected
+--- PASS: TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected (0.11s)
+=== RUN   TestAgentTaskRunGate_TranslatesAndGates
+--- PASS: TestAgentTaskRunGate_TranslatesAndGates (0.15s)
+=== RUN   TestEnsureTaskRunnable_RunningPoolTask_OK
+--- PASS: TestEnsureTaskRunnable_RunningPoolTask_OK (0.16s)
+=== RUN   TestListRunnableAgentTasks_CompletedPoolTaskCannotReopen
+--- PASS: TestListRunnableAgentTasks_CompletedPoolTaskCannotReopen (0.14s)
+=== RUN   TestSoleRunningTask_NoneRunning
+--- PASS: TestSoleRunningTask_NoneRunning (0.17s)
+=== RUN   TestSoleRunningTask_ExactlyOne
+--- PASS: TestSoleRunningTask_ExactlyOne (0.20s)
+=== RUN   TestSoleRunningTask_MultipleRunningAmbiguous
+--- PASS: TestSoleRunningTask_MultipleRunningAmbiguous (0.09s)
+=== RUN   TestSoleRunningTask_BlockedExcluded
+--- PASS: TestSoleRunningTask_BlockedExcluded (0.10s)
+=== RUN   TestSoleRunningTask_EmptyAssignee
+--- PASS: TestSoleRunningTask_EmptyAssignee (0.08s)
+=== RUN   TestSoleRunningTask_RepoError
+--- PASS: TestSoleRunningTask_RepoError (0.09s)
+=== RUN   TestResetTask_StructuredStagePlanNode_SelfHeals
+2026/08/18 04:03:38 WARN plan dispatch: assignee display_name unresolved — posting without @mention (idle wake will not fire) assignee_ref="" conversation_id=01HF7YAT00757AK99R45JH2X38
+--- PASS: TestResetTask_StructuredStagePlanNode_SelfHeals (0.11s)
+=== RUN   TestUnblockTask_StructuredStagePlanNode_SelfHeals
+--- PASS: TestUnblockTask_StructuredStagePlanNode_SelfHeals (0.09s)
+=== RUN   TestGetPlanDetail_StageBarrierHeldEntryNotReady
+--- PASS: TestGetPlanDetail_StageBarrierHeldEntryNotReady (0.08s)
+=== RUN   TestDispatch_NoStageRunAhead
+--- PASS: TestDispatch_NoStageRunAhead (0.08s)
+=== RUN   TestStuckNode_FruitlessReopens_DurableAcrossRestart
+--- PASS: TestStuckNode_FruitlessReopens_DurableAcrossRestart (0.08s)
+=== RUN   TestStuckNode_FruitlessReopens_ValidDeliveryResets
+--- PASS: TestStuckNode_FruitlessReopens_ValidDeliveryResets (0.07s)
+=== RUN   TestStuckNode_TriageSurfacesRetainedWorktree
+--- PASS: TestStuckNode_TriageSurfacesRetainedWorktree (0.07s)
+=== RUN   TestStuckNode_TrueDead_AutoReopened
+--- PASS: TestStuckNode_TrueDead_AutoReopened (0.07s)
+=== RUN   TestStuckNode_SlowButAlive_NotReopened
+--- PASS: TestStuckNode_SlowButAlive_NotReopened (0.08s)
+=== RUN   TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal
+--- PASS: TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal (0.07s)
+=== RUN   TestStuckNode_CircuitBreaker_BlocksAfterRmax
+--- PASS: TestStuckNode_CircuitBreaker_BlocksAfterRmax (0.08s)
+=== RUN   TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+--- PASS: TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse (0.07s)
+=== RUN   TestStuckNode_UpdatedAtAdvancing_NotReopened
+--- PASS: TestStuckNode_UpdatedAtAdvancing_NotReopened (0.07s)
+=== RUN   TestProgressStale_Boundaries
+--- PASS: TestProgressStale_Boundaries (0.00s)
+=== RUN   TestListTaskActionLogs_ReadsPersistedLifecycleWithPagination
+--- PASS: TestListTaskActionLogs_ReadsPersistedLifecycleWithPagination (0.07s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	35.849s
+=== RUN   TestAssignmentPoolRepo_RoundTripAndClaimCAS
+--- PASS: TestAssignmentPoolRepo_RoundTripAndClaimCAS (0.07s)
+=== RUN   TestAuditLogRepo_AppendListRoundTrip
+--- PASS: TestAuditLogRepo_AppendListRoundTrip (0.07s)
+=== RUN   TestAuditLogRepo_CursorPagination
+--- PASS: TestAuditLogRepo_CursorPagination (0.07s)
+=== RUN   TestTaskRepo_CompletedAt_RoundTrip
+--- PASS: TestTaskRepo_CompletedAt_RoundTrip (0.07s)
+=== RUN   TestTaskRepo_Delivery_RoundTrip
+--- PASS: TestTaskRepo_Delivery_RoundTrip (0.07s)
+=== RUN   TestTaskRepo_TagsStatusChangedAt_RoundTrip
+--- PASS: TestTaskRepo_TagsStatusChangedAt_RoundTrip (0.08s)
+=== RUN   TestIssueRepo_TagsStatusChangedAt_RoundTrip
+--- PASS: TestIssueRepo_TagsStatusChangedAt_RoundTrip (0.08s)
+=== RUN   TestTaskRepo_RequiredCapabilities_RoundTrip
+--- PASS: TestTaskRepo_RequiredCapabilities_RoundTrip (0.08s)
+=== RUN   TestCapsMarshalUnmarshal
+--- PASS: TestCapsMarshalUnmarshal (0.00s)
+=== RUN   TestModelCatalogRepo_RoundTrip
+--- PASS: TestModelCatalogRepo_RoundTrip (0.09s)
+=== RUN   TestModelCatalogRepo_ImportUpsertVsReplace
+--- PASS: TestModelCatalogRepo_ImportUpsertVsReplace (0.08s)
+=== RUN   TestIssueRepo_ListOrgPage
+=== RUN   TestIssueRepo_ListOrgPage/default_excludes_terminal_+_foreign_projects;_total_is_pre-page
+=== RUN   TestIssueRepo_ListOrgPage/sort_title_ASC_+_LIMIT/OFFSET_pages,_total_stays_full
+=== RUN   TestIssueRepo_ListOrgPage/org_ref_sorts_numerically_by_org_number_(T2_<_T10)
+=== RUN   TestIssueRepo_ListOrgPage/explicit_status_include
+=== RUN   TestIssueRepo_ListOrgPage/q_substring_search_(case-insensitive)
+=== RUN   TestIssueRepo_ListOrgPage/empty_project_set_→_no_rows,_total_0
+--- PASS: TestIssueRepo_ListOrgPage (0.09s)
+    --- PASS: TestIssueRepo_ListOrgPage/default_excludes_terminal_+_foreign_projects;_total_is_pre-page (0.00s)
+    --- PASS: TestIssueRepo_ListOrgPage/sort_title_ASC_+_LIMIT/OFFSET_pages,_total_stays_full (0.00s)
+    --- PASS: TestIssueRepo_ListOrgPage/org_ref_sorts_numerically_by_org_number_(T2_<_T10) (0.00s)
+    --- PASS: TestIssueRepo_ListOrgPage/explicit_status_include (0.00s)
+    --- PASS: TestIssueRepo_ListOrgPage/q_substring_search_(case-insensitive) (0.00s)
+    --- PASS: TestIssueRepo_ListOrgPage/empty_project_set_→_no_rows,_total_0 (0.00s)
+=== RUN   TestOrgSequenceRepo_SequentialAndIsolated
+--- PASS: TestOrgSequenceRepo_SequentialAndIsolated (0.08s)
+=== RUN   TestOrgSequenceRepo_ConcurrentNoCollisionNoSkip
+--- PASS: TestOrgSequenceRepo_ConcurrentNoCollisionNoSkip (0.17s)
+=== RUN   TestBlockedOn_WaitKeysCodec
+--- PASS: TestBlockedOn_WaitKeysCodec (0.00s)
+=== RUN   TestPlanRepo_BlockedOn_RoundTrip
+--- PASS: TestPlanRepo_BlockedOn_RoundTrip (0.08s)
+=== RUN   TestPlanRepo_BlockedOn_ListIsolationAndOrder
+--- PASS: TestPlanRepo_BlockedOn_ListIsolationAndOrder (0.09s)
+=== RUN   TestPlanRepo_BlockedOn_DeletePlanCascade
+--- PASS: TestPlanRepo_BlockedOn_DeletePlanCascade (0.08s)
+=== RUN   TestPlanRepo_ControlFlowRoundTrip
+--- PASS: TestPlanRepo_ControlFlowRoundTrip (0.09s)
+=== RUN   TestPlanRepo_LegacyEdgeDefaultsToSeq
+--- PASS: TestPlanRepo_LegacyEdgeDefaultsToSeq (0.09s)
+=== RUN   TestPlanFindingRepo_RoundTrip
+--- PASS: TestPlanFindingRepo_RoundTrip (0.08s)
+=== RUN   TestPlanFindingRepo_Save_DuplicateID
+--- PASS: TestPlanFindingRepo_Save_DuplicateID (0.10s)
+=== RUN   TestPlanFindingRepo_CountAndListLatest
+--- PASS: TestPlanFindingRepo_CountAndListLatest (0.08s)
+=== RUN   TestPlanFindingRepo_FindByID_NotFound
+--- PASS: TestPlanFindingRepo_FindByID_NotFound (0.13s)
+=== RUN   TestPlanFindingRepo_ListByPlan_OrderAndScope
+--- PASS: TestPlanFindingRepo_ListByPlan_OrderAndScope (0.10s)
+=== RUN   TestPlanFindingRepo_Delete
+--- PASS: TestPlanFindingRepo_Delete (0.09s)
+=== RUN   TestPlanFindingRepo_DeleteByPlan
+--- PASS: TestPlanFindingRepo_DeleteByPlan (0.11s)
+=== RUN   TestPlanRepo_BuiltinRoundTrip
+--- PASS: TestPlanRepo_BuiltinRoundTrip (0.10s)
+=== RUN   TestPlanRepo_RoundTrip
+--- PASS: TestPlanRepo_RoundTrip (0.10s)
+=== RUN   TestPlanRepo_GenerationRoundTripSnapshotAndActivation
+--- PASS: TestPlanRepo_GenerationRoundTripSnapshotAndActivation (0.10s)
+=== RUN   TestPlanRepo_Dependencies_AddListRemove
+--- PASS: TestPlanRepo_Dependencies_AddListRemove (0.12s)
+=== RUN   TestPlanRepo_AddDependency_RejectsCycleAndSelfEdge
+--- PASS: TestPlanRepo_AddDependency_RejectsCycleAndSelfEdge (0.14s)
+=== RUN   TestPlanRepo_DependencyIsolation
+--- PASS: TestPlanRepo_DependencyIsolation (0.18s)
+=== RUN   TestTaskRepo_PlanMembership
+--- PASS: TestTaskRepo_PlanMembership (0.14s)
+=== RUN   TestPlanRepo_DispatchRecords
+--- PASS: TestPlanRepo_DispatchRecords (0.15s)
+=== RUN   TestTaskRepo_ListUnplannedByProject
+--- PASS: TestTaskRepo_ListUnplannedByProject (0.12s)
+=== RUN   TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks
+--- PASS: TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks (0.11s)
+=== RUN   TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount
+--- PASS: TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount (0.21s)
+=== RUN   TestTaskRepo_RecoveryResetCount_RoundTrip
+--- PASS: TestTaskRepo_RecoveryResetCount_RoundTrip (0.19s)
+=== RUN   TestProjectRepo_RoundTrip
+--- PASS: TestProjectRepo_RoundTrip (0.18s)
+=== RUN   TestProjectRepo_ListAll
+--- PASS: TestProjectRepo_ListAll (0.12s)
+=== RUN   TestProjectMemberRepo_RoundTrip
+--- PASS: TestProjectMemberRepo_RoundTrip (0.18s)
+=== RUN   TestIssueRepo_RoundTrip
+--- PASS: TestIssueRepo_RoundTrip (0.11s)
+=== RUN   TestTaskRepo_RoundTripWithAllFields
+--- PASS: TestTaskRepo_RoundTripWithAllFields (0.13s)
+=== RUN   TestTaskRepo_ListByStatuses
+--- PASS: TestTaskRepo_ListByStatuses (0.20s)
+=== RUN   TestTaskSubscriberRepo
+--- PASS: TestTaskSubscriberRepo (0.15s)
+=== RUN   TestIssueSubscriberRepo
+--- PASS: TestIssueSubscriberRepo (0.11s)
+=== RUN   TestCodeRepoRefRepo
+--- PASS: TestCodeRepoRefRepo (0.11s)
+=== RUN   TestTaskRepo_CountByStatus
+--- PASS: TestTaskRepo_CountByStatus (0.12s)
+=== RUN   TestTaskRepo_ListRunningUnblockedByAssignee
+--- PASS: TestTaskRepo_ListRunningUnblockedByAssignee (0.11s)
+=== RUN   TestTaskRepo_ListRunningUnblockedByAssignee_QueryError
+--- PASS: TestTaskRepo_ListRunningUnblockedByAssignee_QueryError (0.11s)
+=== RUN   TestTaskRepo_CountActiveByAssignee
+--- PASS: TestTaskRepo_CountActiveByAssignee (0.12s)
+=== RUN   TestIssueRepo_FindByStatuses_GlobalNonTerminal
+--- PASS: TestIssueRepo_FindByStatuses_GlobalNonTerminal (0.11s)
+=== RUN   TestStageRepo_RoundTrip
+--- PASS: TestStageRepo_RoundTrip (0.11s)
+=== RUN   TestStageRepo_NotFound
+--- PASS: TestStageRepo_NotFound (0.11s)
+=== RUN   TestTask_StageIDRoundTrip
+--- PASS: TestTask_StageIDRoundTrip (0.11s)
+=== RUN   TestTaskActionLogRepo_AppendListRoundTrip
+--- PASS: TestTaskActionLogRepo_AppendListRoundTrip (0.11s)
+=== RUN   TestTaskActionLogRepo_ListByTaskPage
+--- PASS: TestTaskActionLogRepo_ListByTaskPage (0.11s)
+=== RUN   TestTaskRepo_BlockLeaseRoundTrip
+--- PASS: TestTaskRepo_BlockLeaseRoundTrip (0.12s)
+=== RUN   TestTaskRepo_ListOrgPage_ExcludesArchived
+=== RUN   TestTaskRepo_ListOrgPage_ExcludesArchived/default_hides_archived
+=== RUN   TestTaskRepo_ListOrgPage_ExcludesArchived/status_filter_does_not_re-surface_archived
+=== RUN   TestTaskRepo_ListOrgPage_ExcludesArchived/IncludeArchived_opts_back_in
+--- PASS: TestTaskRepo_ListOrgPage_ExcludesArchived (0.11s)
+    --- PASS: TestTaskRepo_ListOrgPage_ExcludesArchived/default_hides_archived (0.00s)
+    --- PASS: TestTaskRepo_ListOrgPage_ExcludesArchived/status_filter_does_not_re-surface_archived (0.00s)
+    --- PASS: TestTaskRepo_ListOrgPage_ExcludesArchived/IncludeArchived_opts_back_in (0.00s)
+=== RUN   TestTaskRepoDeliveryContractRoundTripAndLegacyDefault
+--- PASS: TestTaskRepoDeliveryContractRoundTripAndLegacyDefault (0.12s)
+=== RUN   TestTaskRepo_DispatchMode_RoundTrip
+--- PASS: TestTaskRepo_DispatchMode_RoundTrip (0.10s)
+=== RUN   TestTaskRepo_DispatchMode_SurvivesUpdate
+--- PASS: TestTaskRepo_DispatchMode_SurvivesUpdate (0.11s)
+=== RUN   TestTaskRepo_DispatchMode_UnknownPersistedValueCoercesToFork
+--- PASS: TestTaskRepo_DispatchMode_UnknownPersistedValueCoercesToFork (0.11s)
+=== RUN   TestTaskRepo_ModelOverride_RoundTrip
+--- PASS: TestTaskRepo_ModelOverride_RoundTrip (0.11s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	11.804s
+=== RUN   TestIdentityRef_ActorKind
+--- PASS: TestIdentityRef_ActorKind (0.00s)
+=== RUN   TestNewConversation_ChannelHappy
+--- PASS: TestNewConversation_ChannelHappy (0.00s)
+=== RUN   TestNewConversation_ChannelRequiresName
+--- PASS: TestNewConversation_ChannelRequiresName (0.00s)
+=== RUN   TestNewConversation_DMNameOptional
+--- PASS: TestNewConversation_DMNameOptional (0.00s)
+=== RUN   TestNewConversation_RejectsBadID
+--- PASS: TestNewConversation_RejectsBadID (0.00s)
+=== RUN   TestNewConversation_RejectsBadKind
+--- PASS: TestNewConversation_RejectsBadKind (0.00s)
+=== RUN   TestNewConversation_RejectsBadCreatedBy
+--- PASS: TestNewConversation_RejectsBadCreatedBy (0.00s)
+=== RUN   TestNewConversation_RejectsZeroOpenedAt
+--- PASS: TestNewConversation_RejectsZeroOpenedAt (0.00s)
+=== RUN   TestConversation_Close_Happy
+--- PASS: TestConversation_Close_Happy (0.00s)
+=== RUN   TestConversation_Close_RequiresReasonMessage
+--- PASS: TestConversation_Close_RequiresReasonMessage (0.00s)
+=== RUN   TestConversation_Archive_Happy
+--- PASS: TestConversation_Archive_Happy (0.00s)
+=== RUN   TestConversation_Archive_RejectsBadActor
+--- PASS: TestConversation_Archive_RejectsBadActor (0.00s)
+=== RUN   TestConversation_Close_FromArchivedRejected
+--- PASS: TestConversation_Close_FromArchivedRejected (0.00s)
+=== RUN   TestConversation_Participants_RoundTrip
+--- PASS: TestConversation_Participants_RoundTrip (0.00s)
+=== RUN   TestMarshalParticipantsJSON_RoundTrip
+--- PASS: TestMarshalParticipantsJSON_RoundTrip (0.00s)
+=== RUN   TestMarshalParticipantsJSON_Empty
+--- PASS: TestMarshalParticipantsJSON_Empty (0.00s)
+=== RUN   TestUnmarshalParticipantsJSON_Empty
+--- PASS: TestUnmarshalParticipantsJSON_Empty (0.00s)
+=== RUN   TestUnmarshalParticipantsJSON_Bad
+--- PASS: TestUnmarshalParticipantsJSON_Bad (0.00s)
+=== RUN   TestRehydrate_RejectsInvalidStatus
+--- PASS: TestRehydrate_RejectsInvalidStatus (0.00s)
+=== RUN   TestRehydrate_RejectsZeroVersion
+--- PASS: TestRehydrate_RejectsZeroVersion (0.00s)
+=== RUN   TestRehydrate_RejectsInvalidKind
+--- PASS: TestRehydrate_RejectsInvalidKind (0.00s)
+=== RUN   TestKindEnumValid
+--- PASS: TestKindEnumValid (0.00s)
+=== RUN   TestKindDirectOpenAllowed
+--- PASS: TestKindDirectOpenAllowed (0.00s)
+=== RUN   TestStatusBehaviour
+--- PASS: TestStatusBehaviour (0.00s)
+=== RUN   TestDMKey_OrderIndependentAndStable
+--- PASS: TestDMKey_OrderIndependentAndStable (0.00s)
+=== RUN   TestDMKey_IgnoresLeftParticipants
+--- PASS: TestDMKey_IgnoresLeftParticipants (0.00s)
+=== RUN   TestDMKey_EmptyWhenNoActive
+--- PASS: TestDMKey_EmptyWhenNoActive (0.00s)
+=== RUN   TestDMKey_SingleParticipant
+--- PASS: TestDMKey_SingleParticipant (0.00s)
+=== RUN   TestConversationGetters_AllFields
+--- PASS: TestConversationGetters_AllFields (0.00s)
+=== RUN   TestConversationGetters_OptionalNilSafe
+--- PASS: TestConversationGetters_OptionalNilSafe (0.00s)
+=== RUN   TestMessageGetters_AllFields
+--- PASS: TestMessageGetters_AllFields (0.00s)
+=== RUN   TestIDStringers
+--- PASS: TestIDStringers (0.00s)
+=== RUN   TestMarshalParticipants_ErrorPath_NotExercisableInGo
+--- PASS: TestMarshalParticipants_ErrorPath_NotExercisableInGo (0.00s)
+=== RUN   TestCopyTimePtr_Nil
+--- PASS: TestCopyTimePtr_Nil (0.00s)
+=== RUN   TestNewMessage_Happy
+--- PASS: TestNewMessage_Happy (0.00s)
+=== RUN   TestNewMessage_BadSender
+--- PASS: TestNewMessage_BadSender (0.00s)
+=== RUN   TestNewMessage_BadKind
+--- PASS: TestNewMessage_BadKind (0.00s)
+=== RUN   TestNewMessage_BadDirection
+--- PASS: TestNewMessage_BadDirection (0.00s)
+=== RUN   TestNewMessage_MissingIDs
+--- PASS: TestNewMessage_MissingIDs (0.00s)
+=== RUN   TestNewMessage_ZeroPostedAt
+--- PASS: TestNewMessage_ZeroPostedAt (0.00s)
+=== RUN   TestRehydrateMessage_Happy
+--- PASS: TestRehydrateMessage_Happy (0.00s)
+=== RUN   TestRehydrateMessage_BadKind
+--- PASS: TestRehydrateMessage_BadKind (0.00s)
+=== RUN   TestRehydrateMessage_BadDirection
+--- PASS: TestRehydrateMessage_BadDirection (0.00s)
+=== RUN   TestIdentityRefValidate
+--- PASS: TestIdentityRefValidate (0.00s)
+=== RUN   TestMessageContentKindEnum
+--- PASS: TestMessageContentKindEnum (0.00s)
+=== RUN   TestMessageDirectionEnum
+--- PASS: TestMessageDirectionEnum (0.00s)
+=== RUN   TestParticipantElement_IsActive
+--- PASS: TestParticipantElement_IsActive (0.00s)
+=== RUN   TestNewMessage_RootMessage_ThreadDefaults
+--- PASS: TestNewMessage_RootMessage_ThreadDefaults (0.00s)
+=== RUN   TestNewMessage_ThreadReply_Happy
+--- PASS: TestNewMessage_ThreadReply_Happy (0.00s)
+=== RUN   TestNewMessage_ThreadReply_DepthViolation
+--- PASS: TestNewMessage_ThreadReply_DepthViolation (0.00s)
+=== RUN   TestNewMessage_ThreadReply_RootWithoutParent
+--- PASS: TestNewMessage_ThreadReply_RootWithoutParent (0.00s)
+=== RUN   TestNewMessage_ThreadReply_SelfReply
+--- PASS: TestNewMessage_ThreadReply_SelfReply (0.00s)
+=== RUN   TestResolveReplyPlacement_RootTarget
+--- PASS: TestResolveReplyPlacement_RootTarget (0.00s)
+=== RUN   TestResolveReplyPlacement_ReplyTarget_RedirectsToRoot
+--- PASS: TestResolveReplyPlacement_ReplyTarget_RedirectsToRoot (0.00s)
+=== RUN   TestNewMessage_Quote_Happy
+--- PASS: TestNewMessage_Quote_Happy (0.00s)
+=== RUN   TestNewMessage_Quote_Self
+--- PASS: TestNewMessage_Quote_Self (0.00s)
+=== RUN   TestNewMessage_Quote_WithThreadReply
+--- PASS: TestNewMessage_Quote_WithThreadReply (0.00s)
+=== RUN   TestRehydrateMessage_Quote
+--- PASS: TestRehydrateMessage_Quote (0.00s)
+=== RUN   TestResolveOwnerContext_AnchoredOwners
+--- PASS: TestResolveOwnerContext_AnchoredOwners (0.00s)
+=== RUN   TestResolveOwnerContext_ChannelNotAnchored
+--- PASS: TestResolveOwnerContext_ChannelNotAnchored (0.00s)
+=== RUN   TestResolveOwnerContext_EmptyAndUnknown
+--- PASS: TestResolveOwnerContext_EmptyAndUnknown (0.00s)
+=== RUN   TestOwnerContext_AllWellFormedSchemesRegistered
+--- PASS: TestOwnerContext_AllWellFormedSchemesRegistered (0.00s)
+=== RUN   TestOwnerContext_RegistryEntriesAreWellFormed
+--- PASS: TestOwnerContext_RegistryEntriesAreWellFormed (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/conversation	5.803s
+=== RUN   TestConfigFromMap_EmptyUsesDefaults
+--- PASS: TestConfigFromMap_EmptyUsesDefaults (0.00s)
+=== RUN   TestConfigFromMap_ParsesOverrides
+--- PASS: TestConfigFromMap_ParsesOverrides (0.00s)
+=== RUN   TestConfigFromMap_MalformedOrNonPositiveFallsBack
+=== RUN   TestConfigFromMap_MalformedOrNonPositiveFallsBack/unparseable
+=== RUN   TestConfigFromMap_MalformedOrNonPositiveFallsBack/zero
+=== RUN   TestConfigFromMap_MalformedOrNonPositiveFallsBack/negative
+=== RUN   TestConfigFromMap_MalformedOrNonPositiveFallsBack/blank
+--- PASS: TestConfigFromMap_MalformedOrNonPositiveFallsBack (0.00s)
+    --- PASS: TestConfigFromMap_MalformedOrNonPositiveFallsBack/unparseable (0.00s)
+    --- PASS: TestConfigFromMap_MalformedOrNonPositiveFallsBack/zero (0.00s)
+    --- PASS: TestConfigFromMap_MalformedOrNonPositiveFallsBack/negative (0.00s)
+    --- PASS: TestConfigFromMap_MalformedOrNonPositiveFallsBack/blank (0.00s)
+=== RUN   TestConfig_RoundTripMapConfig
+--- PASS: TestConfig_RoundTripMapConfig (0.00s)
+=== RUN   TestConfig_Validate
+--- PASS: TestConfig_Validate (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/conversation/replyguard	4.342s
+=== RUN   TestAgentInbox_SurfacesAttachments_T74
+--- PASS: TestAgentInbox_SurfacesAttachments_T74 (0.08s)
+=== RUN   TestAgentInbox_SurfacesQuotedMessageID
+--- PASS: TestAgentInbox_SurfacesQuotedMessageID (0.07s)
+=== RUN   TestAgentInbox_ActorKind_I7D2
+--- PASS: TestAgentInbox_ActorKind_I7D2 (0.08s)
+=== RUN   TestAgentInbox_ListUnreadForIdentity
+--- PASS: TestAgentInbox_ListUnreadForIdentity (0.10s)
+=== RUN   TestCarryOver_Materialise_Happy
+--- PASS: TestCarryOver_Materialise_Happy (0.08s)
+=== RUN   TestCarryOver_FindByChildConv
+--- PASS: TestCarryOver_FindByChildConv (0.09s)
+=== RUN   TestCarryOver_FindBySourceMsg
+--- PASS: TestCarryOver_FindBySourceMsg (0.08s)
+=== RUN   TestCarryOver_EmptyMessages
+--- PASS: TestCarryOver_EmptyMessages (0.08s)
+=== RUN   TestCarryOver_MessageInWrongConv
+--- PASS: TestCarryOver_MessageInWrongConv (0.09s)
+=== RUN   TestCarryOver_ChildConvNotFound
+--- PASS: TestCarryOver_ChildConvNotFound (0.08s)
+=== RUN   TestCarryOver_SourceConvNotFound
+--- PASS: TestCarryOver_SourceConvNotFound (0.08s)
+=== RUN   TestCarryOver_DuplicateRef
+--- PASS: TestCarryOver_DuplicateRef (0.09s)
+=== RUN   TestCarryOver_MissingArgs
+--- PASS: TestCarryOver_MissingArgs (0.09s)
+=== RUN   TestNewCarryOverService_NilClock
+--- PASS: TestNewCarryOverService_NilClock (0.09s)
+=== RUN   TestReferenceRepo_DeleteByChildConvID
+--- PASS: TestReferenceRepo_DeleteByChildConvID (0.09s)
+=== RUN   TestReferenceRepo_SaveEmpty
+--- PASS: TestReferenceRepo_SaveEmpty (0.11s)
+=== RUN   TestReferenceRepo_SaveNilInBatch
+--- PASS: TestReferenceRepo_SaveNilInBatch (0.09s)
+=== RUN   TestCreateChannel_Happy
+--- PASS: TestCreateChannel_Happy (0.09s)
+=== RUN   TestCreateChannel_CreatorBecomesOwnerParticipant
+--- PASS: TestCreateChannel_CreatorBecomesOwnerParticipant (0.10s)
+=== RUN   TestCreateChannel_NameRequired
+--- PASS: TestCreateChannel_NameRequired (0.10s)
+=== RUN   TestCreateChannel_NameUnique
+--- PASS: TestCreateChannel_NameUnique (0.10s)
+=== RUN   TestCreateChannel_NameUniquePerOrg
+--- PASS: TestCreateChannel_NameUniquePerOrg (0.11s)
+=== RUN   TestCreateChannel_SeedsMemberParticipants
+--- PASS: TestCreateChannel_SeedsMemberParticipants (0.09s)
+=== RUN   TestCreateChannel_RejectsInvalidMember
+--- PASS: TestCreateChannel_RejectsInvalidMember (0.11s)
+=== RUN   TestCreateChannel_BadActor
+--- PASS: TestCreateChannel_BadActor (0.11s)
+=== RUN   TestCreateChannel_BadCreatedBy
+--- PASS: TestCreateChannel_BadCreatedBy (0.10s)
+=== RUN   TestArchiveChannel_Happy
+--- PASS: TestArchiveChannel_Happy (0.09s)
+=== RUN   TestArchiveChannel_NotFound
+--- PASS: TestArchiveChannel_NotFound (0.12s)
+=== RUN   TestArchiveChannel_TwiceIsError
+--- PASS: TestArchiveChannel_TwiceIsError (0.11s)
+=== RUN   TestArchiveChannel_BadActor
+--- PASS: TestArchiveChannel_BadActor (0.08s)
+=== RUN   TestArchiveChannel_BadArchivedBy
+--- PASS: TestArchiveChannel_BadArchivedBy (0.12s)
+=== RUN   TestArchiveChannel_NameRequired
+--- PASS: TestArchiveChannel_NameRequired (0.11s)
+=== RUN   TestArchiveChannel_WrongKind
+--- PASS: TestArchiveChannel_WrongKind (0.13s)
+=== RUN   TestNewChannelManagementService_NilClock
+--- PASS: TestNewChannelManagementService_NilClock (0.22s)
+=== RUN   TestOpenConversation_DMDedup
+--- PASS: TestOpenConversation_DMDedup (0.09s)
+=== RUN   TestMessageWriter_OpenConversation_EmitFailureRollsBack
+--- PASS: TestMessageWriter_OpenConversation_EmitFailureRollsBack (0.08s)
+=== RUN   TestMessageWriter_AddMessage_EmitFailureRollsBack
+    edge_test.go:71: emit failure path already covered indirectly via OpenConversation roll-back
+--- SKIP: TestMessageWriter_AddMessage_EmitFailureRollsBack (0.00s)
+=== RUN   TestMessageWriter_Close_EmitFailure
+--- PASS: TestMessageWriter_Close_EmitFailure (0.13s)
+=== RUN   TestChannelManagement_CreateChannel_EmitFailure
+--- PASS: TestChannelManagement_CreateChannel_EmitFailure (0.12s)
+=== RUN   TestParticipant_Invite_EmitFailure
+--- PASS: TestParticipant_Invite_EmitFailure (0.09s)
+=== RUN   TestCarryOver_Materialise_EmitFailure
+--- PASS: TestCarryOver_Materialise_EmitFailure (0.11s)
+=== RUN   TestAddMessage_EmitFailureRollsBack
+--- PASS: TestAddMessage_EmitFailureRollsBack (0.11s)
+=== RUN   TestArchiveChannel_EmitFailure
+--- PASS: TestArchiveChannel_EmitFailure (0.14s)
+=== RUN   TestNewMessageWriter_NilClock
+--- PASS: TestNewMessageWriter_NilClock (0.18s)
+=== RUN   TestOpenConversation_ChannelNameRequired
+--- PASS: TestOpenConversation_ChannelNameRequired (0.14s)
+=== RUN   TestArchive_VersionConflict
+--- PASS: TestArchive_VersionConflict (0.11s)
+=== RUN   TestClose_NotFound
+--- PASS: TestClose_NotFound (0.11s)
+=== RUN   TestFollow_DefaultTopLevelFollowed
+--- PASS: TestFollow_DefaultTopLevelFollowed (0.11s)
+=== RUN   TestFollow_DefaultThreadNotFollowed
+--- PASS: TestFollow_DefaultThreadNotFollowed (0.11s)
+=== RUN   TestFollow_ExplicitUnfollowThenRefollow
+--- PASS: TestFollow_ExplicitUnfollowThenRefollow (0.12s)
+=== RUN   TestFollow_AutoFollowThread
+--- PASS: TestFollow_AutoFollowThread (0.11s)
+=== RUN   TestFollow_AutoFollowNeverResurrectsUnfollow
+--- PASS: TestFollow_AutoFollowNeverResurrectsUnfollow (0.11s)
+=== RUN   TestFollow_AgentAlwaysFalse_SkipWrite
+--- PASS: TestFollow_AgentAlwaysFalse_SkipWrite (0.11s)
+=== RUN   TestFollow_ResolveFollowedBatch
+--- PASS: TestFollow_ResolveFollowedBatch (0.11s)
+=== RUN   TestFollow_ResolveFollowedBatch_AgentAllFalse
+--- PASS: TestFollow_ResolveFollowedBatch_AgentAllFalse (0.12s)
+=== RUN   TestFollowState_CrossVersionUpgrade_NonEmptyDB
+    follow_state_upgrade_test.go:84: post-upgrade version=132 want 129
+--- FAIL: TestFollowState_CrossVersionUpgrade_NonEmptyDB (0.48s)
+=== RUN   TestUnreadWithMentions_CountsOnlyMentionsInUnreadTail
+--- PASS: TestUnreadWithMentions_CountsOnlyMentionsInUnreadTail (0.11s)
+=== RUN   TestUnreadWithMentions_LeqUnreadInvariant
+--- PASS: TestUnreadWithMentions_LeqUnreadInvariant (0.11s)
+=== RUN   TestUnreadWithMentions_TokenBounded
+--- PASS: TestUnreadWithMentions_TokenBounded (0.11s)
+=== RUN   TestUnreadWithMentions_EmptyDisplayName_ZeroMentions
+--- PASS: TestUnreadWithMentions_EmptyDisplayName_ZeroMentions (0.11s)
+=== RUN   TestUnreadWithMentions_CaseInsensitive
+--- PASS: TestUnreadWithMentions_CaseInsensitive (0.10s)
+=== RUN   TestUnreadWithMentions_InvalidUserID
+--- PASS: TestUnreadWithMentions_InvalidUserID (0.10s)
+=== RUN   TestOpenConversation_DMHappy
+--- PASS: TestOpenConversation_DMHappy (0.11s)
+=== RUN   TestOpenConversation_DM_RequiresTwoParticipants
+--- PASS: TestOpenConversation_DM_RequiresTwoParticipants (0.11s)
+=== RUN   TestOpenConversation_ChannelHappy
+--- PASS: TestOpenConversation_ChannelHappy (0.10s)
+=== RUN   TestOpenConversation_BadKind
+--- PASS: TestOpenConversation_BadKind (0.10s)
+=== RUN   TestOpenConversation_TaskKindRejected
+--- PASS: TestOpenConversation_TaskKindRejected (0.12s)
+=== RUN   TestOpenConversation_BadActor
+--- PASS: TestOpenConversation_BadActor (0.12s)
+=== RUN   TestAddMessage_Happy
+--- PASS: TestAddMessage_Happy (0.11s)
+=== RUN   TestAddMessage_NotFound
+--- PASS: TestAddMessage_NotFound (0.11s)
+=== RUN   TestAddMessage_ToArchived
+--- PASS: TestAddMessage_ToArchived (0.10s)
+=== RUN   TestAddMessage_ToClosed
+--- PASS: TestAddMessage_ToClosed (0.10s)
+=== RUN   TestAddMessage_BadSender
+--- PASS: TestAddMessage_BadSender (0.10s)
+=== RUN   TestClose_Happy
+--- PASS: TestClose_Happy (0.11s)
+=== RUN   TestClose_RequiresReasonMessage
+--- PASS: TestClose_RequiresReasonMessage (0.09s)
+=== RUN   TestClose_VersionConflict
+--- PASS: TestClose_VersionConflict (0.11s)
+=== RUN   TestArchive_BadActor
+--- PASS: TestArchive_BadActor (0.10s)
+=== RUN   TestAddMessage_WithAttachments
+--- PASS: TestAddMessage_WithAttachments (0.10s)
+=== RUN   TestAddMessage_ThreadReply_DerivesRootAndParent
+--- PASS: TestAddMessage_ThreadReply_DerivesRootAndParent (0.09s)
+=== RUN   TestAddMessage_ThreadReply_ToReply_MergesToRoot
+--- PASS: TestAddMessage_ThreadReply_ToReply_MergesToRoot (0.10s)
+=== RUN   TestAddMessage_ThreadReply_ParentNotFound
+--- PASS: TestAddMessage_ThreadReply_ParentNotFound (0.10s)
+=== RUN   TestAddMessage_ThreadReply_ParentInOtherConversation
+--- PASS: TestAddMessage_ThreadReply_ParentInOtherConversation (0.11s)
+=== RUN   TestAddMessage_Quote_Happy
+--- PASS: TestAddMessage_Quote_Happy (0.10s)
+=== RUN   TestAddMessage_Quote_NotFound
+--- PASS: TestAddMessage_Quote_NotFound (0.09s)
+=== RUN   TestAddMessage_Quote_CrossConversation
+--- PASS: TestAddMessage_Quote_CrossConversation (0.09s)
+=== RUN   TestAddMessage_PrimaryReply_TopLevelMayReplyTopLevelOrOpenThread
+--- PASS: TestAddMessage_PrimaryReply_TopLevelMayReplyTopLevelOrOpenThread (0.09s)
+=== RUN   TestAddMessage_PrimaryReplyRejectsOldThreadForNewTopLevelSource
+--- PASS: TestAddMessage_PrimaryReplyRejectsOldThreadForNewTopLevelSource (0.09s)
+=== RUN   TestAddMessage_PrimaryReplyThreadSourceRequiresSameRoot
+--- PASS: TestAddMessage_PrimaryReplyThreadSourceRequiresSameRoot (0.11s)
+=== RUN   TestNewConversationID_PrefixByKind
+--- PASS: TestNewConversationID_PrefixByKind (0.00s)
+=== RUN   TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds
+=== RUN   TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/plan
+=== RUN   TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/issue
+=== RUN   TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/task
+--- PASS: TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds (0.30s)
+    --- PASS: TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/plan (0.10s)
+    --- PASS: TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/issue (0.09s)
+    --- PASS: TestClassGuard_ThreadReplyWake_AcrossOwnerRefKinds/task (0.11s)
+=== RUN   TestAddMessage_TaskConversation_EmitsWakeOutbox
+--- PASS: TestAddMessage_TaskConversation_EmitsWakeOutbox (0.10s)
+=== RUN   TestAddMessage_T103_EmitsAttachmentsInWakeOutbox
+--- PASS: TestAddMessage_T103_EmitsAttachmentsInWakeOutbox (0.09s)
+=== RUN   TestAddMessage_ThreadReply_EmitsWakeOutbox
+--- PASS: TestAddMessage_ThreadReply_EmitsWakeOutbox (0.09s)
+=== RUN   TestAddMessage_ThreadReply_WakePayloadCarriesRoot
+--- PASS: TestAddMessage_ThreadReply_WakePayloadCarriesRoot (0.12s)
+=== RUN   TestAddMessage_IssueConversation_EmitsWakeOutbox
+--- PASS: TestAddMessage_IssueConversation_EmitsWakeOutbox (0.09s)
+=== RUN   TestAddMessage_PlanConversation_EmitsWakeOutbox
+--- PASS: TestAddMessage_PlanConversation_EmitsWakeOutbox (0.09s)
+=== RUN   TestAddMessage_ChannelConversation_NoWakeOutbox
+--- PASS: TestAddMessage_ChannelConversation_NoWakeOutbox (0.10s)
+=== RUN   TestAddMessage_DMConversation_NoWakeOutbox
+--- PASS: TestAddMessage_DMConversation_NoWakeOutbox (0.10s)
+=== RUN   TestAddMessage_DMWithAgent_EmitsWakeOutbox
+--- PASS: TestAddMessage_DMWithAgent_EmitsWakeOutbox (0.10s)
+=== RUN   TestAddMessage_ChannelWithAgent_EmitsWakeOutbox
+--- PASS: TestAddMessage_ChannelWithAgent_EmitsWakeOutbox (0.10s)
+=== RUN   TestAddMessage_MentionRefs_EmitsWakeOutboxWithRefs
+--- PASS: TestAddMessage_MentionRefs_EmitsWakeOutboxWithRefs (0.09s)
+=== RUN   TestAddMessage_NilOutbox_NoEmitNoError
+--- PASS: TestAddMessage_NilOutbox_NoEmitNoError (0.08s)
+=== RUN   TestInvite_Happy
+--- PASS: TestInvite_Happy (0.09s)
+=== RUN   TestInvite_AlreadyActive
+--- PASS: TestInvite_AlreadyActive (0.10s)
+=== RUN   TestInvite_BadRole
+--- PASS: TestInvite_BadRole (0.09s)
+=== RUN   TestInvite_ToArchived
+--- PASS: TestInvite_ToArchived (0.09s)
+=== RUN   TestInvite_BadArgs
+--- PASS: TestInvite_BadArgs (0.11s)
+=== RUN   TestLeave_Happy
+--- PASS: TestLeave_Happy (0.08s)
+=== RUN   TestLeave_NotActive
+--- PASS: TestLeave_NotActive (0.08s)
+=== RUN   TestKick_Happy
+--- PASS: TestKick_Happy (0.08s)
+=== RUN   TestKick_RequiresOwner
+--- PASS: TestKick_RequiresOwner (0.08s)
+=== RUN   TestKick_BadKickedBy
+--- PASS: TestKick_BadKickedBy (0.08s)
+=== RUN   TestLeave_NameRequired
+--- PASS: TestLeave_NameRequired (0.08s)
+=== RUN   TestLeave_BadIdentityID
+--- PASS: TestLeave_BadIdentityID (0.08s)
+=== RUN   TestLeave_BadActor
+--- PASS: TestLeave_BadActor (0.09s)
+=== RUN   TestNewParticipantManagementService_NilClock
+--- PASS: TestNewParticipantManagementService_NilClock (0.08s)
+=== RUN   TestValidRole
+--- PASS: TestValidRole (0.00s)
+=== RUN   TestOrDefault
+--- PASS: TestOrDefault (0.00s)
+=== RUN   TestMarkSeen_FirstTime_Inserts
+--- PASS: TestMarkSeen_FirstTime_Inserts (0.09s)
+=== RUN   TestMarkSeen_Forward_Bumps
+--- PASS: TestMarkSeen_Forward_Bumps (0.08s)
+=== RUN   TestMarkSeen_Backward_NoOp
+--- PASS: TestMarkSeen_Backward_NoOp (0.08s)
+=== RUN   TestMarkSeen_SameMessage_NoOp
+--- PASS: TestMarkSeen_SameMessage_NoOp (0.08s)
+=== RUN   TestMarkSeen_MessageInWrongConv
+--- PASS: TestMarkSeen_MessageInWrongConv (0.08s)
+=== RUN   TestMarkSeen_MessageNotFound
+--- PASS: TestMarkSeen_MessageNotFound (0.08s)
+=== RUN   TestMarkSeen_InvalidActor
+--- PASS: TestMarkSeen_InvalidActor (0.08s)
+=== RUN   TestMarkSeen_InvalidUserID
+--- PASS: TestMarkSeen_InvalidUserID (0.08s)
+=== RUN   TestMarkSeen_MissingMessageID
+--- PASS: TestMarkSeen_MissingMessageID (0.08s)
+=== RUN   TestMarkSeen_MissingConvID
+--- PASS: TestMarkSeen_MissingConvID (0.08s)
+=== RUN   TestUnread_NoRow_AllUnread
+--- PASS: TestUnread_NoRow_AllUnread (0.09s)
+=== RUN   TestUnread_WithRow_PartialUnread
+--- PASS: TestUnread_WithRow_PartialUnread (0.08s)
+=== RUN   TestUnread_AllRead
+--- PASS: TestUnread_AllRead (0.08s)
+=== RUN   TestUnread_Cap_999_Plus
+--- PASS: TestUnread_Cap_999_Plus (0.10s)
+=== RUN   TestUnread_InvalidUserID
+--- PASS: TestUnread_InvalidUserID (0.08s)
+=== RUN   TestNewReadStateService_NilClockDefaults
+--- PASS: TestNewReadStateService_NilClockDefaults (0.00s)
+=== RUN   TestMarkSeen_RepoFindErrorPropagates
+--- PASS: TestMarkSeen_RepoFindErrorPropagates (0.08s)
+=== RUN   TestMarkSeen_RepoUpsertErrorPropagates
+--- PASS: TestMarkSeen_RepoUpsertErrorPropagates (0.10s)
+=== RUN   TestUnread_RepoFindErrorPropagates
+--- PASS: TestUnread_RepoFindErrorPropagates (0.08s)
+=== RUN   TestMarkSeen_EmitsConvReadStateChangedEvent
+--- PASS: TestMarkSeen_EmitsConvReadStateChangedEvent (0.09s)
+=== RUN   TestMarkSeen_EmitsTrigger
+=== RUN   TestMarkSeen_EmitsTrigger/agent_tool
+=== RUN   TestMarkSeen_EmitsTrigger/delivery
+=== RUN   TestMarkSeen_EmitsTrigger/empty_defaults_human
+--- PASS: TestMarkSeen_EmitsTrigger (0.25s)
+    --- PASS: TestMarkSeen_EmitsTrigger/agent_tool (0.08s)
+    --- PASS: TestMarkSeen_EmitsTrigger/delivery (0.08s)
+    --- PASS: TestMarkSeen_EmitsTrigger/empty_defaults_human (0.08s)
+=== RUN   TestNudge_Human_ProducesNudge
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=1
+--- PASS: TestNudge_Human_ProducesNudge (0.08s)
+=== RUN   TestNudge_BoundedByMaxNudges
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=1
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=2
+2026/08/18 04:03:22 INFO conversation.directed_reply.missed agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudges=2
+--- PASS: TestNudge_BoundedByMaxNudges (0.09s)
+=== RUN   TestNudge_Cooldown
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=1
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=2
+--- PASS: TestNudge_Cooldown (0.08s)
+=== RUN   TestNudge_AgentAuthored_GuardAllows_Nudges
+2026/08/18 04:03:22 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=ch-1 trigger_message_id=ch-1-m1 actor_kind=agent nudge_count=1
+--- PASS: TestNudge_AgentAuthored_GuardAllows_Nudges (0.08s)
+=== RUN   TestNudge_AgentAuthored_GuardDenies_Suppressed
+2026/08/18 04:03:22 INFO conversation.directed_reply.suppressed agent=bot-1 from=bot-2 gate=depth conversation_id=ch-1 reason="depth limit reached"
+--- PASS: TestNudge_AgentAuthored_GuardDenies_Suppressed (0.08s)
+=== RUN   TestNudge_NilGuard_AgentSuppressed_HumanStillNudges
+2026/08/18 04:03:23 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=ch-1 trigger_message_id=ch-1-m2 actor_kind=human nudge_count=1
+--- PASS: TestNudge_NilGuard_AgentSuppressed_HumanStillNudges (0.08s)
+=== RUN   TestNudge_NilCfgFn_AndMemberRef
+2026/08/18 04:03:23 INFO conversation.directed_reply.nudged agent=bot-1 conversation_id=dm-1 trigger_message_id=dm-1-m1 actor_kind=human nudge_count=1
+--- PASS: TestNudge_NilCfgFn_AndMemberRef (0.08s)
+=== RUN   TestNudge_DischargedAfterReply
+--- PASS: TestNudge_DischargedAfterReply (0.08s)
+=== RUN   TestObl_HumanDM_MarkSeenNoReply_IsOutstanding
+--- PASS: TestObl_HumanDM_MarkSeenNoReply_IsOutstanding (0.08s)
+=== RUN   TestObl_RepliedAfter_Discharged
+--- PASS: TestObl_RepliedAfter_Discharged (0.08s)
+=== RUN   TestObl_SameConversationSideNotification_DoesNotDischarge
+--- PASS: TestObl_SameConversationSideNotification_DoesNotDischarge (0.09s)
+=== RUN   TestObl_AgentAuthoredMention_IsOutstanding_TaggedAgent
+--- PASS: TestObl_AgentAuthoredMention_IsOutstanding_TaggedAgent (0.08s)
+=== RUN   TestObl_SystemAuthored_NoObligation
+--- PASS: TestObl_SystemAuthored_NoObligation (0.08s)
+=== RUN   TestObl_Channel_NonMention_NoObligation
+--- PASS: TestObl_Channel_NonMention_NoObligation (0.08s)
+=== RUN   TestObl_TTLExpired_NoObligation
+--- PASS: TestObl_TTLExpired_NoObligation (0.08s)
+=== RUN   TestObl_PerceivedGrace
+--- PASS: TestObl_PerceivedGrace (0.08s)
+=== RUN   TestObl_CrossDestinationReply_DoesNotDischarge
+--- PASS: TestObl_CrossDestinationReply_DoesNotDischarge (0.08s)
+=== RUN   TestObl_LatestUndischarged
+--- PASS: TestObl_LatestUndischarged (0.08s)
+=== RUN   TestObl_BoundedByMaxObligations
+--- PASS: TestObl_BoundedByMaxObligations (0.09s)
+=== RUN   TestObl_InputValidation
+--- PASS: TestObl_InputValidation (0.08s)
+=== RUN   TestObl_NonParticipantAndCrossOrg_Excluded
+--- PASS: TestObl_NonParticipantAndCrossOrg_Excluded (0.07s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation/service	20.830s
+=== RUN   TestConversationRepo_SaveAndFindByID
+--- PASS: TestConversationRepo_SaveAndFindByID (0.07s)
+=== RUN   TestConversationRepo_FindByName
+--- PASS: TestConversationRepo_FindByName (0.07s)
+=== RUN   TestConversationRepo_FindByName_NotFound
+--- PASS: TestConversationRepo_FindByName_NotFound (0.06s)
+=== RUN   TestConversationRepo_FindByID_NotFound
+--- PASS: TestConversationRepo_FindByID_NotFound (0.06s)
+=== RUN   TestConversationRepo_Save_DuplicateID
+--- PASS: TestConversationRepo_Save_DuplicateID (0.07s)
+=== RUN   TestConversationRepo_Save_DuplicateChannelName
+--- PASS: TestConversationRepo_Save_DuplicateChannelName (0.07s)
+=== RUN   TestConversationRepo_UpdateStatus_ActiveToClosed
+--- PASS: TestConversationRepo_UpdateStatus_ActiveToClosed (0.06s)
+=== RUN   TestConversationRepo_UpdateStatus_VersionConflict
+--- PASS: TestConversationRepo_UpdateStatus_VersionConflict (0.06s)
+=== RUN   TestConversationRepo_UpdateStatus_NotFound
+--- PASS: TestConversationRepo_UpdateStatus_NotFound (0.06s)
+=== RUN   TestConversationRepo_UpdateArchive_Happy
+--- PASS: TestConversationRepo_UpdateArchive_Happy (0.07s)
+=== RUN   TestConversationRepo_UpdateArchive_Conflict
+--- PASS: TestConversationRepo_UpdateArchive_Conflict (0.07s)
+=== RUN   TestConversationRepo_UpdateArchive_NotFound
+--- PASS: TestConversationRepo_UpdateArchive_NotFound (0.07s)
+=== RUN   TestConversationRepo_UpdateParticipants
+--- PASS: TestConversationRepo_UpdateParticipants (0.07s)
+=== RUN   TestConversationRepo_UpdateParticipants_Conflict
+--- PASS: TestConversationRepo_UpdateParticipants_Conflict (0.07s)
+=== RUN   TestConversationRepo_FindByParent
+--- PASS: TestConversationRepo_FindByParent (0.08s)
+=== RUN   TestConversationRepo_Find_KindAndStatus
+--- PASS: TestConversationRepo_Find_KindAndStatus (0.08s)
+=== RUN   TestConversationRepo_Find_ByOwnerRef_OrgScoped
+--- PASS: TestConversationRepo_Find_ByOwnerRef_OrgScoped (0.08s)
+=== RUN   TestConversationRepo_Save_ExecError
+--- PASS: TestConversationRepo_Save_ExecError (0.08s)
+=== RUN   TestConversationRepo_FindByParent_QueryError
+--- PASS: TestConversationRepo_FindByParent_QueryError (0.08s)
+=== RUN   TestConversationRepo_UpdateStatus_NonConflictError
+--- PASS: TestConversationRepo_UpdateStatus_NonConflictError (0.09s)
+=== RUN   TestConversationRepo_UpdateArchive_NonConflictError
+--- PASS: TestConversationRepo_UpdateArchive_NonConflictError (0.08s)
+=== RUN   TestConversationRepo_UpdateParticipants_NonConflictError
+--- PASS: TestConversationRepo_UpdateParticipants_NonConflictError (0.09s)
+=== RUN   TestScanConversation_BadCreatedAt
+--- PASS: TestScanConversation_BadCreatedAt (0.08s)
+=== RUN   TestScanConversation_BadUpdatedAt
+--- PASS: TestScanConversation_BadUpdatedAt (0.09s)
+=== RUN   TestScanConversation_BadClosedAt
+--- PASS: TestScanConversation_BadClosedAt (0.09s)
+=== RUN   TestScanConversation_BadParticipantsJSON
+--- PASS: TestScanConversation_BadParticipantsJSON (0.08s)
+=== RUN   TestMessageRepo_FindByConversationID_Since
+--- PASS: TestMessageRepo_FindByConversationID_Since (0.08s)
+=== RUN   TestMessageRepo_FindByConversationID_Limit
+--- PASS: TestMessageRepo_FindByConversationID_Limit (0.08s)
+=== RUN   TestMessageRepo_QueryError
+--- PASS: TestMessageRepo_QueryError (0.09s)
+=== RUN   TestMessageRepo_FindRecent_DefaultsToZero
+--- PASS: TestMessageRepo_FindRecent_DefaultsToZero (0.09s)
+=== RUN   TestScanMessage_BadCreatedAt
+--- PASS: TestScanMessage_BadCreatedAt (0.10s)
+=== RUN   TestReferenceRepo_FindBySource_QueryError
+--- PASS: TestReferenceRepo_FindBySource_QueryError (0.11s)
+=== RUN   TestReferenceRepo_FindByChild_QueryError
+--- PASS: TestReferenceRepo_FindByChild_QueryError (0.14s)
+=== RUN   TestScanRefs_BadCreatedAt
+--- PASS: TestScanRefs_BadCreatedAt (0.09s)
+=== RUN   TestReferenceRepo_Save_ExecError
+--- PASS: TestReferenceRepo_Save_ExecError (0.11s)
+=== RUN   TestCasConflict_QueryError
+--- PASS: TestCasConflict_QueryError (0.10s)
+=== RUN   TestNullHelpers
+--- PASS: TestNullHelpers (0.00s)
+=== RUN   TestParseNullTime
+--- PASS: TestParseNullTime (0.00s)
+=== RUN   TestConversationRepo_SaveNil
+--- PASS: TestConversationRepo_SaveNil (0.10s)
+=== RUN   TestConversationRepo_Find_StatusFilter
+--- PASS: TestConversationRepo_Find_StatusFilter (0.10s)
+=== RUN   TestConversationRepo_Find_Cursor
+--- PASS: TestConversationRepo_Find_Cursor (0.11s)
+=== RUN   TestConversationRepo_UpdateStatus_InvalidStatus
+--- PASS: TestConversationRepo_UpdateStatus_InvalidStatus (0.11s)
+=== RUN   TestScanConversation_BadTime
+--- PASS: TestScanConversation_BadTime (0.11s)
+=== RUN   TestFollowStateRepo_UpsertInsertThenUpdate
+--- PASS: TestFollowStateRepo_UpsertInsertThenUpdate (0.14s)
+=== RUN   TestFollowStateRepo_UpsertVersionConflict
+--- PASS: TestFollowStateRepo_UpsertVersionConflict (0.10s)
+=== RUN   TestFollowStateRepo_UpsertConcurrentInsertConflict
+--- PASS: TestFollowStateRepo_UpsertConcurrentInsertConflict (0.12s)
+=== RUN   TestFollowStateRepo_FindByUserAndConv_Absent
+--- PASS: TestFollowStateRepo_FindByUserAndConv_Absent (0.14s)
+=== RUN   TestFollowStateRepo_InsertIfAbsent
+--- PASS: TestFollowStateRepo_InsertIfAbsent (0.12s)
+=== RUN   TestFollowStateRepo_InsertIfAbsent_NeverOverridesUnfollow
+--- PASS: TestFollowStateRepo_InsertIfAbsent_NeverOverridesUnfollow (0.11s)
+=== RUN   TestFollowStateRepo_FindByUserBatch
+--- PASS: TestFollowStateRepo_FindByUserBatch (0.09s)
+=== RUN   TestFollowStateRepo_DeleteByConversationID
+--- PASS: TestFollowStateRepo_DeleteByConversationID (0.21s)
+=== RUN   TestFollowStateRepo_UpsertNilStateRejected
+--- PASS: TestFollowStateRepo_UpsertNilStateRejected (0.17s)
+=== RUN   TestMessageRepo_RecentByConversations_Batch
+--- PASS: TestMessageRepo_RecentByConversations_Batch (0.08s)
+=== RUN   TestMessageRepo_RecentByConversations_EdgeCases
+--- PASS: TestMessageRepo_RecentByConversations_EdgeCases (0.11s)
+=== RUN   TestMessageRepo_AppendAndFind
+--- PASS: TestMessageRepo_AppendAndFind (0.16s)
+=== RUN   TestMessageRepo_QuotedMessageID_RoundTrip
+--- PASS: TestMessageRepo_QuotedMessageID_RoundTrip (0.12s)
+=== RUN   TestMessageRepo_FindByIDs_Batch
+--- PASS: TestMessageRepo_FindByIDs_Batch (0.20s)
+=== RUN   TestMessageRepo_FindByIDs_Empty
+--- PASS: TestMessageRepo_FindByIDs_Empty (0.20s)
+=== RUN   TestMessageRepo_FindByID_NotFound
+--- PASS: TestMessageRepo_FindByID_NotFound (0.15s)
+=== RUN   TestMessageRepo_FindByConversationID_Order
+--- PASS: TestMessageRepo_FindByConversationID_Order (0.10s)
+=== RUN   TestMessageRepo_FindByConversationID_Tail
+--- PASS: TestMessageRepo_FindByConversationID_Tail (0.11s)
+=== RUN   TestMessageRepo_Tail_BeyondLimit_IncludesLatest
+--- PASS: TestMessageRepo_Tail_BeyondLimit_IncludesLatest (0.12s)
+=== RUN   TestMessageRepo_Tail_BeforeCursor
+--- PASS: TestMessageRepo_Tail_BeforeCursor (0.12s)
+=== RUN   TestMessageRepo_FindRecent
+--- PASS: TestMessageRepo_FindRecent (0.12s)
+=== RUN   TestMessageRepo_AppendNil
+--- PASS: TestMessageRepo_AppendNil (0.12s)
+=== RUN   TestMessageRepo_ThreadRefs_RoundTrip
+--- PASS: TestMessageRepo_ThreadRefs_RoundTrip (0.10s)
+=== RUN   TestMessageRepo_FindThreadReplies_OrderedChildrenOnly
+--- PASS: TestMessageRepo_FindThreadReplies_OrderedChildrenOnly (0.11s)
+=== RUN   TestMessageRepo_FindThreadReplies_None
+--- PASS: TestMessageRepo_FindThreadReplies_None (0.11s)
+=== RUN   TestMessageRepo_ThreadReplyDigests
+--- PASS: TestMessageRepo_ThreadReplyDigests (0.11s)
+=== RUN   TestMessageRepo_FindByConversationID_TopLevelOnly
+--- PASS: TestMessageRepo_FindByConversationID_TopLevelOnly (0.11s)
+=== RUN   TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots
+    message_thread_upgrade_acc_test.go:60: post-upgrade version = 132 want 129
+--- FAIL: TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots (0.45s)
+=== RUN   TestReadStateRepo_UpsertInsertThenUpdate
+--- PASS: TestReadStateRepo_UpsertInsertThenUpdate (0.11s)
+=== RUN   TestReadStateRepo_UpsertVersionConflict
+--- PASS: TestReadStateRepo_UpsertVersionConflict (0.11s)
+=== RUN   TestReadStateRepo_UpsertConcurrentInsertConflict
+--- PASS: TestReadStateRepo_UpsertConcurrentInsertConflict (0.11s)
+=== RUN   TestReadStateRepo_FindByUserAndConv_Absent
+--- PASS: TestReadStateRepo_FindByUserAndConv_Absent (0.12s)
+=== RUN   TestReadStateRepo_FindByUserBatch
+--- PASS: TestReadStateRepo_FindByUserBatch (0.11s)
+=== RUN   TestReadStateRepo_FindByUserBatch_Empty
+--- PASS: TestReadStateRepo_FindByUserBatch_Empty (0.10s)
+=== RUN   TestReadStateRepo_UpsertNilStateRejected
+--- PASS: TestReadStateRepo_UpsertNilStateRejected (0.10s)
+=== RUN   TestReferenceRepo_SaveAndFindByChild
+--- PASS: TestReferenceRepo_SaveAndFindByChild (0.10s)
+=== RUN   TestReferenceRepo_FindByChild_CapsAtDefaultLimit
+--- PASS: TestReferenceRepo_FindByChild_CapsAtDefaultLimit (0.12s)
+=== RUN   TestReferenceRepo_FindBySource
+--- PASS: TestReferenceRepo_FindBySource (0.10s)
+=== RUN   TestReferenceRepo_Save_Duplicate
+--- PASS: TestReferenceRepo_Save_Duplicate (0.11s)
+=== RUN   TestReferenceRepo_Save_Empty
+--- PASS: TestReferenceRepo_Save_Empty (0.11s)
+=== RUN   TestReferenceRepo_Save_NilInBatch
+--- PASS: TestReferenceRepo_Save_NilInBatch (0.11s)
+=== RUN   TestReferenceRepo_DeleteByChild
+--- PASS: TestReferenceRepo_DeleteByChild (0.10s)
+=== RUN   TestReferenceRepo_FindByChild_Empty
+--- PASS: TestReferenceRepo_FindByChild_Empty (0.10s)
+=== RUN   TestV27A0_OwnerRefRoundTrip
+--- PASS: TestV27A0_OwnerRefRoundTrip (0.11s)
+=== RUN   TestV27A0_ChannelOwnerRefAndProjectRef
+--- PASS: TestV27A0_ChannelOwnerRefAndProjectRef (0.11s)
+=== RUN   TestV27A0_MessageContextRefsAndAttachments
+--- PASS: TestV27A0_MessageContextRefsAndAttachments (0.13s)
+=== RUN   TestV27A0_EmptyContextRefsAndAttachmentsDefault
+--- PASS: TestV27A0_EmptyContextRefsAndAttachmentsDefault (0.11s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation/sqlite	13.399s
+=== RUN   TestControlLog_AppendCommand_PublishesWithOffset
+--- PASS: TestControlLog_AppendCommand_PublishesWithOffset (0.00s)
+=== RUN   TestControlLog_AppendCommand_NilPublisher_NoOp
+--- PASS: TestControlLog_AppendCommand_NilPublisher_NoOp (0.00s)
+=== RUN   TestControlLog_AppendCommand_IdempotentReissue_NoSecondPublish
+--- PASS: TestControlLog_AppendCommand_IdempotentReissue_NoSecondPublish (0.00s)
+=== RUN   TestControlLog_AppendCommand_PublishFailureDoesNotFailAppend
+--- PASS: TestControlLog_AppendCommand_PublishFailureDoesNotFailAppend (0.00s)
+=== RUN   TestControlLog_AssignsMonotonicOffsets
+--- PASS: TestControlLog_AssignsMonotonicOffsets (0.00s)
+=== RUN   TestControlLog_IdempotentAppend_NoDuplicateDestructive
+--- PASS: TestControlLog_IdempotentAppend_NoDuplicateDestructive (0.00s)
+=== RUN   TestControlLog_ReplayFromAckCursor_NoReDeliverProcessed
+--- PASS: TestControlLog_ReplayFromAckCursor_NoReDeliverProcessed (0.00s)
+=== RUN   TestControlLog_ValidatesInput
+--- PASS: TestControlLog_ValidatesInput (0.00s)
+=== RUN   TestControlLog_PerWorkerOffsets
+--- PASS: TestControlLog_PerWorkerOffsets (0.00s)
+=== RUN   TestNewWorker_Validation
+--- PASS: TestNewWorker_Validation (0.00s)
+=== RUN   TestRehydrateWorker_RoundTripAndGuards
+--- PASS: TestRehydrateWorker_RoundTripAndGuards (0.00s)
+=== RUN   TestNewWorkerControlEvent_Validation
+--- PASS: TestNewWorkerControlEvent_Validation (0.00s)
+=== RUN   TestNewControlLog_DefaultsClock
+--- PASS: TestNewControlLog_DefaultsClock (0.00s)
+=== RUN   TestWorker_ConnectDisconnectHeartbeat
+--- PASS: TestWorker_ConnectDisconnectHeartbeat (0.00s)
+=== RUN   TestWorker_AckOffsetMonotonic
+--- PASS: TestWorker_AckOffsetMonotonic (0.00s)
+=== RUN   TestWorker_StatusFeedsAvailability
+--- PASS: TestWorker_StatusFeedsAvailability (0.00s)
+=== RUN   TestControlLog_AppendCommand_RaceOverSqlite
+--- PASS: TestControlLog_AppendCommand_RaceOverSqlite (0.10s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/environment	5.560s
+=== RUN   TestBus_SubscribePublishDeliversToWorker
+--- PASS: TestBus_SubscribePublishDeliversToWorker (0.00s)
+=== RUN   TestBus_RoutesByWorkerID
+--- PASS: TestBus_RoutesByWorkerID (0.05s)
+=== RUN   TestBus_OneSubscriberPerWorker_NewReplacesOld
+--- PASS: TestBus_OneSubscriberPerWorker_NewReplacesOld (0.00s)
+=== RUN   TestBus_RingbufferReplayAndEvict
+--- PASS: TestBus_RingbufferReplayAndEvict (0.00s)
+=== RUN   TestBus_RingDedupsDuplicateOffset
+--- PASS: TestBus_RingDedupsDuplicateOffset (0.00s)
+=== RUN   TestBus_PublishWithNoSubscriberDoesNotBlock_RingStillRecords
+--- PASS: TestBus_PublishWithNoSubscriberDoesNotBlock_RingStillRecords (0.00s)
+=== RUN   TestBus_PublishFullChannelDropsNotBlocks
+--- PASS: TestBus_PublishFullChannelDropsNotBlocks (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/environment/controlstream	5.318s
+=== RUN   TestAgentControlProjector_EnqueuesReconcile
+--- PASS: TestAgentControlProjector_EnqueuesReconcile (0.10s)
+=== RUN   TestAgentControlProjector_PassesModel
+--- PASS: TestAgentControlProjector_PassesModel (0.18s)
+=== RUN   TestAgentControlProjector_PassesJudgeEnabled
+--- PASS: TestAgentControlProjector_PassesJudgeEnabled (0.27s)
+=== RUN   TestAgentControlProjector_PassesPromptDescription
+--- PASS: TestAgentControlProjector_PassesPromptDescription (0.24s)
+=== RUN   TestAgentControlProjector_PassesDisplayName
+--- PASS: TestAgentControlProjector_PassesDisplayName (0.27s)
+=== RUN   TestAgentControlProjector_PassesEnvVars
+--- PASS: TestAgentControlProjector_PassesEnvVars (0.28s)
+=== RUN   TestAgentControlProjector_ResetScope
+--- PASS: TestAgentControlProjector_ResetScope (0.10s)
+=== RUN   TestAgentControlProjector_RestartBumpsVersion
+--- PASS: TestAgentControlProjector_RestartBumpsVersion (0.12s)
+=== RUN   TestAgentControlProjector_IdempotentRedelivery
+--- PASS: TestAgentControlProjector_IdempotentRedelivery (0.13s)
+=== RUN   TestAgentControlProjector_AgentCreatedSkipped
+--- PASS: TestAgentControlProjector_AgentCreatedSkipped (0.15s)
+=== RUN   TestAgentControlProjector_UnknownEventSkipped
+--- PASS: TestAgentControlProjector_UnknownEventSkipped (0.09s)
+=== RUN   TestAgentControlProjector_MalformedPayload
+--- PASS: TestAgentControlProjector_MalformedPayload (0.14s)
+=== RUN   TestAgentControlProjector_Name
+--- PASS: TestAgentControlProjector_Name (0.16s)
+=== RUN   TestControlEventGC_Tick_CutoffIsNowMinusRetention
+--- PASS: TestControlEventGC_Tick_CutoffIsNowMinusRetention (0.00s)
+=== RUN   TestControlEventGC_Tick_ConfigurableRetention
+--- PASS: TestControlEventGC_Tick_ConfigurableRetention (0.00s)
+=== RUN   TestControlEventGC_Tick_DrainsInBatches
+--- PASS: TestControlEventGC_Tick_DrainsInBatches (0.00s)
+=== RUN   TestControlEventGC_Defaults
+--- PASS: TestControlEventGC_Defaults (0.00s)
+=== RUN   TestControlEventGC_Tick_StopsWhenEmpty
+--- PASS: TestControlEventGC_Tick_StopsWhenEmpty (0.00s)
+=== RUN   TestDispatchWake_Assign_EmitsWorkAvailable
+--- PASS: TestDispatchWake_Assign_EmitsWorkAvailable (0.11s)
+=== RUN   TestDispatchWake_Reassign_WakesEventAssigneeOnly
+--- PASS: TestDispatchWake_Reassign_WakesEventAssigneeOnly (0.11s)
+=== RUN   TestDispatchWake_StateChanged_RepushesNext
+--- PASS: TestDispatchWake_StateChanged_RepushesNext (0.11s)
+=== RUN   TestDispatchWake_StateChanged_NoNext_NoWake
+--- PASS: TestDispatchWake_StateChanged_NoNext_NoWake (0.11s)
+=== RUN   TestDispatchWake_NonAgentAssignee_Skipped
+--- PASS: TestDispatchWake_NonAgentAssignee_Skipped (0.10s)
+=== RUN   TestDispatchWake_Assign_Idempotent_OnReplay
+--- PASS: TestDispatchWake_Assign_Idempotent_OnReplay (0.12s)
+=== RUN   TestDispatchWake_Repush_FoldsConcurrentDoneEvents
+--- PASS: TestDispatchWake_Repush_FoldsConcurrentDoneEvents (0.11s)
+=== RUN   TestDispatchWake_Issue_d118b5dc_AssignAndRepush_FoldsToOne
+--- PASS: TestDispatchWake_Issue_d118b5dc_AssignAndRepush_FoldsToOne (0.11s)
+=== RUN   TestDispatchWake_Issue_d118b5dc_DifferentNextTask_NotFolded
+--- PASS: TestDispatchWake_Issue_d118b5dc_DifferentNextTask_NotFolded (0.12s)
+=== RUN   TestDispatchWake_NilResolvers_NoOp
+--- PASS: TestDispatchWake_NilResolvers_NoOp (0.00s)
+=== RUN   TestEnvControl_ConnectWorker_CreateThenConnect
+--- PASS: TestEnvControl_ConnectWorker_CreateThenConnect (0.11s)
+=== RUN   TestEnvControl_AckWorker_Monotonic
+--- PASS: TestEnvControl_AckWorker_Monotonic (0.11s)
+=== RUN   TestEnvControl_CommandsAfter
+--- PASS: TestEnvControl_CommandsAfter (0.11s)
+=== RUN   TestEnvControl_New_DefaultsClock
+--- PASS: TestEnvControl_New_DefaultsClock (0.00s)
+=== RUN   TestEnvControl_AckWorker_UnknownWorker
+--- PASS: TestEnvControl_AckWorker_UnknownWorker (0.12s)
+=== RUN   TestEnvControl_EnqueueCommand_Idempotent
+--- PASS: TestEnvControl_EnqueueCommand_Idempotent (0.12s)
+=== RUN   TestEnvControl_Heartbeat
+--- PASS: TestEnvControl_Heartbeat (0.12s)
+=== RUN   TestMessageAckProjector
+=== RUN   TestMessageAckProjector/agent_tool_agent_user
+=== RUN   TestMessageAckProjector/delivery_skipped
+=== RUN   TestMessageAckProjector/human_skipped
+=== RUN   TestMessageAckProjector/agent_tool_but_human_user
+--- PASS: TestMessageAckProjector (0.43s)
+    --- PASS: TestMessageAckProjector/agent_tool_agent_user (0.11s)
+    --- PASS: TestMessageAckProjector/delivery_skipped (0.11s)
+    --- PASS: TestMessageAckProjector/human_skipped (0.11s)
+    --- PASS: TestMessageAckProjector/agent_tool_but_human_user (0.10s)
+=== RUN   TestMessageAckProjector_Idempotent
+--- PASS: TestMessageAckProjector_Idempotent (0.11s)
+=== RUN   TestMessageAckProjector_IgnoresUnrelatedEvent
+--- PASS: TestMessageAckProjector_IgnoresUnrelatedEvent (0.10s)
+=== RUN   TestWakeProjector_Issue_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_Issue_Mention_EnqueuesConverse (0.10s)
+=== RUN   TestWakeProjector_Issue_NoMention_NoWake
+--- PASS: TestWakeProjector_Issue_NoMention_NoWake (0.10s)
+=== RUN   TestWakeProjector_Task_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_Task_Mention_EnqueuesConverse (0.11s)
+=== RUN   TestWakeProjector_Task_NoMention_NoConverse
+--- PASS: TestWakeProjector_Task_NoMention_NoConverse (0.10s)
+=== RUN   TestWakeProjector_IssueProjectMember_NonParticipant_Mention_Wakes
+--- PASS: TestWakeProjector_IssueProjectMember_NonParticipant_Mention_Wakes (0.10s)
+=== RUN   TestWakeProjector_PlanProjectMember_NonParticipant_Mention_Wakes
+--- PASS: TestWakeProjector_PlanProjectMember_NonParticipant_Mention_Wakes (0.09s)
+=== RUN   TestWakeProjector_IssueNonMember_Mention_NoWake
+--- PASS: TestWakeProjector_IssueNonMember_Mention_NoWake (0.11s)
+=== RUN   TestWakeProjector_TaskProjectMember_NonParticipant_Mention_Wakes
+--- PASS: TestWakeProjector_TaskProjectMember_NonParticipant_Mention_Wakes (0.11s)
+=== RUN   TestWakeProjector_ParticipantAndMember_Mention_WakesOnce
+--- PASS: TestWakeProjector_ParticipantAndMember_Mention_WakesOnce (0.10s)
+=== RUN   TestWakeProjector_227_AutoJoinProjectMember_Idempotent
+--- PASS: TestWakeProjector_227_AutoJoinProjectMember_Idempotent (0.10s)
+=== RUN   TestWakeProjector_227_NonMember_NoAutoJoin
+--- PASS: TestWakeProjector_227_NonMember_NoAutoJoin (0.10s)
+=== RUN   TestWakeProjector_227_ExistingParticipant_NoDoubleJoin
+--- PASS: TestWakeProjector_227_ExistingParticipant_NoDoubleJoin (0.11s)
+=== RUN   TestWakeProjector_DM_WithAttachments_InlinesFileURI_T103
+--- PASS: TestWakeProjector_DM_WithAttachments_InlinesFileURI_T103 (0.10s)
+=== RUN   TestRenderInboundAttachments_T103
+--- PASS: TestRenderInboundAttachments_T103 (0.00s)
+=== RUN   TestMentionTokenPresent
+--- PASS: TestMentionTokenPresent (0.00s)
+=== RUN   TestWakeProjector_DM_FromHuman_EnqueuesConverse
+--- PASS: TestWakeProjector_DM_FromHuman_EnqueuesConverse (0.10s)
+=== RUN   TestWakeProjector_DM_FromAgent_NoWake_LoopBreak
+--- PASS: TestWakeProjector_DM_FromAgent_NoWake_LoopBreak (0.11s)
+=== RUN   TestWakeProjector_Channel_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_Channel_Mention_EnqueuesConverse (0.10s)
+=== RUN   TestWakeProjector_Channel_NoMention_NoWake
+--- PASS: TestWakeProjector_Channel_NoMention_NoWake (0.09s)
+=== RUN   TestWakeProjector_Plan_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_Plan_Mention_EnqueuesConverse (0.09s)
+=== RUN   TestWakeProjector_Plan_NoMention_NoWake
+--- PASS: TestWakeProjector_Plan_NoMention_NoWake (0.10s)
+=== RUN   TestWakeProjector_Channel_AtAll_FromHuman_WakesAllAgents
+--- PASS: TestWakeProjector_Channel_AtAll_FromHuman_WakesAllAgents (0.09s)
+=== RUN   TestWakeProjector_Channel_AtAll_FromAgent_NoWake
+--- PASS: TestWakeProjector_Channel_AtAll_FromAgent_NoWake (0.11s)
+=== RUN   TestWakeProjector_Channel_Mention_MemberIDRef_EnqueuesConverse
+--- PASS: TestWakeProjector_Channel_Mention_MemberIDRef_EnqueuesConverse (0.10s)
+=== RUN   TestWakeProjector_DM_StoppedAgent_EntityRef_NoticeShowsName
+--- PASS: TestWakeProjector_DM_StoppedAgent_EntityRef_NoticeShowsName (0.10s)
+=== RUN   TestWakeProjector_DM_StoppedAgent_SystemNotice
+--- PASS: TestWakeProjector_DM_StoppedAgent_SystemNotice (0.09s)
+=== RUN   TestMentionWake_ProjectConvKindsWired
+=== RUN   TestMentionWake_ProjectConvKindsWired/issue
+=== RUN   TestMentionWake_ProjectConvKindsWired/plan
+--- PASS: TestMentionWake_ProjectConvKindsWired (0.20s)
+    --- PASS: TestMentionWake_ProjectConvKindsWired/issue (0.11s)
+    --- PASS: TestMentionWake_ProjectConvKindsWired/plan (0.09s)
+=== RUN   TestWakeProjector_IssueDerivedDone_AgentOwner_MessageAndWake
+--- PASS: TestWakeProjector_IssueDerivedDone_AgentOwner_MessageAndWake (0.10s)
+=== RUN   TestWakeProjector_IssueDerivedDone_HumanOwner_MessageOnly
+--- PASS: TestWakeProjector_IssueDerivedDone_HumanOwner_MessageOnly (0.09s)
+=== RUN   TestWakeProjector_IssueDerivedDone_ReplayOnce
+--- PASS: TestWakeProjector_IssueDerivedDone_ReplayOnce (0.09s)
+=== RUN   TestWakeProjector_IssueDerivedDone_NoConversation_NoOp
+2026/08/18 04:03:18 INFO wake projector: issue-derived-done skipped (no bound issue conversation) issue_id=I-missing
+--- PASS: TestWakeProjector_IssueDerivedDone_NoConversation_NoOp (0.10s)
+=== RUN   TestWakeProjector_LeaseNudge_PostsMessageAndWakes
+--- PASS: TestWakeProjector_LeaseNudge_PostsMessageAndWakes (0.10s)
+=== RUN   TestWakeProjector_LeaseNudge_ReplayOnce
+--- PASS: TestWakeProjector_LeaseNudge_ReplayOnce (0.09s)
+=== RUN   TestWakeProjector_LeaseNudge_StoppedAgent_MessageButNoConverse
+2026/08/18 04:03:18 INFO wake projector: lease-nudge wake skipped (assignee not running) agent_id=BOT task_id=T9
+--- PASS: TestWakeProjector_LeaseNudge_StoppedAgent_MessageButNoConverse (0.10s)
+=== RUN   TestWakeProjector_LeaseNudge_NoConversation_NoOp
+2026/08/18 04:03:18 INFO wake projector: lease-nudge skipped (no bound task conversation) task_id=T-missing
+--- PASS: TestWakeProjector_LeaseNudge_NoConversation_NoOp (0.10s)
+=== RUN   TestWakeProjector_LeaseNudge_MalformedPayload_NoOp
+2026/08/18 04:03:18 INFO wake projector: lease-nudge skipped (non-agent assignee or non-task owner_ref) assignee_ref=user:alice owner_ref=pm://tasks/T9 task_id=T9
+--- PASS: TestWakeProjector_LeaseNudge_MalformedPayload_NoOp (0.10s)
+=== RUN   TestWakeProjector_IssueChat_ConvNameIsLiveTitle_T255
+--- PASS: TestWakeProjector_IssueChat_ConvNameIsLiveTitle_T255 (0.10s)
+=== RUN   TestWakeProjector_TaskChat_ConvNameIsLiveTitle_T255
+--- PASS: TestWakeProjector_TaskChat_ConvNameIsLiveTitle_T255 (0.09s)
+=== RUN   TestWakeProjector_IssueChat_TitleMiss_StillWakes_T255
+--- PASS: TestWakeProjector_IssueChat_TitleMiss_StillWakes_T255 (0.10s)
+=== RUN   TestResolveOwnerName_DispatchAndOQ1_T255
+--- PASS: TestResolveOwnerName_DispatchAndOQ1_T255 (0.00s)
+=== RUN   TestResolveOwnerName_NilResolver_NoPanic_T255
+--- PASS: TestResolveOwnerName_NilResolver_NoPanic_T255 (0.00s)
+=== RUN   TestWakeProjector_DM_InlinesQuotedContext
+--- PASS: TestWakeProjector_DM_InlinesQuotedContext (0.10s)
+=== RUN   TestWakeProjector_DM_NoQuote_NoBlock
+--- PASS: TestWakeProjector_DM_NoQuote_NoBlock (0.10s)
+=== RUN   TestWakeProjector_DM_DeletedQuoteTarget_Stub
+--- PASS: TestWakeProjector_DM_DeletedQuoteTarget_Stub (0.10s)
+=== RUN   TestWakeProjector_SystemTextMessage_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_SystemTextMessage_Mention_EnqueuesConverse (0.10s)
+=== RUN   TestWakeProjector_SystemChrome_NoConverse
+--- PASS: TestWakeProjector_SystemChrome_NoConverse (0.10s)
+=== RUN   TestWakeProjector_SystemTextMessage_NoMention_NoWake
+--- PASS: TestWakeProjector_SystemTextMessage_NoMention_NoWake (0.09s)
+=== RUN   TestWakeProjector_SystemTextMessage_StoppedAgent_SilentSkip
+2026/08/18 04:03:19 INFO wake projector: system message target not running — skip (durable message stays for next run) agent_id=AG1 conversation_id=plan-1
+--- PASS: TestWakeProjector_SystemTextMessage_StoppedAgent_SilentSkip (0.10s)
+=== RUN   TestWakeProjector_HumanMessage_StoppedAgent_StillNotifies
+--- PASS: TestWakeProjector_HumanMessage_StoppedAgent_StillNotifies (0.09s)
+=== RUN   TestWakeProjector_DM_AgentToAgent_Guarded_WakesPeer
+--- PASS: TestWakeProjector_DM_AgentToAgent_Guarded_WakesPeer (0.09s)
+=== RUN   TestWakeProjector_DM_AgentToAgent_NoGuard_NoWake
+--- PASS: TestWakeProjector_DM_AgentToAgent_NoGuard_NoWake (0.08s)
+=== RUN   TestWakeProjector_DM_AgentPingPong_CycleBreaks
+2026/08/18 04:03:20 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=AG2 to=AG1 gate=cycle depth=2 reason="round-trip cycle detected for this pair" conversation_id=dm-1 message_id=m3
+--- PASS: TestWakeProjector_DM_AgentPingPong_CycleBreaks (0.08s)
+=== RUN   TestWakeProjector_T333_Task_AgentMention_WakesTarget
+--- PASS: TestWakeProjector_T333_Task_AgentMention_WakesTarget (0.09s)
+=== RUN   TestWakeProjector_T333_Channel_AgentMention_WakesTarget
+--- PASS: TestWakeProjector_T333_Channel_AgentMention_WakesTarget (0.08s)
+=== RUN   TestWakeProjector_T333_Issue_AgentMention_WakesTarget
+--- PASS: TestWakeProjector_T333_Issue_AgentMention_WakesTarget (0.08s)
+=== RUN   TestWakeProjector_T333_Channel_PingPong_CycleBreaks
+2026/08/18 04:03:20 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=A to=B gate=cycle depth=2 reason="round-trip cycle detected for this pair" conversation_id=chan-1 message_id=m3
+--- PASS: TestWakeProjector_T333_Channel_PingPong_CycleBreaks (0.09s)
+=== RUN   TestWakeProjector_T333_Channel_AgentAtAll_WakesNoOne
+--- PASS: TestWakeProjector_T333_Channel_AgentAtAll_WakesNoOne (0.08s)
+=== RUN   TestWakeProjector_T333_Channel_HumanAtAll_WakesEveryone
+--- PASS: TestWakeProjector_T333_Channel_HumanAtAll_WakesEveryone (0.08s)
+=== RUN   TestWakeProjector_T333_Channel_SystemSender_NoWake
+--- PASS: TestWakeProjector_T333_Channel_SystemSender_NoWake (0.09s)
+=== RUN   TestWakeProjector_T333_Channel_AgentMention_NoGuard_NoWake
+--- PASS: TestWakeProjector_T333_Channel_AgentMention_NoGuard_NoWake (0.08s)
+=== RUN   TestWakeProjector_T333_Task_AgentMention_NoGuard_NoWake
+--- PASS: TestWakeProjector_T333_Task_AgentMention_NoGuard_NoWake (0.08s)
+=== RUN   TestWakeProjector_T333_Channel_AgentNoMention_NoWake
+--- PASS: TestWakeProjector_T333_Channel_AgentNoMention_NoWake (0.08s)
+=== RUN   TestWakeProjector_T460_IDFragmentMention_WakesTarget
+--- PASS: TestWakeProjector_T460_IDFragmentMention_WakesTarget (0.08s)
+=== RUN   TestWakeProjector_T460_BareColonRefMention_WakesTarget
+--- PASS: TestWakeProjector_T460_BareColonRefMention_WakesTarget (0.09s)
+=== RUN   TestWakeProjector_T460_MentionRefs_WakesParticipant
+--- PASS: TestWakeProjector_T460_MentionRefs_WakesParticipant (0.08s)
+=== RUN   TestWakeProjector_T460_MentionRefs_OutsideScope_NoWake
+--- PASS: TestWakeProjector_T460_MentionRefs_OutsideScope_NoWake (0.08s)
+=== RUN   TestWakeProjector_T460_DisplayNameMention_StillWakes
+--- PASS: TestWakeProjector_T460_DisplayNameMention_StillWakes (0.08s)
+=== RUN   TestWakeProjector_ThreadReply_CarriesRootIntoConverse
+--- PASS: TestWakeProjector_ThreadReply_CarriesRootIntoConverse (0.08s)
+=== RUN   TestWakeProjector_TaskConv_Mention_EnqueuesConverse
+--- PASS: TestWakeProjector_TaskConv_Mention_EnqueuesConverse (0.08s)
+=== RUN   TestWakeProjector_TaskConv_AgentSender_NoWake
+--- PASS: TestWakeProjector_TaskConv_AgentSender_NoWake (0.09s)
+=== RUN   TestWakeProjector_TaskConv_IdempotentRedelivery
+--- PASS: TestWakeProjector_TaskConv_IdempotentRedelivery (0.08s)
+=== RUN   TestWakeProjector_NonTaskOwner_NoOp
+--- PASS: TestWakeProjector_NonTaskOwner_NoOp (0.08s)
+=== RUN   TestWakeProjector_UnknownEvent_NoOp
+--- PASS: TestWakeProjector_UnknownEvent_NoOp (0.09s)
+=== RUN   TestWakeProjector_PlanCreatorWake_EnqueuesConverse
+--- PASS: TestWakeProjector_PlanCreatorWake_EnqueuesConverse (0.09s)
+=== RUN   TestWakeProjector_PlanCreatorWake_ReplayOnce
+--- PASS: TestWakeProjector_PlanCreatorWake_ReplayOnce (0.08s)
+=== RUN   TestWakeProjector_PlanCreatorWake_StoppedAgent_NoConverse
+2026/08/18 04:03:22 INFO wake projector: plan-creator wake skipped (agent-creator not running) agent_id=BOT conversation_id=plan-conv-1 plan_id=plan-1
+--- PASS: TestWakeProjector_PlanCreatorWake_StoppedAgent_NoConverse (0.09s)
+=== RUN   TestWakeProjector_PlanCreatorWake_UnresolvedAgent_NoError
+2026/08/18 04:03:22 WARN wake projector: plan-creator wake skipped (agent-creator unresolved) raw_id=GHOST conversation_id=plan-conv-1 plan_id=plan-1
+--- PASS: TestWakeProjector_PlanCreatorWake_UnresolvedAgent_NoError (0.10s)
+=== RUN   TestWakeProjector_Name
+--- PASS: TestWakeProjector_Name (0.09s)
+=== RUN   TestWakeProjector_WakeGuard_CycleBreaks_ABA
+2026/08/18 04:03:22 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=A to=B gate=cycle depth=2 reason="round-trip cycle detected for this pair" conversation_id=dm-AB message_id=m3
+--- PASS: TestWakeProjector_WakeGuard_CycleBreaks_ABA (0.09s)
+=== RUN   TestWakeProjector_WakeGuard_HumanBypasses
+--- PASS: TestWakeProjector_WakeGuard_HumanBypasses (0.08s)
+=== RUN   TestWakeProjector_WakeGuard_RateLimitsAgent
+2026/08/18 04:03:22 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=D to=B gate=rate depth=0 reason="target agent wake rate exceeded" conversation_id=dm-DB message_id=m3
+--- PASS: TestWakeProjector_WakeGuard_RateLimitsAgent (0.08s)
+=== RUN   TestWakeProjector_WakeGuard_DepthBreaks_Chain
+2026/08/18 04:03:22 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=D to=E gate=depth depth=3 reason="depth limit reached" conversation_id=dm-DE message_id=m4
+--- PASS: TestWakeProjector_WakeGuard_DepthBreaks_Chain (0.08s)
+=== RUN   TestWakeProjector_WakeGuard_CostBreaks_Chain
+2026/08/18 04:03:22 INFO wake projector: agent→agent DM wake suppressed by wake-chain guard from=C to=D gate=cost depth=2 reason="chain token budget exhausted" conversation_id=dm-CD message_id=m3
+--- PASS: TestWakeProjector_WakeGuard_CostBreaks_Chain (0.08s)
+=== RUN   TestReconcileOnce_NoOp
+--- PASS: TestReconcileOnce_NoOp (0.08s)
+=== RUN   TestReconcileOnce_NilDeps_NoOp
+--- PASS: TestReconcileOnce_NilDeps_NoOp (0.00s)
+=== RUN   TestWakeReconcileLoop_TicksThenStops
+--- PASS: TestWakeReconcileLoop_TicksThenStops (0.21s)
+=== RUN   TestSweep_DownQueued_NudgedAfterGrace
+--- PASS: TestSweep_DownQueued_NudgedAfterGrace (0.08s)
+=== RUN   TestSweep_WithinGrace_NotNudged
+--- PASS: TestSweep_WithinGrace_NotNudged (0.08s)
+=== RUN   TestSweep_Recovery_RestartsGrace
+--- PASS: TestSweep_Recovery_RestartsGrace (0.08s)
+=== RUN   TestSweep_DistinctEpochKeysPerTick
+--- PASS: TestSweep_DistinctEpochKeysPerTick (0.08s)
+=== RUN   TestSweep_GiveUpAfterCap
+--- PASS: TestSweep_GiveUpAfterCap (0.08s)
+=== RUN   TestSweep_CandidateSourceError
+--- PASS: TestSweep_CandidateSourceError (0.09s)
+=== RUN   TestSweep_NilCandidates_Dormant
+--- PASS: TestSweep_NilCandidates_Dormant (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/environment/service	17.699s
+=== RUN   TestControlEventGC_DeleteAckedBefore_AckGate
+--- PASS: TestControlEventGC_DeleteAckedBefore_AckGate (0.10s)
+=== RUN   TestControlEventGC_OfflineWorkerStillReplaysUnacked
+--- PASS: TestControlEventGC_OfflineWorkerStillReplaysUnacked (0.09s)
+=== RUN   TestControlEventGC_OrphanWorkerPrunedByTimeOnly
+--- PASS: TestControlEventGC_OrphanWorkerPrunedByTimeOnly (0.12s)
+=== RUN   TestControlEventGC_DeleteAckedBefore_BatchLimit
+--- PASS: TestControlEventGC_DeleteAckedBefore_BatchLimit (0.13s)
+=== RUN   TestControlEventRepo_AppendAndMaxOffset
+--- PASS: TestControlEventRepo_AppendAndMaxOffset (0.16s)
+=== RUN   TestControlEventRepo_MaxOffsetUsesAckCursorAfterGCFullyPrunesStream
+--- PASS: TestControlEventRepo_MaxOffsetUsesAckCursorAfterGCFullyPrunesStream (0.13s)
+=== RUN   TestControlEventRepo_MaxOffsetUsesLargerRemainingStreamOffset
+--- PASS: TestControlEventRepo_MaxOffsetUsesLargerRemainingStreamOffset (0.09s)
+=== RUN   TestControlEventRepo_FindByIdempotencyKey_Miss
+--- PASS: TestControlEventRepo_FindByIdempotencyKey_Miss (0.08s)
+=== RUN   TestControlEventRepo_ListAfter_Ordering
+--- PASS: TestControlEventRepo_ListAfter_Ordering (0.08s)
+=== RUN   TestControlEventRepo_Append_DuplicateIdempotencyKey
+--- PASS: TestControlEventRepo_Append_DuplicateIdempotencyKey (0.13s)
+=== RUN   TestControlEventRepo_Append_DuplicateOffset
+--- PASS: TestControlEventRepo_Append_DuplicateOffset (0.10s)
+=== RUN   TestControlEventRepo_CommandStatusTracksLegacyForkRows
+--- PASS: TestControlEventRepo_CommandStatusTracksLegacyForkRows (0.11s)
+=== RUN   TestWorkerRepo_RoundTrip
+--- PASS: TestWorkerRepo_RoundTrip (0.11s)
+=== RUN   TestWorkerRepo_FindByID_NotFound
+--- PASS: TestWorkerRepo_FindByID_NotFound (0.13s)
+=== RUN   TestWorkerRepo_Update_NotFound
+--- PASS: TestWorkerRepo_Update_NotFound (0.10s)
+=== RUN   TestWorkerRepo_Save_Duplicate
+--- PASS: TestWorkerRepo_Save_Duplicate (0.14s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/environment/sqlite	6.875s
+FAIL

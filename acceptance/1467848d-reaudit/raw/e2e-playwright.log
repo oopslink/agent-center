@@ -1,0 +1,267 @@
+
+> agent-center-e2e-v2@0.0.0 test /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/tests/e2e/v2
+> playwright test
+
+
+Running 18 tests using 2 workers
+
+(node:36148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36149) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36149) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium-mac] › tests/ai-runtime.spec.ts:36:3 › AI Runtime deployed-binary browser acceptance › owner can edit/import while member is read-only and System nav owns AI Runtime (191ms)
+  ✘   1 [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over (191ms)
+(node:36164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36165) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36165) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages (11ms)
+  ✘   3 [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed (11ms)
+(node:36169) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36168) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36169) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36168) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists (11ms)
+  ✘   5 [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added (11ms)
+(node:36174) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36173) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36174) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36173) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input (11ms)
+  ✘   7 [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile (95ms)
+(node:36177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36177) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required (14ms)
+(node:36183) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36183) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found (12ms)
+(node:36185) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36185) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36187) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36187) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations (12ms)
+  ✘  11 [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible (89ms)
+(node:36195) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36195) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap (11ms)
+  ✘  13 [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit (88ms)
+(node:36200) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36200) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium-mac] › tests/v210-findings-deployed.spec.ts:87:1 › v2.10 findings: record_finding/list_findings served by the real binary over the admin socket (8ms)
+(node:36206) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36206) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium-mac] › tests/v22-deployed-pipeline.spec.ts:188:3 › deployed-binary smoke — control-plane task-dispatch pipeline › server + worker enroll + agent-tools dispatch → claim (open → running) (6ms)
+(node:36208) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36208) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch (8ms)
+(node:36210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` (11ms)
+
+
+  1) [chromium-mac] › tests/ai-runtime.spec.ts:36:3 › AI Runtime deployed-binary browser acceptance › owner can edit/import while member is read-only and System nav owns AI Runtime 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/ai-runtime-AI-Runtime-depl-c04e1--System-nav-owns-AI-Runtime-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/ai-runtime-AI-Runtime-depl-c04e1--System-nav-owns-AI-Runtime-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/ai-runtime-AI-Runtime-depl-c04e1--System-nav-owns-AI-Runtime-chromium-mac/error-context.md
+
+  2) [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/error-context.md
+
+  3) [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-d0cd4-d-trip-—-value-never-echoed-chromium-mac/error-context.md
+
+  4) [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-c3a48-→-refs-link-source-messages-chromium-mac/error-context.md
+
+  5) [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-cd8b7-l-name-→-409-already-exists-chromium-mac/error-context.md
+
+  6) [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/dm-flow-DM-flow-happy-path-4ff2d--conversation-message-added-chromium-mac/error-context.md
+
+  7) [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/dm-flow-DM-flow-error-path-45c6f-members-→-400-invalid-input-chromium-mac/error-context.md
+
+  8) [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/error-context.md
+
+  9) [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/respond-input-request-inpu-445a3--exec-leaves-input-required-chromium-mac/error-context.md
+
+  10) [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/respond-input-request-inpu-29f71-existent-IR-→-404-not-found-chromium-mac/error-context.md
+
+  11) [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/error-context.md
+
+  12) [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/smoke-smoke-API-mux-DB-respond-to-api-conversations-chromium-mac/error-context.md
+
+  13) [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/sse-recovery-SSE-Last-Even-9c76d--events-sent-during-the-gap-chromium-mac/error-context.md
+
+  14) [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/error-context.md
+
+  15) [chromium-mac] › tests/v210-findings-deployed.spec.ts:87:1 › v2.10 findings: record_finding/list_findings served by the real binary over the admin socket 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/v210-findings-deployed-v2--6f924-inary-over-the-admin-socket-chromium-mac/error-context.md
+
+  16) [chromium-mac] › tests/v22-deployed-pipeline.spec.ts:188:3 › deployed-binary smoke — control-plane task-dispatch pipeline › server + worker enroll + agent-tools dispatch → claim (open → running) 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/v22-deployed-pipeline-depl-d8ff2-tch-→-claim-open-→-running--chromium-mac/error-context.md
+
+  17) [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/v23-real-agent-pipeline-v2-e496d-t-resolve-blob-put-dispatch-chromium-mac/error-context.md
+
+  18) [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` 
+
+    Error: spawn /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/bin/agent-center ENOENT
+
+    Error Context: artifacts/test-results/web-cli-bidi-Web↔CLI-share-ef46b-t-center-conversation-tail--chromium-mac/error-context.md
+
+  18 failed
+    [chromium-mac] › tests/ai-runtime.spec.ts:36:3 › AI Runtime deployed-binary browser acceptance › owner can edit/import while member is read-only and System nav owns AI Runtime 
+    [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over 
+    [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed 
+    [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages 
+    [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists 
+    [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added 
+    [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input 
+    [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile 
+    [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required 
+    [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found 
+    [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible ─
+    [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations ─
+    [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap 
+    [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit 
+    [chromium-mac] › tests/v210-findings-deployed.spec.ts:87:1 › v2.10 findings: record_finding/list_findings served by the real binary over the admin socket 
+    [chromium-mac] › tests/v22-deployed-pipeline.spec.ts:188:3 › deployed-binary smoke — control-plane task-dispatch pipeline › server + worker enroll + agent-tools dispatch → claim (open → running) 
+    [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch 
+    [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` 
+ ELIFECYCLE  Test failed. See above for more details.

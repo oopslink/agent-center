@@ -1,0 +1,7 @@
+
+> agent-center-web@0.1.0 test /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87f08613/web
+> vitest run -- --run
+
+sh: vitest: command not found
+ ELIFECYCLE  Test failed. See above for more details.
+ WARN   Local package.json exists, but node_modules missing, did you mean to install?

@@ -1,0 +1,53 @@
+{
+  "reviewed_sha": "1467848d08a43395b2740d921836727d989aafff",
+  "evidence_commit_sha": null,
+  "verdict": "REJECT",
+  "blocking": true,
+  "reason": "Migration acceptance, product build, and real Web E2E failed for the reviewed SHA. Missing/passing binary provenance cannot be claimed because make build failed.",
+  "failures": [
+    {
+      "criterion": "old_entry_migration_and_rollback",
+      "classification": "migration_failure",
+      "evidence": [
+        "raw/go-focused-projection-graph-preview.log",
+        "raw/go-migration-fail-rerun-pipefail.log",
+        "raw/go-migration-fail-rerun-pipefail.exit"
+      ],
+      "summary": "Cross-version migration tests expect schema version 129 but the candidate migrates to 132."
+    },
+    {
+      "criterion": "product_build",
+      "classification": "real_product_failure",
+      "evidence": [
+        "raw/make-build-pipefail.log",
+        "raw/make-build-pipefail.exit"
+      ],
+      "summary": "make build fails during web TypeScript compile."
+    },
+    {
+      "criterion": "real_web_e2e",
+      "classification": "real_e2e_failure",
+      "evidence": [
+        "raw/e2e-playwright.log",
+        "raw/e2e-smoke-pipefail.log",
+        "raw/e2e-smoke-pipefail.exit",
+        "screenshots/",
+        "error-context/"
+      ],
+      "summary": "Playwright cannot spawn bin/agent-center because no binary was produced after build failure."
+    }
+  ],
+  "passes": [
+    "cross_org_404_and_explain_non_leakage",
+    "preview_replay_expiry_cas_idempotency_concurrency",
+    "delegation_least_privilege_high_risk_confirmation",
+    "graph_pagination_not_full",
+    "projection_authorization_shadow_parity",
+    "team_templates_no_privilege_escalation",
+    "web_vitest_after_dependency_install"
+  ],
+  "environment_notes": [
+    "The initial web Vitest command failed because node_modules was absent; dependencies were installed with pnpm and the suite passed on rerun.",
+    "The E2E failure is not treated as a harness-only pass/fail ambiguity because the required product build failed first and no bin/agent-center existed."
+  ]
+}
