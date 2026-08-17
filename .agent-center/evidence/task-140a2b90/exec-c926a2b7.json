@@ -1,0 +1,161 @@
+{
+  "task_id": "task-140a2b90",
+  "execution_id": "exec-c926a2b7",
+  "reviewed_sha": "997470a51878726145796c39973028ea6813788d",
+  "base_sha": "997470a51878726145796c39973028ea6813788d",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g '\"'!*node_modules*'\"' -g '\"'!*.png'\"' -g '\"'!*.jpg'\"' -g '\"'!*.jpeg'\"' -g '\"'!*.gif'\"' -g '\"'!*.svg'\"' | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"rg -n \\\"reviewed SHA|candidate|integration|provenance|authorization|preview|delegation|projection|shadow parity|Team template|template|migration|rollback|Graph|pagination|E2E|playwright|explain\\\" -S . -g '\"'!*node_modules*'\"' -g '\"'!*.lock'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git log --oneline -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 2 -type f -name 'Makefile' -o -name 'package.json' -o -name 'go.mod' -o -name 'pnpm-lock.yaml' -o -name 'playwright.config.*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name '*accept*' -o -name '*e2e*' -o -name '*auth*' -o -name '*access*' -o -name '*preview*' -o -name '*migration*' \\\\) | sort | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"140a2b90|t140|T140|access|authorization\\\\.Service|shadow|unexplained|preview replay|idempotency|CAS|high-risk|high risk|delegation|least privilege|pagination|full|rollback|legacy entry|provenance\\\" docs internal cmd web tests -S -g '\"'!*node_modules*'\"' -g '\"'!*.lock'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find internal -maxdepth 4 -type f | rg '(auth|access|permission|preview|template|migration|graph|delegat|provenance|webconsole)' | sort | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"rg -n \\\"contract-to-production|evidence-before|origin-main|required|verify-world|authorization\\\\.Service|unified authorization|access|permission|shadow parity|Graph pagination|preview\\\" docs internal tests web -S -g '\"'!*node_modules*'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t1343-permission-management-parity.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/authorization/service_behavior_test.go \u0026\u0026 sed -n '1,220p' internal/authorization/supervisor_cross_org_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/authorization/t1343_permission_parity_test.go \u0026\u0026 sed -n '1,260p' internal/webconsole/api/t1343_access_consistency_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"find tests/e2e/v2 -maxdepth 3 -type f | sort | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'mkdir -p evidence/acceptance-140a2b90 \u0026\u0026 {\n  echo \"cwd=$(pwd)\";\n  echo \"head=$(git rev-parse HEAD)\";\n  echo \"short=$(git rev-parse --short HEAD)\";\n  echo \"branch=$(git branch --show-current)\";\n  echo \"status_start\";\n  git status --short;\n  echo \"log_start\";\n  git log --oneline -5;\n} | tee evidence/acceptance-140a2b90/00-provenance.txt\nmake build 2\u003e\u00261 | tee evidence/acceptance-140a2b90/01-make-build.txt\n./bin/agent-center version 2\u003e\u00261 | tee evidence/acceptance-140a2b90/02-binary-version.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"set -o pipefail\n{\n  echo '## targeted authorization/api/admin/mcphost';\n  go test ./internal/authorization ./internal/webconsole/api ./internal/admin/api ./internal/mcphost -count=1 -v;\n  echo '## migrations';\n  go test ./internal/persistence -run 'Test.*(Migration|migration|Unified|Round|0129|0113|0124|Template)' -count=1 -v;\n  echo '## team/template/memory policy';\n  go test ./internal/team/... ./internal/cognition/memory/teammemory ./internal/cognition/memory/centergit -count=1 -v;\n  echo '## graph/projectmanager';\n  go test ./internal/projectmanager/... -run 'Test.*(Graph|Pagination|Preview|Template|Generation|CAS|Concurrent|Idempot|Migration|Authorization|Permission|Stage|Plan)' -count=1 -v;\n} 2\u003e\u00261 | tee evidence/acceptance-140a2b90/03-targeted-go-tests.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"rg -n \\\"shadow|mismatch|unexplained|parity|authorization\\\\.Service|projection\\\" internal web tests -S -g '\"'!*node_modules*'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'cd tests/e2e/v2 \u0026\u0026 pnpm install --frozen-lockfile \u0026\u0026 pnpm exec playwright install chromium 2\u003e\u00261 | tee ../../../evidence/acceptance-140a2b90/05-e2e-install.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm exec vitest run src/pages/Access.test.tsx src/components/AccessPermissionsPanel.test.tsx src/pages/AgentDetail.test.tsx src/pages/UserDetail.test.tsx src/pages/TeamDetail.test.tsx 2\u003e\u00261 | tee ../evidence/acceptance-140a2b90/04-web-vitest-access.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'set -o pipefail\ncd tests/e2e/v2\npnpm test 2\u003e\u00261 | tee ../../../evidence/acceptance-140a2b90/06-playwright-e2e.txt'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' tests/e2e/v2/fixtures/agent-center.ts \u0026\u0026 sed -n '1,90p' tests/e2e/v2/tests/smoke.spec.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"find tests/e2e/v2/artifacts/test-results -maxdepth 3 -type f \\\\( -name '*.png' -o -name 'server-stdout.log' -o -name 'error-context.md' \\\\) | sort | tail -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'set -o pipefail\ncd tests/e2e/v2\npnpm exec playwright test tests/smoke.spec.ts --workers=1 2\u003e\u00261 | tee ../../../evidence/acceptance-140a2b90/07-playwright-smoke-min-repro.txt'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'find evidence/acceptance-140a2b90 -maxdepth 1 -type f -print | sort \u0026\u0026 wc -l evidence/acceptance-140a2b90/*.txt evidence/acceptance-140a2b90/*.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-c926a2b7/command_events.jsonl",
+  "command_event_digest": "sha256:94f540e1954f1841afd3089605d99ef2daaa405b85553347d45f468143eb778b",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT，阻断集成。",
+  "artifact_digest": "sha256:fa1c5360413461fcb3a20368dbdbbee306ad311b08f9678cfd0bfbff2bd113d1",
+  "path": ".agent-center/evidence/task-140a2b90/exec-c926a2b7.json",
+  "branch": "ac-exec/task-140a2b90/exec-c926a2b7"
+}
