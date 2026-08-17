@@ -43,6 +43,13 @@ interface DragState {
   startY: number;
 }
 
+// Mermaid keeps parser/configuration state at module scope. Calling initialize
+// and render concurrently from several code fences can make one render disturb
+// another (including leaving the caller's promise unsettled). Keep the complete
+// initialize + render transaction serial while still allowing every component
+// to independently publish its success/error state.
+let mermaidRenderQueue: Promise<void> = Promise.resolve();
+
 type ValidationResult =
   | { ok: true; edgeCount: number; lineCount: number }
   | { ok: false; reason: string; edgeCount: number; lineCount: number };
@@ -333,18 +340,29 @@ async function renderMermaidDiagram(
   id: string,
   themeMode: ThemeMode,
 ): Promise<RenderedDiagram> {
-  const mermaidModule = await import('mermaid');
-  const mermaid = mermaidModule.default;
-  mermaid.initialize(buildMermaidConfig(themeMode));
-  const rendered = await withTimeout<RenderResult>(
-    mermaid.render(id, code),
-    MERMAID_RENDER_LIMITS.renderTimeoutMs,
-    'Mermaid render timed out.',
+  return enqueueMermaidRender(async () => {
+    const mermaidModule = await import('mermaid');
+    const mermaid = mermaidModule.default;
+    mermaid.initialize(buildMermaidConfig(themeMode));
+    const rendered = await withTimeout<RenderResult>(
+      mermaid.render(id, code),
+      MERMAID_RENDER_LIMITS.renderTimeoutMs,
+      'Mermaid render timed out.',
+    );
+    const svg = rendered.svg;
+    const unsafeReason = validateMermaidSvg(svg);
+    if (unsafeReason) throw new Error(unsafeReason);
+    return { svg };
+  });
+}
+
+function enqueueMermaidRender<T>(render: () => Promise<T>): Promise<T> {
+  const result = mermaidRenderQueue.then(render, render);
+  mermaidRenderQueue = result.then(
+    () => undefined,
+    () => undefined,
   );
-  const svg = rendered.svg;
-  const unsafeReason = validateMermaidSvg(svg);
-  if (unsafeReason) throw new Error(unsafeReason);
-  return { svg };
+  return result;
 }
 
 function MermaidFallback({ code, error }: { code: string; error: string }): React.ReactElement {

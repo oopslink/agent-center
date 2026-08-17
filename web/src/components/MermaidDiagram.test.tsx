@@ -19,7 +19,7 @@ vi.mock('mermaid', () => ({ default: mermaidMock }));
 const simpleCode = 'graph TD\n  A --> B';
 const safeSvg = '<svg viewBox="0 0 200 100"><g><text>A to B</text></g></svg>';
 
-let intersectionCallback: IntersectionObserverCallback | null = null;
+let intersectionCallbacks: IntersectionObserverCallback[] = [];
 
 class TestIntersectionObserver implements IntersectionObserver {
   readonly root = null;
@@ -31,19 +31,21 @@ class TestIntersectionObserver implements IntersectionObserver {
   unobserve = vi.fn();
 
   constructor(callback: IntersectionObserverCallback) {
-    intersectionCallback = callback;
+    intersectionCallbacks.push(callback);
   }
 }
 
 function revealDiagram(): void {
   act(() => {
-    intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    for (const callback of intersectionCallbacks) {
+      callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    }
   });
 }
 
 describe('MermaidDiagram', () => {
   beforeEach(() => {
-    intersectionCallback = null;
+    intersectionCallbacks = [];
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
     Object.assign(navigator, {
       clipboard: {
@@ -134,6 +136,71 @@ describe('MermaidDiagram', () => {
 
     await waitFor(() => expect(screen.getByTestId('mermaid-error')).toHaveTextContent('bad syntax'));
     expect(screen.getByTestId('collapsible-code-block')).toBeInTheDocument();
+  });
+
+  it('serializes multiple Mermaid blocks and settles every preview independently', async () => {
+    let activeRenders = 0;
+    let maxActiveRenders = 0;
+    mermaidMock.render.mockImplementation(async (_id: string, code: string) => {
+      activeRenders += 1;
+      maxActiveRenders = Math.max(maxActiveRenders, activeRenders);
+      await Promise.resolve();
+      activeRenders -= 1;
+      return { svg: safeSvg.replace('A to B', code.split('\n')[1] ?? code) };
+    });
+
+    render(
+      <>
+        <MermaidDiagram code={'graph TD\nA --> B'} />
+        <MermaidDiagram code={'sequenceDiagram\nA->>B: hello'} />
+        <MermaidDiagram code={'stateDiagram-v2\n[*] --> Ready'} />
+      </>,
+    );
+    revealDiagram();
+
+    await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+    expect(maxActiveRenders).toBe(1);
+    expect(screen.getAllByTestId('mermaid-open-viewer')).toHaveLength(3);
+    expect(screen.queryAllByText('Rendering diagram...')).toHaveLength(0);
+  });
+
+  it('publishes an async invalid-diagram error and continues queued renders', async () => {
+    mermaidMock.render
+      .mockRejectedValueOnce(new Error('Parse error on line 2'))
+      .mockResolvedValueOnce({ svg: safeSvg });
+
+    render(
+      <>
+        <MermaidDiagram code={'graph TD\nA -- invalid'} />
+        <MermaidDiagram code={simpleCode} />
+      </>,
+    );
+    revealDiagram();
+
+    await waitFor(() => expect(screen.getByTestId('mermaid-error')).toHaveTextContent('Parse error on line 2'));
+    await waitFor(() => expect(screen.getByTestId('mermaid-svg')).toHaveTextContent('A to B'));
+    expect(mermaidMock.render).toHaveBeenCalledTimes(2);
+  });
+
+  it('settles every block again after a viewport-driven remount', async () => {
+    const codes = [simpleCode, 'sequenceDiagram\nA->>B: hello', 'stateDiagram-v2\n[*] --> Ready'];
+    const diagrams = (viewport: string) => (
+      <div key={viewport} data-viewport={viewport}>
+        {codes.map((code) => <MermaidDiagram key={code} code={code} />)}
+      </div>
+    );
+    const view = render(diagrams('desktop'));
+    revealDiagram();
+    await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+
+    intersectionCallbacks = [];
+    view.rerender(diagrams('mobile'));
+    expect(screen.getAllByText('Diagram preview pending.')).toHaveLength(3);
+    revealDiagram();
+
+    await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    expect(screen.queryByText('Rendering diagram...')).toBeNull();
   });
 
   it('blocks unsafe SVG output before inserting it into the DOM', async () => {
