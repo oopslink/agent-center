@@ -343,6 +343,7 @@
         "errorDiffShape": "PlanGenerationDiff 必须包含 node_decisions、tasks、edges 数组。",
         "errorVersion": "Evolution 已被整体拒绝：提交前计划已变化。刷新计划，复核活跃 generation，然后用新的基础版本重试。",
         "errorInFlight": "Evolution 已被整体拒绝：一个或多个被触及节点已在途。保留已提交工作，等待这些节点稳定或追加后续节点，然后重试。",
+        "errorDisconnected": "Evolution 已被整体拒绝：每个新增 root 任务都必须依赖已有执行路径，或显式标记为 detached。",
         "errorIdempotency": "Evolution 已被拒绝：该幂等键已被不同输入使用。请复用原请求或生成新键。",
         "errorGeneric": "Evolution 已被整体拒绝。刷新计划，复核冲突，并使用新的幂等键重试。"
       },

@@ -290,7 +290,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
-		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		errors.Is(err, pm.ErrPlanGenerationDisconnected):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	default:
 		mapPMError(w, err)

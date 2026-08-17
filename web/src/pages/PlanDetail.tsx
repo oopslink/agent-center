@@ -1324,6 +1324,9 @@ function friendlyEvolutionError(error: unknown, t: TFunction): string {
   if (lower.includes('in-flight') || lower.includes('in flight') || lower.includes('dispatched') || lower.includes('running node')) {
     return t('plan.detail.evolutionModal.errorInFlight');
   }
+  if (lower.includes('disconnected') || lower.includes('detached') || lower.includes('prerequisite edge')) {
+    return t('plan.detail.evolutionModal.errorDisconnected');
+  }
   if (lower.includes('version') || lower.includes('stale') || lower.includes('parent') || lower.includes('active_generation') || lower.includes('conflict')) {
     return t('plan.detail.evolutionModal.errorVersion');
   }

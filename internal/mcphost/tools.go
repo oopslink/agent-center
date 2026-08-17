@@ -997,7 +997,8 @@ type evolveTaskArgs struct {
 	AssigneeRef      string `json:"assignee_ref" jsonschema:"identity ref assigned to the new task"`
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"executor_fork (default) or supervisor_inline"`
 	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"code_change (default) or evidence_only"`
-	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"existing task this new task follows/remediates"`
+	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"lineage-only existing task this new task follows/remediates; does not create an execution edge"`
+	Detached         bool   `json:"detached,omitempty" jsonschema:"true only for intentionally independent new root tasks; otherwise every new root must have an explicit prerequisite edge to prior execution"`
 }
 
 type evolveEdgeArgs struct {
@@ -1036,6 +1037,7 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 				"ref": t.Ref, "title": t.Title, "description": t.Description,
 				"assignee_ref": t.AssigneeRef, "dispatch_mode": t.DispatchMode,
 				"delivery_contract": t.DeliveryContract, "follows_task_id": t.FollowsTaskID,
+				"detached": t.Detached,
 			})
 		}
 		edges := make([]map[string]any, 0, len(args.Diff.Edges))

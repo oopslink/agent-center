@@ -44,6 +44,7 @@ type PlanGenerationTaskDraft struct {
 	DeliveryContract DeliveryContract `json:"delivery_contract,omitempty"`
 	StageID          StageID          `json:"stage_id,omitempty"`
 	FollowsTaskID    TaskID           `json:"follows_task_id,omitempty"`
+	Detached         bool             `json:"detached,omitempty"`
 }
 
 // PlanGenerationEdgeDraft adds a dependency edge. From/To may be new task refs

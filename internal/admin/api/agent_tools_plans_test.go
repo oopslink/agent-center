@@ -320,7 +320,7 @@ func TestEvolvePlanGeneration_AsMemberIdempotentAPI(t *testing.T) {
 		"reason": "add api task", "evidence": "route test",
 		"diff": map[string]any{
 			"node_decisions": []map[string]any{},
-			"tasks":          []map[string]any{{"ref": "api-c", "title": "API C", "assignee_ref": "agent:" + atAgent1}},
+			"tasks":          []map[string]any{{"ref": "api-c", "title": "API C", "assignee_ref": "agent:" + atAgent1, "detached": true}},
 			"edges":          []map[string]any{},
 		},
 	}

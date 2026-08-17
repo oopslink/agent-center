@@ -207,7 +207,7 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 		"idempotency_key": "evo-1", "reason": "scope changed", "evidence": "review",
 		"diff": map[string]any{
 			"node_decisions": []any{map[string]any{"task_id": "task-a", "action": "preserve", "reason": "in flight"}},
-			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c"}},
+			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c", "detached": true}},
 			"edges":          []any{},
 		},
 	})

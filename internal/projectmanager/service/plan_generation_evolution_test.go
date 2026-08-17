@@ -64,7 +64,7 @@ func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 	withoutG0 := EvolvePlanGenerationCommand{
 		PlanID: planID, ParentGenerationID: "", BaseVersion: base,
 		IdempotencyKey: "first-with-empty-parent", Reason: "extend plan", Evidence: "review",
-		Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1"}}},
+		Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", Detached: true}}},
 	}
 	if _, err := h.svc.EvolvePlanGeneration(h.ctx, withoutG0); !errors.Is(err, pm.ErrPlanGenerationConflict) {
 		t.Fatalf("first evolution with empty parent err=%v, want ErrPlanGenerationConflict", err)
@@ -179,7 +179,7 @@ func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testin
 		_, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 			PlanID: planID, ParentGenerationID: "", BaseVersion: base,
 			IdempotencyKey: "start-race-empty-parent", Reason: "race start", Evidence: "race",
-			Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1"}}},
+			Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", Detached: true}}},
 		})
 		evolveErr <- err
 	}()
@@ -224,7 +224,7 @@ func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 			res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 				PlanID: planID, ParentGenerationID: g0.ID, BaseVersion: p.Version(),
 				IdempotencyKey: key, Reason: "concurrent sibling", Evidence: key, Creator: "user:a",
-				Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: key, Title: key, AssigneeRef: "user:c1"}}},
+				Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: key, Title: key, AssigneeRef: "user:c1", Detached: true}}},
 			})
 			outcomes <- outcome{key: key, res: res, err: err}
 		}()
@@ -290,6 +290,7 @@ func TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot(t *tes
 			},
 			Tasks: []pm.PlanGenerationTaskDraft{{
 				Ref: "c", Title: "C", Description: "new root", AssigneeRef: "user:c1",
+				Detached: true,
 			}},
 		},
 	}
@@ -467,6 +468,65 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	})
 }
 
+func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a"})
+	h.drain(t)
+	a, _ := h.startRunningPlanAB(t, pid, planID)
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+
+	beforeTasks, err := h.tasks.ListByProject(h.ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base,
+		IdempotencyKey: "evo-disconnected-root", Reason: "add follow-up without bridge", Evidence: "review", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{
+			Ref: "c", Title: "C disconnected", AssigneeRef: "user:c1", FollowsTaskID: a,
+		}}},
+	})
+	if !errors.Is(err, pm.ErrPlanGenerationDisconnected) {
+		t.Fatalf("disconnected root err=%v, want ErrPlanGenerationDisconnected", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d after rejected disconnected root", got, base)
+	}
+	afterTasks, err := h.tasks.ListByProject(h.ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterTasks) != len(beforeTasks) {
+		t.Fatalf("task count=%d want %d; rejected disconnected root created tasks", len(afterTasks), len(beforeTasks))
+	}
+
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base,
+		IdempotencyKey: "evo-bridged-root", Reason: "add bridged follow-up", Evidence: "review", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			Tasks: []pm.PlanGenerationTaskDraft{{
+				Ref: "c", Title: "C bridged", AssigneeRef: "user:c1", FollowsTaskID: a,
+			}},
+			Edges: []pm.PlanGenerationEdgeDraft{{From: "c", To: string(a), Kind: pm.EdgeSeq}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("bridged evolution: %v", err)
+	}
+	cSnap := generationTaskByTitle(t, res.Generation, "C bridged")
+	var foundBridge bool
+	for _, edge := range res.Generation.Snapshot.Edges {
+		if edge.FromTaskID == cSnap.TaskID && edge.ToTaskID == a {
+			foundBridge = true
+		}
+	}
+	if !foundBridge {
+		t.Fatalf("bridged snapshot missing C->A dependency: %+v", res.Generation.Snapshot.Edges)
+	}
+}
+
 func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -484,7 +544,7 @@ func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing
 	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-paused",
 		Reason: "queue work while paused", Evidence: "paused review", Creator: "user:a",
-		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-paused", AssigneeRef: "user:c1"}}},
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-paused", AssigneeRef: "user:c1", Detached: true}}},
 	})
 	if err != nil {
 		t.Fatalf("EvolvePlanGeneration paused: %v", err)

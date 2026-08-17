@@ -275,6 +275,7 @@ export interface PlanGenerationTaskDraft {
   delivery_contract?: string;
   stage_id?: string;
   follows_task_id?: string;
+  detached?: boolean;
 }
 
 export interface PlanGenerationEdgeDraft {

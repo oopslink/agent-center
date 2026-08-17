@@ -129,6 +129,9 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 		if err := validateEvolutionInFlightEdges(cmd.Diff, taskByID, dispatchedSet); err != nil {
 			return err
 		}
+		if err := validateEvolutionNewRootsConnected(cmd.Diff); err != nil {
+			return err
+		}
 		if err := s.applySupersededNodes(txCtx, p, superseded, taskByID, edges, now); err != nil {
 			return err
 		}
@@ -265,6 +268,34 @@ func validateEvolutionInFlightEdges(
 		if !pm.NodeMutable(task.Status(), dispatched[task.ID()]) {
 			return fmt.Errorf("%w: task %s", pm.ErrPlanNodeInFlight, task.ID())
 		}
+	}
+	return nil
+}
+
+func validateEvolutionNewRootsConnected(diff pm.PlanGenerationDiff) error {
+	newRefs := make(map[string]pm.PlanGenerationTaskDraft, len(diff.Tasks))
+	for _, task := range diff.Tasks {
+		ref := strings.TrimSpace(task.Ref)
+		if ref == "" {
+			continue
+		}
+		newRefs[ref] = task
+	}
+	if len(newRefs) == 0 {
+		return nil
+	}
+	hasExplicitPrereq := make(map[string]bool, len(newRefs))
+	for _, edge := range diff.Edges {
+		from := strings.TrimSpace(edge.From)
+		if _, ok := newRefs[from]; ok {
+			hasExplicitPrereq[from] = true
+		}
+	}
+	for ref, task := range newRefs {
+		if task.Detached || hasExplicitPrereq[ref] {
+			continue
+		}
+		return fmt.Errorf("%w: task ref %s has no explicit prerequisite edge; add an edge from this task to prior execution or set detached=true", pm.ErrPlanGenerationDisconnected, ref)
 	}
 	return nil
 }

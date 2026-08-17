@@ -343,6 +343,7 @@
         "errorDiffShape": "PlanGenerationDiff must contain node_decisions, tasks, and edges arrays.",
         "errorVersion": "Evolution rejected as a whole: the plan changed before commit. Refresh the plan, review the active generation, then retry with the new base version.",
         "errorInFlight": "Evolution rejected as a whole: one or more touched nodes are already in flight. Keep committed work intact, wait for those nodes to settle or add follow-up nodes, then retry.",
+        "errorDisconnected": "Evolution rejected as a whole: every new root task must depend on prior execution, or be explicitly marked detached.",
         "errorIdempotency": "Evolution rejected: this idempotency key was already used with different input. Reuse the original request or generate a new key.",
         "errorGeneric": "Evolution rejected as a whole. Refresh the plan, review conflicts, and retry with a new idempotency key."
       },
