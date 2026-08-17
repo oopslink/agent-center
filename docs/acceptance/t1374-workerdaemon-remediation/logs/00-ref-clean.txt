@@ -1,0 +1,12 @@
+$ git status --short --branch
+## ac-exec/task-80731995/exec-9cbe4cbf
+?? docs/acceptance/t1374-workerdaemon-remediation/
+
+$ git rev-parse HEAD
+1281ddf9ed5bbc0b320f44538f617bd8ce53231f
+
+$ git ls-remote origin refs/heads/fix/t1370-detach-full-gate-executor-sync
+1281ddf9ed5bbc0b320f44538f617bd8ce53231f	refs/heads/fix/t1370-detach-full-gate-executor-sync
+
+$ git merge-base --is-ancestor origin/main HEAD
+exit=0

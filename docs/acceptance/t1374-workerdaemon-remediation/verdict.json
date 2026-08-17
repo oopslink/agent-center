@@ -1,0 +1,25 @@
+{
+  "task": "T1374 workerdaemon remediation independent security acceptance",
+  "verdict": "PASS",
+  "review_sha": "1281ddf9ed5bbc0b320f44538f617bd8ce53231f",
+  "reviewed_remote_branch": "refs/heads/fix/t1370-detach-full-gate-executor-sync",
+  "harness_delivery_branch": "ac-exec/task-80731995/exec-9cbe4cbf",
+  "blocking": [],
+  "ref_checks": {
+    "remote_branch_head": "1281ddf9ed5bbc0b320f44538f617bd8ce53231f",
+    "origin_main_is_ancestor_of_review_sha": true,
+    "detached_head_used": false,
+    "self_created_branch_used": false
+  },
+  "gates": [
+    {"name": "frozen SPA install", "result": "PASS", "evidence": "logs/01-spa-install.txt"},
+    {"name": "SPA typecheck", "result": "PASS", "evidence": "logs/02-spa-typecheck.txt"},
+    {"name": "SPA production build", "result": "PASS", "evidence": "logs/03-spa-build.txt"},
+    {"name": "Access/Team/CAS/auth/profile backend", "result": "PASS", "evidence": "logs/04-access-team-auth-profile-go.txt"},
+    {"name": "Access/Team SPA tests", "result": "PASS", "evidence": "logs/05-access-team-spa-tests.txt"},
+    {"name": "conversation/core/team migrations", "result": "PASS", "evidence": "logs/06-conversation-core-team-migrations.txt"},
+    {"name": "workerdaemon detach/isolation/duplicate regression packages", "result": "PASS", "evidence": "logs/07-workerdaemon-detach-isolation.txt"},
+    {"name": "deployed-binary smoke", "result": "PASS", "evidence": "logs/08-deployed-smoke.txt"},
+    {"name": "full make test", "result": "PASS", "evidence": "logs/09-make-test.txt"}
+  ]
+}

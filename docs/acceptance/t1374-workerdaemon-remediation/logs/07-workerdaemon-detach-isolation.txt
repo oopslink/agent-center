@@ -1,0 +1,2446 @@
+=== RUN   TestStreamActivityPayload_Schema
+=== RUN   TestStreamActivityPayload_Schema/assistant_text
+=== RUN   TestStreamActivityPayload_Schema/tool_use_carries_tool_name_+_args
+=== RUN   TestStreamActivityPayload_Schema/tool_result_carries_tool_name_(correlated)_+_ok
+=== RUN   TestStreamActivityPayload_Schema/system_init_carries_model/session_id/mcp_servers
+--- PASS: TestStreamActivityPayload_Schema (0.00s)
+    --- PASS: TestStreamActivityPayload_Schema/assistant_text (0.00s)
+    --- PASS: TestStreamActivityPayload_Schema/tool_use_carries_tool_name_+_args (0.00s)
+    --- PASS: TestStreamActivityPayload_Schema/tool_result_carries_tool_name_(correlated)_+_ok (0.00s)
+    --- PASS: TestStreamActivityPayload_Schema/system_init_carries_model/session_id/mcp_servers (0.00s)
+=== RUN   TestActivityEventType
+--- PASS: TestActivityEventType (0.00s)
+=== RUN   TestToolResultIsError
+--- PASS: TestToolResultIsError (0.00s)
+=== RUN   TestWorkerDaemonRegistersAllAdapters
+--- PASS: TestWorkerDaemonRegistersAllAdapters (0.00s)
+=== RUN   TestProbeAllAdaptersCoversAllThree
+--- PASS: TestProbeAllAdaptersCoversAllThree (0.00s)
+=== RUN   TestCallAgentTool_Success
+--- PASS: TestCallAgentTool_Success (0.00s)
+=== RUN   TestCallAgentTool_Non2xxTypedError
+--- PASS: TestCallAgentTool_Non2xxTypedError (0.00s)
+=== RUN   TestRenewTaskLease_RevokedReturnsSentinel
+--- PASS: TestRenewTaskLease_RevokedReturnsSentinel (0.00s)
+=== RUN   TestRenewTaskLease_OKNoRevoke
+--- PASS: TestRenewTaskLease_OKNoRevoke (0.00s)
+=== RUN   TestAdminClient_ReportCapabilities_PostsRichShape
+--- PASS: TestAdminClient_ReportCapabilities_PostsRichShape (0.00s)
+=== RUN   TestAdminClient_ReportCapabilities_OmitsEmptySystemInfo
+--- PASS: TestAdminClient_ReportCapabilities_OmitsEmptySystemInfo (0.00s)
+=== RUN   TestAdminClient_ReportCapabilities_EmptyWorkerIDFails
+--- PASS: TestAdminClient_ReportCapabilities_EmptyWorkerIDFails (0.00s)
+=== RUN   TestAdminClient_Enroll
+--- PASS: TestAdminClient_Enroll (0.00s)
+=== RUN   TestAdminClient_FetchReplyNudges
+--- PASS: TestAdminClient_FetchReplyNudges (0.00s)
+=== RUN   TestAdminClient_FetchReplyNudges_EmptyAgentIDFails
+--- PASS: TestAdminClient_FetchReplyNudges_EmptyAgentIDFails (0.00s)
+=== RUN   TestAdminClient_Enroll_EmptyWorkerIDFails
+--- PASS: TestAdminClient_Enroll_EmptyWorkerIDFails (0.00s)
+=== RUN   TestAdminClient_Heartbeat_PostsToHeartbeatEndpoint
+--- PASS: TestAdminClient_Heartbeat_PostsToHeartbeatEndpoint (0.00s)
+=== RUN   TestAdminClient_Heartbeat_EmptyWorkerIDFails
+--- PASS: TestAdminClient_Heartbeat_EmptyWorkerIDFails (0.00s)
+=== RUN   TestAdminClient_NonStatus2xx_ReturnsAdminError
+--- PASS: TestAdminClient_NonStatus2xx_ReturnsAdminError (0.00s)
+=== RUN   TestGitWorktreeFlagEnabled
+=== RUN   TestGitWorktreeFlagEnabled/off_by_default
+=== RUN   TestGitWorktreeFlagEnabled/on_values
+=== RUN   TestGitWorktreeFlagEnabled/off_values
+--- PASS: TestGitWorktreeFlagEnabled (0.00s)
+    --- PASS: TestGitWorktreeFlagEnabled/off_by_default (0.00s)
+    --- PASS: TestGitWorktreeFlagEnabled/on_values (0.00s)
+    --- PASS: TestGitWorktreeFlagEnabled/off_values (0.00s)
+=== RUN   TestControlLoop_HOLParkReleasesTheStarvedStream
+--- PASS: TestControlLoop_HOLParkReleasesTheStarvedStream (0.01s)
+=== RUN   TestControlLoop_TransientFailureRecoversWithoutParking
+--- PASS: TestControlLoop_TransientFailureRecoversWithoutParking (0.00s)
+=== RUN   TestControlLoop_ParkCounterResetsPerHead
+--- PASS: TestControlLoop_ParkCounterResetsPerHead (0.01s)
+=== RUN   TestStream_HandleAckCursor_SameAsPoll
+--- PASS: TestStream_HandleAckCursor_SameAsPoll (0.00s)
+=== RUN   TestStream_115BriefDeliveredOverStream
+--- PASS: TestStream_115BriefDeliveredOverStream (0.00s)
+=== RUN   TestStream_DisconnectThenPollFallback_NoLoss
+--- PASS: TestStream_DisconnectThenPollFallback_NoLoss (0.00s)
+=== RUN   TestStream_RingEvictReplayIncomplete_PollBackfills
+--- PASS: TestStream_RingEvictReplayIncomplete_PollBackfills (0.00s)
+=== RUN   TestStream_HeartbeatTimeoutFallsBackToPoll
+--- PASS: TestStream_HeartbeatTimeoutFallsBackToPoll (0.04s)
+=== RUN   TestStream_PollToStream_SameCursorNoLoss
+--- PASS: TestStream_PollToStream_SameCursorNoLoss (0.00s)
+=== RUN   TestStream_AckFail_CursorNotAdvanced
+--- PASS: TestStream_AckFail_CursorNotAdvanced (0.00s)
+=== RUN   TestStream_HOLPreservedUnderStream
+--- PASS: TestStream_HOLPreservedUnderStream (0.00s)
+=== RUN   TestStream_SilentStream_OnTickStaysPrompt
+--- PASS: TestStream_SilentStream_OnTickStaysPrompt (0.05s)
+=== RUN   TestStream_HOL_DoesNotSkipStuckHead
+--- PASS: TestStream_HOL_DoesNotSkipStuckHead (0.00s)
+=== RUN   TestStream_DisabledFallsBackToPollOnly
+--- PASS: TestStream_DisabledFallsBackToPollOnly (0.00s)
+=== RUN   TestStream_RunLoopEndToEnd_RaceClean
+--- PASS: TestStream_RunLoopEndToEnd_RaceClean (0.00s)
+=== RUN   TestControlLoop_EndToEnd_ConnectPullHandleAck
+--- PASS: TestControlLoop_EndToEnd_ConnectPullHandleAck (0.00s)
+=== RUN   TestControlLoop_ReconnectPullsOnlyUnacked
+--- PASS: TestControlLoop_ReconnectPullsOnlyUnacked (0.00s)
+=== RUN   TestControlLoop_HandlerErrorDoesNotAdvancePastFailure
+--- PASS: TestControlLoop_HandlerErrorDoesNotAdvancePastFailure (0.00s)
+=== RUN   TestControlLoop_RunHonorsCtxCancel
+--- PASS: TestControlLoop_RunHonorsCtxCancel (0.00s)
+=== RUN   TestControlLoop_ConnectFailureDegradesGracefully
+--- PASS: TestControlLoop_ConnectFailureDegradesGracefully (0.05s)
+=== RUN   TestControlLoop_HOLBlockEscalation
+--- PASS: TestControlLoop_HOLBlockEscalation (0.05s)
+=== RUN   TestNoopCommandHandler_NeverFails
+--- PASS: TestNoopCommandHandler_NeverFails (0.00s)
+=== RUN   TestControlLoop_DefaultsToNoopHandler
+--- PASS: TestControlLoop_DefaultsToNoopHandler (0.00s)
+=== RUN   TestBuildConverseBrief_PlanSnapshot_ByteStable_T254
+--- PASS: TestBuildConverseBrief_PlanSnapshot_ByteStable_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_IssueChat_AnchorsIssueID_T254
+--- PASS: TestBuildConverseBrief_IssueChat_AnchorsIssueID_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_TaskChat_AnchorsTaskID_T254
+--- PASS: TestBuildConverseBrief_TaskChat_AnchorsTaskID_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_AnchoredOwner_NameMiss_FallsBackToID_T254
+--- PASS: TestBuildConverseBrief_AnchoredOwner_NameMiss_FallsBackToID_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_AnchoredOwner_InThread_KeepsIDAndParent_T254
+--- PASS: TestBuildConverseBrief_AnchoredOwner_InThread_KeepsIDAndParent_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_DM_Unchanged_T254
+--- PASS: TestBuildConverseBrief_DM_Unchanged_T254 (0.00s)
+=== RUN   TestBuildConverseBrief_PlanChat_NamesPlan_T250
+--- PASS: TestBuildConverseBrief_PlanChat_NamesPlan_T250 (0.00s)
+=== RUN   TestBuildConverseBrief_PlanChat_NoCrossTalk_T250
+--- PASS: TestBuildConverseBrief_PlanChat_NoCrossTalk_T250 (0.00s)
+=== RUN   TestBuildConverseBrief_PlanChat_NameMiss_FallsBackToID_T250
+--- PASS: TestBuildConverseBrief_PlanChat_NameMiss_FallsBackToID_T250 (0.00s)
+=== RUN   TestBuildConverseBrief_NonPlan_Unaffected_T250
+--- PASS: TestBuildConverseBrief_NonPlan_Unaffected_T250 (0.00s)
+=== RUN   TestResolveContainedPath_Upload_MustExist
+=== RUN   TestResolveContainedPath_Upload_MustExist/nested_valid_file
+=== RUN   TestResolveContainedPath_Upload_MustExist/relative_nested_valid
+=== RUN   TestResolveContainedPath_Upload_MustExist/dotdot_escape
+=== RUN   TestResolveContainedPath_Upload_MustExist/absolute_outside_root
+=== RUN   TestResolveContainedPath_Upload_MustExist/symlink_inside_pointing_outside
+--- PASS: TestResolveContainedPath_Upload_MustExist (0.00s)
+    --- PASS: TestResolveContainedPath_Upload_MustExist/nested_valid_file (0.00s)
+    --- PASS: TestResolveContainedPath_Upload_MustExist/relative_nested_valid (0.00s)
+    --- PASS: TestResolveContainedPath_Upload_MustExist/dotdot_escape (0.00s)
+    --- PASS: TestResolveContainedPath_Upload_MustExist/absolute_outside_root (0.00s)
+    --- PASS: TestResolveContainedPath_Upload_MustExist/symlink_inside_pointing_outside (0.00s)
+=== RUN   TestResolveContainedPath_Download_ParentExists
+=== RUN   TestResolveContainedPath_Download_ParentExists/new_leaf_in_existing_subdir
+=== RUN   TestResolveContainedPath_Download_ParentExists/new_leaf_relative
+=== RUN   TestResolveContainedPath_Download_ParentExists/path_equal_to_root
+=== RUN   TestResolveContainedPath_Download_ParentExists/dotdot_escape_leaf
+=== RUN   TestResolveContainedPath_Download_ParentExists/symlinked_parent_escape
+--- PASS: TestResolveContainedPath_Download_ParentExists (0.00s)
+    --- PASS: TestResolveContainedPath_Download_ParentExists/new_leaf_in_existing_subdir (0.00s)
+    --- PASS: TestResolveContainedPath_Download_ParentExists/new_leaf_relative (0.00s)
+    --- PASS: TestResolveContainedPath_Download_ParentExists/path_equal_to_root (0.00s)
+    --- PASS: TestResolveContainedPath_Download_ParentExists/dotdot_escape_leaf (0.00s)
+    --- PASS: TestResolveContainedPath_Download_ParentExists/symlinked_parent_escape (0.00s)
+=== RUN   TestResolveContainedPath_SiblingPrefixRejected
+--- PASS: TestResolveContainedPath_SiblingPrefixRejected (0.00s)
+=== RUN   TestUploadFile_ThreeStepFlow
+--- PASS: TestUploadFile_ThreeStepFlow (0.00s)
+=== RUN   TestUploadFile_RejectsEscapingPath
+--- PASS: TestUploadFile_RejectsEscapingPath (0.00s)
+=== RUN   TestUploadFile_RejectsDirectory
+--- PASS: TestUploadFile_RejectsDirectory (0.00s)
+=== RUN   TestDownloadFile_StreamsBytesToContainedDest
+--- PASS: TestDownloadFile_StreamsBytesToContainedDest (0.00s)
+=== RUN   TestDownloadFile_AcceptsFullURI
+--- PASS: TestDownloadFile_AcceptsFullURI (0.00s)
+=== RUN   TestDownloadFile_ForbiddenWritesNothing
+--- PASS: TestDownloadFile_ForbiddenWritesNothing (0.00s)
+=== RUN   TestDownloadFile_RejectsSymlinkLeafEscape
+--- PASS: TestDownloadFile_RejectsSymlinkLeafEscape (0.00s)
+=== RUN   TestDownloadFile_RejectsEscapingDestBeforeHTTP
+--- PASS: TestDownloadFile_RejectsEscapingDestBeforeHTTP (0.00s)
+=== RUN   TestForkExecutorControl_AlreadyRunningTaskLaunchesThroughUnixSocket
+--- PASS: TestForkExecutorControl_AlreadyRunningTaskLaunchesThroughUnixSocket (0.00s)
+=== RUN   TestExecConfig_JudgeEnabledPassthrough
+--- PASS: TestExecConfig_JudgeEnabledPassthrough (0.00s)
+=== RUN   TestExecConfig_ConfigVersionPassthrough
+--- PASS: TestExecConfig_ConfigVersionPassthrough (0.00s)
+=== RUN   TestProbeAllAdapters_AllDetected
+--- PASS: TestProbeAllAdapters_AllDetected (0.00s)
+=== RUN   TestProbeAllAdapters_BinaryNotAvailable
+--- PASS: TestProbeAllAdapters_BinaryNotAvailable (0.00s)
+=== RUN   TestProbeAllAdapters_ProbeError
+--- PASS: TestProbeAllAdapters_ProbeError (0.00s)
+=== RUN   TestProbeAllAdapters_NilRegistry_UsesDefault
+--- PASS: TestProbeAllAdapters_NilRegistry_UsesDefault (3.07s)
+=== RUN   TestProbeAllAdapters_EmptyRegistry
+--- PASS: TestProbeAllAdapters_EmptyRegistry (0.00s)
+=== RUN   TestRuntimeAgentEnv_MergesIdentityDisplayNameAndProfileEnv
+--- PASS: TestRuntimeAgentEnv_MergesIdentityDisplayNameAndProfileEnv (0.00s)
+=== RUN   TestCloneEnvVars_ReturnsIndependentCopy
+--- PASS: TestCloneEnvVars_ReturnsIndependentCopy (0.00s)
+=== RUN   TestRuntimeFsList_HidesGitAndFlagsSensitive
+--- PASS: TestRuntimeFsList_HidesGitAndFlagsSensitive (0.00s)
+=== RUN   TestRuntimeFsList_RejectsGitDirTarget
+--- PASS: TestRuntimeFsList_RejectsGitDirTarget (0.00s)
+=== RUN   TestRuntimeFsRead_SymlinkIntoGitRejected
+--- PASS: TestRuntimeFsRead_SymlinkIntoGitRejected (0.00s)
+=== RUN   TestRuntimeFsRead_RedactsCredentials
+--- PASS: TestRuntimeFsRead_RedactsCredentials (0.00s)
+=== RUN   TestRuntimeFsRead_HardlinkCredentialStillRedacted
+--- PASS: TestRuntimeFsRead_HardlinkCredentialStillRedacted (0.00s)
+=== RUN   TestRuntimeFsRead_SpecialAndBinaryAreMetadataOnly
+--- PASS: TestRuntimeFsRead_SpecialAndBinaryAreMetadataOnly (0.00s)
+=== RUN   TestRuntimeFsRead_TruncatesLargeFile
+--- PASS: TestRuntimeFsRead_TruncatesLargeFile (0.00s)
+=== RUN   TestRuntimeFsRead_PathEscapeRejected
+--- PASS: TestRuntimeFsRead_PathEscapeRejected (0.00s)
+=== RUN   TestRuntimeFsRead_SymlinkEscapeRejected
+--- PASS: TestRuntimeFsRead_SymlinkEscapeRejected (0.00s)
+=== RUN   TestRuntimeFsList_TruncatesEntries
+--- PASS: TestRuntimeFsList_TruncatesEntries (0.14s)
+=== RUN   TestRuntimeFsGitLog
+--- PASS: TestRuntimeFsGitLog (0.34s)
+=== RUN   TestRuntimeFsRead_ImageInlinedAsBase64
+--- PASS: TestRuntimeFsRead_ImageInlinedAsBase64 (0.00s)
+=== RUN   TestRuntimeFsRead_OversizedImageIsMetadataOnly
+--- PASS: TestRuntimeFsRead_OversizedImageIsMetadataOnly (0.00s)
+=== RUN   TestRuntimeFsGitDiff
+--- PASS: TestRuntimeFsGitDiff (0.18s)
+=== RUN   TestRuntimeFsGitDiff_RejectsNonSHARef
+--- PASS: TestRuntimeFsGitDiff_RejectsNonSHARef (0.00s)
+=== RUN   TestRuntime_HeartbeatsImmediatelyOnStart
+--- PASS: TestRuntime_HeartbeatsImmediatelyOnStart (0.00s)
+=== RUN   TestRuntime_AdaptiveHeartbeat_FastWhenActive
+--- PASS: TestRuntime_AdaptiveHeartbeat_FastWhenActive (0.25s)
+=== RUN   TestRuntime_AdaptiveHeartbeat_IdleStaysSlow
+--- PASS: TestRuntime_AdaptiveHeartbeat_IdleStaysSlow (0.25s)
+=== RUN   TestAdminClientSecretResolver_DelegatesToClient
+--- PASS: TestAdminClientSecretResolver_DelegatesToClient (0.00s)
+=== RUN   TestAdminClientSecretResolver_NilClientReturnsNil
+--- PASS: TestAdminClientSecretResolver_NilClientReturnsNil (0.00s)
+=== RUN   TestStreamClient_ParsesFramesWithOffset
+--- PASS: TestStreamClient_ParsesFramesWithOffset (0.00s)
+=== RUN   TestStreamClient_AfterCursorRidesThrough
+--- PASS: TestStreamClient_AfterCursorRidesThrough (0.00s)
+=== RUN   TestStreamClient_HeartbeatIgnored
+--- PASS: TestStreamClient_HeartbeatIgnored (0.00s)
+=== RUN   TestStreamClient_ErrorEventSurfaces
+--- PASS: TestStreamClient_ErrorEventSurfaces (0.00s)
+=== RUN   TestStreamClient_DisconnectDetected
+--- PASS: TestStreamClient_DisconnectDetected (0.02s)
+=== RUN   TestStreamClient_HeartbeatTimeout
+--- PASS: TestStreamClient_HeartbeatTimeout (0.06s)
+=== RUN   TestStreamClient_CtxCancelReturnsCtxErr
+--- PASS: TestStreamClient_CtxCancelReturnsCtxErr (0.03s)
+=== RUN   TestStreamClient_MissingOffsetFrameSurfaced
+--- PASS: TestStreamClient_MissingOffsetFrameSurfaced (0.00s)
+=== RUN   TestSupervisorSession_TryReconnect_RecoversLiveSupervisor
+--- PASS: TestSupervisorSession_TryReconnect_RecoversLiveSupervisor (0.04s)
+=== RUN   TestBuildConverseBrief_ThreadReply_InstructsParent
+--- PASS: TestBuildConverseBrief_ThreadReply_InstructsParent (0.00s)
+=== RUN   TestBuildConverseBrief_TopLevel_NoParent
+--- PASS: TestBuildConverseBrief_TopLevel_NoParent (0.00s)
+=== RUN   TestBuildConverseBrief_AttachmentHint_T74
+--- PASS: TestBuildConverseBrief_AttachmentHint_T74 (0.00s)
+=== RUN   TestAgentRuntimeSpec_IsPerAgent
+--- PASS: TestAgentRuntimeSpec_IsPerAgent (0.00s)
+=== RUN   TestControllerHandler_UndeliveredCommandErrors
+--- PASS: TestControllerHandler_UndeliveredCommandErrors (0.00s)
+=== RUN   TestControllerHandler_ForkDeliveryErrorRetriesWithoutAck
+--- PASS: TestControllerHandler_ForkDeliveryErrorRetriesWithoutAck (0.00s)
+=== RUN   TestControllerHandler_ExpiredForkCommandReportsTerminalAndSkipsDelivery
+--- PASS: TestControllerHandler_ExpiredForkCommandReportsTerminalAndSkipsDelivery (0.00s)
+=== RUN   TestControllerHandler_ExpiredForkCommandReportFailureRetries
+--- PASS: TestControllerHandler_ExpiredForkCommandReportFailureRetries (0.00s)
+=== RUN   TestControllerHandler_NoAgentIDIsSkipped
+--- PASS: TestControllerHandler_NoAgentIDIsSkipped (0.00s)
+=== RUN   TestControllerHandler_ReconcileStoppedTearsDown
+--- PASS: TestControllerHandler_ReconcileStoppedTearsDown (0.00s)
+=== RUN   TestControllerHandler_ReconcileStoppingTearsDownAndReportsStopped
+--- PASS: TestControllerHandler_ReconcileStoppingTearsDownAndReportsStopped (0.00s)
+=== RUN   TestControllerHandler_ReconcileResettingTearsDownAndReportsStopped
+--- PASS: TestControllerHandler_ReconcileResettingTearsDownAndReportsStopped (0.00s)
+=== RUN   TestControllerHandler_ReconcileResettingRequiresScope
+--- PASS: TestControllerHandler_ReconcileResettingRequiresScope (0.00s)
+=== RUN   TestControllerHandler_ReconcileStopIgnoresAlreadySettledFeedback
+--- PASS: TestControllerHandler_ReconcileStopIgnoresAlreadySettledFeedback (0.00s)
+=== RUN   TestControllerHandler_ReconcileStopReturnsUnexpectedFeedbackError
+--- PASS: TestControllerHandler_ReconcileStopReturnsUnexpectedFeedbackError (0.00s)
+=== RUN   TestControllerHandler_RuntimeFsServedLocally
+--- PASS: TestControllerHandler_RuntimeFsServedLocally (0.00s)
+=== RUN   TestControllerHandler_RuntimeFsUnknownOpReportsError
+--- PASS: TestControllerHandler_RuntimeFsUnknownOpReportsError (0.00s)
+=== RUN   TestControllerHandler_RuntimeFsPostFailureRetries
+--- PASS: TestControllerHandler_RuntimeFsPostFailureRetries (0.00s)
+=== RUN   TestWorkerSockDir_ShortAndCreated
+--- PASS: TestWorkerSockDir_ShortAndCreated (0.00s)
+=== RUN   TestWorkerStateDir_FindingQ
+=== RUN   TestWorkerStateDir_FindingQ/config_file_loaded_→_next_to_its_sqlite_data_dir_(unchanged)
+=== RUN   TestWorkerStateDir_FindingQ/no_config_file_→_user-writable_HOME_dir,_NOT_/var/lib
+=== RUN   TestWorkerStateDir_FindingQ/token_+_agent-home_both_under_the_resolved_state_dir
+=== RUN   TestWorkerStateDir_FindingQ/config_file_but_empty_sqlite_path_→_user-writable_HOME_(not_cwd)
+--- PASS: TestWorkerStateDir_FindingQ (0.00s)
+    --- PASS: TestWorkerStateDir_FindingQ/config_file_loaded_→_next_to_its_sqlite_data_dir_(unchanged) (0.00s)
+    --- PASS: TestWorkerStateDir_FindingQ/no_config_file_→_user-writable_HOME_dir,_NOT_/var/lib (0.00s)
+    --- PASS: TestWorkerStateDir_FindingQ/token_+_agent-home_both_under_the_resolved_state_dir (0.00s)
+    --- PASS: TestWorkerStateDir_FindingQ/config_file_but_empty_sqlite_path_→_user-writable_HOME_(not_cwd) (0.00s)
+=== RUN   TestWorkerStateDir_NoHomeLastResort
+--- PASS: TestWorkerStateDir_NoHomeLastResort (0.00s)
+=== RUN   TestSanitizeWorkerStateID
+--- PASS: TestSanitizeWorkerStateID (0.00s)
+=== RUN   TestWaitProbeReattachable_AliveButSocketBrokenFails
+--- PASS: TestWaitProbeReattachable_AliveButSocketBrokenFails (0.21s)
+=== RUN   TestSupervisorSession_StartAndPump
+--- PASS: TestSupervisorSession_StartAndPump (4.42s)
+=== RUN   TestSupervisorSession_Ownership
+--- PASS: TestSupervisorSession_Ownership (2.59s)
+=== RUN   TestSupervisorSession_Inject
+--- PASS: TestSupervisorSession_Inject (2.27s)
+=== RUN   TestSupervisorSession_Stop
+--- PASS: TestSupervisorSession_Stop (2.12s)
+=== RUN   TestSupervisorSession_DetachSurvives
+--- PASS: TestSupervisorSession_DetachSurvives (2.34s)
+=== RUN   TestSupervisorSession_ReattachFromOffset
+--- PASS: TestSupervisorSession_ReattachFromOffset (2.03s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	21.085s
+=== RUN   TestDeliver_SuccessCallsHandler
+--- PASS: TestDeliver_SuccessCallsHandler (0.00s)
+=== RUN   TestDeliver_HandlerErrorSurfacesAsUndelivered
+--- PASS: TestDeliver_HandlerErrorSurfacesAsUndelivered (2.00s)
+=== RUN   TestDeliver_AgentDownIsError
+--- PASS: TestDeliver_AgentDownIsError (0.00s)
+=== RUN   TestNewServer_Validation
+--- PASS: TestNewServer_Validation (0.00s)
+=== RUN   TestProbe_EchoesAgentID
+--- PASS: TestProbe_EchoesAgentID (0.00s)
+=== RUN   TestInfo_ReturnsBuildProcessMetadata
+--- PASS: TestInfo_ReturnsBuildProcessMetadata (0.00s)
+=== RUN   TestProbe_AgentDownIsError
+--- PASS: TestProbe_AgentDownIsError (0.00s)
+=== RUN   TestServer_RebindsOverStaleSocket
+--- PASS: TestServer_RebindsOverStaleSocket (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol	3.580s
+=== RUN   TestExecStarter_StartAndSignal
+--- PASS: TestExecStarter_StartAndSignal (0.00s)
+=== RUN   TestExecStarter_RequiresAgentID
+--- PASS: TestExecStarter_RequiresAgentID (0.00s)
+=== RUN   TestNewExecStarter_DefaultsBinaryToSelf
+--- PASS: TestNewExecStarter_DefaultsBinaryToSelf (0.00s)
+=== RUN   TestFilePIDStore_RoundTrip
+--- PASS: TestFilePIDStore_RoundTrip (0.00s)
+=== RUN   TestFilePIDStore_MissingFileLoadsEmpty
+--- PASS: TestFilePIDStore_MissingFileLoadsEmpty (0.00s)
+=== RUN   TestLauncher_PersistsPIDOnEnsure_ClearsOnStop
+--- PASS: TestLauncher_PersistsPIDOnEnsure_ClearsOnStop (0.00s)
+=== RUN   TestLauncher_AdoptSupervisesSurvivor
+--- PASS: TestLauncher_AdoptSupervisesSurvivor (0.01s)
+=== RUN   TestPIDAlive
+--- PASS: TestPIDAlive (0.00s)
+=== RUN   TestAdoptablePIDs_NoStore
+--- PASS: TestAdoptablePIDs_NoStore (0.00s)
+=== RUN   TestSupervise_MaxAttemptsExhausted_StopsAndReports
+--- PASS: TestSupervise_MaxAttemptsExhausted_StopsAndReports (0.00s)
+=== RUN   TestSupervise_StableRunResetsCounter
+--- PASS: TestSupervise_StableRunResetsCounter (0.00s)
+=== RUN   TestEnsure_LaunchesOnce
+--- PASS: TestEnsure_LaunchesOnce (0.00s)
+=== RUN   TestEnsure_RebuildsOnCrash
+--- PASS: TestEnsure_RebuildsOnCrash (0.00s)
+=== RUN   TestStop_TerminatesAndNoRebuild
+--- PASS: TestStop_TerminatesAndNoRebuild (0.02s)
+=== RUN   TestShutdown_StopsAll
+--- PASS: TestShutdown_StopsAll (0.00s)
+=== RUN   TestEnsure_SpawnErrorSurfaces
+--- PASS: TestEnsure_SpawnErrorSurfaces (0.00s)
+=== RUN   TestEnsure_RequiresAgentID
+--- PASS: TestEnsure_RequiresAgentID (0.00s)
+=== RUN   TestBackoff_DelayGrowsAndCaps
+--- PASS: TestBackoff_DelayGrowsAndCaps (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher	1.227s
+=== RUN   TestReconcileSpecs_PreservesPerAgentEnv
+--- PASS: TestReconcileSpecs_PreservesPerAgentEnv (0.00s)
+=== RUN   TestReconcile_EnsuresDesiredStopsRemoved
+--- PASS: TestReconcile_EnsuresDesiredStopsRemoved (0.00s)
+=== RUN   TestDeliver_SuccessAndEnsuresAgent
+--- PASS: TestDeliver_SuccessAndEnsuresAgent (0.00s)
+=== RUN   TestDeliver_UndeliveredReturnsErrorForRetry
+--- PASS: TestDeliver_UndeliveredReturnsErrorForRetry (0.00s)
+=== RUN   TestDeliver_LaunchFailureIsError
+--- PASS: TestDeliver_LaunchFailureIsError (0.00s)
+=== RUN   TestDeliver_MissingAgentID
+--- PASS: TestDeliver_MissingAgentID (0.00s)
+=== RUN   TestSnapshotConcurrency_AggregatesRunningAgents
+--- PASS: TestSnapshotConcurrency_AggregatesRunningAgents (0.00s)
+=== RUN   TestSnapshotConcurrency_SlowAgentDoesNotStarveOthers
+--- PASS: TestSnapshotConcurrency_SlowAgentDoesNotStarveOthers (0.75s)
+=== RUN   TestNew_Validation
+--- PASS: TestNew_Validation (0.00s)
+=== RUN   TestReconcileWithAdoption_AdoptsLiveSurvivor
+--- PASS: TestReconcileWithAdoption_AdoptsLiveSurvivor (0.00s)
+=== RUN   TestReconcileWithAdoption_RespawnsOnProbeMismatch
+--- PASS: TestReconcileWithAdoption_RespawnsOnProbeMismatch (0.00s)
+=== RUN   TestReconcileWithAdoption_RespawnsOnDeadPid
+--- PASS: TestReconcileWithAdoption_RespawnsOnDeadPid (0.00s)
+=== RUN   TestReconcileWithAdoption_NoRecordSpawns
+--- PASS: TestReconcileWithAdoption_NoRecordSpawns (0.00s)
+=== RUN   TestReconcileWithAdoption_StopsUndesired
+--- PASS: TestReconcileWithAdoption_StopsUndesired (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/workercontroller	1.556s
+=== RUN   TestAttachExecutorEngine_ForksExecutor
+--- PASS: TestAttachExecutorEngine_ForksExecutor (0.00s)
+=== RUN   TestAttachExecutorEngine_BeforeBoot_RecoversInflight
+--- PASS: TestAttachExecutorEngine_BeforeBoot_RecoversInflight (0.00s)
+=== RUN   TestReconcile_DeadShouldContinue_RecoversNotFinalizes
+--- PASS: TestReconcile_DeadShouldContinue_RecoversNotFinalizes (0.00s)
+=== RUN   TestReconcileExecutors_ParkedTaskIsNeverRelaunched
+=== RUN   TestReconcileExecutors_ParkedTaskIsNeverRelaunched/blocked
+--- PASS: TestReconcileExecutors_ParkedTaskIsNeverRelaunched (0.00s)
+    --- PASS: TestReconcileExecutors_ParkedTaskIsNeverRelaunched/blocked (0.00s)
+=== RUN   TestReconcileExecutors_RunningTaskStillRecovers
+--- PASS: TestReconcileExecutors_RunningTaskStillRecovers (0.00s)
+=== RUN   TestClassifyExecutor
+=== RUN   TestClassifyExecutor/inflight+alive_→_adopt
+=== RUN   TestClassifyExecutor/inflight+dead(crash)_→_recover
+=== RUN   TestClassifyExecutor/inflight+dead(failed,no_verdict)_→_recover
+=== RUN   TestClassifyExecutor/inflight+dead(failed,valid_verdict)_→_finalize
+=== RUN   TestClassifyExecutor/succeeded_→_finalize
+=== RUN   TestClassifyExecutor/succeeded_not_in-flight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/succeeded_with_unknown_inflight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/failed_valid_verdict_not_in-flight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/not-inflight+alive_→_verify-cancel
+=== RUN   TestClassifyExecutor/not-inflight+dead_→_verify-cancel
+=== RUN   TestClassifyExecutor/ownerless_alive_→_leave
+=== RUN   TestClassifyExecutor/ownerless_dead_→_finalize
+=== RUN   TestClassifyExecutor/degraded_alive_→_adopt
+=== RUN   TestClassifyExecutor/degraded_dead_→_finalize
+--- PASS: TestClassifyExecutor (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+alive_→_adopt (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(crash)_→_recover (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(failed,no_verdict)_→_recover (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(failed,valid_verdict)_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_not_in-flight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_with_unknown_inflight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/failed_valid_verdict_not_in-flight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/not-inflight+alive_→_verify-cancel (0.00s)
+    --- PASS: TestClassifyExecutor/not-inflight+dead_→_verify-cancel (0.00s)
+    --- PASS: TestClassifyExecutor/ownerless_alive_→_leave (0.00s)
+    --- PASS: TestClassifyExecutor/ownerless_dead_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/degraded_alive_→_adopt (0.00s)
+    --- PASS: TestClassifyExecutor/degraded_dead_→_finalize (0.00s)
+=== RUN   TestPlanExecutorReconcile_Branches
+--- PASS: TestPlanExecutorReconcile_Branches (0.00s)
+=== RUN   TestPlanExecutorReconcile_DegradedNeverCancels
+--- PASS: TestPlanExecutorReconcile_DegradedNeverCancels (0.00s)
+=== RUN   TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes
+--- PASS: TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes (0.00s)
+=== RUN   TestTaskRefOf_NilInput
+--- PASS: TestTaskRefOf_NilInput (0.00s)
+=== RUN   TestTaskCancelEvidence
+=== RUN   TestTaskCancelEvidence/completed_→_cancel
+=== RUN   TestTaskCancelEvidence/discarded_→_cancel
+=== RUN   TestTaskCancelEvidence/cancelled_→_cancel
+=== RUN   TestTaskCancelEvidence/reassigned_→_cancel
+=== RUN   TestTaskCancelEvidence/running+mine_(agent:_form)_→_keep
+=== RUN   TestTaskCancelEvidence/running+mine_(bare_form)_→_keep
+=== RUN   TestTaskCancelEvidence/running+unknown_assignee_→_keep
+=== RUN   TestTaskCancelEvidence/empty_status+mine_→_keep
+=== RUN   TestTaskCancelEvidence/blocked+mine_→_cancel
+=== RUN   TestTaskCancelEvidence/blocked+bare-mine_→_cancel
+=== RUN   TestTaskCancelEvidence/blocked_whitespace-only_→_keep
+--- PASS: TestTaskCancelEvidence (0.00s)
+    --- PASS: TestTaskCancelEvidence/completed_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/discarded_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/cancelled_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/reassigned_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/running+mine_(agent:_form)_→_keep (0.00s)
+    --- PASS: TestTaskCancelEvidence/running+mine_(bare_form)_→_keep (0.00s)
+    --- PASS: TestTaskCancelEvidence/running+unknown_assignee_→_keep (0.00s)
+    --- PASS: TestTaskCancelEvidence/empty_status+mine_→_keep (0.00s)
+    --- PASS: TestTaskCancelEvidence/blocked+mine_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/blocked+bare-mine_→_cancel (0.00s)
+    --- PASS: TestTaskCancelEvidence/blocked_whitespace-only_→_keep (0.00s)
+=== RUN   TestWithRerunSessionID_T877
+--- PASS: TestWithRerunSessionID_T877 (0.00s)
+=== RUN   TestRelaunchExecutor_ReapsOrphan_T877
+--- PASS: TestRelaunchExecutor_ReapsOrphan_T877 (0.02s)
+=== RUN   TestTaskCancelEvidence_IdentityNamespace_T872
+--- PASS: TestTaskCancelEvidence_IdentityNamespace_T872 (0.00s)
+=== RUN   TestIdentityRef_T872
+--- PASS: TestIdentityRef_T872 (0.00s)
+=== RUN   TestVerifyThenCancel_IncompleteInflightDoesNotKill
+--- PASS: TestVerifyThenCancel_IncompleteInflightDoesNotKill (0.00s)
+=== RUN   TestVerifyThenCancel_CrossNamespace_T872
+--- PASS: TestVerifyThenCancel_CrossNamespace_T872 (0.00s)
+=== RUN   TestVerifyThenCancel_ReassignedIsCancelled
+--- PASS: TestVerifyThenCancel_ReassignedIsCancelled (0.00s)
+=== RUN   TestVerifyThenCancel_GetTaskErrorKeeps
+--- PASS: TestVerifyThenCancel_GetTaskErrorKeeps (0.00s)
+=== RUN   TestDecideBootAction
+=== RUN   TestDecideBootAction/reattachable+running_→_reattach
+=== RUN   TestDecideBootAction/reattachable+stopped_→_stop+reap
+=== RUN   TestDecideBootAction/reattachable+orphan_→_stop+reap
+=== RUN   TestDecideBootAction/unavailable+running_idle_→_reap+relaunch_no_nudge
+=== RUN   TestDecideBootAction/unavailable+running_active_→_reap+relaunch_nudge
+=== RUN   TestDecideBootAction/unavailable+stopped_→_reap_only
+=== RUN   TestDecideBootAction/unavailable+orphan_→_reap_only
+--- PASS: TestDecideBootAction (0.00s)
+    --- PASS: TestDecideBootAction/reattachable+running_→_reattach (0.00s)
+    --- PASS: TestDecideBootAction/reattachable+stopped_→_stop+reap (0.00s)
+    --- PASS: TestDecideBootAction/reattachable+orphan_→_stop+reap (0.00s)
+    --- PASS: TestDecideBootAction/unavailable+running_idle_→_reap+relaunch_no_nudge (0.00s)
+    --- PASS: TestDecideBootAction/unavailable+running_active_→_reap+relaunch_nudge (0.00s)
+    --- PASS: TestDecideBootAction/unavailable+stopped_→_reap_only (0.00s)
+    --- PASS: TestDecideBootAction/unavailable+orphan_→_reap_only (0.00s)
+=== RUN   TestRecoveredOnceGuard
+--- PASS: TestRecoveredOnceGuard (0.00s)
+=== RUN   TestExecConfigCache
+--- PASS: TestExecConfigCache (0.00s)
+=== RUN   TestSelfReconcile_NoEngineIsNoop
+--- PASS: TestSelfReconcile_NoEngineIsNoop (0.00s)
+=== RUN   TestDecideBootSession
+--- PASS: TestDecideBootSession (0.00s)
+=== RUN   TestStart_IdempotentWhenSessionRunning
+--- PASS: TestStart_IdempotentWhenSessionRunning (0.00s)
+=== RUN   TestStart_RestartsRunningSessionWhenNewerSpecChangesModel
+--- PASS: TestStart_RestartsRunningSessionWhenNewerSpecChangesModel (0.21s)
+=== RUN   TestCenterBypassAlertFromEvent_DetectsAndRedactsShellAccess
+--- PASS: TestCenterBypassAlertFromEvent_DetectsAndRedactsShellAccess (0.00s)
+=== RUN   TestCenterBypassAlertFromEvent_IgnoresOrdinaryShell
+--- PASS: TestCenterBypassAlertFromEvent_IgnoresOrdinaryShell (0.00s)
+=== RUN   TestListMyInflightTasks_ParsesUnfilteredSet
+--- PASS: TestListMyInflightTasks_ParsesUnfilteredSet (0.00s)
+=== RUN   TestListMyInflightTasks_EmptyResponse
+--- PASS: TestListMyInflightTasks_EmptyResponse (0.00s)
+=== RUN   TestListMyInflightTasks_CallerError
+--- PASS: TestListMyInflightTasks_CallerError (0.00s)
+=== RUN   TestNewInflightTaskLister_NilCaller
+--- PASS: TestNewInflightTaskLister_NilCaller (0.00s)
+=== RUN   TestNewCenterHTTPClient_EmptyURL
+--- PASS: TestNewCenterHTTPClient_EmptyURL (0.00s)
+=== RUN   TestCenterHTTPClient_CallAgentTool_UnixSocket
+--- PASS: TestCenterHTTPClient_CallAgentTool_UnixSocket (0.00s)
+=== RUN   TestCenterHTTPClient_Non2xx_Errors
+--- PASS: TestCenterHTTPClient_Non2xx_Errors (0.00s)
+=== RUN   TestNewCenterClient_NilCaller
+--- PASS: TestNewCenterClient_NilCaller (0.00s)
+=== RUN   TestCenterClient_CompleteTask
+--- PASS: TestCenterClient_CompleteTask (0.00s)
+=== RUN   TestCenterClient_BlockTask
+--- PASS: TestCenterClient_BlockTask (0.00s)
+=== RUN   TestCenterClient_PostMessage
+--- PASS: TestCenterClient_PostMessage (0.00s)
+=== RUN   TestNewUsageReporter_NilCaller
+--- PASS: TestNewUsageReporter_NilCaller (0.00s)
+=== RUN   TestUsageReporter_ReportUsage_FullBody
+--- PASS: TestUsageReporter_ReportUsage_FullBody (0.00s)
+=== RUN   TestUsageReporter_ReportUsage_OmitsEmptyOptionals
+--- PASS: TestUsageReporter_ReportUsage_OmitsEmptyOptionals (0.00s)
+=== RUN   TestNewDeliveryReporter_NilCaller
+--- PASS: TestNewDeliveryReporter_NilCaller (0.00s)
+=== RUN   TestDeliveryReporter_ReportDelivery_Body
+--- PASS: TestDeliveryReporter_ReportDelivery_Body (0.00s)
+=== RUN   TestClaudeSession_EventStreaming
+--- PASS: TestClaudeSession_EventStreaming (0.00s)
+=== RUN   TestClaudeSession_Inject
+--- PASS: TestClaudeSession_Inject (0.00s)
+=== RUN   TestClaudeSession_MultipleInjects
+--- PASS: TestClaudeSession_MultipleInjects (0.00s)
+=== RUN   TestClaudeSession_GracefulStop
+--- PASS: TestClaudeSession_GracefulStop (0.02s)
+=== RUN   TestClaudeSession_HardStopOnCrash
+--- PASS: TestClaudeSession_HardStopOnCrash (0.00s)
+=== RUN   TestClaudeSession_WritesMCPConfig
+--- PASS: TestClaudeSession_WritesMCPConfig (0.00s)
+=== RUN   TestCodexMCPConfigTOML
+--- PASS: TestCodexMCPConfigTOML (0.00s)
+=== RUN   TestCodexMCPConfigTOML_Empty
+--- PASS: TestCodexMCPConfigTOML_Empty (0.00s)
+=== RUN   TestWriteCodexMCPConfig
+--- PASS: TestWriteCodexMCPConfig (0.00s)
+=== RUN   TestWriteCodexMCPConfig_Empty
+--- PASS: TestWriteCodexMCPConfig_Empty (0.00s)
+=== RUN   TestWriteCodexMCPConfig_NoHome
+--- PASS: TestWriteCodexMCPConfig_NoHome (0.00s)
+=== RUN   TestProvisionCodexAuth
+--- PASS: TestProvisionCodexAuth (0.00s)
+=== RUN   TestCodexMCPConfigTOML_Escaping
+--- PASS: TestCodexMCPConfigTOML_Escaping (0.00s)
+=== RUN   TestCodexSession_RealCodex_EndToEnd
+    codex_session_realcodex_test.go:27: set AC_CODEX_E2E=1 to run the real-codex end-to-end test
+--- SKIP: TestCodexSession_RealCodex_EndToEnd (0.00s)
+=== RUN   TestBuildCodexArgv_Fresh
+--- PASS: TestBuildCodexArgv_Fresh (0.00s)
+=== RUN   TestMergeEnv_OverridesAndDeduplicates
+--- PASS: TestMergeEnv_OverridesAndDeduplicates (0.00s)
+=== RUN   TestBuildCodexArgv_Resume
+--- PASS: TestBuildCodexArgv_Resume (0.00s)
+=== RUN   TestMapCodexLine_ThreadStarted_CapturesID_NoEvent
+--- PASS: TestMapCodexLine_ThreadStarted_CapturesID_NoEvent (0.00s)
+=== RUN   TestMapCodexLine_AgentMessage_AssistantText
+--- PASS: TestMapCodexLine_AgentMessage_AssistantText (0.00s)
+=== RUN   TestMapCodexLine_CommandExecution_ToolUseAndResult
+--- PASS: TestMapCodexLine_CommandExecution_ToolUseAndResult (0.00s)
+=== RUN   TestMapCodexLine_Reasoning_Thinking
+--- PASS: TestMapCodexLine_Reasoning_Thinking (0.00s)
+=== RUN   TestMapCodexLine_TurnCompleted_ResultSuccessTokens
+--- PASS: TestMapCodexLine_TurnCompleted_ResultSuccessTokens (0.00s)
+=== RUN   TestMapCodexLine_TurnFailed_ResultError
+--- PASS: TestMapCodexLine_TurnFailed_ResultError (0.00s)
+=== RUN   TestMapCodexLine_TransientError_NonTerminal
+--- PASS: TestMapCodexLine_TransientError_NonTerminal (0.00s)
+=== RUN   TestMapCodexLine_TurnStarted_NoEvent
+--- PASS: TestMapCodexLine_TurnStarted_NoEvent (0.00s)
+=== RUN   TestMapCodexLine_Unknown
+--- PASS: TestMapCodexLine_Unknown (0.00s)
+=== RUN   TestMapCodexLine_Malformed
+--- PASS: TestMapCodexLine_Malformed (0.00s)
+=== RUN   TestCodexSession_SingleTurn_FreshThenResume
+--- PASS: TestCodexSession_SingleTurn_FreshThenResume (0.00s)
+=== RUN   TestCodexSession_EmitsTurnDiagnostics
+--- PASS: TestCodexSession_EmitsTurnDiagnostics (0.00s)
+=== RUN   TestCodexSession_PrependsExtraPromptOnlyForFreshTurn
+--- PASS: TestCodexSession_PrependsExtraPromptOnlyForFreshTurn (0.00s)
+=== RUN   TestCodexSession_TransientErrorThenCompleted_NoFalseDeath
+--- PASS: TestCodexSession_TransientErrorThenCompleted_NoFalseDeath (0.00s)
+=== RUN   TestCodexSession_OnThreadID_EarlyPersist
+--- PASS: TestCodexSession_OnThreadID_EarlyPersist (0.00s)
+=== RUN   TestCodexSession_ResumeThreadID_SeedsResume
+--- PASS: TestCodexSession_ResumeThreadID_SeedsResume (0.00s)
+=== RUN   TestCodexSession_StaleResumeClearsAndRetriesFresh
+--- PASS: TestCodexSession_StaleResumeClearsAndRetriesFresh (0.00s)
+=== RUN   TestMapCodexLine_PermanentAuthError_Terminal
+--- PASS: TestMapCodexLine_PermanentAuthError_Terminal (0.00s)
+=== RUN   TestIsPermanentCodexError
+--- PASS: TestIsPermanentCodexError (0.00s)
+=== RUN   TestCodexSession_ToolEvents
+--- PASS: TestCodexSession_ToolEvents (0.00s)
+=== RUN   TestCodexSession_CrashWithoutResult_SynthesizesError
+--- PASS: TestCodexSession_CrashWithoutResult_SynthesizesError (0.00s)
+=== RUN   TestCodexSession_StartTimeout_SynthesizesErrorAndFatalExit
+--- PASS: TestCodexSession_StartTimeout_SynthesizesErrorAndFatalExit (0.02s)
+=== RUN   TestCodexSession_IdleTimeoutAfterActivity_SynthesizesErrorAndFatalExit
+--- PASS: TestCodexSession_IdleTimeoutAfterActivity_SynthesizesErrorAndFatalExit (0.02s)
+=== RUN   TestCodexSession_LaunchFailure_FatalExit
+--- PASS: TestCodexSession_LaunchFailure_FatalExit (0.00s)
+=== RUN   TestCodexSession_InjectAfterStop_Closed
+--- PASS: TestCodexSession_InjectAfterStop_Closed (0.00s)
+=== RUN   TestCodexSession_StopIdempotent_ExitOnce
+--- PASS: TestCodexSession_StopIdempotent_ExitOnce (0.05s)
+=== RUN   TestStartCodex_WritesMCPConfigAndCodexHome
+--- PASS: TestStartCodex_WritesMCPConfigAndCodexHome (0.18s)
+=== RUN   TestStartCodex_PreflightsFullCatalogForNativeToolSearch
+--- PASS: TestStartCodex_PreflightsFullCatalogForNativeToolSearch (0.16s)
+=== RUN   TestStartCodex_BlocksWhenSupervisorMCPPreflightFails
+--- PASS: TestStartCodex_BlocksWhenSupervisorMCPPreflightFails (0.00s)
+=== RUN   TestStartClaude_BlocksWhenSupervisorMCPPreflightFails
+--- PASS: TestStartClaude_BlocksWhenSupervisorMCPPreflightFails (0.00s)
+=== RUN   TestStartCodex_DoesNotResumePriorThreadWithoutHealthyResume
+--- PASS: TestStartCodex_DoesNotResumePriorThreadWithoutHealthyResume (0.18s)
+=== RUN   TestStartCodex_IncludesMemoryHarnessInFreshPrompt
+--- PASS: TestStartCodex_IncludesMemoryHarnessInFreshPrompt (0.24s)
+=== RUN   TestReportForkCommandStatus_ReportsStartedBeforeAck
+--- PASS: TestReportForkCommandStatus_ReportsStartedBeforeAck (0.00s)
+=== RUN   TestReportForkCommandStatus_ErrorPreventsAck
+--- PASS: TestReportForkCommandStatus_ErrorPreventsAck (0.00s)
+=== RUN   TestSpawnExecutor_DispatchModeAbsent_StillForks
+--- PASS: TestSpawnExecutor_DispatchModeAbsent_StillForks (0.00s)
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/empty_string
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/whitespace_only
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/unknown_value_from_a_newer_center
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/case_mismatch_is_NOT_inline
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/near-miss_typo_is_NOT_inline
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/wrong_JSON_type_(number)
+=== RUN   TestSpawnExecutor_DispatchModeDefaults_StillFork/wrong_JSON_type_(bool)
+--- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork (0.03s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/empty_string (0.00s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/whitespace_only (0.00s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/unknown_value_from_a_newer_center (0.00s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/case_mismatch_is_NOT_inline (0.01s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/near-miss_typo_is_NOT_inline (0.00s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/wrong_JSON_type_(number) (0.00s)
+    --- PASS: TestSpawnExecutor_DispatchModeDefaults_StillFork/wrong_JSON_type_(bool) (0.00s)
+=== RUN   TestSpawnExecutor_ExplicitCodeDispatchWithoutRepoFailsClosed
+--- PASS: TestSpawnExecutor_ExplicitCodeDispatchWithoutRepoFailsClosed (0.00s)
+=== RUN   TestSpawnExecutor_SupervisorInline_RejectsFork
+--- PASS: TestSpawnExecutor_SupervisorInline_RejectsFork (0.00s)
+=== RUN   TestSpawnExecutor_SupervisorInline_ForeignAssignee_StillSkips
+--- PASS: TestSpawnExecutor_SupervisorInline_ForeignAssignee_StillSkips (0.00s)
+=== RUN   TestSpawnExecutor_SupervisorInline_AlreadyRunning_Skips
+--- PASS: TestSpawnExecutor_SupervisorInline_AlreadyRunning_Skips (0.00s)
+=== RUN   TestNotifyWork_SupervisorInline_InjectsDespiteConcurrency
+--- PASS: TestNotifyWork_SupervisorInline_InjectsDespiteConcurrency (0.00s)
+=== RUN   TestNotifyWork_DispatchModeDefaults_StillFork
+=== RUN   TestNotifyWork_DispatchModeDefaults_StillFork/mode=
+=== RUN   TestNotifyWork_DispatchModeDefaults_StillFork/mode=___
+=== RUN   TestNotifyWork_DispatchModeDefaults_StillFork/mode=some_future_mode
+=== RUN   TestNotifyWork_DispatchModeDefaults_StillFork/mode=SUPERVISOR_INLINE
+--- PASS: TestNotifyWork_DispatchModeDefaults_StillFork (0.01s)
+    --- PASS: TestNotifyWork_DispatchModeDefaults_StillFork/mode= (0.00s)
+    --- PASS: TestNotifyWork_DispatchModeDefaults_StillFork/mode=___ (0.00s)
+    --- PASS: TestNotifyWork_DispatchModeDefaults_StillFork/mode=some_future_mode (0.00s)
+    --- PASS: TestNotifyWork_DispatchModeDefaults_StillFork/mode=SUPERVISOR_INLINE (0.00s)
+=== RUN   TestNotifyWork_ExplicitCodeDispatchWithoutRepoIsDeclined
+--- PASS: TestNotifyWork_ExplicitCodeDispatchWithoutRepoIsDeclined (0.00s)
+=== RUN   TestRoutesSupervisorInline
+--- PASS: TestRoutesSupervisorInline (0.00s)
+=== RUN   TestExecutorActivityObserver_Emits
+--- PASS: TestExecutorActivityObserver_Emits (0.00s)
+=== RUN   TestExecutorActivityBridge_KeepsExecutionIDGroupingWithSlotPayload
+--- PASS: TestExecutorActivityBridge_KeepsExecutionIDGroupingWithSlotPayload (0.00s)
+=== RUN   TestExecutorStartPayload_Schema
+--- PASS: TestExecutorStartPayload_Schema (0.00s)
+=== RUN   TestExecutorStartPayload_OmitsEmptyOptionals
+--- PASS: TestExecutorStartPayload_OmitsEmptyOptionals (0.00s)
+=== RUN   TestExecutorStopPayload_FourClasses
+=== RUN   TestExecutorStopPayload_FourClasses/正常退出
+=== RUN   TestExecutorStopPayload_FourClasses/异常退出(exit_code)
+=== RUN   TestExecutorStopPayload_FourClasses/看门狗_stall-kill
+=== RUN   TestExecutorStopPayload_FourClasses/orphan_清理
+--- PASS: TestExecutorStopPayload_FourClasses (0.00s)
+    --- PASS: TestExecutorStopPayload_FourClasses/正常退出 (0.00s)
+    --- PASS: TestExecutorStopPayload_FourClasses/异常退出(exit_code) (0.00s)
+    --- PASS: TestExecutorStopPayload_FourClasses/看门狗_stall-kill (0.00s)
+    --- PASS: TestExecutorStopPayload_FourClasses/orphan_清理 (0.00s)
+=== RUN   TestExecutorStopPayload_IncludesGitDeliverySnapshot
+--- PASS: TestExecutorStopPayload_IncludesGitDeliverySnapshot (0.00s)
+=== RUN   TestExecutorProgressPayload_Schema
+--- PASS: TestExecutorProgressPayload_Schema (0.00s)
+=== RUN   TestExecutorProgressPayload_OmitsEmptySummary
+--- PASS: TestExecutorProgressPayload_OmitsEmptySummary (0.00s)
+=== RUN   TestExecutorRecoveryPayload_Schema
+--- PASS: TestExecutorRecoveryPayload_Schema (0.00s)
+=== RUN   TestExecutorInteractionRef
+--- PASS: TestExecutorInteractionRef (0.00s)
+=== RUN   TestExecutorConfig_ConcurrencyEnabled
+--- PASS: TestExecutorConfig_ConcurrencyEnabled (0.00s)
+=== RUN   TestRouterCandidates_CarriesCatalogAnnotations
+--- PASS: TestRouterCandidates_CarriesCatalogAnnotations (0.00s)
+=== RUN   TestFirstNonEmptyLine
+--- PASS: TestFirstNonEmptyLine (0.00s)
+=== RUN   TestFuncClock_Now
+--- PASS: TestFuncClock_Now (0.00s)
+=== RUN   TestSnapshotConcurrency_LiveAndOrphanMerged
+--- PASS: TestSnapshotConcurrency_LiveAndOrphanMerged (0.00s)
+=== RUN   TestSnapshotConcurrency_DedupsOrphanAlsoLive
+--- PASS: TestSnapshotConcurrency_DedupsOrphanAlsoLive (0.00s)
+=== RUN   TestSnapshotAgentConcurrency_FullSlotsAfterLiveResize
+--- PASS: TestSnapshotAgentConcurrency_FullSlotsAfterLiveResize (0.00s)
+=== RUN   TestReconcileOneExecutor_DeathShouldContinue_ConsumesBudget
+--- PASS: TestReconcileOneExecutor_DeathShouldContinue_ConsumesBudget (0.00s)
+=== RUN   TestReconcileOneExecutor_LegitFailure_NoRecovery
+--- PASS: TestReconcileOneExecutor_LegitFailure_NoRecovery (0.00s)
+=== RUN   TestReconcileOneExecutor_BudgetExhausted_Escalates
+--- PASS: TestReconcileOneExecutor_BudgetExhausted_Escalates (0.00s)
+=== RUN   TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover
+--- PASS: TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover (0.00s)
+=== RUN   TestReconcileOneExecutor_BlockedTask_NoRecover
+--- PASS: TestReconcileOneExecutor_BlockedTask_NoRecover (0.00s)
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_no_reason
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_with_reason
+--- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover (0.01s)
+    --- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_no_reason (0.00s)
+    --- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_with_reason (0.00s)
+=== RUN   TestTaskCancelEvidence_ParkedAndLegacy
+--- PASS: TestTaskCancelEvidence_ParkedAndLegacy (0.00s)
+=== RUN   TestReconcileOneExecutor_RunningNotBlocked_StillRecovers
+--- PASS: TestReconcileOneExecutor_RunningNotBlocked_StillRecovers (0.00s)
+=== RUN   TestExecutorEngine_RecoveringGuard
+--- PASS: TestExecutorEngine_RecoveringGuard (0.00s)
+=== RUN   TestExecutorEngine_RecoverBudget_TieredPerTask
+--- PASS: TestExecutorEngine_RecoverBudget_TieredPerTask (0.00s)
+=== RUN   TestExecutorEngine_StallBudgetStricterThanCrash
+--- PASS: TestExecutorEngine_StallBudgetStricterThanCrash (0.00s)
+=== RUN   TestBuildExecutorEngine_ErrorOnBadRoot
+--- PASS: TestBuildExecutorEngine_ErrorOnBadRoot (0.00s)
+=== RUN   TestCodexAuthPreflight
+--- PASS: TestCodexAuthPreflight (0.00s)
+=== RUN   TestBuildExecutorEngine_JudgeEnabledButNoModel_WarnsLoud
+--- PASS: TestBuildExecutorEngine_JudgeEnabledButNoModel_WarnsLoud (0.00s)
+=== RUN   TestDrainExecutor_NilGuards
+--- PASS: TestDrainExecutor_NilGuards (0.00s)
+=== RUN   TestBuildExecutorEngine_ForksAndDrainFreesSlot
+--- PASS: TestBuildExecutorEngine_ForksAndDrainFreesSlot (0.07s)
+=== RUN   TestWorkViaExecutor_ForksAndRegistersRouting
+--- PASS: TestWorkViaExecutor_ForksAndRegistersRouting (0.00s)
+=== RUN   TestWorkViaExecutor_NonCapacityErrorWraps
+--- PASS: TestWorkViaExecutor_NonCapacityErrorWraps (0.00s)
+=== RUN   TestWorkViaExecutor_AtCapacityRetryable
+--- PASS: TestWorkViaExecutor_AtCapacityRetryable (0.00s)
+=== RUN   TestBuildWorkItem
+=== RUN   TestBuildWorkItem/full_detail
+=== RUN   TestBuildWorkItem/title_falls_back_to_first_description_line
+=== RUN   TestBuildWorkItem/title_falls_back_to_task_id
+=== RUN   TestBuildWorkItem/supervisor_override_supplies_model_and_context
+=== RUN   TestBuildWorkItem/repo_keeps_default_branch_protection_context
+--- PASS: TestBuildWorkItem (0.00s)
+    --- PASS: TestBuildWorkItem/full_detail (0.00s)
+    --- PASS: TestBuildWorkItem/title_falls_back_to_first_description_line (0.00s)
+    --- PASS: TestBuildWorkItem/title_falls_back_to_task_id (0.00s)
+    --- PASS: TestBuildWorkItem/supervisor_override_supplies_model_and_context (0.00s)
+    --- PASS: TestBuildWorkItem/repo_keeps_default_branch_protection_context (0.00s)
+=== RUN   TestBuildExecutorEngine_WiresWriteback
+--- PASS: TestBuildExecutorEngine_WiresWriteback (0.00s)
+=== RUN   TestSpawnExecutor_AdmitsThenForks
+--- PASS: TestSpawnExecutor_AdmitsThenForks (0.00s)
+=== RUN   TestSpawnExecutor_StartTaskDeclinedSkipsFork
+--- PASS: TestSpawnExecutor_StartTaskDeclinedSkipsFork (0.00s)
+=== RUN   TestSpawnExecutor_AlreadyRunningWithoutExecutorForksWithoutRestart
+--- PASS: TestSpawnExecutor_AlreadyRunningWithoutExecutorForksWithoutRestart (0.00s)
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip/blocked
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip/legacy_running_blocked
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip/completed
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip/discarded
+=== RUN   TestSpawnExecutor_NonDispatchableStatesSkip/unknown
+--- PASS: TestSpawnExecutor_NonDispatchableStatesSkip (0.00s)
+    --- PASS: TestSpawnExecutor_NonDispatchableStatesSkip/blocked (0.00s)
+    --- PASS: TestSpawnExecutor_NonDispatchableStatesSkip/legacy_running_blocked (0.00s)
+    --- PASS: TestSpawnExecutor_NonDispatchableStatesSkip/completed (0.00s)
+    --- PASS: TestSpawnExecutor_NonDispatchableStatesSkip/discarded (0.00s)
+    --- PASS: TestSpawnExecutor_NonDispatchableStatesSkip/unknown (0.00s)
+=== RUN   TestSpawnExecutor_SkipsForeignAssignee_Guard
+--- PASS: TestSpawnExecutor_SkipsForeignAssignee_Guard (0.00s)
+=== RUN   TestSpawnExecutor_OwnAssignee_ForksNormally
+--- PASS: TestSpawnExecutor_OwnAssignee_ForksNormally (0.00s)
+=== RUN   TestSpawnExecutor_GetTaskErrorSkips
+--- PASS: TestSpawnExecutor_GetTaskErrorSkips (0.00s)
+=== RUN   TestSpawnExecutor_MalformedGetTaskSkips
+--- PASS: TestSpawnExecutor_MalformedGetTaskSkips (0.00s)
+=== RUN   TestSpawnExecutor_NoToolCallerLeavesQueued
+--- PASS: TestSpawnExecutor_NoToolCallerLeavesQueued (0.00s)
+=== RUN   TestSpawnExecutor_EmptyTaskID
+--- PASS: TestSpawnExecutor_EmptyTaskID (0.00s)
+=== RUN   TestSpawnExecutor_ForkFailsAfterAdmission
+--- PASS: TestSpawnExecutor_ForkFailsAfterAdmission (0.00s)
+=== RUN   TestSpawnExecutor_DistinctTasksProceedConcurrently
+--- PASS: TestSpawnExecutor_DistinctTasksProceedConcurrently (0.00s)
+=== RUN   TestSpawnExecutor_SameTaskConcurrentCallsCoalesce
+--- PASS: TestSpawnExecutor_SameTaskConcurrentCallsCoalesce (0.00s)
+=== RUN   TestSpawnExecutor_SameTaskWithLiveExecutorCoalescesBeforeCenterRead
+--- PASS: TestSpawnExecutor_SameTaskWithLiveExecutorCoalescesBeforeCenterRead (0.00s)
+=== RUN   TestSpawnExecutor_ModelNotAllowedBlocks
+--- PASS: TestSpawnExecutor_ModelNotAllowedBlocks (0.00s)
+=== RUN   TestNotifyWork_ExecutorBranchForks
+--- PASS: TestNotifyWork_ExecutorBranchForks (0.00s)
+=== RUN   TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex
+--- PASS: TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex (0.00s)
+=== RUN   TestRecover_AdoptsRunningFinalizesTerminal
+--- PASS: TestRecover_AdoptsRunningFinalizesTerminal (0.01s)
+=== RUN   TestRunWatchdog_PollsAdoptedOrphanToCompletion
+--- PASS: TestRunWatchdog_PollsAdoptedOrphanToCompletion (0.00s)
+=== RUN   TestRunWatchdog_NoEngineNoop
+--- PASS: TestRunWatchdog_NoEngineNoop (0.00s)
+=== RUN   TestClassifyForkFailure
+=== RUN   TestClassifyForkFailure/no_model_resolvable_(wrapped)
+=== RUN   TestClassifyForkFailure/model_not_allowed_(wrapped)
+=== RUN   TestClassifyForkFailure/rate_limited_429
+=== RUN   TestClassifyForkFailure/rate_limited_phrase
+=== RUN   TestClassifyForkFailure/overloaded
+=== RUN   TestClassifyForkFailure/quota
+=== RUN   TestClassifyForkFailure/generic_fork_error
+=== RUN   TestClassifyForkFailure/nil
+--- PASS: TestClassifyForkFailure (0.00s)
+    --- PASS: TestClassifyForkFailure/no_model_resolvable_(wrapped) (0.00s)
+    --- PASS: TestClassifyForkFailure/model_not_allowed_(wrapped) (0.00s)
+    --- PASS: TestClassifyForkFailure/rate_limited_429 (0.00s)
+    --- PASS: TestClassifyForkFailure/rate_limited_phrase (0.00s)
+    --- PASS: TestClassifyForkFailure/overloaded (0.00s)
+    --- PASS: TestClassifyForkFailure/quota (0.00s)
+    --- PASS: TestClassifyForkFailure/generic_fork_error (0.00s)
+    --- PASS: TestClassifyForkFailure/nil (0.00s)
+=== RUN   TestForkFailureReason_Structured
+--- PASS: TestForkFailureReason_Structured (0.00s)
+=== RUN   TestSpawnExecutor_NoModelResolvable_BlocksWithCause
+--- PASS: TestSpawnExecutor_NoModelResolvable_BlocksWithCause (0.00s)
+=== RUN   TestBlockTaskOnForkFailure_RateLimited
+--- PASS: TestBlockTaskOnForkFailure_RateLimited (0.00s)
+=== RUN   TestIsIncompleteTurnMarker
+=== RUN   TestIsIncompleteTurnMarker/connection_closed_mid-response
+=== RUN   TestIsIncompleteTurnMarker/response_above_may_be_incomplete
+=== RUN   TestIsIncompleteTurnMarker/full_issue_line
+=== RUN   TestIsIncompleteTurnMarker/case-insensitive
+=== RUN   TestIsIncompleteTurnMarker/ordinary_text
+=== RUN   TestIsIncompleteTurnMarker/empty
+--- PASS: TestIsIncompleteTurnMarker (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/connection_closed_mid-response (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/response_above_may_be_incomplete (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/full_issue_line (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/case-insensitive (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/ordinary_text (0.00s)
+    --- PASS: TestIsIncompleteTurnMarker/empty (0.00s)
+=== RUN   TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult
+--- PASS: TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult (0.00s)
+=== RUN   TestAPIError_IncompleteMarkerResumesConverseTurn
+--- PASS: TestAPIError_IncompleteMarkerResumesConverseTurn (0.00s)
+=== RUN   TestReportInstalledSkills_FingerprintSuppression
+--- PASS: TestReportInstalledSkills_FingerprintSuppression (0.00s)
+=== RUN   TestReportInstalledSkills_ScanRateLimit
+--- PASS: TestReportInstalledSkills_ScanRateLimit (0.00s)
+=== RUN   TestReportInstalledSkills_NilCallerNoOp
+--- PASS: TestReportInstalledSkills_NilCallerNoOp (0.00s)
+=== RUN   TestPluginSkillRoots_FromInstalledManifest
+--- PASS: TestPluginSkillRoots_FromInstalledManifest (0.00s)
+=== RUN   TestDefaultSkillLayerRoots_ResolvesPluginAndSymlinkedUserSkills
+--- PASS: TestDefaultSkillLayerRoots_ResolvesPluginAndSymlinkedUserSkills (0.00s)
+=== RUN   TestTick_RenewsAllInflightTasks
+--- PASS: TestTick_RenewsAllInflightTasks (0.00s)
+=== RUN   TestDrainLeaseRenewals_RevokedExecutorFused
+--- PASS: TestDrainLeaseRenewals_RevokedExecutorFused (0.00s)
+=== RUN   TestDrainLeaseRenewals_SkipsWhenStopping
+--- PASS: TestDrainLeaseRenewals_SkipsWhenStopping (0.00s)
+=== RUN   TestNotifyWork_InjectErrorPropagates
+--- PASS: TestNotifyWork_InjectErrorPropagates (0.00s)
+=== RUN   TestNotifyWork_CreatesTaskDir
+--- PASS: TestNotifyWork_CreatesTaskDir (0.00s)
+=== RUN   TestNotifyWake_NoSessionAndInjectError
+--- PASS: TestNotifyWake_NoSessionAndInjectError (0.00s)
+=== RUN   TestNotifyConverse_NoSessionAndInjectErrorAndDedup
+--- PASS: TestNotifyConverse_NoSessionAndInjectErrorAndDedup (0.00s)
+=== RUN   TestRecordWake_FIFOEviction
+--- PASS: TestRecordWake_FIFOEviction (0.00s)
+=== RUN   TestOnExit_DetachingReportsNothing
+--- PASS: TestOnExit_DetachingReportsNothing (0.00s)
+=== RUN   TestOnExit_ExpectedStopReportsNothing
+--- PASS: TestOnExit_ExpectedStopReportsNothing (0.00s)
+=== RUN   TestOnExit_CodexCrashReportsCrashedAndFiresFatal
+--- PASS: TestOnExit_CodexCrashReportsCrashedAndFiresFatal (0.00s)
+=== RUN   TestOnEvent_CodexLargeCleanTurnTriggersRecycle
+--- PASS: TestOnEvent_CodexLargeCleanTurnTriggersRecycle (0.00s)
+=== RUN   TestOnEvent_CodexCleanTurnCountTriggersRecycle
+--- PASS: TestOnEvent_CodexCleanTurnCountTriggersRecycle (0.00s)
+=== RUN   TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal
+--- PASS: TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal (0.00s)
+=== RUN   TestSurfaceTurnFailure_Branches
+--- PASS: TestSurfaceTurnFailure_Branches (0.00s)
+=== RUN   TestCleanConverseTurnClearsContextAndRunsReplyNudge
+--- PASS: TestCleanConverseTurnClearsContextAndRunsReplyNudge (0.01s)
+=== RUN   TestReportRecoveredAndLifecycleOnce
+--- PASS: TestReportRecoveredAndLifecycleOnce (0.00s)
+=== RUN   TestMaybeReportUsage_Branches
+--- PASS: TestMaybeReportUsage_Branches (0.00s)
+=== RUN   TestOnEvent_CodexToolSearchMissingAgentCenterIsFatal
+--- PASS: TestOnEvent_CodexToolSearchMissingAgentCenterIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextMissingAgentCenterIsFatal
+--- PASS: TestOnEvent_CodexAssistantTextMissingAgentCenterIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextMissingAgentCenterExactIncidentIsFatalAndClearsThread
+--- PASS: TestOnEvent_CodexAssistantTextMissingAgentCenterExactIncidentIsFatalAndClearsThread (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextNoAgentCenterMCPIsFatal
+--- PASS: TestOnEvent_CodexAssistantTextNoAgentCenterMCPIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextUnexposedAgentCenterMCPIsFatal
+--- PASS: TestOnEvent_CodexAssistantTextUnexposedAgentCenterMCPIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextAgentCenterToolsUnavailableIsFatal
+--- PASS: TestOnEvent_CodexAssistantTextAgentCenterToolsUnavailableIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexAssistantTextGetMyProfileNotFunctionIsFatal
+--- PASS: TestOnEvent_CodexAssistantTextGetMyProfileNotFunctionIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexRegistryMissingThenSuccessDoesNotCountCleanTurn
+--- PASS: TestOnEvent_CodexRegistryMissingThenSuccessDoesNotCountCleanTurn (0.00s)
+=== RUN   TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal
+--- PASS: TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal (0.00s)
+=== RUN   TestCodexToolSearchWithAgentCenterIsNotFatal
+--- PASS: TestCodexToolSearchWithAgentCenterIsNotFatal (0.00s)
+=== RUN   TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerAllowsHTTPSFallback
+--- PASS: TestOnEvent_CodexWebSocketFallbackAfterUnknownIssuerAllowsHTTPSFallback (0.00s)
+=== RUN   TestOnEvent_CodexTransientUnknownIssuerAllowsReconnect
+--- PASS: TestOnEvent_CodexTransientUnknownIssuerAllowsReconnect (0.00s)
+=== RUN   TestOnEvent_CodexTransientUnknownIssuerThenTerminalErrorIsFatal
+--- PASS: TestOnEvent_CodexTransientUnknownIssuerThenTerminalErrorIsFatal (0.00s)
+=== RUN   TestOnEvent_CodexNonTransientUnknownIssuerIsFatal
+--- PASS: TestOnEvent_CodexNonTransientUnknownIssuerIsFatal (0.00s)
+=== RUN   TestDecideRateLimitResume_Clamps
+--- PASS: TestDecideRateLimitResume_Clamps (0.00s)
+=== RUN   TestDecideAPIErrorBackoff_Edges
+--- PASS: TestDecideAPIErrorBackoff_Edges (0.00s)
+=== RUN   TestTaskIDFromStartTool_Variants
+--- PASS: TestTaskIDFromStartTool_Variants (0.00s)
+=== RUN   TestConverseErrorSummary
+--- PASS: TestConverseErrorSummary (0.00s)
+=== RUN   TestMessageDeliveredPayload_Truncates
+--- PASS: TestMessageDeliveredPayload_Truncates (0.00s)
+=== RUN   TestBuildConverseBrief_Branches
+--- PASS: TestBuildConverseBrief_Branches (0.00s)
+=== RUN   TestWriteMCPConfig_Branches
+--- PASS: TestWriteMCPConfig_Branches (0.00s)
+=== RUN   TestAgentPaths_Errors
+--- PASS: TestAgentPaths_Errors (0.00s)
+=== RUN   TestExecutorSurface_NoEngineNoop
+--- PASS: TestExecutorSurface_NoEngineNoop (0.00s)
+=== RUN   TestNotifyWorkAvailable_InjectsSupervisorNudgeOnly
+--- PASS: TestNotifyWorkAvailable_InjectsSupervisorNudgeOnly (0.00s)
+=== RUN   TestNotifyWorkAvailable_NoSessionRetries
+--- PASS: TestNotifyWorkAvailable_NoSessionRetries (0.00s)
+=== RUN   TestAccessorsAndResumeNudge
+--- PASS: TestAccessorsAndResumeNudge (0.00s)
+=== RUN   TestIsRunning_AttachDetach
+--- PASS: TestIsRunning_AttachDetach (0.00s)
+=== RUN   TestStopReporting_NoSession
+--- PASS: TestStopReporting_NoSession (0.00s)
+=== RUN   TestTick_NoResumeIsNoop
+--- PASS: TestTick_NoResumeIsNoop (0.00s)
+=== RUN   TestAgentCLIMarker_RoundTrip
+--- PASS: TestAgentCLIMarker_RoundTrip (0.00s)
+=== RUN   TestNotifyWork_InjectsAndSetsState
+--- PASS: TestNotifyWork_InjectsAndSetsState (0.00s)
+=== RUN   TestNotifyWork_NoSessionRetries
+--- PASS: TestNotifyWork_NoSessionRetries (0.00s)
+=== RUN   TestInterruptedConverseMarkerLifecycle
+--- PASS: TestInterruptedConverseMarkerLifecycle (0.00s)
+=== RUN   TestRecoverInterruptedConverseReplaysOnceThenSurfaces
+--- PASS: TestRecoverInterruptedConverseReplaysOnceThenSurfaces (0.00s)
+=== RUN   TestNotifyConverse_SessionClosedSignalsFatal
+--- PASS: TestNotifyConverse_SessionClosedSignalsFatal (0.00s)
+=== RUN   TestNotifyWake_DedupAndMarkSeen
+--- PASS: TestNotifyWake_DedupAndMarkSeen (0.00s)
+=== RUN   TestNotifyConverse_InjectsBrief
+--- PASS: TestNotifyConverse_InjectsBrief (0.00s)
+=== RUN   TestMCPInject_NoTemplate_Noop
+--- PASS: TestMCPInject_NoTemplate_Noop (0.00s)
+=== RUN   TestMCPInject_HappyPath_ReplacesSecretRefs
+--- PASS: TestMCPInject_HappyPath_ReplacesSecretRefs (0.00s)
+=== RUN   TestMCPInject_Cleanup_RemovesFile
+--- PASS: TestMCPInject_Cleanup_RemovesFile (0.00s)
+=== RUN   TestMCPInject_ResolveError_Propagates
+--- PASS: TestMCPInject_ResolveError_Propagates (0.00s)
+=== RUN   TestMCPInject_NoResolverWired_Errors
+--- PASS: TestMCPInject_NoResolverWired_Errors (0.00s)
+=== RUN   TestMCPInject_BadJSON_Errors
+--- PASS: TestMCPInject_BadJSON_Errors (0.00s)
+=== RUN   TestMCPInject_NoSecrets_OnlyCopy
+--- PASS: TestMCPInject_NoSecrets_OnlyCopy (0.00s)
+=== RUN   TestMCPInject_EmptyHomeDir
+--- PASS: TestMCPInject_EmptyHomeDir (0.00s)
+=== RUN   TestMCPInject_SecretRefInNestedArray
+--- PASS: TestMCPInject_SecretRefInNestedArray (0.00s)
+=== RUN   TestCrashRecoveryScan_RemovesInactiveRuntimeJSON
+--- PASS: TestCrashRecoveryScan_RemovesInactiveRuntimeJSON (0.00s)
+=== RUN   TestCrashRecoveryScan_NoRuntimeJSON_Skips
+--- PASS: TestCrashRecoveryScan_NoRuntimeJSON_Skips (0.00s)
+=== RUN   TestCrashRecoveryScan_NonexistentRoot_Quietly
+--- PASS: TestCrashRecoveryScan_NonexistentRoot_Quietly (0.00s)
+=== RUN   TestCrashRecoveryScan_EmptyRoot
+--- PASS: TestCrashRecoveryScan_EmptyRoot (0.00s)
+=== RUN   TestMCPInjectError_ErrorAndUnwrap
+--- PASS: TestMCPInjectError_ErrorAndUnwrap (0.00s)
+=== RUN   TestMCPInject_TemplateReadError
+--- PASS: TestMCPInject_TemplateReadError (0.00s)
+=== RUN   TestCrashRecoveryScan_IgnoresFiles
+--- PASS: TestCrashRecoveryScan_IgnoresFiles (0.00s)
+=== RUN   TestRecover_RealGit_BootHookReapsOrphan
+    orphan_reap_runtime_test.go:85: === git worktree list BEFORE boot Recover ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookReapsOrphan1642971949/001/agents/agent-boot/repos/repo-key-boot/source
+        HEAD 76e4573e703afc5dce9dc1e730a26fccbaf46d7a
+        branch refs/heads/master
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookReapsOrphan1642971949/001/agents/agent-boot/executors/exec-orphan/workspace
+        HEAD 76e4573e703afc5dce9dc1e730a26fccbaf46d7a
+        branch refs/heads/ac-exec/task-x/exec-orphan
+        
+    orphan_reap_runtime_test.go:96: === git worktree list AFTER boot Recover ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookReapsOrphan1642971949/001/agents/agent-boot/repos/repo-key-boot/source
+        HEAD 76e4573e703afc5dce9dc1e730a26fccbaf46d7a
+        branch refs/heads/master
+        
+    orphan_reap_runtime_test.go:112: boot hook reaped the orphan worktree + stale branch; canonical source intact ✓
+--- PASS: TestRecover_RealGit_BootHookReapsOrphan (0.42s)
+=== RUN   TestSpawnExecutor_RealGit_SpawnHookReapsOrphan
+    orphan_reap_runtime_test.go:178: === git worktree list BEFORE spawn-2 (orphan planted) ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/repos/ba56b1d8066c025d874151275acd24c1b5548ec603bb38488e3da2b161ddb142/source
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/master
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/executors/exec-8f30710e/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-1/exec-8f30710e
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/executors/exec-dead/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-old/exec-dead
+        
+    orphan_reap_runtime_test.go:190: === git worktree list AFTER spawn-2 (spawn hook reaped) ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/repos/ba56b1d8066c025d874151275acd24c1b5548ec603bb38488e3da2b161ddb142/source
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/master
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/executors/exec-8f30710e/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-1/exec-8f30710e
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_RealGit_SpawnHookReapsOrphan1609821567/001/agents/agent-spawn/executors/exec-f9986a44/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-2/exec-f9986a44
+        
+    orphan_reap_runtime_test.go:200: spawn hook reaped the prior orphan while adding the new worktree; canonical intact ✓
+--- PASS: TestSpawnExecutor_RealGit_SpawnHookReapsOrphan (0.45s)
+=== RUN   TestRecover_RealGit_BootHookKeepsLiveOrphan
+    orphan_reap_runtime_test.go:263: === git worktree list BEFORE boot Recover (live + dead both present) ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookKeepsLiveOrphan2395426015/001/agents/agent-keeplive/repos/repo-key-kl/source
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/master
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookKeepsLiveOrphan2395426015/001/agents/agent-keeplive/executors/exec-dead/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-exec-dead/exec-dead
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookKeepsLiveOrphan2395426015/001/agents/agent-keeplive/executors/exec-live/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-exec-live/exec-live
+        
+    orphan_reap_runtime_test.go:273: === git worktree list AFTER boot Recover (live KEPT, dead REAPED) ===
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookKeepsLiveOrphan2395426015/001/agents/agent-keeplive/repos/repo-key-kl/source
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/master
+        
+        worktree /private/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestRecover_RealGit_BootHookKeepsLiveOrphan2395426015/001/agents/agent-keeplive/executors/exec-live/workspace
+        HEAD cae110f738b9f8db6474e9f997a9e0783ba16b7f
+        branch refs/heads/ac-exec/task-exec-live/exec-live
+        
+    orphan_reap_runtime_test.go:303: boot hook KEPT the live executor's worktree + REAPED the dead orphan in one sweep; canonical intact ✓
+--- PASS: TestRecover_RealGit_BootHookKeepsLiveOrphan (0.62s)
+=== RUN   TestReconcile_DropWhenJudged
+--- PASS: TestReconcile_DropWhenJudged (0.00s)
+=== RUN   TestReconcile_NudgeAfterGrace
+--- PASS: TestReconcile_NudgeAfterGrace (0.00s)
+=== RUN   TestReconcile_EscalateThenSilent
+--- PASS: TestReconcile_EscalateThenSilent (0.00s)
+=== RUN   TestReconcile_ZeroDeliveryEscalationCannotOfferComplete
+--- PASS: TestReconcile_ZeroDeliveryEscalationCannotOfferComplete (0.00s)
+=== RUN   TestPendingStorePersistsZeroDeliveryMustBlockAcrossRestart
+--- PASS: TestPendingStorePersistsZeroDeliveryMustBlockAcrossRestart (0.00s)
+=== RUN   TestReconcile_ReadErrorIsTransient
+--- PASS: TestReconcile_ReadErrorIsTransient (0.00s)
+=== RUN   TestCenterTaskDetail_RepoHintDecodes
+=== RUN   TestCenterTaskDetail_RepoHintDecodes/with_primary_repo
+=== RUN   TestCenterTaskDetail_RepoHintDecodes/no_repo_hint_(old_center_/_no_primary)
+--- PASS: TestCenterTaskDetail_RepoHintDecodes (0.00s)
+    --- PASS: TestCenterTaskDetail_RepoHintDecodes/with_primary_repo (0.00s)
+    --- PASS: TestCenterTaskDetail_RepoHintDecodes/no_repo_hint_(old_center_/_no_primary) (0.00s)
+=== RUN   TestSpawnExecutor_RealGit_ColdClone_ControlPathNeverBlocksAndTaskStillRuns
+--- PASS: TestSpawnExecutor_RealGit_ColdClone_ControlPathNeverBlocksAndTaskStillRuns (0.27s)
+=== RUN   TestSpawnExecutor_RealGit_WarmSourceForksInline
+--- PASS: TestSpawnExecutor_RealGit_WarmSourceForksInline (0.50s)
+=== RUN   TestSpawnExecutor_RealGit_UnreachableRemoteFailsLoud
+--- PASS: TestSpawnExecutor_RealGit_UnreachableRemoteFailsLoud (0.03s)
+=== RUN   TestSpawnExecutor_RealGit_ConcurrentTasksCloneOnce
+--- PASS: TestSpawnExecutor_RealGit_ConcurrentTasksCloneOnce (0.48s)
+=== RUN   TestSourceGate_StaleRefreshDegradesToExistingSource
+--- PASS: TestSourceGate_StaleRefreshDegradesToExistingSource (0.49s)
+=== RUN   TestSourceGate_DegradeRefusesAVanishedSource
+--- PASS: TestSourceGate_DegradeRefusesAVanishedSource (0.31s)
+=== RUN   TestSourceGate_AlwaysStaleSourceStillTerminates
+--- PASS: TestSourceGate_AlwaysStaleSourceStillTerminates (0.28s)
+=== RUN   TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare
+--- PASS: TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare (0.00s)
+=== RUN   TestSpawnExecutor_Repo_ConcurrentPruneKeepsPreparingSibling
+--- PASS: TestSpawnExecutor_Repo_ConcurrentPruneKeepsPreparingSibling (0.01s)
+=== RUN   TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone
+--- PASS: TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone (0.00s)
+=== RUN   TestSpawnExecutor_Repo_WorktreeSwitchOffCloneOutlivesControlDeadline
+--- PASS: TestSpawnExecutor_Repo_WorktreeSwitchOffCloneOutlivesControlDeadline (0.03s)
+=== RUN   TestSpawnExecutor_Repo_WorktreeSwitchOffCloneFailureFailsLoud
+--- PASS: TestSpawnExecutor_Repo_WorktreeSwitchOffCloneFailureFailsLoud (0.00s)
+=== RUN   TestSpawnExecutor_Repo_WorktreeSwitchOffStartTaskDeclinedCleansClone
+--- PASS: TestSpawnExecutor_Repo_WorktreeSwitchOffStartTaskDeclinedCleansClone (0.00s)
+=== RUN   TestRepo_RealGitWorktreeSwitchOffIndependentLocalClone
+--- PASS: TestRepo_RealGitWorktreeSwitchOffIndependentLocalClone (0.22s)
+=== RUN   TestRepo_RealGitWorktreeSwitchOffRejectsLocalRemoteMismatch
+--- PASS: TestRepo_RealGitWorktreeSwitchOffRejectsLocalRemoteMismatch (0.13s)
+=== RUN   TestSpawnExecutor_Repo_PrepareBeforeStartTask
+--- PASS: TestSpawnExecutor_Repo_PrepareBeforeStartTask (0.00s)
+=== RUN   TestSpawnExecutor_Repo_EnsureSourceFailNoForkFailsLoud
+--- PASS: TestSpawnExecutor_Repo_EnsureSourceFailNoForkFailsLoud (0.00s)
+=== RUN   TestSpawnExecutor_Repo_PrepareFailNoStartTask
+--- PASS: TestSpawnExecutor_Repo_PrepareFailNoStartTask (0.00s)
+=== RUN   TestSpawnExecutor_Repo_StartTaskDeclinedCleansWorktree
+--- PASS: TestSpawnExecutor_Repo_StartTaskDeclinedCleansWorktree (0.00s)
+=== RUN   TestSpawnExecutor_Repo_ForkFailsCleansWorktree
+--- PASS: TestSpawnExecutor_Repo_ForkFailsCleansWorktree (0.01s)
+=== RUN   TestRecover_Repo_CleansWorktreeSourceSurvives
+--- PASS: TestRecover_Repo_CleansWorktreeSourceSurvives (0.10s)
+=== RUN   TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize
+--- PASS: TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize (0.63s)
+=== RUN   TestRepo_RealGitEndToEndCanonicalSourceSurvives
+--- PASS: TestRepo_RealGitEndToEndCanonicalSourceSurvives (0.81s)
+=== RUN   TestEnactRecover_Fresh_CallsResetTask
+--- PASS: TestEnactRecover_Fresh_CallsResetTask (0.00s)
+=== RUN   TestEnactRecover_Resume_NoResetTask
+--- PASS: TestEnactRecover_Resume_NoResetTask (0.00s)
+=== RUN   TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887
+--- PASS: TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887 (0.00s)
+=== RUN   TestEscalateRecoveryExhausted_LeavesOtherTask_T887
+--- PASS: TestEscalateRecoveryExhausted_LeavesOtherTask_T887 (0.00s)
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/nil_defaults_execute
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/ordinary_task_executes
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/evidence-only_reviews
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/supervisor-inline_reviews
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/review_title_reviews
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/follow-up_recovers
+=== RUN   TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/origin_verdict_recovers
+--- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/nil_defaults_execute (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/ordinary_task_executes (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/evidence-only_reviews (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/supervisor-inline_reviews (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/review_title_reviews (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/follow-up_recovers (0.00s)
+    --- PASS: TestRulePhaseForTask_ExecuteReviewRecoveryUnchanged/origin_verdict_recovers (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	9.061s
+=== RUN   TestStreamLineActivity_Tools
+=== RUN   TestStreamLineActivity_Tools/read_full_path_(no_basename_redaction)
+=== RUN   TestStreamLineActivity_Tools/write_full_path
+=== RUN   TestStreamLineActivity_Tools/edit_full_path
+=== RUN   TestStreamLineActivity_Tools/grep_pattern
+=== RUN   TestStreamLineActivity_Tools/glob_pattern
+=== RUN   TestStreamLineActivity_Tools/unknown_tool_keeps_its_args
+=== RUN   TestStreamLineActivity_Tools/assistant_text_→_generic_label
+=== RUN   TestStreamLineActivity_Tools/bash_full_command
+=== RUN   TestStreamLineActivity_Tools/bash_git_push_keeps_remote/branch
+=== RUN   TestStreamLineActivity_Tools/bash_cd_&&_go_test_(the_report_case)
+=== RUN   TestStreamLineActivity_Tools/bash_abs-path_binary_kept_as-is
+=== RUN   TestStreamLineActivity_Tools/result_line
+=== RUN   TestStreamLineActivity_Tools/system_line
+=== RUN   TestStreamLineActivity_Tools/non-json
+=== RUN   TestStreamLineActivity_Tools/empty
+--- PASS: TestStreamLineActivity_Tools (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/read_full_path_(no_basename_redaction) (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/write_full_path (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/edit_full_path (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/grep_pattern (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/glob_pattern (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/unknown_tool_keeps_its_args (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/assistant_text_→_generic_label (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/bash_full_command (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/bash_git_push_keeps_remote/branch (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/bash_cd_&&_go_test_(the_report_case) (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/bash_abs-path_binary_kept_as-is (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/result_line (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/system_line (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/non-json (0.00s)
+    --- PASS: TestStreamLineActivity_Tools/empty (0.00s)
+=== RUN   TestStreamLineActivity_EditorContentElided
+=== RUN   TestStreamLineActivity_EditorContentElided/write_drops_the_whole-file_content,_keeps_file_path
+=== RUN   TestStreamLineActivity_EditorContentElided/edit_drops_old/new_string,_keeps_file_path
+=== RUN   TestStreamLineActivity_EditorContentElided/edit_keeps_a_non-blob_field_(replace_all)
+=== RUN   TestStreamLineActivity_EditorContentElided/multiedit_drops_the_edits_array,_keeps_file_path
+=== RUN   TestStreamLineActivity_EditorContentElided/notebookedit_drops_new_source,_keeps_notebook_path
+=== RUN   TestStreamLineActivity_EditorContentElided/write_with_only_file_path_(no_content)_is_unchanged
+--- PASS: TestStreamLineActivity_EditorContentElided (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/write_drops_the_whole-file_content,_keeps_file_path (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/edit_drops_old/new_string,_keeps_file_path (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/edit_keeps_a_non-blob_field_(replace_all) (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/multiedit_drops_the_edits_array,_keeps_file_path (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/notebookedit_drops_new_source,_keeps_notebook_path (0.00s)
+    --- PASS: TestStreamLineActivity_EditorContentElided/write_with_only_file_path_(no_content)_is_unchanged (0.00s)
+=== RUN   TestStreamLineActivity_LargeWriteContentNotDumped
+--- PASS: TestStreamLineActivity_LargeWriteContentNotDumped (0.00s)
+=== RUN   TestStreamLineActivity_BashArgsVisible
+=== RUN   TestStreamLineActivity_BashArgsVisible/path_arg_now_visible
+=== RUN   TestStreamLineActivity_BashArgsVisible/flag_value_now_visible
+=== RUN   TestStreamLineActivity_BashArgsVisible/cd_chain_now_visible
+=== RUN   TestStreamLineActivity_BashArgsVisible/env_prefix_now_visible
+--- PASS: TestStreamLineActivity_BashArgsVisible (0.00s)
+    --- PASS: TestStreamLineActivity_BashArgsVisible/path_arg_now_visible (0.00s)
+    --- PASS: TestStreamLineActivity_BashArgsVisible/flag_value_now_visible (0.00s)
+    --- PASS: TestStreamLineActivity_BashArgsVisible/cd_chain_now_visible (0.00s)
+    --- PASS: TestStreamLineActivity_BashArgsVisible/env_prefix_now_visible (0.00s)
+=== RUN   TestStreamLineActivity_Truncation
+--- PASS: TestStreamLineActivity_Truncation (0.00s)
+=== RUN   TestMonitor_Emit_Stop_Succeeded
+--- PASS: TestMonitor_Emit_Stop_Succeeded (0.01s)
+=== RUN   TestMonitor_Emit_Stop_FailedNonzeroExit
+--- PASS: TestMonitor_Emit_Stop_FailedNonzeroExit (0.00s)
+=== RUN   TestMonitor_Sweep_MarksStalled
+--- PASS: TestMonitor_Sweep_MarksStalled (0.00s)
+=== RUN   TestMonitor_Sweep_MarksStalledBeforeGracefulKill
+--- PASS: TestMonitor_Sweep_MarksStalledBeforeGracefulKill (0.00s)
+=== RUN   TestMonitor_Emit_Stop_StalledOverride
+--- PASS: TestMonitor_Emit_Stop_StalledOverride (0.00s)
+=== RUN   TestMonitor_Emit_Stop_OrphanRecovered
+--- PASS: TestMonitor_Emit_Stop_OrphanRecovered (0.00s)
+=== RUN   TestMonitor_Emit_Stop_OrphanStalled
+--- PASS: TestMonitor_Emit_Stop_OrphanStalled (0.00s)
+=== RUN   TestMonitor_SampleProgress_ChangeOnly
+--- PASS: TestMonitor_SampleProgress_ChangeOnly (0.00s)
+=== RUN   TestParseCodexRunnerStream_ResultThreadUsage
+--- PASS: TestParseCodexRunnerStream_ResultThreadUsage (0.00s)
+=== RUN   TestParseCodexRunnerStream_NoThreadStarted_EmptyThreadID
+--- PASS: TestParseCodexRunnerStream_NoThreadStarted_EmptyThreadID (0.00s)
+=== RUN   TestRunExecutor_CommandEventsCaptureClaudeExitStatuses
+--- PASS: TestRunExecutor_CommandEventsCaptureClaudeExitStatuses (0.00s)
+=== RUN   TestRunExecutor_CommandEventsCaptureCodexExitStatus
+--- PASS: TestRunExecutor_CommandEventsCaptureCodexExitStatus (0.00s)
+=== RUN   TestCommandRunner_CodexCommandEventFeedsProgressActivity
+--- PASS: TestCommandRunner_CodexCommandEventFeedsProgressActivity (0.00s)
+=== RUN   TestClassify_DualSignal
+=== RUN   TestClassify_DualSignal/exit0_+_success_output_→_succeeded
+=== RUN   TestClassify_DualSignal/exit0_+_failure_output_→_failed_(trust_explicit_failure)
+=== RUN   TestClassify_DualSignal/exit0_+_no_output_→_crashed_(retryable_anomaly)
+=== RUN   TestClassify_DualSignal/nonzero_exit,_detail_from_status.error
+=== RUN   TestClassify_DualSignal/nonzero_exit,_no_status/output_→_synthesized_detail
+=== RUN   TestClassify_DualSignal/orphan_alive_→_running_(re-adopt)
+=== RUN   TestClassify_DualSignal/orphan_alive_pid_+_success_output_→_succeeded_(durable_terminal_wins)
+=== RUN   TestClassify_DualSignal/orphan_alive_pid_+_status_failed_→_failed_(durable_terminal_wins)
+=== RUN   TestClassify_DualSignal/orphan_gone_+_success_output_→_succeeded
+=== RUN   TestClassify_DualSignal/orphan_gone_+_failure_output_→_failed
+=== RUN   TestClassify_DualSignal/orphan_gone_+_status_failed_→_failed
+=== RUN   TestClassify_DualSignal/orphan_gone_+_status_done_but_no_output_→_crashed
+=== RUN   TestClassify_DualSignal/orphan_gone_+_status_running_→_crashed_(the_§9_core_case)
+=== RUN   TestClassify_DualSignal/orphan_gone_+_nothing_on_disk_→_crashed
+--- PASS: TestClassify_DualSignal (0.00s)
+    --- PASS: TestClassify_DualSignal/exit0_+_success_output_→_succeeded (0.00s)
+    --- PASS: TestClassify_DualSignal/exit0_+_failure_output_→_failed_(trust_explicit_failure) (0.00s)
+    --- PASS: TestClassify_DualSignal/exit0_+_no_output_→_crashed_(retryable_anomaly) (0.00s)
+    --- PASS: TestClassify_DualSignal/nonzero_exit,_detail_from_status.error (0.00s)
+    --- PASS: TestClassify_DualSignal/nonzero_exit,_no_status/output_→_synthesized_detail (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_alive_→_running_(re-adopt) (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_alive_pid_+_success_output_→_succeeded_(durable_terminal_wins) (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_alive_pid_+_status_failed_→_failed_(durable_terminal_wins) (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_success_output_→_succeeded (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_failure_output_→_failed (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_status_failed_→_failed (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_status_done_but_no_output_→_crashed (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_status_running_→_crashed_(the_§9_core_case) (0.00s)
+    --- PASS: TestClassify_DualSignal/orphan_gone_+_nothing_on_disk_→_crashed (0.00s)
+=== RUN   TestResolveError_Precedence
+--- PASS: TestResolveError_Precedence (0.00s)
+=== RUN   TestValidateExecutorID
+--- PASS: TestValidateExecutorID (0.00s)
+=== RUN   TestPathWithinRoot
+--- PASS: TestPathWithinRoot (0.00s)
+=== RUN   TestBadIDRejectedEverywhere
+--- PASS: TestBadIDRejectedEverywhere (0.00s)
+=== RUN   TestWriteJSONAtomic_Errors
+--- PASS: TestWriteJSONAtomic_Errors (0.00s)
+=== RUN   TestWriteOps_MkdirError
+--- PASS: TestWriteOps_MkdirError (0.00s)
+=== RUN   TestReadOutput_ValidationFailure
+--- PASS: TestReadOutput_ValidationFailure (0.00s)
+=== RUN   TestEvidenceOnly_UsesRecordedWorkspacePath
+--- PASS: TestEvidenceOnly_UsesRecordedWorkspacePath (0.53s)
+=== RUN   TestEvidenceOnly_MissingGitAndFailedPersistenceAreExplicit
+--- PASS: TestEvidenceOnly_MissingGitAndFailedPersistenceAreExplicit (0.05s)
+=== RUN   TestEvidenceCommands_IncompleteCapturesFailClosed
+=== RUN   TestEvidenceCommands_IncompleteCapturesFailClosed/finished_without_command
+=== RUN   TestEvidenceCommands_IncompleteCapturesFailClosed/finished_without_exit_status
+=== RUN   TestEvidenceCommands_IncompleteCapturesFailClosed/started_without_completion
+=== RUN   TestEvidenceCommands_IncompleteCapturesFailClosed/no_command_events
+--- PASS: TestEvidenceCommands_IncompleteCapturesFailClosed (0.00s)
+    --- PASS: TestEvidenceCommands_IncompleteCapturesFailClosed/finished_without_command (0.00s)
+    --- PASS: TestEvidenceCommands_IncompleteCapturesFailClosed/finished_without_exit_status (0.00s)
+    --- PASS: TestEvidenceCommands_IncompleteCapturesFailClosed/started_without_completion (0.00s)
+    --- PASS: TestEvidenceCommands_IncompleteCapturesFailClosed/no_command_events (0.00s)
+=== RUN   TestEvidenceOnly_ZeroSourceDiffCreatesDurableArtifact
+--- PASS: TestEvidenceOnly_ZeroSourceDiffCreatesDurableArtifact (0.52s)
+=== RUN   TestEvidenceOnly_RedVerdictStillDurable
+--- PASS: TestEvidenceOnly_RedVerdictStillDurable (0.59s)
+=== RUN   TestEvidenceOnlyPushFailureIsNonDelivery
+--- PASS: TestEvidenceOnlyPushFailureIsNonDelivery (0.56s)
+=== RUN   TestEvidenceOnlyCommandEventsUnavailableIsExplicitNonDelivery
+--- PASS: TestEvidenceOnlyCommandEventsUnavailableIsExplicitNonDelivery (0.57s)
+=== RUN   TestEvidenceOnlyFinalizeRetryDoesNotDuplicateCommit
+--- PASS: TestEvidenceOnlyFinalizeRetryDoesNotDuplicateCommit (1.22s)
+=== RUN   TestInputDeliveryContractUnknownFailsClosed
+--- PASS: TestInputDeliveryContractUnknownFailsClosed (0.00s)
+=== RUN   TestNewLayout_Errors
+--- PASS: TestNewLayout_Errors (0.00s)
+=== RUN   TestLayout_Paths
+--- PASS: TestLayout_Paths (0.00s)
+=== RUN   TestNewFileExchange_Errors
+--- PASS: TestNewFileExchange_Errors (0.00s)
+=== RUN   TestFullChain
+--- PASS: TestFullChain (0.00s)
+=== RUN   TestWriteStatus_DefaultsTimestamps
+--- PASS: TestWriteStatus_DefaultsTimestamps (0.00s)
+=== RUN   TestWrite_InvalidRejected
+--- PASS: TestWrite_InvalidRejected (0.00s)
+=== RUN   TestRead_MissingReturnsNotExist
+--- PASS: TestRead_MissingReturnsNotExist (0.00s)
+=== RUN   TestRead_CorruptIsError
+--- PASS: TestRead_CorruptIsError (0.00s)
+=== RUN   TestRead_ValidationFailure
+--- PASS: TestRead_ValidationFailure (0.00s)
+=== RUN   TestScan
+--- PASS: TestScan (0.00s)
+=== RUN   TestScan_MissingDirIsEmpty
+--- PASS: TestScan_MissingDirIsEmpty (0.00s)
+=== RUN   TestScan_CorruptInputStillReported
+--- PASS: TestScan_CorruptInputStillReported (0.00s)
+=== RUN   TestRemove
+--- PASS: TestRemove (0.00s)
+=== RUN   TestContainedPath
+--- PASS: TestContainedPath (0.00s)
+=== RUN   TestContainedPath_SymlinkEscape
+--- PASS: TestContainedPath_SymlinkEscape (0.00s)
+=== RUN   TestResolveContained_RootMissing
+--- PASS: TestResolveContained_RootMissing (0.00s)
+=== RUN   TestResolveWithin
+--- PASS: TestResolveWithin (0.00s)
+=== RUN   TestBuildExecutorEnv_AllowsSystemAndAuth
+--- PASS: TestBuildExecutorEnv_AllowsSystemAndAuth (0.00s)
+=== RUN   TestBuildExecutorEnv_StripsCenterAndUnknownSecrets
+--- PASS: TestBuildExecutorEnv_StripsCenterAndUnknownSecrets (0.00s)
+=== RUN   TestBuildExecutorEnv_OverlayAppliedButCenterCredsScrubbed
+--- PASS: TestBuildExecutorEnv_OverlayAppliedButCenterCredsScrubbed (0.00s)
+=== RUN   TestBuildExecutorEnv_DeterministicOverlayOrderAndMalformed
+--- PASS: TestBuildExecutorEnv_DeterministicOverlayOrderAndMalformed (0.00s)
+=== RUN   TestMonitor_Finalize_CapturesCleanPushedGitStatus
+--- PASS: TestMonitor_Finalize_CapturesCleanPushedGitStatus (0.00s)
+=== RUN   TestMonitor_Finalize_CapturesDirtyUnpushedGitStatus
+--- PASS: TestMonitor_Finalize_CapturesDirtyUnpushedGitStatus (0.00s)
+=== RUN   TestMonitor_Finalize_NonGitWorkspace_TimestampOnlyMarker
+--- PASS: TestMonitor_Finalize_NonGitWorkspace_TimestampOnlyMarker (0.00s)
+=== RUN   TestProbeGitStatus_DetachedHead
+--- PASS: TestProbeGitStatus_DetachedHead (0.00s)
+=== RUN   TestProbeGitStatus_NilRunnerOrDir
+--- PASS: TestProbeGitStatus_NilRunnerOrDir (0.00s)
+=== RUN   TestMonitor_Finalize_CarriesGitStatusToWriteback
+--- PASS: TestMonitor_Finalize_CarriesGitStatusToWriteback (0.00s)
+=== RUN   TestProbeGitStatus_DeliverySignals
+--- PASS: TestProbeGitStatus_DeliverySignals (1.46s)
+=== RUN   TestMonitor_Finalize_NonDeliveryGate
+--- PASS: TestMonitor_Finalize_NonDeliveryGate (0.26s)
+=== RUN   TestMonitor_Finalize_PushedDeliveryStaysSucceeded
+--- PASS: TestMonitor_Finalize_PushedDeliveryStaysSucceeded (0.53s)
+=== RUN   TestMonitor_Finalize_CommittedButUnpushed_Downgraded
+--- PASS: TestMonitor_Finalize_CommittedButUnpushed_Downgraded (0.46s)
+=== RUN   TestSpawn_RealProcessGroup
+--- PASS: TestSpawn_RealProcessGroup (0.00s)
+=== RUN   TestBuildExecutorCommand_DefaultBinary
+--- PASS: TestBuildExecutorCommand_DefaultBinary (0.00s)
+=== RUN   TestRunExecutor_RealCommandRunner
+--- PASS: TestRunExecutor_RealCommandRunner (0.00s)
+=== RUN   TestWatchdog_GracefulKill_NilContext
+--- PASS: TestWatchdog_GracefulKill_NilContext (0.00s)
+=== RUN   TestTracker_BadIDPaths
+--- PASS: TestTracker_BadIDPaths (0.00s)
+=== RUN   TestMonitor_Recover_AdoptWithNilPool
+--- PASS: TestMonitor_Recover_AdoptWithNilPool (0.00s)
+=== RUN   TestMonitor_Recover_FinalizeErrorSurfaces
+--- PASS: TestMonitor_Recover_FinalizeErrorSurfaces (0.00s)
+=== RUN   TestMonitor_FuseKillTask_MarksFusedNotStalled
+--- PASS: TestMonitor_FuseKillTask_MarksFusedNotStalled (0.00s)
+=== RUN   TestMonitor_FuseKillTask_NoLiveExecutor
+--- PASS: TestMonitor_FuseKillTask_NoLiveExecutor (0.00s)
+=== RUN   TestMonitor_FinalizeFused_NoWriteback
+--- PASS: TestMonitor_FinalizeFused_NoWriteback (0.00s)
+=== RUN   TestCheckOrphanNoFinalize_Stalled_KillsButRetainsDir
+--- PASS: TestCheckOrphanNoFinalize_Stalled_KillsButRetainsDir (0.00s)
+=== RUN   TestCheckOrphanNoFinalize_Gone_RetainsDirNoWriteback
+--- PASS: TestCheckOrphanNoFinalize_Gone_RetainsDirNoWriteback (0.00s)
+=== RUN   TestCheckOrphanNoFinalize_AliveFresh_NotTerminal
+--- PASS: TestCheckOrphanNoFinalize_AliveFresh_NotTerminal (0.00s)
+=== RUN   TestAwaitCompletionNoFinalize_RetainsDirNoWriteback
+--- PASS: TestAwaitCompletionNoFinalize_RetainsDirNoWriteback (0.01s)
+=== RUN   TestReleaseSlot_FreesSlotIdempotently
+--- PASS: TestReleaseSlot_FreesSlotIdempotently (0.00s)
+=== RUN   TestPeekStalled_NonConsuming_And_ClearStalled
+--- PASS: TestPeekStalled_NonConsuming_And_ClearStalled (0.00s)
+=== RUN   TestMonitor_AwaitCompletion_Success
+--- PASS: TestMonitor_AwaitCompletion_Success (0.01s)
+=== RUN   TestMonitor_AwaitCompletion_Failure
+--- PASS: TestMonitor_AwaitCompletion_Failure (0.01s)
+=== RUN   TestMonitor_ReapFinalized_TTLAndCap
+--- PASS: TestMonitor_ReapFinalized_TTLAndCap (0.00s)
+=== RUN   TestMonitor_AwaitCompletion_CrashRetainsDir
+--- PASS: TestMonitor_AwaitCompletion_CrashRetainsDir (0.01s)
+=== RUN   TestMonitor_AwaitCompletion_NilHandle
+--- PASS: TestMonitor_AwaitCompletion_NilHandle (0.00s)
+=== RUN   TestMonitor_Sweep_KillsOnlyStalled
+--- PASS: TestMonitor_Sweep_KillsOnlyStalled (0.00s)
+=== RUN   TestMonitor_Sweep_NoPoolOrWatchdog
+--- PASS: TestMonitor_Sweep_NoPoolOrWatchdog (0.00s)
+=== RUN   TestMonitor_Recover_FinalizesAndAdopts
+--- PASS: TestMonitor_Recover_FinalizesAndAdopts (0.00s)
+=== RUN   TestMonitor_Recover_NoReconciler
+--- PASS: TestMonitor_Recover_NoReconciler (0.00s)
+=== RUN   TestMonitor_Finalize_CapturesCodexThreadID
+--- PASS: TestMonitor_Finalize_CapturesCodexThreadID (0.01s)
+=== RUN   TestMonitor_Finalize_RunningIsNoop
+--- PASS: TestMonitor_Finalize_RunningIsNoop (0.00s)
+=== RUN   TestMonitor_QuietFinalizeRecovered_NoWriteback
+--- PASS: TestMonitor_QuietFinalizeRecovered_NoWriteback (0.00s)
+=== RUN   TestMonitor_Finalize_WritebackErrorRetainsDir
+--- PASS: TestMonitor_Finalize_WritebackErrorRetainsDir (0.00s)
+=== RUN   TestMonitor_Finalize_NoWritebackStillTearsDown
+--- PASS: TestMonitor_Finalize_NoWritebackStillTearsDown (0.00s)
+=== RUN   TestNewMonitor_Validation
+--- PASS: TestNewMonitor_Validation (0.00s)
+=== RUN   TestCheckOrphan_AliveFresh_Running
+--- PASS: TestCheckOrphan_AliveFresh_Running (0.00s)
+=== RUN   TestCheckOrphan_AliveStalled_KilledAndFailed
+--- PASS: TestCheckOrphan_AliveStalled_KilledAndFailed (0.00s)
+=== RUN   TestCheckOrphan_GoneWithSuccess_Succeeded
+--- PASS: TestCheckOrphan_GoneWithSuccess_Succeeded (0.00s)
+=== RUN   TestCheckOrphan_GoneWhileRunning_CrashedRetained
+--- PASS: TestCheckOrphan_GoneWhileRunning_CrashedRetained (0.00s)
+=== RUN   TestCheckOrphan_InvalidPID
+--- PASS: TestCheckOrphan_InvalidPID (0.00s)
+=== RUN   TestCheckOrphan_AliveNoStatus_Running
+--- PASS: TestCheckOrphan_AliveNoStatus_Running (0.00s)
+=== RUN   TestPool_Adopt_TakesSlotWithoutSpawning
+--- PASS: TestPool_Adopt_TakesSlotWithoutSpawning (0.00s)
+=== RUN   TestPool_Adopt_DuplicateAndCapacity
+--- PASS: TestPool_Adopt_DuplicateAndCapacity (0.00s)
+=== RUN   TestPool_Adopt_PreferredSlotConflictsFailLoud
+--- PASS: TestPool_Adopt_PreferredSlotConflictsFailLoud (0.00s)
+=== RUN   TestPool_Adopt_InvalidID
+--- PASS: TestPool_Adopt_InvalidID (0.00s)
+=== RUN   TestPool_AdmitsUpToMaxThenAtCapacity
+--- PASS: TestPool_AdmitsUpToMaxThenAtCapacity (0.00s)
+=== RUN   TestPool_DefaultMax
+--- PASS: TestPool_DefaultMax (0.00s)
+=== RUN   TestPool_DuplicateIDRejected
+--- PASS: TestPool_DuplicateIDRejected (0.00s)
+=== RUN   TestPool_ReleaseFreesSlot
+--- PASS: TestPool_ReleaseFreesSlot (0.00s)
+=== RUN   TestPool_LaunchAssignsLowestFreeSlot
+--- PASS: TestPool_LaunchAssignsLowestFreeSlot (0.00s)
+=== RUN   TestPool_ProvisionFailureFreesSlot
+--- PASS: TestPool_ProvisionFailureFreesSlot (0.00s)
+=== RUN   TestPool_ConcurrentLaunchesRespectCap
+--- PASS: TestPool_ConcurrentLaunchesRespectCap (0.00s)
+=== RUN   TestPool_LaunchValidatesInput
+--- PASS: TestPool_LaunchValidatesInput (0.00s)
+=== RUN   TestPool_ResizeExpandAppendsAdmissibleSlots
+--- PASS: TestPool_ResizeExpandAppendsAdmissibleSlots (0.00s)
+=== RUN   TestPool_ResizeShrinkDrainsWithoutMovingRuns
+--- PASS: TestPool_ResizeShrinkDrainsWithoutMovingRuns (0.00s)
+=== RUN   TestNewPool_Validation
+--- PASS: TestNewPool_Validation (0.00s)
+=== RUN   TestPool_PlainDirWorkspace
+--- PASS: TestPool_PlainDirWorkspace (0.00s)
+=== RUN   TestPool_Launch_WritesRecoveryRecord
+--- PASS: TestPool_Launch_WritesRecoveryRecord (0.00s)
+=== RUN   TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle
+--- PASS: TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle (0.00s)
+=== RUN   TestMonitor_FinalizeCallsCleanerForWorktreeRecord
+--- PASS: TestMonitor_FinalizeCallsCleanerForWorktreeRecord (0.00s)
+=== RUN   TestMonitor_WorktreeCleanupFailuresAreObservable
+--- PASS: TestMonitor_WorktreeCleanupFailuresAreObservable (0.00s)
+=== RUN   TestToolNames_LongCommandKeepsCommandNamesIdentifiable
+--- PASS: TestToolNames_LongCommandKeepsCommandNamesIdentifiable (0.00s)
+=== RUN   TestCommandNames_SplitsChainsAndPipes
+=== RUN   TestCommandNames_SplitsChainsAndPipes/and_chain
+=== RUN   TestCommandNames_SplitsChainsAndPipes/pipe
+=== RUN   TestCommandNames_SplitsChainsAndPipes/semicolons
+=== RUN   TestCommandNames_SplitsChainsAndPipes/or_chain
+=== RUN   TestCommandNames_SplitsChainsAndPipes/newlines
+=== RUN   TestCommandNames_SplitsChainsAndPipes/env_prefix_stripped
+=== RUN   TestCommandNames_SplitsChainsAndPipes/abs_path_greps_as_basename
+=== RUN   TestCommandNames_SplitsChainsAndPipes/flags_skipped_to_reach_the_verb
+--- PASS: TestCommandNames_SplitsChainsAndPipes (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/and_chain (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/pipe (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/semicolons (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/or_chain (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/newlines (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/env_prefix_stripped (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/abs_path_greps_as_basename (0.00s)
+    --- PASS: TestCommandNames_SplitsChainsAndPipes/flags_skipped_to_reach_the_verb (0.00s)
+=== RUN   TestToolNames_Bounded
+--- PASS: TestToolNames_Bounded (0.00s)
+=== RUN   TestToolNames_NonBash
+--- PASS: TestToolNames_NonBash (0.00s)
+=== RUN   TestRunExecutor_EveryToolCallIsRecorded
+--- PASS: TestRunExecutor_EveryToolCallIsRecorded (0.00s)
+=== RUN   TestState_Valid
+--- PASS: TestState_Valid (0.00s)
+=== RUN   TestErrorDetail_Validate
+=== RUN   TestErrorDetail_Validate/ok
+=== RUN   TestErrorDetail_Validate/missing_kind
+=== RUN   TestErrorDetail_Validate/missing_message
+=== RUN   TestErrorDetail_Validate/blank_kind
+=== RUN   TestErrorDetail_Validate/both_missing
+--- PASS: TestErrorDetail_Validate (0.00s)
+    --- PASS: TestErrorDetail_Validate/ok (0.00s)
+    --- PASS: TestErrorDetail_Validate/missing_kind (0.00s)
+    --- PASS: TestErrorDetail_Validate/missing_message (0.00s)
+    --- PASS: TestErrorDetail_Validate/blank_kind (0.00s)
+    --- PASS: TestErrorDetail_Validate/both_missing (0.00s)
+=== RUN   TestInput_Validate
+=== RUN   TestInput_Validate/ok
+=== RUN   TestInput_Validate/ok_full
+=== RUN   TestInput_Validate/missing_id
+=== RUN   TestInput_Validate/bad_id_separator
+=== RUN   TestInput_Validate/bad_id_traversal
+=== RUN   TestInput_Validate/missing_title
+=== RUN   TestInput_Validate/missing_model
+=== RUN   TestInput_Validate/missing_created_at
+--- PASS: TestInput_Validate (0.00s)
+    --- PASS: TestInput_Validate/ok (0.00s)
+    --- PASS: TestInput_Validate/ok_full (0.00s)
+    --- PASS: TestInput_Validate/missing_id (0.00s)
+    --- PASS: TestInput_Validate/bad_id_separator (0.00s)
+    --- PASS: TestInput_Validate/bad_id_traversal (0.00s)
+    --- PASS: TestInput_Validate/missing_title (0.00s)
+    --- PASS: TestInput_Validate/missing_model (0.00s)
+    --- PASS: TestInput_Validate/missing_created_at (0.00s)
+=== RUN   TestOutput_Validate
+=== RUN   TestOutput_Validate/ok_success
+=== RUN   TestOutput_Validate/ok_failure
+=== RUN   TestOutput_Validate/missing_id
+=== RUN   TestOutput_Validate/missing_finished_at
+=== RUN   TestOutput_Validate/success_with_error
+=== RUN   TestOutput_Validate/failure_no_error
+=== RUN   TestOutput_Validate/failure_bad_error
+--- PASS: TestOutput_Validate (0.00s)
+    --- PASS: TestOutput_Validate/ok_success (0.00s)
+    --- PASS: TestOutput_Validate/ok_failure (0.00s)
+    --- PASS: TestOutput_Validate/missing_id (0.00s)
+    --- PASS: TestOutput_Validate/missing_finished_at (0.00s)
+    --- PASS: TestOutput_Validate/success_with_error (0.00s)
+    --- PASS: TestOutput_Validate/failure_no_error (0.00s)
+    --- PASS: TestOutput_Validate/failure_bad_error (0.00s)
+=== RUN   TestStatus_Validate
+=== RUN   TestStatus_Validate/ok_running
+=== RUN   TestStatus_Validate/ok_done
+=== RUN   TestStatus_Validate/ok_failed
+=== RUN   TestStatus_Validate/missing_id
+=== RUN   TestStatus_Validate/invalid_state
+=== RUN   TestStatus_Validate/missing_started_at
+=== RUN   TestStatus_Validate/failed_no_error
+=== RUN   TestStatus_Validate/failed_bad_error
+=== RUN   TestStatus_Validate/running_with_error
+--- PASS: TestStatus_Validate (0.00s)
+    --- PASS: TestStatus_Validate/ok_running (0.00s)
+    --- PASS: TestStatus_Validate/ok_done (0.00s)
+    --- PASS: TestStatus_Validate/ok_failed (0.00s)
+    --- PASS: TestStatus_Validate/missing_id (0.00s)
+    --- PASS: TestStatus_Validate/invalid_state (0.00s)
+    --- PASS: TestStatus_Validate/missing_started_at (0.00s)
+    --- PASS: TestStatus_Validate/failed_no_error (0.00s)
+    --- PASS: TestStatus_Validate/failed_bad_error (0.00s)
+    --- PASS: TestStatus_Validate/running_with_error (0.00s)
+=== RUN   TestProgressEntry_Validate
+=== RUN   TestProgressEntry_Validate/ok
+=== RUN   TestProgressEntry_Validate/ok_with_phase
+=== RUN   TestProgressEntry_Validate/missing_at
+=== RUN   TestProgressEntry_Validate/missing_message
+--- PASS: TestProgressEntry_Validate (0.00s)
+    --- PASS: TestProgressEntry_Validate/ok (0.00s)
+    --- PASS: TestProgressEntry_Validate/ok_with_phase (0.00s)
+    --- PASS: TestProgressEntry_Validate/missing_at (0.00s)
+    --- PASS: TestProgressEntry_Validate/missing_message (0.00s)
+=== RUN   TestMonitor_DeliveryHelpersFailClosedOnUnknownInputs
+--- PASS: TestMonitor_DeliveryHelpersFailClosedOnUnknownInputs (0.07s)
+=== RUN   TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes
+--- PASS: TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes (0.61s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushedStaysSucceeded
+--- PASS: TestMonitor_Finalize_EagerPush_PushedStaysSucceeded (0.59s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_EagerPushesExpectedBranch
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_EagerPushesExpectedBranch (0.47s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch (0.53s)
+=== RUN   TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery (0.50s)
+=== RUN   TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery (0.48s)
+=== RUN   TestMonitor_Finalize_FailedRunRejectsStaleRemoteTrackingHint
+--- PASS: TestMonitor_Finalize_FailedRunRejectsStaleRemoteTrackingHint (0.53s)
+=== RUN   TestMonitor_Finalize_ExactOriginMainStillRefused
+--- PASS: TestMonitor_Finalize_ExactOriginMainStillRefused (0.28s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA (0.49s)
+=== RUN   TestMonitor_Finalize_EagerPush_MainBranchRefused
+--- PASS: TestMonitor_Finalize_EagerPush_MainBranchRefused (0.38s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushFailureDowngrades
+--- PASS: TestMonitor_Finalize_EagerPush_PushFailureDowngrades (0.34s)
+=== RUN   TestRecord_Validate
+=== RUN   TestRecord_Validate/valid
+=== RUN   TestRecord_Validate/bad_id
+=== RUN   TestRecord_Validate/no_pid
+=== RUN   TestRecord_Validate/no_spawned_at
+--- PASS: TestRecord_Validate (0.00s)
+    --- PASS: TestRecord_Validate/valid (0.00s)
+    --- PASS: TestRecord_Validate/bad_id (0.00s)
+    --- PASS: TestRecord_Validate/no_pid (0.00s)
+    --- PASS: TestRecord_Validate/no_spawned_at (0.00s)
+=== RUN   TestTracker_WriteReadRoundTrip
+--- PASS: TestTracker_WriteReadRoundTrip (0.00s)
+=== RUN   TestTracker_WriteInvalidRejected
+--- PASS: TestTracker_WriteInvalidRejected (0.00s)
+=== RUN   TestTracker_ReadMissingIsNotExist
+--- PASS: TestTracker_ReadMissingIsNotExist (0.00s)
+=== RUN   TestTracker_ReadCorruptSurfaces
+--- PASS: TestTracker_ReadCorruptSurfaces (0.00s)
+=== RUN   TestSignalLiveness_DeadAndSelf
+--- PASS: TestSignalLiveness_DeadAndSelf (0.00s)
+=== RUN   TestReconciler_RebuildsEveryDirOnce
+--- PASS: TestReconciler_RebuildsEveryDirOnce (0.00s)
+=== RUN   TestReconciler_EmptyDir
+--- PASS: TestReconciler_EmptyDir (0.00s)
+=== RUN   TestReconciler_Validation
+--- PASS: TestReconciler_Validation (0.00s)
+=== RUN   TestReconciler_LegacyBackfillStableSlots
+--- PASS: TestReconciler_LegacyBackfillStableSlots (0.00s)
+=== RUN   TestReconciler_BackfillsRecordFromInputSlot
+--- PASS: TestReconciler_BackfillsRecordFromInputSlot (0.00s)
+=== RUN   TestReconciler_TerminalDoneOutputDoesNotConflictWithRunningSameSlot
+--- PASS: TestReconciler_TerminalDoneOutputDoesNotConflictWithRunningSameSlot (0.00s)
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/duplicate
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/out_of_range
+--- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic (0.00s)
+    --- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/duplicate (0.00s)
+    --- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/out_of_range (0.00s)
+=== RUN   TestNewTracker_NilLayout
+--- PASS: TestNewTracker_NilLayout (0.00s)
+=== RUN   TestNewRoutingStore_Errors
+--- PASS: TestNewRoutingStore_Errors (0.00s)
+=== RUN   TestLayout_RoutingPath
+--- PASS: TestLayout_RoutingPath (0.00s)
+=== RUN   TestProblemValidate
+--- PASS: TestProblemValidate (0.00s)
+=== RUN   TestRoutingTableValidate_DuplicateID
+--- PASS: TestRoutingTableValidate_DuplicateID (0.00s)
+=== RUN   TestRoute_Precedence
+=== RUN   TestRoute_Precedence/issue_wins_over_everything
+=== RUN   TestRoute_Precedence/task_over_chat+semantic
+=== RUN   TestRoute_Precedence/chat_over_semantic
+=== RUN   TestRoute_Precedence/semantic_last
+=== RUN   TestRoute_Precedence/semantic_ignored_when_unknown
+=== RUN   TestRoute_Precedence/no_signal_→_new
+=== RUN   TestRoute_Precedence/unknown_issue_→_new
+=== RUN   TestRoute_Precedence/blank-ish_refs_ignored
+--- PASS: TestRoute_Precedence (0.00s)
+    --- PASS: TestRoute_Precedence/issue_wins_over_everything (0.00s)
+    --- PASS: TestRoute_Precedence/task_over_chat+semantic (0.00s)
+    --- PASS: TestRoute_Precedence/chat_over_semantic (0.00s)
+    --- PASS: TestRoute_Precedence/semantic_last (0.00s)
+    --- PASS: TestRoute_Precedence/semantic_ignored_when_unknown (0.00s)
+    --- PASS: TestRoute_Precedence/no_signal_→_new (0.00s)
+    --- PASS: TestRoute_Precedence/unknown_issue_→_new (0.00s)
+    --- PASS: TestRoute_Precedence/blank-ish_refs_ignored (0.00s)
+=== RUN   TestRoutingTable_AddAndFind
+--- PASS: TestRoutingTable_AddAndFind (0.00s)
+=== RUN   TestRoutingTable_Attach
+--- PASS: TestRoutingTable_Attach (0.00s)
+=== RUN   TestRoutingTable_SetIssueRef
+--- PASS: TestRoutingTable_SetIssueRef (0.00s)
+=== RUN   TestStore_LoadMissingIsEmpty
+--- PASS: TestStore_LoadMissingIsEmpty (0.00s)
+=== RUN   TestStore_SaveLoadRoundTrip
+--- PASS: TestStore_SaveLoadRoundTrip (0.00s)
+=== RUN   TestStore_RegisterDuplicate
+--- PASS: TestStore_RegisterDuplicate (0.00s)
+=== RUN   TestStore_RegisterPreservesExplicitCreatedAt
+--- PASS: TestStore_RegisterPreservesExplicitCreatedAt (0.00s)
+=== RUN   TestStore_Route
+--- PASS: TestStore_Route (0.00s)
+=== RUN   TestStore_Merge
+--- PASS: TestStore_Merge (0.00s)
+=== RUN   TestStore_LoadCorrupt
+--- PASS: TestStore_LoadCorrupt (0.00s)
+=== RUN   TestStore_LoadInvalidContent
+--- PASS: TestStore_LoadInvalidContent (0.00s)
+=== RUN   TestStore_SaveNilAndInvalid
+--- PASS: TestStore_SaveNilAndInvalid (0.00s)
+=== RUN   TestRouting_CrossChatMerge_AcceptanceFlow
+--- PASS: TestRouting_CrossChatMerge_AcceptanceFlow (0.00s)
+=== RUN   TestStore_WrappersPropagateLoadError
+--- PASS: TestStore_WrappersPropagateLoadError (0.00s)
+=== RUN   TestStore_LoadMissingUsesErrNotExist
+--- PASS: TestStore_LoadMissingUsesErrNotExist (0.00s)
+=== RUN   TestRunExecutor_SuccessWritesOutputAndDoneStatus
+--- PASS: TestRunExecutor_SuccessWritesOutputAndDoneStatus (0.00s)
+=== RUN   TestRunExecutor_LivenessHeartbeatDoesNotPopulateStatusDetail
+--- PASS: TestRunExecutor_LivenessHeartbeatDoesNotPopulateStatusDetail (0.00s)
+=== RUN   TestRunExecutor_UsesWorkspaceDirOverride
+--- PASS: TestRunExecutor_UsesWorkspaceDirOverride (0.00s)
+=== RUN   TestRunExecutor_RejectsRelativeWorkspaceDirOverride
+--- PASS: TestRunExecutor_RejectsRelativeWorkspaceDirOverride (0.00s)
+=== RUN   TestRunExecutor_FailureWritesErrorAndFailedStatus
+--- PASS: TestRunExecutor_FailureWritesErrorAndFailedStatus (0.00s)
+=== RUN   TestRunExecutor_FailurePersistErrorNotSilent
+--- PASS: TestRunExecutor_FailurePersistErrorNotSilent (0.00s)
+=== RUN   TestRunExecutor_MissingInputIsCrash
+--- PASS: TestRunExecutor_MissingInputIsCrash (0.00s)
+=== RUN   TestCommandRunner_RunsCommandInWorkspace
+--- PASS: TestCommandRunner_RunsCommandInWorkspace (0.00s)
+=== RUN   TestCommandRunner_CodexBranch_CapturesThreadID
+--- PASS: TestCommandRunner_CodexBranch_CapturesThreadID (0.00s)
+=== RUN   TestCommandRunner_ClaudeUnchanged
+--- PASS: TestCommandRunner_ClaudeUnchanged (0.00s)
+=== RUN   TestIsCodexRunnerCmd
+--- PASS: TestIsCodexRunnerCmd (0.00s)
+=== RUN   TestRunExecutor_RecordsUsageInOutput
+--- PASS: TestRunExecutor_RecordsUsageInOutput (0.00s)
+=== RUN   TestRunExecutor_ZeroUsageOmittedFromOutput
+--- PASS: TestRunExecutor_ZeroUsageOmittedFromOutput (0.00s)
+=== RUN   TestCommandRunner_ParsesUsageFromStream
+--- PASS: TestCommandRunner_ParsesUsageFromStream (0.00s)
+=== RUN   TestCommandRunner_EmptyCommandErrors
+--- PASS: TestCommandRunner_EmptyCommandErrors (0.00s)
+=== RUN   TestCommandRunner_CommandFailurePropagates
+--- PASS: TestCommandRunner_CommandFailurePropagates (0.00s)
+=== RUN   TestCommandRunner_HeartbeatsDuringStream_T877
+--- PASS: TestCommandRunner_HeartbeatsDuringStream_T877 (0.00s)
+=== RUN   TestCommandRunner_StaleCodexResumeRetriesFreshOnce
+--- PASS: TestCommandRunner_StaleCodexResumeRetriesFreshOnce (0.00s)
+=== RUN   TestExecRun_StreamsStdoutAndPreservesStderr_T877
+--- PASS: TestExecRun_StreamsStdoutAndPreservesStderr_T877 (0.00s)
+=== RUN   TestSummarize
+--- PASS: TestSummarize (0.00s)
+=== RUN   TestBuildExecutorCommand_ArgvEnvAndProcessGroup
+--- PASS: TestBuildExecutorCommand_ArgvEnvAndProcessGroup (0.00s)
+=== RUN   TestSpawn_RejectsBadSpec
+--- PASS: TestSpawn_RejectsBadSpec (0.00s)
+=== RUN   TestSpawn_FakeStartAssignsHandleAndKillpg
+--- PASS: TestSpawn_FakeStartAssignsHandleAndKillpg (0.00s)
+=== RUN   TestSpawn_StartErrorPropagates
+--- PASS: TestSpawn_StartErrorPropagates (0.00s)
+=== RUN   TestHandle_SignalGuards
+--- PASS: TestHandle_SignalGuards (0.00s)
+=== RUN   TestParseRunnerUsage_SumsAcrossResultLines
+--- PASS: TestParseRunnerUsage_SumsAcrossResultLines (0.00s)
+=== RUN   TestParseRunnerStream_ExtractsResultText
+--- PASS: TestParseRunnerStream_ExtractsResultText (0.00s)
+=== RUN   TestParseRunnerStream_AssistantTextFallback
+--- PASS: TestParseRunnerStream_AssistantTextFallback (0.00s)
+=== RUN   TestParseRunnerStream_NonStreamYieldsEmpty
+--- PASS: TestParseRunnerStream_NonStreamYieldsEmpty (0.00s)
+=== RUN   TestParseRunnerUsage_NoResultLineIsZero
+--- PASS: TestParseRunnerUsage_NoResultLineIsZero (0.00s)
+=== RUN   TestParseRunnerUsage_ResultWithoutUsageIsZero
+--- PASS: TestParseRunnerUsage_ResultWithoutUsageIsZero (0.00s)
+=== RUN   TestParseRunnerUsage_SkipsInterleavedStderr
+--- PASS: TestParseRunnerUsage_SkipsInterleavedStderr (0.00s)
+=== RUN   TestOutput_ValidateUsage
+--- PASS: TestOutput_ValidateUsage (0.00s)
+=== RUN   TestTokenUsage_IsZeroAndValidate
+--- PASS: TestTokenUsage_IsZeroAndValidate (0.00s)
+=== RUN   TestWatchdog_Check
+=== RUN   TestWatchdog_Check/running,_fresh
+=== RUN   TestWatchdog_Check/running,_exactly_at_threshold
+=== RUN   TestWatchdog_Check/running,_stalled
+=== RUN   TestWatchdog_Check/done_is_never_stalled
+=== RUN   TestWatchdog_Check/failed_is_never_stalled
+--- PASS: TestWatchdog_Check (0.00s)
+    --- PASS: TestWatchdog_Check/running,_fresh (0.00s)
+    --- PASS: TestWatchdog_Check/running,_exactly_at_threshold (0.00s)
+    --- PASS: TestWatchdog_Check/running,_stalled (0.00s)
+    --- PASS: TestWatchdog_Check/done_is_never_stalled (0.00s)
+    --- PASS: TestWatchdog_Check/failed_is_never_stalled (0.00s)
+=== RUN   TestNewWatchdog_Defaults
+--- PASS: TestNewWatchdog_Defaults (0.00s)
+=== RUN   TestWatchdog_GracefulKill_TermThenKill
+--- PASS: TestWatchdog_GracefulKill_TermThenKill (0.00s)
+=== RUN   TestWatchdog_GracefulKill_ToleratesAlreadyGone
+--- PASS: TestWatchdog_GracefulKill_ToleratesAlreadyGone (0.00s)
+=== RUN   TestWatchdog_GracefulKill_TermErrorSurfaces
+--- PASS: TestWatchdog_GracefulKill_TermErrorSurfaces (0.00s)
+=== RUN   TestWatchdog_GracefulKill_KillErrorSurfaces
+--- PASS: TestWatchdog_GracefulKill_KillErrorSurfaces (0.00s)
+=== RUN   TestWatchdog_GracefulKill_NilHandle
+--- PASS: TestWatchdog_GracefulKill_NilHandle (0.00s)
+=== RUN   TestWatchdog_GracefulKill_ContextCancelEndsGrace
+--- PASS: TestWatchdog_GracefulKill_ContextCancelEndsGrace (0.00s)
+=== RUN   TestNewWorktreeProvisioner_Errors
+--- PASS: TestNewWorktreeProvisioner_Errors (0.00s)
+=== RUN   TestExecGitRunner_ContextCancelKillsGitProcessGroup
+--- PASS: TestExecGitRunner_ContextCancelKillsGitProcessGroup (0.37s)
+=== RUN   TestWorktree_Add_Args
+--- PASS: TestWorktree_Add_Args (0.00s)
+=== RUN   TestWorktree_AddNewBranch_Args
+--- PASS: TestWorktree_AddNewBranch_Args (0.00s)
+=== RUN   TestWorktree_Remove_Args
+--- PASS: TestWorktree_Remove_Args (0.00s)
+=== RUN   TestWorktree_Validation
+=== RUN   TestWorktree_Validation/Add_empty_path
+=== RUN   TestWorktree_Validation/Add_empty_ref
+=== RUN   TestWorktree_Validation/AddNewBranch_empty_path
+=== RUN   TestWorktree_Validation/AddNewBranch_empty_branch
+=== RUN   TestWorktree_Validation/AddNewBranch_empty_base
+=== RUN   TestWorktree_Validation/Remove_empty_path
+--- PASS: TestWorktree_Validation (0.00s)
+    --- PASS: TestWorktree_Validation/Add_empty_path (0.00s)
+    --- PASS: TestWorktree_Validation/Add_empty_ref (0.00s)
+    --- PASS: TestWorktree_Validation/AddNewBranch_empty_path (0.00s)
+    --- PASS: TestWorktree_Validation/AddNewBranch_empty_branch (0.00s)
+    --- PASS: TestWorktree_Validation/AddNewBranch_empty_base (0.00s)
+    --- PASS: TestWorktree_Validation/Remove_empty_path (0.00s)
+=== RUN   TestWorktree_RunnerError
+--- PASS: TestWorktree_RunnerError (0.00s)
+=== RUN   TestWorktree_IsolatedFromLiveBranchWorktree
+--- PASS: TestWorktree_IsolatedFromLiveBranchWorktree (0.26s)
+=== RUN   TestTwoConcurrentExecutorsIsolated
+--- PASS: TestTwoConcurrentExecutorsIsolated (0.20s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	15.306s
+=== RUN   TestResolve_TaskModelHardOverride
+--- PASS: TestResolve_TaskModelHardOverride (0.00s)
+=== RUN   TestResolve_TaskModelOverride_SoleCLI
+--- PASS: TestResolve_TaskModelOverride_SoleCLI (0.00s)
+=== RUN   TestResolve_TaskModelOverride_SoleCLI_NotInList
+--- PASS: TestResolve_TaskModelOverride_SoleCLI_NotInList (0.00s)
+=== RUN   TestResolve_SameModelBothCLIs_FirstMatchWins
+--- PASS: TestResolve_SameModelBothCLIs_FirstMatchWins (0.00s)
+=== RUN   TestResolve_LLMJudged
+--- PASS: TestResolve_LLMJudged (0.00s)
+=== RUN   TestResolve_LLMJudged_PicksCodex
+--- PASS: TestResolve_LLMJudged_PicksCodex (0.00s)
+=== RUN   TestResolve_OnlyClaude_NeverCodex
+--- PASS: TestResolve_OnlyClaude_NeverCodex (0.00s)
+=== RUN   TestResolve_OnlyCodex_NeverClaude
+--- PASS: TestResolve_OnlyCodex_NeverClaude (0.00s)
+=== RUN   TestResolve_JudgeInconclusive_FallsBackToDefault
+--- PASS: TestResolve_JudgeInconclusive_FallsBackToDefault (0.00s)
+=== RUN   TestResolve_JudgeError_FallsBackToDefault
+--- PASS: TestResolve_JudgeError_FallsBackToDefault (0.00s)
+=== RUN   TestResolve_JudgeOutOfRange_FallsBackToDefault
+--- PASS: TestResolve_JudgeOutOfRange_FallsBackToDefault (0.00s)
+=== RUN   TestResolve_NoAllowedExecutors_SkipsJudge
+--- PASS: TestResolve_NoAllowedExecutors_SkipsJudge (0.00s)
+=== RUN   TestResolve_DefaultCLI_WhenModelUnmatchedAndMixed
+--- PASS: TestResolve_DefaultCLI_WhenModelUnmatchedAndMixed (0.00s)
+=== RUN   TestResolve_NilJudge_FallsBackToDefault
+--- PASS: TestResolve_NilJudge_FallsBackToDefault (0.00s)
+=== RUN   TestResolve_NoDefault_FallsBackToOrchestratorModel
+--- PASS: TestResolve_NoDefault_FallsBackToOrchestratorModel (0.00s)
+=== RUN   TestResolve_ExplicitDefault_WinsOverOrchestrator
+--- PASS: TestResolve_ExplicitDefault_WinsOverOrchestrator (0.00s)
+=== RUN   TestResolve_Unresolvable_Errors
+--- PASS: TestResolve_Unresolvable_Errors (0.00s)
+=== RUN   TestResolve_TaskModelWorksWithEmptyConfig
+--- PASS: TestResolve_TaskModelWorksWithEmptyConfig (0.00s)
+=== RUN   TestResolveExecutor_TaskModelNotInAllowed
+--- PASS: TestResolveExecutor_TaskModelNotInAllowed (0.00s)
+=== RUN   TestResolveExecutor_TaskModelInAllowed
+--- PASS: TestResolveExecutor_TaskModelInAllowed (0.00s)
+=== RUN   TestResolveExecutor_TaskModelNoAllowedExecutors
+--- PASS: TestResolveExecutor_TaskModelNoAllowedExecutors (0.00s)
+=== RUN   TestOrchestratorModel
+--- PASS: TestOrchestratorModel (0.00s)
+=== RUN   TestResolve_PoolFallback_NoJudge
+--- PASS: TestResolve_PoolFallback_NoJudge (0.00s)
+=== RUN   TestResolve_PoolFallback_JudgeInconclusive
+--- PASS: TestResolve_PoolFallback_JudgeInconclusive (0.00s)
+=== RUN   TestResolve_SupervisorModelFallback
+--- PASS: TestResolve_SupervisorModelFallback (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	2.608s
+=== RUN   TestNewEngine_RequiredFieldBranches
+--- PASS: TestNewEngine_RequiredFieldBranches (0.00s)
+=== RUN   TestHandleWork_RunnerBuildError
+--- PASS: TestHandleWork_RunnerBuildError (0.00s)
+=== RUN   TestHandleWork_RegisterError
+--- PASS: TestHandleWork_RegisterError (0.00s)
+=== RUN   TestHandleWork_RouteError_CorruptRoutingJSON
+--- PASS: TestHandleWork_RouteError_CorruptRoutingJSON (0.00s)
+=== RUN   TestBuildPrompt_AllBranches
+--- PASS: TestBuildPrompt_AllBranches (0.00s)
+=== RUN   TestEngine_HandleWork_ChainsAndForks
+--- PASS: TestEngine_HandleWork_ChainsAndForks (0.00s)
+=== RUN   TestEngine_HandleWork_TaskModelHardOverride
+--- PASS: TestEngine_HandleWork_TaskModelHardOverride (0.00s)
+=== RUN   TestEngine_HandleWork_DispatchesByCLI
+--- PASS: TestEngine_HandleWork_DispatchesByCLI (0.00s)
+=== RUN   TestEngine_HandleWork_UnknownCLIErrors
+--- PASS: TestEngine_HandleWork_UnknownCLIErrors (0.00s)
+=== RUN   TestEngine_HandleWork_SameChatMergesProblem
+--- PASS: TestEngine_HandleWork_SameChatMergesProblem (0.00s)
+=== RUN   TestEngine_HandleWork_AtCapacityBubbles
+--- PASS: TestEngine_HandleWork_AtCapacityBubbles (0.00s)
+=== RUN   TestEngine_HandleWork_RejectsEmptyGoal
+--- PASS: TestEngine_HandleWork_RejectsEmptyGoal (0.00s)
+=== RUN   TestEngine_HandleWork_NoModelResolvableSurfaces
+--- PASS: TestEngine_HandleWork_NoModelResolvableSurfaces (0.00s)
+=== RUN   TestEngine_UpdateRouterConfig_TakesEffectOnNextFork
+--- PASS: TestEngine_UpdateRouterConfig_TakesEffectOnNextFork (0.00s)
+=== RUN   TestNewEngine_Validation
+--- PASS: TestNewEngine_Validation (0.00s)
+=== RUN   TestE2E_ForkedExecutorUsageReportedWithTaskID
+--- PASS: TestE2E_ForkedExecutorUsageReportedWithTaskID (0.00s)
+=== RUN   TestE2E_ForkedExecutorEmptyTaskRefNotFabricated
+--- PASS: TestE2E_ForkedExecutorEmptyTaskRefNotFabricated (0.00s)
+=== RUN   TestULIDMinter_PathSafeAndUnique
+--- PASS: TestULIDMinter_PathSafeAndUnique (0.00s)
+=== RUN   TestNewULIDMinter_NilClockDefaults
+--- PASS: TestNewULIDMinter_NilClockDefaults (0.00s)
+=== RUN   TestHandleWork_InlinesIssueBodyIntoSpawnedPrompt
+--- PASS: TestHandleWork_InlinesIssueBodyIntoSpawnedPrompt (0.00s)
+=== RUN   TestHandleWork_InlinesOrgRef
+--- PASS: TestHandleWork_InlinesOrgRef (0.00s)
+=== RUN   TestInlineIssueRefs_ResolveFailureIsLoud
+--- PASS: TestInlineIssueRefs_ResolveFailureIsLoud (0.00s)
+=== RUN   TestInlineIssueRefs_NoResolverIsLogged
+--- PASS: TestInlineIssueRefs_NoResolverIsLogged (0.00s)
+=== RUN   TestInlineIssueRefs_TruncationIsMarked
+--- PASS: TestInlineIssueRefs_TruncationIsMarked (0.00s)
+=== RUN   TestInlineIssueRefs_RefCapIsLoud
+--- PASS: TestInlineIssueRefs_RefCapIsLoud (0.00s)
+=== RUN   TestInlineIssueRefs_NilDocIsLoud
+--- PASS: TestInlineIssueRefs_NilDocIsLoud (0.00s)
+=== RUN   TestInlineIssueRefs_TotalBudgetIsLoud
+--- PASS: TestInlineIssueRefs_TotalBudgetIsLoud (0.00s)
+=== RUN   TestInlineIssueRefs_NoRefsNoSection
+--- PASS: TestInlineIssueRefs_NoRefsNoSection (0.00s)
+=== RUN   TestScanIssueRefs
+=== RUN   TestScanIssueRefs/canonical
+=== RUN   TestScanIssueRefs/org_ref
+=== RUN   TestScanIssueRefs/both,_first-appearance_order
+=== RUN   TestScanIssueRefs/dedupe_case-insensitively
+=== RUN   TestScanIssueRefs/i18n_is_not_an_org_ref
+=== RUN   TestScanIssueRefs/bare_I_is_not_an_org_ref
+=== RUN   TestScanIssueRefs/non-hex_is_not_an_issue_id
+=== RUN   TestScanIssueRefs/none
+--- PASS: TestScanIssueRefs (0.00s)
+    --- PASS: TestScanIssueRefs/canonical (0.00s)
+    --- PASS: TestScanIssueRefs/org_ref (0.00s)
+    --- PASS: TestScanIssueRefs/both,_first-appearance_order (0.00s)
+    --- PASS: TestScanIssueRefs/dedupe_case-insensitively (0.00s)
+    --- PASS: TestScanIssueRefs/i18n_is_not_an_org_ref (0.00s)
+    --- PASS: TestScanIssueRefs/bare_I_is_not_an_org_ref (0.00s)
+    --- PASS: TestScanIssueRefs/non-hex_is_not_an_issue_id (0.00s)
+    --- PASS: TestScanIssueRefs/none (0.00s)
+=== RUN   TestSubprocessJudge_HappyPath
+--- PASS: TestSubprocessJudge_HappyPath (0.00s)
+=== RUN   TestSubprocessJudge_SubprocessError_FallsBack
+--- PASS: TestSubprocessJudge_SubprocessError_FallsBack (0.00s)
+=== RUN   TestSubprocessJudge_Unparseable_FallsBack
+--- PASS: TestSubprocessJudge_Unparseable_FallsBack (0.00s)
+=== RUN   TestNewSubprocessJudge_NilWhenUnconfigured
+--- PASS: TestNewSubprocessJudge_NilWhenUnconfigured (0.00s)
+=== RUN   TestNewSubprocessJudge_EmptyBinary_DefaultsToClaude
+--- PASS: TestNewSubprocessJudge_EmptyBinary_DefaultsToClaude (0.00s)
+=== RUN   TestRecoveryPlanner_Tier1_Resume
+--- PASS: TestRecoveryPlanner_Tier1_Resume (0.00s)
+=== RUN   TestRecoveryPlanner_Tier2_Rerun_NoSession
+--- PASS: TestRecoveryPlanner_Tier2_Rerun_NoSession (0.00s)
+=== RUN   TestRecoveryPlanner_UsesRecordedRuntimeWorkspace
+--- PASS: TestRecoveryPlanner_UsesRecordedRuntimeWorkspace (0.00s)
+=== RUN   TestRecoveryPlanner_LegacyRecordFallsBackToLayoutWorkspace
+--- PASS: TestRecoveryPlanner_LegacyRecordFallsBackToLayoutWorkspace (0.00s)
+=== RUN   TestRecoveryPlanner_Tier2_Rerun_SessionButNotResumable
+--- PASS: TestRecoveryPlanner_Tier2_Rerun_SessionButNotResumable (0.00s)
+=== RUN   TestRecoveryPlanner_Tier3_Fresh_WorkspaceGone
+--- PASS: TestRecoveryPlanner_Tier3_Fresh_WorkspaceGone (0.00s)
+=== RUN   TestRecoveryPlanner_Tier3_Fresh_NoRecord
+--- PASS: TestRecoveryPlanner_Tier3_Fresh_NoRecord (0.00s)
+=== RUN   TestNewRecoveryPlanner_NilLayout
+--- PASS: TestNewRecoveryPlanner_NilLayout (0.00s)
+=== RUN   TestClaudeRunnerBuilder_Build
+--- PASS: TestClaudeRunnerBuilder_Build (0.00s)
+=== RUN   TestCodexRunnerBuilder_Build
+--- PASS: TestCodexRunnerBuilder_Build (0.00s)
+=== RUN   TestCodexRunnerBuilder_Resume
+--- PASS: TestCodexRunnerBuilder_Resume (0.00s)
+=== RUN   TestCodexRunnerBuilder_CustomBinaryAndValidation
+--- PASS: TestCodexRunnerBuilder_CustomBinaryAndValidation (0.00s)
+=== RUN   TestClaudeRunnerBuilder_SessionID
+--- PASS: TestClaudeRunnerBuilder_SessionID (0.00s)
+=== RUN   TestResumeSessionArgv
+--- PASS: TestResumeSessionArgv (0.00s)
+=== RUN   TestClaudeRunnerBuilder_CustomBinaryAndValidation
+--- PASS: TestClaudeRunnerBuilder_CustomBinaryAndValidation (0.00s)
+=== RUN   TestIntegration_ClaudeBuilderArgvProducesParseableUsage
+--- PASS: TestIntegration_ClaudeBuilderArgvProducesParseableUsage (2.53s)
+=== RUN   TestIntegration_NonStreamRunnerRelaysRawResult
+--- PASS: TestIntegration_NonStreamRunnerRelaysRawResult (0.35s)
+=== RUN   TestIntegration_CodexBuilderArgvCarriesExecutorIdentityContract
+--- PASS: TestIntegration_CodexBuilderArgvCarriesExecutorIdentityContract (0.35s)
+=== RUN   TestNewCenterWriteback_Validation
+--- PASS: TestNewCenterWriteback_Validation (0.00s)
+=== RUN   TestReport_Succeeded_InjectsJudgment
+--- PASS: TestReport_Succeeded_InjectsJudgment (0.00s)
+=== RUN   TestReport_JudgmentSurfacesDeliveryBranch
+--- PASS: TestReport_JudgmentSurfacesDeliveryBranch (0.00s)
+=== RUN   TestReport_JudgmentSurfacesPushFailure
+--- PASS: TestReport_JudgmentSurfacesPushFailure (0.00s)
+=== RUN   TestReport_Succeeded_SummaryFallback
+--- PASS: TestReport_Succeeded_SummaryFallback (0.00s)
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit
+--- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit (0.00s)
+=== RUN   TestReport_PushedDeliveryUsesInputBaseWhenProbeBaseEvidenceMissing
+--- PASS: TestReport_PushedDeliveryUsesInputBaseWhenProbeBaseEvidenceMissing (0.00s)
+=== RUN   TestReport_Failed_BlocksTask
+--- PASS: TestReport_Failed_BlocksTask (0.00s)
+=== RUN   TestReport_Crashed_BlocksRetryable
+--- PASS: TestReport_Crashed_BlocksRetryable (0.00s)
+=== RUN   TestReport_Failed_NoErrorDetail
+--- PASS: TestReport_Failed_NoErrorDetail (0.00s)
+=== RUN   TestReport_Running_NoOp
+--- PASS: TestReport_Running_NoOp (0.00s)
+=== RUN   TestReport_NoTaskRef_PostsToChat
+--- PASS: TestReport_NoTaskRef_PostsToChat (0.00s)
+=== RUN   TestReport_NoSourceAtAll_Errors
+--- PASS: TestReport_NoSourceAtAll_Errors (0.00s)
+=== RUN   TestReport_InputMissing_Errors
+--- PASS: TestReport_InputMissing_Errors (0.00s)
+=== RUN   TestReport_UnknownKind_Errors
+--- PASS: TestReport_UnknownKind_Errors (0.00s)
+=== RUN   TestReport_InjectError_Propagates
+--- PASS: TestReport_InjectError_Propagates (0.00s)
+=== RUN   TestReport_MemoryWriter
+--- PASS: TestReport_MemoryWriter (0.00s)
+=== RUN   TestReport_Usage_ReportedWithBoundTaskID
+--- PASS: TestReport_Usage_ReportedWithBoundTaskID (0.00s)
+=== RUN   TestReport_Usage_EmptyTaskRefStaysEmpty
+--- PASS: TestReport_Usage_EmptyTaskRefStaysEmpty (0.00s)
+=== RUN   TestReport_Usage_ReportedOnFailure
+--- PASS: TestReport_Usage_ReportedOnFailure (0.00s)
+=== RUN   TestReport_Usage_BestEffort
+--- PASS: TestReport_Usage_BestEffort (0.00s)
+=== RUN   TestReport_Usage_SkippedWhenAbsent
+--- PASS: TestReport_Usage_SkippedWhenAbsent (0.00s)
+=== RUN   TestReport_Usage_NilReporterNoPanic
+--- PASS: TestReport_Usage_NilReporterNoPanic (0.00s)
+=== RUN   TestClip
+--- PASS: TestClip (0.00s)
+=== RUN   TestReport_SoleWriterSerializes
+--- PASS: TestReport_SoleWriterSerializes (0.00s)
+=== RUN   TestReport_RelaysDeliveryStatus
+--- PASS: TestReport_RelaysDeliveryStatus (0.00s)
+=== RUN   TestReport_DeliveryNoopWhenNoGitOrNoReporter
+--- PASS: TestReport_DeliveryNoopWhenNoGitOrNoReporter (0.00s)
+=== RUN   TestReport_DeliveryErrorNeverWedges
+--- PASS: TestReport_DeliveryErrorNeverWedges (0.00s)
+=== RUN   TestReport_SupervisorInline_EmptyWorkspace_AutoBlocks
+--- PASS: TestReport_SupervisorInline_EmptyWorkspace_AutoBlocks (0.00s)
+=== RUN   TestReport_SupervisorInline_CommittedUnpushed_AutoBlocks
+--- PASS: TestReport_SupervisorInline_CommittedUnpushed_AutoBlocks (0.00s)
+=== RUN   TestReport_SupervisorInline_DurablePush_NotBlocked
+--- PASS: TestReport_SupervisorInline_DurablePush_NotBlocked (0.00s)
+=== RUN   TestReport_ExecutorFork_Failed_Unchanged
+--- PASS: TestReport_ExecutorFork_Failed_Unchanged (0.00s)
+=== RUN   TestReport_EmptyMode_Unchanged
+--- PASS: TestReport_EmptyMode_Unchanged (0.00s)
+=== RUN   TestValidCodeDelivery_RejectsProtectedBranch
+--- PASS: TestValidCodeDelivery_RejectsProtectedBranch (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	6.266s
+=== RUN   TestPrepareWorktree_RealGit_BaseFollowsOriginAfterFetch
+--- PASS: TestPrepareWorktree_RealGit_BaseFollowsOriginAfterFetch (0.34s)
+=== RUN   TestPrepareWorktree_RealGit_BaseRefCountsOnlyThisExecutorsCommits
+--- PASS: TestPrepareWorktree_RealGit_BaseRefCountsOnlyThisExecutorsCommits (0.53s)
+=== RUN   TestPrepareWorktree_RealGit_AheadIsExactWhenExecutorRebasesOntoOrigin
+--- PASS: TestPrepareWorktree_RealGit_AheadIsExactWhenExecutorRebasesOntoOrigin (0.50s)
+=== RUN   TestPrepareWorktree_RealGit_ExplicitShaBaseStillWorks
+--- PASS: TestPrepareWorktree_RealGit_ExplicitShaBaseStillWorks (0.39s)
+=== RUN   TestPrepareWorktree_RealGit_UnresolvableBaseFailsClosed
+--- PASS: TestPrepareWorktree_RealGit_UnresolvableBaseFailsClosed (0.13s)
+=== RUN   TestEnsureSource_FetchDoesNotAdvanceBase_NewWorktreeBranchesOffStaleMain
+    base_drift_red_test.go:154: A (first clone)      = b239e4169ca41c80704ceab0e1b075def2530ec1
+    base_drift_red_test.go:155: B (origin advanced)  = 51b6fa09fa96775abe950d89c5725078ec07a6c9
+    base_drift_red_test.go:156: source local  main   = b239e4169ca41c80704ceab0e1b075def2530ec1
+    base_drift_red_test.go:157: source origin/main   = 51b6fa09fa96775abe950d89c5725078ec07a6c9
+    base_drift_red_test.go:158: new worktree HEAD    = 51b6fa09fa96775abe950d89c5725078ec07a6c9
+--- PASS: TestEnsureSource_FetchDoesNotAdvanceBase_NewWorktreeBranchesOffStaleMain (0.93s)
+=== RUN   TestBaseRef_NamesAFrozenRef_AheadOfBaseBillsForeignCommits
+    base_drift_red_test.go:211: BaseRef "6bcaf44743830b974cbe14653fb7e473ed1935a9" resolves to 6bcaf44743830b974cbe14653fb7e473ed1935a9 inside the worktree (A=6b67c257f7e9acff81fd9ec939fedacfa4168581, real origin/main B=6bcaf44743830b974cbe14653fb7e473ed1935a9)
+    base_drift_red_test.go:225: ahead_of_base = 1 (executor authored exactly 1 commit)
+--- PASS: TestBaseRef_NamesAFrozenRef_AheadOfBaseBillsForeignCommits (0.97s)
+=== RUN   TestRepoCacheManager_ReusesMirrorAndTracksWorktreeLifecycle
+    cache_manager_test.go:66: materialization timing: cold_mirror=108.698292ms warm_reuse=44.447667ms
+--- PASS: TestRepoCacheManager_ReusesMirrorAndTracksWorktreeLifecycle (0.59s)
+=== RUN   TestRepoCacheManager_ConcurrentEnsureUsesOneValidMirror
+--- PASS: TestRepoCacheManager_ConcurrentEnsureUsesOneValidMirror (0.68s)
+=== RUN   TestRepoCacheManager_OfflineUsesCachedRefAndRejectsMissingRef
+--- PASS: TestRepoCacheManager_OfflineUsesCachedRefAndRejectsMissingRef (0.55s)
+=== RUN   TestRepoCacheManager_ReconcileRemovesOnlyOrphans
+--- PASS: TestRepoCacheManager_ReconcileRemovesOnlyOrphans (0.69s)
+=== RUN   TestRepoCacheManager_ReconcileDoesNotRemoveAnotherOwnerWorktree
+--- PASS: TestRepoCacheManager_ReconcileDoesNotRemoveAnotherOwnerWorktree (0.50s)
+=== RUN   TestEnsureSource_ClonesThenFetches_Idempotent
+--- PASS: TestEnsureSource_ClonesThenFetches_Idempotent (0.00s)
+=== RUN   TestEnsureSource_ConcurrentSameKey_SerializesAndClonesOnce
+--- PASS: TestEnsureSource_ConcurrentSameKey_SerializesAndClonesOnce (0.14s)
+=== RUN   TestEnsureSource_RemoteMismatch_FailsClosed
+--- PASS: TestEnsureSource_RemoteMismatch_FailsClosed (0.00s)
+=== RUN   TestEnsureSource_SourceExistsNotGitRepo_FailsClosed
+--- PASS: TestEnsureSource_SourceExistsNotGitRepo_FailsClosed (0.00s)
+=== RUN   TestEnsureSource_EmptyURL
+--- PASS: TestEnsureSource_EmptyURL (0.00s)
+=== RUN   TestEnsureSource_WritesMeta
+--- PASS: TestEnsureSource_WritesMeta (0.00s)
+=== RUN   TestEnsureSource_BaseRefPrefersExplicit
+--- PASS: TestEnsureSource_BaseRefPrefersExplicit (0.00s)
+=== RUN   TestRepoKey_NormalizationStable
+--- PASS: TestRepoKey_NormalizationStable (0.00s)
+=== RUN   TestPrepareAndRemoveWorktree_DelegatesAndNeverTouchesSource
+--- PASS: TestPrepareAndRemoveWorktree_DelegatesAndNeverTouchesSource (0.00s)
+=== RUN   TestOrphanExecID_DoubleParseFailSafe
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/agree
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/path-only_(detached,_no_branch)
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/branch-only_(foreign_path)
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/mismatch
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/not_an_ac-exec_branch
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/not_an_executors_path
+=== RUN   TestOrphanExecID_DoubleParseFailSafe/not_a_workspace_leaf
+--- PASS: TestOrphanExecID_DoubleParseFailSafe (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/agree (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/path-only_(detached,_no_branch) (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/branch-only_(foreign_path) (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/mismatch (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/not_an_ac-exec_branch (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/not_an_executors_path (0.00s)
+    --- PASS: TestOrphanExecID_DoubleParseFailSafe/not_a_workspace_leaf (0.00s)
+=== RUN   TestParseWorktreeList
+--- PASS: TestParseWorktreeList (0.00s)
+=== RUN   TestPruneOrphanWorktrees_RealGit
+--- PASS: TestPruneOrphanWorktrees_RealGit (0.35s)
+=== RUN   TestReapOrphanWorktrees_RealGit_MultiRepo
+--- PASS: TestReapOrphanWorktrees_RealGit_MultiRepo (0.60s)
+=== RUN   TestPruneOrphanWorktrees_NilIsLiveReapsNothing
+--- PASS: TestPruneOrphanWorktrees_NilIsLiveReapsNothing (0.00s)
+=== RUN   TestEnsureSource_KilledCloneLeavesNoCanonicalSource
+--- PASS: TestEnsureSource_KilledCloneLeavesNoCanonicalSource (0.00s)
+=== RUN   TestEnsureSource_RealGit_FailedCloneLeavesNoCanonicalSource
+--- PASS: TestEnsureSource_RealGit_FailedCloneLeavesNoCanonicalSource (0.01s)
+=== RUN   TestEnsureSource_RealGit_RetryAfterFailedCloneSelfHeals
+--- PASS: TestEnsureSource_RealGit_RetryAfterFailedCloneSelfHeals (0.13s)
+=== RUN   TestEnsureSource_RealGit_BrokenSourceIsQuarantinedAndRecloned
+--- PASS: TestEnsureSource_RealGit_BrokenSourceIsQuarantinedAndRecloned (0.18s)
+=== RUN   TestEnsureSource_TransientProbeFailureNeverDestroysHealthySource
+--- PASS: TestEnsureSource_TransientProbeFailureNeverDestroysHealthySource (0.19s)
+=== RUN   TestEnsureSource_RealGit_HealIsLoud
+--- PASS: TestEnsureSource_RealGit_HealIsLoud (0.16s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	11.918s
+=== RUN   TestReadInstance_Missing_ReturnsZero
+--- PASS: TestReadInstance_Missing_ReturnsZero (0.00s)
+=== RUN   TestAcquireInstance_Fresh
+--- PASS: TestAcquireInstance_Fresh (0.00s)
+=== RUN   TestAcquireInstance_Successive_BumpsGeneration
+--- PASS: TestAcquireInstance_Successive_BumpsGeneration (0.00s)
+=== RUN   TestAcquireInstance_AfterCrash_RecordsPrevCrashAt
+--- PASS: TestAcquireInstance_AfterCrash_RecordsPrevCrashAt (0.00s)
+=== RUN   TestReleaseInstance
+--- PASS: TestReleaseInstance (0.00s)
+=== RUN   TestReadInstance_CorruptFile_ReturnsError
+--- PASS: TestReadInstance_CorruptFile_ReturnsError (0.00s)
+=== RUN   TestReadInstance_EmptyHome_ReturnsError
+--- PASS: TestReadInstance_EmptyHome_ReturnsError (0.00s)
+=== RUN   TestAcquireInstance_EmptyHome_ReturnsError
+--- PASS: TestAcquireInstance_EmptyHome_ReturnsError (0.00s)
+=== RUN   TestReleaseInstance_EmptyHome_ReturnsError
+--- PASS: TestReleaseInstance_EmptyHome_ReturnsError (0.00s)
+=== RUN   TestAcquireInstance_AfterCleanRelease_NoCrashAt
+--- PASS: TestAcquireInstance_AfterCleanRelease_NoCrashAt (0.00s)
+=== RUN   TestAcquireInstance_GenerationMonotonic
+--- PASS: TestAcquireInstance_GenerationMonotonic (0.00s)
+=== RUN   TestReleaseInstance_SetsCleanRelease
+--- PASS: TestReleaseInstance_SetsCleanRelease (0.00s)
+=== RUN   TestAcquireInstance_PrevCrashAt_Timestamp
+--- PASS: TestAcquireInstance_PrevCrashAt_Timestamp (0.00s)
+=== RUN   TestAcquireInstance_FreshHome_NoPrevPID
+--- PASS: TestAcquireInstance_FreshHome_NoPrevPID (0.00s)
+=== RUN   TestReadInstance_UnreadableFile_ReturnsError
+--- PASS: TestReadInstance_UnreadableFile_ReturnsError (0.00s)
+=== RUN   TestWriteInstanceAtomic_UnwritableDir_ReturnsError
+--- PASS: TestWriteInstanceAtomic_UnwritableDir_ReturnsError (0.00s)
+=== RUN   TestReleaseInstance_NoFile_ReturnsZeroAndWrites
+--- PASS: TestReleaseInstance_NoFile_ReturnsZeroAndWrites (0.00s)
+=== RUN   TestAcquireInstance_CorruptExistingFile_ReturnsError
+--- PASS: TestAcquireInstance_CorruptExistingFile_ReturnsError (0.00s)
+=== RUN   TestReleaseInstance_CorruptExistingFile_ReturnsError
+--- PASS: TestReleaseInstance_CorruptExistingFile_ReturnsError (0.00s)
+=== RUN   TestWriteInstanceAtomic_RenameFailure_ReturnsError
+--- PASS: TestWriteInstanceAtomic_RenameFailure_ReturnsError (0.00s)
+=== RUN   TestMarkSessionID_SetsPreservesAndGuards
+--- PASS: TestMarkSessionID_SetsPreservesAndGuards (0.00s)
+=== RUN   TestClearSessionID_ClearsPreservesAndIsIdempotent
+--- PASS: TestClearSessionID_ClearsPreservesAndIsIdempotent (0.00s)
+=== RUN   TestMarkCompletedTurn_SetsAndPersists
+--- PASS: TestMarkCompletedTurn_SetsAndPersists (0.00s)
+=== RUN   TestMarkCompletedTurn_Idempotent
+--- PASS: TestMarkCompletedTurn_Idempotent (0.00s)
+=== RUN   TestMarkCompletedTurn_EmptyHome_ReturnsError
+--- PASS: TestMarkCompletedTurn_EmptyHome_ReturnsError (0.00s)
+=== RUN   TestAcquireInstance_DoesNotCarryCompletedTurn
+--- PASS: TestAcquireInstance_DoesNotCarryCompletedTurn (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	3.746s
+=== RUN   TestScan_FollowsSymlinkedSkillDirs
+--- PASS: TestScan_FollowsSymlinkedSkillDirs (0.00s)
+=== RUN   TestScan_LayersAndShadowing
+--- PASS: TestScan_LayersAndShadowing (0.00s)
+=== RUN   TestScan_NameFallbackToDir
+--- PASS: TestScan_NameFallbackToDir (0.00s)
+=== RUN   TestScan_MissingRootAndNonDir
+--- PASS: TestScan_MissingRootAndNonDir (0.00s)
+=== RUN   TestScan_PluginMultiRoot
+--- PASS: TestScan_PluginMultiRoot (0.00s)
+=== RUN   TestFingerprint_StableAndSensitive
+--- PASS: TestFingerprint_StableAndSensitive (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	2.980s
+=== RUN   TestAbortedDirName
+--- PASS: TestAbortedDirName (0.00s)
+=== RUN   TestParseAbortedDir
+--- PASS: TestParseAbortedDir (0.00s)
+=== RUN   TestParseAbortedDir_Timestamp
+--- PASS: TestParseAbortedDir_Timestamp (0.00s)
+=== RUN   TestGCDeletingDirName
+--- PASS: TestGCDeletingDirName (0.00s)
+=== RUN   TestAbortTask
+--- PASS: TestAbortTask (0.00s)
+=== RUN   TestAbortTask_MissingDir
+--- PASS: TestAbortTask_MissingDir (0.00s)
+=== RUN   TestAbortTask_AbortedDirNameMatches
+--- PASS: TestAbortTask_AbortedDirNameMatches (0.00s)
+=== RUN   TestReconcileTasksOnBoot_KeepsAssigned
+--- PASS: TestReconcileTasksOnBoot_KeepsAssigned (0.00s)
+=== RUN   TestReconcileTasksOnBoot_AbortsReassigned
+--- PASS: TestReconcileTasksOnBoot_AbortsReassigned (0.00s)
+=== RUN   TestReconcileTasksOnBoot_EmptyTasksDir
+--- PASS: TestReconcileTasksOnBoot_EmptyTasksDir (0.00s)
+=== RUN   TestReconcileTasksOnBoot_VerifierError
+--- PASS: TestReconcileTasksOnBoot_VerifierError (0.00s)
+=== RUN   TestReconcileTasksOnBoot_MultipleTasksMixed
+--- PASS: TestReconcileTasksOnBoot_MultipleTasksMixed (0.00s)
+=== RUN   TestReconcileTasksOnBoot_NoErrorOnEmptyDirWhenReassigned
+--- PASS: TestReconcileTasksOnBoot_NoErrorOnEmptyDirWhenReassigned (0.00s)
+=== RUN   TestReconcileTasksOnBoot_AbortTaskFailure
+--- PASS: TestReconcileTasksOnBoot_AbortTaskFailure (0.00s)
+=== RUN   TestDirManager_Create_And_Read
+--- PASS: TestDirManager_Create_And_Read (0.00s)
+=== RUN   TestDirManager_UpdateStatus
+--- PASS: TestDirManager_UpdateStatus (0.00s)
+=== RUN   TestDirManager_ScanActive
+--- PASS: TestDirManager_ScanActive (0.00s)
+=== RUN   TestDirManager_ScanActive_IgnoresAborted
+--- PASS: TestDirManager_ScanActive_IgnoresAborted (0.00s)
+=== RUN   TestDirManager_Create_ValidationError
+--- PASS: TestDirManager_Create_ValidationError (0.00s)
+=== RUN   TestDirManager_Create_MkdirError
+--- PASS: TestDirManager_Create_MkdirError (0.00s)
+=== RUN   TestDirManager_Read_MissingFile
+--- PASS: TestDirManager_Read_MissingFile (0.00s)
+=== RUN   TestDirManager_Read_CorruptJSON
+--- PASS: TestDirManager_Read_CorruptJSON (0.00s)
+=== RUN   TestDirManager_Read_CorruptExecJSON
+--- PASS: TestDirManager_Read_CorruptExecJSON (0.00s)
+=== RUN   TestDirManager_UpdateStatus_MissingTask
+--- PASS: TestDirManager_UpdateStatus_MissingTask (0.00s)
+=== RUN   TestDirManager_ScanActive_NonexistentDir
+--- PASS: TestDirManager_ScanActive_NonexistentDir (0.00s)
+=== RUN   TestDirManager_ScanActive_SkipsFiles
+--- PASS: TestDirManager_ScanActive_SkipsFiles (0.00s)
+=== RUN   TestWriteJSONAtomic_MarshalError
+--- PASS: TestWriteJSONAtomic_MarshalError (0.00s)
+=== RUN   TestWriteJSONAtomic_WriteToUnwritableDir
+--- PASS: TestWriteJSONAtomic_WriteToUnwritableDir (0.00s)
+=== RUN   TestReadJSON_UnmarshalError
+--- PASS: TestReadJSON_UnmarshalError (0.00s)
+=== RUN   TestIsStandardTaskDir
+--- PASS: TestIsStandardTaskDir (0.00s)
+=== RUN   TestEventStreamWriter_Append_And_ReadAll
+--- PASS: TestEventStreamWriter_Append_And_ReadAll (0.00s)
+=== RUN   TestAckCurrent_AdvancesOffsetToEOF
+--- PASS: TestAckCurrent_AdvancesOffsetToEOF (0.00s)
+=== RUN   TestEventStreamWriter_ReadAll_MissingFile
+--- PASS: TestEventStreamWriter_ReadAll_MissingFile (0.00s)
+=== RUN   TestEventOffset_ReadWrite
+--- PASS: TestEventOffset_ReadWrite (0.00s)
+=== RUN   TestEventOffset_ReadMissing
+--- PASS: TestEventOffset_ReadMissing (0.00s)
+=== RUN   TestEventStreamWriter_Append_ToNonexistentDir
+--- PASS: TestEventStreamWriter_Append_ToNonexistentDir (0.00s)
+=== RUN   TestEventStreamWriter_ReadAll_UnreadableDir
+--- PASS: TestEventStreamWriter_ReadAll_UnreadableDir (0.00s)
+=== RUN   TestMaybeRollSegment_RollsWhenThresholdMetAndAcked
+--- PASS: TestMaybeRollSegment_RollsWhenThresholdMetAndAcked (0.00s)
+=== RUN   TestMaybeRollSegment_NoRollWhenTailNotAcked
+--- PASS: TestMaybeRollSegment_NoRollWhenTailNotAcked (0.00s)
+=== RUN   TestMaybeRollSegment_NoRollBelowThreshold
+--- PASS: TestMaybeRollSegment_NoRollBelowThreshold (0.00s)
+=== RUN   TestMaybeRollSegment_MissingCurrentIsNoOp
+--- PASS: TestMaybeRollSegment_MissingCurrentIsNoOp (0.00s)
+=== RUN   TestMaybeRollSegment_SequenceIncrements
+--- PASS: TestMaybeRollSegment_SequenceIncrements (0.00s)
+=== RUN   TestEventOffset_ReadOffset_CorruptFile
+--- PASS: TestEventOffset_ReadOffset_CorruptFile (0.00s)
+=== RUN   TestRunGC_CleansExpiredAborted
+--- PASS: TestRunGC_CleansExpiredAborted (0.00s)
+=== RUN   TestRunGC_CleansExpiredDone
+--- PASS: TestRunGC_CleansExpiredDone (0.00s)
+=== RUN   TestRunGC_SkipsRunningTasks
+--- PASS: TestRunGC_SkipsRunningTasks (0.00s)
+=== RUN   TestRunGC_HandlesGCDeletingLeftover
+--- PASS: TestRunGC_HandlesGCDeletingLeftover (0.00s)
+=== RUN   TestRunGC_NonexistentDir
+--- PASS: TestRunGC_NonexistentDir (0.00s)
+=== RUN   TestRunGC_SkipsRecentDone
+--- PASS: TestRunGC_SkipsRecentDone (0.00s)
+=== RUN   TestRunGC_ReadDirError
+--- PASS: TestRunGC_ReadDirError (0.00s)
+=== RUN   TestDefaultGCConfig
+--- PASS: TestDefaultGCConfig (0.00s)
+=== RUN   TestRunGC_RemovesArchivedSegmentsWithDoneDir
+--- PASS: TestRunGC_RemovesArchivedSegmentsWithDoneDir (0.00s)
+=== RUN   TestRunGC_RetainsArchivedSegmentsInRecentAborted
+--- PASS: TestRunGC_RetainsArchivedSegmentsInRecentAborted (0.00s)
+=== RUN   TestRunGC_MultipleCategories
+--- PASS: TestRunGC_MultipleCategories (0.00s)
+=== RUN   TestPlanMeta_WriteAndRead
+--- PASS: TestPlanMeta_WriteAndRead (0.00s)
+=== RUN   TestPlanMeta_ReadMissing
+--- PASS: TestPlanMeta_ReadMissing (0.00s)
+=== RUN   TestListPlanMetas
+--- PASS: TestListPlanMetas (0.00s)
+=== RUN   TestWritePlanMeta_EmptyPlanID
+--- PASS: TestWritePlanMeta_EmptyPlanID (0.00s)
+=== RUN   TestWritePlanMeta_WithFailureLog
+--- PASS: TestWritePlanMeta_WithFailureLog (0.00s)
+=== RUN   TestListPlanMetas_Empty
+--- PASS: TestListPlanMetas_Empty (0.00s)
+=== RUN   TestListPlanMetas_NonexistentDir
+--- PASS: TestListPlanMetas_NonexistentDir (0.00s)
+=== RUN   TestWritePlanMeta_Update
+--- PASS: TestWritePlanMeta_Update (0.00s)
+=== RUN   TestListPlanMetas_SkipsMalformedFiles
+--- PASS: TestListPlanMetas_SkipsMalformedFiles (0.00s)
+=== RUN   TestContextRecovery_FastPath
+--- PASS: TestContextRecovery_FastPath (0.00s)
+=== RUN   TestContextRecovery_SlowPath_ReadsEvents
+--- PASS: TestContextRecovery_SlowPath_ReadsEvents (0.00s)
+=== RUN   TestContextRecovery_SlowPath_MissingFile
+--- PASS: TestContextRecovery_SlowPath_MissingFile (0.00s)
+=== RUN   TestContextRecovery_SlowPath_IgnoresArchivedSegments
+--- PASS: TestContextRecovery_SlowPath_IgnoresArchivedSegments (0.00s)
+=== RUN   TestDefaultContextRecovery_Defaults
+--- PASS: TestDefaultContextRecovery_Defaults (0.00s)
+=== RUN   TestTaskExecutionStatus_IsValid
+--- PASS: TestTaskExecutionStatus_IsValid (0.00s)
+=== RUN   TestTaskExecutionStatus_IsTerminal
+--- PASS: TestTaskExecutionStatus_IsTerminal (0.00s)
+=== RUN   TestTaskExecutionMeta_Validate
+--- PASS: TestTaskExecutionMeta_Validate (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	3.395s
+=== RUN   TestOpen_CreatesParentDirsAndFile
+--- PASS: TestOpen_CreatesParentDirsAndFile (0.00s)
+=== RUN   TestOpen_DefaultsMaxBytes
+--- PASS: TestOpen_DefaultsMaxBytes (0.00s)
+=== RUN   TestOpen_EmptyPath
+--- PASS: TestOpen_EmptyPath (0.00s)
+=== RUN   TestRotate_KeepsSingleBackupAndBounds
+--- PASS: TestRotate_KeepsSingleBackupAndBounds (0.00s)
+=== RUN   TestRotate_OversizedSingleWriteNotTruncated
+--- PASS: TestRotate_OversizedSingleWriteNotTruncated (0.00s)
+=== RUN   TestWrite_ReturnsByteCount
+--- PASS: TestWrite_ReturnsByteCount (0.00s)
+=== RUN   TestReopen_AppendsAndPreservesSizeAccounting
+--- PASS: TestReopen_AppendsAndPreservesSizeAccounting (0.00s)
+=== RUN   TestClose_Idempotent
+--- PASS: TestClose_Idempotent (0.00s)
+=== RUN   TestConcurrentWrites_Safe
+--- PASS: TestConcurrentWrites_Safe (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	2.547s

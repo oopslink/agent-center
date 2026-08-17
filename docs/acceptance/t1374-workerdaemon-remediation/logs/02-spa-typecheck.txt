@@ -1,0 +1,4 @@
+
+> agent-center-web@0.1.0 typecheck /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-9cbe4cbf/web
+> tsc --noEmit
+

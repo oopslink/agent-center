@@ -1,0 +1,219 @@
+=== RUN   TestStoreRoleAssignmentLifecycleAndScopedRevoke
+--- PASS: TestStoreRoleAssignmentLifecycleAndScopedRevoke (0.09s)
+=== RUN   TestRemainingAuthorizationBranchesAreBehavioral
+--- PASS: TestRemainingAuthorizationBranchesAreBehavioral (0.09s)
+=== RUN   TestRevokeAndRegistryPersistenceErrorsFailClosed
+--- PASS: TestRevokeAndRegistryPersistenceErrorsFailClosed (0.09s)
+=== RUN   TestService_LegacyOrgRolesAndDisabledOrgOwnerException
+--- PASS: TestService_LegacyOrgRolesAndDisabledOrgOwnerException (0.09s)
+=== RUN   TestService_ProjectMembershipCustomRolesAndRevoke
+--- PASS: TestService_ProjectMembershipCustomRolesAndRevoke (0.08s)
+=== RUN   TestSupervisorCrossOrgRevokeMustFailClosed
+=== RUN   TestSupervisorCrossOrgRevokeMustFailClosed/by_assignment_id
+=== RUN   TestSupervisorCrossOrgRevokeMustFailClosed/by_composite_key
+--- PASS: TestSupervisorCrossOrgRevokeMustFailClosed (0.09s)
+    --- PASS: TestSupervisorCrossOrgRevokeMustFailClosed/by_assignment_id (0.00s)
+    --- PASS: TestSupervisorCrossOrgRevokeMustFailClosed/by_composite_key (0.00s)
+=== RUN   TestService_RevokeAssignmentSameOrgValidAndIdempotent
+--- PASS: TestService_RevokeAssignmentSameOrgValidAndIdempotent (0.08s)
+=== RUN   TestService_RevokePreviewConfirmStrongCAS
+--- PASS: TestService_RevokePreviewConfirmStrongCAS (0.09s)
+=== RUN   TestService_RevokePreviewRejectsExpiredAndRevisionDrift
+--- PASS: TestService_RevokePreviewRejectsExpiredAndRevisionDrift (0.08s)
+=== RUN   TestService_RevokeAssignmentConcurrentRaceIdempotent
+--- PASS: TestService_RevokeAssignmentConcurrentRaceIdempotent (0.11s)
+=== RUN   TestService_TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess
+--- PASS: TestService_TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess (0.09s)
+=== RUN   TestService_CustomRoleNegativeAuthorization
+--- PASS: TestService_CustomRoleNegativeAuthorization (0.09s)
+=== RUN   TestSupervisorCrossOrgRevokeByIDMustFailClosedPersistenceDefense
+--- PASS: TestSupervisorCrossOrgRevokeByIDMustFailClosedPersistenceDefense (0.11s)
+=== RUN   TestSupervisorCrossOrgRolePermissionUpdateMustFailClosed
+--- PASS: TestSupervisorCrossOrgRolePermissionUpdateMustFailClosed (0.10s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/authorization	2.011s
+=== RUN   TestTeamMemoryPolicyNormalize
+--- PASS: TestTeamMemoryPolicyNormalize (0.00s)
+=== RUN   TestNewTeam_Validation
+--- PASS: TestNewTeam_Validation (0.00s)
+=== RUN   TestResolveRole_SingleMember
+--- PASS: TestResolveRole_SingleMember (0.00s)
+=== RUN   TestResolveRole_RoleNotStaffed
+--- PASS: TestResolveRole_RoleNotStaffed (0.00s)
+=== RUN   TestResolveRoles_LeastBusyPicksFreest
+--- PASS: TestResolveRoles_LeastBusyPicksFreest (0.00s)
+=== RUN   TestResolveRoles_LeastBusySpreadsWithinBatch
+--- PASS: TestResolveRoles_LeastBusySpreadsWithinBatch (0.00s)
+=== RUN   TestResolveRoles_ReviewAvoidsDev
+--- PASS: TestResolveRoles_ReviewAvoidsDev (0.00s)
+=== RUN   TestResolveRoles_ConstraintUnsatisfiable
+--- PASS: TestResolveRoles_ConstraintUnsatisfiable (0.00s)
+=== RUN   TestResolveRoles_CyclicAvoid
+--- PASS: TestResolveRoles_CyclicAvoid (0.00s)
+=== RUN   TestResolveRoles_UnknownNodeRef
+--- PASS: TestResolveRoles_UnknownNodeRef (0.00s)
+=== RUN   TestResolveRoles_RoundRobin
+--- PASS: TestResolveRoles_RoundRobin (0.00s)
+=== RUN   TestExtractFromTeam_DropsProjectScopeAndScrubs
+--- PASS: TestExtractFromTeam_DropsProjectScopeAndScrubs (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/team	0.370s
+=== RUN   TestPlanLegacyWorkflowTemplateMigrationClaimsOnlyUniqueTeamOwners
+--- PASS: TestPlanLegacyWorkflowTemplateMigrationClaimsOnlyUniqueTeamOwners (0.00s)
+=== RUN   TestApplyLegacyWorkflowTemplateMigrationWritesOnlyClaimedTeamRules
+--- PASS: TestApplyLegacyWorkflowTemplateMigrationWritesOnlyClaimedTeamRules (0.39s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/team/migration	1.774s
+=== RUN   TestService_CreateTeam_GeneratesIDAndPersistsRoles
+--- PASS: TestService_CreateTeam_GeneratesIDAndPersistsRoles (0.09s)
+=== RUN   TestService_UpdateTeamRoles_AllowsReplaceAndEmpty
+--- PASS: TestService_UpdateTeamRoles_AllowsReplaceAndEmpty (0.08s)
+=== RUN   TestService_UpdateTeamRoles_RejectsRemovingRoleInUse
+--- PASS: TestService_UpdateTeamRoles_RejectsRemovingRoleInUse (0.08s)
+=== RUN   TestService_HumanMultiTeam
+--- PASS: TestService_HumanMultiTeam (0.08s)
+=== RUN   TestService_AddMember_RoleNotDeclared
+--- PASS: TestService_AddMember_RoleNotDeclared (0.08s)
+=== RUN   TestService_AddMember_TeamNotFound
+--- PASS: TestService_AddMember_TeamNotFound (0.08s)
+=== RUN   TestService_UpdateTeam
+--- PASS: TestService_UpdateTeam (0.09s)
+=== RUN   TestService_SetTeamMemoryPolicyRequiresCurrentAgentMemberAndRevokesOnRemove
+--- PASS: TestService_SetTeamMemoryPolicyRequiresCurrentAgentMemberAndRevokesOnRemove (0.09s)
+=== RUN   TestService_UpdateTeam_DuplicateName
+--- PASS: TestService_UpdateTeam_DuplicateName (0.11s)
+=== RUN   TestService_DeleteTeam_Idempotent
+--- PASS: TestService_DeleteTeam_Idempotent (0.09s)
+=== RUN   TestService_ListTeams_ScopedByOrg
+--- PASS: TestService_ListTeams_ScopedByOrg (0.09s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/team/service	1.955s
+=== RUN   TestCreateAndGetTeam_RoundTrip
+--- PASS: TestCreateAndGetTeam_RoundTrip (0.10s)
+=== RUN   TestTeamMemoryPolicy_RoundTripAndRemoveMemberRevokes
+--- PASS: TestTeamMemoryPolicy_RoundTripAndRemoveMemberRevokes (0.08s)
+=== RUN   TestCreateTeam_NameTakenWithinOrg
+--- PASS: TestCreateTeam_NameTakenWithinOrg (0.08s)
+=== RUN   TestHumanMultiTeam_DBLevel
+--- PASS: TestHumanMultiTeam_DBLevel (0.08s)
+=== RUN   TestAddMember_UndeclaredRoleRejected
+--- PASS: TestAddMember_UndeclaredRoleRejected (0.08s)
+=== RUN   TestDeleteTeam_Cascades
+--- PASS: TestDeleteTeam_Cascades (0.08s)
+=== RUN   TestListMembersByTeams_GroupsAndScopes
+--- PASS: TestListMembersByTeams_GroupsAndScopes (0.08s)
+=== RUN   TestListMembersByTeams_EmptyIDs
+--- PASS: TestListMembersByTeams_EmptyIDs (0.08s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/team/sqlite	2.855s
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/team/tool	1.780s [no tests to run]
+=== RUN   TestAPI_RevokeSecret_NotWired
+--- PASS: TestAPI_RevokeSecret_NotWired (0.07s)
+=== RUN   TestAPI_RevokeSecret_Happy
+--- PASS: TestAPI_RevokeSecret_Happy (0.11s)
+=== RUN   TestAPI_RevokeSecret_NotFound
+--- PASS: TestAPI_RevokeSecret_NotFound (0.10s)
+=== RUN   TestSecretPublicMap_RevokedFieldsPresent
+--- PASS: TestSecretPublicMap_RevokedFieldsPresent (0.00s)
+=== RUN   TestAccessEffectiveBatchAndRevokeContract
+--- PASS: TestAccessEffectiveBatchAndRevokeContract (0.10s)
+=== RUN   TestAccessProfilesPersistVersionsAndCAS
+--- PASS: TestAccessProfilesPersistVersionsAndCAS (0.10s)
+=== RUN   TestAPI_AgentConcurrency_RequiresAuth
+--- PASS: TestAPI_AgentConcurrency_RequiresAuth (0.10s)
+=== RUN   TestAPI_AgentDetail_228_ProfileEnrich
+--- PASS: TestAPI_AgentDetail_228_ProfileEnrich (0.10s)
+=== RUN   TestAIRuntimeCatalogHTTPFlowAndPermissions
+--- PASS: TestAIRuntimeCatalogHTTPFlowAndPermissions (0.12s)
+=== RUN   TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation
+--- PASS: TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation (0.12s)
+=== RUN   TestAPI_Send_AutoAdvancesAuthorAndAutoFollows
+--- PASS: TestAPI_Send_AutoAdvancesAuthorAndAutoFollows (0.10s)
+=== RUN   TestPermissionsHTTP_CheckAndEffectiveUseServerAuthorizer
+--- PASS: TestPermissionsHTTP_CheckAndEffectiveUseServerAuthorizer (0.11s)
+=== RUN   TestPermissionsHTTP_CrossOrgRevokeMustFailClosed
+--- PASS: TestPermissionsHTTP_CrossOrgRevokeMustFailClosed (0.10s)
+=== RUN   TestPermissionsHTTP_SubjectAuditIsOrgScoped
+--- PASS: TestPermissionsHTTP_SubjectAuditIsOrgScoped (0.10s)
+=== RUN   TestAccessApplyCompatibilityMutatesUnifiedAuthorizationAndOverview
+--- PASS: TestAccessApplyCompatibilityMutatesUnifiedAuthorizationAndOverview (0.10s)
+=== RUN   TestAPI_RuntimeContract_TeamRoles
+--- PASS: TestAPI_RuntimeContract_TeamRoles (0.10s)
+=== RUN   TestAddMember_MigrateAcrossTeams
+--- PASS: TestAddMember_MigrateAcrossTeams (0.10s)
+=== RUN   TestAddMember_MultipleRolesAggregatesMemberView
+--- PASS: TestAddMember_MultipleRolesAggregatesMemberView (0.10s)
+=== RUN   TestDirectoryAgents_CanonicalTeamIDs
+--- PASS: TestDirectoryAgents_CanonicalTeamIDs (0.10s)
+=== RUN   TestDirectoryHumans_CanonicalTeamIDs
+--- PASS: TestDirectoryHumans_CanonicalTeamIDs (0.10s)
+=== RUN   TestCreateTeam_AllowsNoRoleForEmptyTeam
+--- PASS: TestCreateTeam_AllowsNoRoleForEmptyTeam (0.10s)
+=== RUN   TestUpdateTeam_RoleDefinitions
+--- PASS: TestUpdateTeam_RoleDefinitions (0.10s)
+=== RUN   TestTeamFacade_AuthGate
+--- PASS: TestTeamFacade_AuthGate (0.15s)
+=== RUN   TestUpdateTeam_HappyPath
+--- PASS: TestUpdateTeam_HappyPath (0.10s)
+=== RUN   TestUpdateTeam_NotFound
+--- PASS: TestUpdateTeam_NotFound (0.14s)
+=== RUN   TestUpdateTeam_CrossOrgForbidden
+--- PASS: TestUpdateTeam_CrossOrgForbidden (0.13s)
+=== RUN   TestInstantiateTeam_HappyPath
+--- PASS: TestInstantiateTeam_HappyPath (0.10s)
+=== RUN   TestTeamTemplates_CreateListGet
+--- PASS: TestTeamTemplates_CreateListGet (0.10s)
+=== RUN   TestTeamTemplate_GetNotFound
+--- PASS: TestTeamTemplate_GetNotFound (0.10s)
+=== RUN   TestExtractFromTeam_RolesOnlyDraft
+--- PASS: TestExtractFromTeam_RolesOnlyDraft (0.10s)
+=== RUN   TestExtractFromTeam_NotFound
+--- PASS: TestExtractFromTeam_NotFound (0.12s)
+=== RUN   TestTeamMemory_IndexEmptyWhenUnwired
+--- PASS: TestTeamMemory_IndexEmptyWhenUnwired (0.10s)
+=== RUN   TestTeamMemory_DocNotFound
+--- PASS: TestTeamMemory_DocNotFound (0.10s)
+=== RUN   TestTeamMemory_ProposalLifecycleSettingsAndPermissions
+--- PASS: TestTeamMemory_ProposalLifecycleSettingsAndPermissions (1.11s)
+=== RUN   TestTeamMemory_SettingsTranslateWebPolicyContract
+--- PASS: TestTeamMemory_SettingsTranslateWebPolicyContract (0.10s)
+=== RUN   TestTeamMemory_SettingsRejectUnsupportedPolicy
+--- PASS: TestTeamMemory_SettingsRejectUnsupportedPolicy (0.10s)
+=== RUN   TestTeamMemory_AgentCannotSelfGrantSettings
+--- PASS: TestTeamMemory_AgentCannotSelfGrantSettings (0.10s)
+=== RUN   TestTeamFacade_NotWired
+--- PASS: TestTeamFacade_NotWired (0.10s)
+=== RUN   TestTeamFacadeP3_AuthGate
+--- PASS: TestTeamFacadeP3_AuthGate (0.10s)
+=== RUN   TestTemplateInstances_ReturnsInstantiatedTeams
+--- PASS: TestTemplateInstances_ReturnsInstantiatedTeams (0.10s)
+=== RUN   TestDirectoryHumans_RealIdentityAndTeams
+--- PASS: TestDirectoryHumans_RealIdentityAndTeams (0.10s)
+=== RUN   TestTeamMonogram
+--- PASS: TestTeamMonogram (0.00s)
+=== RUN   TestTeamViewMap
+--- PASS: TestTeamViewMap (0.00s)
+=== RUN   TestMemberViewsAggregatesRoles
+--- PASS: TestMemberViewsAggregatesRoles (0.00s)
+=== RUN   TestMintEnroll_RevokesTokenOnAddFailure
+--- PASS: TestMintEnroll_RevokesTokenOnAddFailure (0.08s)
+=== RUN   TestRevokeEnroll_RealID
+--- PASS: TestRevokeEnroll_RealID (0.10s)
+=== RUN   TestRevokeEnroll_Unauthenticated
+--- PASS: TestRevokeEnroll_Unauthenticated (0.10s)
+=== RUN   TestRevokeEnroll_NonMemberForbidden
+--- PASS: TestRevokeEnroll_NonMemberForbidden (0.10s)
+=== RUN   TestRevokeEnroll_NoIDIsNoOp
+--- PASS: TestRevokeEnroll_NoIDIsNoOp (0.10s)
+=== RUN   TestRevokeEnroll_DepsNotWired
+--- PASS: TestRevokeEnroll_DepsNotWired (0.08s)
+=== RUN   TestAPI_AuthMiddleware_OnlyGuardsAPI
+--- PASS: TestAPI_AuthMiddleware_OnlyGuardsAPI (0.07s)
+=== RUN   TestT1343LegacyAccessApplyMustMatchPermissionsEffectiveState
+--- PASS: TestT1343LegacyAccessApplyMustMatchPermissionsEffectiveState (0.10s)
+=== RUN   TestT1343LegacyAccessOverviewMustIncludeCustomRolePermissions
+--- PASS: TestT1343LegacyAccessOverviewMustIncludeCustomRolePermissions (0.10s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	7.675s

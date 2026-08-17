@@ -1,0 +1,18 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-9cbe4cbf/web
+
+(node:26264) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26263) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26265) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Teams.test.tsx (7 tests) 560ms
+ ✓ src/pages/Access.test.tsx (5 tests) 744ms
+ ✓ src/pages/TeamDetail.test.tsx (30 tests) 1516ms
+
+ Test Files  3 passed (3)
+      Tests  42 passed (42)
+   Start at  06:20:41
+   Duration  2.71s (transform 252ms, setup 1.05s, collect 464ms, tests 2.82s, environment 803ms, prepare 94ms)
+
