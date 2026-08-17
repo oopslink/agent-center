@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -58,6 +59,33 @@ type accessRoleDTO struct {
 	HighRisk    bool     `json:"high_risk,omitempty"`
 }
 
+type accessProfileDTO struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Version     int      `json:"version"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+	Risk        string   `json:"risk"`
+	DisabledAt  *string  `json:"disabled_at,omitempty"`
+	CreatedAt   string   `json:"created_at,omitempty"`
+}
+
+type accessProfileDetailDTO struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	DisabledAt  *string            `json:"disabled_at,omitempty"`
+	Latest      accessProfileDTO   `json:"latest"`
+	Versions    []accessProfileDTO `json:"versions"`
+}
+
+type accessProfileWriteDTO struct {
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	Permissions           []string `json:"permissions"`
+	ExpectedLatestVersion *int     `json:"expected_latest_version,omitempty"`
+}
+
 type accessDecisionDTO struct {
 	Allowed     bool                   `json:"allowed"`
 	SubjectRef  string                 `json:"subject_ref"`
@@ -109,6 +137,14 @@ type accessBatchItemDTO struct {
 	Reason      string                 `json:"reason"`
 	EvidenceRef string                 `json:"evidence_ref,omitempty"`
 	GrantID     string                 `json:"grant_id,omitempty"`
+}
+
+type accessRevokeRequestDTO struct {
+	GrantIDs       []string `json:"grant_ids"`
+	Reason         string   `json:"reason"`
+	PreviewID      string   `json:"preview_id,omitempty"`
+	Token          string   `json:"token,omitempty"`
+	IdempotencyKey string   `json:"idempotency_key,omitempty"`
 }
 
 type accessDerivedState struct {
@@ -313,6 +349,361 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) accessProfilesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "access_profiles_not_wired", "access profile store not wired")
+		return
+	}
+	profiles, err := accessListProfiles(r.Context(), d.DB, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_profiles_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": profiles})
+}
+
+func (s *Server) accessProfileDetailHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	detail, found, err := accessProfileDetail(r.Context(), d.DB, orgID, r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) accessProfileCreateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	var body accessProfileWriteDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	profile, err := accessCreateProfile(r.Context(), d.DB, orgID, string(authz.UserSubject(caller.ID())), body)
+	if err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, profile)
+}
+
+func (s *Server) accessProfileNewVersionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	var body accessProfileWriteDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	profile, err := accessCreateProfileVersion(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body)
+	if err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, profile)
+}
+
+func (s *Server) accessProfileDisableHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		return
+	}
+	if err := accessDisableProfile(r.Context(), d.DB, orgID, r.PathValue("id")); err != nil {
+		writeAccessProfileWriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+var (
+	errAccessProfileNotFound = errors.New("access profile not found")
+	errAccessProfileConflict = errors.New("access profile version conflict")
+	errAccessProfileInvalid  = errors.New("invalid access profile")
+)
+
+func accessListProfiles(ctx context.Context, db *sql.DB, orgID string) ([]accessProfileDTO, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
+		FROM access_profiles p
+		JOIN access_profile_versions v ON v.profile_id = p.id
+		JOIN (
+			SELECT profile_id, MAX(version) AS version
+			FROM access_profile_versions
+			GROUP BY profile_id
+		) latest ON latest.profile_id = v.profile_id AND latest.version = v.version
+		WHERE p.org_id IN ('', ?) AND p.disabled_at IS NULL
+		ORDER BY p.name, p.id`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []accessProfileDTO
+	for rows.Next() {
+		profile, err := scanAccessProfileVersion(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, profile)
+	}
+	return out, rows.Err()
+}
+
+func accessProfileDetail(ctx context.Context, db *sql.DB, orgID, profileID string) (accessProfileDetailDTO, bool, error) {
+	if db == nil {
+		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+	}
+	var detail accessProfileDetailDTO
+	var disabled sql.NullString
+	err := db.QueryRowContext(ctx, `
+		SELECT id, name, description, disabled_at
+		FROM access_profiles
+		WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).
+		Scan(&detail.ID, &detail.Name, &detail.Description, &disabled)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessProfileDetailDTO{}, false, nil
+		}
+		return accessProfileDetailDTO{}, false, err
+	}
+	if disabled.Valid {
+		detail.DisabledAt = &disabled.String
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
+		FROM access_profiles p
+		JOIN access_profile_versions v ON v.profile_id = p.id
+		WHERE p.id = ?
+		ORDER BY v.version DESC`, profileID)
+	if err != nil {
+		return accessProfileDetailDTO{}, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		version, err := scanAccessProfileVersion(rows)
+		if err != nil {
+			return accessProfileDetailDTO{}, false, err
+		}
+		detail.Versions = append(detail.Versions, version)
+	}
+	if err := rows.Err(); err != nil {
+		return accessProfileDetailDTO{}, false, err
+	}
+	if len(detail.Versions) == 0 {
+		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+	}
+	detail.Latest = detail.Versions[0]
+	return detail, true, nil
+}
+
+type accessProfileScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanAccessProfileVersion(row accessProfileScanner) (accessProfileDTO, error) {
+	var profile accessProfileDTO
+	var permissionsJSON string
+	var disabled sql.NullString
+	if err := row.Scan(&profile.ID, &profile.Name, &profile.Description, &disabled, &profile.Version, &permissionsJSON, &profile.Risk, &profile.CreatedAt); err != nil {
+		return accessProfileDTO{}, err
+	}
+	if disabled.Valid {
+		profile.DisabledAt = &disabled.String
+	}
+	if err := json.Unmarshal([]byte(permissionsJSON), &profile.Permissions); err != nil {
+		return accessProfileDTO{}, err
+	}
+	return profile, nil
+}
+
+func accessCreateProfile(ctx context.Context, db *sql.DB, orgID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	id := "profile-" + accessHash(orgID+"|"+name+"|"+time.Now().UTC().Format(time.RFC3339Nano))
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO access_profiles (id, org_id, name, description, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, id, orgID, name, strings.TrimSpace(body.Description), actor, now, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := insertAccessProfileVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	detail, _, err := accessProfileDetail(ctx, db, orgID, id)
+	return detail, err
+}
+
+func accessCreateProfileVersion(ctx context.Context, db *sql.DB, orgID, profileID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
+	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	defer tx.Rollback()
+	var ownerOrg string
+	var disabled sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, disabled_at FROM access_profiles WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).Scan(&ownerOrg, &disabled); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessProfileDetailDTO{}, errAccessProfileNotFound
+		}
+		return accessProfileDetailDTO{}, err
+	}
+	if ownerOrg == "" {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	if disabled.Valid {
+		return accessProfileDetailDTO{}, errAccessProfileInvalid
+	}
+	var latest int
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM access_profile_versions WHERE profile_id = ?`, profileID).Scan(&latest); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if body.ExpectedLatestVersion == nil || *body.ExpectedLatestVersion != latest {
+		return accessProfileDetailDTO{}, errAccessProfileConflict
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if err := insertAccessProfileVersion(ctx, tx, profileID, latest+1, permissions, risk, actor, now); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE access_profiles SET updated_at = ? WHERE id = ?`, now, profileID); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return accessProfileDetailDTO{}, err
+	}
+	detail, _, err := accessProfileDetail(ctx, db, orgID, profileID)
+	return detail, err
+}
+
+func insertAccessProfileVersion(ctx context.Context, exec interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, profileID string, version int, permissions []string, risk, actor, now string) error {
+	raw, err := json.Marshal(permissions)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `
+		INSERT INTO access_profile_versions (profile_id, version, permissions_json, risk, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, profileID, version, string(raw), risk, actor, now)
+	return err
+}
+
+func accessDisableProfile(ctx context.Context, db *sql.DB, orgID, profileID string) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := db.ExecContext(ctx, `
+		UPDATE access_profiles
+		SET disabled_at = ?, updated_at = ?
+		WHERE id = ? AND org_id = ? AND disabled_at IS NULL`, now, now, profileID, orgID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errAccessProfileNotFound
+	}
+	return nil
+}
+
+func normalizeAccessProfilePermissions(in []string) ([]string, string, error) {
+	known := map[string]accessPermissionDefinitionDTO{}
+	for _, def := range accessCatalog {
+		known[def.Key] = def
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	risk := "low"
+	for _, permission := range in {
+		permission = strings.TrimSpace(permission)
+		if permission == "" {
+			continue
+		}
+		def, ok := known[permission]
+		if !ok {
+			return nil, "", fmt.Errorf("%w: permission is not registered: %s", errAccessProfileInvalid, permission)
+		}
+		if _, ok := seen[permission]; ok {
+			continue
+		}
+		seen[permission] = struct{}{}
+		out = append(out, permission)
+		if def.Risk == "high" {
+			risk = "high"
+		} else if def.Risk == "medium" && risk == "low" {
+			risk = "medium"
+		}
+	}
+	if len(out) == 0 {
+		return nil, "", errAccessProfileInvalid
+	}
+	sort.Strings(out)
+	return out, risk, nil
+}
+
+func writeAccessProfileWriteError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errAccessProfileNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
+	case errors.Is(err, errAccessProfileConflict):
+		writeError(w, http.StatusConflict, "version_conflict", "access profile latest version changed")
+	case errors.Is(err, errAccessProfileInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_access_profile", err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
+	}
+}
+
 func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, _, orgID, ok := requireOrgMember(w, r, d)
@@ -352,6 +743,10 @@ func (s *Server) accessBatchApplyHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusBadRequest, "revoke_preview_required", "revoke requires /access/grants/revoke/preview followed by /confirm")
+}
+
+func (s *Server) accessBulkRevokePreviewHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
@@ -362,15 +757,31 @@ func (s *Server) accessBulkRevokeHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
-	var body struct {
-		GrantIDs []string `json:"grant_ids"`
-		Reason   string   `json:"reason"`
-	}
+	var body accessRevokeRequestDTO
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason)
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, true, "", "", "")
+}
+
+func (s *Server) accessBulkRevokeConfirmHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	var body accessRevokeRequestDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, false, body.PreviewID, body.Token, body.IdempotencyKey)
 }
 
 func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -1249,7 +1660,7 @@ func accessBatchStatusForReason(reason string) string {
 	}
 }
 
-func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string) {
+func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string, preview bool, previewID string, token string, idempotencyKey string) {
 	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
@@ -1260,8 +1671,74 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 		grants[grant.ID] = grant
 	}
 	items := make([]accessBatchItemDTO, 0, len(grantIDs))
+	operations := make([]authz.BatchOperation, 0, len(grantIDs))
 	for i, id := range grantIDs {
-		items = append(items, accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason))
+		item, op := accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, false)
+		items = append(items, item)
+		if op.Type != "" {
+			operations = append(operations, op)
+		}
+	}
+	if preview {
+		if len(operations) > 0 {
+			rp, err := svc.PreviewRevoke(r.Context(), authz.RevokePreviewRequest{
+				ActorRef: actor, OrgID: orgID, Operations: operations, TTL: 5 * time.Minute,
+			})
+			if err != nil {
+				writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+				return
+			}
+			allowed := map[string]authz.OperationResult{}
+			for _, op := range rp.Operations {
+				allowed[op.AssignmentID] = op
+			}
+			for i := range items {
+				if op, ok := allowed[items[i].GrantID]; ok {
+					items[i].Status = "allowed"
+					items[i].Reason = "grant can be revoked by unified authorization API"
+					items[i].EvidenceRef = "authorization_revoke_preview:" + rp.PreviewID
+					items[i].GrantID = op.AssignmentID
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"preview_id": rp.PreviewID,
+				"token":      rp.Token,
+				"expires_at": rp.ExpiresAt.UTC().Format(time.RFC3339),
+				"items":      items,
+				"summary":    accessPreviewSummary(items),
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"preview_id": fmt.Sprintf("access-revoke-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
+			"expires_at": time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339),
+			"items":      items,
+			"summary":    accessPreviewSummary(items),
+		})
+		return
+	}
+	if strings.TrimSpace(previewID) == "" || strings.TrimSpace(token) == "" {
+		writeError(w, http.StatusBadRequest, "revoke_preview_required", "preview_id and token are required")
+		return
+	}
+	res, err := svc.ConfirmRevoke(r.Context(), authz.RevokeConfirmRequest{
+		PreviewID: previewID, Token: token, IdempotencyKey: idempotencyKey, ActorRef: actor, OrgID: orgID, Operations: operations,
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: actor, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	confirmed := map[string]authz.OperationResult{}
+	for _, op := range res.Operations {
+		confirmed[op.AssignmentID] = op
+	}
+	for i := range items {
+		if op, ok := confirmed[items[i].GrantID]; ok {
+			items[i].Status = "allowed"
+			items[i].Reason = "grant revoked by unified authorization API"
+			items[i].EvidenceRef = "authorization_revoke_confirm:" + previewID
+			items[i].GrantID = op.AssignmentID
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation_id": fmt.Sprintf("access-revoke-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, grantIDs))),
@@ -1271,7 +1748,7 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	})
 }
 
-func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string) accessBatchItemDTO {
+func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string, apply bool) (accessBatchItemDTO, authz.BatchOperation) {
 	grant, found := grants[id]
 	item := accessBatchItemDTO{
 		ID:          fmt.Sprintf("revoke-%d", idx),
@@ -1285,7 +1762,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 		GrantID:     id,
 	}
 	if !found {
-		return item
+		return item, authz.BatchOperation{}
 	}
 	item.SubjectRef = grant.SubjectRef
 	item.SubjectName = grant.SubjectName
@@ -1295,35 +1772,39 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 	item.HighRisk = grant.Risk == "high"
 	item.Reason = fmt.Sprintf("%s is a derived permission and must be revoked at its source", id)
 	if grant.Source != string(authz.SourceCustomRole) {
-		return item
+		return item, authz.BatchOperation{}
+	}
+	op := authz.BatchOperation{
+		ID:     item.ID,
+		Type:   "revoke_assignment",
+		Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
+	}
+	if !apply {
+		return item, op
 	}
 	req := authz.BatchRequest{
 		IdempotencyKey: accessBatchIdempotencyKey("revoke", orgID, actor, "", item),
 		ActorRef:       actor,
 		OrgID:          orgID,
-		Operations: []authz.BatchOperation{{
-			ID:     item.ID,
-			Type:   "revoke_assignment",
-			Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
-		}},
+		Operations:     []authz.BatchOperation{op},
 	}
 	res, err := svc.RevokeBatch(ctx, req)
 	if err != nil {
 		item.Status = accessBatchStatusForError(err)
 		item.Reason = err.Error()
-		return item
+		return item, op
 	}
-	for _, op := range res.Operations {
-		if op.Reason != "" || op.Status == "denied" {
-			item.Status = accessBatchStatusForReason(op.Reason)
-			item.Reason = fallback(op.Reason, op.Status)
-			return item
+	for _, result := range res.Operations {
+		if result.Reason != "" || result.Status == "denied" {
+			item.Status = accessBatchStatusForReason(result.Reason)
+			item.Reason = fallback(result.Reason, result.Status)
+			return item, op
 		}
 	}
 	item.Status = "allowed"
 	item.Reason = "grant revoked by unified authorization API"
 	item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
-	return item
+	return item, op
 }
 
 func accessPermissionApplies(def accessPermissionDefinitionDTO, kind string) bool {

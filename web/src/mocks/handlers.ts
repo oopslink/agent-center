@@ -656,6 +656,36 @@ function accessHandlers() {
         summary: summaryFor(filtered),
       });
     }),
+    http.get('/api/access/profiles', () => ok({
+      profiles: [
+        { id: 'team-basic', name: 'Team basic', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
+        { id: 'team-contributor', name: 'Team contributor', version: 1, description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
+        { id: 'team-curator', name: 'Team curator', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
+      ],
+    })),
+    http.get('/api/access/profiles/:id', ({ params }) => {
+      const id = String(params.id);
+      const base = id === 'team-contributor'
+        ? { id, name: 'Team contributor', description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] }
+        : { id, name: 'Team curator', description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] };
+      const versions = id === 'team-curator'
+        ? [
+            { ...base, version: 2, risk: 'high' },
+            { ...base, version: 1, permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
+          ]
+        : [{ ...base, version: 1, risk: 'medium' }];
+      return ok({ ...base, latest: versions[0], versions });
+    }),
+    http.post('/api/access/profiles', async ({ request }) => {
+      const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
+      const latest = { id: 'profile-created', name: body.name, description: body.description ?? '', version: 1, permissions: body.permissions, risk: 'medium' };
+      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest] }, 201);
+    }),
+    http.post('/api/access/profiles/:id/versions', async ({ params, request }) => {
+      const body = (await request.json()) as { permissions: string[] };
+      const latest = { id: String(params.id), name: 'Team contributor', description: 'Read/write team work and propose memory.', version: 2, permissions: body.permissions, risk: 'high' };
+      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest, { ...latest, version: 1, permissions: ['team.read'], risk: 'low' }] }, 201);
+    }),
     http.post('/api/access/batch/preview', async ({ request }) => {
       const body = (await request.json()) as BatchRequest;
       const items = makeItems(body);
@@ -694,8 +724,41 @@ function accessHandlers() {
         },
       });
     }),
-    http.post('/api/access/grants/revoke', async ({ request }) => {
+    http.post('/api/access/grants/revoke/preview', async ({ request }) => {
       const body = (await request.json()) as { grant_ids?: string[]; reason?: string };
+      const items: BatchItem[] = (body.grant_ids ?? []).map((id, idx) => ({
+        id: `revoke-${idx + 1}`,
+        subject_ref: idx === 0 ? 'agent:builder' : 'user:ops',
+        subject_name: idx === 0 ? 'Builder' : 'Ops Reviewer',
+        permission: idx === 0 ? 'project.write' : 'org.read',
+        resource: idx === 0
+          ? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }
+          : { kind: 'org', id: 'org-test', label: 'Test Org' },
+        status: 'not_applicable',
+        risk: idx === 0 ? 'medium' : 'low',
+        high_risk: false,
+        reason: `${id} is a derived permission and must be revoked at its source`,
+        grant_id: id,
+      }));
+      return ok({
+        preview_id: 'revoke-preview-mock-1',
+        token: 'revoke-token-mock-1',
+        expires_at: '2026-08-14T08:07:00Z',
+        items,
+        summary: {
+          total: items.length,
+          grantable: items.filter((i) => i.status === 'allowed').length,
+          high_risk: items.filter((i) => i.high_risk).length,
+          unauthorized: 0,
+          not_applicable: items.filter((i) => i.status === 'not_applicable').length,
+        },
+      });
+    }),
+    http.post('/api/access/grants/revoke/confirm', async ({ request }) => {
+      const body = (await request.json()) as { grant_ids?: string[]; reason?: string; preview_id?: string; token?: string };
+      if (body.token !== 'revoke-token-mock-1') {
+        return HttpResponse.json({ error: 'revoke_preview_rejected', message: 'revoke preview rejected' }, { status: 409 });
+      }
       const items: BatchItem[] = (body.grant_ids ?? []).map((id, idx) => ({
         id: `revoke-${idx + 1}`,
         subject_ref: idx === 0 ? 'agent:builder' : 'user:ops',

@@ -59,28 +59,61 @@ func TestExecGitRunner_ContextCancelKillsGitProcessGroup(t *testing.T) {
 		t.Fatalf("write fake ssh: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	type runResult struct {
+		out string
+		err error
+	}
+	done := make(chan runResult, 1)
+	go func() {
+		out, err := NewExecGitRunner().Run(ctx, dir, append(os.Environ(),
+			"GIT_TERMINAL_PROMPT=0",
+			"GIT_SSH_COMMAND="+sshPath,
+		), "ls-remote", "ssh://127.0.0.1/repo.git")
+		done <- runResult{out: out, err: err}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	var pidBytes []byte
+	for time.Now().Before(deadline) {
+		var readErr error
+		pidBytes, readErr = os.ReadFile(pidPath)
+		if readErr == nil {
+			break
+		}
+		select {
+		case res := <-done:
+			t.Fatalf("git exited before fake ssh was invoked: err=%v out=%q", res.err, res.out)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if len(pidBytes) == 0 {
+		cancel()
+		t.Fatalf("fake ssh was not invoked within deadline")
+	}
+	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if parseErr != nil {
+		cancel()
+		t.Fatalf("parse fake ssh pid: %v", parseErr)
+	}
+
 	start := time.Now()
-	_, err := NewExecGitRunner().Run(ctx, dir, append(os.Environ(),
-		"GIT_TERMINAL_PROMPT=0",
-		"GIT_SSH_COMMAND="+sshPath,
-	), "ls-remote", "ssh://example.invalid/repo.git")
+	cancel()
+	var res runResult
+	select {
+	case res = <-done:
+	case <-time.After(4 * time.Second):
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		t.Fatalf("Run did not return within 4s after ctx cancellation; a child process likely kept git pipes open")
+	}
+	err := res.err
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatalf("Run unexpectedly succeeded")
 	}
 	if elapsed > 4*time.Second {
 		t.Fatalf("Run took %s after ctx cancellation; a child process likely kept git pipes open", elapsed)
-	}
-
-	pidBytes, readErr := os.ReadFile(pidPath)
-	if readErr != nil {
-		t.Fatalf("fake ssh was not invoked: %v", readErr)
-	}
-	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
-	if parseErr != nil {
-		t.Fatalf("parse fake ssh pid: %v", parseErr)
 	}
 	for i := 0; i < 10; i++ {
 		if err := syscall.Kill(pid, 0); err != nil {

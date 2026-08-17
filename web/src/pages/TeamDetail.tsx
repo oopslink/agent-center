@@ -195,6 +195,8 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     max_concurrency: role.max_concurrency,
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),
+    access_requirements: role.access_requirements ?? [],
+    access_lint: role.access_lint ?? [],
   })));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
@@ -242,6 +244,7 @@ function MembersPane({
   const remove = useRemoveMember();
   const [adding, setAdding] = useState(false);
   const [removingRef, setRemovingRef] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState('');
 
   return (
     <div>
@@ -310,7 +313,7 @@ function MembersPane({
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
                     <td className="px-4 py-3 text-right">
-                      <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => setRemovingRef(m.member_ref)}>
+                      <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => { setRemoveError(''); setRemovingRef(m.member_ref); }}>
                         {t('teamDetail.members.remove')}
                       </button>
                     </td>
@@ -332,12 +335,23 @@ function MembersPane({
         confirmLabel={t('teamDetail.members.removeConfirm')}
         danger
         busy={remove.isPending}
-        onCancel={() => setRemovingRef(null)}
+        onCancel={() => { setRemovingRef(null); setRemoveError(''); }}
         onConfirm={async () => {
-          if (removingRef) await remove.mutateAsync({ team_id: teamId, member_ref: removingRef });
-          setRemovingRef(null);
+          if (!removingRef) return;
+          try {
+            await remove.mutateAsync({ team_id: teamId, member_ref: removingRef });
+            setRemovingRef(null);
+            setRemoveError('');
+          } catch (err) {
+            setRemoveError((err as Error).message);
+          }
         }}
       />
+      {removeError && (
+        <p className="mt-3 text-xs text-danger" role="alert" data-testid="member-remove-error">
+          {removeError}
+        </p>
+      )}
     </div>
   );
 }
