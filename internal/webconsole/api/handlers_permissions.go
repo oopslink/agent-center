@@ -20,6 +20,9 @@ type permissionCheckBody struct {
 
 func (s *Server) permissionsDefinitionsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	if !accessGovernanceReadModelEnabled(w, d) {
+		return
+	}
 	if _, _, _, ok := requireOrgMember(w, r, d); !ok {
 		return
 	}
@@ -38,6 +41,9 @@ func (s *Server) permissionsDefinitionsHandler(w http.ResponseWriter, r *http.Re
 
 func (s *Server) permissionsCheckHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	if !accessGovernanceReadModelEnabled(w, d) {
+		return
+	}
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
@@ -61,11 +67,15 @@ func (s *Server) permissionsCheckHandler(w http.ResponseWriter, r *http.Request)
 		writeAuthorizationError(w, decision, err)
 		return
 	}
+	redactAccessDecision(&decision)
 	writeJSON(w, http.StatusOK, decision)
 }
 
 func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	if !accessGovernanceReadModelEnabled(w, d) {
+		return
+	}
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
@@ -89,11 +99,15 @@ func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Reques
 		writeAuthorizationError(w, explain.Decision, err)
 		return
 	}
+	redactExplainResult(&explain)
 	writeJSON(w, http.StatusOK, explain)
 }
 
 func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	if !accessGovernanceReadModelEnabled(w, d) {
+		return
+	}
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
@@ -112,6 +126,9 @@ func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusForbidden, "permission_denied", "only owner/admin may inspect another subject")
 		return
 	}
+	if !ensurePermissionSubjectVisible(w, r, svc, subject, callerRef, orgID) {
+		return
+	}
 	resource := authz.ResourceScope{
 		Kind:  strings.TrimSpace(r.URL.Query().Get("resource_kind")),
 		ID:    strings.TrimSpace(r.URL.Query().Get("resource_id")),
@@ -122,12 +139,82 @@ func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Requ
 		resource.Kind = "org"
 		resource.ID = orgID
 	}
+	if ok, err := svc.ResourceVisibleInOrg(r.Context(), resource, orgID); err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: resource}, err)
+		return
+	} else if !ok {
+		writeError(w, http.StatusNotFound, "not_found", "resource not found")
+		return
+	}
 	eff, err := svc.ListEffective(r.Context(), subject, resource)
 	if err != nil {
 		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: resource}, err)
 		return
 	}
+	redactEffectivePermissions(&eff)
 	writeJSON(w, http.StatusOK, eff)
+}
+
+func (s *Server) permissionsAccessGraphHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if !accessGovernanceReadModelEnabled(w, d) {
+		return
+	}
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	callerRef := authz.UserSubject(caller.ID())
+	subject := authz.SubjectRef(strings.TrimSpace(r.URL.Query().Get("subject_ref")))
+	if subject == "" {
+		subject = callerRef
+	}
+	if subject != callerRef && !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner/admin may inspect another subject")
+		return
+	}
+	if !ensurePermissionSubjectVisible(w, r, svc, subject, callerRef, orgID) {
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 100 {
+			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be between 1 and 100")
+			return
+		}
+		limit = n
+	}
+	shadow := true
+	if raw := strings.TrimSpace(r.URL.Query().Get("shadow_parity")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_shadow_parity", "shadow_parity must be a boolean")
+			return
+		}
+		shadow = parsed
+	}
+	graph, err := svc.ListAccessGraph(r.Context(), authz.AccessGraphRequest{
+		SubjectRef:     subject,
+		OrgID:          orgID,
+		Layer:          r.URL.Query().Get("layer"),
+		Cursor:         r.URL.Query().Get("cursor"),
+		Limit:          limit,
+		RedactEvidence: true,
+		ShadowParity:   shadow,
+		RequestID:      r.Header.Get("X-Request-ID"),
+		ActorRef:       callerRef,
+	})
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, graph)
 }
 
 func (s *Server) permissionsAuditHandler(w http.ResponseWriter, r *http.Request) {
@@ -226,6 +313,9 @@ func preparePermissionCheck(w http.ResponseWriter, r *http.Request, svc *authz.S
 		writeError(w, http.StatusForbidden, "permission_denied", "only owner/admin may check another subject")
 		return authz.CheckRequest{}, false
 	}
+	if !ensurePermissionSubjectVisible(w, r, svc, subject, callerRef, orgID) {
+		return authz.CheckRequest{}, false
+	}
 	resource := body.Resource
 	if resource.Kind == "" {
 		resource.Kind = "org"
@@ -237,6 +327,13 @@ func preparePermissionCheck(w http.ResponseWriter, r *http.Request, svc *authz.S
 	if resource.OrgID == "" {
 		resource.OrgID = orgID
 	}
+	if ok, err := svc.ResourceVisibleInOrg(r.Context(), resource, orgID); err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: resource}, err)
+		return authz.CheckRequest{}, false
+	} else if !ok {
+		writeError(w, http.StatusNotFound, "not_found", "resource not found")
+		return authz.CheckRequest{}, false
+	}
 	return authz.CheckRequest{
 		SubjectRef:  subject,
 		Transport:   authz.TransportWeb,
@@ -245,6 +342,63 @@ func preparePermissionCheck(w http.ResponseWriter, r *http.Request, svc *authz.S
 		Resource:    resource,
 		RequestID:   body.RequestID,
 	}, true
+}
+
+func accessGovernanceReadModelEnabled(w http.ResponseWriter, d HandlerDeps) bool {
+	if d.AccessGovernanceReadModelDisabled {
+		writeError(w, http.StatusNotFound, "not_found", "resource not found")
+		return false
+	}
+	return true
+}
+
+func ensurePermissionSubjectVisible(w http.ResponseWriter, r *http.Request, svc *authz.Service, subject, callerRef authz.SubjectRef, orgID string) bool {
+	if subject == callerRef {
+		return true
+	}
+	visible, err := svc.SubjectVisibleInOrg(r.Context(), subject, orgID)
+	if err != nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: subject, Resource: authz.ResourceScope{Kind: "org", ID: orgID}}, err)
+		return false
+	}
+	if !visible {
+		writeError(w, http.StatusNotFound, "not_found", "resource not found")
+		return false
+	}
+	return true
+}
+
+func redactExplainResult(exp *authz.ExplainResult) {
+	if exp == nil {
+		return
+	}
+	redactAccessDecision(&exp.Decision)
+	for i := range exp.Effective {
+		redactEffectivePermission(&exp.Effective[i])
+	}
+}
+
+func redactEffectivePermissions(eff *authz.EffectivePermissions) {
+	if eff == nil {
+		return
+	}
+	for i := range eff.Permissions {
+		redactEffectivePermission(&eff.Permissions[i])
+	}
+}
+
+func redactEffectivePermission(p *authz.EffectivePermission) {
+	if p == nil || p.EvidenceRef == "" {
+		return
+	}
+	p.EvidenceRef = authz.RedactEvidenceRef(p.EvidenceRef)
+}
+
+func redactAccessDecision(decision *authz.AccessDecision) {
+	if decision == nil || decision.EvidenceRef == "" {
+		return
+	}
+	decision.EvidenceRef = authz.RedactEvidenceRef(decision.EvidenceRef)
 }
 
 func permissionAuthorizer(d HandlerDeps) *authz.Service {
@@ -258,6 +412,7 @@ func permissionAuthorizer(d HandlerDeps) *authz.Service {
 }
 
 func writeAuthorizationError(w http.ResponseWriter, decision authz.AccessDecision, err error) {
+	redactAccessDecision(&decision)
 	status := http.StatusForbidden
 	code := "permission_denied"
 	switch {

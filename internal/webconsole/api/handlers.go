@@ -50,6 +50,11 @@ type HandlerDeps struct {
 	DB         *sql.DB
 	Actor      observability.Actor
 	Authorizer *authz.Service
+	// AccessGovernanceReadModelDisabled is an independent rollback switch for
+	// the read-only permissions graph/explain governance surface. Zero value
+	// keeps the surface enabled so legacy tests and hand-built deps do not
+	// accidentally turn it off.
+	AccessGovernanceReadModelDisabled bool
 	// EventSink emits observability/audit events (v2.8.1: agent/worker
 	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
 	EventSink          *observability.EventSink

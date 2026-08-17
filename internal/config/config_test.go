@@ -28,6 +28,9 @@ func TestLoad_DefaultsWhenNoPath(t *testing.T) {
 	if cfg.Server.SqlitePath != "/var/lib/agent-center/agent-center.db" {
 		t.Fatalf("default sqlite_path: got %q", cfg.Server.SqlitePath)
 	}
+	if !cfg.WebConsole.AccessGovernanceReadModelEnabled {
+		t.Fatal("access governance read model should default enabled")
+	}
 }
 
 func TestLoad_FromYAML(t *testing.T) {
@@ -38,6 +41,8 @@ server:
   admin_socket_path: "/tmp/x.sock"
 notification:
   default_channel: "web:user:hayang:dm"
+web_console:
+  access_governance_read_model_enabled: false
 `)
 	cfg, err := Load(LoadOptions{Path: path})
 	if err != nil {
@@ -48,6 +53,9 @@ notification:
 	}
 	if cfg.Notification.DefaultChannel != "web:user:hayang:dm" {
 		t.Fatalf("default_channel: got %q", cfg.Notification.DefaultChannel)
+	}
+	if cfg.WebConsole.AccessGovernanceReadModelEnabled {
+		t.Fatal("yaml should disable access governance read model")
 	}
 }
 
@@ -86,10 +94,15 @@ func TestLoad_EnvOverridesYAML(t *testing.T) {
 	path := writeYAML(t, `
 server:
   sqlite_path: "/tmp/x.db"
+web_console:
+  access_governance_read_model_enabled: false
 `)
 	envFn := func(k string) (string, bool) {
 		if k == "AGENT_CENTER_SERVER_SQLITE_PATH" {
 			return "/tmp/override.db", true
+		}
+		if k == "AGENT_CENTER_WEB_CONSOLE_ACCESS_GOVERNANCE_READ_MODEL_ENABLED" {
+			return "true", true
 		}
 		return "", false
 	}
@@ -99,6 +112,9 @@ server:
 	}
 	if cfg.Server.SqlitePath != "/tmp/override.db" {
 		t.Fatalf("env override: got %q want /tmp/override.db", cfg.Server.SqlitePath)
+	}
+	if !cfg.WebConsole.AccessGovernanceReadModelEnabled {
+		t.Fatal("env should re-enable access governance read model")
 	}
 }
 
