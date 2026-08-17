@@ -7,6 +7,11 @@
 | 关联 ADR | [ADR-0058](../decisions/0058-unified-permission-contract.md) |
 | 范围 | Org / Project / Team / Human / Agent；Web / MCP / admin internal service |
 
+2026-08-17 的 Access Redesign API、安全与迁移冻结源见
+[Access Management Redesign API / Security / Migration Contract](2026-08-17-access-management-redesign.md)。
+本文件仍是统一权限基础契约；涉及 Graph/Explain 可见性、分页 completeness、projection parity、
+preview/apply idempotency TTL、delegation rollout 的实现验收以 2026-08-17 冻结源为准。
+
 ## 1. 结论摘要
 
 当前系统同时存在三类容易混用的事实：

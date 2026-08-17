@@ -28,6 +28,7 @@
 
 当前功能设计：
 
+- [Access Management Redesign API / Security / Migration Contract](features/2026-08-17-access-management-redesign.md)
 - [Team Rule Registry：索引常驻、正文按需加载](features/2026-08-13-team-rule-registry.md)
 
 - **出范围**（永远不做）→ [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)
