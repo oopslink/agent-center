@@ -1,0 +1,6 @@
+$ go test ./internal/conversation/sqlite -count=1
+--- FAIL: TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots (0.27s)
+    message_thread_upgrade_acc_test.go:60: post-upgrade version = 132 want 129
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation/sqlite	6.609s
+FAIL

@@ -1,0 +1,13 @@
+$ pnpm --dir web exec vitest run src/pages/Access.test.tsx
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-522d9363/web
+
+(node:44625) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Access.test.tsx (5 tests) 606ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  05:02:28
+   Duration  1.43s (transform 119ms, setup 284ms, collect 67ms, tests 606ms, environment 225ms, prepare 30ms)
+

@@ -1,0 +1,66 @@
+{
+  "reviewed_sha": "1467848d08a43395b2740d921836727d989aafff",
+  "result": "REJECT",
+  "blocking": true,
+  "summary": "Candidate fails SPA build/typecheck, conversation migration acceptance, and deployed product smoke.",
+  "blocking_failures": [
+    {
+      "criterion": "SPA product build/typecheck",
+      "command": "pnpm --dir web run build",
+      "log": "logs/04-web-build.log",
+      "details": [
+        "src/pages/Access.test.tsx(145,45): permissions is string[] | undefined but profile version requires string[]",
+        "src/pages/Access.test.tsx(145,64): same permissions type mismatch",
+        "src/mocks/handlers.ts(743,13): unused failed binding"
+      ]
+    },
+    {
+      "criterion": "Conversation migration acceptance",
+      "command": "go test ./internal/conversation/sqlite -count=1",
+      "log": "logs/07-go-conversation-sqlite-migration.log",
+      "details": [
+        "TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots failed: post-upgrade version = 132 want 129"
+      ]
+    },
+    {
+      "criterion": "Real deployed product E2E smoke",
+      "command": "./scripts/smoke/deploy-smoke.sh",
+      "log": "logs/09-deployed-smoke.log",
+      "details": [
+        "Smoke failed at build step because SPA build/typecheck failed; server and browser did not start"
+      ]
+    }
+  ],
+  "passing_evidence": [
+    {
+      "criterion": "Focused Access SPA CAS tests",
+      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx",
+      "log": "logs/03-web-access-vitest.log"
+    },
+    {
+      "criterion": "Backend access authorization/profile versions",
+      "command": "go test ./internal/webconsole/api -run 'TestAccess' -count=1",
+      "log": "logs/05-go-webconsole-access.log"
+    },
+    {
+      "criterion": "Core persistence migrations",
+      "command": "go test ./internal/persistence ./tests/integration -count=1",
+      "log": "logs/06-go-migration-core.log"
+    },
+    {
+      "criterion": "Team migration/auth consistency",
+      "command": "go test ./internal/team/service ./internal/webconsole/api -run 'TestMoveMember|TestAddMember|TestAccess' -count=1",
+      "log": "logs/08-go-auth-team-migration.log"
+    }
+  ],
+  "evidence_completeness": {
+    "raw_logs": true,
+    "criterion_matrix": true,
+    "manifest": true,
+    "error_context": true,
+    "screenshots": false,
+    "screenshots_reason": "No browser launched because deployed smoke failed at build.",
+    "server_output": false,
+    "server_output_reason": "No server launched because deployed smoke failed at build."
+  }
+}

@@ -1,0 +1,3 @@
+$ go test ./internal/persistence ./tests/integration -count=1
+ok  	github.com/oopslink/agent-center/internal/persistence	7.426s
+ok  	github.com/oopslink/agent-center/tests/integration	1.640s

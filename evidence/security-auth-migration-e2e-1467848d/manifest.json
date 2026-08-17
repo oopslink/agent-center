@@ -1,0 +1,79 @@
+{
+  "reviewed_sha": "1467848d08a43395b2740d921836727d989aafff",
+  "executor_branch": "ac-exec/task-c109f83f/exec-522d9363",
+  "evidence_root": "evidence/security-auth-migration-e2e-1467848d",
+  "completed_at_utc": "2026-08-17T21:03:17Z",
+  "branch_policy": {
+    "required_branch": "ac-exec/task-c109f83f/exec-522d9363",
+    "observed_branch": "ac-exec/task-c109f83f/exec-522d9363",
+    "detached_head": false,
+    "candidate_tree_pinned": true
+  },
+  "commands": [
+    {
+      "name": "web_pnpm_install",
+      "command": "pnpm --dir web install --frozen-lockfile",
+      "log": "logs/01-web-pnpm-install.log",
+      "exit_code": 0
+    },
+    {
+      "name": "e2e_pnpm_install",
+      "command": "pnpm --dir tests/e2e/v2 install --frozen-lockfile",
+      "log": "logs/02-e2e-pnpm-install.log",
+      "exit_code": 0
+    },
+    {
+      "name": "web_access_vitest",
+      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx",
+      "log": "logs/03-web-access-vitest.log",
+      "exit_code": 0
+    },
+    {
+      "name": "web_build",
+      "command": "pnpm --dir web run build",
+      "log": "logs/04-web-build.log",
+      "exit_code": 2
+    },
+    {
+      "name": "go_webconsole_access",
+      "command": "go test ./internal/webconsole/api -run 'TestAccess' -count=1",
+      "log": "logs/05-go-webconsole-access.log",
+      "exit_code": 0
+    },
+    {
+      "name": "go_migration_core",
+      "command": "go test ./internal/persistence ./tests/integration -count=1",
+      "log": "logs/06-go-migration-core.log",
+      "exit_code": 0
+    },
+    {
+      "name": "go_conversation_sqlite_migration",
+      "command": "go test ./internal/conversation/sqlite -count=1",
+      "log": "logs/07-go-conversation-sqlite-migration.log",
+      "exit_code": 1
+    },
+    {
+      "name": "go_auth_team_migration",
+      "command": "go test ./internal/team/service ./internal/webconsole/api -run 'TestMoveMember|TestAddMember|TestAccess' -count=1",
+      "log": "logs/08-go-auth-team-migration.log",
+      "exit_code": 0
+    },
+    {
+      "name": "deployed_smoke",
+      "command": "./scripts/smoke/deploy-smoke.sh",
+      "log": "logs/09-deployed-smoke.log",
+      "exit_code": 1
+    }
+  ],
+  "artifacts": {
+    "criterion_matrix": "criterion-matrix.md",
+    "error_context": "error-context/build-and-migration-failures.md",
+    "screenshots_note": "screenshots/README.md",
+    "server_output_note": "server-output/no-server-started.txt",
+    "structured_verdict": "structured-verdict.json"
+  },
+  "verdict": {
+    "result": "REJECT",
+    "blocking": true
+  }
+}

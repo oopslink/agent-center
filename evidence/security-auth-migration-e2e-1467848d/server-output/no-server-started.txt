@@ -1,0 +1,7 @@
+reviewed_sha=1467848d08a43395b2740d921836727d989aafff
+
+No server stdout/stderr was produced during deployed smoke because
+./scripts/smoke/deploy-smoke.sh failed at the build step before launching the
+agent-center server.
+
+See ../logs/09-deployed-smoke.log.

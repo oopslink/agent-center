@@ -1,0 +1,3 @@
+$ go test ./internal/team/service ./internal/webconsole/api -run 'TestMoveMember|TestAddMember|TestAccess' -count=1
+ok  	github.com/oopslink/agent-center/internal/team/service	0.993s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.804s
