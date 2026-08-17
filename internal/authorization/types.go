@@ -197,6 +197,7 @@ type RevokeInput struct {
 	RoleID          string        `json:"role_id,omitempty"`
 	Resource        ResourceScope `json:"resource,omitempty"`
 	Reason          string        `json:"reason,omitempty"`
+	Message         string        `json:"message,omitempty"`
 	ExpectedVersion int           `json:"expected_version,omitempty"`
 }
 
@@ -235,6 +236,7 @@ type RevokeTargetSpec struct {
 	Resource     ResourceScope `json:"resource"`
 	Version      int           `json:"version"`
 	Reason       string        `json:"reason,omitempty"`
+	Message      string        `json:"message,omitempty"`
 }
 
 type BatchResult struct {

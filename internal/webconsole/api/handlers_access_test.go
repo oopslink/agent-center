@@ -133,6 +133,92 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	directBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.analytics.read"],
+		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
+		"reason":"temporary analytics audit"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", directBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct access apply status=%d", resp.StatusCode)
+	}
+	var direct struct {
+		Items []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&direct); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(direct.Items) != 1 || direct.Items[0].Status != "allowed" || direct.Items[0].GrantID == "" {
+		t.Fatalf("direct grant apply = %+v", direct.Items)
+	}
+	directGrantID := direct.Items[0].GrantID
+	revokeReason := "quarterly least privilege review"
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`"}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct revoke preview status=%d", resp.StatusCode)
+	}
+	var directPreview struct {
+		PreviewID string `json:"preview_id"`
+		Token     string `json:"token"`
+		Items     []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&directPreview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if directPreview.PreviewID == "" || directPreview.Token == "" || len(directPreview.Items) != 1 || directPreview.Items[0].Status != "allowed" || directPreview.Items[0].GrantID != directGrantID {
+		t.Fatalf("direct revoke preview = %+v", directPreview)
+	}
+	stableRevokeKey := "access-revoke-" + directPreview.PreviewID
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/confirm", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`","preview_id":"`+directPreview.PreviewID+`","token":"`+directPreview.Token+`","idempotency_key":"`+stableRevokeKey+`"}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct revoke confirm status=%d", resp.StatusCode)
+	}
+	var directConfirm struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"summary"`
+		Items []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&directConfirm); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if directConfirm.Summary.Succeeded != 1 || directConfirm.Summary.Failed != 0 || len(directConfirm.Items) != 1 || directConfirm.Items[0].Status != "allowed" || directConfirm.Items[0].GrantID != directGrantID {
+		t.Fatalf("direct revoke confirm = %+v", directConfirm)
+	}
+	var previewConsumed int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_revoke_previews WHERE preview_id = ? AND status = 'confirmed'`, directPreview.PreviewID).Scan(&previewConsumed); err != nil || previewConsumed != 1 {
+		t.Fatalf("confirmed preview count=%d err=%v", previewConsumed, err)
+	}
+	var payloadRaw string
+	var requestID string
+	if err := db.QueryRow(`SELECT request_id, payload_json FROM authorization_audit_events WHERE event_type = 'authorization.assignment.revoked' AND assignment_id = ? ORDER BY created_at DESC LIMIT 1`, directGrantID).Scan(&requestID, &payloadRaw); err != nil {
+		t.Fatal(err)
+	}
+	if requestID != stableRevokeKey {
+		t.Fatalf("revoke audit request_id=%q want %q", requestID, stableRevokeKey)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(payloadRaw), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["reason"] != revokeReason || payload["message"] != revokeReason {
+		t.Fatalf("revoke audit payload reason/message = %s", payloadRaw)
+	}
+
 	resp = orgScopedPatch(t, server.URL+"/api/access/roles/org:admin", `{"permissions":["org.read"],"reason":"test"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("role update status=%d want 409", resp.StatusCode)
