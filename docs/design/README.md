@@ -29,6 +29,7 @@
 当前功能设计：
 
 - [Team Rule Registry：索引常驻、正文按需加载](features/2026-08-13-team-rule-registry.md)
+- [Access 管理页与角色治理改造方案](features/2026-08-17-access-management-redesign.md)
 
 - **出范围**（永远不做）→ [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)
 - **推迟**（v1 不做，但早晚要做）→ [roadmap.md](roadmap.md)
