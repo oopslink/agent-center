@@ -5,9 +5,11 @@ import {
   MermaidDiagram,
   buildMermaidConfig,
   isMermaidLanguage,
+  resetMermaidRenderStateForTests,
   validateMermaidSource,
   validateMermaidSvg,
 } from './MermaidDiagram';
+import { MarkdownMessage } from './MarkdownMessage';
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -35,16 +37,25 @@ class TestIntersectionObserver implements IntersectionObserver {
   }
 }
 
-function revealDiagram(): void {
+function emitIntersection(isIntersecting: boolean): void {
   act(() => {
     for (const callback of intersectionCallbacks) {
-      callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+      callback([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
     }
   });
 }
 
+function revealDiagram(): void {
+  emitIntersection(true);
+}
+
+function hideDiagram(): void {
+  emitIntersection(false);
+}
+
 describe('MermaidDiagram', () => {
   beforeEach(() => {
+    resetMermaidRenderStateForTests();
     intersectionCallbacks = [];
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
     Object.assign(navigator, {
@@ -164,6 +175,67 @@ describe('MermaidDiagram', () => {
     expect(screen.queryAllByText('Rendering diagram...')).toHaveLength(0);
   });
 
+  it('settles every Mermaid fence in one markdown message without unrelated interaction', async () => {
+    let renderCount = 0;
+    mermaidMock.render.mockImplementation(async () => {
+      renderCount += 1;
+      await Promise.resolve();
+      return { svg: safeSvg.replace('A to B', `diagram ${renderCount}`) };
+    });
+
+    render(
+      <MarkdownMessage
+        content={[
+          '```mermaid',
+          'graph TD',
+          'A --> B',
+          '```',
+          '',
+          'middle text',
+          '',
+          '```mmd',
+          'sequenceDiagram',
+          'A->>B: hello',
+          '```',
+          '',
+          '```mermaid',
+          'stateDiagram-v2',
+          '[*] --> Ready',
+          '```',
+        ].join('\n')}
+      />,
+    );
+    expect(screen.getAllByTestId('mermaid-diagram')).toHaveLength(3);
+    expect(screen.getAllByText('Diagram preview pending.')).toHaveLength(3);
+
+    revealDiagram();
+
+    await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+    expect(mermaidMock.render).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    expect(screen.queryByText('Rendering diagram...')).toBeNull();
+  });
+
+  it('shares same-source render work without duplicating Mermaid DOM ids', async () => {
+    mermaidMock.render.mockImplementation(async (id: string) => ({
+      svg: `<svg id="${id}" viewBox="0 0 100 40"><style>#${id} .edge { stroke: currentColor; }</style><defs><marker id="${id}-arrow" /></defs><path class="edge" marker-end="url(#${id}-arrow)" /></svg>`,
+    }));
+
+    render(
+      <>
+        <MermaidDiagram code={simpleCode} />
+        <MermaidDiagram code={simpleCode} />
+      </>,
+    );
+    revealDiagram();
+
+    await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(2));
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1);
+    const svgIds = screen.getAllByTestId('mermaid-svg').map((container) => container.querySelector('svg')?.id);
+    expect(new Set(svgIds).size).toBe(2);
+    expect(svgIds.every((id) => id?.startsWith('ac-mermaid-'))).toBe(true);
+  });
+
   it('publishes an async invalid-diagram error and continues queued renders', async () => {
     mermaidMock.render
       .mockRejectedValueOnce(new Error('Parse error on line 2'))
@@ -192,15 +264,66 @@ describe('MermaidDiagram', () => {
     const view = render(diagrams('desktop'));
     revealDiagram();
     await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+    expect(mermaidMock.render).toHaveBeenCalledTimes(3);
 
     intersectionCallbacks = [];
     view.rerender(diagrams('mobile'));
-    expect(screen.getAllByText('Diagram preview pending.')).toHaveLength(3);
+    expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3);
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    expect(screen.queryByText('Rendering diagram...')).toBeNull();
     revealDiagram();
 
     await waitFor(() => expect(screen.getAllByTestId('mermaid-svg')).toHaveLength(3));
+    expect(mermaidMock.render).toHaveBeenCalledTimes(3);
     expect(screen.queryByText('Diagram preview pending.')).toBeNull();
     expect(screen.queryByText('Rendering diagram...')).toBeNull();
+  });
+
+  it('keeps success settled when IntersectionObserver reports leave then enter again', async () => {
+    render(<MermaidDiagram code={simpleCode} />);
+    revealDiagram();
+    await waitFor(() => expect(screen.getByTestId('mermaid-svg')).toHaveTextContent('A to B'));
+
+    hideDiagram();
+    expect(screen.getByTestId('mermaid-svg')).toHaveTextContent('A to B');
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    expect(screen.queryByText('Rendering diagram...')).toBeNull();
+
+    revealDiagram();
+    expect(screen.getByTestId('mermaid-svg')).toHaveTextContent('A to B');
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps async render errors settled across observer churn and viewport remounts', async () => {
+    const invalidCode = 'graph TD\nA -- invalid';
+    mermaidMock.render.mockRejectedValue(new Error('Parse error on line 2'));
+    const diagram = (viewport: string) => (
+      <div key={viewport} data-viewport={viewport}>
+        <MermaidDiagram code={invalidCode} />
+      </div>
+    );
+
+    const view = render(diagram('desktop'));
+    hideDiagram();
+    expect(screen.getByText('Diagram preview pending.')).toBeInTheDocument();
+
+    revealDiagram();
+    await waitFor(() => expect(screen.getByTestId('mermaid-error')).toHaveTextContent('Parse error on line 2'));
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+
+    hideDiagram();
+    revealDiagram();
+    expect(screen.getByTestId('mermaid-error')).toHaveTextContent('Parse error on line 2');
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1);
+
+    intersectionCallbacks = [];
+    view.rerender(diagram('mobile'));
+    expect(screen.getByTestId('mermaid-error')).toHaveTextContent('Parse error on line 2');
+    expect(screen.queryByText('Diagram preview pending.')).toBeNull();
+    revealDiagram();
+    expect(screen.getByTestId('mermaid-error')).toHaveTextContent('Parse error on line 2');
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1);
   });
 
   it('blocks unsafe SVG output before inserting it into the DOM', async () => {

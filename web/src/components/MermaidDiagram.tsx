@@ -29,6 +29,16 @@ interface RenderedDiagram {
   svg: string;
 }
 
+interface CachedRenderedDiagram {
+  svg: string;
+  sourceRenderId: string;
+}
+
+type MermaidRenderCacheEntry =
+  | { status: 'pending'; promise: Promise<CachedRenderedDiagram> }
+  | { status: 'success'; result: CachedRenderedDiagram }
+  | { status: 'error'; message: string };
+
 interface ViewerTransform {
   scale: number;
   x: number;
@@ -49,6 +59,8 @@ interface DragState {
 // initialize + render transaction serial while still allowing every component
 // to independently publish its success/error state.
 let mermaidRenderQueue: Promise<void> = Promise.resolve();
+const mermaidRenderCache = new Map<string, MermaidRenderCacheEntry>();
+const MERMAID_RENDER_CACHE_LIMIT = 80;
 
 type ValidationResult =
   | { ok: true; edgeCount: number; lineCount: number }
@@ -208,11 +220,21 @@ export function MermaidDiagram({ code }: MermaidDiagramProps): React.ReactElemen
   const rawId = useId();
   const renderId = useMemo(() => `ac-mermaid-${rawId.replace(/[^A-Za-z0-9_-]/g, '')}`, [rawId]);
   const validation = useMemo(() => validateMermaidSource(code), [code]);
-  const visible = useLazyVisible(containerRef, validation.ok);
   const themeMode = useThemeMode();
-  const [diagram, setDiagram] = useState<RenderedDiagram | null>(null);
-  const [renderError, setRenderError] = useState<string | null>(validation.ok ? null : validation.reason);
-  const [loading, setLoading] = useState(false);
+  const renderCacheKey = useMemo(() => buildMermaidRenderCacheKey(code, themeMode), [code, themeMode]);
+  const visible = useLazyVisible(containerRef, validation.ok);
+  const initialTerminalRender = validation.ok ? readTerminalMermaidRender(renderCacheKey, renderId) : null;
+  const [diagram, setDiagram] = useState<RenderedDiagram | null>(
+    initialTerminalRender?.status === 'success' ? initialTerminalRender.diagram : null,
+  );
+  const [renderError, setRenderError] = useState<string | null>(
+    validation.ok
+      ? initialTerminalRender?.status === 'error'
+        ? initialTerminalRender.message
+        : null
+      : validation.reason,
+  );
+  const [loading, setLoading] = useState(validation.ok && hasPendingMermaidRender(renderCacheKey));
   const [viewerOpen, setViewerOpen] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
 
@@ -223,17 +245,48 @@ export function MermaidDiagram({ code }: MermaidDiagramProps): React.ReactElemen
       setLoading(false);
       return;
     }
+    const terminalRender = readTerminalMermaidRender(renderCacheKey, renderId);
+    if (terminalRender?.status === 'success') {
+      setDiagram(terminalRender.diagram);
+      setRenderError(null);
+      setLoading(false);
+      return;
+    }
+    if (terminalRender?.status === 'error') {
+      setDiagram(null);
+      setRenderError(terminalRender.message);
+      setLoading(false);
+      return;
+    }
+    if (!hasPendingMermaidRender(renderCacheKey)) {
+      setDiagram(null);
+      setLoading(false);
+    }
     setRenderError(null);
-  }, [validation]);
+  }, [renderCacheKey, renderId, validation]);
 
   useEffect(() => {
-    if (!visible || !validation.ok) return;
+    if (!validation.ok) return;
+    const terminalRender = readTerminalMermaidRender(renderCacheKey, renderId);
+    if (terminalRender?.status === 'success') {
+      setDiagram(terminalRender.diagram);
+      setRenderError(null);
+      setLoading(false);
+      return;
+    }
+    if (terminalRender?.status === 'error') {
+      setDiagram(null);
+      setRenderError(terminalRender.message);
+      setLoading(false);
+      return;
+    }
+    if (!visible && !hasPendingMermaidRender(renderCacheKey)) return;
 
     let cancelled = false;
     setLoading(true);
     setRenderError(null);
 
-    void renderMermaidDiagram(code, renderId, themeMode)
+    void renderCachedMermaidDiagram(code, renderId, themeMode, renderCacheKey)
       .then((result) => {
         if (cancelled) return;
         setDiagram(result);
@@ -250,7 +303,7 @@ export function MermaidDiagram({ code }: MermaidDiagramProps): React.ReactElemen
     return () => {
       cancelled = true;
     };
-  }, [code, renderId, themeMode, validation.ok, visible]);
+  }, [code, renderCacheKey, renderId, themeMode, validation.ok, visible]);
 
   const copyCode = useCallback(() => {
     void copyText(code).then(
@@ -363,6 +416,73 @@ function enqueueMermaidRender<T>(render: () => Promise<T>): Promise<T> {
     () => undefined,
   );
   return result;
+}
+
+function renderCachedMermaidDiagram(
+  code: string,
+  renderId: string,
+  themeMode: ThemeMode,
+  cacheKey: string,
+): Promise<RenderedDiagram> {
+  const cached = mermaidRenderCache.get(cacheKey);
+  if (cached?.status === 'success') return Promise.resolve(adaptCachedDiagram(cached.result, renderId));
+  if (cached?.status === 'error') return Promise.reject(new Error(cached.message));
+  if (cached?.status === 'pending') {
+    return cached.promise.then((result) => adaptCachedDiagram(result, renderId));
+  }
+
+  const promise = renderMermaidDiagram(code, renderId, themeMode).then(
+    (diagram) => {
+      const result = { svg: diagram.svg, sourceRenderId: renderId };
+      rememberMermaidRender(cacheKey, { status: 'success', result });
+      return result;
+    },
+    (err: unknown) => {
+      const message = errorToMessage(err);
+      rememberMermaidRender(cacheKey, { status: 'error', message });
+      throw new Error(message);
+    },
+  );
+  rememberMermaidRender(cacheKey, { status: 'pending', promise });
+  return promise.then((result) => adaptCachedDiagram(result, renderId));
+}
+
+function readTerminalMermaidRender(
+  cacheKey: string,
+  renderId: string,
+): { status: 'success'; diagram: RenderedDiagram } | { status: 'error'; message: string } | null {
+  const cached = mermaidRenderCache.get(cacheKey);
+  if (cached?.status === 'success') return { status: 'success', diagram: adaptCachedDiagram(cached.result, renderId) };
+  if (cached?.status === 'error') return { status: 'error', message: cached.message };
+  return null;
+}
+
+function hasPendingMermaidRender(cacheKey: string): boolean {
+  return mermaidRenderCache.get(cacheKey)?.status === 'pending';
+}
+
+function rememberMermaidRender(cacheKey: string, entry: MermaidRenderCacheEntry): void {
+  mermaidRenderCache.delete(cacheKey);
+  mermaidRenderCache.set(cacheKey, entry);
+  while (mermaidRenderCache.size > MERMAID_RENDER_CACHE_LIMIT) {
+    const oldestKey = mermaidRenderCache.keys().next().value;
+    if (!oldestKey) break;
+    mermaidRenderCache.delete(oldestKey);
+  }
+}
+
+function buildMermaidRenderCacheKey(code: string, themeMode: ThemeMode): string {
+  return `${themeMode}\u0000${code}`;
+}
+
+function adaptCachedDiagram(cached: CachedRenderedDiagram, renderId: string): RenderedDiagram {
+  if (cached.sourceRenderId === renderId) return { svg: cached.svg };
+  return { svg: cached.svg.split(cached.sourceRenderId).join(renderId) };
+}
+
+export function resetMermaidRenderStateForTests(): void {
+  mermaidRenderQueue = Promise.resolve();
+  mermaidRenderCache.clear();
 }
 
 function MermaidFallback({ code, error }: { code: string; error: string }): React.ReactElement {
