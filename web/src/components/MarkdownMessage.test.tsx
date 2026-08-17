@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MarkdownMessage } from './MarkdownMessage';
 
@@ -6,7 +6,10 @@ import { MarkdownMessage } from './MarkdownMessage';
 // react-markdown + GFM + strict escape, no rehype-raw). Fenced code blocks
 // render through the shared CollapsibleCodeBlock; raw HTML is neutralized.
 describe('MarkdownMessage (#276)', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it('renders markdown structure (heading, bold, list)', () => {
     render(<MarkdownMessage content={'# Title\n\nsome **bold** text\n\n- a\n- b'} />);
@@ -45,6 +48,21 @@ describe('MarkdownMessage (#276)', () => {
   it('renders a fenced block WITHOUT a language through CollapsibleCodeBlock too', () => {
     render(<MarkdownMessage content={'```\nplain fenced\n```'} />);
     expect(screen.getByTestId('collapsible-code-block')).toBeInTheDocument();
+  });
+
+  it('routes mermaid fenced blocks to the lazy Mermaid preview instead of a generic code block', () => {
+    class TestIntersectionObserver {
+      disconnect = vi.fn();
+      observe = vi.fn();
+      takeRecords = () => [];
+      unobserve = vi.fn();
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+
+    render(<MarkdownMessage content={'```mermaid\ngraph TD\n  A --> B\n```'} />);
+
+    expect(screen.getByTestId('mermaid-diagram')).toBeInTheDocument();
+    expect(screen.queryByTestId('collapsible-code-block')).toBeNull();
   });
 
   it('renders inline code as a plain <code>, NOT a collapsible block', () => {
