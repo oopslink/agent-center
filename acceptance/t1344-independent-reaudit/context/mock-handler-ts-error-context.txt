@@ -1,0 +1,13 @@
+   736	          : { kind: 'org', id: 'org-test', label: 'Test Org' },
+   737	        status: 'not_applicable',
+   738	        risk: idx === 0 ? 'medium' : 'low',
+   739	        high_risk: false,
+   740	        reason: `${id} is a derived permission and must be revoked at its source`,
+   741	        grant_id: id,
+   742	      }));
+   743	      const failed = items.filter((i) => i.status !== 'allowed').length;
+   744	      return ok({
+   745	        preview_id: 'revoke-preview-mock-1',
+   746	        token: 'revoke-token-mock-1',
+   747	        expires_at: '2026-08-14T08:07:00Z',
+   748	        items,

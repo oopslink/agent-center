@@ -1,0 +1,21 @@
+   132	        const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
+   133	        profileDetail = {
+   134	          id: profileV1.id,
+   135	          name: body.name,
+   136	          description: body.description ?? '',
+   137	          latest: { ...profileV1, name: body.name, description: body.description ?? '', permissions: body.permissions },
+   138	          versions: [{ ...profileV1, name: body.name, description: body.description ?? '', permissions: body.permissions }],
+   139	        };
+   140	        return HttpResponse.json(profileDetail, { status: 201 });
+   141	      }),
+   142	      http.post('/api/orgs/:slug/access/profiles/profile-created/versions', async ({ request }) => {
+   143	        publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
+   144	        const latest = { ...profileDetail.latest, version: 2, permissions: publishBody.permissions, risk: 'high' };
+   145	        profileDetail = { ...profileDetail, latest, versions: [latest, profileDetail.latest] };
+   146	        return HttpResponse.json(profileDetail, { status: 201 });
+   147	      }),
+   148	    );
+   149	
+   150	    renderPage();
+   151	    expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+   152	    fireEvent.click(screen.getByTestId('access-view-profiles'));

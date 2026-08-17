@@ -1,0 +1,76 @@
+=== RUN   TestMigration0085_AllowedExecutorsBackfill
+--- PASS: TestMigration0085_AllowedExecutorsBackfill (0.35s)
+=== RUN   TestMigration0086_AutoAssignSchema
+--- PASS: TestMigration0086_AutoAssignSchema (0.31s)
+=== RUN   TestMigration0087_WorkspaceCodeRepos
+--- PASS: TestMigration0087_WorkspaceCodeRepos (0.31s)
+=== RUN   TestMigration0088_TaskCompletedAt
+--- PASS: TestMigration0088_TaskCompletedAt (0.30s)
+=== RUN   TestMigration0106_PmStages
+--- PASS: TestMigration0106_PmStages (0.24s)
+=== RUN   TestMigration0114_DeliveredTasksBecomeCompletedAndUnblockReview
+--- PASS: TestMigration0114_DeliveredTasksBecomeCompletedAndUnblockReview (0.15s)
+=== RUN   TestMigration0116BackfillsLegacyModelCatalog
+--- PASS: TestMigration0116BackfillsLegacyModelCatalog (0.21s)
+=== RUN   TestMigration0126RemovesAIRuntimeProfileSchemaWhenUnbound
+--- PASS: TestMigration0126RemovesAIRuntimeProfileSchemaWhenUnbound (0.08s)
+=== RUN   TestMigration0126BlocksActiveAIRuntimeProfileBindings
+--- PASS: TestMigration0126BlocksActiveAIRuntimeProfileBindings (0.08s)
+=== RUN   TestMigration_0129_UnifiedAuthorizationRollback
+--- PASS: TestMigration_0129_UnifiedAuthorizationRollback (0.08s)
+=== RUN   TestMigration0066_DMDedup_MergesDuplicates
+--- PASS: TestMigration0066_DMDedup_MergesDuplicates (0.25s)
+=== RUN   TestMigration0076_FinalizeArchivedOpenTasks
+--- PASS: TestMigration0076_FinalizeArchivedOpenTasks (0.41s)
+=== RUN   TestMigrations_FullRoundTrip
+--- PASS: TestMigrations_FullRoundTrip (0.33s)
+=== RUN   TestMigration_0025_BridgeFeishuTablesDrop
+--- PASS: TestMigration_0025_BridgeFeishuTablesDrop (0.31s)
+=== RUN   TestMigrations_V1ColumnsAbsent
+--- PASS: TestMigrations_V1ColumnsAbsent (0.07s)
+=== RUN   TestMigrations_V1TablesAbsent
+--- PASS: TestMigrations_V1TablesAbsent (0.07s)
+=== RUN   TestMigration_0026_UserConvReadStateShape
+--- PASS: TestMigration_0026_UserConvReadStateShape (0.07s)
+=== RUN   TestMigrations_V1KindValuesAbsent
+--- PASS: TestMigrations_V1KindValuesAbsent (0.32s)
+=== RUN   TestMigration_0044_EnvironmentWorkerShape
+--- PASS: TestMigration_0044_EnvironmentWorkerShape (0.07s)
+=== RUN   TestMigration_0045_FileTransferSessionShape
+--- PASS: TestMigration_0045_FileTransferSessionShape (0.07s)
+=== RUN   TestMigration_0052_TaskIssueStateModelFix
+--- PASS: TestMigration_0052_TaskIssueStateModelFix (0.07s)
+=== RUN   TestMigration0058_TaskStateSimplify
+--- PASS: TestMigration0058_TaskStateSimplify (0.28s)
+=== RUN   TestMigration0059_BuiltinPlanBackfill
+--- PASS: TestMigration0059_BuiltinPlanBackfill (0.28s)
+=== RUN   TestMigration0071_AwiDataBackfill
+--- PASS: TestMigration0071_AwiDataBackfill (0.42s)
+=== RUN   TestMigrator_ReconcileStateB_0064Collision
+--- PASS: TestMigrator_ReconcileStateB_0064Collision (0.08s)
+=== RUN   TestMigrator_UpCreatesAllPhase1Tables
+--- PASS: TestMigrator_UpCreatesAllPhase1Tables (0.07s)
+=== RUN   TestMigrator_UpCreatesV2Tables
+--- PASS: TestMigrator_UpCreatesV2Tables (0.07s)
+=== RUN   TestMigrator_UpIdempotent
+--- PASS: TestMigrator_UpIdempotent (0.07s)
+=== RUN   TestMigrator_DownReverts
+--- PASS: TestMigrator_DownReverts (0.26s)
+=== RUN   TestMigrator_DownIdempotent
+--- PASS: TestMigrator_DownIdempotent (0.26s)
+=== RUN   TestMigrator_VersionTracksApplied
+--- PASS: TestMigrator_VersionTracksApplied (0.26s)
+=== RUN   TestMigrator_DownPreviousVersion
+--- PASS: TestMigrator_DownPreviousVersion (0.00s)
+=== RUN   TestMigrator_DuplicateVersionRejected
+--- PASS: TestMigrator_DuplicateVersionRejected (0.00s)
+=== RUN   TestMigrator_RejectsMissingUp
+--- PASS: TestMigrator_RejectsMissingUp (0.00s)
+=== RUN   TestMigrator_RejectsMissingDown
+--- PASS: TestMigrator_RejectsMissingDown (0.00s)
+=== RUN   TestMigrator_EmptyFS
+--- PASS: TestMigrator_EmptyFS (0.00s)
+=== RUN   TestMigrator_BadSQLRollsBack
+--- PASS: TestMigrator_BadSQLRollsBack (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/persistence	6.767s

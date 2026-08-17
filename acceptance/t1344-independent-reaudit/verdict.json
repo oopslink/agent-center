@@ -1,0 +1,29 @@
+{
+  "reviewed_sha": "1467848d08a43395b2740d921836727d989aafff",
+  "evidence_branch": "evidence/t1344-independent-security-auth-migration-reaudit-exec76b52883",
+  "verdict": "REJECT",
+  "blocking": true,
+  "summary": "Backend security/authz and migration checks passed, and Access Vitest behavior tests passed, but the reviewed SHA fails TypeScript build-mode validation and production build. Real E2E product startup is blocked by the build failure.",
+  "blocking_failures": [
+    {
+      "criterion": "TypeScript build-mode check",
+      "file": "web/src/pages/Access.test.tsx",
+      "line": 145,
+      "evidence": "raw/05-web-tsc.log",
+      "details": "publishBody.permissions is typed as optional but is assigned into a profile version shape requiring permissions: string[]."
+    },
+    {
+      "criterion": "Production build / real E2E prerequisite",
+      "evidence": "raw/06-make-build.log",
+      "details": "make build fails during web tsc -b, so no production binary/server could be started for real E2E."
+    }
+  ],
+  "non_blocking_context": [
+    {
+      "file": "web/src/mocks/handlers.ts",
+      "line": 743,
+      "evidence": "raw/05-web-tsc.log",
+      "details": "tsc also reports unused local variable failed."
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "task": "t1344-independent-security-auth-migration-reaudit",
+  "reviewed_sha": "1467848d08a43395b2740d921836727d989aafff",
+  "delivery_branch": "evidence/t1344-independent-security-auth-migration-reaudit-exec76b52883",
+  "created_at": "2026-08-18T04:35:00+08:00",
+  "evidence_files": [
+    "criterion-matrix.md",
+    "verdict.json",
+    "raw/00-branch-head.txt",
+    "raw/01-go-auth-web-admin-mcp.log",
+    "raw/02-go-migrations.log",
+    "raw/03-web-pnpm-install.log",
+    "raw/04-web-access-vitest.log",
+    "raw/05-web-tsc.log",
+    "raw/06-make-build.log",
+    "raw/07-git-push.log",
+    "context/access-test-ts-error-context.txt",
+    "context/mock-handler-ts-error-context.txt",
+    "context/reviewed-sha-access-test-commit.patch"
+  ],
+  "commands": [
+    {
+      "command": "git switch -C evidence/t1344-independent-security-auth-migration-reaudit-exec76b52883 1467848d08a43395b2740d921836727d989aafff",
+      "result": "pass"
+    },
+    {
+      "command": "go test ./internal/authorization ./internal/webconsole/api ./internal/admin/api ./internal/mcphost -count=1 -v",
+      "result": "pass"
+    },
+    {
+      "command": "go test ./internal/persistence -run 'TestMigration_0129|TestMigrations|TestMigrator|TestMigration' -count=1 -v",
+      "result": "pass"
+    },
+    {
+      "command": "pnpm --dir web install --frozen-lockfile",
+      "result": "pass"
+    },
+    {
+      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx",
+      "result": "pass"
+    },
+    {
+      "command": "pnpm --dir web exec tsc -b --force",
+      "result": "fail"
+    },
+    {
+      "command": "make build",
+      "result": "fail"
+    }
+  ]
+}
