@@ -826,18 +826,59 @@
     "loading": "正在加载权限...",
     "unavailable": "该主体没有可用的组织范围。",
     "definitionsError": "无法加载权限定义；已有有效权限仍会显示。",
+    "readonly": {
+      "banner": "P0 观察模式：该视图只读。这里不暴露授权、撤销或持久化组合角色入口。",
+      "mode": "只读"
+    },
     "overview": {
+      "aria": "权限概览",
       "title": "权限概览",
       "total": "有效权限",
-      "direct": "直接授权",
-      "inherited": "继承权限"
+      "accessRoles": "Access Role 授权",
+      "legacySources": "旧来源派生",
+      "risks": "提示"
+    },
+    "subject": {
+      "label": "主体",
+      "ref": "主体引用",
+      "kindLabel": "类型",
+      "kind": {
+        "user": "人类用户",
+        "agent": "Agent 业务身份",
+        "worker": "Worker 运行时主体",
+        "system": "系统主体",
+        "unknown": "未知主体"
+      }
+    },
+    "resource": {
+      "label": "资源",
+      "kind": "类型",
+      "id": "ID",
+      "org": "解析组织"
+    },
+    "drilldown": {
+      "aria": "权限主体和资源下钻",
+      "title": "主体 / 资源下钻"
     },
     "effective": {
       "title": "有效权限",
       "empty": "该资源暂无有效权限。"
     },
+    "graph": {
+      "aria": "权限图",
+      "title": "权限图",
+      "subtitle": "主体 -> 来源事实 -> 有效权限 -> 资源。",
+      "empty": "该主体和资源暂无权限边。",
+      "subject": "主体",
+      "source": "来源",
+      "permissions": "权限",
+      "resource": "资源"
+    },
     "explain": {
       "title": "来源解释树",
+      "subtitle": "Explain 仅用于诊断；业务 handler 仍会在服务端重新鉴权。",
+      "permissionLabel": "要解释的权限",
+      "noPermissions": "暂无可选权限",
       "subject": "主体",
       "resource": "资源",
       "decision": "判定",
@@ -845,27 +886,86 @@
       "denied": "拒绝",
       "empty": "当前没有来源授予该权限。"
     },
-    "direct": {
-      "title": "直接授权",
-      "grant": "授权",
-      "granting": "授权中...",
-      "alreadyGranted": "已直接授权",
-      "empty": "暂无直接 custom-role 授权。",
-      "revoke": "撤销",
-      "revoking": "撤销中...",
-      "revokeAria": "撤销 {{permission}}"
-    },
-    "inherited": {
-      "title": "继承权限与来源",
-      "empty": "该资源暂无继承权限。"
-    },
     "source": {
-      "open": "打开来源"
+      "openLocation": "打开位置"
     },
-    "notice": {
-      "granted": "已为 {{permission}} 添加直接授权。",
-      "revoked": "已撤销 {{permission}} 的直接授权。",
-      "revokedInherited": "已撤销 {{permission}} 的直接授权，但它仍通过 {{source}}（{{evidence}}）保持有效。"
+    "sourceLocations": {
+      "aria": "权限来源和可编辑位置",
+      "title": "来源与可编辑位置",
+      "empty": "暂无可查看来源。"
+    },
+    "sourceFacts": {
+      "org_role": "由组织成员关系和组织角色派生。",
+      "project_member": "由 Project 上下文中的项目成员关系派生。",
+      "team_member": "由团队成员 / roster 证据派生。",
+      "team_memory_policy": "由团队记忆策略和 curator 成员关系派生。",
+      "conversation_participant": "由活跃会话参与者关系派生。",
+      "file_scope": "由实时文件引用位置和调用方范围派生。",
+      "admin_token_scope": "由内部 bearer scope 映射派生。",
+      "worker_owner": "由 worker token owner 派生。",
+      "agent_worker_binding": "由 worker 到 agent 的运行时绑定派生。",
+      "system": "由内部系统主体派生。",
+      "custom_role": "由显式授权角色 assignment 派生。",
+      "unknown": "由服务端返回的未知来源派生。"
+    },
+    "editLocations": {
+      "org_role": "组织成员。",
+      "project_member": "项目成员。",
+      "team_member": "团队 roster；该角色是运行时配置，不是 Access Role。",
+      "team_memory_policy": "团队记忆策略。",
+      "conversation_participant": "会话参与者。",
+      "file_scope": "文件附件或引用所有者。",
+      "admin_token_scope": "内部管理员令牌管理。",
+      "worker_owner": "Worker 注册信息。",
+      "agent_worker_binding": "Agent 运行时绑定。",
+      "system": "系统配置。",
+      "custom_role": "授权角色 assignment。P0 不暴露编辑入口。",
+      "unknown": "该来源未声明可编辑位置。"
+    },
+    "roles": {
+      "title": "Team Role 与 Access Role",
+      "teamRoleTitle": "Team Role",
+      "teamRoleBody": "运行时 roster 配置：CLI、模型、能力标签和并发。它本身不授予访问权限。",
+      "teamRoleEmpty": "该投影中没有可见的 Team Role 来源。",
+      "accessRoleTitle": "Access Role",
+      "accessRoleBody": "产生资源 PermissionKey 的授权来源。",
+      "accessRoleEmpty": "暂无可见 Access Role 或来源。",
+      "customAccessRole": "自定义 Access Role",
+      "orgAccessRole": "组织角色",
+      "projectAccessRole": "项目角色",
+      "teamMemoryPolicy": "团队记忆策略",
+      "accessRoleChip": "Access {{role}}",
+      "combinationChip": "Team {{teamRole}} + Access {{accessRole}}",
+      "delegatable": "可转授权",
+      "fixed": "固定",
+      "combinationTitle": "组合标签",
+      "combinationBody": "P0 中组合标签仅用于展示，不会保存为复合角色。",
+      "combinationEmpty": "暂无可见 Team Role + Access Role 组合。"
+    },
+    "risks": {
+      "aria": "权限风险和截断提示",
+      "title": "风险与截断",
+      "empty": "已加载投影暂无额外提示。",
+      "legacyDerived": "旧来源派生；成员关系仍是权威事实。",
+      "teamRoleRuntime": "Team Role 是运行时配置，不能当作访问授权。",
+      "policyDerived": "策略派生权限取决于当前团队策略和 curator 成员关系。",
+      "fileReachability": "文件访问取决于实时引用；过期或已删除引用不能授予访问。",
+      "internalOnly": "内部诊断来源；不得暴露凭据或 bearer 细节。",
+      "runtimeBinding": "运行时绑定只证明传输权限；业务资源访问会单独鉴权。",
+      "deniedExplain": "当前 explain 结果包含 denied-by 细节。",
+      "none": "无来源特定风险。"
+    },
+    "completeness": {
+      "effective": {
+        "complete": "服务端标记 effective 投影完整。",
+        "truncated": "effective 投影已截断；响应之外可能还有其他权限。",
+        "unknown": "effective 投影未声明完整性；请按诊断快照处理。"
+      },
+      "audit": {
+        "complete": "服务端标记审计投影完整。",
+        "truncated": "审计投影已截断；响应之外可能还有其他事件。",
+        "unknown": "审计是有上限的诊断窗口，可能省略其他事件。"
+      }
     },
     "audit": {
       "title": "主体审计",
@@ -886,7 +986,8 @@
       "worker_owner": "工作节点所有者",
       "agent_worker_binding": "智能体工作节点绑定",
       "system": "系统",
-      "custom_role": "直接 custom role"
+      "custom_role": "直接 custom role",
+      "unknown": "未知来源"
     }
   },
   "workers": {
