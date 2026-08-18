@@ -1,0 +1,233 @@
+{
+  "task_id": "task-4addbbeb",
+  "execution_id": "exec-0794706e",
+  "reviewed_sha": "325af8515fcb935859cb896e56b60e684b592115",
+  "base_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'rg --files'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='%H%n%P%n%s' 252584fd0b4f3507a2090f449855005248a9b536 \u0026\u0026 git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536; echo merge_base_status:\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'git diff --stat 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536 \u0026\u0026 git diff --name-only 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find docs -maxdepth 4 -iname '*acceptance*' -o -ipath '*evidence*' | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'rg -n \"revoke|Revok|audit|reason|message|CAS|idempot\" internal web docs Makefile go.mod package.json'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git merge --ff-only 252584fd0b4f3507a2090f449855005248a9b536 \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git diff 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536 -- internal/authorization/service.go internal/authorization/types.go internal/authorization/service_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git diff 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536 -- internal/webconsole/api/handlers_access.go internal/webconsole/api/handlers_access_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git diff 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536 -- web/src/api/access.ts web/src/pages/Access.tsx web/src/pages/Access.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 2 -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'yarn.lock' -o -name 'go.mod' -o -name 'Makefile'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"find web -maxdepth 2 -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'vite.config.*' -o -name 'vitest.config.*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'pnpm --dir web test -- --run src/pages/Access.test.tsx'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'go test ./internal/authorization ./internal/webconsole/api'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'pnpm --dir web install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'pnpm --dir web test --run src/pages/Access.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,660p' internal/authorization/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1600,1770p' internal/webconsole/api/handlers_access.go \u0026\u0026 sed -n '720,870p' web/src/pages/Access.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'rg -n \"IdempotencyKey|idempot|replay|request_id|authorization_revoke_previews|ConfirmRevoke|RevokeBatch\" internal/authorization internal/webconsole/api web/src/pages/Access.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'make lint'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '330,475p' internal/authorization/store.go \u0026\u0026 sed -n '140,290p' internal/authorization/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'rg -n \"revokeAssignment|ExpectedVersion|version\" internal/authorization/store.go internal/authorization/service.go internal/authorization/service_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '300,360p' internal/authorization/store.go \u0026\u0026 sed -n '1440,1485p' internal/authorization/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'go test ./...'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'pnpm --dir web test --run'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git diff -- docs/acceptance/t1385-revoke-review-252584fd.json docs/acceptance/t1385-revoke-review-252584fd.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536; echo baseline_to_candidate:$?; git merge-base --is-ancestor 252584fd0b4f3507a2090f449855005248a9b536 HEAD; echo candidate_to_head:$?; git rev-parse --abbrev-ref HEAD; git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1385-revoke-review-252584fd.json docs/acceptance/t1385-revoke-review-252584fd.md \u0026\u0026 git commit -m \"Add T1385 revoke review evidence\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-4addbbeb/exec-0794706e \u0026\u0026 local_head=$(git rev-parse HEAD) \u0026\u0026 remote_head=$(git ls-remote origin refs/heads/ac-exec/task-4addbbeb/exec-0794706e | awk '\"'{print \"'$1}'\"') \u0026\u0026 printf 'local_head=%s\\\\nremote_head=%s\\\\n' \\\"\"'$local_head\" \"$remote_head\" \u0026\u0026 test \"$local_head\" = \"$remote_head\"'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^(remote'\"\\\\.origin\\\\.|push\\\\.|branch\\\\.)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch -vv'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push origin HEAD:refs/heads/ac-exec/task-4addbbeb/exec-0794706e \u0026\u0026 local_head=$(git rev-parse HEAD) \u0026\u0026 remote_head=$(git ls-remote origin refs/heads/ac-exec/task-4addbbeb/exec-0794706e | awk '\"'{print \"'$1}'\"') \u0026\u0026 printf 'local_head=%s\\\\nremote_head=%s\\\\n' \\\"\"'$local_head\" \"$remote_head\" \u0026\u0026 test \"$local_head\" = \"$remote_head\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git merge-base --is-ancestor 252584fd0b4f3507a2090f449855005248a9b536 HEAD; echo candidate_in_head:$? \u0026\u0026 git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536; echo baseline_in_candidate:$? \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"jq -r '.reviewed_sha, .structured_verdict.review_sha, .structured_verdict.verdict' docs/acceptance/t1385-revoke-review-252584fd.json \u0026\u0026 rg -n \\\"325af851|reviewed_sha|review_sha|252584fd0b4f3507a2090f449855005248a9b536|FAIL\\\" docs/acceptance/t1385-revoke-review-252584fd.json docs/acceptance/t1385-revoke-review-252584fd.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-4addbbeb/exec-0794706e'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-0794706e/command_events.jsonl",
+  "command_event_digest": "sha256:b59d01deaec378d1c09a2d8cfec80be4b4a41579000dd62cc81003fa82f98cf4",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已完成独立验收并交付 durable artifact。",
+  "artifact_digest": "sha256:d01f644cc61d96d0b5dcf537efee3b43780d78d8682050eb0d4d3eef1de74808",
+  "path": ".agent-center/evidence/task-4addbbeb/exec-0794706e.json",
+  "branch": "ac-exec/task-4addbbeb/exec-0794706e"
+}
