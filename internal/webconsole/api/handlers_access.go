@@ -142,6 +142,7 @@ type accessBatchItemDTO struct {
 type accessRevokeRequestDTO struct {
 	GrantIDs       []string `json:"grant_ids"`
 	Reason         string   `json:"reason"`
+	Message        string   `json:"message,omitempty"`
 	PreviewID      string   `json:"preview_id,omitempty"`
 	Token          string   `json:"token,omitempty"`
 	IdempotencyKey string   `json:"idempotency_key,omitempty"`
@@ -762,7 +763,7 @@ func (s *Server) accessBulkRevokePreviewHandler(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, true, "", "", "")
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, body.Message, true, "", "", "")
 }
 
 func (s *Server) accessBulkRevokeConfirmHandler(w http.ResponseWriter, r *http.Request) {
@@ -781,7 +782,7 @@ func (s *Server) accessBulkRevokeConfirmHandler(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, false, body.PreviewID, body.Token, body.IdempotencyKey)
+	s.accessBulkRevokeUnifiedHandler(w, r, d, svc, authz.UserSubject(caller.ID()), orgID, body.GrantIDs, body.Reason, body.Message, false, body.PreviewID, body.Token, body.IdempotencyKey)
 }
 
 func (s *Server) accessRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -1660,7 +1661,7 @@ func accessBatchStatusForReason(reason string) string {
 	}
 }
 
-func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string, preview bool, previewID string, token string, idempotencyKey string) {
+func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.Request, d HandlerDeps, svc *authz.Service, actor authz.SubjectRef, orgID string, grantIDs []string, reason string, message string, preview bool, previewID string, token string, idempotencyKey string) {
 	state, err := s.accessDerivedState(r.Context(), d, orgID, svc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
@@ -1672,8 +1673,11 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	}
 	items := make([]accessBatchItemDTO, 0, len(grantIDs))
 	operations := make([]authz.BatchOperation, 0, len(grantIDs))
+	if strings.TrimSpace(message) == "" {
+		message = reason
+	}
 	for i, id := range grantIDs {
-		item, op := accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, false)
+		item, op := accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, message, false)
 		items = append(items, item)
 		if op.Type != "" {
 			operations = append(operations, op)
@@ -1748,7 +1752,7 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	})
 }
 
-func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string, apply bool) (accessBatchItemDTO, authz.BatchOperation) {
+func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, grants map[string]accessGrantDTO, idx int, id, reason string, message string, apply bool) (accessBatchItemDTO, authz.BatchOperation) {
 	grant, found := grants[id]
 	item := accessBatchItemDTO{
 		ID:          fmt.Sprintf("revoke-%d", idx),
@@ -1777,7 +1781,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 	op := authz.BatchOperation{
 		ID:     item.ID,
 		Type:   "revoke_assignment",
-		Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason},
+		Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason, Message: message},
 	}
 	if !apply {
 		return item, op

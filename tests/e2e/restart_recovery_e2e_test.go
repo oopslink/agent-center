@@ -40,6 +40,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/persistence"
 	_ "modernc.org/sqlite"
 )
 
@@ -555,7 +556,7 @@ func orgEnrollWorker(t *testing.T, dbPath, workerID, orgID string) {
 
 func openSeedDB(t *testing.T, dbPath string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+dbPath)
+	db, err := persistence.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -661,7 +662,7 @@ func readSessionID(instanceFile string) string {
 
 func countAgentReplies(t *testing.T, dbPath, convID, agentID string) int {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	db, err := persistence.Open("file:" + dbPath + "?mode=ro")
 	if err != nil {
 		t.Fatal(err)
 	}

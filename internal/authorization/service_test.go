@@ -3,6 +3,7 @@ package authorization
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -187,6 +188,17 @@ func TestService_RevokeAssignmentSameOrgValidAndIdempotent(t *testing.T) {
 	}
 	if !replay.Replayed || len(replay.Operations) != 1 || replay.Operations[0].Status != "revoked" {
 		t.Fatalf("same-key replay = %#v", replay)
+	}
+	var payloadRaw string
+	if err := db.QueryRowContext(ctx, `SELECT payload_json FROM authorization_audit_events WHERE event_type = 'authorization.assignment.revoked' AND assignment_id = 'asgn-revoke-ok' ORDER BY created_at DESC LIMIT 1`).Scan(&payloadRaw); err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(payloadRaw), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["reason"] != "same-org" || payload["message"] != "same-org" {
+		t.Fatalf("revoke audit payload reason/message = %s", payloadRaw)
 	}
 
 	second, err := svc.RevokeBatch(ctx, BatchRequest{

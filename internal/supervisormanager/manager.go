@@ -251,10 +251,11 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 	if timeout <= 0 {
 		timeout = defaultComeUpTimeout
 	}
-	// v2.7 #178: the supervisor now binds a short temp-dir socket (deterministic
-	// from agent-id) instead of one under the deep agent home that overflowed
-	// macOS's 104B sun_path limit. Both sides derive it via the same helper.
-	sockPath := agentsupervisor.SockPath(cfg.AgentID)
+	// v2.7 #178: the supervisor now binds a short temp-dir socket instead of one
+	// under the deep agent home that overflowed macOS's 104B sun_path limit.
+	// Scope it by home too: two independent homes may legitimately use the same
+	// agent id, and must not unlink each other's live socket.
+	sockPath := agentsupervisor.ScopedSockPath(cfg.AgentID, cfg.HomeDir)
 
 	ref, err := waitComeUp(ctx, cfg.AgentID, cfg.HomeDir, sockPath, timeout)
 	if err != nil {

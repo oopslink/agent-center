@@ -101,6 +101,69 @@ describe('Access page', () => {
     expect(result).toHaveTextContent('Not applicable');
   });
 
+  it('confirms revoke with the original preview token, stable idempotency key, and reason/message', async () => {
+    let previewBody: { grant_ids?: string[]; reason?: string; message?: string } | null = null;
+    let confirmBody: { grant_ids?: string[]; reason?: string; message?: string; preview_id?: string; token?: string; idempotency_key?: string } | null = null;
+    server.use(
+      http.post('*/api/orgs/:slug/access/grants/revoke/preview', async ({ request }) => {
+        previewBody = (await request.json()) as typeof previewBody;
+        return HttpResponse.json({
+          preview_id: 'rvp-original',
+          token: 'token-original',
+          expires_at: '2026-08-14T08:07:00Z',
+          items: (previewBody?.grant_ids ?? []).map((id, idx) => ({
+            id: `revoke-${idx + 1}`,
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            permission: 'project.write',
+            resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'allowed',
+            risk: 'medium',
+            high_risk: false,
+            reason: 'grant can be revoked by unified authorization API',
+            grant_id: id,
+          })),
+          summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+        });
+      }),
+      http.post('*/api/orgs/:slug/access/grants/revoke/confirm', async ({ request }) => {
+        confirmBody = (await request.json()) as typeof confirmBody;
+        return HttpResponse.json({
+          operation_id: 'access-revoke-1',
+          applied_at: '2026-08-14T08:02:00Z',
+          items: [],
+          summary: { total: 0, succeeded: 0, failed: 0, unauthorized: 0, not_applicable: 0, partial_failure: false },
+        });
+      }),
+    );
+
+    renderPage();
+    const grants = await screen.findByTestId('access-grants');
+    fireEvent.change(within(grants).getByLabelText('Reason'), { target: { value: 'original audit reason' } });
+    fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
+    fireEvent.click(within(grants).getByTestId('access-revoke-preview'));
+
+    const preview = await within(grants).findByTestId('access-revoke-preview-panel');
+    fireEvent.change(within(grants).getByLabelText('Reason'), { target: { value: 'mutated after preview' } });
+    fireEvent.click(within(preview).getByTestId('access-revoke-confirm'));
+
+    await waitFor(() => {
+      expect(confirmBody).toEqual({
+        grant_ids: ['grant-custom-1'],
+        reason: 'original audit reason',
+        message: 'original audit reason',
+        preview_id: 'rvp-original',
+        token: 'token-original',
+        idempotency_key: 'access-revoke-rvp-original',
+      });
+    });
+    expect(previewBody).toEqual({
+      grant_ids: ['grant-custom-1'],
+      reason: 'original audit reason',
+      message: 'original audit reason',
+    });
+  });
+
   it('browses profile versions and publishes a real v2 profile version with CAS payload', async () => {
     const profileV1 = {
       id: 'profile-created',

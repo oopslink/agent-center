@@ -249,7 +249,7 @@ func TestSpawnSupervisor_SocketOutsideHome_ReattachViaInstance(t *testing.T) {
 	ref := spawnHelper(t, bin, claude, home, "agent-sockreloc")
 	defer reapRef(ref)
 
-	want := agentsupervisor.SockPath("agent-sockreloc")
+	want := agentsupervisor.ScopedSockPath("agent-sockreloc", home)
 
 	// The legacy in-home socket must NOT exist.
 	if _, err := os.Stat(filepath.Join(home, agentsupervisor.DefaultSocketName)); !os.IsNotExist(err) {
