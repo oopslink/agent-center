@@ -1,0 +1,86 @@
+{
+  "task": "task-4addbbeb",
+  "reviewed_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+  "baseline_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+  "evidence_branch": "ac-exec/task-4addbbeb/exec-8316fcae",
+  "verdict": "pass",
+  "checked_at": "2026-08-18T14:07:00Z",
+  "scope": [
+    "remote",
+    "ancestry",
+    "clean_worktree",
+    "revoke_reason_message_audit",
+    "cas",
+    "idempotency",
+    "security",
+    "full_gates"
+  ],
+  "git": {
+    "head_before_artifact": "252584fd0b4f3507a2090f449855005248a9b536",
+    "baseline_is_ancestor_of_reviewed_sha": true,
+    "reviewed_sha_is_current_head_before_artifact": true,
+    "remote_probe": {
+      "command": "git ls-remote --heads origin 'ac-exec/task-4addbbeb/*' 'ac-exec/task-854687c8/*'",
+      "observed_candidate_ref": "refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+      "observed_candidate_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+      "current_exec_ref_preexisting_remote": false
+    },
+    "fetch_note": "git fetch origin --prune was refused because another worktree had a local branch checked out that fetch wanted to update; no center or other worktree state was modified."
+  },
+  "findings": [],
+  "review_notes": [
+    "API accepts revoke message and passes reason/message through preview and confirm.",
+    "Service normalized revoke spec persists trimmed reason/message; confirm reconstructs from preview spec and sets ExpectedVersion from preview target.",
+    "Audit event authorization.assignment.revoked includes request_id from the batch idempotency key and payload status plus reason/message when reason is non-empty.",
+    "UI freezes grant_ids, reason, message, preview_id, token, and stable idempotency_key at preview success, so later reason edits do not mutate confirm payload.",
+    "Security boundary remains fail-closed through requireRevokeAllowed, resolveRevokeTarget org checks, preview actor/org/token/hash checks, and custom-role-only revoke projection."
+  ],
+  "tests": [
+    {
+      "command": "go test ./internal/authorization ./internal/webconsole/api",
+      "result": "pass",
+      "evidence": [
+        "ok github.com/oopslink/agent-center/internal/authorization 2.975s",
+        "ok github.com/oopslink/agent-center/internal/webconsole/api 31.435s"
+      ]
+    },
+    {
+      "command": "cd web && pnpm test -- src/pages/Access.test.tsx",
+      "result": "pass",
+      "evidence": [
+        "Test Files 191 passed (191)",
+        "Tests 1773 passed (1773)"
+      ],
+      "note": "The package script expanded to the full Vitest suite; warnings were non-fatal existing MSW/React/localstorage warnings."
+    },
+    {
+      "command": "make test",
+      "result": "pass",
+      "evidence": [
+        "go test ./...",
+        "ok github.com/oopslink/agent-center/tests/e2e 47.972s",
+        "ok github.com/oopslink/agent-center/tests/integration 6.074s"
+      ]
+    },
+    {
+      "command": "make lint",
+      "result": "pass",
+      "evidence": [
+        "gofmt-check: all .go files are gofmt-clean under go1.25.11",
+        "no-vendor-refs: clean (all hits whitelisted)",
+        "no-mock-default: clean (no mock-as-default literals on prod paths)",
+        "doc-impl-drift: all 3 checks passed",
+        "no-raw-colors-spa: clean",
+        "no-idtail-hash: clean (no #<id-tail> short-hash id encoding)",
+        "no-stale-e2e-config: clean (no removed config keys in tests/e2e/v2)",
+        "cd web && npx tsc -b --force",
+        "cd web && pnpm lint"
+      ]
+    }
+  ],
+  "structured_verdict": {
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "outcome": "pass",
+    "reason": "Candidate preserves revoke CAS/security boundaries and fixes revoke reason/message/audit propagation with full gates green."
+  }
+}
