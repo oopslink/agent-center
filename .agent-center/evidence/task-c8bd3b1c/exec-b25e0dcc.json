@@ -1,0 +1,171 @@
+{
+  "task_id": "task-c8bd3b1c",
+  "execution_id": "exec-b25e0dcc",
+  "review_task": "T1382 independent revoke fix2 safety revalidation",
+  "created_at": "2026-08-18T12:50:00Z",
+  "candidate": {
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "remote_ref": "refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+    "remote_ref_verified_by": "git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+    "remote_ref_verified_output": "252584fd0b4f3507a2090f449855005248a9b536\trefs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+    "subject": "fix access revoke audit reason message",
+    "base_main_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+    "base_main_remote_ref_verified_output": "142a9e080c44d620a4f18ef44ef83530f7eaa537\trefs/heads/main",
+    "origin_main_is_ancestor": true,
+    "ancestor_command": "git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536",
+    "ancestor_exit_status": 0,
+    "worktree_status_at_candidate_before_evidence": "clean detached HEAD at 252584fd0b4f3507a2090f449855005248a9b536"
+  },
+  "non_candidates_rejected": [
+    {
+      "sha": "1281ddf9ed5bbc0b320f44538f617bd8ce53231f",
+      "reason": "old T1370 PASS explicitly excluded by review instruction"
+    },
+    {
+      "sha": "289221942d1b57485fdded8340d8084a9b3d0a48",
+      "refs": [
+        "refs/heads/t1376-revoke-audit-reason-message-28922194"
+      ],
+      "reason": "unexpected branch explicitly excluded by review instruction"
+    },
+    {
+      "sha": "82347a2557f34f783baadbbf6ede5daa3cb7dacd",
+      "refs": [
+        "refs/heads/ac-exec/task-140a2b90/exec-c926a2b7"
+      ],
+      "reason": "evidence-only commit, not reviewed code candidate"
+    },
+    {
+      "sha": "55652a39ec5ad0408b6d7fc6ff8fde11a2e3de0e",
+      "refs": [
+        "refs/heads/ac-exec/task-80731995/exec-9cbe4cbf"
+      ],
+      "reason": "evidence-only commit, not reviewed code candidate"
+    }
+  ],
+  "diff_scope": {
+    "command": "git diff --name-only 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536",
+    "files": [
+      "internal/authorization/service.go",
+      "internal/authorization/service_test.go",
+      "internal/authorization/types.go",
+      "internal/webconsole/api/handlers_access.go",
+      "internal/webconsole/api/handlers_access_test.go",
+      "web/src/api/access.ts",
+      "web/src/pages/Access.test.tsx",
+      "web/src/pages/Access.tsx"
+    ]
+  },
+  "coverage_assertions": [
+    {
+      "area": "revoke confirm audit reason/message positive path",
+      "evidence": "internal/authorization TestService_RevokeAssignmentSameOrgValidAndIdempotent asserts audit payload reason and message both equal same-org; internal/webconsole/api TestAccessEffectiveBatchAndRevokeContract asserts request_id and audit payload reason/message equal quarterly least privilege review; web Access.test asserts preview and confirm send stable reason/message."
+    },
+    {
+      "area": "revoke confirm rejection paths",
+      "evidence": "TestService_RevokePreviewConfirmStrongCAS rejects tampered token, actor drift, org drift, subject drift, and preview replay; API test rejects direct revoke and wrong confirm token for non-persisted preview."
+    },
+    {
+      "area": "CAS stale/replay",
+      "evidence": "TestService_RevokePreviewConfirmStrongCAS and TestService_RevokePreviewRejectsExpiredAndRevisionDrift cover token, replay, expiry, and revision drift; Access profile tests cover expected_latest_version CAS conflicts."
+    },
+    {
+      "area": "idempotency",
+      "evidence": "TestService_RevokeAssignmentSameOrgValidAndIdempotent covers same-key replay and second revoke unchanged; TestService_RevokeAssignmentConcurrentRaceIdempotent covers concurrent idempotent revoke race; API confirm uses stable access-revoke preview idempotency key."
+    },
+    {
+      "area": "rollback and revoke semantics",
+      "evidence": "TestSupervisorCrossOrgRevokeMustFailClosed verifies same-org first revoke rolls back when cross-org revoke fails; migration rollback test passes; direct second revoke returns unchanged."
+    },
+    {
+      "area": "Access/Team/auth/profile",
+      "evidence": "go test ./internal/webconsole/api focused run included Access effective/revoke/profile tests, auth middleware tests, team facade/settings/proposal tests, and runtime team role tests."
+    },
+    {
+      "area": "migration",
+      "evidence": "go test ./internal/persistence focused migration run passed Migration_0129_UnifiedAuthorizationRollback and full round trip."
+    },
+    {
+      "area": "deployment preflight/smoke",
+      "evidence": "./scripts/smoke/deploy-smoke.sh passed preflight, e2e install, Playwright chromium install, fresh make build, v22 deployed-pipeline spec, and runtime-version Go assertions with final line smoke pass: 32 seconds."
+    }
+  ],
+  "commands": [
+    {
+      "command": "git ls-remote --heads origin",
+      "exit_status": 0,
+      "purpose": "enumerate remote heads and identify unique fix2 candidate without using stale local refs"
+    },
+    {
+      "command": "git fetch origin refs/heads/main:refs/tmp/t1382/origin-main refs/heads/ac-exec/task-140a2b90/exec-c926a2b7:refs/tmp/t1382/task-140a2b90 refs/heads/ac-exec/task-80731995/exec-9cbe4cbf:refs/tmp/t1382/task-80731995 refs/heads/ac-exec/task-854687c8/exec-b3f7075f:refs/tmp/t1382/task-854687c8 refs/heads/review/t1356-access-governance-ui-v3:refs/tmp/t1382/review-t1356-v3",
+      "exit_status": 0,
+      "purpose": "fetch relevant remote refs into isolated temporary refs"
+    },
+    {
+      "command": "git checkout --detach 252584fd0b4f3507a2090f449855005248a9b536 && git status --short --branch",
+      "exit_status": 0,
+      "purpose": "review exact candidate SHA with clean worktree"
+    },
+    {
+      "command": "git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536",
+      "exit_status": 0,
+      "purpose": "prove remote main is candidate ancestor"
+    },
+    {
+      "command": "go test ./internal/authorization -run 'TestService_(ProjectMembershipCustomRolesAndRevoke|RevokeAssignmentSameOrgValidAndIdempotent|RevokeAssignmentConcurrentRaceIdempotent|RevokeBatchAuditsRevokeReason|RevokeBatchRejectsBlankReason|RevokeBatchRollback|RevokeBatchCAS|RevokeBatchIdempotency|TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess)|TestSupervisorCrossOrgRevokeMustFailClosed|Test.*Revoke|Test.*Access|Test.*Team|Test.*Profile' -count=1 -v",
+      "exit_status": 0
+    },
+    {
+      "command": "go test ./internal/webconsole/api -run 'Test.*Access|Test.*Revoke|Test.*Profile|Test.*Auth|Test.*Team' -count=1 -v",
+      "exit_status": 0
+    },
+    {
+      "command": "go test ./internal/persistence -run 'Test.*Migration|Test.*0129|Test.*UnifiedAuthorization|Test.*RoundTrip' -count=1 -v",
+      "exit_status": 0
+    },
+    {
+      "command": "pnpm --dir web install --frozen-lockfile",
+      "exit_status": 0
+    },
+    {
+      "command": "pnpm --dir web run typecheck",
+      "exit_status": 0
+    },
+    {
+      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx",
+      "exit_status": 0,
+      "summary": "1 file passed, 6 tests passed"
+    },
+    {
+      "command": "pnpm --dir web run build",
+      "exit_status": 0,
+      "warnings": [
+        "existing CSS minifier warning: Expected identifier but found '-'",
+        "existing Vite chunk-size warnings over 500 kB"
+      ]
+    },
+    {
+      "command": "make test",
+      "exit_status": 0,
+      "summary": "go test ./... passed, including internal/authorization, internal/webconsole/api, internal/persistence, and tests/e2e"
+    },
+    {
+      "command": "./scripts/smoke/deploy-smoke.sh",
+      "exit_status": 0,
+      "summary": "preflight/build/Playwright deployed-pipeline/runtime-version assertions passed; smoke pass: 32 seconds"
+    }
+  ],
+  "rule_handling": {
+    "get_team_rule_available": false,
+    "note": "Executor instruction prohibited agent-center/MCP access, so team rules could not be read through get_team_rule. Review followed the supplied rule descriptions using git-visible and command evidence only."
+  },
+  "structured_verdict": {
+    "verdict": "PASS",
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "evidence_basis": "remote ref proof, topology proof, clean candidate worktree, source diff inspection, focused revoke/audit/CAS/idempotency/rollback/API/profile/migration tests, SPA frozen install/typecheck/build, full make test, deployed preflight/smoke",
+    "reject_if": [],
+    "residual_warnings": [
+      "SPA build emits a CSS minifier warning and chunk-size warnings, but exits 0 and the same warnings appeared in both direct build and deployed smoke build."
+    ]
+  }
+}
