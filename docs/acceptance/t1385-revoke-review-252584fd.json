@@ -1,0 +1,49 @@
+{
+  "task": "T1385 revoke fix independent review",
+  "reviewed_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+  "baseline_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+  "managed_branch": "ac-exec/task-4addbbeb/exec-0794706e",
+  "evidence_head_is_carrier_only": true,
+  "checks": {
+    "remote": {
+      "origin": "git@github.com:oopslink/agent-center.git"
+    },
+    "ancestry": {
+      "baseline_is_ancestor_of_reviewed_sha": true,
+      "reviewed_sha_is_in_managed_branch": true
+    },
+    "clean_before_artifact": true,
+    "code_review": {
+      "revoke_reason_message_audit": "PASS",
+      "cas_preview_revision_drift": "PASS",
+      "direct_revoke_idempotency": "PASS",
+      "preview_confirm_idempotent_replay": "FAIL",
+      "safety_authorization_guards": "PASS"
+    },
+    "test_gates": {
+      "go_test_all": "PASS",
+      "go_test_authorization_webconsole_api": "PASS",
+      "make_lint": "PASS",
+      "web_access_test": "PASS",
+      "web_vitest_all": "PASS"
+    }
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "summary": "Revoke confirm still is not idempotent on successful retry.",
+      "evidence": "ConfirmRevoke consumes authorization_revoke_previews before runBatchInTx and never calls beginIdempotency/completeIdempotency; the existing test asserts a second confirm returns ErrPreviewRejected. The new stable idempotency key is recorded as audit request_id, but it is not a durable replay key for the confirm endpoint.",
+      "files": [
+        "internal/authorization/service.go",
+        "internal/authorization/service_test.go",
+        "internal/webconsole/api/handlers_access.go",
+        "web/src/pages/Access.tsx"
+      ]
+    }
+  ],
+  "structured_verdict": {
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "verdict": "FAIL",
+    "reason": "The candidate fixes reason/message propagation, audit request_id, preview-token preservation, CAS drift rejection, and passes full gates, but confirm replay remains non-idempotent because the confirm path rejects the consumed preview instead of replaying the completed response for the same idempotency key."
+  }
+}
