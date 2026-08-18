@@ -1,0 +1,263 @@
+{
+  "task_id": "task-a7412311",
+  "execution_id": "exec-77ceae4a",
+  "reviewed_sha": "f401a9f4b3a82429e985821c149a3ac8ec801b9b",
+  "base_sha": "f401a9f4b3a82429e985821c149a3ac8ec801b9b",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center remote -v \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center fetch origin main --prune \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center rev-parse origin/main \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center log -1 --oneline origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'rg -n \"test-instance|deploy|preview|revoke|idempot|audit|health|rollback|version|commit\" README.md Makefile docs scripts internal cmd tests .agent-center 2\u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'WT=./t1402-main-71a4e08-$(date +%Y%m%d%H%M%S); git -C /Users/oopslink/works/codes/oopslink/agent-center worktree add --detach \"$WT\" 71a4e08263fea90fc491afbffdc54a76c6e43082; realpath \"$WT\"; git -C \"$WT\" rev-parse HEAD; git -C \"$WT\" status --short --branch'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find /Users/oopslink/works/codes/oopslink -maxdepth 1 -type d -name 't1402-main-71a4e08-*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'WT=\"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-77ceae4a/t1402-main-71a4e08-abs-$(date +%Y%m%d%H%M%S)\"; git -C /Users/oopslink/works/codes/oopslink/agent-center worktree add --detach \"$WT\" 71a4e08263fea90fc491afbffdc54a76c6e43082; printf '\"'%s\\\\n' \\\"\"'$WT\"; git -C \"$WT\" rev-parse HEAD; git -C \"$WT\" status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' Makefile \u0026\u0026 sed -n '1,260p' scripts/smoke/deploy-smoke.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name '*access*' -o -name '*auth*' -o -name '*profile*' -o -name '*cas*' -o -name '*revoke*' \\\\) | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"rg -n \\\"revoke|preview|idempot|Idempotency|audit|reason|message\\\" internal cmd tests web scripts docs -g '\"'!web/node_modules/**'\"' -g '\"'!internal/webconsole/spa/dist/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"rg -n \\\"access.*revoke|revoke.*access|preview.*revoke|idempotency|Idempotency-Key|Idempotency\\\" internal/webconsole internal/projectmanager internal/authorization tests/e2e tests -g '*.go' -g '*.ts' -g '*.tsx' -g '*.mjs'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"rg -n \\\"audit\\\" internal/webconsole/api internal/projectmanager -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"rg -n \\\"system/version|/health|health\\\" internal/webconsole cmd internal -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '100,470p' internal/cli/handlers_test_instance.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '720,820p' internal/webconsole/api/handlers_access.go \u0026\u0026 sed -n '1660,1835p' internal/webconsole/api/handlers_access.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '284,380p' tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts \u0026\u0026 sed -n '140,255p' internal/webconsole/api/handlers_access_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'make build VERSION=main-71a4e08 COMMIT=71a4e08 BRANCH=main BUILT_AT=2026-08-18T16:35:00Z'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git diff --stat -- internal/webconsole/spa/dist/.gitkeep web/pnpm-lock.yaml go.mod go.sum'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc './bin/agent-center version \u0026\u0026 ./bin/agent-center version --json || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc './bin/agent-center install test-instance --id t1402-revoke-$(date +%H%M%S) --workers 0 --with-seed --ready-timeout 60 --output json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' internal/webconsole/api/handlers_auth.go \u0026\u0026 rg -n \\\"signin|login|passcode\\\" internal/webconsole/api/handlers_auth.go internal/cli/test_instance_seed.go web/src -g '*.go' -g '*.tsx' -g '*.ts'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"curl -sS -D - http://127.0.0.1:61687/api/health -o /tmp/t1402-health.json; printf '\\\\nBODY\\\\n'; cat /tmp/t1402-health.json; printf '\\\\n--- version ---\\\\n'; curl -sS -D - http://127.0.0.1:61687/api/system/version; printf '\\\\n--- root ---\\\\n'; curl -sS -D - http://127.0.0.1:61687/ -o /tmp/t1402-root.html; head -20 /tmp/t1402-root.html\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' internal/cli/test_instance_seed.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/webconsole/api/handlers_permissions.go \u0026\u0026 sed -n '100,170p' internal/webconsole/api/handlers_permissions_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '220,360p' internal/webconsole/api/handlers_permissions.go \u0026\u0026 sed -n '300,330p' internal/webconsole/api/handlers_permissions_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"rg -n \\\"type AuditEvent|func \\\\(.*ListSubjectAudit|ListSubjectAudit\\\" internal/authorization -g '*.go' \u0026\u0026 sed -n '120,180p' internal/authorization/types.go \u0026\u0026 sed -n '1,130p' internal/authorization/audit.go 2\u003e/dev/null || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '249,285p' internal/authorization/types.go \u0026\u0026 sed -n '145,165p' internal/authorization/service.go \u0026\u0026 rg -n \\\"payload_json|AuditEvent\\\" internal/authorization/store.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '165,180p' internal/authorization/service.go \u0026\u0026 sed -n '470,545p' internal/authorization/store.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"mkdir -p ../t1402-evidence \u0026\u0026 node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst base = 'http://127.0.0.1:61687';\nconst orgSlug = 'org-d2683d29';\nconst orgID = 'organization-353c004d';\nconst login = 'owner@acme-t1402-revoke-003337.test';\nconst passcode = 'SeedPass1\"'!'\"';\nconst outPath = '../t1402-evidence/revoke-http-evidence.json';\nlet cookie = '';\nasync function req(method, path, body, useCookie = true) {\n  const headers = {};\n  if (body \"'!== undefined) headers['\"'content-type'] = 'application/json';\n  if (useCookie \u0026\u0026 cookie) headers['cookie'] = cookie;\n  const res = await fetch(base + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)});\n  const text = await res.text();\n  const setCookie = res.headers.get('set-cookie');\n  if (setCookie) cookie = /ac_session=[\"'^;]+/.exec(setCookie)?.[0] || cookie;\n  let json = null;\n  try { json = text ? JSON.parse(text) : null; } catch {}\n  return {method, path, status: res.status, set_cookie: Boolean(setCookie), body: json ?? text};\n}\nfunction projection(resp) {\n  return {\n    operation_id: resp.body.operation_id,\n    summary: resp.body.summary,\n    items: (resp.body.items || []).map((it) =\u003e ({status: it.status, grant_id: it.grant_id, evidence_ref: it.evidence_ref, reason: it.reason}))\n  };\n}\n(async () =\u003e {\n  const evidence = {\n    instance: {id: '\"'t1402-revoke-003337', prefix: '/Users/oopslink/.agent-center-test/t1402-revoke-003337', base, org_slug: orgSlug, org_id: orgID},\n    commands: [\n      './bin/agent-center install test-instance --id t1402-revoke-003337 --workers 0 --with-seed --ready-timeout 60 --output json',\n      'GET /api/health',\n      'GET /api/system/version',\n      'GET /',\n      'POST /api/auth/signin',\n      'POST /api/orgs/{slug}/access/batch/apply',\n      'POST /api/orgs/{slug}/access/grants/revoke/preview',\n      'POST /api/orgs/{slug}/access/grants/revoke/confirm',\n      'POST /api/orgs/{slug}/access/grants/revoke/confirm (exact same body/idempotency_key replay)',\n      'GET /api/orgs/{slug}/permissions/audit?subject_ref={subject}\u0026limit=20'\n    ],\n    responses: {}\n  };\n  evidence.responses.health = await req('GET', '/api/health', undefined, false);\n  evidence.responses.version = await req('GET', '/api/system/version', undefined, false);\n  const rootRes = await fetch(base + '/');\n  const rootText = await rootRes.text();\n  evidence.responses.spa_root = {method: 'GET', path: '/', status: rootRes.status, content_type: rootRes.headers.get('content-type'), has_root: rootText.includes('\u003cdiv id=\\\"root\\\"\u003e\u003c/div\u003e'), asset_refs: [...rootText.matchAll(/(?:src|href)=\\\"([\"'^\"]+)\"/g)].map(m =\u003e m[1])};\n  evidence.responses.signin = await req('\"'POST', '/api/auth/signin', {login, passcode}, false);\n  if (evidence.responses.signin.status \"'!== 200 || !cookie) throw new Error('\"'signin failed: ' + JSON.stringify(evidence.responses.signin));\n  const identityID = evidence.responses.signin.body.identity_id;\n  const subjectRef = \"'`user:${identityID}`;\n  const accessBase = `/api/orgs/${orgSlug}/access`;\n  const grantBody = {\n    subject_refs: [subjectRef],\n    permission_keys: ['\"'org.analytics.read'],\n    resources: [{kind: 'org', id: orgID, org_id: orgID}],\n    reason: 'T1402 deployed revoke idempotency grant'\n  };\n  evidence.request_bodies = {grant: grantBody};\n  evidence.responses.grant = await req('POST', \"'`${accessBase}/batch/apply`, grantBody);\n  const grantItem = evidence.responses.grant.body.items?.[0];\n  if (evidence.responses.grant.status !== 200 || grantItem?.status !== '\"'allowed' || \"'!grantItem?.grant_id) throw new Error('\"'grant failed: ' + JSON.stringify(evidence.responses.grant));\n  const grantID = grantItem.grant_id;\n  const revokeReason = 't1402 least privilege replay audit';\n  const revokeMessage = 'T1402 replay audit message persisted';\n  const previewBody = {grant_ids: [grantID], reason: revokeReason, message: revokeMessage};\n  evidence.request_bodies.preview = previewBody;\n  evidence.responses.preview = await req('POST', \"'`${accessBase}/grants/revoke/preview`, previewBody);\n  const preview = evidence.responses.preview.body;\n  if (evidence.responses.preview.status !== 200 || !preview.preview_id || !preview.token || preview.items?.[0]?.status !== '\"'allowed') throw new Error('preview failed: ' + JSON.stringify(evidence.responses.preview));\n  const confirmBody = {...previewBody, preview_id: preview.preview_id, token: [REDACTED_SECRET] idempotency_key: \"'`t1402-revoke-confirm-${preview.preview_id}`};\n  evidence.request_bodies.confirm_and_exact_replay = confirmBody;\n  evidence.responses.confirm = await req('\"'POST', \"'`${accessBase}/grants/revoke/confirm`, confirmBody);\n  evidence.responses.replay = await req('\"'POST', \"'`${accessBase}/grants/revoke/confirm`, confirmBody);\n  evidence.comparisons = {\n    confirm_status_200: evidence.responses.confirm.status === 200,\n    replay_status_200: evidence.responses.replay.status === 200,\n    replay_not_409_consumed: evidence.responses.replay.status !== 409,\n    semantic_projection_equal: JSON.stringify(projection(evidence.responses.confirm)) === JSON.stringify(projection(evidence.responses.replay)),\n    first_projection: projection(evidence.responses.confirm),\n    replay_projection: projection(evidence.responses.replay)\n  };\n  evidence.responses.audit = await req('\"'GET', \"'`/api/orgs/${orgSlug}/permissions/audit?subject_ref=${encodeURIComponent(subjectRef)}\u0026limit=20`);\n  const revokeAudit = (evidence.responses.audit.body.events || []).find(e =\u003e e.event_type === '\"'authorization.assignment.revoked' \u0026\u0026 e.assignment_id === grantID);\n  evidence.audit_assertion = {\n    found_revoke_event: Boolean(revokeAudit),\n    request_id: revokeAudit?.request_id,\n    request_id_matches: revokeAudit?.request_id === confirmBody.idempotency_key,\n    payload_reason: revokeAudit?.payload?.reason,\n    payload_message: revokeAudit?.payload?.message,\n    reason_matches: revokeAudit?.payload?.reason === revokeReason,\n    message_matches: revokeAudit?.payload?.message === revokeMessage,\n    event: revokeAudit\n  };\n  evidence.pass = evidence.responses.health.status === 200 \u0026\u0026 evidence.responses.version.status === 200 \u0026\u0026 evidence.responses.spa_root.status === 200 \u0026\u0026 evidence.responses.grant.status === 200 \u0026\u0026 evidence.responses.preview.status === 200 \u0026\u0026 evidence.comparisons.confirm_status_200 \u0026\u0026 evidence.comparisons.replay_status_200 \u0026\u0026 evidence.comparisons.semantic_projection_equal \u0026\u0026 evidence.audit_assertion.found_revoke_event \u0026\u0026 evidence.audit_assertion.request_id_matches \u0026\u0026 evidence.audit_assertion.reason_matches \u0026\u0026 evidence.audit_assertion.message_matches;\n  fs.writeFileSync(outPath, JSON.stringify(evidence, null, 2));\n  console.log(JSON.stringify({outPath, pass: evidence.pass, grantID, preview_id: preview.preview_id, idempotency_key: confirmBody.idempotency_key, confirm_status: evidence.responses.confirm.status, replay_status: evidence.responses.replay.status, semantic_projection_equal: evidence.comparisons.semantic_projection_equal, audit_assertion: evidence.audit_assertion}, null, 2));\n  if (\"'!evidence.pass) process.exit(1);\n})().catch((err) =\u003e { console.error(err.stack || err); process.exit(1); });\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"go test ./internal/authorization ./internal/webconsole/api -run 'TestService|TestBatchPreviewRollbackIdempotencyAndStoreFailures|TestAccess|TestPermissionsHTTP|TestAccessProfilesPersistVersionsAndCAS|Test.*Auth|Test.*Profile|Test.*CAS' -count=1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'make smoke VERSION=main-71a4e08 COMMIT=71a4e08 BRANCH=main BUILT_AT=2026-08-18T16:35:00Z'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"curl -sS -w '\\\\nHTTP %{http_code}\\\\n' http://127.0.0.1:61687/api/health; curl -sS -w '\\\\nHTTP %{http_code}\\\\n' http://127.0.0.1:61687/api/system/version; launchctl list | rg 'agent-center.*t1402-revoke-003337|t1402-revoke-003337' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"find ../t1402-evidence -maxdepth 1 -type f -print -exec wc -c {} \\\\; \u0026\u0026 node -e \\\"const e=require('../t1402-evidence/revoke-http-evidence.json'); console.log(JSON.stringify({pass:e.pass, version:e.responses.version.body, confirm:e.responses.confirm.status, replay:e.responses.replay.status, audit:e.audit_assertion}, null, 2))\\\"\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"./bin/agent-center install test-instance --help | sed -n '1,220p'; ./bin/agent-center uninstall test-instance --help 2\u003e\u00261 | sed -n '1,220p'; ./bin/agent-center test-instance --help 2\u003e\u00261 | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"find /Users/oopslink/works/codes/oopslink/agent-center -maxdepth 2 -type d -name 't1402-main-71a4e08-*' -print; git -C /Users/oopslink/works/codes/oopslink/agent-center worktree list --porcelain | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc './bin/agent-center uninstall test-instance --id t1402-revoke-003337'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"git -C /Users/oopslink/works/codes/oopslink/agent-center worktree remove --force /Users/oopslink/works/codes/oopslink/agent-center/t1402-main-71a4e08-20260819003154 \u0026\u0026 find /Users/oopslink/works/codes/oopslink/agent-center -maxdepth 2 -type d -name 't1402-main-71a4e08-*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'test ! -e /Users/oopslink/.agent-center-test/t1402-revoke-003337 \u0026\u0026 echo '\"'instance path removed'; launchctl list | rg 'agent-center.*t1402-revoke-003337|t1402-revoke-003337' || echo 'launchd label absent'; curl -sS --max-time 2 -o /tmp/t1402-after-cleanup.out -w 'HTTP %{http_code} exit %{exitcode}\\\\n' http://127.0.0.1:61687/api/health || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'ls -la ../t1402-evidence \u0026\u0026 realpath ../t1402-evidence/revoke-http-evidence.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"git status --short \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center rev-parse origin/main \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center worktree list --porcelain | rg -n 't1402-main-71a4e08|worktree '\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst http = require('../t1402-evidence/revoke-http-evidence.json');\nconst summary = {\n  verdict: 'PASS',\n  evidence_only: true,\n  source: {\n    mirror: '/Users/oopslink/works/codes/oopslink/agent-center',\n    fetched_origin_main: '71a4e08263fea90fc491afbffdc54a76c6e43082',\n    expected_tip_matched: true,\n    isolated_worktree: process.cwd(),\n    note: 'An accidental relative-path worktree under the shared mirror was removed with git worktree remove --force; the retained validation worktree is under the executor workspace.'\n  },\n  build: {\n    command: 'make build VERSION=main-71a4e08 COMMIT=71a4e08 BRANCH=main BUILT_AT=2026-08-18T16:35:00Z',\n    binary_version_output: 'agent-center main-71a4e08 (commit 71a4e08)'\n  },\n  deployed_instance: http.instance,\n  runtime_version: http.responses.version.body,\n  reachability: {\n    health_status: http.responses.health.status,\n    health_body: http.responses.health.body,\n    version_status: http.responses.version.status,\n    spa_status: http.responses.spa_root.status,\n    spa_has_root: http.responses.spa_root.has_root,\n    spa_asset_refs: http.responses.spa_root.asset_refs\n  },\n  revoke_chain: {\n    grant_id: http.responses.grant.body.items[0].grant_id,\n    preview_status: http.responses.preview.status,\n    preview_id: http.responses.preview.body.preview_id,\n    confirm_status: http.responses.confirm.status,\n    replay_status: http.responses.replay.status,\n    replay_not_409_consumed: http.comparisons.replay_not_409_consumed,\n    semantic_projection_equal: http.comparisons.semantic_projection_equal,\n    idempotency_key: http.request_bodies.confirm_and_exact_replay.idempotency_key\n  },\n  audit_api_readback: http.audit_assertion,\n  tests: {\n    targeted: {\n      command: \\\"go test ./internal/authorization ./internal/webconsole/api -run 'TestService|TestBatchPreviewRollbackIdempotencyAndStoreFailures|TestAccess|TestPermissionsHTTP|TestAccessProfilesPersistVersionsAndCAS|Test.*Auth|Test.*Profile|Test.*CAS' -count=1\\\",\n      result: 'PASS',\n      packages: ['github.com/oopslink/agent-center/internal/authorization', 'github.com/oopslink/agent-center/internal/webconsole/api']\n    },\n    deployed_smoke: {\n      command: 'make smoke VERSION=main-71a4e08 COMMIT=71a4e08 BRANCH=main BUILT_AT=2026-08-18T16:35:00Z',\n      result: 'PASS',\n      key_lines: ['1 passed (v22-deployed-pipeline.spec.ts)', 'ok github.com/oopslink/agent-center/tests/e2e 13.835s', 'smoke pass: 30 seconds'],\n      note: 'Smoke script rebuilt from detached HEAD, stamping branch HEAD and short commit 71a4e082 for its own binary; deployed test-instance runtime was separately verified as main-71a4e08.'\n    }\n  },\n  rollback: {\n    safe_method: 'For this isolated deployment, rollback/cleanup is \"'`./bin/agent-center uninstall test-instance --id t1402-revoke-003337`; for install/upgrade flow, center upgrade uses atomic current symlink swap plus health probe and auto-rollback to the previous version directory if probe fails.'\"',\n    verified_cleanup: {\n      command: './bin/agent-center uninstall test-instance --id t1402-revoke-003337; then verify path, launchd label, and port',\n      path_removed: true,\n      launchd_label_absent: true,\n      health_after_cleanup: 'curl HTTP 000 exit 7 on http://127.0.0.1:61687/api/health'\n    }\n  },\n  residual_workspace_state: {\n    generated_by_smoke: ['tests/e2e/v2/artifacts/playwright-report/index.html modified', 'two playwright-report data PNGs deleted'],\n    no_commit_or_push: true\n  }\n};\nfs.writeFileSync('../t1402-evidence/summary.json', JSON.stringify(summary, null, 2));\nconsole.log(JSON.stringify({wrote: '../t1402-evidence/summary.json', verdict: summary.verdict, cleanup: summary.rollback.verified_cleanup}, null, 2));\nNODE\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-77ceae4a/command_events.jsonl",
+  "command_event_digest": "sha256:f7ba7f56bc90f9e159ec774dbcac6922b86e5889910c8a2537e42167983607b1",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "PASS.",
+  "artifact_digest": "sha256:ec830082cc948f978547b68704e26f6a25dea907aba3b71bbb45f69cfda470db",
+  "path": ".agent-center/evidence/task-a7412311/exec-77ceae4a.json",
+  "branch": "ac-exec/task-a7412311/exec-77ceae4a"
+}
