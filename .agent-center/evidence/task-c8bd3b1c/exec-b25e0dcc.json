@@ -1,171 +1,347 @@
 {
   "task_id": "task-c8bd3b1c",
   "execution_id": "exec-b25e0dcc",
-  "review_task": "T1382 independent revoke fix2 safety revalidation",
-  "created_at": "2026-08-18T12:50:00Z",
-  "candidate": {
-    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
-    "remote_ref": "refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
-    "remote_ref_verified_by": "git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
-    "remote_ref_verified_output": "252584fd0b4f3507a2090f449855005248a9b536\trefs/heads/ac-exec/task-854687c8/exec-b3f7075f",
-    "subject": "fix access revoke audit reason message",
-    "base_main_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
-    "base_main_remote_ref_verified_output": "142a9e080c44d620a4f18ef44ef83530f7eaa537\trefs/heads/main",
-    "origin_main_is_ancestor": true,
-    "ancestor_command": "git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536",
-    "ancestor_exit_status": 0,
-    "worktree_status_at_candidate_before_evidence": "clean detached HEAD at 252584fd0b4f3507a2090f449855005248a9b536"
-  },
-  "non_candidates_rejected": [
-    {
-      "sha": "1281ddf9ed5bbc0b320f44538f617bd8ce53231f",
-      "reason": "old T1370 PASS explicitly excluded by review instruction"
-    },
-    {
-      "sha": "289221942d1b57485fdded8340d8084a9b3d0a48",
-      "refs": [
-        "refs/heads/t1376-revoke-audit-reason-message-28922194"
-      ],
-      "reason": "unexpected branch explicitly excluded by review instruction"
-    },
-    {
-      "sha": "82347a2557f34f783baadbbf6ede5daa3cb7dacd",
-      "refs": [
-        "refs/heads/ac-exec/task-140a2b90/exec-c926a2b7"
-      ],
-      "reason": "evidence-only commit, not reviewed code candidate"
-    },
-    {
-      "sha": "55652a39ec5ad0408b6d7fc6ff8fde11a2e3de0e",
-      "refs": [
-        "refs/heads/ac-exec/task-80731995/exec-9cbe4cbf"
-      ],
-      "reason": "evidence-only commit, not reviewed code candidate"
-    }
-  ],
-  "diff_scope": {
-    "command": "git diff --name-only 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536",
-    "files": [
-      "internal/authorization/service.go",
-      "internal/authorization/service_test.go",
-      "internal/authorization/types.go",
-      "internal/webconsole/api/handlers_access.go",
-      "internal/webconsole/api/handlers_access_test.go",
-      "web/src/api/access.ts",
-      "web/src/pages/Access.test.tsx",
-      "web/src/pages/Access.tsx"
-    ]
-  },
-  "coverage_assertions": [
-    {
-      "area": "revoke confirm audit reason/message positive path",
-      "evidence": "internal/authorization TestService_RevokeAssignmentSameOrgValidAndIdempotent asserts audit payload reason and message both equal same-org; internal/webconsole/api TestAccessEffectiveBatchAndRevokeContract asserts request_id and audit payload reason/message equal quarterly least privilege review; web Access.test asserts preview and confirm send stable reason/message."
-    },
-    {
-      "area": "revoke confirm rejection paths",
-      "evidence": "TestService_RevokePreviewConfirmStrongCAS rejects tampered token, actor drift, org drift, subject drift, and preview replay; API test rejects direct revoke and wrong confirm token for non-persisted preview."
-    },
-    {
-      "area": "CAS stale/replay",
-      "evidence": "TestService_RevokePreviewConfirmStrongCAS and TestService_RevokePreviewRejectsExpiredAndRevisionDrift cover token, replay, expiry, and revision drift; Access profile tests cover expected_latest_version CAS conflicts."
-    },
-    {
-      "area": "idempotency",
-      "evidence": "TestService_RevokeAssignmentSameOrgValidAndIdempotent covers same-key replay and second revoke unchanged; TestService_RevokeAssignmentConcurrentRaceIdempotent covers concurrent idempotent revoke race; API confirm uses stable access-revoke preview idempotency key."
-    },
-    {
-      "area": "rollback and revoke semantics",
-      "evidence": "TestSupervisorCrossOrgRevokeMustFailClosed verifies same-org first revoke rolls back when cross-org revoke fails; migration rollback test passes; direct second revoke returns unchanged."
-    },
-    {
-      "area": "Access/Team/auth/profile",
-      "evidence": "go test ./internal/webconsole/api focused run included Access effective/revoke/profile tests, auth middleware tests, team facade/settings/proposal tests, and runtime team role tests."
-    },
-    {
-      "area": "migration",
-      "evidence": "go test ./internal/persistence focused migration run passed Migration_0129_UnifiedAuthorizationRollback and full round trip."
-    },
-    {
-      "area": "deployment preflight/smoke",
-      "evidence": "./scripts/smoke/deploy-smoke.sh passed preflight, e2e install, Playwright chromium install, fresh make build, v22 deployed-pipeline spec, and runtime-version Go assertions with final line smoke pass: 32 seconds."
-    }
-  ],
+  "reviewed_sha": "441e7f47df97122e9648a84ca36a0c53e03ef03c",
+  "base_sha": "997470a51878726145796c39973028ea6813788d",
   "commands": [
     {
-      "command": "git ls-remote --heads origin",
-      "exit_status": 0,
-      "purpose": "enumerate remote heads and identify unique fix2 candidate without using stale local refs"
-    },
-    {
-      "command": "git fetch origin refs/heads/main:refs/tmp/t1382/origin-main refs/heads/ac-exec/task-140a2b90/exec-c926a2b7:refs/tmp/t1382/task-140a2b90 refs/heads/ac-exec/task-80731995/exec-9cbe4cbf:refs/tmp/t1382/task-80731995 refs/heads/ac-exec/task-854687c8/exec-b3f7075f:refs/tmp/t1382/task-854687c8 refs/heads/review/t1356-access-governance-ui-v3:refs/tmp/t1382/review-t1356-v3",
-      "exit_status": 0,
-      "purpose": "fetch relevant remote refs into isolated temporary refs"
-    },
-    {
-      "command": "git checkout --detach 252584fd0b4f3507a2090f449855005248a9b536 && git status --short --branch",
-      "exit_status": 0,
-      "purpose": "review exact candidate SHA with clean worktree"
-    },
-    {
-      "command": "git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536",
-      "exit_status": 0,
-      "purpose": "prove remote main is candidate ancestor"
-    },
-    {
-      "command": "go test ./internal/authorization -run 'TestService_(ProjectMembershipCustomRolesAndRevoke|RevokeAssignmentSameOrgValidAndIdempotent|RevokeAssignmentConcurrentRaceIdempotent|RevokeBatchAuditsRevokeReason|RevokeBatchRejectsBlankReason|RevokeBatchRollback|RevokeBatchCAS|RevokeBatchIdempotency|TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess)|TestSupervisorCrossOrgRevokeMustFailClosed|Test.*Revoke|Test.*Access|Test.*Team|Test.*Profile' -count=1 -v",
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'git remote -v'",
       "exit_status": 0
     },
     {
-      "command": "go test ./internal/webconsole/api -run 'Test.*Access|Test.*Revoke|Test.*Profile|Test.*Auth|Test.*Team' -count=1 -v",
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git branch -vv --all'",
       "exit_status": 0
     },
     {
-      "command": "go test ./internal/persistence -run 'Test.*Migration|Test.*0129|Test.*UnifiedAuthorization|Test.*RoundTrip' -count=1 -v",
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
       "exit_status": 0
     },
     {
-      "command": "pnpm --dir web install --frozen-lockfile",
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --all -n 80'",
       "exit_status": 0
     },
     {
-      "command": "pnpm --dir web run typecheck",
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"git ls-remote --heads origin '*revoke*' '*t1376*' '*1381*' '*1382*' '*fix2*'\"",
       "exit_status": 0
     },
     {
-      "command": "pnpm --dir web exec vitest run src/pages/Access.test.tsx",
-      "exit_status": 0,
-      "summary": "1 file passed, 6 tests passed"
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git fetch --prune origin'",
+      "exit_status": 128
     },
     {
-      "command": "pnpm --dir web run build",
-      "exit_status": 0,
-      "warnings": [
-        "existing CSS minifier warning: Expected identifier but found '-'",
-        "existing Vite chunk-size warnings over 500 kB"
-      ]
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch'",
+      "exit_status": 0
     },
     {
-      "command": "make test",
-      "exit_status": 0,
-      "summary": "go test ./... passed, including internal/authorization, internal/webconsole/api, internal/persistence, and tests/e2e"
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname) %(committerdate:iso8601) %(subject)' refs/heads refs/remotes/origin | rg -i 't1376|1381|1382|revoke|fix2|audit reason|reason message'\"",
+      "exit_status": 0
     },
     {
-      "command": "./scripts/smoke/deploy-smoke.sh",
-      "exit_status": 0,
-      "summary": "preflight/build/Playwright deployed-pipeline/runtime-version assertions passed; smoke pass: 32 seconds"
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"git ls-remote --heads origin | rg -i 'audit|evidence|accept|t1381|t1382|revoke|reason|fix2|topolog|access'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git fetch origin refs/heads/main:refs/tmp/t1382/origin-main refs/heads/ac-exec/task-140a2b90/exec-c926a2b7:refs/tmp/t1382/task-140a2b90 refs/heads/ac-exec/task-80731995/exec-9cbe4cbf:refs/tmp/t1382/task-80731995 refs/heads/ac-exec/task-854687c8/exec-b3f7075f:refs/tmp/t1382/task-854687c8 refs/heads/review/t1356-access-governance-ui-v3:refs/tmp/t1382/review-t1356-v3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname) %(committerdate:iso8601) %(subject)' refs/tmp/t1382 refs/heads/ac-exec/task-140a2b90 refs/heads/ac-exec/task-80731995 refs/heads/ac-exec/task-854687c8 refs/heads/review/t1356-access-governance-ui-v3 refs/heads/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=30 refs/tmp/t1382/origin-main refs/tmp/t1382/task-140a2b90 refs/tmp/t1382/task-80731995 refs/tmp/t1382/task-854687c8 refs/tmp/t1382/review-t1356-v3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate refs/tmp/t1382/task-140a2b90 refs/tmp/t1382/task-80731995 refs/tmp/t1382/task-854687c8 refs/tmp/t1382/review-t1356-v3 --'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'rg -n \"Revoke|revoke|reason|message|CAS|cas|idempot|rollback|profile|Team|Access\" internal/authorization internal/webconsole web/src/pages web/src/api migrations Makefile package.json web/package.json 2\u003e/dev/null'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"rg --files | rg '(\"'^Makefile$|package.json$|go.mod$|migration|access|authorization|deploy|smoke|preflight|frozen|pnpm-lock|package-lock|yarn.lock)'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git checkout --detach 252584fd0b4f3507a2090f449855005248a9b536 \u0026\u0026 git status --short --branch \u0026\u0026 git merge-base --is-ancestor 142a9e080c44d620a4f18ef44ef83530f7eaa537 252584fd0b4f3507a2090f449855005248a9b536; echo ancestor_exit:$? \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"go test ./internal/authorization -run 'TestService_(ProjectMembershipCustomRolesAndRevoke|RevokeAssignmentSameOrgValidAndIdempotent|RevokeAssignmentConcurrentRaceIdempotent|RevokeBatchAuditsRevokeReason|RevokeBatchRejectsBlankReason|RevokeBatchRollback|RevokeBatchCAS|RevokeBatchIdempotency|TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess)|TestSupervisorCrossOrgRevokeMustFailClosed|Test.*Revoke|Test.*Access|Test.*Team|Test.*Profile' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"go test ./internal/persistence -run 'Test.*Migration|Test.*0129|Test.*UnifiedAuthorization|Test.*RoundTrip' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'Test.*Access|Test.*Revoke|Test.*Profile|Test.*Auth|Test.*Team' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' package.json 2\u003e/dev/null || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,150p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'git diff --stat 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536 \u0026\u0026 git diff --name-only 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/webconsole/api/handlers_access_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/authorization/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/Access.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'pnpm --dir web install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'pnpm --dir web run typecheck'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'pnpm --dir web exec vitest run src/pages/Access.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'pnpm --dir web run build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' scripts/smoke/deploy-smoke.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' scripts/install/lib/preflight.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'make test'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc ./scripts/smoke/deploy-smoke.sh",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"git show --name-status --format='%H%n%P%n%s%n%ci' --no-renames HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git rev-parse refs/tmp/t1382/origin-main \u0026\u0026 git merge-base --is-ancestor refs/tmp/t1382/origin-main HEAD; echo ancestor_exit:$? \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git restore tests/e2e/v2/artifacts/playwright-report \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"rg --files | rg 'review|evidence|verdict' | head -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'git branch --show-current; git rev-parse --abbrev-ref HEAD; git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path '*evidence*' -type f | head -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' .agent-center/evidence/task-973dc130/exec-a7b22492.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' .agent-center/evidence/task-5e7f1053/exec-8ebbc4d6.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'jq . .agent-center/evidence/task-c8bd3b1c/exec-b25e0dcc.json \u003e/dev/null \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'git diff -- .agent-center/evidence/task-c8bd3b1c/exec-b25e0dcc.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'git switch -c evidence/t1382-revoke-fix2-252584fd \u0026\u0026 git add .agent-center/evidence/task-c8bd3b1c/exec-b25e0dcc.json \u0026\u0026 git commit -m \"test: record T1382 revoke fix2 review evidence\" \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/evidence/t1382-revoke-fix2-252584fd'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"git show -s --format='%H%n%P%n%s' HEAD \u0026\u0026 git merge-base --is-ancestor 252584fd0b4f3507a2090f449855005248a9b536 HEAD; echo candidate_parent_ancestor_exit:\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git push --no-mirror origin HEAD:refs/heads/evidence/t1382-revoke-fix2-252584fd \u0026\u0026 git ls-remote origin refs/heads/evidence/t1382-revoke-fix2-252584fd'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push origin HEAD:refs/heads/evidence/t1382-revoke-fix2-252584fd \u0026\u0026 git ls-remote origin refs/heads/evidence/t1382-revoke-fix2-252584fd'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f refs/heads/main refs/heads/evidence/t1382-revoke-fix2-252584fd'",
+      "exit_status": 0
     }
   ],
-  "rule_handling": {
-    "get_team_rule_available": false,
-    "note": "Executor instruction prohibited agent-center/MCP access, so team rules could not be read through get_team_rule. Review followed the supplied rule descriptions using git-visible and command evidence only."
-  },
-  "structured_verdict": {
-    "verdict": "PASS",
-    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
-    "evidence_basis": "remote ref proof, topology proof, clean candidate worktree, source diff inspection, focused revoke/audit/CAS/idempotency/rollback/API/profile/migration tests, SPA frozen install/typecheck/build, full make test, deployed preflight/smoke",
-    "reject_if": [],
-    "residual_warnings": [
-      "SPA build emits a CSS minifier warning and chunk-size warnings, but exits 0 and the same warnings appeared in both direct build and deployed smoke build."
-    ]
-  }
+  "commands_available": true,
+  "command_event_path": "executor://exec-b25e0dcc/command_events.jsonl",
+  "command_event_digest": "sha256:f7992a9c4a08b0449bd8aa146245406bd69c854850b15f6764c36e8c667ea834",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "PASS.",
+  "artifact_digest": "sha256:c5bf6e8bcd3178c85458f56f42086c33379650cd9153f263154ad6c44121b895",
+  "path": ".agent-center/evidence/task-c8bd3b1c/exec-b25e0dcc.json",
+  "branch": "evidence/t1382-revoke-fix2-252584fd"
 }
