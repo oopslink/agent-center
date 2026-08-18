@@ -361,44 +361,117 @@ func (s *Service) ConfirmRevoke(ctx context.Context, req RevokeConfirmRequest) (
 		}
 		now := s.clock.Now().UTC()
 		switch {
-		case rec.Status != "pending":
-			return ErrPreviewRejected
-		case !rec.ExpiresAt.After(now):
-			return ErrPreviewExpired
 		case rec.ActorRef != req.ActorRef || rec.OrgID != req.OrgID:
 			return ErrPreviewRejected
 		case rec.TokenHash != hashString(req.Token):
 			return ErrPreviewRejected
 		}
-		spec, _, err := s.normalizedRevokeSpec(txCtx, req.ActorRef, req.OrgID, req.Operations)
+		batch, err := revokeConfirmBatchFromPreview(rec, req)
 		if err != nil {
 			return err
 		}
-		body, err := json.Marshal(spec)
+		digest, err := batchDigest(batch)
 		if err != nil {
 			return err
 		}
-		if rec.RequestHash != hashBytes(body) || rec.SubjectHash != hashSubjects(spec.Targets) || rec.RequestJSON != string(body) {
+		if prevJSON, replay, err := s.store.beginIdempotency(txCtx, req.IdempotencyKey, string(req.ActorRef), "revoke_confirm", digest, now); err != nil || replay {
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal([]byte(prevJSON), &out); err != nil {
+				return err
+			}
+			out.Replayed = true
+			return nil
+		}
+		switch {
+		case rec.Status != "pending":
 			return ErrPreviewRejected
+		case !rec.ExpiresAt.After(now):
+			return ErrPreviewExpired
+		}
+		if err := s.verifyLiveRevokePreview(txCtx, rec, req); err != nil {
+			return err
 		}
 		if err := s.store.consumeRevokePreview(txCtx, req.PreviewID, now); err != nil {
 			return err
 		}
-		batch := BatchRequest{IdempotencyKey: req.IdempotencyKey, ActorRef: req.ActorRef, OrgID: req.OrgID}
-		for i, op := range req.Operations {
-			op.Type = "revoke_assignment"
-			if i < len(spec.Targets) {
-				op.Revoke.AssignmentID = spec.Targets[i].AssignmentID
-				op.Revoke.ExpectedVersion = spec.Targets[i].Version
-				op.Revoke.Reason = spec.Targets[i].Reason
-				op.Revoke.Message = spec.Targets[i].Message
-			}
-			batch.Operations = append(batch.Operations, op)
-		}
 		out, err = s.runBatchInTx(txCtx, batch)
-		return err
+		if err != nil {
+			return err
+		}
+		body, err := json.Marshal(out)
+		if err != nil {
+			return err
+		}
+		return s.store.completeIdempotency(txCtx, req.IdempotencyKey, body, now)
 	})
 	return out, err
+}
+
+func (s *Service) verifyLiveRevokePreview(ctx context.Context, rec revokePreviewRecord, req RevokeConfirmRequest) error {
+	spec, _, err := s.normalizedRevokeSpec(ctx, req.ActorRef, req.OrgID, req.Operations)
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	if rec.RequestHash != hashBytes(body) || rec.SubjectHash != hashSubjects(spec.Targets) || rec.RequestJSON != string(body) {
+		return ErrPreviewRejected
+	}
+	return nil
+}
+
+func revokeConfirmBatchFromPreview(rec revokePreviewRecord, req RevokeConfirmRequest) (BatchRequest, error) {
+	var spec normalizedRevokeRequest
+	if err := json.Unmarshal([]byte(rec.RequestJSON), &spec); err != nil {
+		return BatchRequest{}, err
+	}
+	body, err := json.Marshal(spec)
+	if err != nil {
+		return BatchRequest{}, err
+	}
+	if rec.RequestHash != hashBytes(body) || rec.SubjectHash != hashSubjects(spec.Targets) || spec.ActorRef != req.ActorRef || spec.OrgID != req.OrgID {
+		return BatchRequest{}, ErrPreviewRejected
+	}
+	if len(req.Operations) != len(spec.Targets) {
+		return BatchRequest{}, ErrPreviewRejected
+	}
+	batch := BatchRequest{IdempotencyKey: req.IdempotencyKey, ActorRef: req.ActorRef, OrgID: req.OrgID}
+	for i, op := range req.Operations {
+		target := spec.Targets[i]
+		opID := strings.TrimSpace(op.ID)
+		if opID == "" {
+			opID = fmt.Sprintf("revoke-%d", i+1)
+		}
+		if opID != target.OperationID {
+			return BatchRequest{}, ErrPreviewRejected
+		}
+		if strings.TrimSpace(op.Revoke.AssignmentID) != "" {
+			if strings.TrimSpace(op.Revoke.AssignmentID) != target.AssignmentID {
+				return BatchRequest{}, ErrPreviewRejected
+			}
+		} else {
+			kind, id := op.Revoke.Resource.Key()
+			targetKind, targetID := target.Resource.Key()
+			if op.Revoke.SubjectRef != target.SubjectRef || strings.TrimSpace(op.Revoke.RoleID) != target.RoleID || kind != targetKind || id != targetID {
+				return BatchRequest{}, ErrPreviewRejected
+			}
+		}
+		if strings.TrimSpace(op.Revoke.Reason) != target.Reason || strings.TrimSpace(op.Revoke.Message) != target.Message {
+			return BatchRequest{}, ErrPreviewRejected
+		}
+		op.Type = "revoke_assignment"
+		op.ID = opID
+		op.Revoke.AssignmentID = target.AssignmentID
+		op.Revoke.ExpectedVersion = target.Version
+		op.Revoke.Reason = target.Reason
+		op.Revoke.Message = target.Message
+		batch.Operations = append(batch.Operations, op)
+	}
+	return batch, nil
 }
 
 type normalizedRevokeRequest struct {

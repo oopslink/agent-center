@@ -95,6 +95,25 @@ function adminPOST(
   });
 }
 
+async function webJSON(
+  baseURL: string,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown,
+  cookie?: string,
+): Promise<{ status: number; body: string; headers: Headers }> {
+  const headers: Record<string, string> = {};
+  const init: RequestInit = { method, headers };
+  if (cookie) headers["Cookie"] = cookie;
+  if (body !== undefined) {
+    const data = JSON.stringify(body);
+    headers["Content-Type"] = "application/json";
+    init.body = data;
+  }
+  const res = await fetch(`${baseURL}${path}`, init);
+  return { status: res.status, body: await res.text(), headers: res.headers };
+}
+
 // adminGET issues an HTTP GET over the admin unix socket with a bearer token.
 function adminGET(
   socketPath: string,
@@ -261,6 +280,98 @@ secret_management:
         );
       }
       expect(health.status, "admin /health: " + health.body).toBe(200);
+
+      // --- PHASE 1b: deployed Web API revoke confirm idempotency ------------
+      const baseURL = `http://127.0.0.1:${webPort}`;
+      const signup = await webJSON(baseURL, "POST", "/api/auth/signup", {
+        display_name: "access-smoke-owner",
+        email: "access-smoke-owner@example.com",
+        passcode: "Smoke123!",
+        organization_name: "Access Smoke Org",
+      });
+      expect(signup.status, "signup: " + signup.body).toBe(201);
+      const sessionCookie = /ac_session=([^;]+)/.exec(signup.headers.get("set-cookie") || "")?.[0];
+      expect(sessionCookie, "signup session cookie").toBeTruthy();
+      const signedUp = JSON.parse(signup.body) as {
+        identity_id: string;
+        organization_id: string;
+        organization_slug: string;
+      };
+      const grantBody = {
+        subject_refs: [`user:${signedUp.identity_id}`],
+        permission_keys: ["org.analytics.read"],
+        resources: [{ kind: "org", id: signedUp.organization_id, org_id: signedUp.organization_id }],
+        reason: "deployed revoke idempotency smoke",
+      };
+      const accessBase = `/api/orgs/${signedUp.organization_slug}/access`;
+      const grant = await webJSON(baseURL, "POST", `${accessBase}/batch/apply`, grantBody, sessionCookie);
+      expect(grant.status, "access grant apply: " + grant.body).toBe(200);
+      const grantPayload = JSON.parse(grant.body) as {
+        items: Array<{ status: string; grant_id: string }>;
+      };
+      expect(grantPayload.items).toHaveLength(1);
+      expect(grantPayload.items[0].status).toBe("allowed");
+      const grantID = grantPayload.items[0].grant_id;
+      expect(grantID, "created grant id").toBeTruthy();
+
+      const revokeBody = {
+        grant_ids: [grantID],
+        reason: "deployed revoke idempotency smoke",
+        message: "deployed revoke idempotency smoke",
+      };
+      const preview = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/grants/revoke/preview`,
+        revokeBody,
+        sessionCookie,
+      );
+      expect(preview.status, "revoke preview: " + preview.body).toBe(200);
+      const previewPayload = JSON.parse(preview.body) as {
+        preview_id: string;
+        token: string;
+        items: Array<{ status: string; grant_id: string }>;
+      };
+      expect(previewPayload.preview_id, "revoke preview_id").toBeTruthy();
+      expect(previewPayload.token, "revoke token").toBeTruthy();
+      expect(previewPayload.items[0].status).toBe("allowed");
+      const confirmBody = {
+        ...revokeBody,
+        preview_id: previewPayload.preview_id,
+        token: previewPayload.token,
+        idempotency_key: `deployed-revoke-confirm-${previewPayload.preview_id}`,
+      };
+      const confirm = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/grants/revoke/confirm`,
+        confirmBody,
+        sessionCookie,
+      );
+      expect(confirm.status, "revoke confirm: " + confirm.body).toBe(200);
+      const confirmPayload = JSON.parse(confirm.body) as {
+        summary: { succeeded: number; failed: number };
+        items: Array<{ status: string; grant_id: string }>;
+      };
+      expect(confirmPayload.summary.succeeded).toBe(1);
+      expect(confirmPayload.summary.failed).toBe(0);
+      expect(confirmPayload.items[0].status).toBe("allowed");
+      expect(confirmPayload.items[0].grant_id).toBe(grantID);
+      const replay = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/grants/revoke/confirm`,
+        confirmBody,
+        sessionCookie,
+      );
+      expect(replay.status, "revoke confirm replay: " + replay.body).toBe(200);
+      const replayPayload = JSON.parse(replay.body) as {
+        summary: { succeeded: number; failed: number };
+        items: Array<{ status: string; grant_id: string }>;
+      };
+      expect(replayPayload.summary).toEqual(confirmPayload.summary);
+      expect(replayPayload.items[0].status).toBe(confirmPayload.items[0].status);
+      expect(replayPayload.items[0].grant_id).toBe(confirmPayload.items[0].grant_id);
 
       // --- PHASE 2: the worker BINARY boots + enrolls over the socket -------
       worker = spawn(
