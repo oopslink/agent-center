@@ -31,19 +31,37 @@ const DefaultSocketName = "supervisor.sock"
 // the supervisor socket path.
 const AgentSocketName = "agent.sock"
 
-// SockPath returns the supervisor's unix socket path for an agent. v2.7 #178
+// SockPath returns the legacy supervisor unix socket path for an agent. New
+// supervisors should use ScopedSockPath(agentID, homeDir); this helper remains
+// for legacy supervisor.instance records that predate scoped socket paths.
+func SockPath(agentID string) string {
+	return sockPathHash(agentID)
+}
+
+// ScopedSockPath returns the supervisor's unix socket path for one agent home.
+// It is short like SockPath, but scopes the hash by homeDir as well as agentID.
+// That prevents two independent homes for the same agent id (parallel tests,
+// blue/green installs, or a rapid replacement before the old supervisor exits)
+// from unlinking each other's live socket.
+func ScopedSockPath(agentID, homeDir string) string {
+	return sockPathHash(agentID + "\x00" + filepath.Clean(homeDir))
+}
+
+// sockPathHash returns the supervisor's unix socket path for a stable identity.
+// v2.7 #178
 // (acceptance FINDING-E): the socket must NOT live under the agent home — that
 // path is deeply nested (`<prefix>/workers/<wid>/var/agents/<aid>`, and was even
 // deeper before #179/#209 dropped the double-workers/<wid> + agent-homes wrappers)
 // and blew past macOS's 104-byte AF_UNIX sun_path limit, so bind() failed, the
 // supervisor never came up, and the worker spun in an infinite restart loop.
 // The socket instead lives under the OS temp dir with a short hashed name. It is
-// deterministic from agentID so the daemon and the supervisor agree on the path
-// without passing it around, and short — TMPDIR + "acsv-" + 12 hex + ".sock"
-// (~71B on macOS) stays well under the limit. The resolved path is also recorded
-// in supervisor.instance for robustness across restarts / TMPDIR contexts.
-func SockPath(agentID string) string {
-	sum := sha256.Sum256([]byte(agentID))
+// deterministic from its inputs so the daemon and the supervisor agree on the
+// path without passing it around, and short — TMPDIR + "acsv-" + 12 hex +
+// ".sock" (~71B on macOS) stays well under the limit. The resolved path is also
+// recorded in supervisor.instance for robustness across restarts / TMPDIR
+// contexts.
+func sockPathHash(identity string) string {
+	sum := sha256.Sum256([]byte(identity))
 	return filepath.Join(os.TempDir(), "acsv-"+hex.EncodeToString(sum[:])[:12]+".sock")
 }
 

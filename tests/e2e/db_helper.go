@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 // queryDB opens path read-only and returns rows as []map[string]string.
 // Use only with SQL queries that produce string-friendly columns.
 func queryDB(t *testing.T, path, query string) []map[string]string {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	db, err := persistence.Open("file:" + path + "?mode=ro")
 	if err != nil {
 		t.Fatal(err)
 	}
