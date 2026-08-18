@@ -1678,6 +1678,13 @@ func (s *Server) accessBulkRevokeUnifiedHandler(w http.ResponseWriter, r *http.R
 	}
 	for i, id := range grantIDs {
 		item, op := accessRevokeItem(r.Context(), svc, orgID, actor, grants, i+1, id, reason, message, false)
+		if !preview && op.Type == "" && strings.TrimSpace(previewID) != "" && strings.TrimSpace(token) != "" {
+			op = authz.BatchOperation{
+				ID:     item.ID,
+				Type:   "revoke_assignment",
+				Revoke: authz.RevokeInput{AssignmentID: id, Reason: reason, Message: message},
+			}
+		}
 		items = append(items, item)
 		if op.Type != "" {
 			operations = append(operations, op)

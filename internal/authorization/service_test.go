@@ -242,15 +242,19 @@ func TestService_RevokePreviewConfirmStrongCAS(t *testing.T) {
 	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-2", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
 		t.Fatalf("org drift err=%v want ErrPreviewRejected", err)
 	}
-	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: []BatchOperation{{ID: "revoke", Revoke: RevokeInput{SubjectRef: "user:user-admin", RoleID: "role-revoke-cas", Resource: ResourceScope{Kind: "org", ID: "org-1"}, Reason: "cas"}}}}); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("subject drift err=%v want ErrNotFound", err)
+	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: []BatchOperation{{ID: "revoke", Revoke: RevokeInput{SubjectRef: "user:user-admin", RoleID: "role-revoke-cas", Resource: ResourceScope{Kind: "org", ID: "org-1"}, Reason: "cas"}}}}); !errors.Is(err, ErrPreviewRejected) {
+		t.Fatalf("subject drift err=%v want ErrPreviewRejected", err)
 	}
 	res, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops})
 	if err != nil || len(res.Operations) != 1 || res.Operations[0].Status != "revoked" {
 		t.Fatalf("ConfirmRevoke = %#v err=%v", res, err)
 	}
-	if _, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops}); !errors.Is(err, ErrPreviewRejected) {
-		t.Fatalf("replay err=%v want ErrPreviewRejected", err)
+	replay, err := svc.ConfirmRevoke(ctx, RevokeConfirmRequest{PreviewID: preview.PreviewID, Token: preview.Token, ActorRef: "user:user-owner", OrgID: "org-1", Operations: ops})
+	if err != nil {
+		t.Fatalf("ConfirmRevoke replay: %v", err)
+	}
+	if !replay.Replayed || replay.IdempotencyKey != res.IdempotencyKey || len(replay.Operations) != 1 || replay.Operations[0] != res.Operations[0] {
+		t.Fatalf("ConfirmRevoke replay = %#v, first = %#v", replay, res)
 	}
 }
 

@@ -199,9 +199,34 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	if directConfirm.Summary.Succeeded != 1 || directConfirm.Summary.Failed != 0 || len(directConfirm.Items) != 1 || directConfirm.Items[0].Status != "allowed" || directConfirm.Items[0].GrantID != directGrantID {
 		t.Fatalf("direct revoke confirm = %+v", directConfirm)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/confirm", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`","preview_id":"`+directPreview.PreviewID+`","token":"`+directPreview.Token+`","idempotency_key":"`+stableRevokeKey+`"}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct revoke confirm replay status=%d", resp.StatusCode)
+	}
+	var directReplay struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"summary"`
+		Items []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&directReplay); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if directReplay.Summary.Succeeded != directConfirm.Summary.Succeeded || directReplay.Summary.Failed != directConfirm.Summary.Failed || len(directReplay.Items) != len(directConfirm.Items) || directReplay.Items[0].Status != directConfirm.Items[0].Status || directReplay.Items[0].GrantID != directConfirm.Items[0].GrantID {
+		t.Fatalf("direct revoke confirm replay = %+v, first = %+v", directReplay, directConfirm)
+	}
 	var previewConsumed int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_revoke_previews WHERE preview_id = ? AND status = 'confirmed'`, directPreview.PreviewID).Scan(&previewConsumed); err != nil || previewConsumed != 1 {
 		t.Fatalf("confirmed preview count=%d err=%v", previewConsumed, err)
+	}
+	var auditCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_audit_events WHERE event_type = 'authorization.assignment.revoked' AND assignment_id = ?`, directGrantID).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("revoke audit count=%d err=%v", auditCount, err)
 	}
 	var payloadRaw string
 	var requestID string
