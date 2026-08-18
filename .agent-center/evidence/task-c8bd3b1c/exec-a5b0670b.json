@@ -1,0 +1,135 @@
+{
+  "task_id": "task-c8bd3b1c",
+  "execution_id": "exec-a5b0670b",
+  "review_task": "T1382 independent revoke fix2 safety revalidation, topology-corrected recovery run",
+  "created_at": "2026-08-18T13:00:00Z",
+  "managed_branch": "ac-exec/task-c8bd3b1c/exec-a5b0670b",
+  "candidate": {
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "subject": "fix access revoke audit reason message",
+    "remote_ref": "refs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+    "remote_ref_verified_by": "git ls-remote --heads origin | rg '252584fd0b4f3507a2090f449855005248a9b536|t1382|task-854687c8|task-c8bd3b1c'",
+    "remote_ref_verified_output": "252584fd0b4f3507a2090f449855005248a9b536\trefs/heads/ac-exec/task-854687c8/exec-b3f7075f",
+    "evidence_ref_seen": "441e7f47df97122e9648a84ca36a0c53e03ef03c\trefs/heads/evidence/t1382-revoke-fix2-252584fd",
+    "review_sha_note": "review_sha is the upstream code candidate, not this evidence commit and not the prior evidence commit."
+  },
+  "topology": {
+    "origin_main_sha": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+    "current_managed_branch_initial_head": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+    "candidate_is_on_remote_branch": true,
+    "candidate_is_not_origin_main_head": true,
+    "current_branch_never_switched": true,
+    "candidate_test_method": "detached temporary worktree at /tmp/t1382-candidate-252584fd; no evidence/* branch was created or checked out"
+  },
+  "diff_scope": {
+    "base": "142a9e080c44d620a4f18ef44ef83530f7eaa537",
+    "head": "252584fd0b4f3507a2090f449855005248a9b536",
+    "files": [
+      "internal/authorization/service.go",
+      "internal/authorization/service_test.go",
+      "internal/authorization/types.go",
+      "internal/webconsole/api/handlers_access.go",
+      "internal/webconsole/api/handlers_access_test.go",
+      "web/src/api/access.ts",
+      "web/src/pages/Access.test.tsx",
+      "web/src/pages/Access.tsx"
+    ],
+    "diff_check": {
+      "command": "git diff --check 142a9e080c44d620a4f18ef44ef83530f7eaa537..252584fd0b4f3507a2090f449855005248a9b536",
+      "exit_status": 0
+    }
+  },
+  "review_findings": {
+    "verdict": "PASS",
+    "summary": "No blocking security or correctness issue found in the candidate.",
+    "revoke_confirm_audit": "ConfirmRevoke now carries preview-captured reason/message into each concrete revoke operation. The revoke audit event records status plus reason/message and the batch idempotency key as request_id.",
+    "cas_idempotency_rollback": "Existing preview confirm token, expected version, replay, expiry, actor/org/subject drift, concurrent idempotent revoke, stale CAS, second revoke unchanged, and rollback coverage remain intact; new tests assert the audit payload and stable request_id on the direct revoke confirm path.",
+    "frontend_confirm_binding": "Access.tsx stores grant_ids, reason, message, preview_id, token, and idempotency_key returned/derived at preview time, so later edits to the reason field do not mutate the confirm payload.",
+    "production_completion_precondition": "Candidate revalidation passed, but origin/main still points at 142a9e080c44d620a4f18ef44ef83530f7eaa537. Final production completion remains gated on the candidate being merged to origin/main by the normal integration path."
+  },
+  "commands": [
+    {
+      "command": "git ls-remote --heads origin",
+      "exit_status": 0,
+      "purpose": "Enumerated remote heads without relying on stale local refs. Full fetch was intentionally not used after Git refused to fetch into another checked-out worktree branch."
+    },
+    {
+      "command": "git ls-remote origin refs/heads/ac-exec/task-854687c8/exec-b3f7075f refs/heads/evidence/t1382-revoke-fix2-252584fd refs/heads/main",
+      "exit_status": 0,
+      "output": "252584fd0b4f3507a2090f449855005248a9b536\trefs/heads/ac-exec/task-854687c8/exec-b3f7075f\n441e7f47df97122e9648a84ca36a0c53e03ef03c\trefs/heads/evidence/t1382-revoke-fix2-252584fd\n142a9e080c44d620a4f18ef44ef83530f7eaa537\trefs/heads/main"
+    },
+    {
+      "command": "git worktree add --detach /tmp/t1382-candidate-252584fd 252584fd0b4f3507a2090f449855005248a9b536",
+      "exit_status": 0
+    },
+    {
+      "command": "go test ./internal/authorization ./internal/webconsole/api",
+      "exit_status": 0,
+      "summary": "internal/authorization passed in 7.777s; internal/webconsole/api passed in 64.034s"
+    },
+    {
+      "command": "go test ./...",
+      "exit_status": 0,
+      "summary": "All Go packages passed, including tests/e2e and tests/integration."
+    },
+    {
+      "command": "cd web && pnpm test -- Access.test.tsx",
+      "exit_status": 0,
+      "summary": "Vitest ran the full SPA suite: 191 files passed, 1773 tests passed."
+    },
+    {
+      "command": "cd web && pnpm exec vitest run src/pages/Access.test.tsx",
+      "exit_status": 0,
+      "summary": "Focused Access test passed: 1 file, 6 tests."
+    },
+    {
+      "command": "make lint",
+      "exit_status": 0,
+      "summary": "go vet, gofmt check, repo lint guards, TypeScript build mode, and ESLint passed."
+    },
+    {
+      "command": "make build",
+      "exit_status": 0,
+      "summary": "Frontend production build and Go binaries built successfully.",
+      "warnings": [
+        "Vite CSS minifier warning: Expected identifier but found '-'",
+        "Vite chunk-size warnings over 500 kB"
+      ]
+    },
+    {
+      "command": "./scripts/smoke/deploy-smoke.sh",
+      "exit_status": 0,
+      "summary": "Preflight, e2e install, Playwright chromium install, fresh build, deployed-binary v22 pipeline spec, and runtime-version assertions passed; final line: smoke pass: 28 seconds.",
+      "warnings": [
+        "Same Vite CSS and chunk-size warnings as make build; command exited 0."
+      ]
+    }
+  ],
+  "rule_handling": {
+    "get_team_rule_available": false,
+    "note": "The executor instruction prohibited agent-center/MCP access, so get_team_rule could not be called. The supplied rule descriptions were applied using git-visible and command evidence only."
+  },
+  "structured_verdict": {
+    "verdict": "PASS",
+    "review_sha": "252584fd0b4f3507a2090f449855005248a9b536",
+    "evidence_commit_is_not_review_sha": true,
+    "remote_reachable": true,
+    "covered": [
+      "revoke confirm audit reason/message",
+      "stable confirm idempotency key",
+      "preview token binding",
+      "CAS and replay behavior",
+      "rollback behavior",
+      "full Go test suite",
+      "full SPA Vitest suite",
+      "focused Access Vitest",
+      "lint",
+      "production build",
+      "deployed-binary smoke"
+    ],
+    "residual_warnings": [
+      "Candidate is not yet origin/main; production completion remains gated on merge.",
+      "Vite emits pre-existing CSS/chunk-size warnings but all build and smoke gates exit 0."
+    ]
+  }
+}
