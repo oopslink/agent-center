@@ -63,7 +63,9 @@ func filesCallerRef(id *identity.Identity) string {
 //   - project:       accessible iff the caller is a member of ref.ScopeID.
 //   - conversation:  must be in the caller's org, then (T244) channel → any org
 //     member; plan/task/issue → a LIVE participant OR a member of the conversation's
-//     owning project (download mirrors read; never broader); dm → LIVE participant.
+//     owning project (download mirrors read; never broader); dm → LIVE participant
+//     except runtime/system DMs with no human participant, which are readable
+//     operational records for org members.
 //   - agent / tmp:   NOT human-accessible — skipped (no human download grant;
 //     these are reachable to agents in POST-D3).
 func (s *Server) fileReachableForHuman(ctx context.Context, d HandlerDeps, caller *identity.Identity, orgID string, fileURI files.FileURI) (bool, error) {
@@ -158,13 +160,22 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		// the channel list + requireConversationInOrg (the message-read gate) don't
 		// check participation — so its attachments, INCLUDING ones an agent posted,
 		// are downloadable by any org member (download == read; never broader). A DM
-		// (and the other participant-private kinds) stays strictly participant-gated:
-		// fail-closed, no cross-member leak.
+		// (and the other participant-private kinds) stays strictly participant-gated,
+		// with one operational exception below.
 		if conv.Kind() == conversation.ConversationKindChannel {
 			return true, nil
 		}
 		// A live participant always reaches (DM/plan/task/issue alike).
 		if conv.HasActiveParticipant(conversation.IdentityRef(callerRef)) {
+			return true, nil
+		}
+		// Runtime/system DMs have no human participant (e.g. system↔agent reminder
+		// chats or agent↔agent operational handoffs). The webconsole already exposes
+		// those chat records to org members through the same org-scoped conversation
+		// read gate, so attachments embedded in those visible messages must be
+		// openable too. DMs with any active human participant stay participant-only
+		// to preserve user↔user and user↔agent private-chat boundaries.
+		if conv.Kind() == conversation.ConversationKindDM && dmHasNoActiveHumanParticipant(conv) {
 			return true, nil
 		}
 		// T244 follow-up (plan-chat 403): a PROJECT-SCOPED conversation
@@ -194,6 +205,18 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 	default:
 		return false, nil
 	}
+}
+
+func dmHasNoActiveHumanParticipant(conv *conversation.Conversation) bool {
+	if conv.Kind() != conversation.ConversationKindDM {
+		return false
+	}
+	for _, p := range conv.Participants() {
+		if p.IsActive() && p.IdentityID.IsHuman() {
+			return false
+		}
+	}
+	return true
 }
 
 // Conversation owner_ref schemes for PROJECT-SCOPED conversations (mirrors the

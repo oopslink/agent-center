@@ -470,6 +470,52 @@ func TestAPI_Files_Download_DMNonParticipant_403(t *testing.T) {
 	}
 }
 
+// TestAPI_Files_Download_RuntimeDMNoHumanParticipant_200 covers operational
+// system/agent or agent/agent DMs. The webconsole exposes those chat records to
+// org members as runtime history; attachments embedded in visible messages must
+// be openable even though the human is not a DM participant.
+func TestAPI_Files_Download_RuntimeDMNoHumanParticipant_200(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	openRes, err := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: sess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: conversation.IdentityRef("system"), Role: "owner", JoinedAt: "t", JoinedBy: conversation.IdentityRef("system")},
+			{IdentityID: conversation.IdentityRef("agent:agent-peer"), Role: "member", JoinedAt: "t", JoinedBy: conversation.IdentityRef("system")},
+		},
+		CreatedBy: conversation.IdentityRef("system"),
+		Actor:     observability.Actor("system"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("runtime dm attachment")
+	ulid := uploadBlob(t, s.URL, sess, content)
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(openRes.ConversationID),
+		Filename: "report.txt", MimeType: "text/plain", CreatedBy: "agent:agent-peer",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("runtime DM attachment download: status=%d body=%s, want 200", resp.StatusCode, b)
+	}
+	got, _ := io.ReadAll(resp.Body)
+	if !bytes.Equal(got, content) {
+		t.Fatalf("body mismatch: %q != %q", got, content)
+	}
+}
+
 // savePlanScopedConv builds and persists a PROJECT-SCOPED conversation (plan/task
 // /issue owner_ref) whose ONLY participant is an agent — so a human caller can
 // VIEW it (org/project read) but is NOT a participant. Mirrors what the
