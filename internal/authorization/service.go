@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -20,11 +21,12 @@ import (
 )
 
 type Service struct {
-	db    *sql.DB
-	store *Store
-	gen   idgen.Generator
-	clock clock.Clock
-	sink  *observability.EventSink
+	db             *sql.DB
+	store          *Store
+	gen            idgen.Generator
+	clock          clock.Clock
+	sink           *observability.EventSink
+	effectiveCache effectiveCache
 }
 
 type Deps struct {
@@ -49,6 +51,53 @@ func New(deps Deps) *Service {
 		store = NewStore(deps.DB)
 	}
 	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink}
+}
+
+type effectiveCache struct {
+	mu      sync.RWMutex
+	entries map[string]effectiveCacheEntry
+}
+
+type effectiveCacheEntry struct {
+	version     string
+	effective   []EffectivePermission
+	denied      []string
+	resolvedOrg string
+}
+
+func effectiveCacheKey(req CheckRequest) string {
+	r := req.Resource
+	return strings.Join([]string{
+		string(req.SubjectRef),
+		string(req.Transport),
+		req.BearerScope,
+		string(req.Permission),
+		r.Kind,
+		r.ID,
+		r.OrgID,
+		r.ProjectID,
+		r.URI,
+		r.OwnerRef,
+		r.IdentityMemberID,
+	}, "\x00")
+}
+
+func cloneEffectivePermissions(in []EffectivePermission) []EffectivePermission {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]EffectivePermission, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneDenied(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
 }
 
 func (s *Service) ListDefinitions(ctx context.Context) ([]PermissionDefinition, error) {
@@ -282,6 +331,9 @@ func (s *Service) ApplyBatch(ctx context.Context, req BatchRequest) (BatchResult
 		out = res
 		return nil
 	})
+	if err == nil {
+		s.invalidateEffectiveCache()
+	}
 	return out, err
 }
 
@@ -406,6 +458,9 @@ func (s *Service) ConfirmRevoke(ctx context.Context, req RevokeConfirmRequest) (
 		}
 		return s.store.completeIdempotency(txCtx, req.IdempotencyKey, body, now)
 	})
+	if err == nil {
+		s.invalidateEffectiveCache()
+	}
 	return out, err
 }
 
@@ -829,6 +884,27 @@ func (s *Service) remainingOrgOwners(ctx context.Context, orgID, excludingAssign
 }
 
 func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
+	version, err := s.effectiveVersion(ctx)
+	if err != nil {
+		return nil, []string{"effective permission version unavailable"}, err
+	}
+	key := effectiveCacheKey(req)
+	if cached, ok := s.getCachedEffective(key, version); ok {
+		return cached.effective, cached.denied, nil
+	}
+	effective, denied, err := s.deriveEffectiveUncached(ctx, req)
+	if err == nil {
+		s.putCachedEffective(key, effectiveCacheEntry{
+			version:     version,
+			effective:   cloneEffectivePermissions(effective),
+			denied:      cloneDenied(denied),
+			resolvedOrg: req.Resource.OrgID,
+		})
+	}
+	return effective, denied, err
+}
+
+func (s *Service) deriveEffectiveUncached(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
 	var out []EffectivePermission
 	var denied []string
 	add := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
@@ -856,10 +932,71 @@ func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]Effe
 	if err := s.addLegacyEffective(ctx, req, add, &denied); err != nil {
 		return out, denied, err
 	}
+	if err := s.addTeamRAMEffective(ctx, req, &out); err != nil {
+		return out, denied, err
+	}
 	if err := s.addCustomEffective(ctx, req, &out); err != nil {
 		return out, denied, err
 	}
 	return out, denied, nil
+}
+
+func (s *Service) getCachedEffective(key, version string) (effectiveCacheEntry, bool) {
+	s.effectiveCache.mu.RLock()
+	defer s.effectiveCache.mu.RUnlock()
+	if s.effectiveCache.entries == nil {
+		return effectiveCacheEntry{}, false
+	}
+	entry, ok := s.effectiveCache.entries[key]
+	if !ok || entry.version != version {
+		return effectiveCacheEntry{}, false
+	}
+	entry.effective = cloneEffectivePermissions(entry.effective)
+	entry.denied = cloneDenied(entry.denied)
+	return entry, true
+}
+
+func (s *Service) putCachedEffective(key string, entry effectiveCacheEntry) {
+	s.effectiveCache.mu.Lock()
+	defer s.effectiveCache.mu.Unlock()
+	if s.effectiveCache.entries == nil {
+		s.effectiveCache.entries = map[string]effectiveCacheEntry{}
+	}
+	entry.effective = cloneEffectivePermissions(entry.effective)
+	entry.denied = cloneDenied(entry.denied)
+	s.effectiveCache.entries[key] = entry
+}
+
+func (s *Service) invalidateEffectiveCache() {
+	s.effectiveCache.mu.Lock()
+	defer s.effectiveCache.mu.Unlock()
+	s.effectiveCache.entries = nil
+}
+
+func (s *Service) effectiveVersion(ctx context.Context) (string, error) {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return "", err
+	}
+	parts := make([]string, 0, 8)
+	queries := []string{
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || subject_ref || ':' || role_id || ':' || resource_kind || ':' || resource_id || ':' || version || ':' || COALESCE(revoked_at, '') || ':' || COALESCE(expires_at, '') AS v FROM authorization_role_assignments ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT role_id || ':' || permission_key || ':' || resource_kind || ':' || delegatable AS v FROM authorization_role_permissions ORDER BY role_id, permission_key, resource_kind)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || member_ref || ':' || role || ':' || created_at AS v FROM team_members ORDER BY team_id, member_ref)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || project_id || ':' || created_at AS v FROM team_projects ORDER BY team_id, project_id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || ram_role_id || ':' || created_at AS v FROM team_role_ram_role_mappings ORDER BY team_id, team_role, ram_role_id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || version || ':' || updated_at AS v FROM team_role_ram_role_versions ORDER BY team_id, team_role)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || agent_ref || ':' || created_at AS v FROM team_memory_policy_curators ORDER BY team_id, agent_ref)`,
+	}
+	for _, query := range queries {
+		var part string
+		if err := exec.QueryRowContext(ctx, query).Scan(&part); err != nil {
+			return "", err
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "|"), nil
 }
 
 func (s *Service) addLegacyEffective(ctx context.Context, req CheckRequest, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
@@ -1142,6 +1279,93 @@ func (s *Service) addTeamEffective(ctx context.Context, subject SubjectRef, team
 		}
 	}
 	return nil
+}
+
+func (s *Service) addTeamRAMEffective(ctx context.Context, req CheckRequest, out *[]EffectivePermission) error {
+	if !(req.SubjectRef.IsUser() || req.SubjectRef.IsAgent()) || req.Resource.OrgID == "" {
+		return nil
+	}
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT tm.team_id, tm.role, trm.ram_role_id, arp.permission_key, arp.resource_kind, arp.delegatable
+		FROM team_members tm
+		JOIN teams t ON t.id = tm.team_id
+		JOIN team_role_ram_role_mappings trm ON trm.team_id = tm.team_id AND trm.team_role = tm.role
+		JOIN authorization_roles ar ON ar.id = trm.ram_role_id AND ar.revoked_at IS NULL AND ar.kind IN ('system', 'custom') AND (ar.org_id = '' OR ar.org_id = t.org_id)
+		JOIN authorization_role_permissions arp ON arp.role_id = ar.id
+		WHERE tm.member_ref = ? AND t.org_id = ?
+		ORDER BY tm.team_id, tm.role, trm.ram_role_id, arp.permission_key`, req.SubjectRef, req.Resource.OrgID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var teamID, teamRole, roleID, resourceKind string
+		var key PermissionKey
+		var delegatable int
+		if err := rows.Scan(&teamID, &teamRole, &roleID, &key, &resourceKind, &delegatable); err != nil {
+			return err
+		}
+		if !teamRAMScopeMatches(req.Resource, teamID, resourceKind, func(projectID string) bool {
+			linked, err := s.teamLinkedToProject(ctx, teamID, projectID)
+			return err == nil && linked
+		}) {
+			continue
+		}
+		if !PermissionDefinedForResource(key, req.Resource.Kind) {
+			continue
+		}
+		addEffectivePermission(out, EffectivePermission{
+			Key:         key,
+			Source:      SourceTeamRoleRAM,
+			EvidenceRef: "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + roleID,
+			Delegatable: delegatable == 1,
+			RoleID:      roleID,
+		})
+	}
+	return rows.Err()
+}
+
+func teamRAMScopeMatches(r ResourceScope, teamID, permissionResourceKind string, linkedProject func(string) bool) bool {
+	if permissionResourceKind != r.Kind {
+		return false
+	}
+	switch r.Kind {
+	case "team":
+		return r.ID == teamID
+	case "project":
+		return r.ID != "" && linkedProject(r.ID)
+	case "task", "issue", "plan":
+		return r.ProjectID != "" && linkedProject(r.ProjectID)
+	default:
+		return false
+	}
+}
+
+func (s *Service) teamLinkedToProject(ctx context.Context, teamID, projectID string) (bool, error) {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	var found int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_projects WHERE team_id = ? AND project_id = ?`, teamID, projectID).Scan(&found); err != nil {
+		return false, err
+	}
+	return found > 0, nil
+}
+
+func addEffectivePermission(out *[]EffectivePermission, next EffectivePermission) {
+	if next.Key == "" {
+		return
+	}
+	for _, p := range *out {
+		if p.Key == next.Key && p.Source == next.Source && p.EvidenceRef == next.EvidenceRef {
+			return
+		}
+	}
+	*out = append(*out, next)
 }
 
 func (s *Service) addConversationEffective(ctx context.Context, subject SubjectRef, convID string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {

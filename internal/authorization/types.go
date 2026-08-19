@@ -35,6 +35,7 @@ const (
 	SourceAgentWorkerBinding      DecisionSource = "agent_worker_binding"
 	SourceSystem                  DecisionSource = "system"
 	SourceCustomRole              DecisionSource = "custom_role"
+	SourceTeamRoleRAM             DecisionSource = "team_role_ram"
 )
 
 var (
