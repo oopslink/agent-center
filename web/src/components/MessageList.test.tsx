@@ -356,6 +356,60 @@ describe('MessageList attachments (#142)', () => {
     expect(container.querySelector('audio')).toBeNull();
   });
 
+  it('opens message attachments in a preview modal with download, copy, and zoom controls', async () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    render(
+      <MessageList
+        messages={[
+          withAtts('m-preview', [
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV', filename: 'design.png', mime_type: 'image/png', size: 2048 },
+          ]),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('attachment-link'));
+    const viewer = screen.getByTestId('attachment-viewer');
+    expect(viewer).toHaveAttribute('role', 'dialog');
+    expect(screen.getByTestId('attachment-viewer-image')).toHaveAttribute('src', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+
+    const download = screen.getByTestId('attachment-viewer-download');
+    expect(download).toHaveAttribute('href', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(download).toHaveAttribute('download', 'design.png');
+
+    expect(screen.getByTestId('attachment-viewer-zoom-pct')).toHaveTextContent('100%');
+    fireEvent.click(screen.getByTestId('attachment-viewer-zoom-in'));
+    expect(screen.getByTestId('attachment-viewer-zoom-pct')).toHaveTextContent('125%');
+    fireEvent.click(screen.getByTestId('attachment-viewer-zoom-out'));
+    expect(screen.getByTestId('attachment-viewer-zoom-pct')).toHaveTextContent('100%');
+
+    fireEvent.click(screen.getByTestId('attachment-viewer-copy'));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      new URL('/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV', window.location.href).toString(),
+    );
+    await waitFor(() => expect(screen.getByTestId('attachment-viewer-copy-status')).toHaveTextContent('Copied'));
+
+    fireEvent.click(screen.getByTestId('attachment-viewer-close'));
+    expect(screen.queryByTestId('attachment-viewer')).not.toBeInTheDocument();
+  });
+
+  it('previews html and document-like attachments in a sandboxed frame', () => {
+    render(
+      <MessageList
+        messages={[
+          withAtts('m-html', [
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAH', filename: 'report.html', mime_type: 'text/html', size: 4096 },
+          ]),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('attachment-link'));
+    const frame = screen.getByTestId('attachment-viewer-frame');
+    expect(frame).toHaveAttribute('src', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAH');
+    expect(frame).toHaveAttribute('sandbox', '');
+  });
+
   it('renders nothing extra for a plain message (no attachments)', () => {
     render(<MessageList messages={[sample('m2', 'plain')]} />);
     expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();

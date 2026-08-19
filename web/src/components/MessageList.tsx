@@ -1,12 +1,13 @@
 import type React from 'react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Message, QuotedMessagePreview } from '@/api/types';
+import type { Message, MessageAttachment, QuotedMessagePreview } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef, isSystemSender } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime, formatLocalTime } from '@/utils/time';
+import { IconClose, IconCopy, IconDownload, IconZoomIn, IconZoomOut } from './icons';
 import { MarkdownMessage } from './MarkdownMessage';
 import { MessageCopyButton } from './MessageCopyButton';
 import { MessageQuoteButton } from './MessageQuoteButton';
@@ -18,6 +19,7 @@ import { ThreadButton } from './ThreadButton';
 import { ThreadSidebar } from './ThreadSidebar';
 import { useThreadSidebar } from './ThreadSidebarContext';
 import { ThreadPreview } from './ThreadPreview';
+import { useModalA11y } from './useModalA11y';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -140,6 +142,7 @@ export function MessageList({
   const providerOpenThread = useThreadSidebar();
   const [localThreadRoot, setLocalThreadRoot] = useState<Message | null>(null);
   const openThread = providerOpenThread ?? setLocalThreadRoot;
+  const [viewerAttachment, setViewerAttachment] = useState<MessageAttachment | null>(null);
 
   // 引用 (quote): the shared quote target (owned by QuoteContext, mounted by
   // ConversationView). Null when rendered standalone (no provider) — the Quote
@@ -358,6 +361,11 @@ export function MessageList({
       </div>
     );
 
+    const openAttachment = (att: MessageAttachment, e?: React.MouseEvent<HTMLElement>) => {
+      e?.preventDefault();
+      setViewerAttachment(att);
+    };
+
     // Content-only bubble body: markdown + attachments (no name/time). On the OWN
     // bubble the surface is the FIXED light-blue #D1E3FF with FIXED dark text, so
     // the attachment chrome uses the SAME both-mode treatment as the non-own side
@@ -396,43 +404,51 @@ export function MessageList({
             className={`mt-1 flex flex-wrap gap-2 ${isOwn ? 'justify-end' : ''}`}
             data-testid="message-attachments"
           >
-            {m.attachments.map((att) => (
-              <li
-                key={att.uri}
-                className="flex min-w-0 max-w-full items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
-                data-testid="message-attachment"
-                data-mime={att.mime_type}
-              >
-                {att.mime_type.startsWith('image/') && (
-                  <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={t('message.openAttachment', { filename: att.filename })}>
-                    <img
-                      src={attachmentHref(att.uri)}
-                      alt={att.filename}
-                      className="h-10 w-10 rounded object-cover"
-                      data-testid="attachment-preview"
-                    />
-                  </a>
-                )}
-                <a
-                  href={attachmentHref(att.uri)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex min-w-0 items-center gap-2 text-text-primary hover:underline"
-                  data-testid="attachment-link"
+            {m.attachments.map((att) => {
+              const href = attachmentHref(att.uri);
+              return (
+                <li
+                  key={att.uri}
+                  className="flex min-w-0 max-w-full items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
+                  data-testid="message-attachment"
+                  data-mime={att.mime_type}
                 >
-                  <span
-                    className="shrink-0 rounded bg-bg-base px-1 font-mono uppercase text-text-muted"
-                    data-testid="attachment-type"
+                  {att.mime_type.startsWith('image/') && (
+                    <button
+                      type="button"
+                      onClick={(e) => openAttachment(att, e)}
+                      aria-label={t('message.openAttachment', { filename: att.filename })}
+                      className="shrink-0 rounded focus-visible:ring-2 focus-visible:ring-accent"
+                      data-testid="attachment-preview-button"
+                    >
+                      <img
+                        src={href}
+                        alt={att.filename}
+                        className="h-10 w-10 rounded object-cover"
+                        data-testid="attachment-preview"
+                      />
+                    </button>
+                  )}
+                  <a
+                    href={href}
+                    onClick={(e) => openAttachment(att, e)}
+                    className="flex min-w-0 items-center gap-2 text-text-primary hover:underline"
+                    data-testid="attachment-link"
                   >
-                    {attachmentKind(att.mime_type)}
-                  </span>
-                  {/* T149: a long filename truncates (ellipsis) instead of widening
-                      the chip past the viewport; full name on hover/aria via the link. */}
-                  <span className="truncate" title={att.filename}>{att.filename}</span>
-                </a>
-                <span className="text-text-muted">{formatBytes(att.size)}</span>
-              </li>
-            ))}
+                    <span
+                      className="shrink-0 rounded bg-bg-base px-1 font-mono uppercase text-text-muted"
+                      data-testid="attachment-type"
+                    >
+                      {attachmentKind(att.mime_type)}
+                    </span>
+                    {/* T149: a long filename truncates (ellipsis) instead of widening
+                        the chip past the viewport; full name on hover/aria via the link. */}
+                    <span className="truncate" title={att.filename}>{att.filename}</span>
+                  </a>
+                  <span className="text-text-muted">{formatBytes(att.size)}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -618,8 +634,297 @@ export function MessageList({
           onClose={() => setLocalThreadRoot(null)}
         />
       )}
+      {viewerAttachment && (
+        <AttachmentViewerModal
+          attachment={viewerAttachment}
+          onClose={() => setViewerAttachment(null)}
+        />
+      )}
     </div>
   );
+}
+
+const ATTACHMENT_ZOOM_MIN = 0.5;
+const ATTACHMENT_ZOOM_MAX = 3;
+const ATTACHMENT_ZOOM_STEP = 0.25;
+
+function AttachmentViewerModal({
+  attachment,
+  onClose,
+}: {
+  attachment: MessageAttachment;
+  onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation('chat');
+  const [zoom, setZoom] = useState(1);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const titleId = useId();
+  const copyTimerRef = useRef<number | undefined>(undefined);
+  const dialogRef = useModalA11y({ open: true, onClose });
+  const href = attachmentHref(attachment.uri);
+  const zoomPct = Math.round(zoom * 100);
+
+  useEffect(() => {
+    setZoom(1);
+    setCopyState('idle');
+  }, [attachment.uri]);
+
+  useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
+
+  const markCopyState = (state: 'copied' | 'failed') => {
+    setCopyState(state);
+    window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => setCopyState('idle'), 1800);
+  };
+
+  const copyLink = () => {
+    const text = href === '#' ? attachment.filename : new URL(href, window.location.href).toString();
+    if (!navigator.clipboard?.writeText) {
+      markCopyState('failed');
+      return;
+    }
+    void navigator.clipboard.writeText(text).then(
+      () => markCopyState('copied'),
+      () => markCopyState('failed'),
+    );
+  };
+
+  const zoomOut = () => setZoom((z) => Math.max(ATTACHMENT_ZOOM_MIN, z - ATTACHMENT_ZOOM_STEP));
+  const zoomIn = () => setZoom((z) => Math.min(ATTACHMENT_ZOOM_MAX, z + ATTACHMENT_ZOOM_STEP));
+  const resetZoom = () => setZoom(1);
+
+  const closeFromBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  const copyStatus =
+    copyState === 'copied'
+      ? t('message.attachmentViewer.copied')
+      : copyState === 'failed'
+        ? t('message.attachmentViewer.copyFailed')
+        : '';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3"
+      onMouseDown={closeFromBackdrop}
+      data-testid="attachment-viewer-backdrop"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-2"
+        data-testid="attachment-viewer"
+      >
+        <div className="flex min-h-14 flex-wrap items-center gap-3 border-b border-border-base px-3 py-2">
+          <div className="min-w-0 flex-1 basis-48">
+            <h2 id={titleId} className="truncate text-sm font-semibold text-text-primary" title={attachment.filename}>
+              {attachment.filename}
+            </h2>
+            <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
+              <span>{attachmentKind(attachment.mime_type)}</span>
+              <span>{formatBytes(attachment.size)}</span>
+            </div>
+          </div>
+          <div className="flex max-w-full shrink-0 items-center gap-1 overflow-x-auto">
+            <AttachmentViewerIconButton
+              label={t('message.attachmentViewer.zoomOut')}
+              testId="attachment-viewer-zoom-out"
+              onClick={zoomOut}
+              disabled={zoom <= ATTACHMENT_ZOOM_MIN}
+            >
+              <IconZoomOut />
+            </AttachmentViewerIconButton>
+            <button
+              type="button"
+              onClick={resetZoom}
+              aria-label={t('message.attachmentViewer.resetZoom')}
+              title={t('message.attachmentViewer.resetZoom')}
+              className="h-8 min-w-12 rounded border border-border-base bg-bg-base px-2 text-xs font-medium tabular-nums text-text-secondary hover:bg-bg-subtle focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="attachment-viewer-zoom-reset"
+            >
+              <span data-testid="attachment-viewer-zoom-pct">{zoomPct}%</span>
+            </button>
+            <AttachmentViewerIconButton
+              label={t('message.attachmentViewer.zoomIn')}
+              testId="attachment-viewer-zoom-in"
+              onClick={zoomIn}
+              disabled={zoom >= ATTACHMENT_ZOOM_MAX}
+            >
+              <IconZoomIn />
+            </AttachmentViewerIconButton>
+            <AttachmentViewerIconButton
+              label={t('message.attachmentViewer.copyLink')}
+              testId="attachment-viewer-copy"
+              onClick={copyLink}
+            >
+              <IconCopy />
+            </AttachmentViewerIconButton>
+            <a
+              href={href}
+              download={attachment.filename}
+              onClick={(e) => {
+                if (href === '#') e.preventDefault();
+              }}
+              aria-label={t('message.attachmentViewer.download')}
+              title={t('message.attachmentViewer.download')}
+              className="flex h-8 w-8 items-center justify-center rounded border border-border-base bg-bg-base text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="attachment-viewer-download"
+            >
+              <IconDownload />
+            </a>
+            <AttachmentViewerIconButton
+              label={t('message.attachmentViewer.close')}
+              testId="attachment-viewer-close"
+              onClick={onClose}
+            >
+              <IconClose />
+            </AttachmentViewerIconButton>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 bg-bg-base">
+          <AttachmentPreview attachment={attachment} href={href} zoom={zoom} />
+        </div>
+        <div className="min-h-6 border-t border-border-base px-3 py-1 text-xs text-text-muted" aria-live="polite" data-testid="attachment-viewer-copy-status">
+          {copyStatus}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AttachmentPreview({
+  attachment,
+  href,
+  zoom,
+}: {
+  attachment: MessageAttachment;
+  href: string;
+  zoom: number;
+}): React.ReactElement {
+  const { t } = useTranslation('chat');
+  const mode = attachmentPreviewMode(attachment, href);
+
+  if (mode === 'image') {
+    return (
+      <div className="flex h-[70vh] min-h-0 items-start justify-center overflow-auto p-4" data-testid="attachment-viewer-preview">
+        <img
+          src={href}
+          alt={attachment.filename}
+          className="h-auto max-h-none object-contain"
+          style={{ width: `${zoom * 100}%`, maxWidth: 'none' }}
+          data-testid="attachment-viewer-image"
+        />
+      </div>
+    );
+  }
+
+  if (mode === 'video') {
+    return (
+      <div className="flex h-[70vh] items-center justify-center overflow-auto p-4" data-testid="attachment-viewer-preview">
+        <video
+          src={href}
+          controls
+          className="max-h-full max-w-full"
+          style={{ width: `${zoom * 100}%`, maxWidth: 'none' }}
+          data-testid="attachment-viewer-video"
+        />
+      </div>
+    );
+  }
+
+  if (mode === 'audio') {
+    return (
+      <div className="flex h-[70vh] items-center justify-center overflow-auto p-4" data-testid="attachment-viewer-preview">
+        <audio src={href} controls className="w-full max-w-2xl" data-testid="attachment-viewer-audio" />
+      </div>
+    );
+  }
+
+  if (mode === 'frame') {
+    return (
+      <div className="h-[70vh] overflow-auto p-4" data-testid="attachment-viewer-preview">
+        <div
+          className="origin-top-left rounded border border-border-base bg-white"
+          style={{ width: `${zoom * 100}%`, height: `${zoom * 68}vh` }}
+        >
+          <iframe
+            src={href}
+            title={attachment.filename}
+            sandbox=""
+            className="h-full w-full border-0 bg-white"
+            style={{ width: `${100 / zoom}%`, height: '68vh', transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+            data-testid="attachment-viewer-frame"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[70vh] items-center justify-center p-4" data-testid="attachment-viewer-preview">
+      <div className="max-w-md text-center">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded border border-border-base bg-bg-subtle font-mono text-xs font-semibold text-text-muted">
+          {attachmentKind(attachment.mime_type)}
+        </div>
+        <p className="break-words text-sm font-medium text-text-primary">{attachment.filename}</p>
+        <p className="mt-1 text-xs text-text-muted">{t('message.attachmentViewer.previewUnavailable')}</p>
+      </div>
+    </div>
+  );
+}
+
+function AttachmentViewerIconButton({
+  label,
+  testId,
+  onClick,
+  disabled = false,
+  children,
+}: {
+  label: string;
+  testId: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 items-center justify-center rounded border border-border-base bg-bg-base text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
+      data-testid={testId}
+    >
+      {children}
+    </button>
+  );
+}
+
+function attachmentPreviewMode(
+  attachment: MessageAttachment,
+  href: string,
+): 'image' | 'video' | 'audio' | 'frame' | 'none' {
+  if (href === '#') return 'none';
+  const mime = attachment.mime_type.toLowerCase();
+  const name = attachment.filename.toLowerCase();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (
+    mime === 'application/pdf' ||
+    mime === 'text/html' ||
+    mime.startsWith('text/') ||
+    mime.includes('json') ||
+    mime.includes('xml') ||
+    /\.(html?|pdf|txt|md|json|csv|log|xml|svg)$/i.test(name)
+  ) {
+    return 'frame';
+  }
+  return 'none';
 }
 
 // SystemNotificationRow (T308) — a SYSTEM-authored message (reminder / scheduler

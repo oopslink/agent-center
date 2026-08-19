@@ -187,6 +187,17 @@
     "hide": "Hide",
     "details": "Details",
     "quoteMessage": "Quote message",
+    "attachmentViewer": {
+      "download": "Download",
+      "copyLink": "Copy link",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom",
+      "close": "Close",
+      "previewUnavailable": "Preview unavailable."
+    },
     "quote": {
       "jumpToOriginal": "Jump to the quoted message",
       "originalUnavailable": "Original message unavailable"
