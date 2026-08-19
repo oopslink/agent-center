@@ -123,3 +123,36 @@ func TestCreateAndUpdateTeam_PersistRAMRoleKeysAtomically(t *testing.T) {
 		t.Fatalf("failed create was not atomic: count=%d err=%v", n, err)
 	}
 }
+
+func TestBuiltInAccessProfileRAMRoleContract(t *testing.T) {
+	svc, db := newService(t)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='team-basic' AND name='Team basic'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("built-in team-basic role missing: count=%d err=%v", n, err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_permissions WHERE role_id='team-basic' AND permission_key IN ('team.read','team.memory.read')`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("built-in team-basic permissions missing: count=%d err=%v", n, err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM access_profiles WHERE id='team-basic'`).Scan(&n); err != nil || n != 1 {
+		t.Fatal(err)
+	}
+
+	tm, err := svc.CreateTeam(context.Background(), CreateTeamInput{
+		OrgID: "org-1",
+		Name:  "Builtin RAM",
+		Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Team basic"}}},
+	})
+	if err != nil {
+		t.Fatalf("create with built-in RAM role key: %v", err)
+	}
+	mapping, err := svc.GetRAMRoleMapping(context.Background(), tm.ID(), "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mapping.RAMRoleIDs) != 1 || mapping.RAMRoleIDs[0] != "team-basic" {
+		t.Fatalf("mapping ids = %+v, want team-basic", mapping)
+	}
+	if _, err := svc.PreviewRAMRoleMapping(context.Background(), tm.ID(), "dev", []string{"team-basic"}); err != nil {
+		t.Fatalf("preview should accept access profile id as RAM role id: %v", err)
+	}
+}
