@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -82,7 +83,84 @@ func insertRole(ctx context.Context, exec persistence.SQLExecutor, id team.TeamI
 		id.String(), rc.Role, rc.CLI, rc.Model, string(tags), rc.MaxConcurrency,
 		now.UTC().Format(tsLayout), string(requirements),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return replaceRoleRAMRoles(ctx, exec, id, rc.Role, rc.RAMRoleKeys, now, "system")
+}
+
+func replaceRoleRAMRoles(ctx context.Context, exec persistence.SQLExecutor, teamID team.TeamID, role string, keys []string, now time.Time, actor string) error {
+	previous := []string{}
+	rows, err := exec.QueryContext(ctx, `SELECT ram_role_id FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=? ORDER BY ram_role_id`, teamID.String(), role)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		previous = append(previous, id)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	previousVersion := 0
+	err = exec.QueryRowContext(ctx, `SELECT version FROM team_role_ram_role_versions WHERE team_id=? AND team_role=?`, teamID.String(), role).Scan(&previousVersion)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=?`, teamID.String(), role); err != nil {
+		return err
+	}
+	seen := map[string]struct{}{}
+	next := []string{}
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		var roleID string
+		err := exec.QueryRowContext(ctx, `SELECT ar.id FROM authorization_roles ar JOIN teams t ON t.id=? WHERE ar.name=? AND ar.revoked_at IS NULL AND ar.org_id IN ('',t.org_id) ORDER BY CASE WHEN ar.org_id=t.org_id THEN 0 ELSE 1 END LIMIT 1`, teamID.String(), key).Scan(&roleID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: RAM role key %q", team.ErrInvalidRole, key)
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(ctx, `INSERT INTO team_role_ram_role_mappings (team_id,team_role,ram_role_id,created_at,created_by) VALUES (?,?,?,?,?)`, teamID.String(), role, roleID, now.UTC().Format(tsLayout), actor); err != nil {
+			return err
+		}
+		next = append(next, roleID)
+	}
+	sort.Strings(next)
+	stamp := now.UTC().Format(tsLayout)
+	if _, err := exec.ExecContext(ctx, `INSERT INTO team_role_ram_role_versions (team_id,team_role,version,updated_at,updated_by) VALUES (?,?,1,?,?) ON CONFLICT(team_id,team_role) DO UPDATE SET version=version+1,updated_at=excluded.updated_at,updated_by=excluded.updated_by`, teamID.String(), role, stamp, actor); err != nil {
+		return err
+	}
+	previousJSON, _ := json.Marshal(previous)
+	nextJSON, _ := json.Marshal(next)
+	if string(previousJSON) == string(nextJSON) {
+		return nil
+	}
+	var orgID string
+	if err := exec.QueryRowContext(ctx, `SELECT org_id FROM teams WHERE id=?`, teamID.String()).Scan(&orgID); err != nil {
+		return err
+	}
+	nextVersion := previousVersion + 1
+	if _, err := exec.ExecContext(ctx, `INSERT INTO team_role_ram_role_audit_events (id,org_id,team_id,team_role,actor_ref,previous_role_ids,next_role_ids,previous_version,next_version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, fmt.Sprintf("trram-%s-%s-%d-%d", teamID.String(), role, now.UnixNano(), nextVersion), orgID, teamID.String(), role, actor, string(previousJSON), string(nextJSON), previousVersion, nextVersion, stamp); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpdateTeam persists name/description/version for an existing team.
@@ -133,6 +211,9 @@ func (r *Repo) ReplaceRoles(ctx context.Context, t *team.Team) error {
 			max_concurrency=excluded.max_concurrency, access_requirements=excluded.access_requirements`, t.ID().String(), rc.Role, rc.CLI,
 			rc.Model, string(tags), rc.MaxConcurrency, t.UpdatedAt().UTC().Format(tsLayout), string(requirements))
 		if err != nil {
+			return err
+		}
+		if err := replaceRoleRAMRoles(ctx, exec, t.ID(), rc.Role, rc.RAMRoleKeys, t.UpdatedAt(), "system"); err != nil {
 			return err
 		}
 	}
@@ -257,7 +338,6 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var out []team.RoleConfig
 	for rows.Next() {
 		var (
@@ -284,6 +364,37 @@ func (r *Repo) loadRoles(ctx context.Context, exec persistence.SQLExecutor, id t
 			Role: role, CLI: cli, Model: model,
 			CapabilityTags: tags, AccessRequirements: requirements, MaxConcurrency: maxConc,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		keys, err := loadRAMRoleKeys(ctx, exec, id, out[i].Role)
+		if err != nil {
+			return nil, err
+		}
+		out[i].RAMRoleKeys = keys
+	}
+	return out, nil
+}
+
+func loadRAMRoleKeys(ctx context.Context, exec persistence.SQLExecutor, id team.TeamID, role string) ([]string, error) {
+	rows, err := exec.QueryContext(ctx, `SELECT ar.name FROM team_role_ram_role_mappings m JOIN authorization_roles ar ON ar.id=m.ram_role_id WHERE m.team_id=? AND m.team_role=? ORDER BY ar.name`, id.String(), role)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		out = append(out, key)
 	}
 	return out, rows.Err()
 }

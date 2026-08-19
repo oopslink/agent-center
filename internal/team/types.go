@@ -99,6 +99,10 @@ type RoleConfig struct {
 	CapabilityTags []string
 	// AccessRequirements are permission keys the role is expected to receive.
 	AccessRequirements []string
+	// RAMRoleKeys are stable authorization-role names. Live mappings persist
+	// resolved role IDs; templates carry these keys so cross-org import can
+	// resolve against system roles or destination-org custom roles.
+	RAMRoleKeys []string
 	// MaxConcurrency caps how many members of this role may run at once.
 	MaxConcurrency int
 }

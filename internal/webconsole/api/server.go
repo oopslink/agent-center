@@ -303,6 +303,9 @@ func (s *Server) routes() {
 	// Team WebUI facade P2 (task-be4670ce): update / instantiate / extract / memory
 	// + the org-level team-template catalog (in-memory, Phase-1).
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/teams/{id}", s.updateTeamHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles", s.getTeamRAMRoleMappingHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles/preview", s.previewTeamRAMRoleMappingHandler)
+	s.mux.HandleFunc("PUT /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles", s.putTeamRAMRoleMappingHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate", s.instantiateTeamHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/extract", s.extractFromTeamHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory", s.teamMemoryIndexHandler)

@@ -17,7 +17,7 @@ func sampleTemplate(t *testing.T, curated bool) *team.TeamTemplate {
 		Name:  "backend squad",
 		Roles: []team.RoleSlot{
 			{Config: team.RoleConfig{Role: "pd", CLI: "claude-code", Model: "opus"}, Count: 1},
-			{Config: team.RoleConfig{Role: "dev", CLI: "claude-code", Model: "sonnet"}, Count: 3},
+			{Config: team.RoleConfig{Role: "dev", CLI: "claude-code", Model: "sonnet", AccessRequirements: []string{"project.write"}, RAMRoleKeys: []string{"Project contributor"}}, Count: 3},
 			{Config: team.RoleConfig{Role: "review", CLI: "claude-code", Model: "opus"}, Count: 1},
 		},
 		WorkflowTemplateRef: "wf-dev-review-ship",
@@ -139,6 +139,12 @@ func TestExportImport_RoundTripCrossOrg(t *testing.T) {
 	}
 	if imported.Curated {
 		t.Error("imported template must land Curated=false for re-review")
+	}
+	if got := imported.Roles[1].Config.RAMRoleKeys; len(got) != 1 || got[0] != "Project contributor" {
+		t.Fatalf("RAM role stable keys lost across org export/import: %#v", got)
+	}
+	if got := imported.Roles[1].Config.AccessRequirements; len(got) != 1 || got[0] != "project.write" {
+		t.Fatalf("access requirements lost across org export/import: %#v", got)
 	}
 	if len(imported.Roles) != len(tmpl.Roles) || len(imported.Experiences) != len(tmpl.Experiences) || len(imported.Rules) != len(tmpl.Rules) {
 		t.Errorf("round trip lost content: roles %d exp %d rules %d", len(imported.Roles), len(imported.Experiences), len(imported.Rules))

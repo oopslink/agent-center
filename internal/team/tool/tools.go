@@ -56,11 +56,13 @@ func NewTools(svc *service.Service) *Tools { return &Tools{svc: svc} }
 
 // RoleArg is a role declaration in a create_team call.
 type RoleArg struct {
-	Role           string   `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
-	CLI            string   `json:"cli,omitempty" jsonschema:"agent CLI the role runs on (e.g. claude-code)"`
-	Model          string   `json:"model,omitempty" jsonschema:"model id the role uses"`
-	CapabilityTags []string `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
-	MaxConcurrency int      `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
+	Role               string   `json:"role" jsonschema:"role name (template-defined, not hardcoded)"`
+	CLI                string   `json:"cli,omitempty" jsonschema:"agent CLI the role runs on (e.g. claude-code)"`
+	Model              string   `json:"model,omitempty" jsonschema:"model id the role uses"`
+	CapabilityTags     []string `json:"capability_tags,omitempty" jsonschema:"capability requirements for the role"`
+	AccessRequirements []string `json:"access_requirements,omitempty" jsonschema:"declared permission requirements (lint only)"`
+	RAMRoleKeys        []string `json:"ram_role_keys,omitempty" jsonschema:"stable RAM role names mapped to this Team Role"`
+	MaxConcurrency     int      `json:"max_concurrency,omitempty" jsonschema:"max concurrent members of this role (default 1)"`
 }
 
 // CreateTeamArgs is the create_team payload.
@@ -87,11 +89,13 @@ type AddMemberArgs struct {
 
 // RoleView is a serializable RoleConfig.
 type RoleView struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
+	Role               string   `json:"role"`
+	CLI                string   `json:"cli"`
+	Model              string   `json:"model"`
+	CapabilityTags     []string `json:"capability_tags"`
+	AccessRequirements []string `json:"access_requirements"`
+	RAMRoleKeys        []string `json:"ram_role_keys"`
+	MaxConcurrency     int      `json:"max_concurrency"`
 }
 
 // TeamView is a serializable Team.
@@ -205,11 +209,13 @@ func toRoleConfigs(in []RoleArg) []team.RoleConfig {
 	out := make([]team.RoleConfig, 0, len(in))
 	for _, r := range in {
 		out = append(out, team.RoleConfig{
-			Role:           r.Role,
-			CLI:            r.CLI,
-			Model:          r.Model,
-			CapabilityTags: r.CapabilityTags,
-			MaxConcurrency: r.MaxConcurrency,
+			Role:               r.Role,
+			CLI:                r.CLI,
+			Model:              r.Model,
+			CapabilityTags:     r.CapabilityTags,
+			AccessRequirements: r.AccessRequirements,
+			RAMRoleKeys:        r.RAMRoleKeys,
+			MaxConcurrency:     r.MaxConcurrency,
 		})
 	}
 	return out
@@ -224,7 +230,7 @@ func toTeamView(t *team.Team) TeamView {
 		}
 		roles = append(roles, RoleView{
 			Role: rc.Role, CLI: rc.CLI, Model: rc.Model,
-			CapabilityTags: tags, MaxConcurrency: rc.MaxConcurrency,
+			CapabilityTags: tags, AccessRequirements: nonNilRoleStrings(rc.AccessRequirements), RAMRoleKeys: nonNilRoleStrings(rc.RAMRoleKeys), MaxConcurrency: rc.MaxConcurrency,
 		})
 	}
 	return TeamView{
@@ -236,6 +242,13 @@ func toTeamView(t *team.Team) TeamView {
 		MemoryPolicy: toMemoryPolicyView(t.MemoryPolicy()),
 		Version:      t.Version(),
 	}
+}
+
+func nonNilRoleStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
 }
 
 func toMemoryPolicyView(p team.TeamMemoryPolicy) MemoryPolicyView {
