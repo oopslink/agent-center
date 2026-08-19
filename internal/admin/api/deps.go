@@ -142,8 +142,8 @@ type HandlerDeps struct {
 
 	// Files module (v2.7 post-D3, task #104) — backs the agent file MCP tools
 	// (/admin/agent-tools/upload_file, attach_file + /admin/files/...). The same
-	// transfer Service the webconsole human transport uses; agent-domain
-	// reachability (own-domain scopes) is the authz layer in agent_tools_files.go.
+	// transfer Service the webconsole human transport uses; shared RAM file
+	// permissions are the authz layer in agent_tools_files.go.
 	// nil when the blobstore root is unset → the file endpoints degrade to 501.
 	FilesSvc *filesservice.Service
 

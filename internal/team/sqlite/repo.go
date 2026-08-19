@@ -132,7 +132,7 @@ func replaceRoleRAMRoles(ctx context.Context, exec persistence.SQLExecutor, team
 		var roleID string
 		err := exec.QueryRowContext(ctx, `SELECT ar.id FROM authorization_roles ar JOIN teams t ON t.id=? WHERE ar.name=? AND ar.revoked_at IS NULL AND ar.org_id IN ('',t.org_id) ORDER BY CASE WHEN ar.org_id=t.org_id THEN 0 ELSE 1 END LIMIT 1`, teamID.String(), key).Scan(&roleID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: RAM role key %q", team.ErrInvalidRole, key)
+			return fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
 		}
 		if err != nil {
 			return err

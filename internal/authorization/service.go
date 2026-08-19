@@ -1277,7 +1277,7 @@ func builtinRolePermissionsFallback(roleID string) []RolePermission {
 			add("org.read", "org", true), add("org.settings.manage", "org", true), add("org.lifecycle.manage", "org", true),
 			add("org.member.list", "org", true), add("org.member.create.human", "org", true), add("org.member.create.agent", "org", true),
 			add("org.member.role.manage", "org", true), add("org.member.disable", "org", true), add("org.invitation.manage", "org", true),
-			add("org.analytics.read", "org", true), add("org.work_items.read", "org", true), add("team.create", "org", true), add("template.write", "org", true),
+			add("org.analytics.read", "org", true), add("org.work_items.read", "org", true), add("team.create", "org", true), add("template.read", "org", true), add("template.write", "org", true),
 			add("coderepo.workspace.read", "org", true), add("coderepo.workspace.manage", "org", true),
 			add("ai_runtime.catalog.read", "org", true), add("ai_runtime.catalog.export", "org", true), add("ai_runtime.catalog.manage", "org", true),
 		}
@@ -1285,14 +1285,14 @@ func builtinRolePermissionsFallback(roleID string) []RolePermission {
 		return []RolePermission{
 			add("org.read", "org", false), add("org.member.list", "org", false), add("org.member.create.human", "org", true),
 			add("org.member.create.agent", "org", true), add("org.invitation.manage", "org", true), add("org.analytics.read", "org", false),
-			add("org.work_items.read", "org", false), add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("org.work_items.read", "org", false), add("team.create", "org", false), add("template.read", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
 			add("coderepo.workspace.manage", "org", false), add("ai_runtime.catalog.read", "org", false),
 			add("ai_runtime.catalog.export", "org", false), add("ai_runtime.catalog.manage", "org", false),
 		}
 	case "sys-org-member":
 		return []RolePermission{
 			add("org.read", "org", false), add("org.member.list", "org", false), add("org.work_items.read", "org", false),
-			add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("team.create", "org", false), add("template.read", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
 			add("ai_runtime.catalog.read", "org", false), add("ai_runtime.catalog.export", "org", false),
 		}
 	case "sys-team-web-owner":
@@ -1472,6 +1472,7 @@ func addOrgRole(role, evidence string, add func(PermissionKey, DecisionSource, s
 	add("org.member.list", SourceOrgRole, evidence, role == "owner")
 	add("org.work_items.read", SourceOrgRole, evidence, role == "owner")
 	add("team.create", SourceOrgRole, evidence, role == "owner")
+	add("template.read", SourceOrgRole, evidence, role == "owner")
 	add("template.write", SourceOrgRole, evidence, role == "owner")
 	add("coderepo.workspace.read", SourceOrgRole, evidence, role == "owner")
 	add("ai_runtime.catalog.read", SourceOrgRole, evidence, role == "owner")
@@ -1663,29 +1664,39 @@ func (s *Service) addTeamRAMEffective(ctx context.Context, req CheckRequest, out
 	if err != nil {
 		return err
 	}
-	rows, err := exec.QueryContext(ctx, `SELECT tm.team_id, tm.role, trm.ram_role_id, arp.permission_key, arp.resource_kind, arp.delegatable
+	rows, err := exec.QueryContext(ctx, `SELECT tm.team_id, tm.role, trm.ram_role_id, arp.permission_key, arp.resource_kind, arp.delegatable, COALESCE(tp.project_id, '')
 		FROM team_members tm
 		JOIN teams t ON t.id = tm.team_id
 		JOIN team_role_ram_role_mappings trm ON trm.team_id = tm.team_id AND trm.team_role = tm.role
 		JOIN authorization_roles ar ON ar.id = trm.ram_role_id AND ar.revoked_at IS NULL AND ar.kind IN ('system', 'custom') AND (ar.org_id = '' OR ar.org_id = t.org_id)
 		JOIN authorization_role_permissions arp ON arp.role_id = ar.id
+		LEFT JOIN team_projects tp ON tp.team_id = tm.team_id
 		WHERE tm.member_ref = ? AND t.org_id = ?
-		ORDER BY tm.team_id, tm.role, trm.ram_role_id, arp.permission_key`, req.SubjectRef, req.Resource.OrgID)
+		ORDER BY tm.team_id, tm.role, trm.ram_role_id, arp.permission_key, tp.project_id`, req.SubjectRef, req.Resource.OrgID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var teamID, teamRole, roleID, resourceKind string
+		var teamID, teamRole, roleID, resourceKind, linkedProjectID string
 		var key PermissionKey
 		var delegatable int
-		if err := rows.Scan(&teamID, &teamRole, &roleID, &key, &resourceKind, &delegatable); err != nil {
+		if err := rows.Scan(&teamID, &teamRole, &roleID, &key, &resourceKind, &delegatable, &linkedProjectID); err != nil {
 			return err
 		}
-		if !teamRAMScopeMatches(req.Resource, teamID, resourceKind, func(projectID string) bool {
-			linked, err := s.teamLinkedToProject(ctx, teamID, projectID)
-			return err == nil && linked
-		}) {
+		if !teamRAMScopeMatches(req.Resource, teamID, resourceKind, func(projectID string) bool { return linkedProjectID == projectID }) {
+			continue
+		}
+		if req.Resource.Kind == "conversation" {
+			if key == "project.read" || key == "task.read" || key == "issue.read" || key == "plan.read" {
+				addEffectivePermission(out, EffectivePermission{
+					Key:         "conversation.read",
+					Source:      SourceTeamRoleRAM,
+					EvidenceRef: "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + roleID,
+					Delegatable: delegatable == 1,
+					RoleID:      roleID,
+				})
+			}
 			continue
 		}
 		if !PermissionDefinedForResource(key, req.Resource.Kind) {
@@ -1703,7 +1714,7 @@ func (s *Service) addTeamRAMEffective(ctx context.Context, req CheckRequest, out
 }
 
 func teamRAMScopeMatches(r ResourceScope, teamID, permissionResourceKind string, linkedProject func(string) bool) bool {
-	if permissionResourceKind != r.Kind {
+	if r.Kind != "conversation" && permissionResourceKind != r.Kind {
 		return false
 	}
 	switch r.Kind {
@@ -1713,21 +1724,15 @@ func teamRAMScopeMatches(r ResourceScope, teamID, permissionResourceKind string,
 		return r.ID != "" && linkedProject(r.ID)
 	case "task", "issue", "plan":
 		return r.ProjectID != "" && linkedProject(r.ProjectID)
+	case "conversation":
+		kind, _, ok := pmOwnerRef(r.OwnerRef)
+		if !ok || r.ProjectID == "" || !linkedProject(r.ProjectID) {
+			return false
+		}
+		return permissionResourceKind == "project" || permissionResourceKind == kind
 	default:
 		return false
 	}
-}
-
-func (s *Service) teamLinkedToProject(ctx context.Context, teamID, projectID string) (bool, error) {
-	exec, err := s.store.exec(ctx)
-	if err != nil {
-		return false, err
-	}
-	var found int
-	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_projects WHERE team_id = ? AND project_id = ?`, teamID, projectID).Scan(&found); err != nil {
-		return false, err
-	}
-	return found > 0, nil
 }
 
 func addEffectivePermission(out *[]EffectivePermission, next EffectivePermission) {
@@ -1902,6 +1907,13 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 		}
 	}
 	for _, ref := range refs {
+		if ref.Scope == "agent" && (ref.ScopeID == subject.BareID() || ref.ScopeID == r.OwnerRef || ref.ScopeID == r.IdentityMemberID) {
+			evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
+			add("file.download", SourceFileScope, evidence, false)
+			add("file.attach", SourceFileScope, evidence, false)
+			add("file.upload", SourceFileScope, evidence, false)
+			return nil
+		}
 		if s.fileRefReachable(ctx, subject, ref) {
 			evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
 			add("file.download", SourceFileScope, evidence, false)
@@ -2149,7 +2161,7 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		}
 		r.OrgID = orgID
 	case "conversation":
-		orgID, err := s.conversationOrg(ctx, r.ID)
+		orgID, ownerRef, err := s.conversationScope(ctx, r.ID)
 		if err != nil {
 			return r, []string{"conversation not found"}, err
 		}
@@ -2157,6 +2169,12 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 			return r, []string{"conversation belongs to another org"}, ErrNotFound
 		}
 		r.OrgID = orgID
+		r.OwnerRef = ownerRef
+		if kind, id, ok := pmOwnerRef(ownerRef); ok {
+			if projectID, err := s.parentProject(ctx, kind, id); err == nil {
+				r.ProjectID = projectID
+			}
+		}
 	case "file":
 		if r.URI == "" {
 			r.URI = r.ID
@@ -2248,19 +2266,24 @@ func (s *Service) teamOrg(ctx context.Context, teamID string) (string, error) {
 	return orgID, nil
 }
 
-func (s *Service) conversationOrg(ctx context.Context, convID string) (string, error) {
+func (s *Service) conversationScope(ctx context.Context, convID string) (string, string, error) {
 	exec, err := s.store.exec(ctx)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	var orgID string
-	if err := exec.QueryRowContext(ctx, `SELECT organization_id FROM conversations WHERE id = ?`, convID).Scan(&orgID); err != nil {
+	var orgID, ownerRef string
+	if err := exec.QueryRowContext(ctx, `SELECT organization_id, COALESCE(owner_ref, '') FROM conversations WHERE id = ?`, convID).Scan(&orgID, &ownerRef); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", ErrNotFound
+			return "", "", ErrNotFound
 		}
-		return "", err
+		return "", "", err
 	}
-	return orgID, nil
+	return orgID, ownerRef, nil
+}
+
+func (s *Service) conversationOrg(ctx context.Context, convID string) (string, error) {
+	orgID, _, err := s.conversationScope(ctx, convID)
+	return orgID, err
 }
 
 func (s *Service) agentOrg(ctx context.Context, agentID string) (string, string, error) {

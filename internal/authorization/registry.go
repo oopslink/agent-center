@@ -54,6 +54,7 @@ var definitions = []PermissionDefinition{
 	def("issue.write", []string{"issue"}, []string{"update"}, []string{"pm_project_members"}),
 	def("plan.read", []string{"plan"}, []string{"read"}, []string{"pm_project_members"}),
 	def("plan.write", []string{"plan"}, []string{"update"}, []string{"pm_project_members"}),
+	def("template.read", []string{"org"}, []string{"read"}, []string{"members"}),
 	def("template.write", []string{"org"}, []string{"update"}, []string{"members"}),
 	def("coderepo.workspace.read", []string{"org"}, []string{"read"}, []string{"members"}),
 	def("coderepo.workspace.manage", []string{"org"}, []string{"manage"}, []string{"members.role"}),

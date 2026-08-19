@@ -2,14 +2,15 @@ package api
 
 // v2.7 post-D3 — agent MCP file tools (server contract, task #104). Admin HTTP
 // endpoints that let an agent (via its Worker daemon) upload/download/attach
-// files, gated by per-agent reachability over the agent's OWN enumerable domain.
+// files, gated by shared RAM authorization when wired. The old per-agent
+// enumerable domain remains only as an unwired compatibility fallback.
 //
 // These are the agent-side analog of D3-d's HUMAN file transport
 // (webconsole/api/handlers_files.go): the byte mechanics
 // (CreateUploadSession/WriteBlob/CompleteUpload/OpenBlob) are identical; what
-// differs is the authorization model. A human reaches a blob through org/project
-// membership + conversation participation; an agent reaches a blob through the
-// scopes it can ENUMERATE for itself:
+// differs is the authorization model. The shared file permissions resolve
+// reachability through file references to conversations, projects, tasks, issues,
+// and private agent scopes:
 //
 //	upload_file              POST /admin/agent-tools/upload_file
 //	put bytes                PUT  /admin/files/transfer/{transfer_id}?agent_id=
@@ -19,10 +20,10 @@ package api
 //
 // Every endpoint runs behind requireAgentOnWorker (the b1 guardrail: worker
 // proven by the TOKEN OWNER, target agent bound to it). Upload/complete/attach
-// that name a {scope, scope_id} are AUTHZ-FIRST: the scope must be in the agent's
-// own-domain (agentOwnDomainScopes) or the call is rejected 403 before any blob
-// or reference write. Download is FAIL-CLOSED: a blob is readable only if it has
-// at least one LIVE reference in a scope the agent can enumerate.
+// that name a {scope, scope_id} are AUTHZ-FIRST: the shared file permission must
+// pass before any blob or reference write. Download is FAIL-CLOSED through
+// file.download; legacy own-domain reachability is used only when Authorizer is
+// absent.
 //
 // The daemon-side byte-mover + path containment is a SEPARATE follow-up slice —
 // NOT built here.
@@ -85,8 +86,7 @@ func mapFilesError(w http.ResponseWriter, err error) {
 }
 
 // =============================================================================
-// The unified own-domain helper (used by BOTH attach/upload authz AND download
-// reachability — symmetric, per the PM).
+// Legacy own-domain helper, used only when the shared Authorizer is not wired.
 // =============================================================================
 
 // agentOwnDomainScopes returns every FileReference scope the agent may read or
@@ -325,11 +325,26 @@ func dedupScopeRefs(in []filesservice.ScopeRef) []filesservice.ScopeRef {
 	return out
 }
 
-// agentReachable reports whether the agent may download the blob at fileURI: it
-// is reachable iff at least one LIVE reference to the blob is in a scope the
-// agent can enumerate (agentOwnDomainScopes). Fail-closed — an empty own-domain
-// (Reachable with empty callerScopes) yields false.
+// agentReachable reports whether the agent may download the blob at fileURI.
+// Shared RAM authorization is authoritative when wired; the own-domain scan is
+// retained as a compatibility fallback.
 func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, fileURI files.FileURI) (bool, error) {
+	if d.Authorizer != nil {
+		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.SubjectRef(agentActor(a)),
+			Transport:  authz.TransportMCP,
+			Permission: "file.download",
+			Resource: authz.ResourceScope{
+				Kind:             "file",
+				ID:               string(fileURI),
+				URI:              string(fileURI),
+				OrgID:            a.OrganizationID(),
+				OwnerRef:         string(a.ID()),
+				IdentityMemberID: a.IdentityMemberID(),
+			},
+		})
+		return err == nil && decision.Allowed, nil
+	}
 	scopes, err := s.agentOwnDomainScopes(d, r, a)
 	if err != nil {
 		return false, err
@@ -368,10 +383,8 @@ type uploadFileReq struct {
 }
 
 // uploadFileHandler mints an upload session owned by the operating agent
-// (CreatedBy=agent:<id>). When a scope is supplied it is AUTHZ-FIRST: the
-// {scope, scope_id} must be in the agent's own-domain, else 403
-// scope_not_in_agent_domain and NO session is created. Returns the transfer +
-// file URIs (echoing scope/scope_id).
+// (CreatedBy=agent:<id>). When a scope is supplied, file.upload must pass before
+// a session is created. Returns the transfer + file URIs (echoing scope/scope_id).
 func (s *Server) uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req uploadFileReq
@@ -393,17 +406,17 @@ func (s *Server) uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
 			return
 		}
-		// AUTHZ-FIRST: validate the placement is in the agent's domain BEFORE
-		// creating any session.
-		inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", err.Error())
-			return
-		}
-		if !inDomain {
-			writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
-				"requested scope is not in the agent's own domain")
-			return
+		if d.Authorizer == nil {
+			inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal", err.Error())
+				return
+			}
+			if !inDomain {
+				writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
+					"requested scope is not in the agent's own domain")
+				return
+			}
 		}
 		if !s.requireAgentFilePermission(w, r, d, a, "file.upload", "", []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
 			return
@@ -465,8 +478,8 @@ type completeAgentUploadReq struct {
 }
 
 // completeFileHandler finalizes the upload session (CompleteUpload) and, when a
-// scope is supplied, RE-VALIDATES own-domain authz (defensive — the scope could
-// have left the domain since create) before adding the placement reference. If
+// scope is supplied, RE-VALIDATES authz (defensive — the scope could have left
+// the authorized domain since create) before adding the placement reference. If
 // AddReference fails the error is returned; the orphan blob is acceptable (the
 // GC reclaims a blob with zero live references). Returns the file URI (+ the
 // reference id when one was created).
@@ -496,17 +509,17 @@ func (s *Server) completeFileHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
 			return
 		}
-		// Defensive re-validation: the placement must STILL be in the agent's
-		// domain at complete time.
-		inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal", err.Error())
-			return
-		}
-		if !inDomain {
-			writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
-				"requested scope is not in the agent's own domain")
-			return
+		if d.Authorizer == nil {
+			inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal", err.Error())
+				return
+			}
+			if !inDomain {
+				writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
+					"requested scope is not in the agent's own domain")
+				return
+			}
 		}
 		if !s.requireAgentFilePermission(w, r, d, a, "file.attach", string(sess.FileURI()), []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
 			return
@@ -602,9 +615,9 @@ type attachFileReq struct {
 	ScopeID string `json:"scope_id"`
 }
 
-// attachFileHandler adds a placement reference for an existing blob into a scope
-// in the agent's OWN domain. own-domain authz on {scope, scope_id} → 403
-// scope_not_in_agent_domain when not in domain. Returns the new reference id.
+// attachFileHandler adds a placement reference for an existing blob into an
+// authorized scope. Shared RAM authz is authoritative when wired; the legacy
+// own-domain check is fallback-only. Returns the new reference id.
 func (s *Server) attachFileHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req attachFileReq
@@ -634,15 +647,17 @@ func (s *Server) attachFileHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_scope_id", "")
 		return
 	}
-	inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", err.Error())
-		return
-	}
-	if !inDomain {
-		writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
-			"requested scope is not in the agent's own domain")
-		return
+	if d.Authorizer == nil {
+		inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", err.Error())
+			return
+		}
+		if !inDomain {
+			writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
+				"requested scope is not in the agent's own domain")
+			return
+		}
 	}
 	if !s.requireAgentFilePermission(w, r, d, a, "file.attach", req.FileURI, []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
 		return

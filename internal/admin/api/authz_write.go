@@ -50,6 +50,22 @@ func (s *Server) requireAgentOrgTemplateWrite(w http.ResponseWriter, r *http.Req
 	})
 }
 
+func (s *Server) requireAgentOrgTemplateRead(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) bool {
+	return s.requireAgentAuthorization(w, r, d, a, "template.read", authz.ResourceScope{
+		Kind:  "org",
+		ID:    a.OrganizationID(),
+		OrgID: a.OrganizationID(),
+	})
+}
+
+func (s *Server) requireAgentConversationRead(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, convID string) bool {
+	return s.requireAgentAuthorization(w, r, d, a, "conversation.read", authz.ResourceScope{
+		Kind:  "conversation",
+		ID:    convID,
+		OrgID: a.OrganizationID(),
+	})
+}
+
 func (s *Server) requireAgentTeamPermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, teamID string, permission authz.PermissionKey) bool {
 	return s.requireAgentAuthorization(w, r, d, a, permission, authz.ResourceScope{
 		Kind:  "team",
@@ -100,11 +116,13 @@ func (s *Server) requireAgentConversationPost(w http.ResponseWriter, r *http.Req
 
 func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, fileURI string, refs []authz.FileRef) bool {
 	return s.requireAgentAuthorization(w, r, d, a, permission, authz.ResourceScope{
-		Kind:  "file",
-		ID:    fileURI,
-		URI:   fileURI,
-		OrgID: a.OrganizationID(),
-		Refs:  refs,
+		Kind:             "file",
+		ID:               fileURI,
+		URI:              fileURI,
+		OrgID:            a.OrganizationID(),
+		OwnerRef:         string(a.ID()),
+		IdentityMemberID: a.IdentityMemberID(),
+		Refs:             refs,
 	})
 }
 

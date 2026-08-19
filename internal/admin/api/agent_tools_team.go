@@ -55,6 +55,8 @@ func mapTeamError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "identity_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNameTaken):
 		writeError(w, http.StatusConflict, "team_name_taken", err.Error())
+	case errors.Is(err, team.ErrRAMRoleKeyNotFound):
+		writeError(w, http.StatusBadRequest, "ram_role_key_not_found", err.Error())
 	case errors.Is(err, team.ErrTemplateNotCurated):
 		// Export / cross-org share is gated on the mandatory manual curation pass
 		// (design §9). A precondition-not-met conflict: the caller must run the
@@ -699,12 +701,14 @@ func (s *Server) associateProjectHandler(w http.ResponseWriter, r *http.Request)
 
 // roleSlotReq is a template role slot (role config + instance count/配比).
 type roleSlotReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role               string   `json:"role"`
+	CLI                string   `json:"cli"`
+	Model              string   `json:"model"`
+	CapabilityTags     []string `json:"capability_tags"`
+	AccessRequirements []string `json:"access_requirements"`
+	RAMRoleKeys        []string `json:"ram_role_keys"`
+	MaxConcurrency     int      `json:"max_concurrency"`
+	Count              int      `json:"count"`
 }
 
 // experienceReq is a portable experience carried in a template.
@@ -732,11 +736,13 @@ func toRoleSlots(in []roleSlotReq) []team.RoleSlot {
 	for _, r := range in {
 		out = append(out, team.RoleSlot{
 			Config: team.RoleConfig{
-				Role:           r.Role,
-				CLI:            r.CLI,
-				Model:          r.Model,
-				CapabilityTags: r.CapabilityTags,
-				MaxConcurrency: r.MaxConcurrency,
+				Role:               r.Role,
+				CLI:                r.CLI,
+				Model:              r.Model,
+				CapabilityTags:     r.CapabilityTags,
+				AccessRequirements: r.AccessRequirements,
+				RAMRoleKeys:        r.RAMRoleKeys,
+				MaxConcurrency:     r.MaxConcurrency,
 			},
 			Count: r.Count,
 		})
@@ -783,7 +789,8 @@ func templateView(t *team.TeamTemplate) map[string]any {
 	for _, sl := range t.Roles {
 		roles = append(roles, map[string]any{
 			"role": sl.Config.Role, "cli": sl.Config.CLI, "model": sl.Config.Model,
-			"capability_tags": sl.Config.CapabilityTags, "max_concurrency": sl.Config.MaxConcurrency,
+			"capability_tags": sl.Config.CapabilityTags, "access_requirements": sl.Config.AccessRequirements,
+			"ram_role_keys": sl.Config.RAMRoleKeys, "max_concurrency": sl.Config.MaxConcurrency,
 			"count": sl.Count,
 		})
 	}

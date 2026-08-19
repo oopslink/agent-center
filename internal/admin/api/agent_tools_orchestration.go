@@ -810,7 +810,9 @@ func (s *Server) listTemplatesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
 		return
 	}
-	// Resolve org from agent
+	if !s.requireAgentOrgTemplateRead(w, r, d, a) {
+		return
+	}
 	orgID := string(a.OrganizationID())
 	templates, err := d.TemplateRepo.ListByOrg(r.Context(), orgID)
 	if err != nil {
@@ -847,6 +849,9 @@ func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.TemplateRepo == nil {
 		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	if !s.requireAgentOrgTemplateRead(w, r, d, a) {
 		return
 	}
 	t, err := d.TemplateRepo.FindByID(r.Context(), pm.TemplateID(req.TemplateID))

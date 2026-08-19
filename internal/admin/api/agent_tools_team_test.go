@@ -74,8 +74,12 @@ func TestTeamTools_CRUDAndInstantiate(t *testing.T) {
 	if st != http.StatusOK {
 		t.Fatalf("get_team status=%d body=%v", st, body)
 	}
-	if roles, _ := body["roles"].([]any); len(roles) != 2 {
+	roles, _ := body["roles"].([]any)
+	if len(roles) != 2 {
 		t.Fatalf("get_team roles=%v want 2", body["roles"])
+	}
+	if _, ok := roles[0].(map[string]any)["ram_role_keys"]; !ok {
+		t.Fatalf("get_team role view must expose stable RAM role keys: %v", roles[0])
 	}
 
 	// add_member under a declared role.
@@ -159,6 +163,27 @@ func TestTeamTools_CRUDAndInstantiate(t *testing.T) {
 	rt, _ := body["runtime_provisioning"].(map[string]any)
 	if enr, _ := rt["enrollments"].([]any); len(enr) != 3 {
 		t.Errorf("runtime_provisioning enrollments=%v want 3", rt["enrollments"])
+	}
+}
+
+func TestInstantiateTeam_MissingRAMRoleKeyExplicitError(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, _ := wireTeam(t, f)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/instantiate_team", "acat_w1", map[string]any{
+		"agent_id":  atAgent1,
+		"team_name": "broken-ram-key",
+		"template": map[string]any{
+			"name": "broken-template",
+			"roles": []map[string]any{{
+				"role":          "dev",
+				"ram_role_keys": []string{"missing destination role"},
+			}},
+		},
+	})
+	if st != http.StatusBadRequest || body["error"] != "ram_role_key_not_found" {
+		t.Fatalf("instantiate_team status=%d body=%v, want explicit missing RAM key", st, body)
 	}
 }
 

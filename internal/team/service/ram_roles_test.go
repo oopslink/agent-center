@@ -116,7 +116,7 @@ func TestCreateAndUpdateTeam_PersistRAMRoleKeysAtomically(t *testing.T) {
 	}
 
 	_, err = svc.CreateTeam(context.Background(), CreateTeamInput{OrgID: "org-1", Name: "Broken", Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Missing role"}}}})
-	if !errors.Is(err, team.ErrInvalidRole) {
+	if !errors.Is(err, team.ErrRAMRoleKeyNotFound) {
 		t.Fatalf("missing stable key: %v", err)
 	}
 	if err := db.QueryRow(`SELECT COUNT(*) FROM teams WHERE name='Broken'`).Scan(&n); err != nil || n != 0 {
