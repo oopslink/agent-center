@@ -1256,6 +1256,13 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
 		return
 	}
+	// DMs are writable only by their active participants. Agent-agent and
+	// system-agent DMs are still org-visible as operational records, but that read
+	// gate must not turn an observing human into a DM speaker.
+	if conv.Kind() == conversation.ConversationKindDM && !isActiveParticipant(conv, conversation.IdentityRef(d.Actor)) {
+		writeError(w, http.StatusForbidden, "not_a_participant", "only an active DM participant can send messages")
+		return
+	}
 	var req sendMessageReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())

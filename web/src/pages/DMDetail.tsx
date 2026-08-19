@@ -70,6 +70,7 @@ function DMDetailInner(): React.ReactElement {
   const meBare = me ? normalizeIdentityRef(me) : '';
   const isAgentAgentDM = conv.data?.dm_type === 'agent_agent_dm';
   const isSystemDM = conv.data?.dm_type === 'system_dm';
+  const canSendMessages = canSendToDM(conv.data);
   const peerRef =
     isAgentAgentDM
       ? ''
@@ -291,7 +292,12 @@ function DMDetailInner(): React.ReactElement {
           sheet). Desktop → message stream (col③) + the shared col④ sidebar. */}
       {isMobile ? (
         <>
-          <ConversationSurfaceMobile surface="dm" conversationId={conv.data.id} showParticipants={false} />
+          <ConversationSurfaceMobile
+            surface="dm"
+            conversationId={conv.data.id}
+            showParticipants={false}
+            canSend={canSendMessages}
+          />
           <ContextPanel>
             <ConversationInfoSheet
               conversationId={conv.data.id}
@@ -307,7 +313,7 @@ function DMDetailInner(): React.ReactElement {
         <>
           {/* #264 P1: message body + read-cursor + SSE live updates flow through
               the surface-agnostic shell. */}
-          <ConversationView surface="dm" conversationId={conv.data.id} />
+          <ConversationView surface="dm" conversationId={conv.data.id} canSend={canSendMessages} />
           {/* T184: DMs get the shared col④ sidebar too, but WITHOUT the Participants
               tab — a DM is a fixed 1:1 (nothing to invite/remove). Threads / Files only. */}
           <ContextPanel>
@@ -317,6 +323,10 @@ function DMDetailInner(): React.ReactElement {
       )}
     </section>
   );
+}
+
+function canSendToDM(c: Conversation | undefined): boolean {
+  return !c?.dm_type || c.dm_type === 'my_dm';
 }
 
 function agentAgentTitle(c: Conversation, t: TFunction): string {

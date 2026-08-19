@@ -34,6 +34,26 @@ func openSystemDM(t *testing.T, deps HandlerDeps, orgID, targetAgentRef string) 
 	return res.ConversationID
 }
 
+func openAgentAgentDM(t *testing.T, deps HandlerDeps, orgID, a, b string) conversation.ConversationID {
+	t.Helper()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		Name:           "Agent DM",
+		OrganizationID: orgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: conversation.IdentityRef(a), Role: "owner", JoinedAt: now, JoinedBy: "system"},
+			{IdentityID: conversation.IdentityRef(b), Role: "member", JoinedAt: now, JoinedBy: "system"},
+		},
+		CreatedBy: "system",
+		Actor:     observability.Actor("system"),
+	})
+	if err != nil {
+		t.Fatalf("open agent-agent DM: %v", err)
+	}
+	return res.ConversationID
+}
+
 // TestAPI_Attention_SystemDMNotSurfaced is the bug regression (oopslink 2026-07-02):
 // a reminder delivered to agent:tester3 (a system↔agent DM) must NOT leak into an
 // UNRELATED human's "Needs your attention" panel. The org-wide conversation scan
@@ -108,6 +128,62 @@ func TestDM_SystemDMClassification(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("system DM row %s not found in %+v", sysDM, rows)
+	}
+}
+
+func TestAPI_SendMessage_ObservedDMsAreReadOnly(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+
+	tests := []struct {
+		name string
+		id   conversation.ConversationID
+	}{
+		{name: "system-agent", id: openSystemDM(t, deps, sess.OrgID, "agent:tester3")},
+		{name: "agent-agent", id: openAgentAgentDM(t, deps, sess.OrgID, "agent:a", "agent:b")},
+	}
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := orgScopedPost(t, srv.URL+"/api/conversations/"+string(tc.id)+"/messages", `{"content":"human should not write here"}`, sess)
+			if resp.StatusCode != 403 {
+				t.Fatalf("send to observed DM status=%d, want 403", resp.StatusCode)
+			}
+			var body map[string]any
+			_ = json.NewDecoder(resp.Body).Decode(&body)
+			if body["error"] != "not_a_participant" {
+				t.Fatalf("error=%v want not_a_participant; body=%v", body["error"], body)
+			}
+			msgs, err := deps.MsgRepo.FindByConversationID(context.Background(), tc.id, conversation.MessageFilter{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(msgs) != 0 {
+				t.Fatalf("non-participant send persisted messages: %+v", msgs)
+			}
+		})
+	}
+}
+
+func TestAPI_SendMessage_ParticipantDMStillWritable(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	createResp := orgScopedPost(t, srv.URL+"/api/conversations", `{"kind":"dm","members":["agent:AG9"]}`, sess)
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create DM status=%d", createResp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(createResp.Body).Decode(&created)
+	dmID := created["conversation_id"].(string)
+
+	resp := orgScopedPost(t, srv.URL+"/api/conversations/"+dmID+"/messages", `{"content":"hello bot"}`, sess)
+	if resp.StatusCode != 201 {
+		t.Fatalf("participant DM send status=%d, want 201", resp.StatusCode)
 	}
 }
 

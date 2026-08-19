@@ -80,11 +80,15 @@ export function FloatingDmWindow({
       </header>
       <div className="flex min-h-0 flex-1">
         <SenderSidebarProvider>
-          <ConversationView surface="dm" conversationId={conversationId} />
+          <ConversationView surface="dm" conversationId={conversationId} canSend={canSendToDM(conv.data)} />
         </SenderSidebarProvider>
       </div>
     </aside>
   );
+}
+
+function canSendToDM(c: Conversation | undefined): boolean {
+  return !c?.dm_type || c.dm_type === 'my_dm';
 }
 
 function conversationTitle(

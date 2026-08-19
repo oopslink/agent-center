@@ -109,6 +109,7 @@ describe('DMDetail page', () => {
     wrap('/dms/C-SYS');
     expect(await screen.findByTestId('dm-heading')).toHaveTextContent('@Bot One');
     expect(screen.getByTestId('system-dm-badge')).toHaveTextContent('SYSTEM');
+    expect(screen.queryByTestId('message-composer')).not.toBeInTheDocument();
   });
 
   it('#7thDM: header renders the back arrow, peer avatar, follow + overflow (no dead search)', async () => {
