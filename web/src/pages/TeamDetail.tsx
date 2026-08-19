@@ -264,6 +264,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
         count: role.count,
         tags: role.tags,
         description: role.description,
+        ram_role_keys: role.ram_role_keys,
         access_requirements: role.access_requirements,
         access_lint: role.access_lint,
       })),
