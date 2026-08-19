@@ -28,6 +28,8 @@ interface Props {
   header?: React.ReactNode;
   /** optional right-side panel (e.g. channel ParticipantsPanel); rendered beside the message body. */
   sidePanel?: React.ReactNode;
+  /** False for observed read-only DMs such as system-agent or agent-agent records. */
+  canSend?: boolean;
 }
 
 export function ConversationView({
@@ -35,6 +37,7 @@ export function ConversationView({
   conversationId,
   header,
   sidePanel,
+  canSend = true,
 }: Props): React.ReactElement {
   const { t } = useTranslation('chat');
   // T189 phase 2: the timeline = the live latest window + an on-demand older-history
@@ -81,7 +84,7 @@ export function ConversationView({
             isLoadingOlder={messages.isLoadingOlder}
           />
         )}
-        <MessageComposer conversationId={conversationId} />
+        {canSend && <MessageComposer conversationId={conversationId} />}
       </div>
     </QuoteProvider>
   );

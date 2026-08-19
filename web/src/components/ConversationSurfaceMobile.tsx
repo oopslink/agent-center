@@ -39,6 +39,7 @@ export interface ConversationSurfaceMobileProps {
   participants?: Participant[];
   /** Show the People segment (false for DMs — fixed 1:1). Default true. */
   showParticipants?: boolean;
+  canSend?: boolean;
 }
 
 export function ConversationSurfaceMobile({
@@ -46,6 +47,7 @@ export function ConversationSurfaceMobile({
   conversationId,
   participants = [],
   showParticipants = true,
+  canSend = true,
 }: ConversationSurfaceMobileProps): React.ReactElement {
   const { t } = useTranslation('chat');
   const threads = useConversationThreads(conversationId);
@@ -123,7 +125,7 @@ export function ConversationSurfaceMobile({
         data-testid="conversation-mpanel-chat"
         className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
       >
-        <ConversationView surface={surface} conversationId={conversationId} />
+        <ConversationView surface={surface} conversationId={conversationId} canSend={canSend} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto" hidden={tab === 'chat'}>

@@ -69,6 +69,16 @@ describe('ConversationView (#264 surface-agnostic shell)', () => {
     expect(screen.getByPlaceholderText(/message/i)).toBeInTheDocument(); // MessageComposer input
   });
 
+  it('hides the composer when the conversation is read-only', async () => {
+    server.use(
+      http.get('/api/conversations/C1/messages', () => HttpResponse.json([msg('m1', 'read only')])),
+      seenOk,
+    );
+    wrap(<ConversationView surface="dm" conversationId="C1" canSend={false} />);
+    await waitFor(() => expect(screen.getByText('read only')).toBeInTheDocument());
+    expect(screen.queryByTestId('message-composer')).not.toBeInTheDocument();
+  });
+
   it('shows the error state when the message fetch fails', async () => {
     server.use(
       http.get('/api/conversations/C1/messages', () =>
