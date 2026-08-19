@@ -72,6 +72,55 @@ func TestPermissionsHTTP_CheckAndEffectiveUseServerAuthorizer(t *testing.T) {
 	}
 }
 
+func TestPermissionsHTTP_ShadowMetricsEndpoint(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
+	sess := setupTestSession(t, db, deps)
+	srv := NewServer("127.0.0.1:0", Deps{})
+	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer ts.Close()
+
+	body := `{"permission":"org.read","resource":{"kind":"org","id":"` + sess.OrgID + `"}}`
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/orgs/"+sess.OrgSlug+"/permissions/check", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(sess.Cookie)
+	if resp, err := http.DefaultClient.Do(req); err != nil {
+		t.Fatal(err)
+	} else {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("check status=%d", resp.StatusCode)
+		}
+	}
+
+	req, err = http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/permissions/shadow", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("shadow status=%d", resp.StatusCode)
+	}
+	var bodyOut struct {
+		Mode    string              `json:"mode"`
+		Metrics authz.ShadowMetrics `json:"metrics"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&bodyOut); err != nil {
+		t.Fatal(err)
+	}
+	if bodyOut.Mode != string(authz.EnforcementShadow) || bodyOut.Metrics.Checks == 0 {
+		t.Fatalf("shadow payload = %+v", bodyOut)
+	}
+}
+
 func TestPermissionsHTTP_CrossOrgRevokeMustFailClosed(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)

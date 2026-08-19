@@ -56,13 +56,19 @@ func TestMigration_0129_UnifiedAuthorizationRollback(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("re-Up: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 133 {
-		t.Fatalf("version after re-Up: got %d want 133", v)
+	if v, _ := mig.Version(ctx); v != 134 {
+		t.Fatalf("version after re-Up: got %d want 134", v)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE kind = 'system'`).Scan(&definitions); err != nil {
 		t.Fatal(err)
 	}
 	if definitions == 0 {
 		t.Fatal("system roles must be restored after re-Up")
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id IN ('sys-team-web-owner','sys-team-web-admin','sys-team-web-member')`).Scan(&definitions); err != nil {
+		t.Fatal(err)
+	}
+	if definitions != 3 {
+		t.Fatalf("S2 team web equivalence roles = %d want 3", definitions)
 	}
 }

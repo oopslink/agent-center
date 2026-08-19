@@ -16,6 +16,7 @@ type PermissionKey string
 type SubjectRef string
 type Transport string
 type DecisionSource string
+type EnforcementMode string
 
 const (
 	TransportWeb       Transport = "web"
@@ -36,6 +37,10 @@ const (
 	SourceSystem                  DecisionSource = "system"
 	SourceCustomRole              DecisionSource = "custom_role"
 	SourceTeamRoleRAM             DecisionSource = "team_role_ram"
+
+	EnforcementLegacy  EnforcementMode = "legacy"
+	EnforcementShadow  EnforcementMode = "shadow"
+	EnforcementEnforce EnforcementMode = "enforce"
 )
 
 var (
@@ -111,6 +116,26 @@ type ExplainResult struct {
 	Effective   []EffectivePermission `json:"effective"`
 	DeniedBy    []string              `json:"denied_by,omitempty"`
 	ResolvedOrg string                `json:"resolved_org,omitempty"`
+	Shadow      *ShadowComparison     `json:"shadow,omitempty"`
+}
+
+type ShadowComparison struct {
+	Mode              EnforcementMode `json:"mode"`
+	SubjectRef        SubjectRef      `json:"subject_ref"`
+	Permission        PermissionKey   `json:"permission"`
+	Resource          ResourceScope   `json:"resource"`
+	LegacyAllowed     bool            `json:"legacy_allowed"`
+	EquivalentAllowed bool            `json:"equivalent_allowed"`
+	Mismatch          bool            `json:"mismatch"`
+	LegacyOnly        []PermissionKey `json:"legacy_only,omitempty"`
+	EquivalentOnly    []PermissionKey `json:"equivalent_only,omitempty"`
+}
+
+type ShadowMetrics struct {
+	Checks         int64 `json:"checks"`
+	Mismatches     int64 `json:"mismatches"`
+	LegacyOnly     int64 `json:"legacy_only"`
+	EquivalentOnly int64 `json:"equivalent_only"`
 }
 
 type PermissionDefinition struct {

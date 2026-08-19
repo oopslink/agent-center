@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -27,6 +28,8 @@ type Service struct {
 	clock          clock.Clock
 	sink           *observability.EventSink
 	effectiveCache effectiveCache
+	mode           EnforcementMode
+	metrics        shadowMetricCounters
 }
 
 type Deps struct {
@@ -35,6 +38,7 @@ type Deps struct {
 	IDGen     idgen.Generator
 	Clock     clock.Clock
 	EventSink *observability.EventSink
+	Mode      EnforcementMode
 }
 
 func New(deps Deps) *Service {
@@ -50,7 +54,58 @@ func New(deps Deps) *Service {
 	if store == nil && deps.DB != nil {
 		store = NewStore(deps.DB)
 	}
-	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink}
+	mode := NormalizeEnforcementMode(deps.Mode)
+	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode}
+}
+
+type shadowMetricCounters struct {
+	checks         atomic.Int64
+	mismatches     atomic.Int64
+	legacyOnly     atomic.Int64
+	equivalentOnly atomic.Int64
+}
+
+func NormalizeEnforcementMode(mode EnforcementMode) EnforcementMode {
+	switch mode {
+	case EnforcementLegacy, EnforcementShadow, EnforcementEnforce:
+		return mode
+	default:
+		return EnforcementShadow
+	}
+}
+
+func ParseEnforcementMode(raw string) (EnforcementMode, error) {
+	mode := EnforcementMode(strings.TrimSpace(strings.ToLower(raw)))
+	if mode == "" {
+		return EnforcementShadow, nil
+	}
+	switch mode {
+	case EnforcementLegacy, EnforcementShadow, EnforcementEnforce:
+		return mode, nil
+	case "or", "dual_allow", "dual-allow", "fallback":
+		return "", fmt.Errorf("%w: authorization mode %q is forbidden; use legacy, shadow, or enforce", ErrInvalid, raw)
+	default:
+		return "", fmt.Errorf("%w: unknown authorization mode %q", ErrInvalid, raw)
+	}
+}
+
+func (s *Service) EnforcementMode() EnforcementMode {
+	if s == nil {
+		return EnforcementLegacy
+	}
+	return s.mode
+}
+
+func (s *Service) ShadowMetrics() ShadowMetrics {
+	if s == nil {
+		return ShadowMetrics{}
+	}
+	return ShadowMetrics{
+		Checks:         s.metrics.checks.Load(),
+		Mismatches:     s.metrics.mismatches.Load(),
+		LegacyOnly:     s.metrics.legacyOnly.Load(),
+		EquivalentOnly: s.metrics.equivalentOnly.Load(),
+	}
 }
 
 type effectiveCache struct {
@@ -905,6 +960,23 @@ func (s *Service) deriveEffective(ctx context.Context, req CheckRequest) ([]Effe
 }
 
 func (s *Service) deriveEffectiveUncached(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
+	legacy, legacyDenied, legacyErr := s.deriveLegacyEffective(ctx, req)
+	if s.mode == EnforcementLegacy {
+		return legacy, legacyDenied, legacyErr
+	}
+	equivalent, equivalentDenied, equivalentErr := s.deriveEquivalentEffective(ctx, req)
+	comparison := compareEffective(req, legacy, equivalent)
+	s.recordShadowComparison(ctx, comparison)
+	if s.mode == EnforcementEnforce {
+		if equivalentErr != nil {
+			return equivalent, equivalentDenied, equivalentErr
+		}
+		return equivalent, equivalentDenied, nil
+	}
+	return legacy, legacyDenied, legacyErr
+}
+
+func (s *Service) deriveLegacyEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
 	var out []EffectivePermission
 	var denied []string
 	add := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
@@ -999,6 +1071,47 @@ func (s *Service) effectiveVersion(ctx context.Context) (string, error) {
 	return strings.Join(parts, "|"), nil
 }
 
+func (s *Service) deriveEquivalentEffective(ctx context.Context, req CheckRequest) ([]EffectivePermission, []string, error) {
+	var out []EffectivePermission
+	var denied []string
+	add := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
+		if key == "" {
+			return
+		}
+		for _, p := range out {
+			if p.Key == key && p.Source == source && p.EvidenceRef == evidence {
+				return
+			}
+		}
+		out = append(out, EffectivePermission{Key: key, Source: source, EvidenceRef: evidence, Delegatable: delegatable})
+	}
+	if req.BearerScope != "" {
+		if key, ok := PermissionForBearerScope(req.BearerScope); ok {
+			if key == "*" {
+				add(req.Permission, SourceAdminTokenScope, "admin_tokens:*", false)
+			} else {
+				add(key, SourceAdminTokenScope, "admin_tokens:"+req.BearerScope, false)
+			}
+		} else {
+			denied = append(denied, "bearer scope has no permission mapping")
+		}
+	}
+	if err := s.addBuiltinEquivalentEffective(ctx, req, add, &denied); err != nil {
+		return out, denied, err
+	}
+	// Team Role -> RAM Role mappings are the unified model introduced by the
+	// resolver. They must participate in both shadow sides so enforce mode does
+	// not revoke a valid mapped grant merely because the legacy-equivalence
+	// migration only materialized membership-era built-ins.
+	if err := s.addTeamRAMEffective(ctx, req, &out); err != nil {
+		return out, denied, err
+	}
+	if err := s.addCustomEffective(ctx, req, &out); err != nil {
+		return out, denied, err
+	}
+	return out, denied, nil
+}
+
 func (s *Service) addLegacyEffective(ctx context.Context, req CheckRequest, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
 	r := req.Resource
 	if r.ID == "*" && req.BearerScope != "" {
@@ -1047,6 +1160,238 @@ func (s *Service) addLegacyEffective(ctx context.Context, req CheckRequest, add 
 		return s.addWorkerEffective(req, add, denied)
 	case "git":
 		add("git.global.read", SourceSystem, "system:global_git_read", false)
+	}
+	return nil
+}
+
+func (s *Service) addBuiltinEquivalentEffective(ctx context.Context, req CheckRequest, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	r := req.Resource
+	if r.ID == "*" && req.BearerScope != "" {
+		return nil
+	}
+	if r.OrgID != "" && r.Kind != "worker" && r.Kind != "admin_token" && r.Kind != "secret" && r.Kind != "blob" {
+		m, ok, err := s.orgMember(ctx, r.OrgID, req.SubjectRef)
+		if err != nil {
+			return err
+		}
+		if ok {
+			if disabled, err := s.orgDisabled(ctx, r.OrgID); err != nil {
+				return err
+			} else if disabled && m.Role != "owner" {
+				*denied = append(*denied, "disabled org admits only owner members")
+				return nil
+			}
+			switch r.Kind {
+			case "org":
+				return s.expandBuiltinRole(ctx, orgBuiltinRoleID(m.Role), SourceOrgRole, m.EvidenceRef, r.Kind, add)
+			case "team":
+				if err := s.expandBuiltinRole(ctx, teamWebBuiltinRoleID(m.Role), SourceOrgRole, m.EvidenceRef, r.Kind, add); err != nil {
+					return err
+				}
+			}
+		} else if req.SubjectRef.IsUser() || req.SubjectRef.IsAgent() {
+			*denied = append(*denied, "subject is not a joined org member")
+		}
+	}
+	switch r.Kind {
+	case "project":
+		return s.addProjectEquivalent(ctx, req.SubjectRef, r.ID, add, denied)
+	case "task":
+		return s.addTaskEquivalent(ctx, req.SubjectRef, r.ID, add, denied)
+	case "issue":
+		return s.addChildProjectEquivalent(ctx, req.SubjectRef, "issue", r.ID, add, denied)
+	case "plan":
+		return s.addChildProjectEquivalent(ctx, req.SubjectRef, "plan", r.ID, add, denied)
+	case "team":
+		return s.addTeamEquivalent(ctx, req.SubjectRef, r.ID, add, denied)
+	case "conversation":
+		return s.addConversationEffective(ctx, req.SubjectRef, r.ID, add, denied)
+	case "file":
+		return s.addFileEffective(ctx, req.SubjectRef, r, add, denied)
+	case "agent":
+		return s.addAgentEffective(ctx, req, add, denied)
+	case "worker":
+		return s.addWorkerEffective(req, add, denied)
+	case "git":
+		add("git.global.read", SourceSystem, "system:global_git_read", false)
+	}
+	return nil
+}
+
+func orgBuiltinRoleID(role string) string {
+	switch role {
+	case "owner":
+		return "sys-org-owner"
+	case "admin":
+		return "sys-org-admin"
+	default:
+		return "sys-org-member"
+	}
+}
+
+func projectBuiltinRoleID(role string) string {
+	if role == "owner" {
+		return "sys-project-owner"
+	}
+	return "sys-project-member"
+}
+
+func teamWebBuiltinRoleID(role string) string {
+	switch role {
+	case "owner":
+		return "sys-team-web-owner"
+	case "admin":
+		return "sys-team-web-admin"
+	default:
+		return "sys-team-web-member"
+	}
+}
+
+func (s *Service) expandBuiltinRole(ctx context.Context, roleID string, source DecisionSource, evidence, resourceKind string, add func(PermissionKey, DecisionSource, string, bool)) error {
+	if roleID == "" {
+		return nil
+	}
+	perms, err := s.store.rolePermissions(ctx, roleID)
+	if errors.Is(err, ErrRoleNotFound) {
+		perms = builtinRolePermissionsFallback(roleID)
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, p := range perms {
+		if p.ResourceKind == resourceKind {
+			add(p.PermissionKey, source, evidence, p.Delegatable)
+		}
+	}
+	return nil
+}
+
+func builtinRolePermissionsFallback(roleID string) []RolePermission {
+	add := func(key PermissionKey, kind string, delegatable bool) RolePermission {
+		return RolePermission{RoleID: roleID, PermissionKey: key, ResourceKind: kind, Delegatable: delegatable}
+	}
+	switch roleID {
+	case "sys-team-web-owner":
+		return []RolePermission{
+			add("team.read", "team", true), add("team.write", "team", true), add("team.member.manage", "team", true),
+			add("team.project.link.manage", "team", true), add("team.runtime_config.manage", "team", true),
+			add("team.memory.read", "team", true), add("team.memory.propose", "team", true), add("team.memory.review", "team", true),
+		}
+	case "sys-team-web-admin":
+		return []RolePermission{
+			add("team.read", "team", false), add("team.write", "team", false), add("team.member.manage", "team", false),
+			add("team.project.link.manage", "team", false), add("team.runtime_config.manage", "team", false),
+			add("team.memory.read", "team", false), add("team.memory.propose", "team", false), add("team.memory.review", "team", false),
+		}
+	case "sys-team-web-member":
+		return []RolePermission{
+			add("team.read", "team", false), add("team.write", "team", false), add("team.member.manage", "team", false),
+			add("team.project.link.manage", "team", false), add("team.runtime_config.manage", "team", false), add("team.memory.read", "team", false),
+		}
+	}
+	return nil
+}
+
+func (s *Service) addProjectEquivalent(ctx context.Context, subject SubjectRef, projectID string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	pm, ok, err := s.projectMember(ctx, projectID, subject)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		*denied = append(*denied, "subject is not a project member")
+		return nil
+	}
+	return s.expandBuiltinRole(ctx, projectBuiltinRoleID(pm.Role), SourceProjectMember, pm.EvidenceRef, "project", add)
+}
+
+func (s *Service) addTaskEquivalent(ctx context.Context, subject SubjectRef, taskID string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return err
+	}
+	var projectID, assignee, createdBy string
+	if err := exec.QueryRowContext(ctx, `SELECT project_id, COALESCE(assignee, ''), created_by FROM pm_tasks WHERE id = ?`, taskID).Scan(&projectID, &assignee, &createdBy); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if assignee == string(subject) {
+		add("task.read", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.complete.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.block.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+	}
+	if createdBy == string(subject) {
+		add("task.read", SourceProjectMember, "pm_tasks:"+taskID+"/created_by", false)
+	}
+	return s.addProjectEquivalent(ctx, subject, projectID, func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
+		switch key {
+		case "project.read":
+			add("task.read", source, evidence, delegatable)
+		case "project.write":
+			add("task.write", source, evidence, delegatable)
+		}
+	}, denied)
+}
+
+func (s *Service) addChildProjectEquivalent(ctx context.Context, subject SubjectRef, kind, id string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	projectID, err := s.parentProject(ctx, kind, id)
+	if err != nil {
+		return err
+	}
+	return s.addProjectEquivalent(ctx, subject, projectID, func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
+		switch {
+		case kind == "issue" && key == "project.read":
+			add("issue.read", source, evidence, delegatable)
+		case kind == "issue" && key == "project.write":
+			add("issue.write", source, evidence, delegatable)
+		case kind == "plan" && key == "project.read":
+			add("plan.read", source, evidence, delegatable)
+		case kind == "plan" && key == "project.write":
+			add("plan.write", source, evidence, delegatable)
+		}
+	}, denied)
+}
+
+func (s *Service) addTeamEquivalent(ctx context.Context, subject SubjectRef, teamID string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	if !subject.IsAgent() {
+		return nil
+	}
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT role FROM team_members WHERE team_id = ? AND member_ref = ?`, teamID, subject)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var inTeam bool
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return err
+		}
+		inTeam = true
+		evidence := "team_members:" + teamID + "/" + string(subject) + "/" + role
+		if err := s.expandBuiltinRole(ctx, "sys-team-member", SourceTeamMember, evidence, "team", add); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if !inTeam {
+		*denied = append(*denied, "agent is not a current team member")
+		return nil
+	}
+	var exists int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_memory_policy_curators WHERE team_id = ? AND agent_ref = ?`, teamID, subject).Scan(&exists); err != nil {
+		return err
+	}
+	if exists > 0 {
+		add("team.memory.review", SourceTeamMemoryPolicy, "team_memory_policy_curators:"+teamID+"/"+string(subject), false)
 	}
 	return nil
 }
@@ -1528,6 +1873,90 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 		}
 	}
 	return nil
+}
+
+func compareEffective(req CheckRequest, legacy, equivalent []EffectivePermission) ShadowComparison {
+	legacySet := permissionSet(legacy)
+	equivalentSet := permissionSet(equivalent)
+	cmp := ShadowComparison{
+		Mode:              EnforcementShadow,
+		SubjectRef:        req.SubjectRef,
+		Permission:        req.Permission,
+		Resource:          req.Resource,
+		LegacyAllowed:     hasPermissionKey(legacySet, req.Permission),
+		EquivalentAllowed: hasPermissionKey(equivalentSet, req.Permission),
+	}
+	for key := range legacySet {
+		if _, ok := equivalentSet[key]; !ok {
+			cmp.LegacyOnly = append(cmp.LegacyOnly, key)
+		}
+	}
+	for key := range equivalentSet {
+		if _, ok := legacySet[key]; !ok {
+			cmp.EquivalentOnly = append(cmp.EquivalentOnly, key)
+		}
+	}
+	sort.Slice(cmp.LegacyOnly, func(i, j int) bool { return cmp.LegacyOnly[i] < cmp.LegacyOnly[j] })
+	sort.Slice(cmp.EquivalentOnly, func(i, j int) bool { return cmp.EquivalentOnly[i] < cmp.EquivalentOnly[j] })
+	cmp.Mismatch = cmp.LegacyAllowed != cmp.EquivalentAllowed || len(cmp.LegacyOnly) > 0 || len(cmp.EquivalentOnly) > 0
+	return cmp
+}
+
+func permissionSet(perms []EffectivePermission) map[PermissionKey]struct{} {
+	out := make(map[PermissionKey]struct{}, len(perms))
+	for _, p := range perms {
+		out[p.Key] = struct{}{}
+	}
+	return out
+}
+
+func hasPermissionKey(set map[PermissionKey]struct{}, key PermissionKey) bool {
+	if key == "*" {
+		return len(set) > 0
+	}
+	_, ok := set[key]
+	return ok
+}
+
+func (s *Service) recordShadowComparison(ctx context.Context, cmp ShadowComparison) {
+	if s == nil || s.mode == EnforcementLegacy {
+		return
+	}
+	cmp.Mode = s.mode
+	s.metrics.checks.Add(1)
+	if !cmp.Mismatch {
+		return
+	}
+	s.metrics.mismatches.Add(1)
+	s.metrics.legacyOnly.Add(int64(len(cmp.LegacyOnly)))
+	s.metrics.equivalentOnly.Add(int64(len(cmp.EquivalentOnly)))
+	if s.sink == nil {
+		return
+	}
+	_, _ = s.sink.Emit(ctx, observability.EmitCommand{
+		EventType: observability.EventType("authorization.shadow.diff"),
+		Refs:      observability.EventRefs{OrganizationID: cmp.Resource.OrgID, ProjectID: cmp.Resource.ProjectID},
+		Actor:     observability.Actor(cmp.SubjectRef),
+		Payload: map[string]any{
+			"mode":               string(cmp.Mode),
+			"subject_ref":        string(cmp.SubjectRef),
+			"permission":         string(cmp.Permission),
+			"resource_kind":      cmp.Resource.Kind,
+			"resource_id":        cmp.Resource.ID,
+			"legacy_allowed":     cmp.LegacyAllowed,
+			"equivalent_allowed": cmp.EquivalentAllowed,
+			"legacy_only":        permissionKeysToStrings(cmp.LegacyOnly),
+			"equivalent_only":    permissionKeysToStrings(cmp.EquivalentOnly),
+		},
+	})
+}
+
+func permissionKeysToStrings(keys []PermissionKey) []string {
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, string(key))
+	}
+	return out
 }
 
 func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (ResourceScope, []string, error) {
