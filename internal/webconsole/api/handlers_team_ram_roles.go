@@ -65,6 +65,9 @@ func (s *Server) putTeamRAMRoleMappingHandler(w http.ResponseWriter, r *http.Req
 		mapTeamWebError(w, err)
 		return
 	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, r.PathValue("id"), "team.runtime_config.manage") {
+		return
+	}
 	var req teamRAMRoleMappingRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())

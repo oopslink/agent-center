@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -359,6 +360,14 @@ func teamGuardMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*id
 	return requireOrgMember(w, r, d)
 }
 
+func requireWebTeamCreate(w http.ResponseWriter, r *http.Request, d HandlerDeps, caller *identity.Identity, orgID string) bool {
+	return requireWebAuthorization(w, r, d, caller, "team.create", authz.ResourceScope{Kind: "org", ID: orgID, OrgID: orgID})
+}
+
+func requireWebTeamPermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, caller *identity.Identity, orgID, teamID string, permission authz.PermissionKey) bool {
+	return requireWebAuthorization(w, r, d, caller, permission, authz.ResourceScope{Kind: "team", ID: teamID, OrgID: orgID})
+}
+
 // getTeamInOrg loads a team and enforces it belongs to the request's org (a team id
 // from another org is treated as not-found — no cross-org read).
 func getTeamInOrg(r *http.Request, d HandlerDeps, orgID, id string) (*team.Team, error) {
@@ -459,13 +468,16 @@ func nonNilStrings(in []string) []string {
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
 func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, member, orgID, ok := teamGuardMember(w, r, d)
+	caller, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	var req createTeamReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if !requireWebTeamCreate(w, r, d, caller, orgID) {
 		return
 	}
 	roles := make([]team.RoleConfig, 0, len(req.Roles))
@@ -497,13 +509,16 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 // deleteTeamHandler serves DELETE /api/orgs/{slug}/teams/{id}.
 func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	// enforce org ownership before delete.
 	if _, err := getTeamInOrg(r, d, orgID, r.PathValue("id")); err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, r.PathValue("id"), "team.write") {
 		return
 	}
 	if err := d.TeamService.DeleteTeam(r.Context(), team.TeamID(r.PathValue("id"))); err != nil {
@@ -518,7 +533,7 @@ func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 // listMembersHandler serves GET /api/orgs/{slug}/teams/{id}/members → MemberView[].
 func (s *Server) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	_, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -598,13 +613,16 @@ func addMemberRoles(req addMemberReq) ([]string, error) {
 // addTeamMemberHandler serves POST /api/orgs/{slug}/teams/{id}/members → MemberView (201).
 func (s *Server) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	t, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, t.ID().String(), "team.member.manage") {
 		return
 	}
 	var req addMemberReq
@@ -638,13 +656,16 @@ func (s *Server) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 // removeTeamMemberHandler serves DELETE /api/orgs/{slug}/teams/{id}/members/{ref}.
 func (s *Server) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	t, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, t.ID().String(), "team.member.manage") {
 		return
 	}
 	if err := d.TeamService.RemoveMember(r.Context(), t.ID(), team.MemberRef(r.PathValue("ref"))); err != nil {
@@ -659,7 +680,7 @@ func (s *Server) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request)
 // listTeamProjectsHandler serves GET /api/orgs/{slug}/teams/{id}/projects → TeamProjectLink[].
 func (s *Server) listTeamProjectsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	_, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -709,13 +730,16 @@ type associateProjectReq struct {
 // associateTeamProjectHandler serves POST /api/orgs/{slug}/teams/{id}/projects → TeamProjectLink (201).
 func (s *Server) associateTeamProjectHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	t, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, t.ID().String(), "team.project.link.manage") {
 		return
 	}
 	var req associateProjectReq

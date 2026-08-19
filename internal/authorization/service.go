@@ -1272,6 +1272,29 @@ func builtinRolePermissionsFallback(roleID string) []RolePermission {
 		return RolePermission{RoleID: roleID, PermissionKey: key, ResourceKind: kind, Delegatable: delegatable}
 	}
 	switch roleID {
+	case "sys-org-owner":
+		return []RolePermission{
+			add("org.read", "org", true), add("org.settings.manage", "org", true), add("org.lifecycle.manage", "org", true),
+			add("org.member.list", "org", true), add("org.member.create.human", "org", true), add("org.member.create.agent", "org", true),
+			add("org.member.role.manage", "org", true), add("org.member.disable", "org", true), add("org.invitation.manage", "org", true),
+			add("org.analytics.read", "org", true), add("org.work_items.read", "org", true), add("team.create", "org", true), add("template.write", "org", true),
+			add("coderepo.workspace.read", "org", true), add("coderepo.workspace.manage", "org", true),
+			add("ai_runtime.catalog.read", "org", true), add("ai_runtime.catalog.export", "org", true), add("ai_runtime.catalog.manage", "org", true),
+		}
+	case "sys-org-admin":
+		return []RolePermission{
+			add("org.read", "org", false), add("org.member.list", "org", false), add("org.member.create.human", "org", true),
+			add("org.member.create.agent", "org", true), add("org.invitation.manage", "org", true), add("org.analytics.read", "org", false),
+			add("org.work_items.read", "org", false), add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("coderepo.workspace.manage", "org", false), add("ai_runtime.catalog.read", "org", false),
+			add("ai_runtime.catalog.export", "org", false), add("ai_runtime.catalog.manage", "org", false),
+		}
+	case "sys-org-member":
+		return []RolePermission{
+			add("org.read", "org", false), add("org.member.list", "org", false), add("org.work_items.read", "org", false),
+			add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("ai_runtime.catalog.read", "org", false), add("ai_runtime.catalog.export", "org", false),
+		}
 	case "sys-team-web-owner":
 		return []RolePermission{
 			add("team.read", "team", true), add("team.write", "team", true), add("team.member.manage", "team", true),
@@ -1448,6 +1471,8 @@ func addOrgRole(role, evidence string, add func(PermissionKey, DecisionSource, s
 	add("org.read", SourceOrgRole, evidence, role == "owner")
 	add("org.member.list", SourceOrgRole, evidence, role == "owner")
 	add("org.work_items.read", SourceOrgRole, evidence, role == "owner")
+	add("team.create", SourceOrgRole, evidence, role == "owner")
+	add("template.write", SourceOrgRole, evidence, role == "owner")
 	add("coderepo.workspace.read", SourceOrgRole, evidence, role == "owner")
 	add("ai_runtime.catalog.read", SourceOrgRole, evidence, role == "owner")
 	add("ai_runtime.catalog.export", SourceOrgRole, evidence, role == "owner")

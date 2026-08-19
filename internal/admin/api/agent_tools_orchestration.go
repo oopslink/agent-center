@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
@@ -45,6 +46,24 @@ func mapOrchError(w http.ResponseWriter, err error) {
 	}
 }
 
+func (s *Server) requireAgentGraphPlanWrite(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, graphID string) bool {
+	g, err := d.OrchService.GetGraph(r.Context(), orch.GraphID(graphID))
+	if err != nil {
+		mapOrchError(w, err)
+		return false
+	}
+	return s.requireAgentPlanWrite(w, r, d, a, g.PlanID())
+}
+
+func (s *Server) requireAgentNodePlanWrite(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, nodeID string) bool {
+	n, err := d.OrchService.GetNode(r.Context(), orch.NodeID(nodeID))
+	if err != nil {
+		mapOrchError(w, err)
+		return false
+	}
+	return s.requireAgentGraphPlanWrite(w, r, d, a, string(n.GraphID()))
+}
+
 // nodeMap serializes an orchestration Node to a JSON-friendly map.
 func nodeMap(n *orch.Node) map[string]any {
 	m := map[string]any{
@@ -78,7 +97,8 @@ func (s *Server) createGraphHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -87,6 +107,9 @@ func (s *Server) createGraphHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.PlanID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
 		return
 	}
 	graphID, err := d.OrchService.CreateGraph(r.Context(), req.PlanID)
@@ -165,7 +188,8 @@ func (s *Server) startGraphHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -174,6 +198,9 @@ func (s *Server) startGraphHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.GraphID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_graph_id", "")
+		return
+	}
+	if !s.requireAgentGraphPlanWrite(w, r, d, a, req.GraphID) {
 		return
 	}
 	if err := d.OrchService.StartGraph(r.Context(), orch.GraphID(req.GraphID)); err != nil {
@@ -197,7 +224,8 @@ func (s *Server) finishGraphHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -206,6 +234,9 @@ func (s *Server) finishGraphHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.GraphID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_graph_id", "")
+		return
+	}
+	if !s.requireAgentGraphPlanWrite(w, r, d, a, req.GraphID) {
 		return
 	}
 	if err := d.OrchService.FinishGraph(r.Context(), orch.GraphID(req.GraphID)); err != nil {
@@ -233,7 +264,8 @@ func (s *Server) addGraphNodeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -246,6 +278,9 @@ func (s *Server) addGraphNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.Title) == "" {
 		writeError(w, http.StatusBadRequest, "missing_title", "")
+		return
+	}
+	if !s.requireAgentGraphPlanWrite(w, r, d, a, req.GraphID) {
 		return
 	}
 	nodeID, err := d.OrchService.AddNode(r.Context(), orch.GraphID(req.GraphID),
@@ -271,7 +306,8 @@ func (s *Server) removeGraphNodeHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -280,6 +316,9 @@ func (s *Server) removeGraphNodeHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.RemoveNode(r.Context(), orch.NodeID(req.NodeID)); err != nil {
@@ -305,7 +344,8 @@ func (s *Server) updateGraphNodeHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -314,6 +354,9 @@ func (s *Server) updateGraphNodeHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.UpdateNode(r.Context(), orch.NodeID(req.NodeID), req.Title, req.Metadata); err != nil {
@@ -337,7 +380,8 @@ func (s *Server) startGraphNodeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -346,6 +390,9 @@ func (s *Server) startGraphNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.StartNode(r.Context(), orch.NodeID(req.NodeID)); err != nil {
@@ -370,7 +417,8 @@ func (s *Server) completeGraphNodeHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -379,6 +427,9 @@ func (s *Server) completeGraphNodeHandler(w http.ResponseWriter, r *http.Request
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.CompleteNode(r.Context(), orch.NodeID(req.NodeID), req.Outcome); err != nil {
@@ -402,7 +453,8 @@ func (s *Server) discardGraphNodeHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -411,6 +463,9 @@ func (s *Server) discardGraphNodeHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.DiscardNode(r.Context(), orch.NodeID(req.NodeID)); err != nil {
@@ -435,7 +490,8 @@ func (s *Server) resolveConditionHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -444,6 +500,9 @@ func (s *Server) resolveConditionHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if node, err := d.OrchService.GetNode(r.Context(), orch.NodeID(req.NodeID)); err == nil {
@@ -476,7 +535,8 @@ func (s *Server) addGraphEdgeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -489,6 +549,9 @@ func (s *Server) addGraphEdgeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.FromNodeID) == "" || strings.TrimSpace(req.ToNodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "both from_node_id and to_node_id are required")
+		return
+	}
+	if !s.requireAgentGraphPlanWrite(w, r, d, a, req.GraphID) {
 		return
 	}
 	if err := d.OrchService.AddEdge(r.Context(), orch.GraphID(req.GraphID),
@@ -515,7 +578,8 @@ func (s *Server) removeGraphEdgeHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -524,6 +588,9 @@ func (s *Server) removeGraphEdgeHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if strings.TrimSpace(req.GraphID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_graph_id", "")
+		return
+	}
+	if !s.requireAgentGraphPlanWrite(w, r, d, a, req.GraphID) {
 		return
 	}
 	if err := d.OrchService.RemoveEdge(r.Context(), orch.GraphID(req.GraphID),
@@ -656,7 +723,8 @@ func (s *Server) bindTaskToNodeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -669,6 +737,9 @@ func (s *Server) bindTaskToNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.TaskID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.BindTask(r.Context(), orch.NodeID(req.NodeID), req.TaskID); err != nil {
@@ -692,7 +763,8 @@ func (s *Server) unbindTaskFromNodeHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.OrchService == nil {
@@ -701,6 +773,9 @@ func (s *Server) unbindTaskFromNodeHandler(w http.ResponseWriter, r *http.Reques
 	}
 	if strings.TrimSpace(req.NodeID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_node_id", "")
+		return
+	}
+	if !s.requireAgentNodePlanWrite(w, r, d, a, req.NodeID) {
 		return
 	}
 	if err := d.OrchService.UnbindTask(r.Context(), orch.NodeID(req.NodeID)); err != nil {
@@ -835,6 +910,9 @@ func (s *Server) createTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
 		return
 	}
+	if !s.requireAgentOrgTemplateWrite(w, r, d, a) {
+		return
+	}
 	id, err := newTemplateID()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
@@ -900,6 +978,9 @@ func (s *Server) updateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "template_not_found", "not found")
 		return
 	}
+	if !s.requireAgentOrgTemplateWrite(w, r, d, a) {
+		return
+	}
 	if t.IsBuiltin() {
 		writeError(w, http.StatusForbidden, "forbidden", "builtin templates cannot be modified")
 		return
@@ -946,6 +1027,9 @@ func (s *Server) deleteTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if t.OrgID() != string(a.OrganizationID()) {
 		writeError(w, http.StatusNotFound, "template_not_found", "not found")
+		return
+	}
+	if !s.requireAgentOrgTemplateWrite(w, r, d, a) {
 		return
 	}
 	if t.IsBuiltin() {

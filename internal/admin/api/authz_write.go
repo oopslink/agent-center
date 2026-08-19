@@ -34,6 +34,30 @@ func (s *Server) requireAgentProjectWrite(w http.ResponseWriter, r *http.Request
 	})
 }
 
+func (s *Server) requireAgentTeamCreate(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) bool {
+	return s.requireAgentAuthorization(w, r, d, a, "team.create", authz.ResourceScope{
+		Kind:  "org",
+		ID:    a.OrganizationID(),
+		OrgID: a.OrganizationID(),
+	})
+}
+
+func (s *Server) requireAgentOrgTemplateWrite(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) bool {
+	return s.requireAgentAuthorization(w, r, d, a, "template.write", authz.ResourceScope{
+		Kind:  "org",
+		ID:    a.OrganizationID(),
+		OrgID: a.OrganizationID(),
+	})
+}
+
+func (s *Server) requireAgentTeamPermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, teamID string, permission authz.PermissionKey) bool {
+	return s.requireAgentAuthorization(w, r, d, a, permission, authz.ResourceScope{
+		Kind:  "team",
+		ID:    teamID,
+		OrgID: a.OrganizationID(),
+	})
+}
+
 func (s *Server) requireAgentTaskWrite(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, taskID string) bool {
 	return s.requireAgentAuthorization(w, r, d, a, "task.write", authz.ResourceScope{
 		Kind:  "task",

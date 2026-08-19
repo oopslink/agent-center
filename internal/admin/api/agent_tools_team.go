@@ -132,6 +132,9 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	view, err := teamTools(d).CreateTeam(r.Context(), teamtool.CreateTeamArgs{
 		OrgID:       string(a.OrganizationID()),
 		Name:        req.Name,
@@ -168,6 +171,9 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.write") {
+		return
+	}
 	view, err := teamTools(d).UpdateTeam(r.Context(), teamtool.UpdateTeamArgs{
 		TeamID:      req.TeamID,
 		Name:        req.Name,
@@ -199,6 +205,9 @@ func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
+		return
+	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.write") {
 		return
 	}
 	if err := teamTools(d).DeleteTeam(r.Context(), req.TeamID); err != nil {
@@ -605,6 +614,9 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.member.manage") {
+		return
+	}
 	view, err := teamTools(d).AddMember(r.Context(), teamtool.AddMemberArgs{
 		TeamID:    req.TeamID,
 		MemberRef: req.MemberRef,
@@ -639,6 +651,9 @@ func (s *Server) removeMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.member.manage") {
+		return
+	}
 	if err := teamTools(d).RemoveMember(r.Context(), req.TeamID, req.MemberRef); err != nil {
 		mapTeamError(w, err)
 		return
@@ -666,6 +681,9 @@ func (s *Server) associateProjectHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
+		return
+	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.project.link.manage") {
 		return
 	}
 	if err := teamTools(d).AssociateProject(r.Context(), req.TeamID, req.ProjectID); err != nil {
@@ -818,6 +836,9 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req, false)
 	if err != nil {
 		mapTeamError(w, err)
@@ -861,6 +882,9 @@ func (s *Server) curateTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	// Mark curated=true: the caller asserts they have manually reviewed the template
 	// (design §9 curation is load-bearing). The result is export-ready.
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, true)
@@ -890,6 +914,9 @@ func (s *Server) exportTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	}
 	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
 	if !ok {
+		return
+	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
 		return
 	}
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, req.Curated)
@@ -930,6 +957,9 @@ func (s *Server) importTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	if len(strings.TrimSpace(string(req.Document))) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_input", "document is required (the exported team-template JSON)")
 		return
@@ -968,6 +998,9 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
 	if !ok {
+		return
+	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
 		return
 	}
 	orgID := string(a.OrganizationID())
@@ -1346,6 +1379,9 @@ func (s *Server) assignRolesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
+		return
+	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.runtime_config.manage") {
 		return
 	}
 	members, err := d.TeamSvc.ListMembers(r.Context(), team.TeamID(req.TeamID))
