@@ -3,10 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mswServer';
+import { useAppStore } from '@/store/app';
 import Access from './Access';
 
-function renderPage(path = '/organizations/test/access') {
+function renderPage(path = '/organizations/test/access', currentUserId = 'user:hayang') {
   window.history.pushState({}, '', path);
+  useAppStore.setState({ currentUserId });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -15,7 +17,10 @@ function renderPage(path = '/organizations/test/access') {
   );
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useAppStore.setState({ currentUserId: '' });
+});
 
 describe('Access page', () => {
   it('renders API-sourced subject and role views with risk and terminal statuses visible', async () => {
@@ -43,6 +48,7 @@ describe('Access page', () => {
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
@@ -212,6 +218,7 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-view-profiles'));
 
     const view = await screen.findByTestId('access-profiles-view');
@@ -279,6 +286,7 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-view-profiles'));
 
     const view = await screen.findByTestId('access-profiles-view');
@@ -300,5 +308,40 @@ describe('Access page', () => {
     const versions = within(detail).getByTestId('access-profile-versions');
     expect(versions).toHaveTextContent('v1');
     expect(versions).not.toHaveTextContent('v2');
+  });
+
+  it('gates the Access route with current subject effective permissions and shows the 403 reason', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/permissions/effective', () =>
+        HttpResponse.json({
+          subject_ref: 'user:ops',
+          resource: { kind: 'org', id: 'org-test', org_id: 'org-test' },
+          permissions: [{ key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-ops' }],
+        }),
+      ),
+      http.post('/api/orgs/:slug/permissions/explain', () =>
+        HttpResponse.json({
+          decision: {
+            allowed: false,
+            subject_ref: 'user:ops',
+            permission: 'org.member.role.manage',
+            resource: { kind: 'org', id: 'org-test', org_id: 'org-test' },
+            source: 'org_role',
+            reason: 'admin role cannot manage owner-only permission mapping',
+            evidence_ref: 'members:mem-ops',
+          },
+          effective: [],
+          denied_by: ['admin role cannot manage owner-only permission mapping'],
+        }),
+      ),
+    );
+
+    renderPage('/organizations/test/access', 'user:ops');
+
+    const forbidden = await screen.findByTestId('access-forbidden');
+    expect(forbidden).toHaveTextContent('Access unavailable (403)');
+    await waitFor(() => expect(forbidden).toHaveTextContent('admin role cannot manage owner-only permission mapping'));
+    expect(screen.getByTestId('access-open-batch')).toBeDisabled();
+    expect(screen.queryByTestId('access-subject-view')).not.toBeInTheDocument();
   });
 });

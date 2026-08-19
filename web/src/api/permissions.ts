@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import { useAppStore } from '@/store/app';
 
 export type DecisionSource =
   | 'org_role'
@@ -217,6 +218,18 @@ export function useEffectivePermissions(subjectRef: string, resource: ResourceSc
     queryFn: () => api.get<EffectivePermissions>(effectivePath(subjectRef, resource as ResourceScope)),
     enabled: !!subjectRef && !!resource?.kind && (!!resource.id || !!resource.uri),
   });
+}
+
+export function hasEffectivePermission(
+  effective: EffectivePermissions | undefined,
+  permissionKey: string,
+): boolean {
+  return Boolean(effective?.permissions.some((p) => p.key === permissionKey));
+}
+
+export function useCurrentSubjectEffectivePermissions(resource: ResourceScope | null) {
+  const subjectRef = useAppStore((s) => s.currentUserId);
+  return useEffectivePermissions(subjectRef, resource);
 }
 
 export function usePermissionExplain(

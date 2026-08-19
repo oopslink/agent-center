@@ -398,6 +398,20 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       invalidate(qk.orgPlansAll());
       return;
 
+    // Authorization and role mapping lifecycle. These events change effective
+    // permissions immediately, so refresh the derived UI gates and access views.
+    case 'authorization.assignment.created':
+    case 'authorization.assignment.revoked':
+    case 'authorization.role.upserted':
+    case 'authorization.role_permissions.set':
+    case 'authorization.shadow.diff':
+    case 'team.role_ram_roles.replaced':
+    case 'team.role_ram_roles.changed':
+      invalidate(qk.permissions());
+      invalidate(qk.accessOverview());
+      invalidate(qk.accessProfiles());
+      return;
+
     // Issue lifecycle — BC-native Issue list/show refresh on any
     // status move (v2.3-5b: qk.issues / qk.issue were added when
     // the SPA stopped going through Conversation BC).

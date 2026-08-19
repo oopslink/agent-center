@@ -31,6 +31,7 @@ import { MobileTabBar, type TabBarModule } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { SECONDARY_NAV_REGISTRY, type ShellModuleId } from '@/shell/secondaryNav';
 import { OrgSettingsSecondaryNav } from '@/shell/nav/OrgSettingsSecondaryNav';
+import { hasEffectivePermission, useCurrentSubjectEffectivePermissions } from '@/api/permissions';
 
 // AppLayout v5 — v2.10.0 [T1] three-column module rail + per-module secondary
 // nav + on-demand context panel (col④). Desktop: col①(rail) | col②(secondary nav)
@@ -245,6 +246,8 @@ export default function AppLayout(): React.ReactElement {
     ? (orgs.data ?? []).find((o) => o.slug === orgCtx.slug)
     : orgs.data?.[0];
   const orgBase = orgCtx ? `/organizations/${orgCtx.slug}` : '';
+  const orgResource = orgCtx ? { kind: 'org', id: orgCtx.orgId } : null;
+  const currentPermissions = useCurrentSubjectEffectivePermissions(orgResource);
 
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
@@ -297,6 +300,15 @@ export default function AppLayout(): React.ReactElement {
   const activeModuleId = detectActiveModule(location.pathname, orgBase);
   const activeModule = MODULE_DEFS.find((m) => m.id === activeModuleId);
   const isOrgSettings = location.pathname.includes('/organization-settings');
+  const canUseAccess =
+    !orgCtx ||
+    currentPermissions.isLoading ||
+    currentPermissions.isError ||
+    hasEffectivePermission(currentPermissions.data, 'org.member.role.manage');
+  const visibleModules = useMemo(
+    () => MODULE_DEFS.filter((m) => m.id !== 'access' || canUseAccess),
+    [canUseAccess],
+  );
 
   // Keyboard shortcuts.
   const shortcuts = useMemo(
@@ -374,7 +386,7 @@ export default function AppLayout(): React.ReactElement {
   };
 
   // Mobile tab bar module definitions.
-  const tabBarModules: TabBarModule[] = MODULE_DEFS.map((m) => ({
+  const tabBarModules: TabBarModule[] = visibleModules.map((m) => ({
     id: m.id,
     label: moduleLabel(m.id),
     short: moduleShort(m.id),
@@ -464,7 +476,7 @@ export default function AppLayout(): React.ReactElement {
           <RailOrgSwitcher orgSwitcher={orgSwitcher} />
 
           <div className="mt-2 flex flex-1 flex-col items-center gap-1">
-            {MODULE_DEFS.map((mod) => {
+            {visibleModules.map((mod) => {
               const active = mod.id === activeModuleId;
               const href = mod.defaultPath ? `${orgBase}/${mod.defaultPath}` : orgBase || '/';
               return (

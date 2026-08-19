@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
   type AccessBatchPreview,
@@ -27,10 +28,18 @@ import {
   useAccessRevokePreview,
   useAccessRoleUpdate,
 } from '@/api/access';
+import {
+  hasEffectivePermission,
+  type ResourceScope,
+  useCurrentSubjectEffectivePermissions,
+  usePermissionExplain,
+} from '@/api/permissions';
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { useModalA11y } from '@/components/useModalA11y';
+import { useAppStore } from '@/store/app';
+import { useOptionalOrgContext } from '@/OrgContext';
 import {
   AccessMetaPill,
   AccessRiskBadge,
@@ -78,6 +87,17 @@ function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): Ac
 }
 
 export default function Access(): React.ReactElement {
+  const org = useOptionalOrgContext();
+  const subjectRef = useAppStore((s) => s.currentUserId);
+  const orgResource = useMemo<ResourceScope>(() => ({ kind: 'org', id: org?.orgId ?? 'org-test' }), [org?.orgId]);
+  const currentPermissions = useCurrentSubjectEffectivePermissions(orgResource);
+  const canManageAccess = hasEffectivePermission(currentPermissions.data, 'org.member.role.manage');
+  const explainAccess = usePermissionExplain(
+    subjectRef,
+    'org.member.role.manage',
+    orgResource,
+    currentPermissions.isSuccess && !canManageAccess,
+  );
   const [view, setView] = useState<AccessView>('subjects');
   const [query, setQuery] = useState('');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
@@ -90,7 +110,7 @@ export default function Access(): React.ReactElement {
     resource_kind: resourceKind,
     risk,
     status,
-  });
+  }, currentPermissions.isSuccess && canManageAccess);
   const data = overview.data;
   const resources = useMemo(
     () => uniqueResources(data?.decisions ?? [], data?.grants ?? []),
@@ -118,12 +138,30 @@ export default function Access(): React.ReactElement {
           type="button"
           className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           onClick={() => setDrawerOpen(true)}
+          disabled={!canManageAccess}
+          title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
           data-testid="access-open-batch"
         >
           Batch grant
         </button>
       </header>
 
+      {currentPermissions.isLoading && <Skeleton height="10rem" />}
+      {currentPermissions.isError && (
+        <AccessForbidden
+          reason={(currentPermissions.error as Error).message}
+          status={currentPermissions.error instanceof ApiError ? currentPermissions.error.status : 403}
+        />
+      )}
+      {currentPermissions.isSuccess && !canManageAccess && (
+        <AccessForbidden
+          reason={explainAccess.data?.decision.reason ?? (explainAccess.error as Error | undefined)?.message ?? 'Current subject lacks org.member.role.manage'}
+          status={403}
+        />
+      )}
+
+      {currentPermissions.isSuccess && canManageAccess && (
+      <>
       <div className="grid gap-3 md:grid-cols-5">
         <SummaryTile label="Allowed" value={data?.summary.allowed ?? 0} tone="success" />
         <SummaryTile label="High risk" value={data?.summary.high_risk ?? 0} tone="danger" />
@@ -192,7 +230,7 @@ export default function Access(): React.ReactElement {
 
       {!overview.isLoading && !overview.isError && data && (
         view === 'profiles' ? (
-          <AccessProfilesView catalog={data.catalog} />
+          <AccessProfilesView catalog={data.catalog} canManageAccess={canManageAccess} />
         ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
@@ -212,8 +250,8 @@ export default function Access(): React.ReactElement {
             <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
-            <RoleManagement roles={data.roles} catalog={data.catalog} />
-            <GrantRevoke grants={data.grants} />
+            <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />
+            <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
           </aside>
         </div>
         )
@@ -224,9 +262,24 @@ export default function Access(): React.ReactElement {
           subjects={data.subjects}
           permissions={data.catalog}
           resources={resources}
+          canManageAccess={canManageAccess}
           onClose={() => setDrawerOpen(false)}
         />
       )}
+      </>
+      )}
+    </section>
+  );
+}
+
+function AccessForbidden({ reason, status }: { reason: string; status: number }): React.ReactElement {
+  return (
+    <section className="rounded border border-danger/30 bg-danger/10 p-4" data-testid="access-forbidden" role="alert">
+      <h2 className="text-sm font-semibold text-danger">Access unavailable ({status})</h2>
+      <p className="mt-1 text-sm text-danger">{reason}</p>
+      <p className="mt-2 text-xs text-text-muted">
+        The frontend hides controls from current effective permissions only; the backend remains authoritative.
+      </p>
     </section>
   );
 }
@@ -283,7 +336,7 @@ function Select({
   );
 }
 
-function AccessProfilesView({ catalog }: { catalog: AccessPermissionDefinition[] }): React.ReactElement {
+function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermissionDefinition[]; canManageAccess: boolean }): React.ReactElement {
   const profiles = useAccessProfiles();
   const create = useAccessProfileCreate();
   const newVersion = useAccessProfileNewVersion();
@@ -362,7 +415,7 @@ function AccessProfilesView({ catalog }: { catalog: AccessPermissionDefinition[]
           <button
             type="button"
             className="mt-3 rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg disabled:opacity-50"
-            disabled={!draftName.trim() || createPermissions.length === 0 || create.isPending}
+            disabled={!canManageAccess || !draftName.trim() || createPermissions.length === 0 || create.isPending}
             data-testid="access-profile-create-submit"
             onClick={() => create.mutate({
               name: draftName,
@@ -407,7 +460,7 @@ function AccessProfilesView({ catalog }: { catalog: AccessPermissionDefinition[]
                 <button
                   type="button"
                   className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-                  disabled={!latest || !selected || selected.startsWith('team-') || versionPermissions.length === 0 || newVersion.isPending}
+                  disabled={!canManageAccess || !latest || !selected || selected.startsWith('team-') || versionPermissions.length === 0 || newVersion.isPending}
                   data-testid="access-profile-new-version-submit"
                   onClick={() => {
                     if (!latest || !selected) return;
@@ -425,7 +478,7 @@ function AccessProfilesView({ catalog }: { catalog: AccessPermissionDefinition[]
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!selected || disable.isPending || selected.startsWith('team-')}
+                  disabled={!canManageAccess || !selected || disable.isPending || selected.startsWith('team-')}
                   data-testid="access-profile-disable-submit"
                   onClick={() => selected && disable.mutate(selected)}
                 >
@@ -658,9 +711,11 @@ function PermissionCatalog({ catalog }: { catalog: AccessPermissionDefinition[] 
 function RoleManagement({
   roles,
   catalog,
+  canManageAccess,
 }: {
   roles: AccessRole[];
   catalog: AccessPermissionDefinition[];
+  canManageAccess: boolean;
 }): React.ReactElement {
   const updateRole = useAccessRoleUpdate();
   const [drafts, setDrafts] = useState<Record<string, string[]>>({});
@@ -708,7 +763,7 @@ function RoleManagement({
                     key={`${role.id}-${permission.key}`}
                     type="button"
                     aria-pressed={checked}
-                    disabled={!role.editable || updateRole.isPending}
+                    disabled={!canManageAccess || !role.editable || updateRole.isPending}
                     onClick={() => togglePermission(role, permission.key)}
                     className={[
                       'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-secondary',
@@ -724,7 +779,7 @@ function RoleManagement({
             </div>
             <button
               type="button"
-              disabled={!role.editable || updateRole.isPending || !reason.trim()}
+              disabled={!canManageAccess || !role.editable || updateRole.isPending || !reason.trim()}
               onClick={() => save(role)}
               className="mt-3 rounded border border-border-base px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
               data-testid={`access-save-role-${role.id}`}
@@ -739,7 +794,7 @@ function RoleManagement({
   );
 }
 
-function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement {
+function GrantRevoke({ grants, canManageAccess }: { grants: AccessGrant[]; canManageAccess: boolean }): React.ReactElement {
   const revoke = useAccessBulkRevoke();
   const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -760,7 +815,7 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
         <h2 className="text-sm font-semibold text-text-primary">Active grants</h2>
         <button
           type="button"
-          disabled={selectedIds.length === 0 || previewRevoke.isPending || !reason.trim()}
+          disabled={!canManageAccess || selectedIds.length === 0 || previewRevoke.isPending || !reason.trim()}
           onClick={() => {
             const grant_ids = selectedIds;
             const message = reason.trim();
@@ -805,6 +860,7 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
                     <input
                       type="checkbox"
                       checked={selected.has(grant.id)}
+                      disabled={!canManageAccess}
                       onChange={() => toggle(grant.id)}
                       aria-label={`Select ${grant.permission} for revoke`}
                       data-testid="access-grant-select"
@@ -839,7 +895,7 @@ function GrantRevoke({ grants }: { grants: AccessGrant[] }): React.ReactElement 
               type="button"
               className="mt-2 rounded bg-danger px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
               data-testid="access-revoke-confirm"
-              disabled={revoke.isPending}
+              disabled={!canManageAccess || revoke.isPending}
               onClick={() => revoke.mutate({
                 grant_ids: preview.grant_ids,
                 reason: preview.reason,
@@ -865,11 +921,13 @@ function BatchGrantDrawer({
   subjects,
   permissions,
   resources,
+  canManageAccess,
   onClose,
 }: {
   subjects: AccessSubject[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
+  canManageAccess: boolean;
   onClose: () => void;
 }): React.ReactElement {
   const containerRef = useModalA11y({ open: true, onClose });
@@ -882,11 +940,12 @@ function BatchGrantDrawer({
   const [highRiskAck, setHighRiskAck] = useState(false);
 
   const canPreview =
+    canManageAccess &&
     request.subject_refs.length > 0 &&
     request.permission_keys.length > 0 &&
     request.resources.length > 0 &&
     request.reason.trim().length > 0;
-  const canConfirm = !!preview && (preview.summary.high_risk === 0 || highRiskAck);
+  const canConfirm = canManageAccess && !!preview && (preview.summary.high_risk === 0 || highRiskAck);
 
   const toggleSubject = (ref: string): void => {
     setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
@@ -970,6 +1029,7 @@ function BatchGrantDrawer({
                   <ChoiceRow
                     key={subject.ref}
                     checked={request.subject_refs.includes(subject.ref)}
+                    disabled={!canManageAccess}
                     onChange={() => toggleSubject(subject.ref)}
                     label={subject.name}
                     detail={`${subject.ref} · ${subject.role ?? subject.kind} · ${subject.status ?? 'unknown'}`}
@@ -981,6 +1041,7 @@ function BatchGrantDrawer({
                   <ChoiceRow
                     key={permission.key}
                     checked={request.permission_keys.includes(permission.key)}
+                    disabled={!canManageAccess}
                     onChange={() => togglePermission(permission.key)}
                     label={permission.key}
                     detail={`${permission.label} · ${accessRiskLabel(permission.risk)}`}
@@ -993,6 +1054,7 @@ function BatchGrantDrawer({
                   <ChoiceRow
                     key={accessResourceKey(resource)}
                     checked={request.resources.some((r) => accessResourceKey(r) === accessResourceKey(resource))}
+                    disabled={!canManageAccess}
                     onChange={() => toggleResource(resource)}
                     label={accessResourceLabel(resource)}
                     detail={resource.kind}
@@ -1006,6 +1068,7 @@ function BatchGrantDrawer({
                     type="datetime-local"
                     className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary"
                     value={request.expires_at?.slice(0, 16) ?? ''}
+                    disabled={!canManageAccess}
                     onChange={(e) => setRequest((prev) => ({ ...prev, expires_at: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
                     data-testid="access-batch-expires"
                   />
@@ -1015,6 +1078,7 @@ function BatchGrantDrawer({
                   <input
                     className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary"
                     value={request.reason}
+                    disabled={!canManageAccess}
                     onChange={(e) => setRequest((prev) => ({ ...prev, reason: e.target.value }))}
                     data-testid="access-batch-reason"
                   />
@@ -1088,7 +1152,7 @@ function BatchGrantDrawer({
               <button
                 type="button"
                 className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:opacity-50"
-                disabled={applyMutation.isPending}
+                disabled={!canManageAccess || applyMutation.isPending}
                 onClick={runApply}
                 data-testid="access-apply-batch"
               >
@@ -1126,12 +1190,14 @@ function Picker({ title, children }: { title: string; children: React.ReactNode 
 
 function ChoiceRow({
   checked,
+  disabled,
   onChange,
   label,
   detail,
   badge,
 }: {
   checked: boolean;
+  disabled?: boolean;
   onChange: () => void;
   label: string;
   detail: string;
@@ -1141,10 +1207,12 @@ function ChoiceRow({
     <button
       type="button"
       aria-pressed={checked}
+      disabled={disabled}
       onClick={onChange}
       className={[
         'flex min-w-0 items-start gap-2 rounded px-2 py-2 text-left text-sm',
         checked ? 'bg-status-emerald-bg text-status-emerald-fg' : 'hover:bg-bg-subtle',
+        disabled ? 'opacity-50' : '',
       ].join(' ')}
     >
       <span className={checked ? 'mt-1 h-2 w-2 rounded-full bg-success' : 'mt-1 h-2 w-2 rounded-full border border-border-strong'} aria-hidden="true" />

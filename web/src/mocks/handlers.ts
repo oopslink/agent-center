@@ -656,6 +656,59 @@ function accessHandlers() {
         summary: summaryFor(filtered),
       });
     }),
+    http.get('/api/permissions/effective', ({ request }) => {
+      const url = new URL(request.url);
+      const subject = url.searchParams.get('subject_ref') || 'user:hayang';
+      const resourceKind = url.searchParams.get('resource_kind') || 'org';
+      const resourceID = url.searchParams.get('resource_id') || 'org-test';
+      return ok({
+        subject_ref: subject,
+        resource: { kind: resourceKind, id: resourceID, org_id: 'org-test' },
+        permissions: subject !== 'user:ops'
+          ? [
+              { key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-1', delegatable: true },
+              { key: 'org.member.role.manage', source: 'org_role', evidence_ref: 'members:mem-1', delegatable: true },
+            ]
+          : [
+              { key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-2', delegatable: false },
+            ],
+      });
+    }),
+    http.get('/api/orgs/:slug/permissions/effective', ({ request }) => {
+      const url = new URL(request.url);
+      const subject = url.searchParams.get('subject_ref') || 'user:hayang';
+      const resourceKind = url.searchParams.get('resource_kind') || 'org';
+      const resourceID = url.searchParams.get('resource_id') || 'org-test';
+      return ok({
+        subject_ref: subject,
+        resource: { kind: resourceKind, id: resourceID, org_id: 'org-test' },
+        permissions: subject !== 'user:ops'
+          ? [
+              { key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-1', delegatable: true },
+              { key: 'org.member.role.manage', source: 'org_role', evidence_ref: 'members:mem-1', delegatable: true },
+            ]
+          : [
+              { key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-2', delegatable: false },
+            ],
+      });
+    }),
+    http.post('/api/orgs/:slug/permissions/explain', async ({ request }) => {
+      const body = (await request.json()) as { subject_ref?: string; permission?: string; resource?: Resource };
+      return ok({
+        decision: {
+          allowed: false,
+          subject_ref: body.subject_ref || 'user:ops',
+          permission: body.permission || 'org.member.role.manage',
+          resource: body.resource || { kind: 'org', id: 'org-test' },
+          source: 'org_role',
+          reason: 'member role does not grant organization role management',
+          evidence_ref: 'members:mem-2',
+        },
+        effective: [],
+        denied_by: ['member role does not grant organization role management'],
+        resolved_org: 'org-test',
+      });
+    }),
     http.get('/api/access/profiles', () => ok({
       profiles: [
         { id: 'team-basic', name: 'Team basic', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
