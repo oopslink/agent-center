@@ -55,9 +55,21 @@ var facadeIDGen = idgen.NewGenerator(clock.SystemClock{})
 // updateTeamReq is the update body — name/description are optional (nil = leave
 // unchanged), mirroring teamservice.UpdateTeamInput.
 type updateTeamReq struct {
-	Name        *string         `json:"name"`
-	Description *string         `json:"description"`
-	Roles       *[]roleInputReq `json:"roles"`
+	Name        *string               `json:"name"`
+	Description *string               `json:"description"`
+	Roles       *[]updateRoleInputReq `json:"roles"`
+}
+
+type updateRoleInputReq struct {
+	Role               string    `json:"role"`
+	CLI                string    `json:"cli"`
+	Model              string    `json:"model"`
+	MaxConcurrency     int       `json:"max_concurrency"`
+	Count              int       `json:"count"`
+	Tags               string    `json:"tags"`
+	Description        string    `json:"description"`
+	AccessRequirements []string  `json:"access_requirements"`
+	RAMRoleKeys        *[]string `json:"ram_role_keys"`
 }
 
 // updateTeamHandler serves PATCH /api/orgs/{slug}/teams/{id} → TeamView.
@@ -68,7 +80,8 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// enforce org ownership before mutate (cross-org id → 404).
-	if _, err := getTeamInOrg(r, d, orgID, r.PathValue("id")); err != nil {
+	currentTeam, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
+	if err != nil {
 		mapTeamWebError(w, err)
 		return
 	}
@@ -79,10 +92,18 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var configs *[]team.RoleConfig
 	if req.Roles != nil {
+		currentKeys := make(map[string][]string, len(currentTeam.Roles()))
+		for _, rc := range currentTeam.Roles() {
+			currentKeys[rc.Role] = append([]string(nil), rc.RAMRoleKeys...)
+		}
 		converted := make([]team.RoleConfig, 0, len(*req.Roles))
 		for _, ri := range *req.Roles {
+			ramRoleKeys := currentKeys[strings.TrimSpace(ri.Role)]
+			if ri.RAMRoleKeys != nil {
+				ramRoleKeys = *ri.RAMRoleKeys
+			}
 			converted = append(converted, team.RoleConfig{Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-				CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, MaxConcurrency: ri.MaxConcurrency})
+				CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, RAMRoleKeys: ramRoleKeys, MaxConcurrency: ri.MaxConcurrency})
 		}
 		var valid bool
 		converted, valid = s.validateTeamRuntimeRoles(w, r, d, orgID, converted)
@@ -153,7 +174,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 				roles = append(roles, roleInputReq{
 					Role: sl.Config.Role, CLI: sl.Config.CLI, Model: sl.Config.Model,
 					MaxConcurrency: sl.Config.MaxConcurrency, Count: sl.Count,
-					Tags: strings.Join(sl.Config.CapabilityTags, ","),
+					Tags: strings.Join(sl.Config.CapabilityTags, ","), AccessRequirements: sl.Config.AccessRequirements, RAMRoleKeys: sl.Config.RAMRoleKeys,
 				})
 			}
 		}
@@ -164,7 +185,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	for _, ri := range roles {
 		configs = append(configs, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-			CapabilityTags: splitTags(ri.Tags), MaxConcurrency: ri.MaxConcurrency,
+			CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, RAMRoleKeys: ri.RAMRoleKeys, MaxConcurrency: ri.MaxConcurrency,
 		})
 		count := ri.Count
 		if count <= 0 {
@@ -1013,12 +1034,14 @@ type createTeamTemplateReq struct {
 // config + per-role count. capability_tags is already a []string (unlike the
 // create-team RoleInput's comma-string).
 type templateRoleReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role               string   `json:"role"`
+	CLI                string   `json:"cli"`
+	Model              string   `json:"model"`
+	CapabilityTags     []string `json:"capability_tags"`
+	MaxConcurrency     int      `json:"max_concurrency"`
+	Count              int      `json:"count"`
+	AccessRequirements []string `json:"access_requirements"`
+	RAMRoleKeys        []string `json:"ram_role_keys"`
 }
 
 // listTeamTemplatesHandler serves GET /api/orgs/{slug}/team-templates → TeamTemplate[].
@@ -1101,7 +1124,7 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 		slots = append(slots, team.RoleSlot{
 			Config: team.RoleConfig{
 				Role: rr.Role, CLI: rr.CLI, Model: rr.Model,
-				CapabilityTags: rr.CapabilityTags, MaxConcurrency: rr.MaxConcurrency,
+				CapabilityTags: rr.CapabilityTags, AccessRequirements: rr.AccessRequirements, RAMRoleKeys: rr.RAMRoleKeys, MaxConcurrency: rr.MaxConcurrency,
 			},
 			Count: rr.Count,
 		})
@@ -1183,12 +1206,14 @@ func templateRoleViews(slots []team.RoleSlot) []map[string]any {
 			tags = []string{}
 		}
 		out = append(out, map[string]any{
-			"role":            sl.Config.Role,
-			"cli":             sl.Config.CLI,
-			"model":           sl.Config.Model,
-			"capability_tags": tags,
-			"max_concurrency": sl.Config.MaxConcurrency,
-			"count":           sl.Count,
+			"role":                sl.Config.Role,
+			"cli":                 sl.Config.CLI,
+			"model":               sl.Config.Model,
+			"capability_tags":     tags,
+			"access_requirements": nonNilStrings(sl.Config.AccessRequirements),
+			"ram_role_keys":       nonNilStrings(sl.Config.RAMRoleKeys),
+			"max_concurrency":     sl.Config.MaxConcurrency,
+			"count":               sl.Count,
 		})
 	}
 	return out

@@ -94,6 +94,7 @@ func normalizeRoles(in []RoleConfig) ([]RoleConfig, error) {
 			Model:              rc.Model,
 			CapabilityTags:     append([]string(nil), rc.CapabilityTags...),
 			AccessRequirements: normalizeAccessRequirements(rc.AccessRequirements),
+			RAMRoleKeys:        normalizeAccessRequirements(rc.RAMRoleKeys),
 			MaxConcurrency:     mc,
 		})
 	}

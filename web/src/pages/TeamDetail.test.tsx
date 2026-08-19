@@ -89,13 +89,16 @@ describe('TeamDetail', () => {
   });
 
   it('selects an explicit access profile version in RoleBuilder and saves access requirements', async () => {
-    let body: { roles?: Array<{ role: string; access_requirements?: string[] }> } | undefined;
+    let body: { roles?: Array<{ role: string; ram_role_keys?: string[]; access_requirements?: string[] }> } | undefined;
+    let previewBody: { ram_role_ids?: string[] } | undefined;
+    let putBody: { ram_role_ids?: string[]; expected_version?: number } | undefined;
     const validTeam = teamDetail({
         roles: [{
           role: 'planner',
           cli: 'claude-code',
           model: 'claude-opus-4-8',
           capability_tags: [],
+          ram_role_keys: ['Team basic'],
           access_requirements: ['team.read', 'team.memory.read'],
           max_concurrency: 1,
           count: 0,
@@ -107,6 +110,35 @@ describe('TeamDetail', () => {
         body = await request.json() as typeof body;
         return HttpResponse.json(validTeam);
       }),
+      http.get('/api/teams/:id/roles/:role/ram-roles', () => HttpResponse.json({
+        team_id: 'team-7c19b0',
+        team_role: 'planner',
+        ram_role_ids: ['team-basic'],
+        version: 1,
+      })),
+      http.post('/api/teams/:id/roles/:role/ram-roles/preview', async ({ request }) => {
+        previewBody = await request.json() as typeof previewBody;
+        return HttpResponse.json({
+          team_id: 'team-7c19b0',
+          team_role: 'planner',
+          current_ram_role_ids: ['team-basic'],
+          next_ram_role_ids: previewBody?.ram_role_ids ?? [],
+          added_ram_role_ids: ['team-curator'],
+          removed_ram_role_ids: [],
+          affected_members: 0,
+          affected_project_ids: [],
+          version: 1,
+        });
+      }),
+      http.put('/api/teams/:id/roles/:role/ram-roles', async ({ request }) => {
+        putBody = await request.json() as typeof putBody;
+        return HttpResponse.json({
+          team_id: 'team-7c19b0',
+          team_role: 'planner',
+          ram_role_ids: putBody?.ram_role_ids ?? [],
+          version: 2,
+        });
+      }),
     );
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
@@ -115,8 +147,31 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
     fireEvent.change(profile, { target: { value: 'team-basic@1' } });
     expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
+    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
+    fireEvent.click(within(modal).getByTestId('edit-team-role-0-ram-role-trigger'));
+    const options = await screen.findAllByTestId('edit-team-role-0-ram-role-option');
+    fireEvent.click(options.find((option) => option.getAttribute('data-value') === 'team-curator') as HTMLElement);
+    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('2 roles · 5 permissions');
+    expect(within(modal).getByTestId('team-role-save-preview')).toHaveTextContent('1 changed roles');
+    expect(within(modal).getByTestId('team-role-effective-hint')).toHaveTextContent('take effect immediately');
     fireEvent.click(within(modal).getByTestId('team-save-roles'));
-    await waitFor(() => expect(body?.roles?.[0]?.access_requirements).toEqual(['team.read', 'team.memory.read']));
+    await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toBeUndefined());
+    expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
+    await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
+    expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 1 });
+  });
+
+  it('shows RAM role usage and member permission source scope', async () => {
+    renderAt('team-7c19b0');
+    const planner = await screen.findByTestId('team-role-used-by-planner');
+    expect(planner).toHaveTextContent('Used by 1 members');
+    expect(planner).toHaveTextContent('Team contributor');
+
+    fireEvent.click(screen.getByTestId('tab-mm'));
+    const source = await screen.findByTestId('member-permission-source-agent:9a70…');
+    expect(source).toHaveTextContent('team_member → Team Role');
+    expect(source).toHaveTextContent('scope team:team-7c19b0');
+    expect(source).toHaveTextContent('Team contributor');
   });
 
   it('preserves and refreshes server access_lint in the edit role model', async () => {

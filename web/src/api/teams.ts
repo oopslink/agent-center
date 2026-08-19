@@ -12,7 +12,7 @@
 // (internal/webconsole/api/handlers_teams*.go); teamsFixtures.ts survives only as
 // the MSW test backend (src/mocks/teamHandlers.ts), never the dev/prod runtime.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { currentOrgScope } from './queryKeys';
 import { type TeamProjectLink } from './teamsFixtures';
@@ -27,6 +27,8 @@ export interface RoleView {
   cli: string;
   model: string;
   capability_tags: string[];
+  /** Stable RAM role names declared on team/template payloads. */
+  ram_role_keys?: string[];
   access_requirements?: string[];
   access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
   max_concurrency: number;
@@ -233,8 +235,32 @@ export interface RoleInput {
   count: number;
   tags: string;
   description?: string;
+  ram_role_keys?: string[];
+  ram_role_ids?: string[];
+  ram_role_version?: number;
   access_requirements?: string[];
   access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
+}
+
+export interface TeamRAMRoleMapping {
+  team_id: string;
+  team_role: string;
+  ram_role_ids: string[];
+  version: number;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface TeamRAMRoleMappingImpact {
+  team_id: string;
+  team_role: string;
+  current_ram_role_ids: string[];
+  next_ram_role_ids: string[];
+  added_ram_role_ids: string[];
+  removed_ram_role_ids: string[];
+  affected_members: number;
+  affected_project_ids: string[];
+  version: number;
 }
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
@@ -276,6 +302,7 @@ export const teamKeys = {
   memoryIndex: (id: string) => key('memory', id),
   memoryDoc: (id: string, slug: string, kind?: string) => key('memory', id, kind ?? 'auto', slug),
   memorySettings: (id: string) => key('memory', id, 'settings'),
+  ramRoleMapping: (id: string, role: string) => key('ram-roles', id, role),
   templates: () => key('templates'),
   template: (id: string) => key('template', id),
   templateInstances: (id: string) => key('template', id, 'instances'),
@@ -298,6 +325,15 @@ export function useTeam(id: string) {
     queryFn: () => api.get<TeamView>(`/teams/${id}`),
     enabled: !!id,
   });
+}
+
+export function useReadTeam() {
+  const qc = useQueryClient();
+  return async (id: string): Promise<TeamView> => {
+    const team = await api.get<TeamView>(`/teams/${id}`);
+    qc.setQueryData(teamKeys.detail(id), team);
+    return team;
+  };
 }
 
 export interface CreateTeamInput {
@@ -327,10 +363,47 @@ export function useDeleteTeam() {
 export function useUpdateTeamRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { team_id: string; roles: RoleInput[] }) =>
-      api.patch<TeamView>(`/teams/${v.team_id}`, { roles: v.roles }),
+    mutationFn: async (v: { team_id: string; roles: RoleInput[] }) => {
+      await api.patch<TeamView>(`/teams/${v.team_id}`, { roles: v.roles });
+      return api.get<TeamView>(`/teams/${v.team_id}`);
+    },
     onSuccess: (team) => {
       qc.setQueryData(teamKeys.detail(team.id), team);
+      qc.invalidateQueries({ queryKey: teamKeys.list() });
+    },
+  });
+}
+
+export function useTeamRoleRAMMappings(teamId: string, roles: string[]) {
+  return useQueries({
+    queries: roles.map((role) => ({
+      queryKey: teamKeys.ramRoleMapping(teamId, role),
+      queryFn: () => api.get<TeamRAMRoleMapping>(`/teams/${teamId}/roles/${encodeURIComponent(role)}/ram-roles`),
+      enabled: Boolean(teamId && role),
+    })),
+  });
+}
+
+export function usePreviewTeamRoleRAMMapping() {
+  return useMutation({
+    mutationFn: (v: { team_id: string; role: string; ram_role_ids: string[] }) =>
+      api.post<TeamRAMRoleMappingImpact>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}/ram-roles/preview`, {
+        ram_role_ids: v.ram_role_ids,
+      }),
+  });
+}
+
+export function useReplaceTeamRoleRAMMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { team_id: string; role: string; ram_role_ids: string[]; expected_version: number }) =>
+      api.put<TeamRAMRoleMapping>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}/ram-roles`, {
+        ram_role_ids: v.ram_role_ids,
+        expected_version: v.expected_version,
+      }),
+    onSuccess: (mapping) => {
+      qc.setQueryData(teamKeys.ramRoleMapping(mapping.team_id, mapping.team_role), mapping);
+      qc.invalidateQueries({ queryKey: teamKeys.detail(mapping.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.list() });
     },
   });
@@ -674,6 +747,8 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
       cli: r.cli,
       model: r.model,
       capability_tags: r.capability_tags,
+      ram_role_keys: r.ram_role_keys ?? [],
+      access_requirements: r.access_requirements ?? [],
       max_concurrency: r.max_concurrency,
       count: r.count,
     })),

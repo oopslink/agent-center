@@ -85,6 +85,7 @@ func roleViewMap(rc team.RoleConfig, count int) map[string]any {
 		"model":               rc.Model,
 		"capability_tags":     tags,
 		"access_requirements": requirements,
+		"ram_role_keys":       nonNilStrings(rc.RAMRoleKeys),
 		"access_lint":         accessRequirementsLint(requirements),
 		"max_concurrency":     rc.MaxConcurrency,
 		"count":               count,
@@ -445,6 +446,14 @@ type roleInputReq struct {
 	Tags               string   `json:"tags"`
 	Description        string   `json:"description"`
 	AccessRequirements []string `json:"access_requirements"`
+	RAMRoleKeys        []string `json:"ram_role_keys"`
+}
+
+func nonNilStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
 }
 
 // createTeamHandler serves POST /api/orgs/{slug}/teams → TeamView (201).
@@ -466,7 +475,7 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		roles = append(roles, team.RoleConfig{
 			Role: ri.Role, CLI: ri.CLI, Model: ri.Model,
-			CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, MaxConcurrency: ri.MaxConcurrency,
+			CapabilityTags: splitTags(ri.Tags), AccessRequirements: ri.AccessRequirements, RAMRoleKeys: ri.RAMRoleKeys, MaxConcurrency: ri.MaxConcurrency,
 		})
 	}
 	var valid bool

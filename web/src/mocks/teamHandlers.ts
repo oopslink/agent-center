@@ -27,6 +27,28 @@ import type {
 const json = (body: unknown, status = 200) => HttpResponse.json(body as never, { status });
 const notFound = () =>
   HttpResponse.json({ error: 'not_found', message: 'team_not_found' }, { status: 404 });
+const ramRoleIdByKey: Record<string, string> = {
+  'Team basic': 'team-basic',
+  'Team contributor': 'team-contributor',
+  'Team curator': 'team-curator',
+};
+const ramRoleKeyById = Object.fromEntries(Object.entries(ramRoleIdByKey).map(([key, id]) => [id, key]));
+
+function roleRAMRoleIDs(teamId: string, role: string): string[] {
+  const t = teamsStore().teams.find((x) => x.id === teamId);
+  const rv = t?.roles.find((r) => r.role === role);
+  return Array.from(new Set((rv?.ram_role_keys ?? []).map((key) => ramRoleIdByKey[key] ?? key))).sort();
+}
+
+function roleMapping(teamId: string, role: string) {
+  const rv = teamsStore().teams.find((x) => x.id === teamId)?.roles.find((r) => r.role === role);
+  return {
+    team_id: teamId,
+    team_role: role,
+    ram_role_ids: roleRAMRoleIDs(teamId, role),
+    version: (rv as { ram_role_version?: number } | undefined)?.ram_role_version ?? 1,
+  };
+}
 
 export function teamHandlers() {
   return [
@@ -65,6 +87,8 @@ export function teamHandlers() {
           model: r.model,
           max_concurrency: r.max_concurrency,
           count: r.count,
+          ram_role_keys: (r as { ram_role_keys?: string[] }).ram_role_keys ?? [],
+          access_requirements: (r as { access_requirements?: string[] }).access_requirements ?? [],
           capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
         })),
       };
@@ -77,6 +101,49 @@ export function teamHandlers() {
     http.get('/api/teams/:id', ({ params }) => {
       const t = teamsStore().teams.find((x) => x.id === String(params.id));
       return t ? json(t) : notFound();
+    }),
+
+    http.get('/api/teams/:id/roles/:role/ram-roles', ({ params }) => {
+      const teamId = String(params.id);
+      const role = String(params.role);
+      const t = teamsStore().teams.find((x) => x.id === teamId);
+      if (!t?.roles.some((r) => r.role === role)) return notFound();
+      return json(roleMapping(teamId, role));
+    }),
+
+    http.post('/api/teams/:id/roles/:role/ram-roles/preview', async ({ params, request }) => {
+      const teamId = String(params.id);
+      const role = String(params.role);
+      const current = roleRAMRoleIDs(teamId, role);
+      const body = await request.json() as { ram_role_ids?: string[] };
+      const next = Array.from(new Set(body.ram_role_ids ?? [])).sort();
+      return json({
+        team_id: teamId,
+        team_role: role,
+        current_ram_role_ids: current,
+        next_ram_role_ids: next,
+        added_ram_role_ids: next.filter((id) => !current.includes(id)),
+        removed_ram_role_ids: current.filter((id) => !next.includes(id)),
+        affected_members: teamsStore().members[teamId]?.filter((m) => (m.roles ?? [m.role]).includes(role)).length ?? 0,
+        affected_project_ids: (teamsStore().projects[teamId] ?? []).map((project) => project.project_id),
+        version: roleMapping(teamId, role).version,
+      });
+    }),
+
+    http.put('/api/teams/:id/roles/:role/ram-roles', async ({ params, request }) => {
+      const teamId = String(params.id);
+      const role = String(params.role);
+      const body = await request.json() as { ram_role_ids?: string[]; expected_version?: number };
+      const version = roleMapping(teamId, role).version;
+      if (body.expected_version !== version) {
+        return HttpResponse.json({ error: 'version_conflict', message: 'version_conflict' }, { status: 409 });
+      }
+      const t = teamsStore().teams.find((x) => x.id === teamId);
+      const rv = t?.roles.find((r) => r.role === role);
+      if (!rv) return notFound();
+      rv.ram_role_keys = Array.from(new Set(body.ram_role_ids ?? [])).map((id) => ramRoleKeyById[id] ?? id).sort();
+      (rv as { ram_role_version?: number }).ram_role_version = version + 1;
+      return json(roleMapping(teamId, role));
     }),
 
     http.delete('/api/teams/:id', ({ params }) => {
@@ -381,6 +448,8 @@ export function teamHandlers() {
           capability_tags: r.capability_tags ?? [],
           max_concurrency: r.max_concurrency ?? 1,
           count: r.count ?? 1,
+          ram_role_keys: r.ram_role_keys ?? [],
+          access_requirements: r.access_requirements ?? [],
           description: r.description,
         })),
         workflow_template_ref: doc.workflow_template_ref || 'plan-builtin',
@@ -469,6 +538,8 @@ export function teamHandlers() {
           model: r.model,
           max_concurrency: r.max_concurrency,
           count: r.count,
+          ram_role_keys: (r as { ram_role_keys?: string[] }).ram_role_keys ?? [],
+          access_requirements: (r as { access_requirements?: string[] }).access_requirements ?? [],
           capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
         })),
       };

@@ -170,6 +170,8 @@ func normalizeSlots(in []RoleSlot) ([]RoleSlot, error) {
 			cfg.MaxConcurrency = 1
 		}
 		cfg.CapabilityTags = append([]string(nil), sl.Config.CapabilityTags...)
+		cfg.AccessRequirements = normalizeAccessRequirements(sl.Config.AccessRequirements)
+		cfg.RAMRoleKeys = normalizeAccessRequirements(sl.Config.RAMRoleKeys)
 		count := sl.Count
 		if count <= 0 {
 			count = 1

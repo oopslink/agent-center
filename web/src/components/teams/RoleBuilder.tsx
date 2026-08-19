@@ -4,6 +4,8 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAccessProfiles } from '@/api/access';
+import { EntityMultiSelect } from '@/components/EntityMultiSelect';
+import type { EntityOption } from '@/components/EntitySelect';
 import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
@@ -24,6 +26,7 @@ export function newRole(role = ''): RoleInput {
     count: 1,
     tags: '',
     description: role ? ROLE_DESC[role] || '' : '',
+    ram_role_keys: [],
     access_requirements: [],
   };
 }
@@ -34,12 +37,14 @@ export function RoleBuilder({
   showDescription,
   showCount = true,
   idPrefix,
+  ramRoleMode = 'keys',
 }: {
   roles: RoleInput[];
   onChange: (next: RoleInput[]) => void;
   showDescription?: boolean;
   showCount?: boolean;
   idPrefix: string;
+  ramRoleMode?: 'keys' | 'ids';
 }): React.ReactElement {
   const { t } = useTranslation('teams');
   const runtimeCatalog = useRuntimeSelectorCatalog();
@@ -56,6 +61,31 @@ export function RoleBuilder({
         const runtimeInvalid =
           !runtimeCatalog.isLoading &&
           (Boolean(runtimeCatalog.error) || !isSelectableRuntimePair(runtimeCatalog.catalog, r.cli, r.model, 'model-key'));
+        const selectedRamRoles = ramRoleMode === 'ids' ? r.ram_role_ids ?? [] : r.ram_role_keys ?? [];
+        const profiles = accessProfiles.data?.profiles ?? [];
+        const selectedProfiles = profiles.filter((profile) => selectedRamRoles.includes(ramRoleValue(profile, ramRoleMode)));
+        const ramRoleOptions: EntityOption[] = profiles.map((profile) => ({
+          value: ramRoleValue(profile, ramRoleMode),
+          label: `${profile.name} v${profile.version}`,
+          hint: profile.description,
+        }));
+        const selectedPermissions = uniqueSorted([
+          ...(r.access_requirements ?? []),
+          ...selectedProfiles.flatMap((profile) => profile.permissions),
+        ]);
+        const setRamRoles = (nextRefs: string[]) => {
+          const nextProfiles = profiles.filter((profile) => nextRefs.includes(ramRoleValue(profile, ramRoleMode)));
+          const nextPatch: Partial<RoleInput> = {
+            access_requirements: uniqueSorted(nextProfiles.flatMap((profile) => profile.permissions)),
+          };
+          if (ramRoleMode === 'ids') {
+            nextPatch.ram_role_ids = nextRefs;
+            nextPatch.ram_role_keys = nextProfiles.map((profile) => profile.name);
+          } else {
+            nextPatch.ram_role_keys = nextRefs;
+          }
+          patch(i, nextPatch);
+        };
         return (
           <div
             key={i}
@@ -122,6 +152,11 @@ export function RoleBuilder({
             </div>
           )}
 
+          <div className="rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-runtime-config`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <SmallLabel>{t('roleBuilder.runtimeSection')}</SmallLabel>
+              <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.runtimeSource')}</span>
+            </div>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1fr_1fr_10rem]">
             <div>
               <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
@@ -168,6 +203,7 @@ export function RoleBuilder({
               <p className="mt-1 text-[0.6875rem] leading-tight text-text-muted">{t('roleBuilder.concurrencyHint')}</p>
             </div>
           </div>
+          </div>
 
           <div className="mt-3">
             <SmallLabel>{t('roleBuilder.tagsLabel')}</SmallLabel>
@@ -181,6 +217,10 @@ export function RoleBuilder({
           </div>
 
           <div className="mt-3 rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-access-editor`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <SmallLabel>{t('roleBuilder.permissionsSection')}</SmallLabel>
+              <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.permissionsSource')}</span>
+            </div>
             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem]">
               <div>
                 <SmallLabel>{t('roleBuilder.accessProfileLabel')}</SmallLabel>
@@ -201,23 +241,55 @@ export function RoleBuilder({
                     </option>
                   ))}
                 </select>
+                <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2" data-testid={`${idPrefix}-role-${i}-ram-role-picker`}>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[0.6875rem] font-semibold text-text-secondary">{t('roleBuilder.ramRoleMultiLabel')}</span>
+                    <span className="text-[0.6875rem] text-text-muted" data-testid={`${idPrefix}-role-${i}-ram-role-summary`}>
+                      {t('roleBuilder.ramRoleSummary', { count: selectedRamRoles.length, permissions: selectedPermissions.length })}
+                    </span>
+                  </div>
+                  {accessProfiles.isLoading && (
+                    <p className="text-[0.6875rem] text-text-muted" data-testid={`${idPrefix}-role-${i}-ram-role-loading`}>
+                      {t('roleBuilder.ramRoleLoading')}
+                    </p>
+                  )}
+                  {accessProfiles.isError && (
+                    <p className="text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-ram-role-error`}>
+                      {t('roleBuilder.ramRoleError')}
+                    </p>
+                  )}
+                  <EntityMultiSelect
+                    testId={`${idPrefix}-role-${i}-ram-role`}
+                    options={ramRoleOptions}
+                    values={selectedRamRoles}
+                    onChange={setRamRoles}
+                    disabled={accessProfiles.isLoading || accessProfiles.isError}
+                    placeholder={t('roleBuilder.ramRolePlaceholder')}
+                    searchPlaceholder={t('roleBuilder.ramRoleSearch')}
+                    emptyLabel={t('roleBuilder.ramRoleEmpty')}
+                    ariaLabel={t('roleBuilder.ramRoleMultiLabel')}
+                  />
+                </div>
               </div>
               <div>
                 <SmallLabel>{t('roleBuilder.accessRiskLabel')}</SmallLabel>
                 <div className="rounded border border-border-base px-2 py-1.5 text-xs font-semibold text-text-secondary" data-testid={`${idPrefix}-role-${i}-access-count`}>
-                  {t('roleBuilder.accessPermissionCount', { count: (r.access_requirements ?? []).length })}
+                  {t('roleBuilder.accessPermissionCount', { count: selectedPermissions.length })}
                 </div>
               </div>
             </div>
-            {(r.access_requirements ?? []).length > 0 && (
+            {selectedPermissions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1" data-testid={`${idPrefix}-role-${i}-access-permissions`}>
-                {(r.access_requirements ?? []).map((permission) => (
+                {selectedPermissions.map((permission) => (
                   <span key={permission} className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-text-secondary">
                     {permission}
                   </span>
                 ))}
               </div>
             )}
+            <p className="mt-2 text-[0.6875rem] leading-5 text-text-muted" data-testid={`${idPrefix}-role-${i}-access-scope`}>
+              {t('roleBuilder.accessScopeHint', { role: r.role || t('roleBuilder.roleNamePlaceholder') })}
+            </p>
             {(r.access_lint ?? []).map((lint) => (
               <p key={`${lint.permission ?? ''}:${lint.message}`} className="mt-1 text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-access-lint`}>
                 {lint.permission ? `${lint.permission}: ${lint.message}` : lint.message}
@@ -247,4 +319,12 @@ function profileValue(requirements: string[], profiles: Array<{ id: string; vers
   const normalized = requirements.slice().sort().join('\n');
   const profile = profiles.find((p) => p.permissions.slice().sort().join('\n') === normalized);
   return profile ? `${profile.id}@${profile.version}` : '';
+}
+
+function ramRoleValue(profile: { id: string; name: string }, mode: 'keys' | 'ids'): string {
+  return mode === 'ids' ? profile.id : profile.name;
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort();
 }
