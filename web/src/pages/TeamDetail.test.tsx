@@ -88,11 +88,12 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
   });
 
-  it('selects an explicit access profile version in RoleBuilder and saves access requirements', async () => {
+  it('selects RAM roles with CAS, saves declaration keys, and reloads server-read sources', async () => {
     let body: { roles?: Array<{ role: string; ram_role_keys?: string[]; access_requirements?: string[] }> } | undefined;
     let previewBody: { ram_role_ids?: string[] } | undefined;
     let putBody: { ram_role_ids?: string[]; expected_version?: number } | undefined;
-    const validTeam = teamDetail({
+    let getCount = 0;
+    let serverTeam = teamDetail({
         roles: [{
           role: 'planner',
           cli: 'claude-code',
@@ -104,18 +105,31 @@ describe('TeamDetail', () => {
           count: 0,
         }],
       });
+    let mapping = {
+      team_id: 'team-7c19b0',
+      team_role: 'planner',
+      ram_role_ids: ['team-basic'],
+      version: 1,
+    };
     server.use(
-      http.get('/api/teams/:id', () => HttpResponse.json(validTeam)),
+      http.get('/api/teams/:id', () => {
+        getCount += 1;
+        return HttpResponse.json(serverTeam);
+      }),
       http.patch('/api/teams/:id', async ({ request }) => {
         body = await request.json() as typeof body;
-        return HttpResponse.json(validTeam);
+        serverTeam = teamDetail({
+          ...serverTeam,
+          roles: (body?.roles ?? []).map((role) => ({
+            ...role,
+            capability_tags: [],
+            max_concurrency: 1,
+            count: 0,
+          })),
+        });
+        return HttpResponse.json(serverTeam);
       }),
-      http.get('/api/teams/:id/roles/:role/ram-roles', () => HttpResponse.json({
-        team_id: 'team-7c19b0',
-        team_role: 'planner',
-        ram_role_ids: ['team-basic'],
-        version: 1,
-      })),
+      http.get('/api/teams/:id/roles/:role/ram-roles', () => HttpResponse.json(mapping)),
       http.post('/api/teams/:id/roles/:role/ram-roles/preview', async ({ request }) => {
         previewBody = await request.json() as typeof previewBody;
         return HttpResponse.json({
@@ -132,12 +146,13 @@ describe('TeamDetail', () => {
       }),
       http.put('/api/teams/:id/roles/:role/ram-roles', async ({ request }) => {
         putBody = await request.json() as typeof putBody;
-        return HttpResponse.json({
+        mapping = {
           team_id: 'team-7c19b0',
           team_role: 'planner',
           ram_role_ids: putBody?.ram_role_ids ?? [],
           version: 2,
-        });
+        };
+        return HttpResponse.json(mapping);
       }),
     );
     renderAt('team-7c19b0');
@@ -155,10 +170,18 @@ describe('TeamDetail', () => {
     expect(within(modal).getByTestId('team-role-save-preview')).toHaveTextContent('1 changed roles');
     expect(within(modal).getByTestId('team-role-effective-hint')).toHaveTextContent('take effect immediately');
     fireEvent.click(within(modal).getByTestId('team-save-roles'));
-    await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toBeUndefined());
+    await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toEqual(['Team basic', 'Team curator']));
     expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
     await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
     expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 1 });
+    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
+    await waitFor(() => expect(getCount).toBeGreaterThanOrEqual(2));
+    expect(await screen.findByTestId('team-role-used-by-planner')).toHaveTextContent('Team curator');
+
+    cleanup();
+    renderAt('team-7c19b0');
+    expect(await screen.findByTestId('team-role-used-by-planner')).toHaveTextContent('Team basic');
+    expect(screen.getByTestId('team-role-used-by-planner')).toHaveTextContent('Team curator');
   });
 
   it('shows RAM role usage and member permission source scope', async () => {

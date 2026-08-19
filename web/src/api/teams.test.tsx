@@ -6,6 +6,7 @@ import {
   roleColor,
   useCreateTeam,
   useDeleteTeam,
+  useSaveTemplate,
   useTeamMemoryDoc,
   useTeams,
   type TeamTemplate,
@@ -42,18 +43,56 @@ describe('teams api (fixture-backed)', () => {
         name: 'x-team',
         description: '',
         visibility: 'org-private',
-        roles: [{ role: 'coder', cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, count: 1, tags: 'go, ts' }],
+        roles: [{
+          role: 'coder',
+          cli: 'claude-code',
+          model: 'sonnet-5',
+          max_concurrency: 1,
+          count: 1,
+          tags: 'go, ts',
+          ram_role_keys: ['Team contributor'],
+          access_requirements: ['project.read'],
+        }],
       });
     });
     expect(teamsStore().teams.some((t) => t.name === 'x-team')).toBe(true);
     const created = teamsStore().teams.find((t) => t.name === 'x-team')!;
     expect(created.roles[0].capability_tags).toEqual(['go', 'ts']);
+    expect(created.roles[0].ram_role_keys).toEqual(['Team contributor']);
+    expect(created.roles[0].access_requirements).toEqual(['project.read']);
 
     const del = renderHook(() => useDeleteTeam(), { wrapper });
     await act(async () => {
       await del.result.current.mutateAsync(created.id);
     });
     expect(teamsStore().teams.some((t) => t.id === created.id)).toBe(false);
+  });
+
+  it('useSaveTemplate persists source metadata and role ram_role_keys', async () => {
+    const wrapper = makeWrapper();
+    const save = renderHook(() => useSaveTemplate(), { wrapper });
+    await act(async () => {
+      await save.result.current.mutateAsync({
+        name: 'curated delivery team',
+        description: 'source-backed template',
+        source: 'extract:team-7c19b0',
+        source_kind: 'extract',
+        roles: [{
+          role: 'reviewer',
+          cli: 'claude-code',
+          model: 'sonnet-5',
+          max_concurrency: 1,
+          count: 1,
+          capability_tags: [],
+          ram_role_keys: ['Team curator'],
+          access_requirements: ['team.read', 'team.memory.review'],
+        }],
+      });
+    });
+    const saved = teamsStore().templates.find((t) => t.name === 'curated delivery team')!;
+    expect(saved.source).toBe('extract:team-7c19b0');
+    expect(saved.source_kind).toBe('extract');
+    expect(saved.roles[0].ram_role_keys).toEqual(['Team curator']);
   });
 
   it('useTeamMemoryDoc throws for an unknown slug', async () => {
