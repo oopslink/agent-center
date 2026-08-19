@@ -20,6 +20,7 @@ import {
   useUpdateTeamRoles,
   type TeamMemoryPolicy,
   type RoleInput,
+  type MemberView,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -153,16 +154,22 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
         <RoleLegend roles={tv.roles} showCount={false} />
         <div className="mt-3.5">
           {tv.roles.map((r) => (
-            <SpecLine
-              key={r.role}
-              k={
-                <span className="flex items-center gap-1.5">
+            <div key={r.role} className="border-b border-border-base py-2 text-xs last:border-0" data-testid={`team-role-used-by-${r.role}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-1.5 text-text-muted">
                   <span className="h-2 w-2 rounded-sm" style={{ background: roleColor(r.role) }} aria-hidden="true" />
                   {r.role}
                 </span>
-              }
-              v={t('teamDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}
-            />
+                <span className="font-mono text-text-primary">{t('teamDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-text-muted">
+                <span>{t('teamDetail.overview.ramUsedBy', { count: r.count ?? 0 })}</span>
+                {(r.ram_roles ?? []).map((ramRole) => (
+                  <span key={ramRole} className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 font-mono">{ramRole}</span>
+                ))}
+                {(r.ram_roles ?? []).length === 0 && <span>{t('teamDetail.overview.noRamRoles')}</span>}
+              </div>
+            </div>
           ))}
         </div>
       </Card>
@@ -188,6 +195,7 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
   const { t } = useTranslation('teams');
   const update = useUpdateTeamRoles();
   const runtimeCatalog = useRuntimeSelectorCatalog();
+  const members = useTeamMembers(team.id);
   const [roles, setRoles] = useState<RoleInput[]>(() => team.roles.map((role) => ({
     role: role.role,
     cli: role.cli,
@@ -195,9 +203,22 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     max_concurrency: role.max_concurrency,
     count: role.count ?? 1,
     tags: role.capability_tags.join(', '),
+    ram_roles: role.ram_roles ?? [],
     access_requirements: role.access_requirements ?? [],
     access_lint: role.access_lint ?? [],
   })));
+  const originalRoles = team.roles.map((role) => ({
+    role: role.role,
+    cli: role.cli,
+    model: role.model,
+    max_concurrency: role.max_concurrency,
+    count: role.count ?? 1,
+    tags: role.capability_tags.join(', '),
+    ram_roles: role.ram_roles ?? [],
+    access_requirements: role.access_requirements ?? [],
+  }));
+  const changedRoles = roleDiff(originalRoles, roles);
+  const affectedMembers = affectedMembersForRoles(members.data ?? [], changedRoles.map((change) => change.role));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
   const hasRuntimeRoles = roles.length > 0;
@@ -216,6 +237,36 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
       <button type="button" className={btnSmPrimary} disabled={invalid || runtimeInvalid || update.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
     </div>}>
     <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" />
+    <div className="mt-3 rounded border border-border-base bg-bg-subtle p-3" data-testid="team-role-save-preview">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-text-primary">{t('teamDetail.roles.previewTitle')}</span>
+        <span className="text-[0.6875rem] text-text-muted">{t('teamDetail.roles.affectedSummary', { roles: changedRoles.length, members: affectedMembers.length })}</span>
+      </div>
+      <p className="mb-2 text-[0.6875rem] leading-5 text-text-secondary" data-testid="team-role-effective-hint">
+        {t('teamDetail.roles.effectiveHint')}
+      </p>
+      {changedRoles.length === 0 ? (
+        <p className="text-xs text-text-muted" data-testid="team-role-diff-empty">{t('teamDetail.roles.diffEmpty')}</p>
+      ) : (
+        <ul className="space-y-1" data-testid="team-role-diff-list">
+          {changedRoles.map((change) => (
+            <li key={change.role} className="text-xs text-text-secondary">
+              <span className="font-semibold text-text-primary">{change.role}</span>
+              <span className="ml-2 font-mono text-[0.6875rem]">{change.details.join(' / ')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 flex flex-wrap gap-1" data-testid="team-role-affected-members">
+        {affectedMembers.length === 0 ? (
+          <span className="text-[0.6875rem] text-text-muted">{t('teamDetail.roles.noAffectedMembers')}</span>
+        ) : affectedMembers.map((member) => (
+          <span key={member.member_ref} className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-[0.6875rem] text-text-secondary">
+            {member.name || member.member_ref}
+          </span>
+        ))}
+      </div>
+    </div>
     {invalid && <p className="mt-3 text-xs text-danger" role="alert">{t('teamDetail.roles.invalid')}</p>}
     {runtimeInvalid && (
       <p className="mt-3 text-xs text-danger" role="alert" data-testid="edit-team-runtime-validation-error">
@@ -275,12 +326,19 @@ function MembersPane({
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colCliModel')}</th>
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colCapabilities')}</th>
                 <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colConcurrency')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colPermissionSource')}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {members.data.map((m) => {
                 const memberRoles = m.roles?.length ? m.roles : [m.role];
+                const inheritedPermissions = uniqueSorted(memberRoles.flatMap((role) =>
+                  team.roles.find((r) => r.role === role)?.access_requirements ?? [],
+                ));
+                const inheritedRamRoles = uniqueSorted(memberRoles.flatMap((role) =>
+                  team.roles.find((r) => r.role === role)?.ram_roles ?? [],
+                ));
                 return (
                   <tr key={m.member_ref} data-testid={`member-row-${m.member_ref}`} className="border-b border-border-base last:border-0">
                     <td className="px-4 py-3">
@@ -312,6 +370,18 @@ function MembersPane({
                       <CapabilityPills capabilities={m.tags} />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
+                    <td className="px-4 py-3">
+                      <div className="max-w-[18rem] text-xs text-text-secondary" data-testid={`member-permission-source-${m.member_ref}`}>
+                        <div className="font-semibold text-text-primary">{t('teamDetail.members.sourceTeamRole')}</div>
+                        <div className="font-mono text-[0.6875rem] text-text-muted">{t('teamDetail.members.scopeTeam', { teamId })}</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {inheritedRamRoles.length > 0
+                            ? inheritedRamRoles.map((ramRole) => <span key={ramRole} className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem]">{ramRole}</span>)
+                            : inheritedPermissions.slice(0, 3).map((permission) => <span key={permission} className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem]">{permission}</span>)}
+                          {inheritedRamRoles.length === 0 && inheritedPermissions.length === 0 && <span className="text-text-muted">—</span>}
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => { setRemoveError(''); setRemovingRef(m.member_ref); }}>
                         {t('teamDetail.members.remove')}
@@ -383,6 +453,47 @@ function CapabilityPills({ capabilities }: { capabilities: string[] }): React.Re
       )}
     </div>
   );
+}
+
+function roleSignature(role: RoleInput): string {
+  return JSON.stringify({
+    role: role.role.trim(),
+    cli: role.cli,
+    model: role.model,
+    max_concurrency: role.max_concurrency,
+    tags: uniqueSorted(role.tags.split(/[\s,]+/)),
+    ram_roles: uniqueSorted(role.ram_roles ?? []),
+    access_requirements: uniqueSorted(role.access_requirements ?? []),
+  });
+}
+
+function roleDiff(before: RoleInput[], after: RoleInput[]): Array<{ role: string; details: string[] }> {
+  const beforeByName = new Map(before.map((role) => [role.role.trim(), role]));
+  const afterByName = new Map(after.map((role) => [role.role.trim(), role]));
+  const names = uniqueSorted([...beforeByName.keys(), ...afterByName.keys()]);
+  return names.flatMap((name) => {
+    const prev = beforeByName.get(name);
+    const next = afterByName.get(name);
+    if (!prev && next) return [{ role: name, details: ['added'] }];
+    if (prev && !next) return [{ role: name, details: ['removed'] }];
+    if (!prev || !next || roleSignature(prev) === roleSignature(next)) return [];
+    const details: string[] = [];
+    if (prev.cli !== next.cli || prev.model !== next.model || prev.max_concurrency !== next.max_concurrency) details.push('runtime');
+    if (uniqueSorted(prev.tags.split(/[\s,]+/)).join('|') !== uniqueSorted(next.tags.split(/[\s,]+/)).join('|')) details.push('capabilities');
+    if (uniqueSorted(prev.ram_roles ?? []).join('|') !== uniqueSorted(next.ram_roles ?? []).join('|')) details.push('RAM roles');
+    if (uniqueSorted(prev.access_requirements ?? []).join('|') !== uniqueSorted(next.access_requirements ?? []).join('|')) details.push('permissions');
+    return [{ role: name, details }];
+  });
+}
+
+function affectedMembersForRoles(members: MemberView[], roles: string[]): MemberView[] {
+  if (roles.length === 0) return [];
+  const changed = new Set(roles);
+  return members.filter((member) => (member.roles?.length ? member.roles : [member.role]).some((role) => changed.has(role)));
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort();
 }
 
 function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {

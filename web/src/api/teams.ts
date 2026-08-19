@@ -27,6 +27,8 @@ export interface RoleView {
   cli: string;
   model: string;
   capability_tags: string[];
+  /** RAM role/profile refs selected for this team role. Optional for older API responses. */
+  ram_roles?: string[];
   access_requirements?: string[];
   access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
   max_concurrency: number;
@@ -233,6 +235,7 @@ export interface RoleInput {
   count: number;
   tags: string;
   description?: string;
+  ram_roles?: string[];
   access_requirements?: string[];
   access_lint?: Array<{ severity: 'error' | 'warning' | 'info'; permission?: string; message: string }>;
 }
@@ -674,6 +677,8 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
       cli: r.cli,
       model: r.model,
       capability_tags: r.capability_tags,
+      ram_roles: r.ram_roles ?? [],
+      access_requirements: r.access_requirements ?? [],
       max_concurrency: r.max_concurrency,
       count: r.count,
     })),

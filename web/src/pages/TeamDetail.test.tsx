@@ -89,13 +89,14 @@ describe('TeamDetail', () => {
   });
 
   it('selects an explicit access profile version in RoleBuilder and saves access requirements', async () => {
-    let body: { roles?: Array<{ role: string; access_requirements?: string[] }> } | undefined;
+    let body: { roles?: Array<{ role: string; ram_roles?: string[]; access_requirements?: string[] }> } | undefined;
     const validTeam = teamDetail({
         roles: [{
           role: 'planner',
           cli: 'claude-code',
           model: 'claude-opus-4-8',
           capability_tags: [],
+          ram_roles: ['team-basic@1'],
           access_requirements: ['team.read', 'team.memory.read'],
           max_concurrency: 1,
           count: 0,
@@ -115,8 +116,29 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
     fireEvent.change(profile, { target: { value: 'team-basic@1' } });
     expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
+    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
+    fireEvent.click(within(modal).getByTestId('edit-team-role-0-ram-role-trigger'));
+    const options = await screen.findAllByTestId('edit-team-role-0-ram-role-option');
+    fireEvent.click(options.find((option) => option.getAttribute('data-value') === 'team-curator@2') as HTMLElement);
+    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('2 roles · 5 permissions');
+    expect(within(modal).getByTestId('team-role-save-preview')).toHaveTextContent('1 changed roles');
+    expect(within(modal).getByTestId('team-role-effective-hint')).toHaveTextContent('take effect immediately');
     fireEvent.click(within(modal).getByTestId('team-save-roles'));
-    await waitFor(() => expect(body?.roles?.[0]?.access_requirements).toEqual(['team.read', 'team.memory.read']));
+    await waitFor(() => expect(body?.roles?.[0]?.ram_roles).toEqual(['team-basic@1', 'team-curator@2']));
+    expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
+  });
+
+  it('shows RAM role usage and member permission source scope', async () => {
+    renderAt('team-7c19b0');
+    const planner = await screen.findByTestId('team-role-used-by-planner');
+    expect(planner).toHaveTextContent('Used by 1 members');
+    expect(planner).toHaveTextContent('team-contributor@1');
+
+    fireEvent.click(screen.getByTestId('tab-mm'));
+    const source = await screen.findByTestId('member-permission-source-agent:9a70…');
+    expect(source).toHaveTextContent('team_member → Team Role');
+    expect(source).toHaveTextContent('scope team:team-7c19b0');
+    expect(source).toHaveTextContent('team-contributor@1');
   });
 
   it('preserves and refreshes server access_lint in the edit role model', async () => {

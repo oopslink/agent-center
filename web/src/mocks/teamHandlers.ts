@@ -65,6 +65,8 @@ export function teamHandlers() {
           model: r.model,
           max_concurrency: r.max_concurrency,
           count: r.count,
+          ram_roles: (r as { ram_roles?: string[] }).ram_roles ?? [],
+          access_requirements: (r as { access_requirements?: string[] }).access_requirements ?? [],
           capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
         })),
       };
@@ -381,6 +383,8 @@ export function teamHandlers() {
           capability_tags: r.capability_tags ?? [],
           max_concurrency: r.max_concurrency ?? 1,
           count: r.count ?? 1,
+          ram_roles: r.ram_roles ?? [],
+          access_requirements: r.access_requirements ?? [],
           description: r.description,
         })),
         workflow_template_ref: doc.workflow_template_ref || 'plan-builtin',
@@ -469,6 +473,8 @@ export function teamHandlers() {
           model: r.model,
           max_concurrency: r.max_concurrency,
           count: r.count,
+          ram_roles: (r as { ram_roles?: string[] }).ram_roles ?? [],
+          access_requirements: (r as { access_requirements?: string[] }).access_requirements ?? [],
           capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
         })),
       };

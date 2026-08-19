@@ -64,10 +64,10 @@ function seed(): TeamsData {
       created: '2026/6/12',
       version: 3,
       roles: [
-        { role: 'planner', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [] },
-        { role: 'coder', count: 3, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [] },
-        { role: 'reviewer', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [] },
-        { role: 'ops', count: 1, cli: 'codex', model: 'gpt-5', max_concurrency: 1, capability_tags: [] },
+        { role: 'planner', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_roles: ['team-contributor@1'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+        { role: 'coder', count: 3, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [], ram_roles: ['team-contributor@1'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+        { role: 'reviewer', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_roles: ['team-curator@2'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] },
+        { role: 'ops', count: 1, cli: 'codex', model: 'gpt-5', max_concurrency: 1, capability_tags: [], ram_roles: ['team-basic@1'], access_requirements: ['team.read', 'team.memory.read'] },
       ],
     },
     {
@@ -82,9 +82,9 @@ function seed(): TeamsData {
       created: '2026/6/28',
       version: 1,
       roles: [
-        { role: 'planner', count: 1, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, capability_tags: [] },
-        { role: 'coder', count: 2, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [] },
-        { role: 'researcher', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [] },
+        { role: 'planner', count: 1, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, capability_tags: [], ram_roles: ['team-basic@1'], access_requirements: ['team.read', 'team.memory.read'] },
+        { role: 'coder', count: 2, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [], ram_roles: ['team-contributor@1'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+        { role: 'researcher', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_roles: ['team-basic@1'], access_requirements: ['team.read', 'team.memory.read'] },
       ],
     },
     {
