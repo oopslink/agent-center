@@ -112,3 +112,39 @@ func TestT1412EnforceIncludesTeamRoleRAMAndRevokesImmediately(t *testing.T) {
 		t.Fatalf("enforce must fail closed after mapping revoke, decision=%#v err=%v", decision, err)
 	}
 }
+
+func TestT1413EnforceConversationPostUsesOwnedTaskProjectScope(t *testing.T) {
+	ctx := context.Background()
+	db, base := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-1", "org-1")
+	seedProjectMember(t, db, "pm-member", "project-1", "user:user-member", "member")
+	now := "2026-08-14T12:00:00Z"
+	execMany(t, db, `INSERT INTO pm_tasks (id, project_id, title, status, created_by, created_at, updated_at)
+		VALUES ('task-owned-conv', 'project-1', 'Task', 'open', 'user:user-owner', ?, ?)`, now, now)
+	execMany(t, db, `INSERT INTO conversations (id, kind, owner_ref, organization_id, status, opened_at, participants, created_by, created_at, updated_at, version)
+		VALUES ('conv-task-owned', 'task', 'pm://tasks/task-owned-conv', 'org-1', 'active', ?, '[]', 'system', ?, ?, 1)`, now, now, now)
+
+	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
+	decision, err := enforced.Check(ctx, CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "conversation.post",
+		Resource:   ResourceScope{Kind: "conversation", ID: "conv-task-owned"},
+	})
+	if err != nil || !decision.Allowed || decision.Source != SourceProjectMember {
+		t.Fatalf("task-owned conversation post decision=%#v err=%v", decision, err)
+	}
+
+	execMany(t, db, `DELETE FROM pm_project_members WHERE id='pm-member'`)
+	enforced = New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
+	decision, err = enforced.Check(ctx, CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "conversation.post",
+		Resource:   ResourceScope{Kind: "conversation", ID: "conv-task-owned"},
+	})
+	if !errors.Is(err, ErrDenied) || decision.Allowed {
+		t.Fatalf("conversation post must fail closed after project membership revoke, decision=%#v err=%v", decision, err)
+	}
+}

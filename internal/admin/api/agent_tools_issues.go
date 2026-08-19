@@ -72,6 +72,9 @@ func (s *Server) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_title", "")
 		return
 	}
+	if !s.requireAgentProjectWrite(w, r, d, a, req.ProjectID) {
+		return
+	}
 	issueID, err := d.PMService.CreateIssue(r.Context(), pmservice.CreateIssueCommand{
 		ProjectID:   pm.ProjectID(req.ProjectID),
 		Title:       req.Title,
@@ -139,6 +142,9 @@ func (s *Server) updateIssueHandler(w http.ResponseWriter, r *http.Request) {
 			"update_issue needs at least one of: title, description, status, tags")
 		return
 	}
+	if !s.requireAgentIssueWrite(w, r, d, a, req.IssueID) {
+		return
+	}
 	err := d.PMService.BatchUpdateIssue(r.Context(), pm.IssueID(req.IssueID), pmservice.BatchIssuePatch{
 		Title:       req.Title,
 		Description: req.Description,
@@ -178,6 +184,9 @@ func (s *Server) setIssueStatusHandler(w http.ResponseWriter, r *http.Request, t
 	}
 	if d.PMService == nil {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireAgentIssueWrite(w, r, d, a, issueID) {
 		return
 	}
 	if err := d.PMService.SetIssueStatus(r.Context(), pm.IssueID(issueID), target, pm.IdentityRef(agentActor(a))); err != nil {

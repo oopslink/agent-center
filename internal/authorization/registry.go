@@ -45,6 +45,8 @@ var definitions = []PermissionDefinition{
 	def("task.internal.report", []string{"task"}, []string{"report"}, []string{"admin_tokens.scopes_json"}),
 	def("task.read", []string{"task"}, []string{"read"}, []string{"pm_project_members", "pm_tasks.assignee"}),
 	def("task.write", []string{"task"}, []string{"update"}, []string{"pm_project_members"}),
+	def("task.start.self", []string{"task"}, []string{"start"}, []string{"pm_tasks.assignee"}),
+	def("task.heartbeat.self", []string{"task"}, []string{"heartbeat"}, []string{"pm_tasks.assignee"}),
 	def("task.complete.self", []string{"task"}, []string{"complete"}, []string{"pm_tasks.assignee"}),
 	def("task.block.self", []string{"task"}, []string{"block"}, []string{"pm_tasks.assignee"}),
 	def("issue.read", []string{"issue"}, []string{"read"}, []string{"pm_project_members"}),

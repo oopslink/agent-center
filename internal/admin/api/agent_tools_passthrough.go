@@ -86,6 +86,9 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_title", "")
 		return
 	}
+	if !s.requireAgentProjectWrite(w, r, d, a, req.ProjectID) {
+		return
+	}
 	// T199/WS3: validate the optional assignee ref shape HERE so a malformed ref is
 	// a clear 400 (not an opaque domain 500). Empty = unassigned (no-op).
 	assignee := strings.TrimSpace(req.Assignee)
@@ -175,6 +178,9 @@ func (s *Server) assignTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_assignee", "")
 		return
 	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
 	if err := d.PMService.AssignTask(r.Context(), pm.TaskID(req.TaskID),
 		pm.IdentityRef(req.Assignee), pm.IdentityRef(agentActor(a))); err != nil {
 		mapDomainError(w, err)
@@ -220,6 +226,9 @@ func (s *Server) subscribeOp(w http.ResponseWriter, r *http.Request, subscribe b
 	}
 	if strings.TrimSpace(req.TaskID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
 		return
 	}
 	// identity defaults to the agent's own ref when omitted.

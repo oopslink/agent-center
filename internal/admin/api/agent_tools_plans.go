@@ -136,6 +136,9 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
+	if !s.requireAgentProjectWrite(w, r, d, a, req.ProjectID) {
+		return
+	}
 	var td *time.Time
 	if strings.TrimSpace(req.TargetDate) != "" {
 		t, perr := time.Parse(time.RFC3339Nano, req.TargetDate)

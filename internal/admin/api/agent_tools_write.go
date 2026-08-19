@@ -534,6 +534,9 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 			"target.type must be one of: conversation, task, issue")
 		return
 	}
+	if !s.requireAgentConversationPost(w, r, d, a, string(conv.ID())) {
+		return
+	}
 
 	// T44: resolve + authorize attachments BEFORE any write. Each named file must
 	// parse and be reachable in the agent's OWN domain (e.g. uploaded by the agent
@@ -751,6 +754,9 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
 		return
 	}
+	if !s.requireAgentTaskSelf(w, r, d, a, req.TaskID, "task.block.self") {
+		return
+	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
@@ -794,6 +800,9 @@ func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.PMService == nil {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
 		return
 	}
 	if err := d.PMService.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
@@ -849,6 +858,9 @@ func (s *Server) resetTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
 	if err := d.PMService.ResetTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a)), req.ConfirmedDead); err != nil {
 		mapDomainError(w, err)
 		return
@@ -881,6 +893,9 @@ func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if d.PMService == nil {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
 		return
 	}
 	if err := d.PMService.RerunFailedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
@@ -916,6 +931,9 @@ func (s *Server) resumePausedNodeHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if d.PMService == nil {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
 		return
 	}
 	if err := d.PMService.ResumePausedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
@@ -1042,6 +1060,9 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+		return
+	}
+	if !s.requireAgentTaskSelf(w, r, d, a, req.TaskID, "task.complete.self") {
 		return
 	}
 	// T810 ⑤: B3 auto-decision was deleted (the gate was removed in v2.28.0 → it always
@@ -1240,6 +1261,9 @@ func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
 		return
 	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		if strings.TrimSpace(req.Reason) != "" {
 			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
@@ -1291,6 +1315,9 @@ func (s *Server) setTaskIssueHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Relaxed gate — creator / project member may fix the link without a WorkItem.
 	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
 		return
 	}
 	issueID := pm.IssueID(strings.TrimSpace(req.IssueID))
