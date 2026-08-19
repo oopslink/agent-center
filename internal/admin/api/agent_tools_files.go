@@ -35,6 +35,7 @@ import (
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
@@ -404,6 +405,9 @@ func (s *Server) uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 				"requested scope is not in the agent's own domain")
 			return
 		}
+		if !s.requireAgentFilePermission(w, r, d, a, "file.upload", "", []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
+			return
+		}
 	}
 	sess, err := d.FilesSvc.CreateUploadSession(r.Context(), filesservice.CreateUploadCmd{
 		ContentType: req.ContentType,
@@ -504,6 +508,9 @@ func (s *Server) completeFileHandler(w http.ResponseWriter, r *http.Request) {
 				"requested scope is not in the agent's own domain")
 			return
 		}
+		if !s.requireAgentFilePermission(w, r, d, a, "file.attach", string(sess.FileURI()), []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
+			return
+		}
 	}
 	if err := d.FilesSvc.CompleteUpload(r.Context(), transferURI, req.SHA256, req.Size); err != nil {
 		mapFilesError(w, err)
@@ -564,6 +571,9 @@ func (s *Server) downloadFileHandler(w http.ResponseWriter, r *http.Request) {
 		// has no reachable reference in its own domain.
 		writeError(w, http.StatusForbidden, "file_not_reachable",
 			"no reachable reference grants the agent a download")
+		return
+	}
+	if !s.requireAgentFilePermission(w, r, d, a, "file.download", string(fileURI), nil) {
 		return
 	}
 	contentType := contentTypeFromRefs(r.Context(), d, fileURI)
@@ -632,6 +642,9 @@ func (s *Server) attachFileHandler(w http.ResponseWriter, r *http.Request) {
 	if !inDomain {
 		writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
 			"requested scope is not in the agent's own domain")
+		return
+	}
+	if !s.requireAgentFilePermission(w, r, d, a, "file.attach", req.FileURI, []authz.FileRef{{Scope: string(scope), ScopeID: req.ScopeID}}) {
 		return
 	}
 	ref, err := d.FilesSvc.AddReference(r.Context(), filesservice.AddReferenceCmd{

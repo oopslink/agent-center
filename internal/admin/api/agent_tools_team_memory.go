@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -33,6 +34,9 @@ func (s *Server) proposeTeamMemoryHandler(w http.ResponseWriter, r *http.Request
 	}
 	a, svc, projector, ok := s.requireTeamMemoryAgent(w, r, d, req.AgentID)
 	if !ok {
+		return
+	}
+	if _, ok := s.requireAgentCurrentTeamMemoryPermission(w, r, d, a, "team.memory.propose"); !ok {
 		return
 	}
 	kind := strings.TrimSpace(req.TargetKind)
@@ -151,6 +155,9 @@ func (s *Server) reviewTeamMemoryHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if _, ok := s.requireAgentCurrentTeamMemoryPermission(w, r, d, a, "team.memory.review"); !ok {
+		return
+	}
 	actorRef := operatingAgentMemberRef(a).String()
 	cmd := teammemory.ReviewCommand{
 		ActorRef:               actorRef,
@@ -193,6 +200,20 @@ func (s *Server) requireTeamMemoryAgent(w http.ResponseWriter, r *http.Request, 
 		projector = teammemory.NewProjector(nil, nil, nil, nil)
 	}
 	return a, svc, projector, true
+}
+
+func (s *Server) requireAgentCurrentTeamMemoryPermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey) (string, bool) {
+	teamID := ""
+	if d.TeamSvc != nil {
+		if id, ok, err := d.TeamSvc.FindAgentTeam(r.Context(), operatingAgentMemberRef(a)); err == nil && ok {
+			teamID = id.String()
+		}
+	}
+	if teamID == "" {
+		writeError(w, http.StatusForbidden, "not_team_member", "agent is not a current team member")
+		return "", false
+	}
+	return teamID, s.requireAgentTeamPermission(w, r, d, a, teamID, permission)
 }
 
 func (s *Server) resolveTeamMemoryConflictContext(r *http.Request, d HandlerDeps, a *agent.Agent, svc *teammemory.Service, proposalID string) (string, string) {

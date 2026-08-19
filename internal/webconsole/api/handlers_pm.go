@@ -439,6 +439,9 @@ func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.write", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
 	var req struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
@@ -478,6 +481,9 @@ func (s *Server) pmArchiveProjectHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.write", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
 	if err := d.PM.ArchiveProject(r.Context(), p.ID(), caller); err != nil {
 		mapPMError(w, err)
 		return
@@ -511,6 +517,9 @@ func (s *Server) pmAddMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.member.add", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
 	var req struct {
 		IdentityID string `json:"identity_id"`
 		Role       string `json:"role"`
@@ -535,6 +544,9 @@ func (s *Server) pmRemoveMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.member.remove", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
 		return
 	}
 	identityID := r.PathValue("identity_id")
@@ -599,6 +611,9 @@ func (s *Server) pmCreateIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.write", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
 	var req struct{ Title, Description string }
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -623,6 +638,9 @@ func (s *Server) pmTransitionIssueHandler(w http.ResponseWriter, r *http.Request
 	i, err := d.PM.GetIssue(r.Context(), issueID)
 	if err != nil || i.ProjectID() != p.ID() {
 		writeError(w, http.StatusNotFound, "not_found", "issue not found in this project")
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "issue.write", authz.ResourceScope{Kind: "issue", ID: string(i.ID()), OrgID: p.OrganizationID(), ProjectID: string(p.ID())}) {
 		return
 	}
 	var req struct {
@@ -668,6 +686,9 @@ func (s *Server) pmUpdateIssueHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "issue.write", authz.ResourceScope{Kind: "issue", ID: string(i.ID()), ProjectID: string(i.ProjectID())}) {
 		return
 	}
 	var req struct {
@@ -759,6 +780,9 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.write", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
 	var req struct {
 		Title            string `json:"title"`
 		Description      string `json:"description"`
@@ -833,6 +857,9 @@ func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "task.write", authz.ResourceScope{Kind: "task", ID: string(t.ID()), ProjectID: string(t.ProjectID())}) {
+		return
+	}
 	var req struct {
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
@@ -862,6 +889,9 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 	d := hd(r)
 	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "task.write", authz.ResourceScope{Kind: "task", ID: string(t.ID()), ProjectID: string(t.ProjectID())}) {
 		return
 	}
 	var req struct {
@@ -912,6 +942,9 @@ func (s *Server) pmTaskAction(w http.ResponseWriter, r *http.Request, run func(t
 	d := hd(r)
 	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "task.write", authz.ResourceScope{Kind: "task", ID: string(t.ID()), ProjectID: string(t.ProjectID())}) {
 		return
 	}
 	if err := run(t.ID(), caller); err != nil {
@@ -1008,6 +1041,9 @@ func (s *Server) pmSetTaskStatusHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "task.write", authz.ResourceScope{Kind: "task", ID: string(t.ID()), ProjectID: string(t.ProjectID())}) {
+		return
+	}
 	var req struct {
 		Status string `json:"status"`
 	}
@@ -1035,6 +1071,9 @@ func (s *Server) pmSetIssueStatusHandler(w http.ResponseWriter, r *http.Request)
 	i, err := d.PM.GetIssue(r.Context(), issueID)
 	if err != nil || i.ProjectID() != p.ID() {
 		writeError(w, http.StatusNotFound, "not_found", "issue not found in this project")
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "issue.write", authz.ResourceScope{Kind: "issue", ID: string(i.ID()), OrgID: p.OrganizationID(), ProjectID: string(p.ID())}) {
 		return
 	}
 	var req struct {
@@ -1125,6 +1164,9 @@ func (s *Server) pmBatchUpdateIssueHandler(w http.ResponseWriter, r *http.Reques
 	d := hd(r)
 	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "issue.write", authz.ResourceScope{Kind: "issue", ID: string(i.ID()), ProjectID: string(i.ProjectID())}) {
 		return
 	}
 	var req struct {

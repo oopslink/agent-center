@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
@@ -75,7 +76,7 @@ type updateRoleInputReq struct {
 // updateTeamHandler serves PATCH /api/orgs/{slug}/teams/{id} → TeamView.
 func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, member, orgID, ok := teamGuardMember(w, r, d)
+	caller, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -83,6 +84,9 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	currentTeam, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, currentTeam.ID().String(), "team.write") {
 		return
 	}
 	var req updateTeamReq
@@ -155,13 +159,16 @@ type instantiateTeamReq struct {
 // team) — this is what the FE builder renders.
 func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, member, orgID, ok := teamGuardMember(w, r, d)
+	caller, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	var req instantiateTeamReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if !requireWebTeamCreate(w, r, d, caller, orgID) {
 		return
 	}
 
@@ -483,7 +490,7 @@ type createMemoryProposalReq struct {
 
 func (s *Server) createTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d, "team.memory.propose")
 	if !ok {
 		return
 	}
@@ -532,7 +539,7 @@ type promoteMemoryProposalReq struct {
 
 func (s *Server) promoteTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d, "team.memory.review")
 	if !ok {
 		return
 	}
@@ -564,7 +571,7 @@ type rejectMemoryProposalReq struct {
 
 func (s *Server) rejectTeamMemoryProposalHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d)
+	caller, _, t, ok := s.requireTeamMemoryManage(w, r, d, "team.memory.review")
 	if !ok {
 		return
 	}
@@ -622,7 +629,7 @@ type updateMemorySettingsReq struct {
 
 func (s *Server) putTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, t, ok := s.requireTeamMemoryManage(w, r, d)
+	_, _, t, ok := s.requireTeamMemoryManage(w, r, d, "team.memory.review")
 	if !ok {
 		return
 	}
@@ -653,7 +660,7 @@ func (s *Server) putTeamMemorySettingsHandler(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, memoryPolicyView(policy))
 }
 
-func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*identity.Identity, *identity.Member, *team.Team, bool) {
+func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request, d HandlerDeps, permission authz.PermissionKey) (*identity.Identity, *identity.Member, *team.Team, bool) {
 	caller, member, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return nil, nil, nil, false
@@ -673,6 +680,9 @@ func (s *Server) requireTeamMemoryManage(w http.ResponseWriter, r *http.Request,
 	t, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return nil, nil, nil, false
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, t.ID().String(), permission) {
 		return nil, nil, nil, false
 	}
 	return caller, member, t, true
@@ -1047,7 +1057,7 @@ type templateRoleReq struct {
 // listTeamTemplatesHandler serves GET /api/orgs/{slug}/team-templates → TeamTemplate[].
 func (s *Server) listTeamTemplatesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	_, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -1110,13 +1120,16 @@ func (s *Server) templateScrubHandler(w http.ResponseWriter, r *http.Request) {
 // createTeamTemplateHandler serves POST /api/orgs/{slug}/team-templates → TeamTemplate (201).
 func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	var req createTeamTemplateReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if !requireWebTeamCreate(w, r, d, caller, orgID) {
 		return
 	}
 	slots := make([]team.RoleSlot, 0, len(req.Roles))

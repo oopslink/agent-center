@@ -1205,7 +1205,7 @@ func (s *Service) addBuiltinEquivalentEffective(ctx context.Context, req CheckRe
 	case "team":
 		return s.addTeamEquivalent(ctx, req.SubjectRef, r.ID, add, denied)
 	case "conversation":
-		return s.addConversationEffective(ctx, req.SubjectRef, r.ID, add, denied)
+		return s.addConversationEquivalent(ctx, req.SubjectRef, r.ID, add, denied)
 	case "file":
 		return s.addFileEffective(ctx, req.SubjectRef, r, add, denied)
 	case "agent":
@@ -1272,6 +1272,29 @@ func builtinRolePermissionsFallback(roleID string) []RolePermission {
 		return RolePermission{RoleID: roleID, PermissionKey: key, ResourceKind: kind, Delegatable: delegatable}
 	}
 	switch roleID {
+	case "sys-org-owner":
+		return []RolePermission{
+			add("org.read", "org", true), add("org.settings.manage", "org", true), add("org.lifecycle.manage", "org", true),
+			add("org.member.list", "org", true), add("org.member.create.human", "org", true), add("org.member.create.agent", "org", true),
+			add("org.member.role.manage", "org", true), add("org.member.disable", "org", true), add("org.invitation.manage", "org", true),
+			add("org.analytics.read", "org", true), add("org.work_items.read", "org", true), add("team.create", "org", true), add("template.write", "org", true),
+			add("coderepo.workspace.read", "org", true), add("coderepo.workspace.manage", "org", true),
+			add("ai_runtime.catalog.read", "org", true), add("ai_runtime.catalog.export", "org", true), add("ai_runtime.catalog.manage", "org", true),
+		}
+	case "sys-org-admin":
+		return []RolePermission{
+			add("org.read", "org", false), add("org.member.list", "org", false), add("org.member.create.human", "org", true),
+			add("org.member.create.agent", "org", true), add("org.invitation.manage", "org", true), add("org.analytics.read", "org", false),
+			add("org.work_items.read", "org", false), add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("coderepo.workspace.manage", "org", false), add("ai_runtime.catalog.read", "org", false),
+			add("ai_runtime.catalog.export", "org", false), add("ai_runtime.catalog.manage", "org", false),
+		}
+	case "sys-org-member":
+		return []RolePermission{
+			add("org.read", "org", false), add("org.member.list", "org", false), add("org.work_items.read", "org", false),
+			add("team.create", "org", false), add("template.write", "org", false), add("coderepo.workspace.read", "org", false),
+			add("ai_runtime.catalog.read", "org", false), add("ai_runtime.catalog.export", "org", false),
+		}
 	case "sys-team-web-owner":
 		return []RolePermission{
 			add("team.read", "team", true), add("team.write", "team", true), add("team.member.manage", "team", true),
@@ -1319,6 +1342,8 @@ func (s *Service) addTaskEquivalent(ctx context.Context, subject SubjectRef, tas
 	}
 	if assignee == string(subject) {
 		add("task.read", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.start.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.heartbeat.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 		add("task.complete.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 		add("task.block.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 	}
@@ -1446,6 +1471,8 @@ func addOrgRole(role, evidence string, add func(PermissionKey, DecisionSource, s
 	add("org.read", SourceOrgRole, evidence, role == "owner")
 	add("org.member.list", SourceOrgRole, evidence, role == "owner")
 	add("org.work_items.read", SourceOrgRole, evidence, role == "owner")
+	add("team.create", SourceOrgRole, evidence, role == "owner")
+	add("template.write", SourceOrgRole, evidence, role == "owner")
 	add("coderepo.workspace.read", SourceOrgRole, evidence, role == "owner")
 	add("ai_runtime.catalog.read", SourceOrgRole, evidence, role == "owner")
 	add("ai_runtime.catalog.export", SourceOrgRole, evidence, role == "owner")
@@ -1538,6 +1565,8 @@ func (s *Service) addTaskEffective(ctx context.Context, subject SubjectRef, task
 	}
 	if assignee == string(subject) {
 		add("task.read", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.start.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
+		add("task.heartbeat.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 		add("task.complete.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 		add("task.block.self", SourceProjectMember, "pm_tasks:"+taskID+"/assignee", false)
 	}
@@ -1718,11 +1747,14 @@ func (s *Service) addConversationEffective(ctx context.Context, subject SubjectR
 	if err != nil {
 		return err
 	}
-	var participantsJSON string
-	if err := exec.QueryRowContext(ctx, `SELECT participants FROM conversations WHERE id = ?`, convID).Scan(&participantsJSON); err != nil {
+	var participantsJSON, ownerRef string
+	if err := exec.QueryRowContext(ctx, `SELECT participants, COALESCE(owner_ref, '') FROM conversations WHERE id = ?`, convID).Scan(&participantsJSON, &ownerRef); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
+		return err
+	}
+	if err := s.addOwnedConversationEffective(ctx, subject, convID, ownerRef, add, denied); err != nil {
 		return err
 	}
 	var participants []struct {
@@ -1742,6 +1774,108 @@ func (s *Service) addConversationEffective(ctx context.Context, subject SubjectR
 	}
 	*denied = append(*denied, "subject is not an active conversation participant")
 	return nil
+}
+
+func (s *Service) addConversationEquivalent(ctx context.Context, subject SubjectRef, convID string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return err
+	}
+	var participantsJSON, ownerRef string
+	if err := exec.QueryRowContext(ctx, `SELECT participants, COALESCE(owner_ref, '') FROM conversations WHERE id = ?`, convID).Scan(&participantsJSON, &ownerRef); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if err := s.addOwnedConversationEquivalent(ctx, subject, convID, ownerRef, add, denied); err != nil {
+		return err
+	}
+	var participants []struct {
+		IdentityID string `json:"identity_id"`
+		LeftAt     string `json:"left_at"`
+	}
+	if err := json.Unmarshal([]byte(participantsJSON), &participants); err != nil {
+		return err
+	}
+	for _, p := range participants {
+		if p.IdentityID == string(subject) && p.LeftAt == "" {
+			evidence := "conversations:" + convID + "/participants/" + string(subject)
+			add("conversation.read", SourceConversationParticipant, evidence, false)
+			add("conversation.post", SourceConversationParticipant, evidence, false)
+			return nil
+		}
+	}
+	*denied = append(*denied, "subject is not an active conversation participant")
+	return nil
+}
+
+func (s *Service) addOwnedConversationEffective(ctx context.Context, subject SubjectRef, convID, ownerRef string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	kind, id, ok := pmOwnerRef(ownerRef)
+	if !ok {
+		return nil
+	}
+	bridge := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
+		switch key {
+		case "task.read", "issue.read", "plan.read":
+			add("conversation.read", source, evidence+"/conversation:"+convID, delegatable)
+		case "task.write", "issue.write", "plan.write":
+			add("conversation.post", source, evidence+"/conversation:"+convID, delegatable)
+		}
+	}
+	switch kind {
+	case "task":
+		return s.addTaskEffective(ctx, subject, id, bridge, denied)
+	case "issue":
+		return s.addIssueEffective(ctx, subject, id, bridge, denied)
+	case "plan":
+		return s.addPlanEffective(ctx, subject, id, bridge, denied)
+	default:
+		return nil
+	}
+}
+
+func (s *Service) addOwnedConversationEquivalent(ctx context.Context, subject SubjectRef, convID, ownerRef string, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	kind, id, ok := pmOwnerRef(ownerRef)
+	if !ok {
+		return nil
+	}
+	bridge := func(key PermissionKey, source DecisionSource, evidence string, delegatable bool) {
+		switch key {
+		case "task.read", "issue.read", "plan.read":
+			add("conversation.read", source, evidence+"/conversation:"+convID, delegatable)
+		case "task.write", "issue.write", "plan.write":
+			add("conversation.post", source, evidence+"/conversation:"+convID, delegatable)
+		}
+	}
+	switch kind {
+	case "task":
+		return s.addTaskEquivalent(ctx, subject, id, bridge, denied)
+	case "issue":
+		return s.addChildProjectEquivalent(ctx, subject, "issue", id, bridge, denied)
+	case "plan":
+		return s.addChildProjectEquivalent(ctx, subject, "plan", id, bridge, denied)
+	default:
+		return nil
+	}
+}
+
+func pmOwnerRef(ownerRef string) (kind, id string, ok bool) {
+	ownerRef = strings.TrimSpace(ownerRef)
+	for _, p := range []struct {
+		prefix string
+		kind   string
+	}{
+		{"pm://tasks/", "task"},
+		{"pm://issues/", "issue"},
+		{"pm://plans/", "plan"},
+	} {
+		if strings.HasPrefix(ownerRef, p.prefix) {
+			id = strings.TrimSpace(strings.TrimPrefix(ownerRef, p.prefix))
+			return p.kind, id, id != ""
+		}
+	}
+	return "", "", false
 }
 
 func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r ResourceScope, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {

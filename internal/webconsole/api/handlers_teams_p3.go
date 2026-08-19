@@ -35,13 +35,16 @@ import (
 // unlinked project → 404 (not_found). Returns {ok, team_id, project_id}.
 func (s *Server) disassociateTeamProjectHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	orgID, ok := teamGuard(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	t, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
 	if err != nil {
 		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, t.ID().String(), "team.project.link.manage") {
 		return
 	}
 	projectID := r.PathValue("project_id")
@@ -90,13 +93,16 @@ type saveTemplateReq struct {
 // saveTemplateHandler serves POST /api/orgs/{slug}/team-templates/save → TeamTemplate (201).
 func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	var req saveTemplateReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if !requireWebTeamCreate(w, r, d, caller, orgID) {
 		return
 	}
 	slots := templateSlotsFromReq(req.Roles)
@@ -157,13 +163,16 @@ type importTemplateReq struct {
 // defaults the FE useImportTemplate applied.
 func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := teamGuardMember(w, r, d)
 	if !ok {
 		return
 	}
 	var req importTemplateReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if !requireWebTeamCreate(w, r, d, caller, orgID) {
 		return
 	}
 	slots := make([]team.RoleSlot, 0, len(req.Roles))
