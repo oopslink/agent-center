@@ -25,6 +25,7 @@ import {
   type TeamMemoryPolicy,
   type RoleInput,
   type MemberView,
+  type TeamRAMRoleMappingImpact,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -195,7 +196,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
   );
 }
 
-function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void }): React.ReactElement {
+function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: TeamView; onClose: () => void; initialPanel?: 'runtime' | 'access' }): React.ReactElement {
   const { t } = useTranslation('teams');
   const update = useUpdateTeamRoles();
   const readTeam = useReadTeam();
@@ -215,6 +216,11 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     access_requirements: role.access_requirements ?? [],
     access_lint: role.access_lint ?? [],
   })));
+  const [panel, setPanel] = useState<'runtime' | 'access'>(initialPanel);
+  const [pendingAccess, setPendingAccess] = useState<{
+    roles: RoleInput[];
+    impacts: TeamRAMRoleMappingImpact[];
+  } | null>(null);
   useEffect(() => {
     if (mappingQueries.some((query) => !query.isSuccess)) return;
     const byRole = new Map(mappingQueries.map((query) => [query.data!.team_role, query.data!]));
@@ -240,7 +246,9 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     ram_role_version: mappingQueries.find((query) => query.data?.team_role === role.role)?.data?.version,
     access_requirements: role.access_requirements ?? [],
   }));
-  const changedRoles = roleDiff(originalRoles, roles);
+  const runtimeChangedRoles = roleDiff(originalRoles, roles, 'runtime');
+  const accessChangedRoles = roleDiff(originalRoles, roles, 'access');
+  const changedRoles = panel === 'runtime' ? runtimeChangedRoles : accessChangedRoles;
   const affectedMembers = affectedMembersForRoles(members.data ?? [], changedRoles.map((change) => change.role));
   const names = roles.map((role) => role.role.trim());
   const invalid = names.some((name) => !name) || new Set(names).size !== names.length;
@@ -251,47 +259,88 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
   const runtimeInvalid = hasRuntimeRoles && (runtimeCatalog.isLoading || Boolean(runtimeCatalog.error) || !runtimeSelectionValid);
   const mappingLoading = mappingQueries.some((query) => query.isLoading);
   const mappingError = mappingQueries.find((query) => query.isError)?.error as Error | undefined;
-  const save = async () => {
+  const buildPatchRoles = (normalizedRoles: RoleInput[], mode: 'runtime' | 'access') => normalizedRoles.map((role) => {
+    const original = originalRoles.find((r) => r.role === role.role);
+    return {
+      role: role.role,
+      cli: mode === 'runtime' ? role.cli : original?.cli ?? role.cli,
+      model: mode === 'runtime' ? role.model : original?.model ?? role.model,
+      max_concurrency: mode === 'runtime' ? role.max_concurrency : original?.max_concurrency ?? role.max_concurrency,
+      count: mode === 'runtime' ? role.count : original?.count ?? role.count,
+      tags: mode === 'runtime' ? role.tags : original?.tags ?? role.tags,
+      description: role.description,
+      ram_role_keys: mode === 'access' ? role.ram_role_keys : original?.ram_role_keys ?? role.ram_role_keys,
+      access_requirements: mode === 'access' ? role.access_requirements : original?.access_requirements ?? role.access_requirements,
+      access_lint: role.access_lint,
+    };
+  });
+  const saveRuntime = async () => {
     if (invalid || runtimeInvalid || mappingLoading) return;
     const normalizedRoles = roles.map((role) => ({ ...role, role: role.role.trim(), tags: role.tags.trim() }));
     await update.mutateAsync({
       team_id: team.id,
-      roles: normalizedRoles.map((role) => ({
-        role: role.role,
-        cli: role.cli,
-        model: role.model,
-        max_concurrency: role.max_concurrency,
-        count: role.count,
-        tags: role.tags,
-        description: role.description,
-        ram_role_keys: role.ram_role_keys,
-        access_requirements: role.access_requirements,
-        access_lint: role.access_lint,
-      })),
+      roles: buildPatchRoles(normalizedRoles, 'runtime'),
     });
+    await readTeam(team.id);
+    onClose();
+  };
+  const previewAccess = async () => {
+    if (invalid || mappingLoading) return;
+    const normalizedRoles = roles.map((role) => ({ ...role, role: role.role.trim(), tags: role.tags.trim() }));
+    const impacts: TeamRAMRoleMappingImpact[] = [];
     for (const role of normalizedRoles) {
       const original = originalRoles.find((r) => r.role === role.role);
       const nextIds = uniqueSorted(role.ram_role_ids ?? []);
       const originalIds = uniqueSorted(original?.ram_role_ids ?? []);
       if (original && originalIds.join('|') === nextIds.join('|')) continue;
       if (!original && nextIds.length === 0) continue;
-      await previewRAMRoles.mutateAsync({ team_id: team.id, role: role.role, ram_role_ids: nextIds });
+      impacts.push(await previewRAMRoles.mutateAsync({ team_id: team.id, role: role.role, ram_role_ids: nextIds }));
+    }
+    setPendingAccess({ roles: normalizedRoles, impacts });
+  };
+  const applyAccess = async () => {
+    if (!pendingAccess) return;
+    await update.mutateAsync({
+      team_id: team.id,
+      roles: buildPatchRoles(pendingAccess.roles, 'access'),
+    });
+    for (const role of pendingAccess.roles) {
+      const impact = pendingAccess.impacts.find((item) => item.team_role === role.role);
+      if (!impact) continue;
+      const nextIds = uniqueSorted(role.ram_role_ids ?? []);
       await replaceRAMRoles.mutateAsync({
         team_id: team.id,
         role: role.role,
         ram_role_ids: nextIds,
-        expected_version: original?.ram_role_version ?? role.ram_role_version ?? 1,
+        expected_version: impact.version,
       });
     }
     await readTeam(team.id);
+    setPendingAccess(null);
     onClose();
   };
   return <ModalShell open onClose={onClose} wide testId="edit-team-roles-modal" title={t('teamDetail.roles.title')}
     subtitle={t('teamDetail.roles.subtitle')} footer={<div className="ml-auto flex gap-2.5">
       <button type="button" className={btnGhost} onClick={onClose}>{t('common.cancel')}</button>
-      <button type="button" className={btnSmPrimary} disabled={invalid || runtimeInvalid || mappingLoading || update.isPending || previewRAMRoles.isPending || replaceRAMRoles.isPending} data-testid="team-save-roles" onClick={() => void save()}>{t('teamDetail.roles.save')}</button>
+      {panel === 'runtime' ? (
+        <button type="button" className={btnSmPrimary} disabled={invalid || runtimeInvalid || mappingLoading || update.isPending} data-testid="team-save-roles" onClick={() => void saveRuntime()}>{t('teamDetail.roles.saveRuntime')}</button>
+      ) : (
+        <button type="button" className={btnSmPrimary} disabled={invalid || mappingLoading || update.isPending || previewRAMRoles.isPending || replaceRAMRoles.isPending} data-testid="team-preview-access" onClick={() => void previewAccess()}>{t('teamDetail.roles.previewAccess')}</button>
+      )}
     </div>}>
-    <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" ramRoleMode="ids" />
+    <div className="mb-3 inline-flex rounded border border-border-base bg-bg-elevated p-0.5" role="tablist" aria-label="Team Role editor sections">
+      <button type="button" role="tab" aria-selected={panel === 'runtime'} className={panel === 'runtime' ? btnSmPrimary : btnSm} data-testid="team-role-runtime-panel" onClick={() => setPanel('runtime')}>
+        {t('teamDetail.roles.runtimePanel')}
+      </button>
+      <button type="button" role="tab" aria-selected={panel === 'access'} className={panel === 'access' ? btnSmPrimary : btnSm} data-testid="team-role-access-panel" onClick={() => setPanel('access')}>
+        {t('teamDetail.roles.accessPanel')}
+      </button>
+    </div>
+    {panel === 'runtime' ? (
+      <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" ramRoleMode="ids" showAccess={false} />
+    ) : (
+      <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team-access" ramRoleMode="ids" showRuntime={false} showTags={false} showAccess allowStructureEdit={false} />
+    )}
     <div className="mt-3 rounded border border-border-base bg-bg-subtle p-3" data-testid="team-role-save-preview">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-text-primary">{t('teamDetail.roles.previewTitle')}</span>
@@ -336,6 +385,27 @@ function EditRolesModal({ team, onClose }: { team: TeamView; onClose: () => void
     {mappingError && <p className="mt-3 text-xs text-danger" role="alert">{mappingError.message}</p>}
     {previewRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewRAMRoles.error as Error).message}</p>}
     {replaceRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(replaceRAMRoles.error as Error).message}</p>}
+    <ConfirmModal
+      open={pendingAccess !== null}
+      title={t('teamDetail.roles.confirmAccessTitle')}
+      message={
+        <div className="space-y-2" data-testid="team-access-confirm-diff">
+          <p>{t('teamDetail.roles.confirmAccessMessage', { roles: accessChangedRoles.length, members: affectedMembers.length })}</p>
+          <ul className="space-y-1">
+            {(pendingAccess?.impacts ?? []).map((impact) => (
+              <li key={impact.team_role} className="font-mono text-xs">
+                {impact.team_role}: {impact.current_ram_role_ids.join(', ') || 'none'} → {impact.next_ram_role_ids.join(', ') || 'none'} · {impact.affected_members} members · {impact.affected_project_ids.length} projects
+              </li>
+            ))}
+          </ul>
+        </div>
+      }
+      confirmLabel={t('teamDetail.roles.confirmAccessApply')}
+      danger
+      busy={update.isPending || replaceRAMRoles.isPending}
+      onCancel={() => setPendingAccess(null)}
+      onConfirm={() => void applyAccess()}
+    />
   </ModalShell>;
 }
 
@@ -352,6 +422,7 @@ function MembersPane({
   const members = useTeamMembers(teamId);
   const remove = useRemoveMember();
   const [adding, setAdding] = useState(false);
+  const [configuringAccess, setConfiguringAccess] = useState(false);
   const [removingRef, setRemovingRef] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState('');
 
@@ -360,9 +431,14 @@ function MembersPane({
       <SectionHead
         title={t('teamDetail.members.title')}
         action={
-          <button type="button" className={btnSmPrimary} data-testid="members-add" onClick={() => setAdding(true)}>
-            {t('teamDetail.members.addMember')}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={btnSm} data-testid="members-configure-access" onClick={() => setConfiguringAccess(true)}>
+              {t('teamDetail.members.configureAccess')}
+            </button>
+            <button type="button" className={btnSmPrimary} data-testid="members-add" onClick={() => setAdding(true)}>
+              {t('teamDetail.members.addMember')}
+            </button>
+          </div>
         }
       />
       <Note testId="members-exclusivity-note">
@@ -456,6 +532,9 @@ function MembersPane({
       {adding && (
         <AddMemberModal team={team} roleOptions={roleOptions} onClose={() => setAdding(false)} onAdded={() => setAdding(false)} />
       )}
+      {configuringAccess && (
+        <EditRolesModal team={team} initialPanel="access" onClose={() => setConfiguringAccess(false)} />
+      )}
       <ConfirmModal
         open={removingRef !== null}
         title={t('teamDetail.members.removeTitle')}
@@ -513,20 +592,25 @@ function CapabilityPills({ capabilities }: { capabilities: string[] }): React.Re
   );
 }
 
-function roleSignature(role: RoleInput): string {
+function roleSignature(role: RoleInput, mode: 'runtime' | 'access' | 'all' = 'all'): string {
   return JSON.stringify({
     role: role.role.trim(),
-    cli: role.cli,
-    model: role.model,
-    max_concurrency: role.max_concurrency,
-    tags: uniqueSorted(role.tags.split(/[\s,]+/)),
-    ram_role_keys: uniqueSorted(role.ram_role_keys ?? []),
-    ram_role_ids: uniqueSorted(role.ram_role_ids ?? []),
-    access_requirements: uniqueSorted(role.access_requirements ?? []),
+    ...(mode !== 'access' ? {
+      cli: role.cli,
+      model: role.model,
+      max_concurrency: role.max_concurrency,
+      count: role.count,
+      tags: uniqueSorted(role.tags.split(/[\s,]+/)),
+    } : {}),
+    ...(mode !== 'runtime' ? {
+      ram_role_keys: uniqueSorted(role.ram_role_keys ?? []),
+      ram_role_ids: uniqueSorted(role.ram_role_ids ?? []),
+      access_requirements: uniqueSorted(role.access_requirements ?? []),
+    } : {}),
   });
 }
 
-function roleDiff(before: RoleInput[], after: RoleInput[]): Array<{ role: string; details: string[] }> {
+function roleDiff(before: RoleInput[], after: RoleInput[], mode: 'runtime' | 'access' | 'all' = 'all'): Array<{ role: string; details: string[] }> {
   const beforeByName = new Map(before.map((role) => [role.role.trim(), role]));
   const afterByName = new Map(after.map((role) => [role.role.trim(), role]));
   const names = uniqueSorted([...beforeByName.keys(), ...afterByName.keys()]);
@@ -535,12 +619,12 @@ function roleDiff(before: RoleInput[], after: RoleInput[]): Array<{ role: string
     const next = afterByName.get(name);
     if (!prev && next) return [{ role: name, details: ['added'] }];
     if (prev && !next) return [{ role: name, details: ['removed'] }];
-    if (!prev || !next || roleSignature(prev) === roleSignature(next)) return [];
+    if (!prev || !next || roleSignature(prev, mode) === roleSignature(next, mode)) return [];
     const details: string[] = [];
-    if (prev.cli !== next.cli || prev.model !== next.model || prev.max_concurrency !== next.max_concurrency) details.push('runtime');
-    if (uniqueSorted(prev.tags.split(/[\s,]+/)).join('|') !== uniqueSorted(next.tags.split(/[\s,]+/)).join('|')) details.push('capabilities');
-    if (uniqueSorted(prev.ram_role_ids ?? []).join('|') !== uniqueSorted(next.ram_role_ids ?? []).join('|')) details.push('RAM roles');
-    if (uniqueSorted(prev.access_requirements ?? []).join('|') !== uniqueSorted(next.access_requirements ?? []).join('|')) details.push('permissions');
+    if (mode !== 'access' && (prev.cli !== next.cli || prev.model !== next.model || prev.max_concurrency !== next.max_concurrency || prev.count !== next.count)) details.push('runtime');
+    if (mode !== 'access' && uniqueSorted(prev.tags.split(/[\s,]+/)).join('|') !== uniqueSorted(next.tags.split(/[\s,]+/)).join('|')) details.push('capabilities');
+    if (mode !== 'runtime' && uniqueSorted(prev.ram_role_ids ?? []).join('|') !== uniqueSorted(next.ram_role_ids ?? []).join('|')) details.push('RAM roles');
+    if (mode !== 'runtime' && uniqueSorted(prev.access_requirements ?? []).join('|') !== uniqueSorted(next.access_requirements ?? []).join('|')) details.push('permissions');
     return [{ role: name, details }];
   });
 }

@@ -1147,6 +1147,10 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !valid {
 		return
 	}
+	if err := validateTemplateRAMRoleKeys(r, d, orgID, slots); err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
 	// Create authors an UN-curated template (curate/export is the /admin cross-org
 	// path, not a Phase-1 UI flow). team.NewTemplate validates + normalizes.
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{

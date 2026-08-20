@@ -158,18 +158,25 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     const modal = await screen.findByTestId('edit-team-roles-modal');
-    const role = await within(modal).findByTestId('edit-team-role-0-access-role');
+    expect(within(modal).getByTestId('edit-team-role-0-runtime-config')).toBeInTheDocument();
+    expect(within(modal).queryByTestId('edit-team-role-0-access-editor')).not.toBeInTheDocument();
+    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
+    const role = await within(modal).findByTestId('edit-team-access-role-0-access-role');
     await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
     fireEvent.change(role, { target: { value: 'team-basic@1' } });
-    expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
-    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
-    fireEvent.click(within(modal).getByTestId('edit-team-role-0-ram-role-trigger'));
-    const options = await screen.findAllByTestId('edit-team-role-0-ram-role-option');
+    expect(within(modal).getByTestId('edit-team-access-role-0-access-permissions')).toHaveTextContent('team.memory.read');
+    expect(within(modal).getByTestId('edit-team-access-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
+    fireEvent.click(within(modal).getByTestId('edit-team-access-role-0-ram-role-trigger'));
+    const options = await screen.findAllByTestId('edit-team-access-role-0-ram-role-option');
     fireEvent.click(options.find((option) => option.getAttribute('data-value') === 'team-curator') as HTMLElement);
-    expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('2 roles · 5 permissions');
+    expect(within(modal).getByTestId('edit-team-access-role-0-ram-role-summary')).toHaveTextContent('2 roles · 5 permissions');
     expect(within(modal).getByTestId('team-role-save-preview')).toHaveTextContent('1 changed roles');
     expect(within(modal).getByTestId('team-role-effective-hint')).toHaveTextContent('take effect immediately');
-    fireEvent.click(within(modal).getByTestId('team-save-roles'));
+    fireEvent.click(within(modal).getByTestId('team-preview-access'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(within(confirm).getByTestId('team-access-confirm-diff')).toHaveTextContent('planner');
+    expect(putBody).toBeUndefined();
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toEqual(['Team basic', 'Team curator']));
     expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
     await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
@@ -233,7 +240,8 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     let modal = await screen.findByTestId('edit-team-roles-modal');
-    expect(within(modal).getByTestId('edit-team-role-0-access-lint')).toHaveTextContent('team.unknown: server says unknown permission');
+    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
+    expect(within(modal).getByTestId('edit-team-access-role-0-access-lint')).toHaveTextContent('team.unknown: server says unknown permission');
     expect(within(modal).queryByText('Unknown permission: team.unknown')).not.toBeInTheDocument();
 
     patched = true;
@@ -241,7 +249,8 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     modal = await screen.findByTestId('edit-team-roles-modal');
-    expect(within(modal).getByTestId('edit-team-role-0-access-lint')).toHaveTextContent('team.read: server refreshed lint');
+    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
+    expect(within(modal).getByTestId('edit-team-access-role-0-access-lint')).toHaveTextContent('team.read: server refreshed lint');
   });
 
   it('renders an error for an unknown team', async () => {
@@ -258,6 +267,16 @@ describe('TeamDetail', () => {
     expect(within(table).queryByText('Tags')).not.toBeInTheDocument();
     expect(screen.getByText('planner-01')).toBeInTheDocument();
     expect(screen.getByTestId('members-exclusivity-note')).toBeInTheDocument();
+  });
+
+  it('opens the independent permission configuration entry from Members', async () => {
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    fireEvent.click(await screen.findByTestId('members-configure-access'));
+    const modal = await screen.findByTestId('edit-team-roles-modal');
+    expect(within(modal).getByTestId('team-role-access-panel')).toHaveAttribute('aria-selected', 'true');
+    expect(within(modal).getByTestId('edit-team-access-role-0-access-editor')).toBeInTheDocument();
+    expect(within(modal).queryByTestId('edit-team-access-role-0-runtime-config')).not.toBeInTheDocument();
   });
 
   it('keeps long role capabilities compact in the members table', async () => {

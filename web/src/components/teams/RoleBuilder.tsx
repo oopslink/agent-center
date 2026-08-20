@@ -38,6 +38,10 @@ export function RoleBuilder({
   showCount = true,
   idPrefix,
   ramRoleMode = 'keys',
+  showRuntime = true,
+  showTags = true,
+  showAccess = true,
+  allowStructureEdit = true,
 }: {
   roles: RoleInput[];
   onChange: (next: RoleInput[]) => void;
@@ -45,6 +49,10 @@ export function RoleBuilder({
   showCount?: boolean;
   idPrefix: string;
   ramRoleMode?: 'keys' | 'ids';
+  showRuntime?: boolean;
+  showTags?: boolean;
+  showAccess?: boolean;
+  allowStructureEdit?: boolean;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
   const runtimeCatalog = useRuntimeSelectorCatalog();
@@ -99,6 +107,7 @@ export function RoleBuilder({
               value={r.role}
               placeholder={t('roleBuilder.roleNamePlaceholder')}
               data-testid={`${idPrefix}-role-${i}-name`}
+              disabled={!allowStructureEdit}
               onChange={(e) => patch(i, { role: e.target.value })}
             />
             {showCount && (
@@ -129,14 +138,16 @@ export function RoleBuilder({
                 <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.agentCount')}</span>
               </>
             )}
-            <button
-              type="button"
-              className="ml-auto text-xs text-text-muted hover:text-danger"
-              data-testid={`${idPrefix}-role-${i}-remove`}
-              onClick={() => remove(i)}
-            >
-              {t('roleBuilder.remove')}
-            </button>
+            {allowStructureEdit && (
+              <button
+                type="button"
+                className="ml-auto text-xs text-text-muted hover:text-danger"
+                data-testid={`${idPrefix}-role-${i}-remove`}
+                onClick={() => remove(i)}
+              >
+                {t('roleBuilder.remove')}
+              </button>
+            )}
           </div>
 
           {showDescription && (
@@ -152,7 +163,7 @@ export function RoleBuilder({
             </div>
           )}
 
-          <div className="rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-runtime-config`}>
+          {showRuntime && <div className="rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-runtime-config`}>
             <div className="mb-2 flex items-center justify-between gap-2">
               <SmallLabel>{t('roleBuilder.runtimeSection')}</SmallLabel>
               <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.runtimeSource')}</span>
@@ -203,9 +214,9 @@ export function RoleBuilder({
               <p className="mt-1 text-[0.6875rem] leading-tight text-text-muted">{t('roleBuilder.concurrencyHint')}</p>
             </div>
           </div>
-          </div>
+          </div>}
 
-          <div className="mt-3">
+          {showTags && <div className="mt-3">
             <SmallLabel>{t('roleBuilder.tagsLabel')}</SmallLabel>
             <input
               className={inputCls}
@@ -214,9 +225,9 @@ export function RoleBuilder({
               data-testid={`${idPrefix}-role-${i}-tags`}
               onChange={(e) => patch(i, { tags: e.target.value })}
             />
-          </div>
+          </div>}
 
-          <div className="mt-3 rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-access-editor`}>
+          {showAccess && <div className="mt-3 rounded border border-border-base bg-bg-base p-3" data-testid={`${idPrefix}-role-${i}-access-editor`}>
             <div className="mb-2 flex items-center justify-between gap-2">
               <SmallLabel>{t('roleBuilder.permissionsSection')}</SmallLabel>
               <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.permissionsSource')}</span>
@@ -295,18 +306,20 @@ export function RoleBuilder({
                 {lint.permission ? `${lint.permission}: ${lint.message}` : lint.message}
               </p>
             ))}
-          </div>
+          </div>}
         </div>
         );
       })}
-      <button
-        type="button"
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong px-3 py-3 text-sm font-semibold text-text-muted hover:border-accent hover:bg-brand/5 hover:text-brand"
-        data-testid={`${idPrefix}-add-role`}
-        onClick={add}
-      >
-        <PlusIcon className="h-4 w-4" /> {t('roleBuilder.addRole')}
-      </button>
+      {allowStructureEdit && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong px-3 py-3 text-sm font-semibold text-text-muted hover:border-accent hover:bg-brand/5 hover:text-brand"
+          data-testid={`${idPrefix}-add-role`}
+          onClick={add}
+        >
+          <PlusIcon className="h-4 w-4" /> {t('roleBuilder.addRole')}
+        </button>
+      )}
     </div>
   );
 }

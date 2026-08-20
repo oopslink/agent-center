@@ -38,6 +38,7 @@ import {
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
 import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { Skeleton } from '@/components/Skeleton';
 import { useModalA11y } from '@/components/useModalA11y';
 import { useAppStore } from '@/store/app';
@@ -635,6 +636,7 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
   const replace = useReplaceTeamRoleRAMMapping();
   const current = entry.query.data;
   const [draft, setDraft] = useState<string[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const selected = draft ?? current?.ram_role_ids ?? [];
   const changed = Boolean(current && [...selected].sort().join('|') !== [...current.ram_role_ids].sort().join('|'));
   const updateSelection = (roleIDs: string[]): void => {
@@ -677,10 +679,28 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" className="rounded border border-border-base px-2.5 py-1 text-xs" disabled={!changed || preview.isPending} onClick={runPreview}>Preview impact</button>
-            <button type="button" className="rounded bg-btn-primary-bg px-2.5 py-1 text-xs font-medium text-btn-primary-fg" disabled={!preview.data || replace.isPending} onClick={save}>Save mapping</button>
+            <button type="button" className="rounded bg-btn-primary-bg px-2.5 py-1 text-xs font-medium text-btn-primary-fg" disabled={!preview.data || replace.isPending} onClick={() => setConfirming(true)}>Save mapping</button>
             {preview.data && <span className="text-xs text-text-muted" data-testid="access-mapping-preview">{preview.data.affected_members} members · +{previewAddedRoleCount} / −{previewRemovedRoleCount} roles · {previewProjectCount} projects</span>}
           </div>
           {(preview.isError || replace.isError) && <p className="mt-2 text-xs text-danger" role="alert">{((preview.error ?? replace.error) as Error).message}</p>}
+          <ConfirmModal
+            open={confirming}
+            title="Apply Team Role mapping"
+            message={
+              <div className="space-y-2" data-testid="access-mapping-confirm-diff">
+                <p>This immediately changes effective permissions for {preview.data?.affected_members ?? 0} members.</p>
+                <p className="font-mono text-xs">
+                  {(preview.data?.current_ram_role_ids ?? []).join(', ') || 'none'} → {(preview.data?.next_ram_role_ids ?? []).join(', ') || 'none'}
+                </p>
+                <p className="text-xs">{previewProjectCount} linked projects use this Team Role scope.</p>
+              </div>
+            }
+            confirmLabel="Apply now"
+            danger
+            busy={replace.isPending}
+            onCancel={() => setConfirming(false)}
+            onConfirm={() => { setConfirming(false); save(); }}
+          />
         </>
       )}
     </div>

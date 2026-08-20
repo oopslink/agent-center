@@ -96,6 +96,10 @@ describe('Access page', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
     expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members');
     fireEvent.click(within(row).getByRole('button', { name: 'Save mapping' }));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(within(confirm).getByTestId('access-mapping-confirm-diff')).toHaveTextContent('team-basic');
+    expect(putBody).toBeNull();
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 7 }));
     await waitFor(() => expect(row).toHaveTextContent('v8'));
     expect(previewBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'] });
