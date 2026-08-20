@@ -72,6 +72,31 @@ func TestNewAppInvalidAuthorizationModeReturnsError(t *testing.T) {
 	}
 }
 
+func TestNewAppLegacyModeRollbackIsExplicitAndAudited(t *testing.T) {
+	t.Setenv("AGENT_CENTER_AUTHZ_MODE", string(authorization.EnforcementLegacy))
+	db := openMigratedNewAppReadinessDB(t)
+
+	app, err := NewApp(config.DefaultConfig(), db, clock.NewFakeClock(time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)))
+	if err != nil {
+		t.Fatalf("NewApp legacy rollback: %v", err)
+	}
+	if app.Authorization == nil || app.Authorization.EnforcementMode() != authorization.EnforcementLegacy {
+		t.Fatalf("authorization mode=%v", app.Authorization)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_audit_events
+		WHERE event_type='authorization.enforcement_mode.selected'
+		  AND actor_ref='system'
+		  AND resource_kind='authorization'
+		  AND resource_id='legacy'
+		  AND payload_json LIKE '%explicit AGENT_CENTER_AUTHZ_MODE=legacy rollback%'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("legacy rollback audit count=%d want 1", count)
+	}
+}
+
 func openMigratedNewAppReadinessDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := persistence.Open(t.TempDir() + "/readiness.db")

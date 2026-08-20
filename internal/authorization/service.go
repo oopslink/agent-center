@@ -108,6 +108,26 @@ func (s *Service) ShadowMetrics() ShadowMetrics {
 	}
 }
 
+func (s *Service) AuditEnforcementModeSelected(ctx context.Context, actor SubjectRef, reason string) error {
+	if s == nil || s.db == nil || s.store == nil {
+		return errors.New("authorization service: nil db")
+	}
+	if actor == "" {
+		actor = "system"
+	}
+	return s.audit(ctx, auditEvent{
+		EventType:    "authorization.enforcement_mode.selected",
+		ActorRef:     actor,
+		ResourceKind: "authorization",
+		ResourceID:   string(s.mode),
+		Payload: map[string]any{
+			"mode":    string(s.mode),
+			"reason":  strings.TrimSpace(reason),
+			"message": strings.TrimSpace(reason),
+		},
+	})
+}
+
 type effectiveCache struct {
 	mu      sync.RWMutex
 	entries map[string]effectiveCacheEntry
