@@ -16,12 +16,9 @@ import (
 // reassign_task, subscribe / unsubscribe, get_task, get_issue).
 //
 // These reuse the writeToolsFixture (real admin server + AuthMiddleware over the
-// full pm → outbox → projector pipeline). The WRITE tools go through the pm
-// AppService whose own requireProjectMember is the write-gate (the agent is a
-// ProjectMember of its assigned task's project via #5a). The READ tools scope
-// per-agent STRICTLY to own work (membership is the WRITE gate, not read):
-// get_task = own-work (requireOwnTask), get_issue = own-link (the agent holds a
-// WorkItem for a Task derived from the issue).
+// full pm → outbox → projector pipeline). Shared authorization is the enforced
+// path when wired; older service-level membership checks remain only as unwired
+// fixture compatibility.
 // =============================================================================
 
 // getBearer GETs path with an Authorization: Bearer <plaintext> header.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -258,7 +259,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		return nil, fmt.Errorf("event repo: %w", err)
 	}
 	sink := observability.NewEventSink(er, er, gen, clk)
-	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink})
+	authzMode, err := authorization.ParseEnforcementMode(os.Getenv("AGENT_CENTER_AUTHZ_MODE"))
+	if err != nil {
+		panic(err)
+	}
+	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode})
 	wr := wfsqlite.NewWorkerRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.

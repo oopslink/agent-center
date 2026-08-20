@@ -134,6 +134,22 @@ func (s *Server) permissionsEffectiveHandler(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, eff)
 }
 
+func (s *Server) permissionsShadowHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if _, _, _, ok := requireOrgMember(w, r, d); !ok {
+		return
+	}
+	svc := permissionAuthorizer(d)
+	if svc == nil {
+		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":    svc.EnforcementMode(),
+		"metrics": svc.ShadowMetrics(),
+	})
+}
+
 func (s *Server) permissionsAuditHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, member, orgID, ok := requireOrgMember(w, r, d)

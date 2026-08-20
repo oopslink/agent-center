@@ -38,7 +38,10 @@ var (
 	ErrRoleNotDeclared = errors.New("team: role not declared for team")
 	// ErrInvalidRole is returned when a RoleConfig fails validation.
 	ErrInvalidRole = errors.New("team: invalid role config")
-	ErrRoleInUse   = errors.New("team: role is assigned to one or more members")
+	// ErrRAMRoleKeyNotFound is returned when a template-declared stable RAM role
+	// key cannot be resolved to a system role or destination-org custom role.
+	ErrRAMRoleKeyNotFound = errors.New("team: RAM role key not found")
+	ErrRoleInUse          = errors.New("team: role is assigned to one or more members")
 
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.

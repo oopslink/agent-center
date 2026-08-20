@@ -55,6 +55,8 @@ func mapTeamError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "identity_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNameTaken):
 		writeError(w, http.StatusConflict, "team_name_taken", err.Error())
+	case errors.Is(err, team.ErrRAMRoleKeyNotFound):
+		writeError(w, http.StatusBadRequest, "ram_role_key_not_found", err.Error())
 	case errors.Is(err, team.ErrTemplateNotCurated):
 		// Export / cross-org share is gated on the mandatory manual curation pass
 		// (design §9). A precondition-not-met conflict: the caller must run the
@@ -132,6 +134,9 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	view, err := teamTools(d).CreateTeam(r.Context(), teamtool.CreateTeamArgs{
 		OrgID:       string(a.OrganizationID()),
 		Name:        req.Name,
@@ -168,6 +173,9 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.write") {
+		return
+	}
 	view, err := teamTools(d).UpdateTeam(r.Context(), teamtool.UpdateTeamArgs{
 		TeamID:      req.TeamID,
 		Name:        req.Name,
@@ -199,6 +207,9 @@ func (s *Server) deleteTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
+		return
+	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.write") {
 		return
 	}
 	if err := teamTools(d).DeleteTeam(r.Context(), req.TeamID); err != nil {
@@ -605,6 +616,9 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.member.manage") {
+		return
+	}
 	view, err := teamTools(d).AddMember(r.Context(), teamtool.AddMemberArgs{
 		TeamID:    req.TeamID,
 		MemberRef: req.MemberRef,
@@ -639,6 +653,9 @@ func (s *Server) removeMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.member.manage") {
+		return
+	}
 	if err := teamTools(d).RemoveMember(r.Context(), req.TeamID, req.MemberRef); err != nil {
 		mapTeamError(w, err)
 		return
@@ -668,6 +685,9 @@ func (s *Server) associateProjectHandler(w http.ResponseWriter, r *http.Request)
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
 		return
 	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.project.link.manage") {
+		return
+	}
 	if err := teamTools(d).AssociateProject(r.Context(), req.TeamID, req.ProjectID); err != nil {
 		mapTeamError(w, err)
 		return
@@ -681,12 +701,14 @@ func (s *Server) associateProjectHandler(w http.ResponseWriter, r *http.Request)
 
 // roleSlotReq is a template role slot (role config + instance count/配比).
 type roleSlotReq struct {
-	Role           string   `json:"role"`
-	CLI            string   `json:"cli"`
-	Model          string   `json:"model"`
-	CapabilityTags []string `json:"capability_tags"`
-	MaxConcurrency int      `json:"max_concurrency"`
-	Count          int      `json:"count"`
+	Role               string   `json:"role"`
+	CLI                string   `json:"cli"`
+	Model              string   `json:"model"`
+	CapabilityTags     []string `json:"capability_tags"`
+	AccessRequirements []string `json:"access_requirements"`
+	RAMRoleKeys        []string `json:"ram_role_keys"`
+	MaxConcurrency     int      `json:"max_concurrency"`
+	Count              int      `json:"count"`
 }
 
 // experienceReq is a portable experience carried in a template.
@@ -714,11 +736,13 @@ func toRoleSlots(in []roleSlotReq) []team.RoleSlot {
 	for _, r := range in {
 		out = append(out, team.RoleSlot{
 			Config: team.RoleConfig{
-				Role:           r.Role,
-				CLI:            r.CLI,
-				Model:          r.Model,
-				CapabilityTags: r.CapabilityTags,
-				MaxConcurrency: r.MaxConcurrency,
+				Role:               r.Role,
+				CLI:                r.CLI,
+				Model:              r.Model,
+				CapabilityTags:     r.CapabilityTags,
+				AccessRequirements: r.AccessRequirements,
+				RAMRoleKeys:        r.RAMRoleKeys,
+				MaxConcurrency:     r.MaxConcurrency,
 			},
 			Count: r.Count,
 		})
@@ -765,7 +789,8 @@ func templateView(t *team.TeamTemplate) map[string]any {
 	for _, sl := range t.Roles {
 		roles = append(roles, map[string]any{
 			"role": sl.Config.Role, "cli": sl.Config.CLI, "model": sl.Config.Model,
-			"capability_tags": sl.Config.CapabilityTags, "max_concurrency": sl.Config.MaxConcurrency,
+			"capability_tags": sl.Config.CapabilityTags, "access_requirements": sl.Config.AccessRequirements,
+			"ram_role_keys": sl.Config.RAMRoleKeys, "max_concurrency": sl.Config.MaxConcurrency,
 			"count": sl.Count,
 		})
 	}
@@ -818,6 +843,9 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req, false)
 	if err != nil {
 		mapTeamError(w, err)
@@ -861,6 +889,9 @@ func (s *Server) curateTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	// Mark curated=true: the caller asserts they have manually reviewed the template
 	// (design §9 curation is load-bearing). The result is export-ready.
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, true)
@@ -890,6 +921,9 @@ func (s *Server) exportTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	}
 	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
 	if !ok {
+		return
+	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
 		return
 	}
 	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, req.Curated)
@@ -930,6 +964,9 @@ func (s *Server) importTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
+		return
+	}
 	if len(strings.TrimSpace(string(req.Document))) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_input", "document is required (the exported team-template JSON)")
 		return
@@ -968,6 +1005,9 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
 	if !ok {
+		return
+	}
+	if !s.requireAgentTeamCreate(w, r, d, a) {
 		return
 	}
 	orgID := string(a.OrganizationID())
@@ -1346,6 +1386,9 @@ func (s *Server) assignRolesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.requireOwnedTeam(w, r, d, a, req.TeamID) == nil {
+		return
+	}
+	if !s.requireAgentTeamPermission(w, r, d, a, req.TeamID, "team.runtime_config.manage") {
 		return
 	}
 	members, err := d.TeamSvc.ListMembers(r.Context(), team.TeamID(req.TeamID))

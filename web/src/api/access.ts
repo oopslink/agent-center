@@ -307,10 +307,11 @@ export function useAccessProfileDisable() {
   });
 }
 
-export function useAccessOverview(filters?: AccessFilters) {
+export function useAccessOverview(filters?: AccessFilters, enabled = true) {
   return useQuery({
     queryKey: qk.accessOverview(filters ?? null),
     queryFn: () => accessApi.overview(filters),
+    enabled,
     staleTime: 10_000,
   });
 }

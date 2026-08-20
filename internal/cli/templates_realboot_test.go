@@ -82,6 +82,17 @@ func TestTemplateTools_RealBoot_ReturnBuiltin(t *testing.T) {
 	if err := app.AgentRepo.Save(ctx, ag); err != nil {
 		t.Fatalf("save agent: %v", err)
 	}
+	nowText := now.Format(time.RFC3339Nano)
+	if _, err := db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, org, org, "Realboot Org", "system", nowText, nowText); err != nil {
+		t.Fatalf("seed org identity row: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO members (id, organization_id, identity_id, role, status, joined_at)
+		VALUES (?, ?, ?, 'member', 'joined', ?)`, agentID, org, "agent:"+agentID, nowText); err != nil {
+		t.Fatalf("seed agent org member row: %v", err)
+	}
 
 	// Mint a real worker-scoped bearer, then stop the token bookkeeping pump
 	// (mirrors admin_client_testhelper) before serving to avoid SQLITE_BUSY.

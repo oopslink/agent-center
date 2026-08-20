@@ -136,6 +136,9 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
+	if !s.requireAgentProjectWrite(w, r, d, a, req.ProjectID) {
+		return
+	}
 	var td *time.Time
 	if strings.TrimSpace(req.TargetDate) != "" {
 		t, perr := time.Parse(time.RFC3339Nano, req.TargetDate)
@@ -335,6 +338,9 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
 		return
 	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
+		return
+	}
 	ops := make([]pmservice.TopologyOp, 0, len(req.Ops))
 	for _, o := range req.Ops {
 		ops = append(ops, pmservice.TopologyOp{
@@ -401,6 +407,9 @@ func (s *Server) evolvePlanGenerationHandler(w http.ResponseWriter, r *http.Requ
 	}
 	if strings.TrimSpace(req.PlanID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
 		return
 	}
 	res, err := d.PMService.EvolvePlanGeneration(r.Context(), pmservice.EvolvePlanGenerationCommand{
@@ -595,6 +604,9 @@ func (s *Server) createStageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
 		return
 	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
+		return
+	}
 	if strings.TrimSpace(req.AcceptanceContract) == "" {
 		writeError(w, http.StatusBadRequest, "missing_gate_contract", "create_stage requires a non-empty acceptance_contract")
 		return
@@ -700,6 +712,9 @@ func (s *Server) reopenExhaustedStageHandler(w http.ResponseWriter, r *http.Requ
 	}
 	if strings.TrimSpace(req.PlanID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	if !s.requireAgentPlanWrite(w, r, d, a, req.PlanID) {
 		return
 	}
 	if strings.TrimSpace(req.StageID) == "" {
@@ -924,6 +939,9 @@ func (s *Server) decodePlanTask(w http.ResponseWriter, r *http.Request, d Handle
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return nil, req, false
 	}
+	if !s.requireAgentPlanWrite(w, r, d, ag, req.PlanID) {
+		return nil, req, false
+	}
 	return ag, req, true
 }
 
@@ -952,6 +970,9 @@ func (s *Server) decodePlanDep(w http.ResponseWriter, r *http.Request, d Handler
 		writeError(w, http.StatusBadRequest, "missing_to_task_id", "")
 		return nil, req, false
 	}
+	if !s.requireAgentPlanWrite(w, r, d, ag, req.PlanID) {
+		return nil, req, false
+	}
 	return ag, req, true
 }
 
@@ -970,6 +991,9 @@ func (s *Server) decodePlanID(w http.ResponseWriter, r *http.Request, d HandlerD
 	}
 	if strings.TrimSpace(req.PlanID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return nil, req, false
+	}
+	if !s.requireAgentPlanWrite(w, r, d, ag, req.PlanID) {
 		return nil, req, false
 	}
 	return ag, req, true

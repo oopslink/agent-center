@@ -173,6 +173,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/check", s.permissionsCheckHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/explain", s.permissionsExplainHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/effective", s.permissionsEffectiveHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/shadow", s.permissionsShadowHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/permissions/audit", s.permissionsAuditHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/preview", s.permissionsBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/apply", s.permissionsBatchApplyHandler)

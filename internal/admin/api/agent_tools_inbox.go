@@ -134,6 +134,9 @@ func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_fields", "conversation_id and message_id are required")
 		return
 	}
+	if !s.requireAgentConversationRead(w, r, d, a, req.ConversationID) {
+		return
+	}
 	convID := conversation.ConversationID(req.ConversationID)
 	refs := agentConvRefs(a)
 	// Mark under the ref the agent actually participates as in this conversation

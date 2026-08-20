@@ -18,9 +18,9 @@ import (
 // unread inbox — DMs + @mentions). An agent could not BROWSE a conversation's
 // history: it could not catch up on a channel it just joined, re-read context it
 // already marked seen, or read messages it was never @mentioned in. This tool
-// closes that gap for every conversation kind, behind the SAME participant gate
-// post_message uses (agentIsActiveParticipant) — visibility never exceeds the
-// write boundary, and a non-member is told to ask to be added (channels).
+// closes that gap for every conversation kind, behind the shared
+// conversation.read RAM gate. Legacy participant checks are retained only when
+// the Authorizer is not wired.
 // =============================================================================
 
 // listMessagesReq is the body for POST /admin/agent-tools/list_messages.
@@ -80,9 +80,11 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	// Read gate == write gate: an active participant may read; a non-member may not.
-	// Channels get the actionable "ask to be added" wording (mirrors post_message).
-	if !agentIsActiveParticipant(conv, a) {
+	if d.Authorizer != nil {
+		if !s.requireAgentConversationRead(w, r, d, a, req.ConversationID) {
+			return
+		}
+	} else if !agentIsActiveParticipant(conv, a) {
 		if conv.Kind() == conversation.ConversationKindChannel {
 			writeError(w, http.StatusForbidden, "not_a_channel_member",
 				"not a member of channel "+conv.Name()+" — ask an owner to add you before reading its history")

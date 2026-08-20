@@ -47,6 +47,9 @@ func (s *Server) startWorkHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
 	}
+	if !s.requireAgentTaskSelf(w, r, d, a, req.TaskID, "task.start.self") {
+		return
+	}
 	actor := pm.IdentityRef(agentActor(a))
 	// §13.A run-ahead gate: an agent may start a task ONLY once its blockedBy
 	// dependencies are satisfied (EnsureTaskRunnable) — the same gate the deleted
@@ -87,6 +90,9 @@ func (s *Server) heartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.TaskID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if !s.requireAgentTaskSelf(w, r, d, a, req.TaskID, "task.heartbeat.self") {
 		return
 	}
 	if err := d.PMService.HeartbeatTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {

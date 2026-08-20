@@ -128,6 +128,95 @@ func TestService_ProjectMembershipCustomRolesAndRevoke(t *testing.T) {
 	}
 }
 
+func TestT1410TeamRoleRAMEffectiveScopesCacheAndImmediateRevoke(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-1", "org-1")
+	seedProject(t, db, "project-2", "org-1")
+	seedProject(t, db, "project-3", "org-1")
+	seedProject(t, db, "project-cross", "org-2")
+	seedTeamRAM(t, db)
+
+	for _, projectID := range []string{"project-1", "project-2"} {
+		got, err := svc.Check(ctx, CheckRequest{
+			SubjectRef: "user:user-member",
+			Transport:  TransportWeb,
+			Permission: "project.read",
+			Resource:   ResourceScope{Kind: "project", ID: projectID},
+		})
+		if err != nil || !got.Allowed || got.Source != SourceTeamRoleRAM {
+			t.Fatalf("team RAM project.read %s = %#v err=%v", projectID, got, err)
+		}
+	}
+
+	cached, err := svc.ListEffective(ctx, "user:user-member", ResourceScope{Kind: "project", ID: "project-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasEffectiveSource(cached, "project.read", SourceTeamRoleRAM) || !hasEffectiveSource(cached, "project.write", SourceCustomRole) {
+		t.Fatalf("effective permissions did not union team RAM + direct binding: %#v", cached.Permissions)
+	}
+	cachedAgain, err := svc.ListEffective(ctx, "user:user-member", ResourceScope{Kind: "project", ID: "project-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasEffectiveSource(cachedAgain, "project.read", SourceTeamRoleRAM) || !hasEffectiveSource(cachedAgain, "project.write", SourceCustomRole) {
+		t.Fatalf("cached effective permissions changed unexpectedly: %#v", cachedAgain.Permissions)
+	}
+
+	for _, projectID := range []string{"project-3", "project-cross"} {
+		got, err := svc.Check(ctx, CheckRequest{
+			SubjectRef: "user:user-member",
+			Transport:  TransportWeb,
+			Permission: "project.read",
+			Resource:   ResourceScope{Kind: "project", ID: projectID},
+		})
+		if !errors.Is(err, ErrDenied) || got.Allowed {
+			t.Fatalf("cross-scope team RAM project.read %s should deny, decision=%#v err=%v", projectID, got, err)
+		}
+	}
+
+	execMany(t, db, `DELETE FROM team_projects WHERE team_id='team-ram' AND project_id='project-1'`)
+	got, err := svc.Check(ctx, CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "project.read",
+		Resource:   ResourceScope{Kind: "project", ID: "project-1"},
+	})
+	if !errors.Is(err, ErrDenied) || got.Allowed {
+		t.Fatalf("project unlink must immediately revoke team RAM access, decision=%#v err=%v", got, err)
+	}
+
+	execMany(t, db, `DELETE FROM team_role_ram_role_mappings WHERE team_id='team-ram' AND team_role='developer'`)
+	execMany(t, db, `UPDATE team_role_ram_role_versions SET version=version+1, updated_at=? WHERE team_id='team-ram' AND team_role='developer'`, time.Date(2026, 8, 14, 12, 1, 0, 0, time.UTC).Format(time.RFC3339Nano))
+	got, err = svc.Check(ctx, CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "project.read",
+		Resource:   ResourceScope{Kind: "project", ID: "project-2"},
+	})
+	if !errors.Is(err, ErrDenied) || got.Allowed {
+		t.Fatalf("RAM mapping revoke must fail closed immediately, decision=%#v err=%v", got, err)
+	}
+
+	execMany(t, db, `INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES ('team-ram', 'developer', 'role-team-project-reader', ?, 'system')`, time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC).Format(time.RFC3339Nano))
+	execMany(t, db, `UPDATE team_role_ram_role_versions SET version=version+1, updated_at=? WHERE team_id='team-ram' AND team_role='developer'`, time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC).Format(time.RFC3339Nano))
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: "project-2"}}); err != nil {
+		t.Fatalf("restored RAM mapping should allow before membership revoke: %v", err)
+	}
+	execMany(t, db, `DELETE FROM team_members WHERE team_id='team-ram' AND member_ref='user:user-member'`)
+	got, err = svc.Check(ctx, CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportWeb,
+		Permission: "project.read",
+		Resource:   ResourceScope{Kind: "project", ID: "project-2"},
+	})
+	if !errors.Is(err, ErrDenied) || got.Allowed {
+		t.Fatalf("team membership revoke must fail closed immediately, decision=%#v err=%v", got, err)
+	}
+}
+
 func TestSupervisorCrossOrgRevokeMustFailClosed(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)
@@ -567,6 +656,53 @@ func seedTeam(t *testing.T, db *sql.DB) {
 	execMany(t, db, `INSERT INTO teams (id, org_id, name, description, created_at, updated_at) VALUES ('team-1', 'org-1', 'Team', '', ?, ?)`, now, now)
 	execMany(t, db, `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at) VALUES ('team-1', 'reviewer', 'codex', 'gpt-5', '["team.memory.review"]', 1, ?)`, now)
 	execMany(t, db, `INSERT INTO team_members (team_id, member_ref, member_kind, role, created_at) VALUES ('team-1', 'agent:mem-agent', 'agent', 'reviewer', ?)`, now)
+}
+
+func seedTeamRAM(t *testing.T, db *sql.DB) {
+	t.Helper()
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	execMany(t, db, `INSERT INTO teams (id, org_id, name, description, created_at, updated_at) VALUES ('team-ram', 'org-1', 'RAM Team', '', ?, ?)`, now, now)
+	execMany(t, db, `INSERT INTO team_roles (team_id, role, cli, model, capability_tags, max_concurrency, created_at) VALUES ('team-ram', 'developer', 'codex', 'gpt-5', '[]', 1, ?)`, now)
+	execMany(t, db, `INSERT INTO team_members (team_id, member_ref, member_kind, role, created_at) VALUES ('team-ram', 'user:user-member', 'human', 'developer', ?)`, now)
+	for _, projectID := range []string{"project-1", "project-2"} {
+		execMany(t, db, `INSERT INTO team_projects (team_id, project_id, created_at) VALUES ('team-ram', ?, ?)`, projectID, now)
+	}
+	execMany(t, db,
+		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		 VALUES ('role-team-project-reader', 'org-1', 'custom', 'team-project-reader', '', 'system', ?, ?, 1)`,
+		now, now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		 VALUES ('role-team-project-reader', 'project.read', 'project', 0, ?)`,
+		now,
+	)
+	execMany(t, db,
+		`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by)
+		 VALUES ('team-ram', 'developer', 'role-team-project-reader', ?, 'system')`,
+		now,
+	)
+	execMany(t, db,
+		`INSERT INTO team_role_ram_role_versions (team_id, team_role, version, updated_at, updated_by)
+		 VALUES ('team-ram', 'developer', 1, ?, 'system')`,
+		now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		 VALUES ('role-direct-project-writer', 'org-1', 'custom', 'direct-project-writer', '', 'system', ?, ?, 1)`,
+		now, now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		 VALUES ('role-direct-project-writer', 'project.write', 'project', 0, ?)`,
+		now,
+	)
+	execMany(t, db,
+		`INSERT INTO authorization_role_assignments
+		 (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version)
+		 VALUES ('asgn-direct-project-writer', 'org-1', 'user:user-member', 'role-direct-project-writer', 'project', 'project-2', 'system', ?, 1)`,
+		now,
+	)
 }
 
 func seedRoleAssignment(t *testing.T, db *sql.DB, orgID, roleID, assignmentID string, subject SubjectRef, resourceKind, resourceID string) {

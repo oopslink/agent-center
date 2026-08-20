@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/cognition/memory/teammemory"
@@ -87,6 +88,22 @@ func TestCreateTeam_AllowsNoRoleForEmptyTeam(t *testing.T) {
 	}
 	if body["status"] != "draft" {
 		t.Fatalf("status = %v, want draft", body["status"])
+	}
+}
+
+func TestT1413WebCreateTeamEnforceUsesSharedAuthorization(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
+	if _, err := db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-org-owner' AND permission_key='team.create'`); err != nil {
+		t.Fatal(err)
+	}
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	resp := orgScopedPost(t, ts.URL+"/api/teams", `{"name":"Blocked Team","description":"ram","roles":[]}`, sess)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("create team = %d, want shared authz 403", resp.StatusCode)
 	}
 }
 

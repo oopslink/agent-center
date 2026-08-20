@@ -263,6 +263,21 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgPlansAll() });
   });
 
+  it('authorization and team RAM mapping events invalidate effective permission readers', () => {
+    for (const t of [
+      'authorization.assignment.created',
+      'authorization.assignment.revoked',
+      'authorization.role.upserted',
+      'authorization.role_permissions.set',
+      'team.role_ram_roles.replaced',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.permissions() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.accessOverview() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.accessProfiles() });
+  });
+
   // v2.3-5b: issue lifecycle invalidates the BC-native Issue list
   // cache (qk.issues). Mirrors the task path above.
   it('issue.* lifecycle invalidates the BC-native issues list cache', () => {
