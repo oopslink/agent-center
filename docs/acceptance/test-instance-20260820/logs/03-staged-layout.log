@@ -1,0 +1,16 @@
+/tmp/agent-center-stage-main-69d5b662bef1:
+total 104
+drwxr-xr-x@   8 oopslink  wheel    256 Aug 20 23:14 .
+drwxrwxrwt  165 root      wheel   5280 Aug 20 23:14 ..
+-rw-r--r--@   1 oopslink  wheel  11357 Aug 20 23:14 LICENSE
+-rw-r--r--@   1 oopslink  wheel  24692 Aug 20 23:14 README.md
+drwxr-xr-x@   3 oopslink  wheel     96 Aug 20 23:14 bin
+-rwxr-xr-x@   1 oopslink  wheel    101 Aug 20 23:14 install
+-rwxr-xr-x@   1 oopslink  wheel     96 Aug 20 23:14 uninstall
+-rwxr-xr-x@   1 oopslink  wheel     92 Aug 20 23:14 upgrade
+
+/tmp/agent-center-stage-main-69d5b662bef1/bin:
+total 76536
+drwxr-xr-x@ 3 oopslink  wheel        96 Aug 20 23:14 .
+drwxr-xr-x@ 8 oopslink  wheel       256 Aug 20 23:14 ..
+-rwxr-xr-x@ 1 oopslink  wheel  39185874 Aug 20 23:14 agent-center

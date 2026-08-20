@@ -1,0 +1,99 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Workspace" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "Projects" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects
+      - listitem:
+        - link "Issues" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/issues
+      - listitem:
+        - link "Tasks" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/tasks
+      - listitem:
+        - link "Plans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/plans
+      - listitem:
+        - link "Repos" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/repos
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Tasks" [ref=e20] [level=1]
+    - button "+ New Task" [ref=e21]
+    - button "Filters" [ref=e22] [expanded]
+    - button "Clear filters" [ref=e23] [disabled]
+    - text: Status
+    - button "open" [ref=e24]
+    - button "running" [ref=e25]
+    - button "blocked" [ref=e26]
+    - button "completed" [ref=e27]
+    - button "discarded" [ref=e28]
+    - button "reopened" [ref=e29]
+    - text: Project
+    - combobox "Project" [ref=e30]:
+      - option "All projects" [ref=e31] [selected]
+      - option "Alpha Project" [ref=e32]
+      - option "Beta Project" [ref=e33]
+    - text: Assignee
+    - combobox "Assignee" [ref=e34]:
+      - option "Any" [ref=e35] [selected]
+      - option "Test Admin · user" [ref=e36]
+    - text: Date range
+    - group "Created":
+      - text: Created
+      - textbox "Created after" [ref=e37]
+      - textbox "Created before" [ref=e38]
+    - group "Updated":
+      - text: Updated
+      - textbox "Updated after" [ref=e39]
+      - textbox "Updated before" [ref=e40]
+    - table:
+      - rowgroup:
+        - row "Sort by ID Project Sort by Title Sort by Status Assigned to Plan Sort by Created Creator Sort by Updated (descending)":
+          - columnheader "Sort by ID" [ref=e41]:
+            - button "Sort by ID" [ref=e42]: ID
+          - columnheader "Project" [ref=e43]
+          - columnheader "Sort by Title" [ref=e44]:
+            - button "Sort by Title" [ref=e45]: Title
+          - columnheader "Sort by Status" [ref=e46]:
+            - button "Sort by Status" [ref=e47]: Status
+          - columnheader "Assigned to" [ref=e48]
+          - columnheader "Plan" [ref=e49]
+          - columnheader "Sort by Created" [ref=e50]:
+            - button "Sort by Created" [ref=e51]: Created
+          - columnheader "Creator" [ref=e52]
+          - columnheader "Sort by Updated (descending)" [ref=e53]:
+            - button "Sort by Updated (descending)" [ref=e54]: Updated
+      - rowgroup:
+        - row "T1 Alpha Project Alpha acceptance task open — — Aug 20, 2026, 11:20:07 PM GMT+8 Test Admin Aug 20, 2026, 11:20:07 PM GMT+8":
+          - cell "T1" [ref=e55]
+          - cell "Alpha Project" [ref=e56]:
+            - link "Alpha Project" [ref=e57]:
+              - /url: /organizations/org-9e68b31f/projects/project-e4973930
+          - cell "Alpha acceptance task" [ref=e58]:
+            - link "Alpha acceptance task" [ref=e59]:
+              - /url: /organizations/org-9e68b31f/projects/project-e4973930/tasks/task-8f512b7b
+          - cell "open" [ref=e60]
+          - cell "—" [ref=e61]
+          - cell "—" [ref=e62] [nth=1]
+          - cell "Aug 20, 2026, 11:20:07 PM GMT+8" [ref=e63]
+          - cell "Test Admin" [ref=e64]
+          - cell "Aug 20, 2026, 11:20:07 PM GMT+8" [ref=e65] [nth=1]

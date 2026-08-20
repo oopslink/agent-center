@@ -1,0 +1,29 @@
+# agent-center — installed by v2.4-D-A2 install command.
+# Edit this file then `systemctl --user restart agent-center` (or launchctl) to apply.
+
+server:
+  # v2.7.1 #211: names this center deployment (multi-center coexistence on one host).
+  instance: "default"
+  # v2.7 #161: default off :7000 — macOS AirPlay Receiver (AirTunes) listens on
+  # 7000 by default, so :7000 fails to bind on a fresh Mac install and the center
+  # never starts. :7050 avoids AirPlay (7000) and the web console (7100), and
+  # keeps the 70xx/73xx numbering. (server and web_console are separate listeners
+  # and must not share a port.) v2.7.1 #211: --server-port makes this configurable.
+  listen_addr: ":47050"
+  sqlite_path: "/tmp/ac-test-instance-69d5b662bef1/var/agent-center.db"
+  admin_socket_path: "/tmp/ac-test-instance-69d5b662bef1/var/admin.sock"
+  admin_tcp_listen: "127.0.0.1:47300"
+
+secret_management:
+  # v2.5 X1 polish: auto-generated at install time (mode 0600).
+  # UserSecret BC + Add Worker Show install command depend on this
+  # being present; without it Show install command returns 503.
+  master_key_file: "/tmp/ac-test-instance-69d5b662bef1/var/master.key"
+
+web_console:
+  enabled: true
+  listen_addr: "127.0.0.1:47100"
+
+blob_store:
+  kind: "local"
+  root: "/tmp/ac-test-instance-69d5b662bef1/var/blobs"

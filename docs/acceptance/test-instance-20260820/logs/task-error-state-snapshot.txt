@@ -1,0 +1,47 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - link "Projects" [ref=e13]:
+      - /url: /organizations/org-9e68b31f/projects
+    - text: Alpha Project
+    - list:
+      - listitem:
+        - link "Issues" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=issues
+      - listitem:
+        - link "Tasks" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=tasks
+      - listitem:
+        - link "Plans" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=plans
+      - listitem:
+        - link "Code repos" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=repos
+      - listitem:
+        - link "Work Board" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930/plans
+      - listitem:
+        - link "Members" [ref=e19]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=members
+    - button "Collapse sidebar" [ref=e20]
+  - main:
+    - alert:
+      - paragraph: "[404 not_found] task not found in this project"
+      - link "Back to project" [ref=e21]:
+        - /url: /organizations/org-9e68b31f/projects/project-e4973930

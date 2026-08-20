@@ -1,0 +1,12 @@
+/tmp/ac-test-instance-69d5b662bef1
+/tmp/ac-test-instance-69d5b662bef1/current
+/tmp/ac-test-instance-69d5b662bef1/etc
+/tmp/ac-test-instance-69d5b662bef1/etc/config.yaml
+/tmp/ac-test-instance-69d5b662bef1/logs
+/tmp/ac-test-instance-69d5b662bef1/var
+/tmp/ac-test-instance-69d5b662bef1/var/master.key
+/tmp/ac-test-instance-69d5b662bef1/versions
+/tmp/ac-test-instance-69d5b662bef1/versions/main-69d5b662bef1
+/tmp/ac-test-instance-69d5b662bef1/versions/main-69d5b662bef1/COMMIT
+/tmp/ac-test-instance-69d5b662bef1/versions/main-69d5b662bef1/VERSION
+/tmp/ac-test-instance-69d5b662bef1/versions/main-69d5b662bef1/bin

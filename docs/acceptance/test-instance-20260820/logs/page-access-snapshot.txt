@@ -1,0 +1,662 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - list:
+      - listitem:
+        - heading "Access" [ref=e13] [level=2]:
+          - button "Access" [ref=e14] [expanded]
+        - list:
+          - listitem:
+            - link "RAM Roles" [ref=e15]:
+              - /url: /organizations/org-9e68b31f/access?view=ram-roles
+          - listitem:
+            - link "Team Role mappings" [ref=e16]:
+              - /url: /organizations/org-9e68b31f/access?view=team-role-mappings
+          - listitem:
+            - link "Subject access" [ref=e17]:
+              - /url: /organizations/org-9e68b31f/access?view=subject-access
+    - button "Collapse sidebar" [ref=e18]
+  - main:
+    - heading "Access" [ref=e19] [nth=1] [level=1]
+    - button "Batch grant" [ref=e20]
+    - text: Allowed 9 High risk 4 Expiring 0 No access 0 Not applicable 1
+    - tablist "Access view":
+      - tab "Roles & mappings" [ref=e21] [selected]
+      - tab "Subject access" [ref=e22]
+    - text: Search access
+    - textbox "Search access" [ref=e23]:
+      - /placeholder: Search subject, permission, reason
+    - text: Resource
+    - combobox "Resource" [ref=e24]:
+      - option "All resource" [ref=e25] [selected]
+      - option "org" [ref=e26]
+      - option "project" [ref=e27]
+      - option "team" [ref=e28]
+      - option "task" [ref=e29]
+      - option "issue" [ref=e30]
+      - option "plan" [ref=e31]
+      - option "conversation" [ref=e32]
+      - option "file" [ref=e33]
+      - option "agent" [ref=e34]
+      - option "worker" [ref=e35]
+      - option "admin_token" [ref=e36]
+    - text: Risk
+    - combobox "Risk" [ref=e37]:
+      - option "All risk" [ref=e38] [selected]
+      - option "high" [ref=e39]
+      - option "medium" [ref=e40]
+      - option "low" [ref=e41]
+    - text: Status
+    - combobox "Status" [ref=e42]:
+      - option "All status" [ref=e43] [selected]
+      - option "allowed" [ref=e44]
+      - option "denied" [ref=e45]
+      - option "unauthorized" [ref=e46]
+      - option "not_applicable" [ref=e47]
+    - heading "RAM Roles" [ref=e48] [level=2]
+    - text: 14 current versions
+    - table:
+      - rowgroup:
+        - row "Role Version Risk Permissions":
+          - columnheader "Role" [ref=e49]
+          - columnheader "Version" [ref=e50]
+          - columnheader "Risk" [ref=e51]
+          - columnheader "Permissions" [ref=e52]
+      - rowgroup:
+        - row "Team basic Read team metadata and memory. team-basic Referenced by 0 Team Roles v1 Low team.read, team.memory.read":
+          - cell "Team basic Read team metadata and memory. team-basic Referenced by 0 Team Roles" [ref=e53]
+          - cell "v1" [ref=e54]
+          - cell "Low" [ref=e55]
+          - cell "team.read, team.memory.read" [ref=e56]
+        - row "Team contributor Read/write team work and propose memory. team-contributor Referenced by 0 Team Roles v1 Medium team.read, team.write, team.memory.read, team.memory.propose":
+          - cell "Team contributor Read/write team work and propose memory. team-contributor Referenced by 0 Team Roles" [ref=e57]
+          - cell "v1" [ref=e58] [nth=1]
+          - cell "Medium" [ref=e59]
+          - cell "team.read, team.write, team.memory.read, team.memory.propose" [ref=e60]
+        - row "Team curator Review team memory in addition to contributor access. team-curator Referenced by 0 Team Roles v2 High risk team.read, team.write, team.memory.read, team.memory.propose, team.memory.review":
+          - cell "Team curator Review team memory in addition to contributor access. team-curator Referenced by 0 Team Roles" [ref=e61]
+          - cell "v2" [ref=e62]
+          - cell "High risk" [ref=e63]
+          - cell "team.read, team.write, team.memory.read, team.memory.propose, team.memory.review" [ref=e64]
+        - row "admin_token.scope Legacy admin bearer-scope projection sys-admin-token Referenced by 0 Team Roles v1 Low admin_token.manage, blob.put, dispatch.pull, secret.resolve, task.internal.report, worker.capability.report, worker.enroll, worker.heartbeat":
+          - cell "admin_token.scope Legacy admin bearer-scope projection sys-admin-token Referenced by 0 Team Roles" [ref=e65]
+          - cell "v1" [ref=e66] [nth=2]
+          - cell "Low" [ref=e67] [nth=1]
+          - cell "admin_token.manage, blob.put, dispatch.pull, secret.resolve, task.internal.report, worker.capability.report, worker.enroll, worker.heartbeat" [ref=e68]
+        - row "background.worker Fixed production background worker operation grants sys-background-worker Referenced by 0 Team Roles v1 Low worker.capability.report":
+          - cell "background.worker Fixed production background worker operation grants sys-background-worker Referenced by 0 Team Roles" [ref=e69]
+          - cell "v1" [ref=e70] [nth=3]
+          - cell "Low" [ref=e71] [nth=2]
+          - cell "worker.capability.report" [ref=e72]
+        - row "org.admin Legacy organization admin role projection sys-org-admin Referenced by 0 Team Roles v1 Low ai_runtime.catalog.export, ai_runtime.catalog.manage, ai_runtime.catalog.read, coderepo.workspace.manage, coderepo.workspace.read, org.analytics.read, org.invitation.manage, org.member.create.agent, org.member.create.human, org.member.list, org.read, org.work_items.read, team.create, template.read, template.write":
+          - cell "org.admin Legacy organization admin role projection sys-org-admin Referenced by 0 Team Roles" [ref=e73]
+          - cell "v1" [ref=e74] [nth=4]
+          - cell "Low" [ref=e75] [nth=3]
+          - cell "ai_runtime.catalog.export, ai_runtime.catalog.manage, ai_runtime.catalog.read, coderepo.workspace.manage, coderepo.workspace.read, org.analytics.read, org.invitation.manage, org.member.create.agent, org.member.create.human, org.member.list, org.read, org.work_items.read, team.create, template.read, template.write" [ref=e76]
+        - row "org.member Legacy organization member role projection sys-org-member Referenced by 0 Team Roles v1 Low ai_runtime.catalog.export, ai_runtime.catalog.read, coderepo.workspace.read, org.member.list, org.read, org.work_items.read, team.create, template.read, template.write":
+          - cell "org.member Legacy organization member role projection sys-org-member Referenced by 0 Team Roles" [ref=e77]
+          - cell "v1" [ref=e78] [nth=5]
+          - cell "Low" [ref=e79] [nth=4]
+          - cell "ai_runtime.catalog.export, ai_runtime.catalog.read, coderepo.workspace.read, org.member.list, org.read, org.work_items.read, team.create, template.read, template.write" [ref=e80]
+        - row "org.owner Legacy organization owner role projection sys-org-owner Referenced by 0 Team Roles v1 Low ai_runtime.catalog.export, ai_runtime.catalog.manage, ai_runtime.catalog.read, coderepo.workspace.manage, coderepo.workspace.read, org.analytics.read, org.invitation.manage, org.lifecycle.manage, org.member.create.agent, org.member.create.human, org.member.disable, org.member.list, org.member.role.manage, org.read, org.settings.manage, org.work_items.read, team.create, template.read, template.write":
+          - cell "org.owner Legacy organization owner role projection sys-org-owner Referenced by 0 Team Roles" [ref=e81]
+          - cell "v1" [ref=e82] [nth=6]
+          - cell "Low" [ref=e83] [nth=5]
+          - cell "ai_runtime.catalog.export, ai_runtime.catalog.manage, ai_runtime.catalog.read, coderepo.workspace.manage, coderepo.workspace.read, org.analytics.read, org.invitation.manage, org.lifecycle.manage, org.member.create.agent, org.member.create.human, org.member.disable, org.member.list, org.member.role.manage, org.read, org.settings.manage, org.work_items.read, team.create, template.read, template.write" [ref=e84]
+        - row "project.member Legacy project member role projection sys-project-member Referenced by 0 Team Roles v1 Low project.member.add, project.read, project.repo_ref.manage, project.write":
+          - cell "project.member Legacy project member role projection sys-project-member Referenced by 0 Team Roles" [ref=e85]
+          - cell "v1" [ref=e86] [nth=7]
+          - cell "Low" [ref=e87] [nth=6]
+          - cell "project.member.add, project.read, project.repo_ref.manage, project.write" [ref=e88]
+        - row "project.owner Legacy project owner role projection sys-project-owner Referenced by 0 Team Roles v1 Low project.member.add, project.member.remove, project.read, project.repo_ref.manage, project.stage.manage, project.write":
+          - cell "project.owner Legacy project owner role projection sys-project-owner Referenced by 0 Team Roles" [ref=e89]
+          - cell "v1" [ref=e90] [nth=8]
+          - cell "Low" [ref=e91] [nth=7]
+          - cell "project.member.add, project.member.remove, project.read, project.repo_ref.manage, project.stage.manage, project.write" [ref=e92]
+        - row "team.member Legacy team member and compatibility grants sys-team-member Referenced by 0 Team Roles v1 Low team.git.read, team.git.write, team.memory.propose, team.memory.read":
+          - cell "team.member Legacy team member and compatibility grants sys-team-member Referenced by 0 Team Roles" [ref=e93]
+          - cell "v1" [ref=e94] [nth=9]
+          - cell "Low" [ref=e95] [nth=8]
+          - cell "team.git.read, team.git.write, team.memory.propose, team.memory.read" [ref=e96]
+        - row "team.web.admin Legacy Web team compatibility grants for organization admins sys-team-web-admin Referenced by 0 Team Roles v1 Low team.member.manage, team.memory.propose, team.memory.read, team.memory.review, team.project.link.manage, team.read, team.runtime_config.manage, team.write":
+          - cell "team.web.admin Legacy Web team compatibility grants for organization admins sys-team-web-admin Referenced by 0 Team Roles" [ref=e97]
+          - cell "v1" [ref=e98] [nth=10]
+          - cell "Low" [ref=e99] [nth=9]
+          - cell "team.member.manage, team.memory.propose, team.memory.read, team.memory.review, team.project.link.manage, team.read, team.runtime_config.manage, team.write" [ref=e100]
+        - row "team.web.member Legacy Web team compatibility grants for organization members sys-team-web-member Referenced by 0 Team Roles v1 Low team.member.manage, team.memory.read, team.project.link.manage, team.read, team.runtime_config.manage, team.write":
+          - cell "team.web.member Legacy Web team compatibility grants for organization members sys-team-web-member Referenced by 0 Team Roles" [ref=e101]
+          - cell "v1" [ref=e102] [nth=11]
+          - cell "Low" [ref=e103] [nth=10]
+          - cell "team.member.manage, team.memory.read, team.project.link.manage, team.read, team.runtime_config.manage, team.write" [ref=e104]
+        - row "team.web.owner Legacy Web team compatibility grants for organization owners sys-team-web-owner Referenced by 0 Team Roles v1 Low team.member.manage, team.memory.propose, team.memory.read, team.memory.review, team.project.link.manage, team.read, team.runtime_config.manage, team.write":
+          - cell "team.web.owner Legacy Web team compatibility grants for organization owners sys-team-web-owner Referenced by 0 Team Roles" [ref=e105]
+          - cell "v1" [ref=e106] [nth=12]
+          - cell "Low" [ref=e107] [nth=11]
+          - cell "team.member.manage, team.memory.propose, team.memory.read, team.memory.review, team.project.link.manage, team.read, team.runtime_config.manage, team.write" [ref=e108] [nth=1]
+    - complementary:
+      - heading "Create role" [ref=e109] [level=2]
+      - text: Name
+      - textbox "Name" [ref=e110]
+      - text: Description
+      - textbox "Description" [ref=e111]
+      - button "admin_token.manage Low" [ref=e112]
+      - button "agent.operate.self Low" [ref=e113]
+      - button "ai_runtime.catalog.export Low" [ref=e114]
+      - button "ai_runtime.catalog.manage High risk" [ref=e115]
+      - button "ai_runtime.catalog.read Low" [ref=e116]
+      - button "blob.put Low" [ref=e117]
+      - button "coderepo.project_ref.read Low" [ref=e118]
+      - button "coderepo.workspace.manage Low" [ref=e119]
+      - button "coderepo.workspace.read Low" [ref=e120]
+      - button "conversation.post Low" [ref=e121]
+      - button "conversation.read Low" [ref=e122]
+      - button "dispatch.pull Low" [ref=e123]
+      - button "file.attach Low" [ref=e124]
+      - button "file.download Medium" [ref=e125]
+      - button "file.upload Low" [ref=e126]
+      - button "git.agent.read.self Low" [ref=e127]
+      - button "git.agent.write.self Low" [ref=e128]
+      - button "git.global.read Low" [ref=e129]
+      - button "issue.read Low" [ref=e130]
+      - button "issue.write Low" [ref=e131]
+      - button "model_catalog.manage Low" [ref=e132]
+      - button "org.analytics.read Low" [ref=e133]
+      - button "org.invitation.manage Medium" [ref=e134]
+      - button "org.lifecycle.manage High risk" [ref=e135]
+      - button "org.member.create.agent Medium" [ref=e136]
+      - button "org.member.create.human Medium" [ref=e137]
+      - button "org.member.disable Low" [ref=e138]
+      - button "org.member.list Low" [ref=e139]
+      - button "org.member.role.manage High risk" [ref=e140]
+      - button "org.read Low" [ref=e141]
+      - button "org.settings.manage High risk" [ref=e142]
+      - button "org.work_items.read Low" [ref=e143]
+      - button "plan.read Low" [ref=e144]
+      - button "plan.write Low" [ref=e145]
+      - button "project.member.add Medium" [ref=e146]
+      - button "project.member.remove High risk" [ref=e147]
+      - button "project.read Low" [ref=e148]
+      - button "project.repo_ref.manage Low" [ref=e149]
+      - button "project.stage.manage Low" [ref=e150]
+      - button "project.write Medium" [ref=e151]
+      - button "secret.resolve Low" [ref=e152]
+      - button "task.block.self Low" [ref=e153]
+      - button "task.complete.self Low" [ref=e154]
+      - button "task.heartbeat.self Low" [ref=e155]
+      - button "task.internal.report Low" [ref=e156]
+      - button "task.read Low" [ref=e157]
+      - button "task.start.self Low" [ref=e158]
+      - button "task.write Low" [ref=e159]
+      - button "team.create Low" [ref=e160]
+      - button "team.git.read Low" [ref=e161]
+      - button "team.git.write Low" [ref=e162]
+      - button "team.member.manage Medium" [ref=e163]
+      - button "team.memory.propose Medium" [ref=e164]
+      - button "team.memory.read Low" [ref=e165]
+      - button "team.memory.review High risk" [ref=e166]
+      - button "team.project.link.manage Medium" [ref=e167]
+      - button "team.read Low" [ref=e168]
+      - button "team.runtime_config.manage Low" [ref=e169]
+      - button "team.write Medium" [ref=e170]
+      - button "template.read Low" [ref=e171]
+      - button "template.write Low" [ref=e172]
+      - button "worker.capability.report Low" [ref=e173]
+      - button "worker.enroll Low" [ref=e174]
+      - button "worker.heartbeat Low" [ref=e175]
+      - button "Create" [ref=e176] [disabled]
+      - heading "Version history" [ref=e177] [level=2]
+      - text: "Team basic Latest v1 Referenced by: None v1 Low team.read, team.memory.read"
+      - heading "Publish new version" [ref=e178] [level=3]
+      - button "admin_token.manage Low" [ref=e179] [nth=1]
+      - button "agent.operate.self Low" [ref=e180] [nth=1]
+      - button "ai_runtime.catalog.export Low" [ref=e181] [nth=1]
+      - button "ai_runtime.catalog.manage High risk" [ref=e182] [nth=1]
+      - button "ai_runtime.catalog.read Low" [ref=e183] [nth=1]
+      - button "blob.put Low" [ref=e184] [nth=1]
+      - button "coderepo.project_ref.read Low" [ref=e185] [nth=1]
+      - button "coderepo.workspace.manage Low" [ref=e186] [nth=1]
+      - button "coderepo.workspace.read Low" [ref=e187] [nth=1]
+      - button "conversation.post Low" [ref=e188] [nth=1]
+      - button "conversation.read Low" [ref=e189] [nth=1]
+      - button "dispatch.pull Low" [ref=e190] [nth=1]
+      - button "file.attach Low" [ref=e191] [nth=1]
+      - button "file.download Medium" [ref=e192] [nth=1]
+      - button "file.upload Low" [ref=e193] [nth=1]
+      - button "git.agent.read.self Low" [ref=e194] [nth=1]
+      - button "git.agent.write.self Low" [ref=e195] [nth=1]
+      - button "git.global.read Low" [ref=e196] [nth=1]
+      - button "issue.read Low" [ref=e197] [nth=1]
+      - button "issue.write Low" [ref=e198] [nth=1]
+      - button "model_catalog.manage Low" [ref=e199] [nth=1]
+      - button "org.analytics.read Low" [ref=e200] [nth=1]
+      - button "org.invitation.manage Medium" [ref=e201] [nth=1]
+      - button "org.lifecycle.manage High risk" [ref=e202] [nth=1]
+      - button "org.member.create.agent Medium" [ref=e203] [nth=1]
+      - button "org.member.create.human Medium" [ref=e204] [nth=1]
+      - button "org.member.disable Low" [ref=e205] [nth=1]
+      - button "org.member.list Low" [ref=e206] [nth=1]
+      - button "org.member.role.manage High risk" [ref=e207] [nth=1]
+      - button "org.read Low" [ref=e208] [nth=1]
+      - button "org.settings.manage High risk" [ref=e209] [nth=1]
+      - button "org.work_items.read Low" [ref=e210] [nth=1]
+      - button "plan.read Low" [ref=e211] [nth=1]
+      - button "plan.write Low" [ref=e212] [nth=1]
+      - button "project.member.add Medium" [ref=e213] [nth=1]
+      - button "project.member.remove High risk" [ref=e214] [nth=1]
+      - button "project.read Low" [ref=e215] [nth=1]
+      - button "project.repo_ref.manage Low" [ref=e216] [nth=1]
+      - button "project.stage.manage Low" [ref=e217] [nth=1]
+      - button "project.write Medium" [ref=e218] [nth=1]
+      - button "secret.resolve Low" [ref=e219] [nth=1]
+      - button "task.block.self Low" [ref=e220] [nth=1]
+      - button "task.complete.self Low" [ref=e221] [nth=1]
+      - button "task.heartbeat.self Low" [ref=e222] [nth=1]
+      - button "task.internal.report Low" [ref=e223] [nth=1]
+      - button "task.read Low" [ref=e224] [nth=1]
+      - button "task.start.self Low" [ref=e225] [nth=1]
+      - button "task.write Low" [ref=e226] [nth=1]
+      - button "team.create Low" [ref=e227] [nth=1]
+      - button "team.git.read Low" [ref=e228] [nth=1]
+      - button "team.git.write Low" [ref=e229] [nth=1]
+      - button "team.member.manage Medium" [ref=e230] [nth=1]
+      - button "team.memory.propose Medium" [ref=e231] [nth=1]
+      - button "team.memory.read Low" [ref=e232] [nth=1] [pressed]
+      - button "team.memory.review High risk" [ref=e233] [nth=1]
+      - button "team.project.link.manage Medium" [ref=e234] [nth=1]
+      - button "team.read Low" [ref=e235] [nth=1] [pressed]
+      - button "team.runtime_config.manage Low" [ref=e236] [nth=1]
+      - button "team.write Medium" [ref=e237] [nth=1]
+      - button "template.read Low" [ref=e238] [nth=1]
+      - button "template.write Low" [ref=e239] [nth=1]
+      - button "worker.capability.report Low" [ref=e240] [nth=1]
+      - button "worker.enroll Low" [ref=e241] [nth=1]
+      - button "worker.heartbeat Low" [ref=e242] [nth=1]
+      - button "Publish v2" [ref=e243] [disabled]
+      - button "Revoke" [ref=e244] [disabled]
+    - heading "Team Role mappings" [ref=e245] [level=2]
+    - paragraph: Preview impact, then replace with optimistic concurrency control.
+    - paragraph: No teams.
+    - heading "Permission catalog" [ref=e246] [level=2]
+    - table:
+      - rowgroup:
+        - row "Key Scope Risk Sources":
+          - columnheader "Key" [ref=e247]
+          - columnheader "Scope" [ref=e248]
+          - columnheader "Risk" [ref=e249] [nth=1]
+          - columnheader "Sources" [ref=e250]
+      - rowgroup:
+        - row "admin_token.manage Unified authorization permission admin_token.manage. admin_token Low admin_tokens.scopes_json":
+          - cell "admin_token.manage Unified authorization permission admin_token.manage." [ref=e251]
+          - cell "admin_token" [ref=e252]
+          - cell "Low" [ref=e253] [nth=12]
+          - cell "admin_tokens.scopes_json" [ref=e254]
+        - row "agent.operate.self Unified authorization permission agent.operate.self. agent Low agents.worker_id":
+          - cell "agent.operate.self Unified authorization permission agent.operate.self." [ref=e255]
+          - cell "agent" [ref=e256]
+          - cell "Low" [ref=e257] [nth=13]
+          - cell "agents.worker_id" [ref=e258]
+        - row "ai_runtime.catalog.export Unified authorization permission ai_runtime.catalog.export. org Low members":
+          - cell "ai_runtime.catalog.export Unified authorization permission ai_runtime.catalog.export." [ref=e259]
+          - cell "org" [ref=e260]
+          - cell "Low" [ref=e261] [nth=14]
+          - cell "members" [ref=e262]
+        - row "ai_runtime.catalog.manage Create, update, import, or delete runtime catalog entries. org High risk members.role":
+          - cell "ai_runtime.catalog.manage Create, update, import, or delete runtime catalog entries." [ref=e263]
+          - cell "org" [ref=e264] [nth=1]
+          - cell "High risk" [ref=e265] [nth=1]
+          - cell "members.role" [ref=e266]
+        - row "ai_runtime.catalog.read Unified authorization permission ai_runtime.catalog.read. org Low members":
+          - cell "ai_runtime.catalog.read Unified authorization permission ai_runtime.catalog.read." [ref=e267]
+          - cell "org" [ref=e268] [nth=2]
+          - cell "Low" [ref=e269] [nth=15]
+          - cell "members" [ref=e270] [nth=1]
+        - row "blob.put Unified authorization permission blob.put. blob Low admin_tokens.scopes_json":
+          - cell "blob.put Unified authorization permission blob.put." [ref=e271]
+          - cell "blob" [ref=e272]
+          - cell "Low" [ref=e273] [nth=16]
+          - cell "admin_tokens.scopes_json" [ref=e274] [nth=1]
+        - row "coderepo.project_ref.read Unified authorization permission coderepo.project_ref.read. project Low pm_project_members":
+          - cell "coderepo.project_ref.read Unified authorization permission coderepo.project_ref.read." [ref=e275]
+          - cell "project" [ref=e276]
+          - cell "Low" [ref=e277] [nth=17]
+          - cell "pm_project_members" [ref=e278]
+        - row "coderepo.workspace.manage Unified authorization permission coderepo.workspace.manage. org Low members.role":
+          - cell "coderepo.workspace.manage Unified authorization permission coderepo.workspace.manage." [ref=e279]
+          - cell "org" [ref=e280] [nth=3]
+          - cell "Low" [ref=e281] [nth=18]
+          - cell "members.role" [ref=e282] [nth=1]
+        - row "coderepo.workspace.read Unified authorization permission coderepo.workspace.read. org Low members":
+          - cell "coderepo.workspace.read Unified authorization permission coderepo.workspace.read." [ref=e283]
+          - cell "org" [ref=e284] [nth=4]
+          - cell "Low" [ref=e285] [nth=19]
+          - cell "members" [ref=e286] [nth=2]
+        - row "conversation.post Unified authorization permission conversation.post. conversation Low conversations.participants":
+          - cell "conversation.post Unified authorization permission conversation.post." [ref=e287]
+          - cell "conversation" [ref=e288]
+          - cell "Low" [ref=e289] [nth=20]
+          - cell "conversations.participants" [ref=e290]
+        - row "conversation.read Unified authorization permission conversation.read. conversation Low conversations.participants":
+          - cell "conversation.read Unified authorization permission conversation.read." [ref=e291]
+          - cell "conversation" [ref=e292] [nth=1]
+          - cell "Low" [ref=e293] [nth=21]
+          - cell "conversations.participants" [ref=e294] [nth=1]
+        - row "dispatch.pull Unified authorization permission dispatch.pull. worker Low admin_tokens.scopes_json":
+          - cell "dispatch.pull Unified authorization permission dispatch.pull." [ref=e295]
+          - cell "worker" [ref=e296]
+          - cell "Low" [ref=e297] [nth=22]
+          - cell "admin_tokens.scopes_json" [ref=e298] [nth=2]
+        - row "file.attach Unified authorization permission file.attach. file Low file_references":
+          - cell "file.attach Unified authorization permission file.attach." [ref=e299]
+          - cell "file" [ref=e300]
+          - cell "Low" [ref=e301] [nth=23]
+          - cell "file_references" [ref=e302]
+        - row "file.download Download files reachable through live scope references. file Medium file_references":
+          - cell "file.download Download files reachable through live scope references." [ref=e303]
+          - cell "file" [ref=e304] [nth=1]
+          - cell "Medium" [ref=e305] [nth=1]
+          - cell "file_references" [ref=e306] [nth=1]
+        - row "file.upload Unified authorization permission file.upload. file Low file_references":
+          - cell "file.upload Unified authorization permission file.upload." [ref=e307]
+          - cell "file" [ref=e308] [nth=2]
+          - cell "Low" [ref=e309] [nth=24]
+          - cell "file_references" [ref=e310] [nth=2]
+        - row "git.agent.read.self Unified authorization permission git.agent.read.self. agent Low agents.identity_member_id":
+          - cell "git.agent.read.self Unified authorization permission git.agent.read.self." [ref=e311]
+          - cell "agent" [ref=e312] [nth=1]
+          - cell "Low" [ref=e313] [nth=25]
+          - cell "agents.identity_member_id" [ref=e314]
+        - row "git.agent.write.self Unified authorization permission git.agent.write.self. agent Low agents.identity_member_id":
+          - cell "git.agent.write.self Unified authorization permission git.agent.write.self." [ref=e315]
+          - cell "agent" [ref=e316] [nth=2]
+          - cell "Low" [ref=e317] [nth=26]
+          - cell "agents.identity_member_id" [ref=e318] [nth=1]
+        - row "git.global.read Unified authorization permission git.global.read. git Low system":
+          - cell "git.global.read Unified authorization permission git.global.read." [ref=e319]
+          - cell "git" [ref=e320]
+          - cell "Low" [ref=e321] [nth=27]
+          - cell "system" [ref=e322]
+        - row "issue.read Unified authorization permission issue.read. issue Low pm_project_members":
+          - cell "issue.read Unified authorization permission issue.read." [ref=e323]
+          - cell "issue" [ref=e324]
+          - cell "Low" [ref=e325] [nth=28]
+          - cell "pm_project_members" [ref=e326] [nth=1]
+        - row "issue.write Unified authorization permission issue.write. issue Low pm_project_members":
+          - cell "issue.write Unified authorization permission issue.write." [ref=e327]
+          - cell "issue" [ref=e328] [nth=1]
+          - cell "Low" [ref=e329] [nth=29]
+          - cell "pm_project_members" [ref=e330] [nth=2]
+        - row "model_catalog.manage Unified authorization permission model_catalog.manage. org Low agent_worker_binding":
+          - cell "model_catalog.manage Unified authorization permission model_catalog.manage." [ref=e331]
+          - cell "org" [ref=e332] [nth=5]
+          - cell "Low" [ref=e333] [nth=30]
+          - cell "agent_worker_binding" [ref=e334]
+        - row "org.analytics.read Unified authorization permission org.analytics.read. org Low members.role":
+          - cell "org.analytics.read Unified authorization permission org.analytics.read." [ref=e335]
+          - cell "org" [ref=e336] [nth=6]
+          - cell "Low" [ref=e337] [nth=31]
+          - cell "members.role" [ref=e338] [nth=2]
+        - row "org.invitation.manage Create or cancel organization invitations. org Medium members.role":
+          - cell "org.invitation.manage Create or cancel organization invitations." [ref=e339]
+          - cell "org" [ref=e340] [nth=7]
+          - cell "Medium" [ref=e341] [nth=2]
+          - cell "members.role" [ref=e342] [nth=3]
+        - row "org.lifecycle.manage Disable, enable, or delete an organization. org High risk members.role":
+          - cell "org.lifecycle.manage Disable, enable, or delete an organization." [ref=e343]
+          - cell "org" [ref=e344] [nth=8]
+          - cell "High risk" [ref=e345] [nth=2]
+          - cell "members.role" [ref=e346] [nth=4]
+        - row "org.member.create.agent Provision an agent identity in the organization. org Medium members.role":
+          - cell "org.member.create.agent Provision an agent identity in the organization." [ref=e347]
+          - cell "org" [ref=e348] [nth=9]
+          - cell "Medium" [ref=e349] [nth=3]
+          - cell "members.role" [ref=e350] [nth=5]
+        - row "org.member.create.human Invite or create a human member. org Medium members.role":
+          - cell "org.member.create.human Invite or create a human member." [ref=e351]
+          - cell "org" [ref=e352] [nth=10]
+          - cell "Medium" [ref=e353] [nth=4]
+          - cell "members.role" [ref=e354] [nth=6]
+        - row "org.member.disable Unified authorization permission org.member.disable. org Low members.role":
+          - cell "org.member.disable Unified authorization permission org.member.disable." [ref=e355]
+          - cell "org" [ref=e356] [nth=11]
+          - cell "Low" [ref=e357] [nth=32]
+          - cell "members.role" [ref=e358] [nth=7]
+        - row "org.member.list Read the organization member directory. org Low members":
+          - cell "org.member.list Read the organization member directory." [ref=e359]
+          - cell "org" [ref=e360] [nth=12]
+          - cell "Low" [ref=e361] [nth=33]
+          - cell "members" [ref=e362] [nth=3]
+        - row "org.member.role.manage Change owner/admin/member assignments. org High risk members.role":
+          - cell "org.member.role.manage Change owner/admin/member assignments." [ref=e363]
+          - cell "org" [ref=e364] [nth=13]
+          - cell "High risk" [ref=e365] [nth=3]
+          - cell "members.role" [ref=e366] [nth=8]
+        - row "org.read Open organization-scoped resources. org Low members":
+          - cell "org.read Open organization-scoped resources." [ref=e367]
+          - cell "org" [ref=e368] [nth=14]
+          - cell "Low" [ref=e369] [nth=34]
+          - cell "members" [ref=e370] [nth=4]
+        - row "org.settings.manage Update organization profile settings. org High risk members.role":
+          - cell "org.settings.manage Update organization profile settings." [ref=e371]
+          - cell "org" [ref=e372] [nth=15]
+          - cell "High risk" [ref=e373] [nth=4]
+          - cell "members.role" [ref=e374] [nth=9]
+        - row "org.work_items.read Unified authorization permission org.work_items.read. org Low members":
+          - cell "org.work_items.read Unified authorization permission org.work_items.read." [ref=e375]
+          - cell "org" [ref=e376] [nth=16]
+          - cell "Low" [ref=e377] [nth=35]
+          - cell "members" [ref=e378] [nth=5]
+        - row "plan.read Unified authorization permission plan.read. plan Low pm_project_members":
+          - cell "plan.read Unified authorization permission plan.read." [ref=e379]
+          - cell "plan" [ref=e380]
+          - cell "Low" [ref=e381] [nth=36]
+          - cell "pm_project_members" [ref=e382] [nth=3]
+        - row "plan.write Unified authorization permission plan.write. plan Low pm_project_members":
+          - cell "plan.write Unified authorization permission plan.write." [ref=e383]
+          - cell "plan" [ref=e384] [nth=1]
+          - cell "Low" [ref=e385] [nth=37]
+          - cell "pm_project_members" [ref=e386] [nth=4]
+        - row "project.member.add Add a member to a project. project Medium pm_project_members":
+          - cell "project.member.add Add a member to a project." [ref=e387]
+          - cell "project" [ref=e388] [nth=1]
+          - cell "Medium" [ref=e389] [nth=5]
+          - cell "pm_project_members" [ref=e390] [nth=5]
+        - row "project.member.remove Remove a member from a project. project High risk pm_project_members.role":
+          - cell "project.member.remove Remove a member from a project." [ref=e391]
+          - cell "project" [ref=e392] [nth=2]
+          - cell "High risk" [ref=e393] [nth=5]
+          - cell "pm_project_members.role" [ref=e394]
+        - row "project.read Read project work and project metadata. project Low pm_project_members":
+          - cell "project.read Read project work and project metadata." [ref=e395]
+          - cell "project" [ref=e396] [nth=3]
+          - cell "Low" [ref=e397] [nth=38]
+          - cell "pm_project_members" [ref=e398] [nth=6]
+        - row "project.repo_ref.manage Unified authorization permission project.repo_ref.manage. project Low pm_project_members":
+          - cell "project.repo_ref.manage Unified authorization permission project.repo_ref.manage." [ref=e399]
+          - cell "project" [ref=e400] [nth=4]
+          - cell "Low" [ref=e401] [nth=39]
+          - cell "pm_project_members" [ref=e402] [nth=7]
+        - row "project.stage.manage Unified authorization permission project.stage.manage. project Low pm_project_members.role":
+          - cell "project.stage.manage Unified authorization permission project.stage.manage." [ref=e403]
+          - cell "project" [ref=e404] [nth=5]
+          - cell "Low" [ref=e405] [nth=40]
+          - cell "pm_project_members.role" [ref=e406] [nth=1]
+        - row "project.write Create and update project work items. project Medium pm_project_members":
+          - cell "project.write Create and update project work items." [ref=e407]
+          - cell "project" [ref=e408] [nth=6]
+          - cell "Medium" [ref=e409] [nth=6]
+          - cell "pm_project_members" [ref=e410] [nth=8]
+        - row "secret.resolve Unified authorization permission secret.resolve. secret Low admin_tokens.scopes_json":
+          - cell "secret.resolve Unified authorization permission secret.resolve." [ref=e411]
+          - cell "secret" [ref=e412]
+          - cell "Low" [ref=e413] [nth=41]
+          - cell "admin_tokens.scopes_json" [ref=e414] [nth=3]
+        - row "task.block.self Unified authorization permission task.block.self. task Low pm_tasks.assignee":
+          - cell "task.block.self Unified authorization permission task.block.self." [ref=e415]
+          - cell "task" [ref=e416]
+          - cell "Low" [ref=e417] [nth=42]
+          - cell "pm_tasks.assignee" [ref=e418]
+        - row "task.complete.self Unified authorization permission task.complete.self. task Low pm_tasks.assignee":
+          - cell "task.complete.self Unified authorization permission task.complete.self." [ref=e419]
+          - cell "task" [ref=e420] [nth=1]
+          - cell "Low" [ref=e421] [nth=43]
+          - cell "pm_tasks.assignee" [ref=e422] [nth=1]
+        - row "task.heartbeat.self Unified authorization permission task.heartbeat.self. task Low pm_tasks.assignee":
+          - cell "task.heartbeat.self Unified authorization permission task.heartbeat.self." [ref=e423]
+          - cell "task" [ref=e424] [nth=2]
+          - cell "Low" [ref=e425] [nth=44]
+          - cell "pm_tasks.assignee" [ref=e426] [nth=2]
+        - row "task.internal.report Unified authorization permission task.internal.report. task Low admin_tokens.scopes_json":
+          - cell "task.internal.report Unified authorization permission task.internal.report." [ref=e427]
+          - cell "task" [ref=e428] [nth=3]
+          - cell "Low" [ref=e429] [nth=45]
+          - cell "admin_tokens.scopes_json" [ref=e430] [nth=4]
+        - row "task.read Unified authorization permission task.read. task Low pm_project_members, pm_tasks.assignee":
+          - cell "task.read Unified authorization permission task.read." [ref=e431]
+          - cell "task" [ref=e432] [nth=4]
+          - cell "Low" [ref=e433] [nth=46]
+          - cell "pm_project_members, pm_tasks.assignee" [ref=e434]
+        - row "task.start.self Unified authorization permission task.start.self. task Low pm_tasks.assignee":
+          - cell "task.start.self Unified authorization permission task.start.self." [ref=e435]
+          - cell "task" [ref=e436] [nth=5]
+          - cell "Low" [ref=e437] [nth=47]
+          - cell "pm_tasks.assignee" [ref=e438] [nth=3]
+        - row "task.write Unified authorization permission task.write. task Low pm_project_members":
+          - cell "task.write Unified authorization permission task.write." [ref=e439]
+          - cell "task" [ref=e440] [nth=6]
+          - cell "Low" [ref=e441] [nth=48]
+          - cell "pm_project_members" [ref=e442] [nth=9]
+        - row "team.create Unified authorization permission team.create. org Low members":
+          - cell "team.create Unified authorization permission team.create." [ref=e443]
+          - cell "org" [ref=e444] [nth=17]
+          - cell "Low" [ref=e445] [nth=49]
+          - cell "members" [ref=e446] [nth=6]
+        - row "team.git.read Unified authorization permission team.git.read. team Low team_members":
+          - cell "team.git.read Unified authorization permission team.git.read." [ref=e447]
+          - cell "team" [ref=e448]
+          - cell "Low" [ref=e449] [nth=50]
+          - cell "team_members" [ref=e450]
+        - row "team.git.write Unified authorization permission team.git.write. team Low team_members":
+          - cell "team.git.write Unified authorization permission team.git.write." [ref=e451]
+          - cell "team" [ref=e452] [nth=1]
+          - cell "Low" [ref=e453] [nth=51]
+          - cell "team_members" [ref=e454] [nth=1]
+        - row "team.member.manage Add, move, or remove team members. team Medium members":
+          - cell "team.member.manage Add, move, or remove team members." [ref=e455]
+          - cell "team" [ref=e456] [nth=2]
+          - cell "Medium" [ref=e457] [nth=7]
+          - cell "members" [ref=e458] [nth=7]
+        - row "team.memory.propose Submit team memory proposals. team Medium members.role, team_members":
+          - cell "team.memory.propose Submit team memory proposals." [ref=e459]
+          - cell "team" [ref=e460] [nth=3]
+          - cell "Medium" [ref=e461] [nth=8]
+          - cell "members.role, team_members" [ref=e462]
+        - row "team.memory.read Read the team's memory entries. team Low members, team_members":
+          - cell "team.memory.read Read the team's memory entries." [ref=e463]
+          - cell "team" [ref=e464] [nth=4]
+          - cell "Low" [ref=e465] [nth=52]
+          - cell "members, team_members" [ref=e466]
+        - row "team.memory.review Promote or reject team memory proposals. team High risk members.role, team_memory_policy_curators":
+          - cell "team.memory.review Promote or reject team memory proposals." [ref=e467]
+          - cell "team" [ref=e468] [nth=5]
+          - cell "High risk" [ref=e469] [nth=6]
+          - cell "members.role, team_memory_policy_curators" [ref=e470]
+        - row "team.project.link.manage Associate or disassociate projects with a team. team Medium members":
+          - cell "team.project.link.manage Associate or disassociate projects with a team." [ref=e471]
+          - cell "team" [ref=e472] [nth=6]
+          - cell "Medium" [ref=e473] [nth=9]
+          - cell "members" [ref=e474] [nth=8]
+        - row "team.read Read team roster and settings. team Low members":
+          - cell "team.read Read team roster and settings." [ref=e475]
+          - cell "team" [ref=e476] [nth=7]
+          - cell "Low" [ref=e477] [nth=53]
+          - cell "members" [ref=e478] [nth=9]
+        - row "team.runtime_config.manage Unified authorization permission team.runtime_config.manage. team Low members":
+          - cell "team.runtime_config.manage Unified authorization permission team.runtime_config.manage." [ref=e479]
+          - cell "team" [ref=e480] [nth=8]
+          - cell "Low" [ref=e481] [nth=54]
+          - cell "members" [ref=e482] [nth=10]
+        - row "team.write Update team configuration. team Medium members":
+          - cell "team.write Update team configuration." [ref=e483]
+          - cell "team" [ref=e484] [nth=9]
+          - cell "Medium" [ref=e485] [nth=10]
+          - cell "members" [ref=e486] [nth=11]
+        - row "template.read Unified authorization permission template.read. org Low members":
+          - cell "template.read Unified authorization permission template.read." [ref=e487]
+          - cell "org" [ref=e488] [nth=18]
+          - cell "Low" [ref=e489] [nth=55]
+          - cell "members" [ref=e490] [nth=12]
+        - row "template.write Unified authorization permission template.write. org Low members":
+          - cell "template.write Unified authorization permission template.write." [ref=e491]
+          - cell "org" [ref=e492] [nth=19]
+          - cell "Low" [ref=e493] [nth=56]
+          - cell "members" [ref=e494] [nth=13]
+        - row "worker.capability.report Unified authorization permission worker.capability.report. worker Low admin_tokens.owner":
+          - cell "worker.capability.report Unified authorization permission worker.capability.report." [ref=e495]
+          - cell "worker" [ref=e496] [nth=1]
+          - cell "Low" [ref=e497] [nth=57]
+          - cell "admin_tokens.owner" [ref=e498]
+        - row "worker.enroll Unified authorization permission worker.enroll. worker Low admin_tokens.scopes_json":
+          - cell "worker.enroll Unified authorization permission worker.enroll." [ref=e499]
+          - cell "worker" [ref=e500] [nth=2]
+          - cell "Low" [ref=e501] [nth=58]
+          - cell "admin_tokens.scopes_json" [ref=e502] [nth=5]
+        - row "worker.heartbeat Unified authorization permission worker.heartbeat. worker Low admin_tokens.owner":
+          - cell "worker.heartbeat Unified authorization permission worker.heartbeat." [ref=e503]
+          - cell "worker" [ref=e504] [nth=3]
+          - cell "Low" [ref=e505] [nth=59]
+          - cell "admin_tokens.owner" [ref=e506] [nth=1]
+    - complementary:
+      - heading "Active grants" [ref=e507] [level=2]
+      - button "Preview revoke" [ref=e508] [disabled]
+      - text: Reason
+      - textbox "Reason" [ref=e509]: access cleanup
+      - table:
+        - rowgroup:
+          - row "Select Grant":
+            - columnheader "Select" [ref=e510]
+            - columnheader "Grant" [ref=e511]
+        - rowgroup:
+          - row "Select ai_runtime.catalog.manage for revoke ai_runtime.catalog.manage Test Admin -> organization-528ab26f High risk org_role active -":
+            - cell "Select ai_runtime.catalog.manage for revoke" [ref=e512]:
+              - checkbox "Select ai_runtime.catalog.manage for revoke" [ref=e513]
+            - cell "ai_runtime.catalog.manage Test Admin -> organization-528ab26f High risk org_role active -" [ref=e514]
+          - row "Select org.lifecycle.manage for revoke org.lifecycle.manage Test Admin -> organization-528ab26f High risk org_role active -":
+            - cell "Select org.lifecycle.manage for revoke" [ref=e515]:
+              - checkbox "Select org.lifecycle.manage for revoke" [ref=e516]
+            - cell "org.lifecycle.manage Test Admin -> organization-528ab26f High risk org_role active -" [ref=e517]
+          - row "Select org.member.role.manage for revoke org.member.role.manage Test Admin -> organization-528ab26f High risk org_role active -":
+            - cell "Select org.member.role.manage for revoke" [ref=e518]:
+              - checkbox "Select org.member.role.manage for revoke" [ref=e519]
+            - cell "org.member.role.manage Test Admin -> organization-528ab26f High risk org_role active -" [ref=e520]
+          - row "Select org.settings.manage for revoke org.settings.manage Test Admin -> organization-528ab26f High risk org_role active -":
+            - cell "Select org.settings.manage for revoke" [ref=e521]:
+              - checkbox "Select org.settings.manage for revoke" [ref=e522]
+            - cell "org.settings.manage Test Admin -> organization-528ab26f High risk org_role active -" [ref=e523]
+          - row "Select org.invitation.manage for revoke org.invitation.manage Test Admin -> organization-528ab26f Medium org_role active -":
+            - cell "Select org.invitation.manage for revoke" [ref=e524]:
+              - checkbox "Select org.invitation.manage for revoke" [ref=e525]
+            - cell "org.invitation.manage Test Admin -> organization-528ab26f Medium org_role active -" [ref=e526]
+          - row "Select org.member.create.agent for revoke org.member.create.agent Test Admin -> organization-528ab26f Medium org_role active -":
+            - cell "Select org.member.create.agent for revoke" [ref=e527]:
+              - checkbox "Select org.member.create.agent for revoke" [ref=e528]
+            - cell "org.member.create.agent Test Admin -> organization-528ab26f Medium org_role active -" [ref=e529]
+          - row "Select org.member.create.human for revoke org.member.create.human Test Admin -> organization-528ab26f Medium org_role active -":
+            - cell "Select org.member.create.human for revoke" [ref=e530]:
+              - checkbox "Select org.member.create.human for revoke" [ref=e531]
+            - cell "org.member.create.human Test Admin -> organization-528ab26f Medium org_role active -" [ref=e532]

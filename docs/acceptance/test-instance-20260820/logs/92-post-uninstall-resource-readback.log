@@ -1,0 +1,5 @@
+prefix_exists_after_uninstall:
+no
+list-local-centers:
+list-test-instances:
+post_uninstall_health:

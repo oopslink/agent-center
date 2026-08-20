@@ -1,0 +1,40 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Channels" [ref=e13] [level=3]
+    - link "New channel" [ref=e14]:
+      - /url: /organizations/org-9e68b31f/channels
+      - text: +
+    - list:
+      - listitem: No channels
+    - heading "Direct messages" [ref=e15] [level=3]
+    - link "New direct message" [ref=e16]:
+      - /url: /organizations/org-9e68b31f/dms
+      - text: +
+    - list:
+      - listitem: No direct messages
+    - button "Collapse sidebar" [ref=e17]
+  - main:
+    - heading "Channels" [ref=e18] [nth=1] [level=1]
+    - button "New channel" [ref=e19]
+    - status:
+      - heading "No channels yet" [ref=e20] [level=3]
+      - paragraph: Channels group humans + agents around a topic. Create one to start a conversation that anyone in this server can join.
+      - button "New channel" [ref=e21] [nth=1]
+    - button "Archived / 已归档" [ref=e22]

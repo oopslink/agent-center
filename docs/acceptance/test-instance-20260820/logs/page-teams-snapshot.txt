@@ -1,0 +1,41 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Teams" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "All teams" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/teams
+    - heading "PEOPLES" [ref=e15] [level=3]
+    - list:
+      - listitem:
+        - link "Agents" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/teams/agents
+      - listitem:
+        - link "Humans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/teams/humans
+    - button "Collapse sidebar" [ref=e18]
+  - main:
+    - heading "Teams" [ref=e19] [nth=1] [level=1]
+    - paragraph: /organizations/org-9e68b31f/teams
+    - button "New Team" [ref=e20]
+    - status:
+      - heading "No teams yet" [ref=e21] [level=3]
+      - paragraph: Create your first squad — declare the role mix and team-memory (Phase-1 does not mint agents; they are enrolled at runtime).
+      - button "+ New Team" [ref=e22]

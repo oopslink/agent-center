@@ -1,0 +1,17 @@
+agent-center install center:
+  instance:      default
+  prefix:        /tmp/ac-test-instance-69d5b662bef1
+  user-mode:     true
+  web port:      47100
+  server port:   47050
+  admin tcp:     127.0.0.1:47300
+  state:         fresh
+
+✓ AgentCenter main-69d5b662bef1 installed
+  prefix:    /tmp/ac-test-instance-69d5b662bef1
+  config:    /tmp/ac-test-instance-69d5b662bef1/etc/config.yaml
+  data:      /tmp/ac-test-instance-69d5b662bef1/var
+  Web Console: http://127.0.0.1:47100/
+  run (foreground): /tmp/ac-test-instance-69d5b662bef1/current/bin/agent-center server --config=/tmp/ac-test-instance-69d5b662bef1/etc/config.yaml
+  (or re-run with --service to register a launchd/systemd background service)
+  (then open the Web Console URL; first-time setup mints the bootstrap admin token)

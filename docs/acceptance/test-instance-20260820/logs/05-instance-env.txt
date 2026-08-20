@@ -1,0 +1,4 @@
+prefix=/tmp/ac-test-instance-69d5b662bef1
+web_port=47100
+server_port=47050
+admin_tcp=127.0.0.1:47300

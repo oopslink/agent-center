@@ -1,0 +1,55 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - list:
+      - listitem:
+        - heading "System" [ref=e13] [level=2]:
+          - button "System" [ref=e14] [expanded]
+        - list:
+          - listitem:
+            - link "Environment" [ref=e15]:
+              - /url: /organizations/org-9e68b31f/environment
+          - listitem:
+            - link "AI Runtime" [ref=e16]:
+              - /url: /organizations/org-9e68b31f/ai-runtime
+          - listitem:
+            - link "Settings" [ref=e17]:
+              - /url: /organizations/org-9e68b31f/settings
+          - listitem:
+            - link "Version" [ref=e18]:
+              - /url: /organizations/org-9e68b31f/version
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Environment" [ref=e20] [level=1]
+    - paragraph: Compute resources in this organization, the agents bound to them, in-flight work items, and file transfers.
+    - button "+ Add Worker" [ref=e21]
+    - text: 0 Workers Online 0 Agents Running 0 Tasks 0 Pending Issues
+    - heading "Workers" [ref=e22] [level=3]
+    - paragraph: No workers connected yet.
+    - paragraph: A worker is a machine where agents actually run. Add at least one to start dispatching tasks.
+    - button "+ Add your first worker" [ref=e23]
+    - heading "Activity" [ref=e24] [level=3]
+    - tablist:
+      - tab "All" [ref=e25] [selected]
+      - tab "Tasks" [ref=e26]
+      - tab "Issues" [ref=e27]
+      - tab "Transfers" [ref=e28]
+    - tabpanel "All":
+      - paragraph: No active operations
+      - paragraph: Work items, issues, and file transfers will appear here.

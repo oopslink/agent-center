@@ -1,0 +1,45 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Workspace" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "Projects" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects
+      - listitem:
+        - link "Issues" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/issues
+      - listitem:
+        - link "Tasks" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/tasks
+      - listitem:
+        - link "Plans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/plans
+      - listitem:
+        - link "Repos" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/repos
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Projects" [ref=e20] [level=1]
+    - paragraph: Projects organize Issues and Tasks.
+    - button "+ Add Project" [ref=e21]
+    - status:
+      - heading "No projects yet" [ref=e22] [level=3]
+      - paragraph: Projects organize work — Issues and Tasks live inside a project. Click + Add Project to create one.
+    - button "Archived" [ref=e23]

@@ -1,0 +1,24 @@
+- document:
+  - heading "Create account" [ref=e1] [level=1]
+  - paragraph: Set up your Agent Center account and first organization
+  - text: Display name
+  - textbox "Display name" [ref=e2]:
+    - /placeholder: Your name
+  - text: Email
+  - textbox "Email" [ref=e3]:
+    - /placeholder: you@example.com
+  - text: Passcode
+  - textbox "Passcode" [ref=e4]:
+    - /placeholder: Your passcode
+  - paragraph: At least 6 characters, including a letter, a digit, and a symbol.
+  - text: Confirm passcode
+  - textbox "Confirm passcode" [ref=e5]
+  - separator
+  - text: Organization name
+  - textbox "Organization name" [ref=e6]:
+    - /placeholder: My Organization
+  - button "Create account" [ref=e7] [disabled]
+  - paragraph:
+    - text: Already have an account?
+    - link "Sign in" [ref=e8]:
+      - /url: /signin

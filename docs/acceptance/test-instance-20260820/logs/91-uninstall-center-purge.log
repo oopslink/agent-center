@@ -1,0 +1,6 @@
+agent-center uninstall center (default):
+  prefix:        /tmp/ac-test-instance-69d5b662bef1
+  purge:         true
+
+✓ AgentCenter center (default) uninstalled
+  All data wiped. Prefix /tmp/ac-test-instance-69d5b662bef1 removed.

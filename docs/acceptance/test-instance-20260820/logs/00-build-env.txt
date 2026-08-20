@@ -1,0 +1,5 @@
+candidate_sha=69d5b662bef16882f1e163546da7b7168f80e1cd
+candidate_short=69d5b662bef1
+build_version=main-69d5b662bef1
+stage_out=/tmp/agent-center-stage-main-69d5b662bef1
+started_at=2026-08-20T15:14:09Z

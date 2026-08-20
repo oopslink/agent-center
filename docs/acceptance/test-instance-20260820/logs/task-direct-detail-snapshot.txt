@@ -1,0 +1,97 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - link "Projects" [ref=e13]:
+      - /url: /organizations/org-9e68b31f/projects
+    - text: Alpha Project
+    - list:
+      - listitem:
+        - link "Issues" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=issues
+      - listitem:
+        - link "Tasks" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=tasks
+      - listitem:
+        - link "Plans" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=plans
+      - listitem:
+        - link "Code repos" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=repos
+      - listitem:
+        - link "Work Board" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930/plans
+      - listitem:
+        - link "Members" [ref=e19]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=members
+    - button "Collapse sidebar" [ref=e20]
+  - main:
+    - navigation "Breadcrumb" [ref=e21]:
+      - link "Projects" [ref=e22] [nth=1]:
+        - /url: /organizations/org-9e68b31f/projects
+      - link "Alpha Project" [ref=e23]:
+        - /url: /organizations/org-9e68b31f/projects/project-e4973930
+      - text: Tasks T1 - Alpha acceptance task
+    - heading "T1 · Alpha acceptance task" [ref=e24] [level=2]
+    - text: Task
+    - region "Task description" [ref=e25]:
+      - paragraph: Verify direct project binding and refresh
+    - heading "Attachments" [ref=e26] [level=2]
+    - button "Upload" [ref=e27]
+    - paragraph: No attachments yet.
+    - text: T1 · linked Alpha acceptance task
+    - button "Unfollow this conversation" [ref=e28] [pressed]: Following
+    - button "Maximize conversation" [ref=e29]
+    - text: No messages yet.
+    - combobox "Message" [ref=e30]
+    - button "Attach file" [ref=e31]
+    - button "Send" [ref=e32] [disabled]
+    - complementary:
+      - tablist "Conversation sidebar":
+        - tab "Participants" [ref=e33] [selected]
+        - tab "Threads" [ref=e34]
+        - tab "Files" [ref=e35]
+        - button "Collapse conversation details" [ref=e36] [expanded]
+      - tabpanel "Participants":
+        - list:
+          - listitem:
+            - img "Test Admin": TA
+            - text: Test Admin MEMBER
+    - complementary "Task details":
+      - paragraph: Details
+      - button "Edit task" [ref=e37]: Edit Task
+      - paragraph: Status
+      - text: open <1m
+      - paragraph: Assignee
+      - text: Unassigned
+      - paragraph: Tags
+      - text: No tags
+      - separator
+      - paragraph: Project
+      - link "Alpha Project" [ref=e38] [nth=1]:
+        - /url: /organizations/org-9e68b31f/projects/project-e4973930
+      - paragraph: Task ID
+      - text: T1
+      - paragraph: Created
+      - text: Aug 20, 2026, 11:20 PM GMT+8
+      - separator
+      - paragraph: Change history
+      - list:
+        - listitem:
+          - time: Aug 20, 23:20
+          - text: Created @user-4d2924c5 created

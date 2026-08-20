@@ -1,0 +1,57 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Workspace" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "Projects" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects
+      - listitem:
+        - link "Issues" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/issues
+      - listitem:
+        - link "Tasks" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/tasks
+      - listitem:
+        - link "Plans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/plans
+      - listitem:
+        - link "Repos" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/repos
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Projects" [ref=e20] [level=1]
+    - paragraph: Projects organize Issues and Tasks.
+    - button "+ Add Project" [ref=e21]
+    - list:
+      - listitem:
+        - link "Alpha Project active 0 tasks 0 issues 0 plans 0 repos no description 0s ago" [ref=e22]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930
+        - button "Edit" [ref=e23]
+        - link "Work Board" [ref=e24]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930/plans
+        - link "Tasks" [ref=e25] [nth=1]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=tasks
+        - link "Issues" [ref=e26] [nth=1]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=issues
+        - link "Plans" [ref=e27] [nth=1]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=plans
+        - link "Codebase" [ref=e28]:
+          - /url: /organizations/org-9e68b31f/projects/project-e4973930?tab=repos
+    - button "Archived" [ref=e29]

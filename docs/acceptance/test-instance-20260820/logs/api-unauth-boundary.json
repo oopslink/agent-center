@@ -1,0 +1,4 @@
+{
+  "body": "{\"error\":\"unauthenticated\",\"message\":\"no session cookie\"}\n",
+  "status": 401
+}

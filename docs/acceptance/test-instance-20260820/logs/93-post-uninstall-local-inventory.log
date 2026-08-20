@@ -1,0 +1,7 @@
+list-local-centers:
+INSTANCE         PREFIX                             WEB    SERVER  ADMIN  MODE        ONLINE
+default          /Users/oopslink/.agent-center      7100   7050    7300   foreground  yes
+list-test-instances:
+No test-instances found under ~/.agent-center-test.
+prefix_exists:
+no

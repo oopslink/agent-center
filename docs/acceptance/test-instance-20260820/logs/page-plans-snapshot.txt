@@ -1,0 +1,52 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Workspace" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "Projects" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects
+      - listitem:
+        - link "Issues" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/issues
+      - listitem:
+        - link "Tasks" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/tasks
+      - listitem:
+        - link "Plans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/plans
+      - listitem:
+        - link "Repos" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/repos
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Plans" [ref=e20] [level=1]
+    - text: Search plans
+    - searchbox "Search plans" [ref=e21]
+    - text: Status
+    - button "pending" [ref=e22]
+    - button "running" [ref=e23]
+    - button "paused" [ref=e24]
+    - button "done" [ref=e25]
+    - button "discarded" [ref=e26]
+    - text: Project
+    - combobox "Project" [ref=e27]:
+      - option "All projects" [ref=e28] [selected]
+    - button "Clear filters" [ref=e29] [disabled]
+    - paragraph: No plans yet.

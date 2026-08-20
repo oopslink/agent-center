@@ -1,0 +1,77 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - heading "Workspace" [ref=e13] [level=3]
+    - list:
+      - listitem:
+        - link "Projects" [ref=e14]:
+          - /url: /organizations/org-9e68b31f/projects
+      - listitem:
+        - link "Issues" [ref=e15]:
+          - /url: /organizations/org-9e68b31f/issues
+      - listitem:
+        - link "Tasks" [ref=e16]:
+          - /url: /organizations/org-9e68b31f/tasks
+      - listitem:
+        - link "Plans" [ref=e17]:
+          - /url: /organizations/org-9e68b31f/plans
+      - listitem:
+        - link "Repos" [ref=e18]:
+          - /url: /organizations/org-9e68b31f/repos
+    - button "Collapse sidebar" [ref=e19]
+  - main:
+    - heading "Tasks" [ref=e20] [level=1]
+    - button "+ New Task" [ref=e21]
+    - button "Filters" [ref=e22] [expanded]
+    - button "Clear filters" [ref=e23] [disabled]
+    - text: Status
+    - button "open" [ref=e24]
+    - button "running" [ref=e25]
+    - button "blocked" [ref=e26]
+    - button "completed" [ref=e27]
+    - button "discarded" [ref=e28]
+    - button "reopened" [ref=e29]
+    - text: Project
+    - combobox "Project" [ref=e30]:
+      - option "All projects" [ref=e31] [selected]
+      - option "Alpha Project" [ref=e32]
+      - option "Beta Project" [ref=e33]
+    - text: Assignee
+    - combobox "Assignee" [ref=e34]:
+      - option "Any" [ref=e35] [selected]
+      - option "Test Admin · user" [ref=e36]
+    - text: Date range
+    - group "Created":
+      - text: Created
+      - textbox "Created after" [ref=e37]
+      - textbox "Created before" [ref=e38]
+    - group "Updated":
+      - text: Updated
+      - textbox "Updated after" [ref=e39]
+      - textbox "Updated before" [ref=e40]
+    - paragraph: No open tasks.
+    - dialog:
+      - heading "New Task" [ref=e41] [level=2]
+      - button "Close" [ref=e42]: X
+      - text: Project
+      - combobox "Project" [ref=e43] [nth=1]:
+        - option "Select a project…" [ref=e44] [selected]
+        - option "Alpha Project" [ref=e45] [nth=1]
+        - option "Beta Project" [ref=e46] [nth=1]
+      - paragraph: Pick a project to create the Task in (issues/tasks are project-scoped).

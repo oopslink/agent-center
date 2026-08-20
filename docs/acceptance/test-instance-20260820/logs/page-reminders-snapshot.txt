@@ -1,0 +1,44 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "Acceptance Org" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-9e68b31f/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-9e68b31f/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-9e68b31f/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-9e68b31f/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-9e68b31f/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-9e68b31f/environment
+    - button "Alerts" [ref=e9]
+    - button "Test Admin" [ref=e10]: T
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - textbox "Search reminders…" [ref=e13]
+    - text: Scope
+    - button "All" [ref=e14] [pressed]
+    - button "Created by me" [ref=e15]
+    - button "Reminding me" [ref=e16]
+    - text: Status
+    - button "Active & Paused" [ref=e17] [pressed]
+    - button "All statuses" [ref=e18]
+    - button "Active" [ref=e19]
+    - button "Paused" [ref=e20]
+    - button "Completed" [ref=e21]
+    - button "Canceled" [ref=e22]
+    - button "Collapse sidebar" [ref=e23]
+  - main:
+    - heading "Reminders · All" [ref=e24] [level=3]
+    - button "+ New reminder" [ref=e25]
+    - text: 0 Active 0 Paused — Next run
+    - button "Active & Paused" [ref=e26] [nth=1] [pressed]
+    - button "All" [ref=e27] [nth=1]
+    - button "Active" [ref=e28] [nth=1]
+    - button "Paused" [ref=e29] [nth=1]
+    - button "Completed" [ref=e30] [nth=1]
+    - button "Canceled" [ref=e31] [nth=1]
+    - paragraph: No reminders yet. Click “New reminder” to create one.
+    - paragraph: Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).

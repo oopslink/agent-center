@@ -1,0 +1,32 @@
+[
+  {
+    "body": "{\"status\":\"ok\",\"version\":\"main-69d5b662bef1\"}\n",
+    "name": "health",
+    "status": 200,
+    "url": "/api/health"
+  },
+  {
+    "body": "{\"error\":\"not_found\",\"message\":\"no such API route\"}\n",
+    "name": "missing-task-404",
+    "status": 404,
+    "url": "/api/orgs/org-9e68b31f/tasks/task-missing000"
+  },
+  {
+    "body": "{\"error\":\"org_required\",\"message\":\"missing or unknown organization scope (use /api/orgs/{slug}/...)\"}\n",
+    "name": "bad-org-access",
+    "status": 400,
+    "url": "/api/orgs/org-does-not-exist/projects"
+  },
+  {
+    "body": "{\"error\":\"display_name_taken\",\"message\":\"identity: display_name already taken\"}\n",
+    "name": "duplicate-signup",
+    "status": 409,
+    "url": "/api/auth/signup"
+  },
+  {
+    "body": "{\"created_at\":\"2026-08-20T15:21:06.754017Z\",\"created_by\":\"user:user-4d2924c5\",\"description\":\"duplicate\",\"id\":\"project-575fd7a5\",\"name\":\"Alpha Project\",\"organization_id\":\"organization-528ab26f\",\"status\":\"active\",\"updated_at\":\"2026-08-20T15:21:06.754017Z\",\"version\":1}\n",
+    "name": "duplicate-project-name",
+    "status": 200,
+    "url": "/api/orgs/org-9e68b31f/projects"
+  }
+]
