@@ -384,6 +384,18 @@ export function useTeamRoleRAMMappings(teamId: string, roles: string[]) {
   });
 }
 
+export function useAllTeamRoleRAMMappings(teams: TeamView[]) {
+  const entries = teams.flatMap((team) => team.roles.map((role) => ({ team, role: role.role })));
+  const queries = useQueries({
+    queries: entries.map(({ team, role }) => ({
+      queryKey: teamKeys.ramRoleMapping(team.id, role),
+      queryFn: () => api.get<TeamRAMRoleMapping>(`/teams/${team.id}/roles/${encodeURIComponent(role)}/ram-roles`),
+      enabled: Boolean(team.id && role),
+    })),
+  });
+  return entries.map((entry, index) => ({ ...entry, query: queries[index] }));
+}
+
 export function usePreviewTeamRoleRAMMapping() {
   return useMutation({
     mutationFn: (v: { team_id: string; role: string; ram_role_ids: string[] }) =>
@@ -419,6 +431,17 @@ export function useTeamMembers(id: string) {
     queryFn: () => api.get<MemberView[]>(`/teams/${id}/members`),
     enabled: !!id,
   });
+}
+
+export function useAllTeamMembers(teams: TeamView[]) {
+  const queries = useQueries({
+    queries: teams.map((team) => ({
+      queryKey: teamKeys.members(team.id),
+      queryFn: () => api.get<MemberView[]>(`/teams/${team.id}/members`),
+      enabled: Boolean(team.id),
+    })),
+  });
+  return teams.map((team, index) => ({ team, query: queries[index] }));
 }
 
 export interface AddMemberInput {

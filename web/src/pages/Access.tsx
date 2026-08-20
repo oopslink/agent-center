@@ -41,6 +41,15 @@ import { useModalA11y } from '@/components/useModalA11y';
 import { useAppStore } from '@/store/app';
 import { useOptionalOrgContext } from '@/OrgContext';
 import {
+  useAllTeamMembers,
+  useAllTeamRoleRAMMappings,
+  usePreviewTeamRoleRAMMapping,
+  useReplaceTeamRoleRAMMapping,
+  useTeams,
+  type TeamRAMRoleMapping,
+  type TeamView,
+} from '@/api/teams';
+import {
   AccessMetaPill,
   AccessRiskBadge,
   AccessStatusBadge,
@@ -50,7 +59,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'subjects' | 'roles' | 'profiles';
+type AccessView = 'roles' | 'subjects' | 'profiles';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -98,7 +107,7 @@ export default function Access(): React.ReactElement {
     orgResource,
     currentPermissions.isSuccess && !canManageAccess,
   );
-  const [view, setView] = useState<AccessView>('subjects');
+  const [view, setView] = useState<AccessView>('roles');
   const [query, setQuery] = useState('');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
@@ -112,6 +121,10 @@ export default function Access(): React.ReactElement {
     status,
   }, currentPermissions.isSuccess && canManageAccess);
   const data = overview.data;
+  const ramRoles = useAccessProfiles();
+  const teams = useTeams();
+  const mappingEntries = useAllTeamRoleRAMMappings(teams.data ?? []);
+  const memberEntries = useAllTeamMembers(teams.data ?? []);
   const resources = useMemo(
     () => uniqueResources(data?.decisions ?? [], data?.grants ?? []),
     [data?.decisions, data?.grants],
@@ -175,22 +188,22 @@ export default function Access(): React.ReactElement {
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'subjects'}
-            className={segmentedClass(view === 'subjects')}
-            onClick={() => setView('subjects')}
-            data-testid="access-view-subjects"
-          >
-            Subjects
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={view === 'roles'}
             className={segmentedClass(view === 'roles')}
             onClick={() => setView('roles')}
             data-testid="access-view-roles"
           >
-            Roles
+            Roles & mappings
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'subjects'}
+            className={segmentedClass(view === 'subjects')}
+            onClick={() => setView('subjects')}
+            data-testid="access-view-subjects"
+          >
+            Subject access
           </button>
           <button
             type="button"
@@ -234,23 +247,26 @@ export default function Access(): React.ReactElement {
         ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
-            {view === 'subjects' ? (
+            {view === 'roles' ? (
+              <UnifiedRolesView
+                roles={ramRoles.data?.profiles ?? []}
+                teams={teams.data ?? []}
+                mappingEntries={mappingEntries}
+                canManageAccess={canManageAccess}
+              />
+            ) : (
               <SubjectDecisionView
                 decisions={data.decisions}
                 subjectByRef={subjectByRef}
                 permissionByKey={permissionByKey}
-              />
-            ) : (
-              <RoleDecisionView
-                decisions={data.decisions}
-                subjectByRef={subjectByRef}
-                permissionByKey={permissionByKey}
+                memberEntries={memberEntries}
+                mappingEntries={mappingEntries}
               />
             )}
             <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
-            <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />
+            {view === 'subjects' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
             <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
           </aside>
         </div>
@@ -531,14 +547,152 @@ function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessP
   );
 }
 
+type MappingEntry = {
+  team: TeamView;
+  role: string;
+  query: { data?: TeamRAMRoleMapping; isLoading: boolean; isError: boolean; error: unknown };
+};
+
+type MemberEntry = {
+  team: TeamView;
+  query: { data?: import('@/api/teams').MemberView[]; isLoading: boolean; isError: boolean };
+};
+
+function UnifiedRolesView({
+  roles,
+  teams,
+  mappingEntries,
+  canManageAccess,
+}: {
+  roles: AccessProfile[];
+  teams: TeamView[];
+  mappingEntries: MappingEntry[];
+  canManageAccess: boolean;
+}): React.ReactElement {
+  const mappedByRAMRole = useMemo(() => {
+    const result = new Map<string, Array<{ team: TeamView; role: string }>>();
+    for (const entry of mappingEntries) {
+      for (const roleID of entry.query.data?.ram_role_ids ?? []) {
+        const current = result.get(roleID) ?? [];
+        current.push({ team: entry.team, role: entry.role });
+        result.set(roleID, current);
+      }
+    }
+    return result;
+  }, [mappingEntries]);
+
+  return (
+    <div className="space-y-4" data-testid="access-unified-roles-view">
+      <section className="rounded border border-border-base bg-bg-elevated">
+        <div className="border-b border-border-base px-4 py-3">
+          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
+          <p className="mt-1 text-xs text-text-muted">Permission bundles and the Team Roles that currently resolve to them.</p>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-2">
+          {roles.map((role) => (
+            <article key={role.id} className="rounded border border-border-base bg-bg-base p-3" data-testid={`access-ram-role-${role.id}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-text-primary">{role.name}</h3>
+                  <p className="font-mono text-xs text-text-muted">{role.id}</p>
+                </div>
+                <AccessRiskBadge risk={role.risk} />
+              </div>
+              <p className="mt-2 text-xs text-text-secondary">{role.description}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {role.permissions.map((permission) => <AccessMetaPill key={permission}>{permission}</AccessMetaPill>)}
+              </div>
+              <div className="mt-3 border-t border-border-base pt-2 text-xs text-text-muted">
+                <span className="font-semibold text-text-secondary">Used by Team Roles:</span>{' '}
+                {(mappedByRAMRole.get(role.id) ?? []).length === 0
+                  ? 'None'
+                  : (mappedByRAMRole.get(role.id) ?? []).map(({ team, role: teamRole }) => `${team.name} / ${teamRole}`).join(', ')}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-team-role-mappings">
+        <div className="border-b border-border-base px-4 py-3">
+          <h2 className="text-sm font-semibold text-text-primary">Team Role mappings</h2>
+          <p className="mt-1 text-xs text-text-muted">Preview impact, then replace with optimistic concurrency control.</p>
+        </div>
+        {teams.length === 0 ? (
+          <p className="p-4 text-sm text-text-muted">No teams.</p>
+        ) : (
+          <div className="divide-y divide-border-base">
+            {mappingEntries.map((entry) => (
+              <TeamRoleMappingRow key={`${entry.team.id}:${entry.role}`} entry={entry} roles={roles} canManageAccess={canManageAccess} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingEntry; roles: AccessProfile[]; canManageAccess: boolean }): React.ReactElement {
+  const preview = usePreviewTeamRoleRAMMapping();
+  const replace = useReplaceTeamRoleRAMMapping();
+  const current = entry.query.data;
+  const [draft, setDraft] = useState<string[] | null>(null);
+  const selected = draft ?? current?.ram_role_ids ?? [];
+  const changed = Boolean(current && [...selected].sort().join('|') !== [...current.ram_role_ids].sort().join('|'));
+  const toggle = (roleID: string): void => {
+    setDraft(selected.includes(roleID) ? selected.filter((id) => id !== roleID) : [...selected, roleID]);
+    preview.reset();
+  };
+  const runPreview = (): void => preview.mutate({ team_id: entry.team.id, role: entry.role, ram_role_ids: selected });
+  const save = (): void => {
+    if (!current || !preview.data) return;
+    replace.mutate(
+      { team_id: entry.team.id, role: entry.role, ram_role_ids: selected, expected_version: current.version },
+      { onSuccess: () => { setDraft(null); preview.reset(); } },
+    );
+  };
+  return (
+    <div className="p-4" data-testid={`access-mapping-${entry.team.id}-${entry.role}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><span className="font-semibold text-text-primary">{entry.team.name}</span><span className="mx-2 text-text-muted">/</span><span className="font-mono text-sm">{entry.role}</span></div>
+        {current && <AccessMetaPill>v{current.version}</AccessMetaPill>}
+      </div>
+      {entry.query.isLoading ? <p className="mt-2 text-xs text-text-muted">Loading mapping…</p> : entry.query.isError ? (
+        <p className="mt-2 text-xs text-danger" role="alert">{(entry.query.error as Error)?.message ?? 'Mapping unavailable'}</p>
+      ) : (
+        <>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {roles.map((role) => (
+              <label key={role.id} className="flex items-center gap-1.5 rounded border border-border-base px-2 py-1 text-xs">
+                <input type="checkbox" checked={selected.includes(role.id)} onChange={() => toggle(role.id)} disabled={!canManageAccess || replace.isPending} />
+                {role.name}
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" className="rounded border border-border-base px-2.5 py-1 text-xs" disabled={!changed || preview.isPending} onClick={runPreview}>Preview impact</button>
+            <button type="button" className="rounded bg-btn-primary-bg px-2.5 py-1 text-xs font-medium text-btn-primary-fg" disabled={!preview.data || replace.isPending} onClick={save}>Save mapping</button>
+            {preview.data && <span className="text-xs text-text-muted" data-testid="access-mapping-preview">{preview.data.affected_members} members · +{preview.data.added_ram_role_ids.length} / −{preview.data.removed_ram_role_ids.length} roles · {preview.data.affected_project_ids.length} projects</span>}
+          </div>
+          {(preview.isError || replace.isError) && <p className="mt-2 text-xs text-danger" role="alert">{((preview.error ?? replace.error) as Error).message}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 function SubjectDecisionView({
   decisions,
   subjectByRef,
   permissionByKey,
+  memberEntries,
+  mappingEntries,
 }: {
   decisions: AccessDecision[];
   subjectByRef: Map<string, AccessSubject>;
   permissionByKey: Map<string, AccessPermissionDefinition>;
+  memberEntries: MemberEntry[];
+  mappingEntries: MappingEntry[];
 }): React.ReactElement {
   const groups = useMemo(() => {
     const bySubject = new Map<string, AccessDecision[]>();
@@ -568,47 +722,27 @@ function SubjectDecisionView({
                 {subject?.status && <AccessMetaPill>{subject.status}</AccessMetaPill>}
               </div>
             </div>
-            <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
+            <details className="group" data-testid={`access-subject-effective-${subjectRef}`}>
+              <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-text-secondary">
+                {rows.filter((row) => row.allowed).length} effective permissions · show source chain
+              </summary>
+              <div className="border-t border-border-base px-4 py-3 text-xs text-text-secondary">
+                {memberEntries.flatMap(({ team, query }) => (query.data ?? [])
+                  .filter((member) => member.member_ref === subjectRef)
+                  .map((member) => {
+                    const teamRoles = member.roles ?? [member.role];
+                    return teamRoles.map((teamRole) => {
+                      const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
+                      return <p key={`${team.id}:${teamRole}`} className="mb-1"><span className="font-mono">membership:{team.name}</span> → Team Role <strong>{teamRole}</strong> → RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} → scoped effective permissions</p>;
+                    });
+                  }))}
+                {rows.some((row) => row.source !== 'team_member') && <p>Direct/other bindings: {[...new Set(rows.filter((row) => row.source !== 'team_member').map((row) => row.source))].join(', ')}</p>}
+              </div>
+              <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
+            </details>
           </section>
         );
       })}
-    </div>
-  );
-}
-
-function RoleDecisionView({
-  decisions,
-  subjectByRef,
-  permissionByKey,
-}: {
-  decisions: AccessDecision[];
-  subjectByRef: Map<string, AccessSubject>;
-  permissionByKey: Map<string, AccessPermissionDefinition>;
-}): React.ReactElement {
-  const groups = useMemo(() => {
-    const byRole = new Map<string, AccessDecision[]>();
-    for (const decision of decisions) {
-      const role = subjectByRef.get(decision.subject_ref)?.role ?? decision.source;
-      const rows = byRole.get(role) ?? [];
-      rows.push(decision);
-      byRole.set(role, rows);
-    }
-    return [...byRole.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [decisions, subjectByRef]);
-  if (groups.length === 0) {
-    return <EmptyState title="No matching role decisions" body="Role view is grouped from the API-supplied subject projection." testId="access-role-empty" />;
-  }
-  return (
-    <div className="space-y-3" data-testid="access-role-view">
-      {groups.map(([role, rows]) => (
-        <section key={role} className="rounded border border-border-base bg-bg-elevated">
-          <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-            <h2 className="text-sm font-semibold text-text-primary">{role}</h2>
-            <AccessMetaPill>{rows.length} decisions</AccessMetaPill>
-          </div>
-          <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
-        </section>
-      ))}
     </div>
   );
 }

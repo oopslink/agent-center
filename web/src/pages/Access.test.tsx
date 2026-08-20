@@ -23,10 +23,18 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('renders API-sourced subject and role views with risk and terminal statuses visible', async () => {
+  it('defaults to RAM Roles and Team Role mappings, then exposes expandable subject access', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     expect(await screen.findByText('Permission catalog')).toBeInTheDocument();
+    expect(screen.getByTestId('access-unified-roles-view')).toBeInTheDocument();
+    expect(screen.getByText('RAM Roles')).toBeInTheDocument();
+    expect(screen.getByText('Team Role mappings')).toBeInTheDocument();
+    expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
+    expect(screen.getByTestId('access-ram-role-team-basic')).toHaveTextContent('Used by Team Roles');
+
+    fireEvent.click(screen.getByTestId('access-view-subjects'));
+    expect(await screen.findByTestId('access-subject-view')).toBeInTheDocument();
     expect(screen.getByTestId('access-subject-view')).toBeInTheDocument();
     expect(screen.getAllByText('High risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No access').length).toBeGreaterThan(0);
@@ -40,15 +48,40 @@ describe('Access page', () => {
       expect(screen.queryByText('file.download does not apply to team resources')).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId('access-view-roles'));
-    expect(await screen.findByTestId('access-role-view')).toBeInTheDocument();
-    expect(screen.getByText('member')).toBeInTheDocument();
+    const effective = screen.getByTestId('access-subject-effective-agent:external');
+    fireEvent.click(within(effective).getByText(/effective permissions/));
+    expect(effective).toHaveTextContent('Direct/other bindings');
+  });
+
+  it('previews and saves a Team Role mapping with the fetched CAS version and refreshes immediately', async () => {
+    let previewBody: { ram_role_ids?: string[] } | null = null;
+    let putBody: { ram_role_ids?: string[]; expected_version?: number } | null = null;
+    server.use(
+      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
+      http.post('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles/preview', async ({ request }) => {
+        previewBody = await request.json() as typeof previewBody;
+        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', current_ram_role_ids: ['team-basic'], next_ram_role_ids: previewBody?.ram_role_ids ?? [], added_ram_role_ids: ['team-curator'], removed_ram_role_ids: [], affected_members: 1, affected_project_ids: ['project-c7073e48'], version: 7 });
+      }),
+      http.put('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', async ({ request }) => {
+        putBody = await request.json() as typeof putBody;
+        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 8 });
+      }),
+    );
+    renderPage();
+    const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
+    fireEvent.click(within(row).getByRole('checkbox', { name: 'Team curator' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
+    expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members');
+    fireEvent.click(within(row).getByRole('button', { name: 'Save mapping' }));
+    await waitFor(() => expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 7 }));
+    await waitFor(() => expect(row).toHaveTextContent('v8'));
+    expect(previewBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'] });
   });
 
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-subject-view');
+    await screen.findByTestId('access-unified-roles-view');
     fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
@@ -218,7 +251,7 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-subject-view');
+    await screen.findByTestId('access-unified-roles-view');
     fireEvent.click(screen.getByTestId('access-view-profiles'));
 
     const view = await screen.findByTestId('access-profiles-view');
@@ -286,7 +319,7 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-subject-view');
+    await screen.findByTestId('access-unified-roles-view');
     fireEvent.click(screen.getByTestId('access-view-profiles'));
 
     const view = await screen.findByTestId('access-profiles-view');
