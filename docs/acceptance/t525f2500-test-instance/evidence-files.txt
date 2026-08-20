@@ -71,6 +71,7 @@ docs/acceptance/t525f2500-test-instance/logs/81-cleanup-readback.txt
 docs/acceptance/t525f2500-test-instance/logs/90-post-uninstall-browser-open.txt
 docs/acceptance/t525f2500-test-instance/logs/90-post-uninstall-browser-screenshot.log
 docs/acceptance/t525f2500-test-instance/logs/91-post-uninstall-browser-open.txt
+docs/acceptance/t525f2500-test-instance/logs/99-final-git-readback.txt
 docs/acceptance/t525f2500-test-instance/logs/started-at.txt
 docs/acceptance/t525f2500-test-instance/network/03-clear.txt
 docs/acceptance/t525f2500-test-instance/network/10-access-requests.txt
