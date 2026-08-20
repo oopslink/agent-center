@@ -1,0 +1,7 @@
+### /api/orgs/org-d6bba9bb/projects
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 20 Aug 2026 15:49:55 GMT
+Content-Length: 369
+
+{"projects":[{"created_at":"2026-08-20T15:49:15.871989Z","created_by":"user:user-3123b6c2","description":"seeded by install test-instance --with-seed","id":"project-32d4ed96","issue_count":0,"name":"Alpha","organization_id":"organization-0008ccd4","plan_count":0,"repo_count":0,"status":"active","task_count":0,"updated_at":"2026-08-20T15:49:15.871989Z","version":1}]}

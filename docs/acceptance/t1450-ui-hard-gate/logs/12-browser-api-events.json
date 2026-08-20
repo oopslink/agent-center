@@ -1,0 +1,1170 @@
+[
+  {
+    "status": 200,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/auth/signin"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/overview?view=access"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/team-basic"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/ai-runtime"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "PATCH",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/ai-runtime/models/01M0FY1233NHMR0RYXZPPRW04V"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/ai-runtime"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/workers"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/workers"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/directory/agents"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/agents?include_availability=false&include_enrichment=false"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/agents/availability?ids=agent-0106c003"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/agents"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/agents"
+  },
+  {
+    "status": 200,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/overview?view=access"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/team-basic"
+  },
+  {
+    "status": 200,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles/preview"
+  },
+  {
+    "status": 200,
+    "method": "PUT",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/overview?view=access"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/team-basic"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/team-basic"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-3490db9205a9c023/versions"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-3490db9205a9c023"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 204,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-3490db9205a9c023/revoke"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-3490db9205a9c023"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/overview?view=access"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/team-basic"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-43bdb1f293336366/versions"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-43bdb1f293336366"
+  },
+  {
+    "status": 409,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles/role-43bdb1f293336366/versions",
+    "body": "{\"error\":\"version_conflict\",\"message\":\"RAM role latest version changed\"}\n"
+  },
+  {
+    "status": 201,
+    "method": "POST",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user:user-6f3f9a55&resource_kind=org&resource_id=organization-0008ccd4",
+    "body": "{\"subject_ref\":\"user:user-6f3f9a55\",\"resource\":{\"kind\":\"org\",\"id\":\"organization-0008ccd4\",\"org_id\":\"organization-0008ccd4\"},\"permissions\":[{\"key\":\"ai_runtime.catalog.export\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"ai_runtime.catalog.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"coderepo.workspace.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"org.member.list\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"org.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"org.work_items.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"team.create\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-58db46c9\"},{\"key\":\"template.read\",\"source\":\"org_role\",\"evidence_r",
+    "actor": "member-ui-session"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=dm"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/attention"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/projects"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/auth/me"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/conversations?kind=channel"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/unread-conversations"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/sse?user_id=user%3Auser-3123b6c2"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/permissions/effective?subject_ref=user%3Auser-3123b6c2&resource_kind=org&resource_id=organization-0008ccd4"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-d22be70a/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-408567b5/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/roles/reviewer/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-f3376c65/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-13d3f2ba/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/roles/planner/ram-roles"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-a02c06b0/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-7cf34ccc/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/teams/team-c6e0f65c/members"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "http://127.0.0.1:50484/api/orgs/org-d6bba9bb/access/overview?view=access"
+  }
+]

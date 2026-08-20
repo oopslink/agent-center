@@ -1,0 +1,48 @@
+STEP {"at":"2026-08-20T15:56:07.889Z","name":"screenshot:01-signin-default","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/01-signin-default-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/01-signin-default-detail.png","url":"http://127.0.0.1:50484/signin"}
+STEP {"at":"2026-08-20T15:56:08.377Z","name":"screenshot:02-signed-in","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/02-signed-in-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/02-signed-in-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/projects"}
+STEP {"at":"2026-08-20T15:56:08.382Z","name":"auth-me","status":200,"body":{"display_name":"Owner t1450-seed-234910","identity_id":"user-3123b6c2","kind":"user"}}
+STEP {"at":"2026-08-20T15:56:08.846Z","name":"screenshot:03-access-loading","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/03-access-loading-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/03-access-loading-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/access"}
+STEP {"at":"2026-08-20T15:56:10.735Z","name":"screenshot:04-access-default-roles-mappings","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/04-access-default-roles-mappings-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/04-access-default-roles-mappings-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/access"}
+STEP {"at":"2026-08-20T15:56:10.736Z","name":"access-entry-contract","hasRolesMappings":true,"hasSubjectAccess":true,"hasProfiles":false}
+STEP {"at":"2026-08-20T15:56:11.250Z","name":"screenshot:05-ai-runtime-empty-models","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/05-ai-runtime-empty-models-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/05-ai-runtime-empty-models-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/ai-runtime"}
+STEP {"at":"2026-08-20T15:56:11.250Z","name":"ai-runtime-model-create-skip","reason":"model already present from earlier retry"}
+STEP {"at":"2026-08-20T15:56:11.699Z","name":"screenshot:07-ai-runtime-model-saved","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/07-ai-runtime-model-saved-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/07-ai-runtime-model-saved-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/ai-runtime"}
+STEP {"at":"2026-08-20T15:56:12.210Z","name":"screenshot:08-ai-runtime-edit-model","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/08-ai-runtime-edit-model-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/08-ai-runtime-edit-model-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/ai-runtime"}
+STEP {"at":"2026-08-20T15:56:13.475Z","name":"screenshot:09-ai-runtime-edit-saved","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/09-ai-runtime-edit-saved-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/09-ai-runtime-edit-saved-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/ai-runtime"}
+STEP {"at":"2026-08-20T15:56:13.479Z","name":"workers-visible","count":2,"workers":[{"id":"worker-d1385464","status":"online","version":"ui-hard-gate-69d5b662+69d5b662"},{"id":"worker-d45afebe","status":"online","version":"ui-hard-gate-69d5b662+69d5b662"}]}
+STEP {"at":"2026-08-20T15:56:13.925Z","name":"screenshot:10-agents-before-create","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/10-agents-before-create-full.png","detail":null,"url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/teams/agents"}
+STEP {"at":"2026-08-20T15:56:13.930Z","name":"agent-create-skip","reason":"UI Bound Agent already present from earlier retry"}
+STEP {"at":"2026-08-20T15:56:14.364Z","name":"screenshot:12-agent-created-direct-binding","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/12-agent-created-direct-binding-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/12-agent-created-direct-binding-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/teams/agents"}
+STEP {"at":"2026-08-20T15:56:14.368Z","name":"agents-after-ui-create","count":1,"agents":[{"id":"agent-0106c003","worker_id":"worker-d1385464","cli":"claude-code","model":"claude-opus-4-8"}]}
+STEP {"at":"2026-08-20T15:56:14.370Z","name":"multi-project-created","status":200,"body":{"created_at":"2026-08-20T15:56:14.369766Z","created_by":"user:user-3123b6c2","description":"second project for multi-project evidence","id":"project-d021cde7","name":"Beta UI Gate","organization_id":"organization-0008ccd4","status":"active","updated_at":"2026-08-20T15:56:14.369766Z","version":1}}
+STEP {"at":"2026-08-20T15:56:14.376Z","name":"team-created-for-mappings","status":201,"id":"team-d22be70a","roles":[{"role":"planner","ram_role_keys":["Team basic"]},{"role":"reviewer","ram_role_keys":["Team contributor"]}]}
+STEP {"at":"2026-08-20T15:56:14.950Z","name":"screenshot:13-team-role-mappings-nonempty","full":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/13-team-role-mappings-nonempty-full.png","detail":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/docs/acceptance/t1450-ui-hard-gate/screenshots/13-team-role-mappings-nonempty-detail.png","url":"http://127.0.0.1:50484/organizations/org-d6bba9bb/access?view=team-role-mappings"}
+STEP {"at":"2026-08-20T15:56:14.952Z","name":"team-role-mappings-visible","mappingRows":8}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-testid^="access-mapping-"]').filter({ hasText: 'planner' }).first().locator('button').filter({ hasText: 'Preview impact' })[22m
+[2m    - locator resolved to <button disabled type="button" class="rounded border border-border-base px-2.5 py-1 text-xs">Preview impact</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    48 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is not enabled[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/tests/e2e/v2/t1450-ui-hard-gate.mjs:175:62
+    at async file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-da5e86c2/tests/e2e/v2/t1450-ui-hard-gate.mjs:174:1 {
+  name: 'TimeoutError'
+}
+
+Node.js v25.6.0

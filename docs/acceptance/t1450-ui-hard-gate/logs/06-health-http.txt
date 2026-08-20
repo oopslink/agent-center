@@ -1,0 +1,21 @@
+HTTP/1.1 200 OK
+Cache-Control: no-cache
+Content-Type: text/html; charset=utf-8
+Date: Thu, 20 Aug 2026 15:49:25 GMT
+Content-Length: 594
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>agent-center</title>
+    <!-- Fonts self-hosted (GDPR / zero-CDN, Hex spec §06 decision) -->
+    <script type="module" crossorigin src="/assets/index-B7Drko04.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-6EKax83m.css">
+  </head>
+  <body class="bg-bg-base text-text-primary font-sans antialiased">
+    <div id="root"></div>
+  </body>
+</html>

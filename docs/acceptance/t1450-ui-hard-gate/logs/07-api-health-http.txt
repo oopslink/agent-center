@@ -1,0 +1,6 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 20 Aug 2026 15:49:25 GMT
+Content-Length: 50
+
+{"status":"ok","version":"ui-hard-gate-69d5b662"}

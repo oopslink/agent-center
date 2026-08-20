@@ -1,0 +1,32 @@
+{
+  "id": "t1450-seed-234910",
+  "prefix": "/Users/oopslink/.agent-center-test/t1450-seed-234910",
+  "web_url": "http://127.0.0.1:50484",
+  "server_port": 50485,
+  "admin_port": 50486,
+  "admin_bootstrap_token": "<redacted-after-test-uninstall>",
+  "workers": [
+    {
+      "id": "test-t1450-seed-234910-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/t1450-seed-234910/worker-1"
+    },
+    {
+      "id": "test-t1450-seed-234910-w2",
+      "prefix": "/Users/oopslink/.agent-center-test/t1450-seed-234910/worker-2"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-d6bba9bb",
+    "display_name": "Owner t1450-seed-234910",
+    "email": "owner@acme-t1450-seed-234910.test",
+    "passcode": "<redacted-after-test-uninstall>"
+  },
+  "entity_refs": {
+    "org_id": "organization-0008ccd4",
+    "project_id": "project-32d4ed96",
+    "channel_id": "channel-61e4546d"
+  }
+}
