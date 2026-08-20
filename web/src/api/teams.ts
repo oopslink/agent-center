@@ -256,11 +256,37 @@ export interface TeamRAMRoleMappingImpact {
   team_role: string;
   current_ram_role_ids: string[];
   next_ram_role_ids: string[];
-  added_ram_role_ids: string[] | null;
-  removed_ram_role_ids: string[] | null;
+  added_ram_role_ids: string[];
+  removed_ram_role_ids: string[];
   affected_members: number;
-  affected_project_ids: string[] | null;
+  affected_project_ids: string[];
   version: number;
+}
+
+type TeamRAMRoleMappingImpactWire = Omit<
+  TeamRAMRoleMappingImpact,
+  'current_ram_role_ids' | 'next_ram_role_ids' | 'added_ram_role_ids' | 'removed_ram_role_ids' | 'affected_project_ids'
+> & {
+  current_ram_role_ids?: string[] | null;
+  next_ram_role_ids?: string[] | null;
+  added_ram_role_ids?: string[] | null;
+  removed_ram_role_ids?: string[] | null;
+  affected_project_ids?: string[] | null;
+};
+
+function normalizeStringArray(value: string[] | null | undefined): string[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeTeamRAMRoleMappingImpact(impact: TeamRAMRoleMappingImpactWire): TeamRAMRoleMappingImpact {
+  return {
+    ...impact,
+    current_ram_role_ids: normalizeStringArray(impact.current_ram_role_ids),
+    next_ram_role_ids: normalizeStringArray(impact.next_ram_role_ids),
+    added_ram_role_ids: normalizeStringArray(impact.added_ram_role_ids),
+    removed_ram_role_ids: normalizeStringArray(impact.removed_ram_role_ids),
+    affected_project_ids: normalizeStringArray(impact.affected_project_ids),
+  };
 }
 
 /** Role → accent color (data-driven; inline style, not a Tailwind red utility). */
@@ -398,10 +424,12 @@ export function useAllTeamRoleRAMMappings(teams: TeamView[]) {
 
 export function usePreviewTeamRoleRAMMapping() {
   return useMutation({
-    mutationFn: (v: { team_id: string; role: string; ram_role_ids: string[] }) =>
-      api.post<TeamRAMRoleMappingImpact>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}/ram-roles/preview`, {
+    mutationFn: async (v: { team_id: string; role: string; ram_role_ids: string[] }) => {
+      const impact = await api.post<TeamRAMRoleMappingImpactWire>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}/ram-roles/preview`, {
         ram_role_ids: v.ram_role_ids,
-      }),
+      });
+      return normalizeTeamRAMRoleMappingImpact(impact);
+    },
   });
 }
 
