@@ -1,0 +1,105 @@
+$ rg retired/profile residue in production paths
+web/src/pages/AiRuntime.test.tsx:449:      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
+web/src/pages/AiRuntime.test.tsx:464:      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
+docs/design/features/2026-08-20-t1435-residual-matrix.md:14:| AI Runtime Profile | 是 | 历史 migration/down、import retired guard、历史报告 | RAM Role、身份资料 profile |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:15:| Access Profile | 是 | 历史 migration、限时迁移 adapter/断言、本合同与审计报告 | 产品导航/API/DTO/模板/生产消费者 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:19:## 2. Access Profile 删除与迁移矩阵
+docs/design/features/2026-08-20-t1435-residual-matrix.md:25:| `access_profiles` | 0132 seed；profile handlers；RoleBuilder/Access catalog | 每行无损映射到 `authorization_roles`；disabled -> revoked；collision 非等价即阻断 | W3 终态快照、count/hash/effective 等价通过 | active schema 无该表；历史 migration 命中白名单 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:26:| `access_profile_versions` | create/version API；detail/history | 每行迁到 `authorization_role_versions`；latest 展开到 role permissions | source/history count 相等、latest permission 集合相等 | active schema 无该表；RAM history 可回读 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:29:| `/access/profiles*` routes/handlers | Web profile CRUD/version/disable | 新 RAM Role API；旧 API W2 只 410，W3 删除 | 新客户端零旧调用、服务访问日志零调用 | server route 表无旧 route |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:30:| `AccessProfile*` DTO/types/hooks | handler + React Query | `RAMRole*` DTO/types/hooks，字段语义以 RAM current/history 为准 | 类型与 contract tests 更新 | 生产 bundle/source 无命中 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:32:| RoleBuilder `useAccessProfiles` | Team template/create/edit | `useRAMRoles`; selection 保存 `ram_role_keys` 或 mapping IDs | resolver RAM-only 且 cross-org/revoked 测试通过 | RoleBuilder 不读 profile API |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:57:## 3. AI Runtime Profile 残留
+docs/design/features/2026-08-20-t1435-residual-matrix.md:62:| `0126_remove_ai_runtime_profiles.up/down.sql` | 生产删除线/rollback-only | 保留为防回归与升级路径 | schema 无旧表/绑定列 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:67:AI Runtime Profile 删除不为 Access Profile 提供保留例外；二者分别执行各自删除线。
+docs/design/features/2026-08-20-t1435-residual-matrix.md:105:截图文件名与逐项可见内容以配套合同第 6 节为唯一清单；任何含 `Profiles` tab、Access Profile 文案或旧 API 数据的 A12-A14 均判失败。
+docs/design/features/2026-08-20-t1435-residual-matrix.md:113:rg -n "access_profiles|access_profile_versions|access/profiles|AccessProfile|access profile|Access Profile|Profiles tab" internal web sites README* docs
+docs/design/features/2026-08-20-t1435-residual-matrix.md:116:rg -n "runtime\\.profiles|default_profile_key|ai_runtime_profiles|AI Runtime Profile" internal web docs
+docs/design/features/ai-runtime-configuration.md:146:删除迁移会在发现 `ai_runtime_profiles` 行或 `ai_runtime_catalogs.default_profile_id` 绑定时失败，
+docs/design/features/ai-runtime-configuration.md:384:数据库 ID、Secret、Worker capability、绝对路径和健康状态不得导出。`profiles` 与 `default_profile_key` 字段已退役，导入时拒绝。
+docs/design/features/ai-runtime-configuration.md:592:2. Agent 直接 runtime config 与 `allowed_executors` 不受 AI Runtime Profile 清退影响。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:8:| 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role -> RAM Role、Access IA、迁移/回滚、A1-A16 截图验收 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:17:| AI Runtime Profile | 旧 CLI / Model / parameters 间接选择器 | 已删除；禁止恢复表、字段、API 或 UI |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:18:| Access Profile | 旧 Access 权限包产品、Profiles tab、`/access/profiles*` | 删除；不得重命名 UI 文案后继续保留同一产品/API |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:21:### 1.1 AI Runtime Profile 删除线
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:23:- 生产 Schema 不允许存在 `ai_runtime_profiles`，`ai_runtime_catalogs.default_profile_id` 不得承载绑定。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:24:- import 必须拒绝 `runtime.profiles`、`runtime.default_profile_key`；export 不得输出它们。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:26:- `0126_remove_ai_runtime_profiles` 及 retired-field 拒绝测试是永久防回归合同，不属于 Access/RAM 迁移。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:28:### 1.2 Access Profile 产品删除线
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:30:目标态不存在 Access Profile 产品概念。以下均为必须删除项，而不是保留面：
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:32:- 数据：`access_profiles`、`access_profile_versions` 的活跃读写与 seed；兼容窗口结束后删除旧表。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:33:- API：`GET/POST /api/orgs/{slug}/access/profiles`、detail、`versions`、`disable`；切换后不得由别名或 rewrite 继续服务。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:34:- UI：Access 的 `Profiles` tab、profile list/detail/create/version/disable 表单、`AccessProfile*` 类型/hooks/i18n/mocks。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:64:`ram_role_keys` 的 resolver 必须优先匹配同 org role，再匹配 system role；歧义、dangling、cross-org 或 revoked 均失败，不得 fallback 到 `access_profiles`。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:77:旧 `/access/profiles*` 在兼容窗口的 W0/W1 只允许旧版本服务继续工作；新版本不得新增调用。W2 切换时路由移除并返回明确的 `410 access_profile_retired`（不做写入、不代理 RAM API），W3 后完全删除路由。410 只是短期客户端诊断，不是兼容 API。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:87:1. 导出 `access_profiles`、`access_profile_versions`、`authorization_roles`、`authorization_role_permissions`、`team_role_ram_role_mappings`、mapping versions/audit、`authorization_role_assignments`。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:96:| `access_profiles` | `authorization_roles` | `id -> id`，`org_id -> org_id`，空 org -> `kind=system`，非空 -> `kind=custom`，name/description/created_by/created_at/updated_at 原样；`disabled_at -> revoked_at`；`version = max(access_profile_versions.version)`。目标同 ID 已存在时必须逐字段等价，否则阻断 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:97:| `access_profile_versions` 每一行 | `authorization_role_versions` 每一行 | `profile_id -> role_id`，version/permissions_json/risk/created_by/created_at 原样映射；permissions 先规范化去重排序并验证 registry；不得只迁 latest 而丢历史 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:173:rg -n "access_profiles|access_profile_versions|access/profiles|AccessProfile|access profile|Access Profile|Profiles tab" internal web sites README* docs
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:175:rg -n "runtime\\.profiles|default_profile_key|ai_runtime_profiles|AI Runtime Profile" internal web docs
+internal/persistence/migration_0116_ai_runtime_test.go:65:	if tableExists(t, db, "ai_runtime_profiles") {
+internal/persistence/migration_0116_ai_runtime_test.go:66:		t.Fatal("ai_runtime_profiles table remains after migration 0126")
+internal/persistence/migration_0116_ai_runtime_test.go:91:	if _, err := db.Exec(`INSERT INTO ai_runtime_profiles(id,org_id,key,name,cli_key,model_key,parameters_json,created_at,updated_at)
+internal/persistence/migration_0116_ai_runtime_test.go:100:	if !tableExists(t, db, "ai_runtime_profiles") || !columnExists(t, db, "ai_runtime_catalogs", "default_profile_id") {
+internal/persistence/migration_0116_ai_runtime_test.go:104:	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_runtime_profiles WHERE id='profile-live'`).Scan(&rows); err != nil {
+internal/persistence/migration_0137_ram_role_versions_test.go:15:func TestMigration_0137_RoundTripPreservesAccessProfileData(t *testing.T) {
+internal/persistence/migration_0137_ram_role_versions_test.go:32:		INSERT INTO access_profiles
+internal/persistence/migration_0137_ram_role_versions_test.go:37:		INSERT INTO access_profile_versions
+internal/persistence/migration_0137_ram_role_versions_test.go:43:		t.Fatalf("seed v136 access profile: %v", err)
+internal/persistence/migration_0137_ram_role_versions_test.go:46:	want136Schema := snapshotSelectedSchema(t, db, "access_profiles", "access_profile_versions")
+internal/persistence/migration_0137_ram_role_versions_test.go:60:	if got := snapshotSelectedSchema(t, db, "access_profiles", "access_profile_versions"); !reflect.DeepEqual(got, want136Schema) {
+internal/persistence/migration_0137_ram_role_versions_test.go:77:		FROM access_profiles WHERE id = 'profile-round-trip'`)
+internal/persistence/migration_0137_ram_role_versions_test.go:85:		FROM access_profile_versions WHERE profile_id = 'profile-round-trip' ORDER BY version`)
+internal/persistence/migration_0137_ram_role_versions_test.go:105:	if tableExists(t, db, "access_profiles") || tableExists(t, db, "access_profile_versions") {
+internal/persistence/migrations/0116_ai_runtime_catalog.down.sql:3:DROP INDEX IF EXISTS idx_ai_runtime_profiles_org;
+internal/persistence/migrations/0116_ai_runtime_catalog.down.sql:4:DROP TABLE IF EXISTS ai_runtime_profiles;
+internal/webconsole/api/handlers_ai_runtime_test.go:369:				"default_profile_key": "default-coding",
+internal/webconsole/api/handlers_ai_runtime_test.go:377:		t.Fatalf("retired default_profile_key preview status=%d body=%+v", resp.StatusCode, body)
+internal/cli/handlers_migrate_v1_to_v2.go:181:// Team Memory observability projection; 0126 retires AI Runtime Profile schema;
+internal/webconsole/api/handlers_ai_runtime.go:203:	if _, ok := runtime["default_profile_key"]; ok {
+internal/webconsole/api/handlers_ai_runtime.go:204:		return errors.New("runtime.default_profile_key is retired; AI Runtime Profile import is no longer supported")
+internal/webconsole/api/handlers_ai_runtime.go:207:		return errors.New("runtime.profiles is retired; AI Runtime Profile import is no longer supported")
+internal/persistence/migrations/0126_remove_ai_runtime_profiles.down.sql:3:CREATE TABLE IF NOT EXISTS ai_runtime_profiles (
+internal/persistence/migrations/0126_remove_ai_runtime_profiles.down.sql:18:CREATE INDEX IF NOT EXISTS idx_ai_runtime_profiles_org ON ai_runtime_profiles(org_id);
+internal/persistence/migrations/0137_ram_role_versions.down.sql:2:-- table. Every role with version rows came from an access profile (or was
+internal/persistence/migrations/0137_ram_role_versions.down.sql:5:CREATE TABLE IF NOT EXISTS access_profiles (
+internal/persistence/migrations/0137_ram_role_versions.down.sql:16:CREATE UNIQUE INDEX IF NOT EXISTS idx_access_profiles_org_name
+internal/persistence/migrations/0137_ram_role_versions.down.sql:17:    ON access_profiles(org_id, name)
+internal/persistence/migrations/0137_ram_role_versions.down.sql:20:CREATE TABLE IF NOT EXISTS access_profile_versions (
+internal/persistence/migrations/0137_ram_role_versions.down.sql:30:CREATE INDEX IF NOT EXISTS idx_access_profile_versions_profile
+internal/persistence/migrations/0137_ram_role_versions.down.sql:31:    ON access_profile_versions(profile_id, version DESC);
+internal/persistence/migrations/0137_ram_role_versions.down.sql:33:INSERT OR REPLACE INTO access_profiles
+internal/persistence/migrations/0137_ram_role_versions.down.sql:43:INSERT OR REPLACE INTO access_profile_versions
+internal/team/service/ram_roles_test.go:202:	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='access_profiles'`).Scan(&n); err != nil || n != 0 {
+internal/team/service/ram_roles_test.go:203:		t.Fatal("access_profiles table must not remain in the final RAM Role schema")
+internal/persistence/migrations/0132_access_profile_versions.up.sql:1:-- 0132_access_profile_versions.up.sql -- persistent versioned access profiles.
+internal/persistence/migrations/0132_access_profile_versions.up.sql:3:CREATE TABLE IF NOT EXISTS access_profiles (
+internal/persistence/migrations/0132_access_profile_versions.up.sql:14:CREATE UNIQUE INDEX IF NOT EXISTS idx_access_profiles_org_name
+internal/persistence/migrations/0132_access_profile_versions.up.sql:15:    ON access_profiles(org_id, name)
+internal/persistence/migrations/0132_access_profile_versions.up.sql:18:CREATE TABLE IF NOT EXISTS access_profile_versions (
+internal/persistence/migrations/0132_access_profile_versions.up.sql:28:CREATE INDEX IF NOT EXISTS idx_access_profile_versions_profile
+internal/persistence/migrations/0132_access_profile_versions.up.sql:29:    ON access_profile_versions(profile_id, version DESC);
+internal/persistence/migrations/0132_access_profile_versions.up.sql:31:INSERT OR IGNORE INTO access_profiles
+internal/persistence/migrations/0132_access_profile_versions.up.sql:38:INSERT OR IGNORE INTO access_profile_versions
+internal/persistence/migrations/0116_ai_runtime_catalog.up.sql:31:CREATE TABLE IF NOT EXISTS ai_runtime_profiles (
+internal/persistence/migrations/0116_ai_runtime_catalog.up.sql:45:CREATE INDEX IF NOT EXISTS idx_ai_runtime_profiles_org ON ai_runtime_profiles(org_id);
+internal/persistence/migrations/0136_access_profile_ram_role_contract.up.sql:3:-- The Team UI exposes access profile ids as RAM role ids for preview/PUT while
+internal/persistence/migrations/0136_access_profile_ram_role_contract.up.sql:5:-- access profiles as system authorization roles so both contracts resolve to
+internal/persistence/migrations/0132_access_profile_versions.down.sql:1:-- 0132_access_profile_versions.down.sql -- remove persistent versioned access profiles.
+internal/persistence/migrations/0132_access_profile_versions.down.sql:3:DROP TABLE IF EXISTS access_profile_versions;
+internal/persistence/migrations/0132_access_profile_versions.down.sql:4:DROP TABLE IF EXISTS access_profiles;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:29:    COALESCE((SELECT MAX(v.version) FROM access_profile_versions v WHERE v.profile_id = p.id), 1)
+internal/persistence/migrations/0137_ram_role_versions.up.sql:30:FROM access_profiles p;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:35:    FROM access_profile_versions v
+internal/persistence/migrations/0137_ram_role_versions.up.sql:38:WHERE id IN (SELECT profile_id FROM access_profile_versions);
+internal/persistence/migrations/0137_ram_role_versions.up.sql:43:FROM access_profile_versions;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:46:WHERE role_id IN (SELECT profile_id FROM access_profile_versions);
+internal/persistence/migrations/0137_ram_role_versions.up.sql:53:    FROM access_profile_versions v
+internal/persistence/migrations/0137_ram_role_versions.up.sql:54:    WHERE version = (SELECT MAX(version) FROM access_profile_versions mx WHERE mx.profile_id = v.profile_id)
+internal/persistence/migrations/0137_ram_role_versions.up.sql:57:DROP INDEX IF EXISTS idx_access_profile_versions_profile;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:58:DROP INDEX IF EXISTS idx_access_profiles_org_name;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:59:DROP TABLE IF EXISTS access_profile_versions;
+internal/persistence/migrations/0137_ram_role_versions.up.sql:60:DROP TABLE IF EXISTS access_profiles;
+internal/persistence/migrations/0126_remove_ai_runtime_profiles.up.sql:6:SELECT COUNT(*) FROM ai_runtime_profiles;
+internal/persistence/migrations/0126_remove_ai_runtime_profiles.up.sql:13:DROP INDEX IF EXISTS idx_ai_runtime_profiles_org;
+internal/persistence/migrations/0126_remove_ai_runtime_profiles.up.sql:14:DROP TABLE IF EXISTS ai_runtime_profiles;
