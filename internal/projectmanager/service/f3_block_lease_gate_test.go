@@ -374,7 +374,6 @@ func TestActionLog_BlockUnblockPersisted(t *testing.T) {
 func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
 	h := planAdvanceSetup(t)
 	h.svc.authorizer = authz.New(authz.Deps{DB: h.svc.db, Clock: h.clk, Mode: authz.EnforcementEnforce})
-	grantBackgroundWorkerCapability(t, h.ctx, h.svc.db, "overdue_block_reminder")
 	_, tid := startedPoolTask(t, h, "org-od", "P", "agent:w1")
 	if err := h.svc.BlockTask(h.ctx, tid, "waiting on owner", pm.BlockReasonObstacle, "agent:w1"); err != nil {
 		t.Fatal(err)

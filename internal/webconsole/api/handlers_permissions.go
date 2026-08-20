@@ -56,7 +56,7 @@ func (s *Server) permissionsCheckHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	decision, err := svc.Check(r.Context(), req)
+	decision, err := checkWebAuthorization(r.Context(), d, req)
 	if err != nil {
 		writeAuthorizationError(w, decision, err)
 		return
@@ -84,7 +84,8 @@ func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	explain, err := svc.Explain(r.Context(), req)
+	var resolver authz.EffectiveResolver = svc
+	explain, err := resolver.ResolveEffective(r.Context(), req)
 	if err != nil && !errors.Is(err, authz.ErrDenied) {
 		writeAuthorizationError(w, explain.Decision, err)
 		return

@@ -53,6 +53,13 @@ func TestT1438RealEntrypointsCallResolverNotTransportCheckWrappers(t *testing.T)
 			}
 		}
 	}
+
+	permissionsHandler := readFile(t, filepath.Join(root, "internal/webconsole/api/handlers_permissions.go"))
+	for _, forbidden := range []string{"svc.Check(r.Context()", "svc.Explain(r.Context()"} {
+		if strings.Contains(permissionsHandler, forbidden) {
+			t.Fatalf("permissions production handlers must use ResolveEffective, found %q", forbidden)
+		}
+	}
 }
 
 func repoRoot(t *testing.T) string {

@@ -41,9 +41,6 @@ func setup(t *testing.T) (*Service, *outboxsql.OutboxRepo, context.Context) {
 	})
 	authorizer := authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
 	svc.authorizer = authorizer
-	for _, operation := range []string{"auto_assign_reconciler", "lease_checker", "overdue_block_reminder", "plan_reconcile", "resolved_issue_closer"} {
-		grantBackgroundWorkerCapability(t, context.Background(), db, operation)
-	}
 	return svc, ob, context.Background()
 }
 
