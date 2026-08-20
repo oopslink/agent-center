@@ -311,7 +311,7 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 		}, authz.ErrDenied)
 		return nil, nil, "", false
 	}
-	if decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	if decision, err := checkWebAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.UserSubject(callerID.ID()),
 		Transport:  authz.TransportWeb,
 		Permission: "org.read",

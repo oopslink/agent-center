@@ -11,17 +11,18 @@ import (
 )
 
 func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, resource authz.ResourceScope) bool {
+	subject := authz.SubjectRef(agentActor(a))
 	if d.Authorizer == nil {
 		writeAuthorizationError(w, authz.AccessDecision{
-			SubjectRef: authz.SubjectRef(agentActor(a)),
+			SubjectRef: subject,
 			Permission: permission,
 			Resource:   resource,
 			Reason:     "authorization_not_wired",
 		}, authz.ErrDenied)
 		return false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
-		SubjectRef: authz.SubjectRef(agentActor(a)),
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
+		SubjectRef: subject,
 		Transport:  authz.TransportMCP,
 		Permission: permission,
 		Resource:   resource,
@@ -43,7 +44,7 @@ func (s *Server) requireAgentProjectWrite(w http.ResponseWriter, r *http.Request
 		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: "project.write", Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
 		return false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: "project.write",
@@ -178,7 +179,7 @@ func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Reque
 		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: permission, Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
 		return false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,
@@ -193,6 +194,10 @@ func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Reque
 		return false
 	}
 	return true
+}
+
+func checkAdminAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
+	return d.Authorizer.Check(ctx, req)
 }
 
 func agentAuthzFileRef(scope files.FileScope, scopeID string) authz.FileRef {

@@ -622,6 +622,9 @@ func NewAutoAssignReconciler(svc *Service, clk clock.Clock, tick time.Duration, 
 
 // Tick runs one sweep. Exposed for tests + the boot reconcile.
 func (r *AutoAssignReconciler) Tick(ctx context.Context) (int, error) {
+	if err := r.svc.requireBackgroundAuthorization(ctx, "auto_assign_sweep"); err != nil {
+		return 0, err
+	}
 	return r.svc.AutoAssignSweep(ctx)
 }
 

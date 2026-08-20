@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -17,7 +18,7 @@ func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDe
 		}, authz.ErrDenied)
 		return false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkWebAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.UserSubject(caller.ID()),
 		Transport:  authz.TransportWeb,
 		Permission: permission,
@@ -40,7 +41,7 @@ func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d Ha
 		}, authz.ErrDenied)
 		return false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkWebAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: subject,
 		Transport:  authz.TransportWeb,
 		Permission: permission,
@@ -51,4 +52,8 @@ func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d Ha
 		return false
 	}
 	return true
+}
+
+func checkWebAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
+	return d.Authorizer.Check(ctx, req)
 }

@@ -263,7 +263,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	if err != nil {
 		panic(err)
 	}
-	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode})
+	authorizationSvc := authorization.New(authorization.Deps{
+		DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode,
+		RequireEnforceReadiness:  true,
+		RequiredShadowTransports: []authorization.Transport{authorization.TransportWeb, authorization.TransportMCP, authorization.TransportBackground},
+	})
 	wr := wfsqlite.NewWorkerRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.
@@ -483,6 +487,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AutoAssignDir:      pmservice.NewAgentAutoAssignDirectory(agentRepo, wr),
 		AutoAssignSettings: settingssql.NewStore(db, clk),
 		LiveExecutors:      liveState,
+		Authorizer:         authorizationSvc,
 		OrgSeq:             pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
 		// via MessageWriter (the wake+mention path #220 wakes an agent assignee). The

@@ -90,7 +90,7 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		}, authz.ErrDenied)
 		return
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: "conversation.read",

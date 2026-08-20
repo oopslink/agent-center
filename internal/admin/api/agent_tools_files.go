@@ -331,7 +331,7 @@ func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, 
 	if d.Authorizer == nil {
 		return false, nil
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: "file.download",

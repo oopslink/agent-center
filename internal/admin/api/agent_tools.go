@@ -87,7 +87,7 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 			"authorization service not wired")
 		return nil, false
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.WorkerSubject(workerID),
 		Transport:  authz.TransportMCP,
 		Permission: "agent.operate.self",

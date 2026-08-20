@@ -144,9 +144,15 @@ func (s *Server) permissionsShadowHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
+	readiness, readinessErr := svc.ShadowReadiness(r.Context())
+	readinessPayload := any(readiness)
+	if readinessErr != nil {
+		readinessPayload = map[string]any{"ready": false, "reason": readinessErr.Error()}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mode":    svc.EnforcementMode(),
-		"metrics": svc.ShadowMetrics(),
+		"mode":      svc.EnforcementMode(),
+		"metrics":   svc.ShadowMetrics(),
+		"readiness": readinessPayload,
 	})
 }
 

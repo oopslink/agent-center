@@ -19,11 +19,12 @@ type DecisionSource string
 type EnforcementMode string
 
 const (
-	TransportWeb       Transport = "web"
-	TransportMCP       Transport = "mcp"
-	TransportAdminHTTP Transport = "admin_http"
-	TransportGitHTTP   Transport = "git_http"
-	TransportSystem    Transport = "system"
+	TransportWeb        Transport = "web"
+	TransportMCP        Transport = "mcp"
+	TransportAdminHTTP  Transport = "admin_http"
+	TransportGitHTTP    Transport = "git_http"
+	TransportBackground Transport = "background"
+	TransportSystem     Transport = "system"
 
 	SourceOrgRole                 DecisionSource = "org_role"
 	SourceProjectMember           DecisionSource = "project_member"
@@ -122,6 +123,7 @@ type ExplainResult struct {
 type ShadowComparison struct {
 	Mode              EnforcementMode `json:"mode"`
 	SubjectRef        SubjectRef      `json:"subject_ref"`
+	Transport         Transport       `json:"transport"`
 	Permission        PermissionKey   `json:"permission"`
 	Resource          ResourceScope   `json:"resource"`
 	LegacyAllowed     bool            `json:"legacy_allowed"`
@@ -137,6 +139,19 @@ type ShadowMetrics struct {
 	LegacyOnly     int64 `json:"legacy_only"`
 	EquivalentOnly int64 `json:"equivalent_only"`
 	ReadyToEnforce bool  `json:"ready_to_enforce"`
+}
+
+type ShadowReadiness struct {
+	Mode            EnforcementMode `json:"mode"`
+	WindowStartedAt string          `json:"window_started_at"`
+	WindowEndedAt   string          `json:"window_ended_at"`
+	Transports      []string        `json:"transports"`
+	Checks          int64           `json:"checks"`
+	Mismatches      int64           `json:"mismatches"`
+	LegacyOnly      int64           `json:"legacy_only"`
+	EquivalentOnly  int64           `json:"equivalent_only"`
+	Ready           bool            `json:"ready"`
+	Reason          string          `json:"reason"`
 }
 
 type PermissionDefinition struct {

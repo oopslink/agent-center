@@ -72,7 +72,7 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 		return false
 	}
 	matchedScope := matchedBearerScope(auth.Scopes, scope)
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef:  adminBearerSubject(auth.Owner),
 		Transport:   authz.TransportAdminHTTP,
 		BearerScope: matchedScope,

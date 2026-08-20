@@ -7,6 +7,8 @@ import (
 	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -296,6 +298,30 @@ func TestAutoAssign_NoDirectory_NoOp(t *testing.T) {
 	_ = h.svc.ReconcileRunningPlans(h.ctx, nil)
 	if n, err := h.svc.AutoAssignSweep(h.ctx); err != nil || n != 0 {
 		t.Fatalf("sweep n=%d err=%v, want 0,nil", n, err)
+	}
+}
+
+func TestAutoAssignReconcilerTickUsesBackgroundAuthorization(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(t.TempDir() + "/authz.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	authzSvc := authz.New(authz.Deps{DB: db, Mode: authz.EnforcementShadow})
+	reconciler := NewAutoAssignReconciler(&Service{authorizer: authzSvc}, nil, time.Hour, nil)
+	if n, err := reconciler.Tick(ctx); err != nil || n != 0 {
+		t.Fatalf("background tick n=%d err=%v", n, err)
+	}
+	var transports string
+	if err := db.QueryRowContext(ctx, `SELECT transports_json FROM authorization_shadow_readiness WHERE id='current'`).Scan(&transports); err != nil {
+		t.Fatal(err)
+	}
+	if transports != `["background"]` {
+		t.Fatalf("shadow readiness transports=%s, want background", transports)
 	}
 }
 
