@@ -9,7 +9,13 @@ import (
 
 func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, caller *identity.Identity, permission authz.PermissionKey, resource authz.ResourceScope) bool {
 	if d.Authorizer == nil {
-		return true
+		writeAuthorizationError(w, authz.AccessDecision{
+			SubjectRef: authz.UserSubject(caller.ID()),
+			Permission: permission,
+			Resource:   resource,
+			Reason:     "authorization_not_wired",
+		}, authz.ErrDenied)
+		return false
 	}
 	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.UserSubject(caller.ID()),
@@ -26,7 +32,13 @@ func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDe
 
 func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, subject authz.SubjectRef, permission authz.PermissionKey, resource authz.ResourceScope) bool {
 	if d.Authorizer == nil {
-		return true
+		writeAuthorizationError(w, authz.AccessDecision{
+			SubjectRef: subject,
+			Permission: permission,
+			Resource:   resource,
+			Reason:     "authorization_not_wired",
+		}, authz.ErrDenied)
+		return false
 	}
 	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: subject,

@@ -83,6 +83,7 @@ func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.Worke
 // requireWorkerInOrg, so these tests must authenticate + scope by org.
 func wireWorkerAuth(t *testing.T, db *sql.DB, deps *HandlerDeps) testSession {
 	t.Helper()
+	deps.DB = db
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)

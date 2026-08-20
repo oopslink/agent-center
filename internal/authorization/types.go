@@ -136,6 +136,7 @@ type ShadowMetrics struct {
 	Mismatches     int64 `json:"mismatches"`
 	LegacyOnly     int64 `json:"legacy_only"`
 	EquivalentOnly int64 `json:"equivalent_only"`
+	ReadyToEnforce bool  `json:"ready_to_enforce"`
 }
 
 type PermissionDefinition struct {

@@ -256,21 +256,12 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 		writeError(w, http.StatusNotFound, "not_found", "project not found in this organization")
 		return nil, "", false
 	}
-	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
-			SubjectRef: authz.UserSubject(callerID.ID()),
-			Transport:  authz.TransportWeb,
-			Permission: "project.read",
-			Resource: authz.ResourceScope{
-				Kind:  "project",
-				ID:    string(p.ID()),
-				OrgID: orgID,
-			},
-		})
-		if err != nil || !decision.Allowed {
-			writeAuthorizationError(w, decision, err)
-			return nil, "", false
-		}
+	if !requireWebSubjectAuthorization(w, r, d, authz.UserSubject(callerID.ID()), "project.read", authz.ResourceScope{
+		Kind:  "project",
+		ID:    string(p.ID()),
+		OrgID: orgID,
+	}) {
+		return nil, "", false
 	}
 	return p, pmCallerRef(callerID), true
 }

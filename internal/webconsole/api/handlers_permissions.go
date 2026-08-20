@@ -303,13 +303,7 @@ func preparePermissionCheck(w http.ResponseWriter, r *http.Request, svc *authz.S
 }
 
 func permissionAuthorizer(d HandlerDeps) *authz.Service {
-	if d.Authorizer != nil {
-		return d.Authorizer
-	}
-	if d.DB == nil {
-		return nil
-	}
-	return authz.New(authz.Deps{DB: d.DB, EventSink: d.EventSink})
+	return d.Authorizer
 }
 
 func writeAuthorizationError(w http.ResponseWriter, decision authz.AccessDecision, err error) {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -11,7 +12,13 @@ import (
 
 func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, resource authz.ResourceScope) bool {
 	if d.Authorizer == nil {
-		return true
+		writeAuthorizationError(w, authz.AccessDecision{
+			SubjectRef: authz.SubjectRef(agentActor(a)),
+			Permission: permission,
+			Resource:   resource,
+			Reason:     "authorization_not_wired",
+		}, authz.ErrDenied)
+		return false
 	}
 	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
@@ -27,11 +34,54 @@ func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) requireAgentProjectWrite(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, projectID string) bool {
-	return s.requireAgentAuthorization(w, r, d, a, "project.write", authz.ResourceScope{
+	resource := authz.ResourceScope{
 		Kind:  "project",
 		ID:    projectID,
 		OrgID: a.OrganizationID(),
+	}
+	if d.Authorizer == nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: "project.write", Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
+		return false
+	}
+	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(agentActor(a)),
+		Transport:  authz.TransportMCP,
+		Permission: "project.write",
+		Resource:   resource,
 	})
+	if err != nil || !decision.Allowed {
+		switch {
+		case errors.Is(err, authz.ErrNotFound):
+			memberID := a.IdentityMemberID()
+			if memberID == "" {
+				memberID = string(a.ID())
+			}
+			writeError(w, http.StatusNotFound, "project_not_found",
+				"project "+projectID+" not found"+availableProjectsHint(r.Context(), d, a.OrganizationID(), memberID))
+		case errors.Is(err, authz.ErrDenied):
+			if agentProjectMember(r.Context(), d, projectID, agentActor(a)) {
+				writeAuthorizationError(w, decision, err)
+			} else {
+				writeError(w, http.StatusForbidden, "not_a_project_member",
+					"not a member of project "+projectID+", ask owner to add this agent")
+			}
+		default:
+			writeAuthorizationError(w, decision, err)
+		}
+		return false
+	}
+	return true
+}
+
+func agentProjectMember(ctx context.Context, d HandlerDeps, projectID, actor string) bool {
+	if d.DB == nil {
+		return false
+	}
+	var n int
+	if err := d.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pm_project_members WHERE project_id = ? AND identity_id = ?`, projectID, actor).Scan(&n); err != nil {
+		return false
+	}
+	return n > 0
 }
 
 func (s *Server) requireAgentTeamCreate(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) bool {
@@ -115,7 +165,7 @@ func (s *Server) requireAgentConversationPost(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, fileURI string, refs []authz.FileRef) bool {
-	return s.requireAgentAuthorization(w, r, d, a, permission, authz.ResourceScope{
+	resource := authz.ResourceScope{
 		Kind:             "file",
 		ID:               fileURI,
 		URI:              fileURI,
@@ -123,7 +173,26 @@ func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Reque
 		OwnerRef:         string(a.ID()),
 		IdentityMemberID: a.IdentityMemberID(),
 		Refs:             refs,
+	}
+	if d.Authorizer == nil {
+		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: permission, Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
+		return false
+	}
+	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(agentActor(a)),
+		Transport:  authz.TransportMCP,
+		Permission: permission,
+		Resource:   resource,
 	})
+	if err != nil || !decision.Allowed {
+		if permission == "file.upload" || permission == "file.attach" {
+			writeError(w, http.StatusForbidden, "scope_not_in_agent_domain", "requested scope is not in the agent's own domain")
+		} else {
+			writeAuthorizationError(w, decision, err)
+		}
+		return false
+	}
+	return true
 }
 
 func agentAuthzFileRef(scope files.FileScope, scopeID string) authz.FileRef {

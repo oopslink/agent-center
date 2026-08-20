@@ -302,16 +302,23 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 			"missing or unknown organization scope (use /api/orgs/{slug}/...)")
 		return nil, nil, "", false
 	}
-	if d.Authorizer != nil {
-		if decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	if d.Authorizer == nil {
+		writeAuthorizationError(w, authz.AccessDecision{
 			SubjectRef: authz.UserSubject(callerID.ID()),
-			Transport:  authz.TransportWeb,
 			Permission: "org.read",
 			Resource:   authz.ResourceScope{Kind: "org", ID: orgID},
-		}); err != nil || !decision.Allowed {
-			writeAuthorizationError(w, decision, err)
-			return nil, nil, "", false
-		}
+			Reason:     "authorization_not_wired",
+		}, authz.ErrDenied)
+		return nil, nil, "", false
+	}
+	if decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef: authz.UserSubject(callerID.ID()),
+		Transport:  authz.TransportWeb,
+		Permission: "org.read",
+		Resource:   authz.ResourceScope{Kind: "org", ID: orgID},
+	}); err != nil || !decision.Allowed {
+		writeAuthorizationError(w, decision, err)
+		return nil, nil, "", false
 	}
 	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())
 	if err != nil || member == nil {
@@ -417,6 +424,9 @@ type depsKey struct{}
 // WithDeps installs the dep bag into the request context and chains the
 // JWT auth middleware for /api/* routes (exempt: /api/health, /api/auth/*).
 func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
+	if deps.Authorizer == nil && deps.DB != nil {
+		deps.Authorizer = authz.New(authz.Deps{DB: deps.DB, EventSink: deps.EventSink})
+	}
 	auth := authMiddleware(deps)
 	return func(next http.Handler) http.Handler {
 		withAuth := auth(next)

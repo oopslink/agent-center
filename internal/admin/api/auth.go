@@ -56,26 +56,30 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 			"endpoint requires authenticated bearer")
 		return false
 	}
-	if d := hd(r); d.Authorizer != nil {
-		permission, mapped := authz.PermissionForBearerScope(string(scope))
-		if mapped {
-			matchedScope := matchedBearerScope(auth.Scopes, scope)
-			decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
-				SubjectRef:  adminBearerSubject(auth.Owner),
-				Transport:   authz.TransportAdminHTTP,
-				BearerScope: matchedScope,
-				Permission:  permission,
-				Resource:    bearerResource(permission),
-			})
-			if err != nil || !decision.Allowed {
-				writeError(w, http.StatusForbidden, "scope_forbidden",
-					"token lacks required scope: "+string(scope))
-				return false
-			}
-			return true
+	permission, mapped := authz.PermissionForBearerScope(string(scope))
+	if !mapped {
+		if matchedBearerScope(auth.Scopes, scope) != "*" {
+			writeError(w, http.StatusForbidden, "scope_forbidden",
+				"token lacks required scope: "+string(scope))
+			return false
 		}
+		permission = "*"
 	}
-	if !auth.HasScope(scope) {
+	d := hd(r)
+	if d.Authorizer == nil {
+		writeError(w, http.StatusServiceUnavailable, "authorization_not_wired",
+			"authorization service not wired")
+		return false
+	}
+	matchedScope := matchedBearerScope(auth.Scopes, scope)
+	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef:  adminBearerSubject(auth.Owner),
+		Transport:   authz.TransportAdminHTTP,
+		BearerScope: matchedScope,
+		Permission:  permission,
+		Resource:    bearerResource(permission),
+	})
+	if err != nil || !decision.Allowed {
 		writeError(w, http.StatusForbidden, "scope_forbidden",
 			"token lacks required scope: "+string(scope))
 		return false
@@ -84,6 +88,9 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 }
 
 func adminBearerSubject(owner admintoken.Owner) authz.SubjectRef {
+	if strings.TrimSpace(string(owner)) == "" {
+		return authz.SubjectRef("user:admin-token")
+	}
 	if strings.HasPrefix(string(owner), "worker:") {
 		return authz.SubjectRef(owner)
 	}

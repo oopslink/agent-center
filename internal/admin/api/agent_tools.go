@@ -82,23 +82,26 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 			"agent is not bound to this worker")
 		return nil, false
 	}
-	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
-			SubjectRef: authz.WorkerSubject(workerID),
-			Transport:  authz.TransportMCP,
-			Permission: "agent.operate.self",
-			Resource: authz.ResourceScope{
-				Kind:             "agent",
-				ID:               string(a.ID()),
-				OrgID:            a.OrganizationID(),
-				IdentityMemberID: a.IdentityMemberID(),
-			},
-		})
-		if err != nil || !decision.Allowed {
-			writeError(w, http.StatusForbidden, "agent_not_bound_to_worker",
-				"agent is not bound to this worker")
-			return nil, false
-		}
+	if d.Authorizer == nil {
+		writeError(w, http.StatusServiceUnavailable, "authorization_not_wired",
+			"authorization service not wired")
+		return nil, false
+	}
+	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef: authz.WorkerSubject(workerID),
+		Transport:  authz.TransportMCP,
+		Permission: "agent.operate.self",
+		Resource: authz.ResourceScope{
+			Kind:             "agent",
+			ID:               string(a.ID()),
+			OrgID:            a.OrganizationID(),
+			IdentityMemberID: a.IdentityMemberID(),
+		},
+	})
+	if err != nil || !decision.Allowed {
+		writeError(w, http.StatusForbidden, "agent_not_bound_to_worker",
+			"agent is not bound to this worker")
+		return nil, false
 	}
 	return a, true
 }

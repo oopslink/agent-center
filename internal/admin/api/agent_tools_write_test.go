@@ -88,6 +88,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	}
 	clk := clock.NewFakeClock(atNow)
 	gen := idgen.NewGenerator(clk)
+	seedAgentToolAuthzBase(t, db)
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)

@@ -105,7 +105,15 @@ func (s *Service) ShadowMetrics() ShadowMetrics {
 		Mismatches:     s.metrics.mismatches.Load(),
 		LegacyOnly:     s.metrics.legacyOnly.Load(),
 		EquivalentOnly: s.metrics.equivalentOnly.Load(),
+		ReadyToEnforce: s.ShadowReadyToEnforce(),
 	}
+}
+
+func (s *Service) ShadowReadyToEnforce() bool {
+	if s == nil {
+		return false
+	}
+	return s.metrics.checks.Load() > 0 && s.metrics.mismatches.Load() == 0
 }
 
 type effectiveCache struct {
@@ -177,6 +185,45 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, 
 	return exp.Decision, nil
 }
 
+func bearerOnlyDecision(req CheckRequest) (AccessDecision, bool) {
+	decision := AccessDecision{
+		SubjectRef: req.SubjectRef,
+		Permission: req.Permission,
+		Resource:   req.Resource,
+		Reason:     "permission_denied",
+	}
+	if strings.TrimSpace(req.BearerScope) == "" {
+		return decision, false
+	}
+	key, ok := PermissionForBearerScope(req.BearerScope)
+	if !ok {
+		return decision, false
+	}
+	if key != "*" && key != req.Permission {
+		return decision, false
+	}
+	r := req.Resource
+	if r.ID == "" {
+		r.ID = "*"
+	}
+	if r.Kind == "" {
+		return decision, false
+	}
+	if req.Permission != "*" && !PermissionDefinedForResource(req.Permission, r.Kind) {
+		return decision, false
+	}
+	decision.Allowed = true
+	decision.Resource = r
+	decision.Source = SourceAdminTokenScope
+	decision.Reason = "matched " + string(SourceAdminTokenScope)
+	if key == "*" {
+		decision.EvidenceRef = "admin_tokens:*"
+	} else {
+		decision.EvidenceRef = "admin_tokens:" + req.BearerScope
+	}
+	return decision, true
+}
+
 func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult, error) {
 	decision := AccessDecision{
 		SubjectRef: req.SubjectRef,
@@ -184,7 +231,7 @@ func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult,
 		Resource:   req.Resource,
 		Reason:     "permission_denied",
 	}
-	if s == nil || s.db == nil || s.store == nil {
+	if s == nil {
 		decision.Reason = "authorization_not_wired"
 		return ExplainResult{Decision: decision, DeniedBy: []string{"authorization service is not wired"}}, ErrDenied
 	}
@@ -203,6 +250,13 @@ func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult,
 	if strings.TrimSpace(string(req.Permission)) == "" {
 		decision.Reason = "permission_required"
 		return ExplainResult{Decision: decision, DeniedBy: []string{"permission is required"}}, ErrInvalid
+	}
+	if s.db == nil || s.store == nil {
+		if decision, ok := bearerOnlyDecision(req); ok {
+			return ExplainResult{Decision: decision}, nil
+		}
+		decision.Reason = "authorization_not_wired"
+		return ExplainResult{Decision: decision, DeniedBy: []string{"authorization service is not wired"}}, ErrDenied
 	}
 	resolved, denied, err := s.resolveResource(ctx, req.Resource)
 	if err != nil {
@@ -1055,6 +1109,12 @@ func (s *Service) effectiveVersion(ctx context.Context) (string, error) {
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || subject_ref || ':' || role_id || ':' || resource_kind || ':' || resource_id || ':' || version || ':' || COALESCE(revoked_at, '') || ':' || COALESCE(expires_at, '') AS v FROM authorization_role_assignments ORDER BY id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT role_id || ':' || permission_key || ':' || resource_kind || ':' || delegatable AS v FROM authorization_role_permissions ORDER BY role_id, permission_key, resource_kind)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || identity_id || ':' || role || ':' || created_at AS v FROM pm_project_members ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || COALESCE(assignee, '') || ':' || created_by || ':' || updated_at AS v FROM pm_tasks ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || updated_at AS v FROM pm_issues ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || updated_at AS v FROM pm_plans ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || COALESCE(owner_ref, '') || ':' || organization_id || ':' || participants || ':' || updated_at AS v FROM conversations ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT file_uri || ':' || scope || ':' || scope_id || ':' || COALESCE(deleted_at, '') AS v FROM file_references ORDER BY file_uri, scope, scope_id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || member_ref || ':' || role || ':' || created_at AS v FROM team_members ORDER BY team_id, member_ref)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || project_id || ':' || created_at AS v FROM team_projects ORDER BY team_id, project_id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || ram_role_id || ':' || created_at AS v FROM team_role_ram_role_mappings ORDER BY team_id, team_role, ram_role_id)`,
@@ -1914,7 +1974,7 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 			add("file.upload", SourceFileScope, evidence, false)
 			return nil
 		}
-		if s.fileRefReachable(ctx, subject, ref) {
+		if s.fileRefReachable(ctx, subject, r.OrgID, ref) {
 			evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
 			add("file.download", SourceFileScope, evidence, false)
 			add("file.attach", SourceFileScope, evidence, false)
@@ -1926,22 +1986,28 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 	return nil
 }
 
-func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, ref FileRef) bool {
+func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, orgID string, ref FileRef) bool {
+	allowed := func(exp ExplainResult) bool {
+		if !exp.Decision.Allowed {
+			return false
+		}
+		return orgID == "" || exp.Decision.Resource.OrgID == orgID || exp.ResolvedOrg == orgID
+	}
 	switch ref.Scope {
 	case "uploader":
 		return ref.ScopeID == string(subject)
 	case "conversation":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		return allowed(exp)
 	case "project":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		return allowed(exp)
 	case "task":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "task.read", Resource: ResourceScope{Kind: "task", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		return allowed(exp)
 	case "issue":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
-		return exp.Decision.Allowed
+		return allowed(exp)
 	default:
 		return false
 	}
@@ -2179,7 +2245,7 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		if r.URI == "" {
 			r.URI = r.ID
 		}
-		if r.URI == "" {
+		if r.URI == "" && len(r.Refs) == 0 {
 			return r, []string{"file uri required"}, ErrInvalid
 		}
 	case "agent":

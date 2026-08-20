@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/conversation"
 )
 
@@ -80,18 +81,28 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	if d.Authorizer != nil {
-		if !s.requireAgentConversationRead(w, r, d, a, req.ConversationID) {
-			return
-		}
-	} else if !agentIsActiveParticipant(conv, a) {
+	if d.Authorizer == nil {
+		writeAuthorizationError(w, authz.AccessDecision{
+			SubjectRef: authz.SubjectRef(agentActor(a)),
+			Permission: "conversation.read",
+			Resource:   authz.ResourceScope{Kind: "conversation", ID: req.ConversationID, OrgID: a.OrganizationID()},
+			Reason:     "authorization_not_wired",
+		}, authz.ErrDenied)
+		return
+	}
+	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(agentActor(a)),
+		Transport:  authz.TransportMCP,
+		Permission: "conversation.read",
+		Resource:   authz.ResourceScope{Kind: "conversation", ID: req.ConversationID, OrgID: a.OrganizationID()},
+	})
+	if err != nil || !decision.Allowed {
 		if conv.Kind() == conversation.ConversationKindChannel {
 			writeError(w, http.StatusForbidden, "not_a_channel_member",
 				"not a member of channel "+conv.Name()+" — ask an owner to add you before reading its history")
 			return
 		}
-		writeError(w, http.StatusForbidden, "not_a_participant",
-			"agent is not an active participant of this conversation")
+		writeAuthorizationError(w, decision, err)
 		return
 	}
 

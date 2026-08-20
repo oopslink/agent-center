@@ -43,6 +43,9 @@ func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 	if metrics := svc.ShadowMetrics(); metrics.Checks != int64(len(reqs)) || metrics.Mismatches != 0 {
 		t.Fatalf("shadow metrics after equivalent checks = %+v", metrics)
 	}
+	if metrics := svc.ShadowMetrics(); !metrics.ReadyToEnforce || !svc.ShadowReadyToEnforce() {
+		t.Fatalf("shadow diff=0 gate should be ready after equivalent checks: %+v", metrics)
+	}
 
 	enforced := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce})
 	for _, req := range reqs {
@@ -79,10 +82,32 @@ func TestT1411ShadowMetricsExposeLegacyEquivalentDrift(t *testing.T) {
 	if metrics.Checks != 1 || metrics.Mismatches != 1 || metrics.LegacyOnly == 0 {
 		t.Fatalf("shadow metrics did not capture drift: %+v", metrics)
 	}
+	if metrics.ReadyToEnforce || svc.ShadowReadyToEnforce() {
+		t.Fatalf("shadow diff gate must block enforce while mismatches exist: %+v", metrics)
+	}
 
 	enforced := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce})
 	if _, err := enforced.Check(ctx, req); !errors.Is(err, ErrDenied) {
 		t.Fatalf("enforce should fail closed on equivalent drift, err=%v", err)
+	}
+}
+
+func TestT1412ProjectMembershipRevokeInvalidatesCachedEffective(t *testing.T) {
+	ctx := context.Background()
+	db, base := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-1", "org-1")
+	seedProjectMember(t, db, "pm-cached", "project-1", "user:user-member", "member")
+
+	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
+	req := CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}}
+	if _, err := enforced.Check(ctx, req); err != nil {
+		t.Fatalf("warm project member cache: %v", err)
+	}
+	execMany(t, db, `DELETE FROM pm_project_members WHERE id='pm-cached'`)
+	decision, err := enforced.Check(ctx, req)
+	if !errors.Is(err, ErrDenied) || decision.Allowed {
+		t.Fatalf("project membership revoke must invalidate cached effective permissions, decision=%#v err=%v", decision, err)
 	}
 }
 
