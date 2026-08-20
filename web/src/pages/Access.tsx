@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
@@ -60,7 +61,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'roles' | 'subjects';
+type AccessView = 'ram-roles' | 'team-role-mappings' | 'subject-access';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -108,12 +109,20 @@ export default function Access(): React.ReactElement {
     orgResource,
     currentPermissions.isSuccess && !canManageAccess,
   );
-  const [view, setView] = useState<AccessView>('roles');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = parseAccessView(searchParams.get('view'));
   const [query, setQuery] = useState('');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
   const [status, setStatus] = useState<AccessStatus | 'all'>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const setView = (next: AccessView): void => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set('view', next);
+      return params;
+    }, { replace: true });
+  };
 
   const overview = useAccessOverview({
     q: query,
@@ -189,20 +198,30 @@ export default function Access(): React.ReactElement {
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'roles'}
-            className={segmentedClass(view === 'roles')}
-            onClick={() => setView('roles')}
-            data-testid="access-view-roles"
+            aria-selected={view === 'ram-roles'}
+            className={segmentedClass(view === 'ram-roles')}
+            onClick={() => setView('ram-roles')}
+            data-testid="access-view-ram-roles"
           >
-            Roles & mappings
+            RAM Roles
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'subjects'}
-            className={segmentedClass(view === 'subjects')}
-            onClick={() => setView('subjects')}
-            data-testid="access-view-subjects"
+            aria-selected={view === 'team-role-mappings'}
+            className={segmentedClass(view === 'team-role-mappings')}
+            onClick={() => setView('team-role-mappings')}
+            data-testid="access-view-team-role-mappings"
+          >
+            Team Role mappings
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'subject-access'}
+            className={segmentedClass(view === 'subject-access')}
+            onClick={() => setView('subject-access')}
+            data-testid="access-view-subject-access"
           >
             Subject access
           </button>
@@ -235,17 +254,22 @@ export default function Access(): React.ReactElement {
       {!overview.isLoading && !overview.isError && data && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
-            {view === 'roles' ? (
-              <>
-                <RAMRolesView catalog={data.catalog} canManageAccess={canManageAccess} />
-                <UnifiedRolesView
-                  roles={ramRoles.data?.roles ?? []}
-                  teams={teams.data ?? []}
-                  mappingEntries={mappingEntries}
-                  canManageAccess={canManageAccess}
-                />
-              </>
-            ) : (
+            {view === 'ram-roles' && (
+              <RAMRolesView
+                catalog={data.catalog}
+                mappingEntries={mappingEntries}
+                canManageAccess={canManageAccess}
+              />
+            )}
+            {view === 'team-role-mappings' && (
+              <TeamRoleMappingsView
+                roles={ramRoles.data?.roles ?? []}
+                teams={teams.data ?? []}
+                mappingEntries={mappingEntries}
+                canManageAccess={canManageAccess}
+              />
+            )}
+            {view === 'subject-access' && (
               <SubjectDecisionView
                 decisions={data.decisions}
                 subjectByRef={subjectByRef}
@@ -257,7 +281,7 @@ export default function Access(): React.ReactElement {
             <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
-            {view === 'subjects' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
+            {view === 'subject-access' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
             <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
           </aside>
         </div>
@@ -276,6 +300,11 @@ export default function Access(): React.ReactElement {
       )}
     </section>
   );
+}
+
+function parseAccessView(value: string | null): AccessView {
+  if (value === 'team-role-mappings' || value === 'subject-access') return value;
+  return 'ram-roles';
 }
 
 function AccessForbidden({ reason, status }: { reason: string; status: number }): React.ReactElement {
@@ -342,7 +371,15 @@ function Select({
   );
 }
 
-function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionDefinition[]; canManageAccess: boolean }): React.ReactElement {
+function RAMRolesView({
+  catalog,
+  mappingEntries,
+  canManageAccess,
+}: {
+  catalog: AccessPermissionDefinition[];
+  mappingEntries: MappingEntry[];
+  canManageAccess: boolean;
+}): React.ReactElement {
   const roles = useRAMRoles();
   const create = useRAMRoleCreate();
   const newVersion = useRAMRoleNewVersion();
@@ -356,6 +393,7 @@ function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionD
   const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
   const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
+  const mappedByRAMRole = useRAMRoleReferences(mappingEntries);
 
   const toggleDraftPermission = (permission: string): void => {
     setDraftPermissions((prev) => toggleValue(prev, permission).sort());
@@ -373,7 +411,7 @@ function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionD
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">Access roles</h2>
+          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
           <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
         </div>
         <div className="overflow-x-auto">
@@ -401,6 +439,9 @@ function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionD
                     <div className="font-semibold text-text-primary">{role.name}</div>
                     <div className="text-xs text-text-muted">{role.description}</div>
                     <div className="font-mono text-[0.6875rem] text-text-muted">{role.id}</div>
+                    <div className="mt-1 text-[0.6875rem] text-text-muted">
+                      Referenced by {(mappedByRAMRole.get(role.id) ?? []).length} Team Roles
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{role.version}</td>
                   <td className="px-4 py-3"><AccessRiskBadge risk={role.risk} /></td>
@@ -448,6 +489,12 @@ function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionD
               <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
                 <div className="font-semibold text-text-primary">{detail.data.name}</div>
                 <div className="text-xs text-text-muted">Latest v{detail.data.latest.version}</div>
+                <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
+                  Referenced by:{' '}
+                  {(mappedByRAMRole.get(detail.data.id) ?? []).length === 0
+                    ? 'None'
+                    : (mappedByRAMRole.get(detail.data.id) ?? []).map(({ team, role }) => `${team.name} / ${role}`).join(', ')}
+                </div>
               </div>
               <div className="mt-3 space-y-2" data-testid="access-role-versions">
                 {detail.data.versions.map((version) => (
@@ -486,7 +533,7 @@ function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionD
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                   disabled={!canManageAccess || !selected || !latest || detail.data?.kind !== 'custom' || revoke.isPending}
                   data-testid="access-role-disable-submit"
-                  onClick={() => selected && latest && revoke.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role retired' })}
+                  onClick={() => selected && latest && revoke.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role revoked after reference-impact review' })}
                 >
                   Revoke
                 </button>
@@ -548,7 +595,7 @@ type MemberEntry = {
   query: { data?: import('@/api/teams').MemberView[]; isLoading: boolean; isError: boolean };
 };
 
-function UnifiedRolesView({
+function TeamRoleMappingsView({
   roles,
   teams,
   mappingEntries,
@@ -559,50 +606,8 @@ function UnifiedRolesView({
   mappingEntries: MappingEntry[];
   canManageAccess: boolean;
 }): React.ReactElement {
-  const mappedByRAMRole = useMemo(() => {
-    const result = new Map<string, Array<{ team: TeamView; role: string }>>();
-    for (const entry of mappingEntries) {
-      for (const roleID of entry.query.data?.ram_role_ids ?? []) {
-        const current = result.get(roleID) ?? [];
-        current.push({ team: entry.team, role: entry.role });
-        result.set(roleID, current);
-      }
-    }
-    return result;
-  }, [mappingEntries]);
-
   return (
-    <div className="space-y-4" data-testid="access-unified-roles-view">
-      <section className="rounded border border-border-base bg-bg-elevated">
-        <div className="border-b border-border-base px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
-          <p className="mt-1 text-xs text-text-muted">Permission bundles and the Team Roles that currently resolve to them.</p>
-        </div>
-        <div className="grid gap-3 p-4 md:grid-cols-2">
-          {roles.map((role) => (
-            <article key={role.id} className="rounded border border-border-base bg-bg-base p-3" data-testid={`access-ram-role-${role.id}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-semibold text-text-primary">{role.name}</h3>
-                  <p className="font-mono text-xs text-text-muted">{role.id}</p>
-                </div>
-                <AccessRiskBadge risk={role.risk} />
-              </div>
-              <p className="mt-2 text-xs text-text-secondary">{role.description}</p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {role.permissions.map((permission) => <AccessMetaPill key={permission}>{permission}</AccessMetaPill>)}
-              </div>
-              <div className="mt-3 border-t border-border-base pt-2 text-xs text-text-muted">
-                <span className="font-semibold text-text-secondary">Used by Team Roles:</span>{' '}
-                {(mappedByRAMRole.get(role.id) ?? []).length === 0
-                  ? 'None'
-                  : (mappedByRAMRole.get(role.id) ?? []).map(({ team, role: teamRole }) => `${team.name} / ${teamRole}`).join(', ')}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
+    <div className="space-y-4" data-testid="access-team-role-mappings-view">
       <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-team-role-mappings">
         <div className="border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">Team Role mappings</h2>
@@ -620,6 +625,20 @@ function UnifiedRolesView({
       </section>
     </div>
   );
+}
+
+function useRAMRoleReferences(mappingEntries: MappingEntry[]): Map<string, Array<{ team: TeamView; role: string }>> {
+  return useMemo(() => {
+    const result = new Map<string, Array<{ team: TeamView; role: string }>>();
+    for (const entry of mappingEntries) {
+      for (const roleID of entry.query.data?.ram_role_ids ?? []) {
+        const current = result.get(roleID) ?? [];
+        current.push({ team: entry.team, role: entry.role });
+        result.set(roleID, current);
+      }
+    }
+    return result;
+  }, [mappingEntries]);
 }
 
 function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingEntry; roles: RAMRole[]; canManageAccess: boolean }): React.ReactElement {

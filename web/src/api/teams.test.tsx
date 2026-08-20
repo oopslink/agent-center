@@ -26,7 +26,12 @@ describe('teams api (fixture-backed)', () => {
     const env = exportTemplateEnvelope(t) as Record<string, unknown>;
     expect(env.format).toBe('team-template/v1');
     expect(env.source_id).toBe(t.id);
+    expect(env.source_org_id).toBe(t.org_id);
     expect(Array.isArray(env.roles)).toBe(true);
+    const roles = env.roles as Array<Record<string, unknown>>;
+    expect(roles[0].ram_role_keys).toEqual(t.roles[0].ram_role_keys ?? []);
+    expect(roles[0]).not.toHaveProperty('access_profile_keys');
+    expect(roles[0]).not.toHaveProperty('access_profile_ids');
   });
 
   it('useTeams resolves the seeded list', async () => {

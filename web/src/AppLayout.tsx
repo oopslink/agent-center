@@ -207,7 +207,9 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       ] }];
     case 'access':
       return [{ label: 'Access', items: [
-        { to: p('access'), label: 'Access overview', Icon: AccessIcon },
+        { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
+        { to: `${p('access')}?view=team-role-mappings`, label: 'Team Role mappings', Icon: AccessIcon },
+        { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: AccessIcon },
       ] }];
     case 'system':
       return [{ label: 'System', items: [

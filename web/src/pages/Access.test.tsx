@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
+import { BrowserRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { useAppStore } from '@/store/app';
 import Access from './Access';
@@ -12,7 +13,9 @@ function renderPage(path = '/organizations/test/access', currentUserId = 'user:h
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <Access />
+      <BrowserRouter>
+        <Access />
+      </BrowserRouter>
     </QueryClientProvider>,
   );
 }
@@ -23,18 +26,30 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('defaults to RAM Roles and Team Role mappings, then exposes expandable subject access', async () => {
+  it('defaults to RAM Roles and exposes only the three Access views', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     expect(await screen.findByText('Permission catalog')).toBeInTheDocument();
-    expect(screen.getByTestId('access-unified-roles-view')).toBeInTheDocument();
-    expect(screen.getByText('RAM Roles')).toBeInTheDocument();
-    expect(screen.getByText('Team Role mappings')).toBeInTheDocument();
-    expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
-    expect(screen.getByTestId('access-ram-role-team-basic')).toHaveTextContent('Used by Team Roles');
+    expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'RAM Roles' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Team Role mappings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Subject access' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Profiles/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByTestId('access-view-subjects'));
+  it('opens Team Role mappings from the dedicated Access view, then exposes expandable subject access', async () => {
+    renderPage('/organizations/test/access?view=team-role-mappings');
+    expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Team Role mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByTestId('access-team-role-mappings-view')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Team Role mappings' })).toBeInTheDocument();
+    expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
+
+    fireEvent.click(screen.getByTestId('access-view-subject-access'));
     expect(await screen.findByTestId('access-subject-view')).toBeInTheDocument();
+    expect(window.location.search).toBe('?view=subject-access');
     expect(screen.getByTestId('access-subject-view')).toBeInTheDocument();
     expect(screen.getAllByText('High risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No access').length).toBeGreaterThan(0);
@@ -68,6 +83,7 @@ describe('Access page', () => {
       }),
     );
     renderPage();
+    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     expect(within(row).queryByRole('checkbox')).toBeNull();
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
@@ -98,6 +114,7 @@ describe('Access page', () => {
       })),
     );
     renderPage();
+    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
     const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
@@ -110,7 +127,7 @@ describe('Access page', () => {
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-unified-roles-view');
+    await screen.findByTestId('access-roles-view');
     fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
@@ -283,8 +300,8 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-unified-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-roles'));
+    await screen.findByTestId('access-roles-view');
+    fireEvent.click(screen.getByTestId('access-view-ram-roles'));
 
     const view = await screen.findByTestId('access-roles-view');
     expect(await within(view).findByTestId('access-role-row-team-curator')).toHaveTextContent('v2');
@@ -353,8 +370,8 @@ describe('Access page', () => {
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-unified-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-roles'));
+    await screen.findByTestId('access-roles-view');
+    fireEvent.click(screen.getByTestId('access-view-ram-roles'));
 
     const view = await screen.findByTestId('access-roles-view');
     fireEvent.click(await within(view).findByTestId('access-role-row-role-cas'));
