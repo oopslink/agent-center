@@ -709,18 +709,18 @@ function accessHandlers() {
         resolved_org: 'org-test',
       });
     }),
-    http.get('/api/access/profiles', () => ok({
-      profiles: [
-        { id: 'team-basic', name: 'Team basic', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
-        { id: 'team-contributor', name: 'Team contributor', version: 1, description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
-        { id: 'team-curator', name: 'Team curator', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
+    http.get('/api/access/ram-roles', () => ok({
+      roles: [
+        { id: 'team-basic', name: 'Team basic', kind: 'system', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
+        { id: 'team-contributor', name: 'Team contributor', kind: 'system', version: 1, description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
+        { id: 'team-curator', name: 'Team curator', kind: 'system', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
       ],
     })),
-    http.get('/api/access/profiles/:id', ({ params }) => {
+    http.get('/api/access/ram-roles/:id', ({ params }) => {
       const id = String(params.id);
       const base = id === 'team-contributor'
-        ? { id, name: 'Team contributor', description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] }
-        : { id, name: 'Team curator', description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] };
+        ? { id, name: 'Team contributor', kind: 'system', description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] }
+        : { id, name: 'Team curator', kind: 'system', description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] };
       const versions = id === 'team-curator'
         ? [
             { ...base, version: 2, risk: 'high' },
@@ -729,16 +729,17 @@ function accessHandlers() {
         : [{ ...base, version: 1, risk: 'medium' }];
       return ok({ ...base, latest: versions[0], versions });
     }),
-    http.post('/api/access/profiles', async ({ request }) => {
+    http.post('/api/access/ram-roles', async ({ request }) => {
       const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
-      const latest = { id: 'profile-created', name: body.name, description: body.description ?? '', version: 1, permissions: body.permissions, risk: 'medium' };
-      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest] }, 201);
+      const latest = { id: 'role-created', name: body.name, kind: 'custom', description: body.description ?? '', version: 1, permissions: body.permissions, risk: 'medium' };
+      return ok({ id: latest.id, name: latest.name, kind: latest.kind, description: latest.description, latest, versions: [latest] }, 201);
     }),
-    http.post('/api/access/profiles/:id/versions', async ({ params, request }) => {
+    http.post('/api/access/ram-roles/:id/versions', async ({ params, request }) => {
       const body = (await request.json()) as { permissions: string[] };
-      const latest = { id: String(params.id), name: 'Team contributor', description: 'Read/write team work and propose memory.', version: 2, permissions: body.permissions, risk: 'high' };
-      return ok({ id: latest.id, name: latest.name, description: latest.description, latest, versions: [latest, { ...latest, version: 1, permissions: ['team.read'], risk: 'low' }] }, 201);
+      const latest = { id: String(params.id), name: 'Team contributor', kind: 'custom', description: 'Read/write team work and propose memory.', version: 2, permissions: body.permissions, risk: 'high' };
+      return ok({ id: latest.id, name: latest.name, kind: latest.kind, description: latest.description, latest, versions: [latest, { ...latest, version: 1, permissions: ['team.read'], risk: 'low' }] }, 201);
     }),
+    http.post('/api/access/ram-roles/:id/revoke', () => new HttpResponse(null, { status: 204 })),
     http.post('/api/access/batch/preview', async ({ request }) => {
       const body = (await request.json()) as BatchRequest;
       const items = makeItems(body);

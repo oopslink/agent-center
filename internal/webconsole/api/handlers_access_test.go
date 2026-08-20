@@ -251,35 +251,35 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	resp.Body.Close()
 }
 
-func TestAccessProfilesPersistVersionsAndCAS(t *testing.T) {
+func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedGet(t, server.URL+"/api/access/profiles", sess)
+	resp := orgScopedGet(t, server.URL+"/api/access/ram-roles", sess)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("list profiles status=%d", resp.StatusCode)
+		t.Fatalf("list RAM roles status=%d", resp.StatusCode)
 	}
 	var listed struct {
-		Profiles []struct {
+		Roles []struct {
 			ID      string   `json:"id"`
 			Version int      `json:"version"`
 			Perms   []string `json:"permissions"`
-		} `json:"profiles"`
+		} `json:"roles"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if len(listed.Profiles) == 0 || listed.Profiles[0].Version == 0 || len(listed.Profiles[0].Perms) == 0 {
-		t.Fatalf("seeded persistent profiles missing: %+v", listed.Profiles)
+	if len(listed.Roles) == 0 || listed.Roles[0].Version == 0 || len(listed.Roles[0].Perms) == 0 {
+		t.Fatalf("seeded persistent RAM roles missing: %+v", listed.Roles)
 	}
 
 	createBody := `{"name":"Release operator","description":"ship access","permissions":["team.read","team.write"]}`
-	resp = orgScopedPost(t, server.URL+"/api/access/profiles", createBody, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", createBody, sess)
 	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("create profile status=%d", resp.StatusCode)
+		t.Fatalf("create RAM role status=%d", resp.StatusCode)
 	}
 	var created struct {
 		ID     string `json:"id"`
@@ -297,16 +297,16 @@ func TestAccessProfilesPersistVersionsAndCAS(t *testing.T) {
 	}
 	resp.Body.Close()
 	if created.ID == "" || created.Latest.Version != 1 || len(created.Versions) != 1 {
-		t.Fatalf("created profile shape wrong: %+v", created)
+		t.Fatalf("created RAM role shape wrong: %+v", created)
 	}
 
-	stale := orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
+	stale := orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
 	if stale.StatusCode != http.StatusConflict {
 		t.Fatalf("stale new-version status=%d want 409", stale.StatusCode)
 	}
 	stale.Body.Close()
 
-	resp = orgScopedPost(t, server.URL+"/api/access/profiles/"+created.ID+"/versions", `{"expected_latest_version":1,"permissions":["team.read","team.memory.review"]}`, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"expected_latest_version":1,"permissions":["team.read","team.memory.review"]}`, sess)
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("new-version status=%d", resp.StatusCode)
 	}
@@ -331,13 +331,27 @@ func TestAccessProfilesPersistVersionsAndCAS(t *testing.T) {
 	if len(updated.Versions[1].Perms) != 2 {
 		t.Fatalf("v1 mutated; versions must be immutable: %+v", updated.Versions)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/revoke", `{"expected_latest_version":1,"reason":"stale"}`, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale revoke status=%d want 409", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/revoke", `{"expected_latest_version":2,"reason":"done"}`, sess)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("revoke status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	resp.Body.Close()
+	var auditCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_audit_events WHERE event_type = 'authorization.ram_role.revoked' AND role_id = ?`, created.ID).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("RAM role revoke audit count=%d err=%v", auditCount, err)
+	}
 
 	if _, err := db.Exec(`UPDATE members SET role='member' WHERE identity_id=?`, sess.IdentityID); err != nil {
 		t.Fatal(err)
 	}
-	resp = orgScopedPost(t, server.URL+"/api/access/profiles", `{"name":"Blocked","permissions":["team.read"]}`, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Blocked","permissions":["team.read"]}`, sess)
 	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("member create profile status=%d want 403", resp.StatusCode)
+		t.Fatalf("member create RAM role status=%d want 403", resp.StatusCode)
 	}
 	resp.Body.Close()
 }

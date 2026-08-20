@@ -82,8 +82,8 @@ describe('Teams list', () => {
     expect(within(modal).getByTestId('new-team-role-2')).toBeInTheDocument();
     fireEvent.click(within(modal).getByTestId('new-team-role-2-remove'));
 
-    const profile = await within(modal).findByTestId('new-team-role-0-access-profile');
-    fireEvent.change(profile, { target: { value: 'team-contributor@1' } });
+    const role = await within(modal).findByTestId('new-team-role-0-access-role');
+    fireEvent.change(role, { target: { value: 'team-contributor@1' } });
     expect(within(modal).getByTestId('new-team-role-0-access-permissions')).toHaveTextContent('team.memory.propose');
 
     fireEvent.change(await within(modal).findByTestId('new-team-assignment-subject'), { target: { value: 'agent:agent-d5' } });
@@ -106,7 +106,7 @@ describe('Teams list', () => {
           revision: 1,
           clis: [{ id: 'cli-codex', key: 'codex', display_name: 'Codex', executable: 'codex', enabled: true }],
           models: [{ id: 'model-gpt', key: 'gpt', model_key: 'gpt-5', display_name: 'GPT-5', compatible_cli_keys: ['codex'], enabled: true }],
-          profiles: [],
+          roles: [],
         }),
       ),
     );

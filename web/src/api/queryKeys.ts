@@ -110,8 +110,8 @@ export const qk = {
   aiRuntimeCatalog: () => o('ai-runtime'),
   accessOverview: (filters?: unknown) =>
     filters === undefined ? o('access', 'overview') : o('access', 'overview', filters ?? null),
-  accessProfiles: () => o('access', 'profiles'),
-  accessProfile: (id: string) => o('access', 'profiles', id),
+  ramRoles: () => o('access', 'ram-roles'),
+  ramRole: (id: string) => o('access', 'ram-roles', id),
   permissions: () => o('permissions'),
   permissionDefinitions: () => o('permissions', 'definitions'),
   permissionEffective: (subjectRef: string, resourceKey: string) =>

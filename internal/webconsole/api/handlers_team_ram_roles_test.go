@@ -80,20 +80,20 @@ func TestTeamBasicRAMRoleHTTP_CreatePreviewReplaceAndImmediateAuthz(t *testing.T
 	ts := newTestServer(t, deps)
 	defer ts.Close()
 
-	profiles := orgScopedGet(t, ts.URL+"/api/access/profiles", sess)
-	if profiles.StatusCode != http.StatusOK {
-		t.Fatalf("profiles=%d body=%v", profiles.StatusCode, decodeBody(t, profiles))
+	rolesResp := orgScopedGet(t, ts.URL+"/api/access/ram-roles", sess)
+	if rolesResp.StatusCode != http.StatusOK {
+		t.Fatalf("ram roles=%d body=%v", rolesResp.StatusCode, decodeBody(t, rolesResp))
 	}
-	profilesBody := decodeBody(t, profiles)
+	rolesBody := decodeBody(t, rolesResp)
 	foundTeamBasic := false
-	for _, raw := range profilesBody["profiles"].([]any) {
+	for _, raw := range rolesBody["roles"].([]any) {
 		p := raw.(map[string]any)
 		if p["id"] == "team-basic" && p["name"] == "Team basic" && p["version"] == float64(1) {
 			foundTeamBasic = true
 		}
 	}
 	if !foundTeamBasic {
-		t.Fatalf("/access/profiles did not expose Team basic v1: %#v", profilesBody)
+		t.Fatalf("/access/ram-roles did not expose Team basic v1: %#v", rolesBody)
 	}
 
 	create := orgScopedPost(t, ts.URL+"/api/teams", `{"name":"Team Basic Contract","description":"ram","visibility":"org-private","roles":[{"role":"dev","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team basic"],"access_requirements":["team.read","team.memory.read"]}]}`, sess)

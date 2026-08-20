@@ -59,31 +59,38 @@ type accessRoleDTO struct {
 	HighRisk    bool     `json:"high_risk,omitempty"`
 }
 
-type accessProfileDTO struct {
+type accessRAMRoleDTO struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Version     int      `json:"version"`
+	Kind        string   `json:"kind"`
 	Description string   `json:"description"`
 	Permissions []string `json:"permissions"`
 	Risk        string   `json:"risk"`
-	DisabledAt  *string  `json:"disabled_at,omitempty"`
+	RevokedAt   *string  `json:"revoked_at,omitempty"`
 	CreatedAt   string   `json:"created_at,omitempty"`
 }
 
-type accessProfileDetailDTO struct {
+type accessRAMRoleDetailDTO struct {
 	ID          string             `json:"id"`
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
-	DisabledAt  *string            `json:"disabled_at,omitempty"`
-	Latest      accessProfileDTO   `json:"latest"`
-	Versions    []accessProfileDTO `json:"versions"`
+	Kind        string             `json:"kind"`
+	RevokedAt   *string            `json:"revoked_at,omitempty"`
+	Latest      accessRAMRoleDTO   `json:"latest"`
+	Versions    []accessRAMRoleDTO `json:"versions"`
 }
 
-type accessProfileWriteDTO struct {
+type accessRAMRoleWriteDTO struct {
 	Name                  string   `json:"name"`
 	Description           string   `json:"description"`
 	Permissions           []string `json:"permissions"`
 	ExpectedLatestVersion *int     `json:"expected_latest_version,omitempty"`
+}
+
+type accessRAMRoleRevokeDTO struct {
+	ExpectedLatestVersion *int   `json:"expected_latest_version,omitempty"`
+	Reason                string `json:"reason,omitempty"`
 }
 
 type accessDecisionDTO struct {
@@ -350,314 +357,366 @@ func (s *Server) accessEffectiveHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (s *Server) accessProfilesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) accessRAMRolesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	if d.DB == nil {
-		writeError(w, http.StatusNotImplemented, "access_profiles_not_wired", "access profile store not wired")
+		writeError(w, http.StatusNotImplemented, "ram_roles_not_wired", "RAM role store not wired")
 		return
 	}
-	profiles, err := accessListProfiles(r.Context(), d.DB, orgID)
+	roles, err := accessListRAMRoles(r.Context(), d.DB, orgID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "access_profiles_failed", err.Error())
+		writeError(w, http.StatusInternalServerError, "ram_roles_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profiles": profiles})
+	writeJSON(w, http.StatusOK, map[string]any{"roles": roles})
 }
 
-func (s *Server) accessProfileDetailHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) accessRAMRoleDetailHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	detail, found, err := accessProfileDetail(r.Context(), d.DB, orgID, r.PathValue("id"))
+	detail, found, err := accessRAMRoleDetail(r.Context(), d.DB, orgID, r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
+		writeError(w, http.StatusInternalServerError, "ram_role_failed", err.Error())
 		return
 	}
 	if !found {
-		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
+		writeError(w, http.StatusNotFound, "not_found", "RAM role not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, detail)
 }
 
-func (s *Server) accessProfileCreateHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) accessRAMRoleCreateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	if !member.Role().AtLeast(identity.RoleAdmin) {
-		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage RAM roles")
 		return
 	}
-	var body accessProfileWriteDTO
+	var body accessRAMRoleWriteDTO
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	profile, err := accessCreateProfile(r.Context(), d.DB, orgID, string(authz.UserSubject(caller.ID())), body)
+	role, err := accessCreateRAMRole(r.Context(), d.DB, orgID, string(authz.UserSubject(caller.ID())), body)
 	if err != nil {
-		writeAccessProfileWriteError(w, err)
+		writeAccessRAMRoleWriteError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, profile)
+	writeJSON(w, http.StatusCreated, role)
 }
 
-func (s *Server) accessProfileNewVersionHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) accessRAMRoleNewVersionHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	if !member.Role().AtLeast(identity.RoleAdmin) {
-		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage RAM roles")
 		return
 	}
-	var body accessProfileWriteDTO
+	var body accessRAMRoleWriteDTO
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	profile, err := accessCreateProfileVersion(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body)
+	role, err := accessCreateRAMRoleVersion(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body)
 	if err != nil {
-		writeAccessProfileWriteError(w, err)
+		writeAccessRAMRoleWriteError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, profile)
+	writeJSON(w, http.StatusCreated, role)
 }
 
-func (s *Server) accessProfileDisableHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) accessRAMRoleRevokeHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, member, orgID, ok := requireOrgMember(w, r, d)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
 	if !member.Role().AtLeast(identity.RoleAdmin) {
-		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage access profiles")
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage RAM roles")
 		return
 	}
-	if err := accessDisableProfile(r.Context(), d.DB, orgID, r.PathValue("id")); err != nil {
-		writeAccessProfileWriteError(w, err)
+	var body accessRAMRoleRevokeDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	if err := accessRevokeRAMRole(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body); err != nil {
+		writeAccessRAMRoleWriteError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 var (
-	errAccessProfileNotFound = errors.New("access profile not found")
-	errAccessProfileConflict = errors.New("access profile version conflict")
-	errAccessProfileInvalid  = errors.New("invalid access profile")
+	errAccessRAMRoleNotFound   = errors.New("RAM role not found")
+	errAccessRAMRoleConflict   = errors.New("RAM role version conflict")
+	errAccessRAMRoleInvalid    = errors.New("invalid RAM role")
+	errAccessRAMRoleReferenced = errors.New("RAM role is still referenced")
 )
 
-func accessListProfiles(ctx context.Context, db *sql.DB, orgID string) ([]accessProfileDTO, error) {
+func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
-		FROM access_profiles p
-		JOIN access_profile_versions v ON v.profile_id = p.id
-		JOIN (
-			SELECT profile_id, MAX(version) AS version
-			FROM access_profile_versions
-			GROUP BY profile_id
-		) latest ON latest.profile_id = v.profile_id AND latest.version = v.version
-		WHERE p.org_id IN ('', ?) AND p.disabled_at IS NULL
-		ORDER BY p.name, p.id`, orgID)
+		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at
+		FROM authorization_roles ar
+		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
+		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL
+		ORDER BY ar.name, ar.id`, orgID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []accessProfileDTO
+	var out []accessRAMRoleDTO
+	var missingPermissions []int
 	for rows.Next() {
-		profile, err := scanAccessProfileVersion(rows)
+		role, err := scanAccessRAMRoleVersion(rows)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, profile)
+		if len(role.Permissions) == 0 {
+			missingPermissions = append(missingPermissions, len(out))
+		}
+		out = append(out, role)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for _, idx := range missingPermissions {
+		out[idx].Permissions = accessRAMRoleCurrentPermissions(ctx, db, out[idx].ID)
+		out[idx].Risk = accessPermissionsRisk(out[idx].Permissions)
+	}
+	return out, nil
 }
 
-func accessProfileDetail(ctx context.Context, db *sql.DB, orgID, profileID string) (accessProfileDetailDTO, bool, error) {
+func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) (accessRAMRoleDetailDTO, bool, error) {
 	if db == nil {
-		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+		return accessRAMRoleDetailDTO{}, false, errAccessRAMRoleNotFound
 	}
-	var detail accessProfileDetailDTO
-	var disabled sql.NullString
+	var detail accessRAMRoleDetailDTO
+	var revoked sql.NullString
 	err := db.QueryRowContext(ctx, `
-		SELECT id, name, description, disabled_at
-		FROM access_profiles
-		WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).
-		Scan(&detail.ID, &detail.Name, &detail.Description, &disabled)
+		SELECT id, name, kind, description, revoked_at
+		FROM authorization_roles
+		WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).
+		Scan(&detail.ID, &detail.Name, &detail.Kind, &detail.Description, &revoked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return accessProfileDetailDTO{}, false, nil
+			return accessRAMRoleDetailDTO{}, false, nil
 		}
-		return accessProfileDetailDTO{}, false, err
+		return accessRAMRoleDetailDTO{}, false, err
 	}
-	if disabled.Valid {
-		detail.DisabledAt = &disabled.String
+	if revoked.Valid {
+		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.disabled_at, v.version, v.permissions_json, v.risk, v.created_at
-		FROM access_profiles p
-		JOIN access_profile_versions v ON v.profile_id = p.id
-		WHERE p.id = ?
-		ORDER BY v.version DESC`, profileID)
+		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at
+		FROM authorization_roles ar
+		JOIN authorization_role_versions v ON v.role_id = ar.id
+		WHERE ar.id = ?
+		ORDER BY v.version DESC`, roleID)
 	if err != nil {
-		return accessProfileDetailDTO{}, false, err
+		return accessRAMRoleDetailDTO{}, false, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		version, err := scanAccessProfileVersion(rows)
+		version, err := scanAccessRAMRoleVersion(rows)
 		if err != nil {
-			return accessProfileDetailDTO{}, false, err
+			return accessRAMRoleDetailDTO{}, false, err
 		}
 		detail.Versions = append(detail.Versions, version)
 	}
 	if err := rows.Err(); err != nil {
-		return accessProfileDetailDTO{}, false, err
+		return accessRAMRoleDetailDTO{}, false, err
 	}
 	if len(detail.Versions) == 0 {
-		return accessProfileDetailDTO{}, false, errAccessProfileNotFound
+		current := accessRAMRoleDTO{ID: detail.ID, Name: detail.Name, Kind: detail.Kind, Description: detail.Description, Version: 1, Permissions: accessRAMRoleCurrentPermissions(ctx, db, roleID)}
+		current.Risk = accessPermissionsRisk(current.Permissions)
+		detail.Versions = []accessRAMRoleDTO{current}
 	}
 	detail.Latest = detail.Versions[0]
 	return detail, true, nil
 }
 
-type accessProfileScanner interface {
+type accessRAMRoleScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanAccessProfileVersion(row accessProfileScanner) (accessProfileDTO, error) {
-	var profile accessProfileDTO
+func scanAccessRAMRoleVersion(row accessRAMRoleScanner) (accessRAMRoleDTO, error) {
+	var role accessRAMRoleDTO
 	var permissionsJSON string
-	var disabled sql.NullString
-	if err := row.Scan(&profile.ID, &profile.Name, &profile.Description, &disabled, &profile.Version, &permissionsJSON, &profile.Risk, &profile.CreatedAt); err != nil {
-		return accessProfileDTO{}, err
+	var revoked sql.NullString
+	if err := row.Scan(&role.ID, &role.Name, &role.Kind, &role.Description, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt); err != nil {
+		return accessRAMRoleDTO{}, err
 	}
-	if disabled.Valid {
-		profile.DisabledAt = &disabled.String
+	if revoked.Valid {
+		role.RevokedAt = &revoked.String
 	}
-	if err := json.Unmarshal([]byte(permissionsJSON), &profile.Permissions); err != nil {
-		return accessProfileDTO{}, err
+	if err := json.Unmarshal([]byte(permissionsJSON), &role.Permissions); err != nil {
+		return accessRAMRoleDTO{}, err
 	}
-	return profile, nil
+	return role, nil
 }
 
-func accessCreateProfile(ctx context.Context, db *sql.DB, orgID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
+func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, body accessRAMRoleWriteDTO) (accessRAMRoleDetailDTO, error) {
 	name := strings.TrimSpace(body.Name)
 	if name == "" {
-		return accessProfileDetailDTO{}, errAccessProfileInvalid
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
 	}
-	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+	permissions, risk, err := normalizeAccessRAMRolePermissions(body.Permissions)
 	if err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
-	id := "profile-" + accessHash(orgID+"|"+name+"|"+time.Now().UTC().Format(time.RFC3339Nano))
+	id := "role-" + accessHash(orgID+"|"+name+"|"+time.Now().UTC().Format(time.RFC3339Nano))
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO access_profiles (id, org_id, name, description, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`, id, orgID, name, strings.TrimSpace(body.Description), actor, now, now); err != nil {
-		return accessProfileDetailDTO{}, err
+		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, 1)`, id, orgID, name, strings.TrimSpace(body.Description), actor, now, now); err != nil {
+		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertAccessProfileVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
-		return accessProfileDetailDTO{}, err
+	if err := replaceRAMRolePermissionRows(ctx, tx, id, permissions, now); err != nil {
+		return accessRAMRoleDetailDTO{}, err
+	}
+	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
+		return accessRAMRoleDetailDTO{}, err
+	}
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.created", actor, id, "", map[string]any{"name": name, "permissions": permissions}); err != nil {
+		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
-	detail, _, err := accessProfileDetail(ctx, db, orgID, id)
+	detail, _, err := accessRAMRoleDetail(ctx, db, orgID, id)
 	return detail, err
 }
 
-func accessCreateProfileVersion(ctx context.Context, db *sql.DB, orgID, profileID, actor string, body accessProfileWriteDTO) (accessProfileDetailDTO, error) {
-	permissions, risk, err := normalizeAccessProfilePermissions(body.Permissions)
+func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, actor string, body accessRAMRoleWriteDTO) (accessRAMRoleDetailDTO, error) {
+	permissions, risk, err := normalizeAccessRAMRolePermissions(body.Permissions)
 	if err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
 	defer tx.Rollback()
-	var ownerOrg string
-	var disabled sql.NullString
-	if err := tx.QueryRowContext(ctx, `SELECT org_id, disabled_at FROM access_profiles WHERE id = ? AND org_id IN ('', ?)`, profileID, orgID).Scan(&ownerOrg, &disabled); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return accessProfileDetailDTO{}, errAccessProfileNotFound
-		}
-		return accessProfileDetailDTO{}, err
-	}
-	if ownerOrg == "" {
-		return accessProfileDetailDTO{}, errAccessProfileInvalid
-	}
-	if disabled.Valid {
-		return accessProfileDetailDTO{}, errAccessProfileInvalid
-	}
+	var ownerOrg, kind string
+	var revoked sql.NullString
 	var latest int
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM access_profile_versions WHERE profile_id = ?`, profileID).Scan(&latest); err != nil {
-		return accessProfileDetailDTO{}, err
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return accessRAMRoleDetailDTO{}, errAccessRAMRoleNotFound
+		}
+		return accessRAMRoleDetailDTO{}, err
+	}
+	if ownerOrg == "" || kind != "custom" {
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
+	}
+	if revoked.Valid {
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
 	}
 	if body.ExpectedLatestVersion == nil || *body.ExpectedLatestVersion != latest {
-		return accessProfileDetailDTO{}, errAccessProfileConflict
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleConflict
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if err := insertAccessProfileVersion(ctx, tx, profileID, latest+1, permissions, risk, actor, now); err != nil {
-		return accessProfileDetailDTO{}, err
+	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, now, roleID, latest); err != nil {
+		return accessRAMRoleDetailDTO{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE access_profiles SET updated_at = ? WHERE id = ?`, now, profileID); err != nil {
-		return accessProfileDetailDTO{}, err
+	if err := replaceRAMRolePermissionRows(ctx, tx, roleID, permissions, now); err != nil {
+		return accessRAMRoleDetailDTO{}, err
+	}
+	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, permissions, risk, actor, now); err != nil {
+		return accessRAMRoleDetailDTO{}, err
+	}
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "permissions": permissions}); err != nil {
+		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return accessProfileDetailDTO{}, err
+		return accessRAMRoleDetailDTO{}, err
 	}
-	detail, _, err := accessProfileDetail(ctx, db, orgID, profileID)
+	detail, _, err := accessRAMRoleDetail(ctx, db, orgID, roleID)
 	return detail, err
 }
 
-func insertAccessProfileVersion(ctx context.Context, exec interface {
+func insertAccessRAMRoleVersion(ctx context.Context, exec interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, profileID string, version int, permissions []string, risk, actor, now string) error {
+}, roleID string, version int, permissions []string, risk, actor, now string) error {
 	raw, err := json.Marshal(permissions)
 	if err != nil {
 		return err
 	}
 	_, err = exec.ExecContext(ctx, `
-		INSERT INTO access_profile_versions (profile_id, version, permissions_json, risk, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, profileID, version, string(raw), risk, actor, now)
+		INSERT INTO authorization_role_versions (role_id, version, permissions_json, risk, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, roleID, version, string(raw), risk, actor, now)
 	return err
 }
 
-func accessDisableProfile(ctx context.Context, db *sql.DB, orgID, profileID string) error {
+func accessRevokeRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor string, body accessRAMRoleRevokeDTO) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	res, err := db.ExecContext(ctx, `
-		UPDATE access_profiles
-		SET disabled_at = ?, updated_at = ?
-		WHERE id = ? AND org_id = ? AND disabled_at IS NULL`, now, now, profileID, orgID)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
+	defer tx.Rollback()
+	var version int
+	if err := tx.QueryRowContext(ctx, `SELECT version FROM authorization_roles WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, roleID, orgID).Scan(&version); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errAccessRAMRoleNotFound
+		}
+		return err
+	}
+	if body.ExpectedLatestVersion != nil && *body.ExpectedLatestVersion != version {
+		return errAccessRAMRoleConflict
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE ram_role_id=?`, roleID).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: team_role_mappings=%d", errAccessRAMRoleReferenced, n)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id=? AND org_id=? AND revoked_at IS NULL`, roleID, orgID).Scan(&n); err != nil {
 		return err
 	}
 	if n == 0 {
-		return errAccessProfileNotFound
+		// no direct bindings
+	} else {
+		return fmt.Errorf("%w: direct_bindings=%d", errAccessRAMRoleReferenced, n)
 	}
-	return nil
+	res, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET revoked_at=?, updated_at=?, version=version+1 WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, now, now, roleID, orgID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected != 1 {
+		return errAccessRAMRoleNotFound
+	}
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.revoked", actor, roleID, "", map[string]any{"reason": strings.TrimSpace(body.Reason), "previous_version": version, "next_version": version + 1}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-func normalizeAccessProfilePermissions(in []string) ([]string, string, error) {
+func normalizeAccessRAMRolePermissions(in []string) ([]string, string, error) {
 	known := map[string]accessPermissionDefinitionDTO{}
 	for _, def := range accessCatalog {
 		known[def.Key] = def
@@ -672,7 +731,7 @@ func normalizeAccessProfilePermissions(in []string) ([]string, string, error) {
 		}
 		def, ok := known[permission]
 		if !ok {
-			return nil, "", fmt.Errorf("%w: permission is not registered: %s", errAccessProfileInvalid, permission)
+			return nil, "", fmt.Errorf("%w: permission is not registered: %s", errAccessRAMRoleInvalid, permission)
 		}
 		if _, ok := seen[permission]; ok {
 			continue
@@ -686,23 +745,82 @@ func normalizeAccessProfilePermissions(in []string) ([]string, string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, "", errAccessProfileInvalid
+		return nil, "", errAccessRAMRoleInvalid
 	}
 	sort.Strings(out)
 	return out, risk, nil
 }
 
-func writeAccessProfileWriteError(w http.ResponseWriter, err error) {
+func writeAccessRAMRoleWriteError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, errAccessProfileNotFound):
-		writeError(w, http.StatusNotFound, "not_found", "access profile not found")
-	case errors.Is(err, errAccessProfileConflict):
-		writeError(w, http.StatusConflict, "version_conflict", "access profile latest version changed")
-	case errors.Is(err, errAccessProfileInvalid):
-		writeError(w, http.StatusUnprocessableEntity, "invalid_access_profile", err.Error())
+	case errors.Is(err, errAccessRAMRoleNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "RAM role not found")
+	case errors.Is(err, errAccessRAMRoleConflict):
+		writeError(w, http.StatusConflict, "version_conflict", "RAM role latest version changed")
+	case errors.Is(err, errAccessRAMRoleReferenced):
+		writeError(w, http.StatusConflict, "ram_role_referenced", err.Error())
+	case errors.Is(err, errAccessRAMRoleInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_ram_role", err.Error())
 	default:
-		writeError(w, http.StatusInternalServerError, "access_profile_failed", err.Error())
+		writeError(w, http.StatusInternalServerError, "ram_role_failed", err.Error())
 	}
+}
+
+func replaceRAMRolePermissionRows(ctx context.Context, exec interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, roleID string, permissions []string, now string) error {
+	if _, err := exec.ExecContext(ctx, `DELETE FROM authorization_role_permissions WHERE role_id=?`, roleID); err != nil {
+		return err
+	}
+	for _, permission := range permissions {
+		resourceKind := "org"
+		for _, def := range accessCatalog {
+			if def.Key == permission && len(def.ResourceKinds) > 0 {
+				resourceKind = def.ResourceKinds[0]
+				break
+			}
+		}
+		if _, err := exec.ExecContext(ctx, `INSERT INTO authorization_role_permissions (role_id,permission_key,resource_kind,delegatable,created_at) VALUES (?,?,?,?,?)`, roleID, permission, resourceKind, 0, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func accessRAMRoleCurrentPermissions(ctx context.Context, db *sql.DB, roleID string) []string {
+	rows, err := db.QueryContext(ctx, `SELECT permission_key FROM authorization_role_permissions WHERE role_id=? ORDER BY permission_key`, roleID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var permission string
+		if err := rows.Scan(&permission); err != nil {
+			return out
+		}
+		out = append(out, permission)
+	}
+	return out
+}
+
+func accessPermissionsRisk(permissions []string) string {
+	_, risk, err := normalizeAccessRAMRolePermissions(permissions)
+	if err != nil {
+		return "low"
+	}
+	return risk
+}
+
+func insertRAMRoleAudit(ctx context.Context, exec interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, eventType, actor, roleID, requestID string, payload map[string]any) error {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_audit_events (id,event_type,actor_ref,role_id,request_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?)`, "audit-"+accessHash(eventType+"|"+actor+"|"+roleID+"|"+time.Now().UTC().Format(time.RFC3339Nano)), eventType, actor, roleID, requestID, string(raw), time.Now().UTC().Format(time.RFC3339Nano))
+	return err
 }
 
 func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Request) {

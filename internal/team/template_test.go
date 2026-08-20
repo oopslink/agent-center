@@ -154,6 +154,17 @@ func TestExportImport_RoundTripCrossOrg(t *testing.T) {
 	}
 }
 
+func TestImportTemplate_RejectsRetiredRoleBundleFields(t *testing.T) {
+	payload := []byte(`{
+		"format":"team-template/v1",
+		"name":"retired field",
+		"roles":[{"role":"dev","access_profile_keys":["legacy"]}]
+	}`)
+	if _, err := team.ImportTemplate(payload, team.ImportTemplateInput{OrgID: "org-2", NewID: "tmpl-new", Now: time.Unix(2000, 0)}); !errors.Is(err, team.ErrInvalidTemplate) {
+		t.Fatalf("retired access_profile_* import must fail with ErrInvalidTemplate, got %v", err)
+	}
+}
+
 func TestExportTemplate_RequiresCuration(t *testing.T) {
 	tmpl := sampleTemplate(t, false)
 	if _, err := team.ExportTemplate(tmpl); !errors.Is(err, team.ErrTemplateNotCurated) {

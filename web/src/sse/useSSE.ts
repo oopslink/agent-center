@@ -409,7 +409,7 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'team.role_ram_roles.changed':
       invalidate(qk.permissions());
       invalidate(qk.accessOverview());
-      invalidate(qk.accessProfiles());
+      invalidate(qk.ramRoles());
       return;
 
     // Issue lifecycle — BC-native Issue list/show refresh on any

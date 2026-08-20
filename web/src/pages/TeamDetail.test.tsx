@@ -158,9 +158,9 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     const modal = await screen.findByTestId('edit-team-roles-modal');
-    const profile = await within(modal).findByTestId('edit-team-role-0-access-profile');
+    const role = await within(modal).findByTestId('edit-team-role-0-access-role');
     await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
-    fireEvent.change(profile, { target: { value: 'team-basic@1' } });
+    fireEvent.change(role, { target: { value: 'team-basic@1' } });
     expect(within(modal).getByTestId('edit-team-role-0-access-permissions')).toHaveTextContent('team.memory.read');
     expect(within(modal).getByTestId('edit-team-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
     fireEvent.click(within(modal).getByTestId('edit-team-role-0-ram-role-trigger'));

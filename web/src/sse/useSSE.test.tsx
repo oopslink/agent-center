@@ -275,7 +275,7 @@ describe('dispatchToQueryClient', () => {
     }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.permissions() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.accessOverview() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.accessProfiles() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.ramRoles() });
   });
 
   // v2.3-5b: issue lifecycle invalidates the BC-native Issue list

@@ -124,7 +124,7 @@ func TestCreateAndUpdateTeam_PersistRAMRoleKeysAtomically(t *testing.T) {
 	}
 }
 
-func TestBuiltInAccessProfileRAMRoleContract(t *testing.T) {
+func TestBuiltInRAMRoleContract(t *testing.T) {
 	svc, db := newService(t)
 	var n int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='team-basic' AND name='Team basic'`).Scan(&n); err != nil || n != 1 {
@@ -133,8 +133,8 @@ func TestBuiltInAccessProfileRAMRoleContract(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_permissions WHERE role_id='team-basic' AND permission_key IN ('team.read','team.memory.read')`).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("built-in team-basic permissions missing: count=%d err=%v", n, err)
 	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM access_profiles WHERE id='team-basic'`).Scan(&n); err != nil || n != 1 {
-		t.Fatal(err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='access_profiles'`).Scan(&n); err != nil || n != 0 {
+		t.Fatal("access_profiles table must not remain in the final RAM Role schema")
 	}
 
 	tm, err := svc.CreateTeam(context.Background(), CreateTeamInput{
@@ -153,6 +153,6 @@ func TestBuiltInAccessProfileRAMRoleContract(t *testing.T) {
 		t.Fatalf("mapping ids = %+v, want team-basic", mapping)
 	}
 	if _, err := svc.PreviewRAMRoleMapping(context.Background(), tm.ID(), "dev", []string{"team-basic"}); err != nil {
-		t.Fatalf("preview should accept access profile id as RAM role id: %v", err)
+		t.Fatalf("preview should accept RAM role id: %v", err)
 	}
 }

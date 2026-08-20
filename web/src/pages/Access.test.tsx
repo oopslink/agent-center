@@ -232,76 +232,79 @@ describe('Access page', () => {
     });
   });
 
-  it('browses profile versions and publishes a real v2 profile version with CAS payload', async () => {
-    const profileV1 = {
-      id: 'profile-created',
+  it('browses RAM role versions and publishes a real v2 RAM role version with CAS payload', async () => {
+    const roleV1 = {
+      id: 'role-created',
       name: 'Release operator',
+      kind: 'custom',
       description: 'release work',
       version: 1,
       permissions: ['org.read', 'project.write'],
       risk: 'medium',
     };
-    let profileDetail = {
-      id: profileV1.id,
-      name: profileV1.name,
-      description: profileV1.description,
-      latest: profileV1,
-      versions: [profileV1],
+    let roleDetail = {
+      id: roleV1.id,
+      name: roleV1.name,
+      description: roleV1.description,
+      kind: roleV1.kind,
+      latest: roleV1,
+      versions: [roleV1],
     };
     let publishBody: { permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
-      http.get('/api/orgs/:slug/access/profiles', () => HttpResponse.json({
-        profiles: [
-          { id: 'team-basic', name: 'Team basic', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
-          { id: 'team-contributor', name: 'Team contributor', version: 1, description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
-          { id: 'team-curator', name: 'Team curator', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
-          profileDetail.latest,
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
+        roles: [
+          { id: 'team-basic', name: 'Team basic', kind: 'system', version: 1, description: 'Read team metadata and memory.', permissions: ['team.read', 'team.memory.read'], risk: 'low' },
+          { id: 'team-contributor', name: 'Team contributor', kind: 'system', version: 1, description: 'Read/write team work and propose memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'], risk: 'medium' },
+          { id: 'team-curator', name: 'Team curator', kind: 'system', version: 2, description: 'Review team memory.', permissions: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'], risk: 'high' },
+          roleDetail.latest,
         ],
       })),
-      http.get('/api/orgs/:slug/access/profiles/profile-created', () => HttpResponse.json(profileDetail)),
-      http.post('/api/orgs/:slug/access/profiles', async ({ request }) => {
+      http.get('/api/orgs/:slug/access/ram-roles/role-created', () => HttpResponse.json(roleDetail)),
+      http.post('/api/orgs/:slug/access/ram-roles', async ({ request }) => {
         const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
-        profileDetail = {
-          id: profileV1.id,
+        roleDetail = {
+          id: roleV1.id,
           name: body.name,
+          kind: roleV1.kind,
           description: body.description ?? '',
-          latest: { ...profileV1, name: body.name, description: body.description ?? '', permissions: body.permissions },
-          versions: [{ ...profileV1, name: body.name, description: body.description ?? '', permissions: body.permissions }],
+          latest: { ...roleV1, name: body.name, description: body.description ?? '', permissions: body.permissions },
+          versions: [{ ...roleV1, name: body.name, description: body.description ?? '', permissions: body.permissions }],
         };
-        return HttpResponse.json(profileDetail, { status: 201 });
+        return HttpResponse.json(roleDetail, { status: 201 });
       }),
-      http.post('/api/orgs/:slug/access/profiles/profile-created/versions', async ({ request }) => {
+      http.post('/api/orgs/:slug/access/ram-roles/role-created/versions', async ({ request }) => {
         publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
-        const latest = { ...profileDetail.latest, version: 2, permissions: publishBody.permissions ?? [], risk: 'high' };
-        profileDetail = { ...profileDetail, latest, versions: [latest, profileDetail.latest] };
-        return HttpResponse.json(profileDetail, { status: 201 });
+        const latest = { ...roleDetail.latest, version: 2, permissions: publishBody.permissions ?? [], risk: 'high' };
+        roleDetail = { ...roleDetail, latest, versions: [latest, roleDetail.latest] };
+        return HttpResponse.json(roleDetail, { status: 201 });
       }),
     );
 
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-unified-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-profiles'));
+    fireEvent.click(screen.getByTestId('access-view-roles'));
 
-    const view = await screen.findByTestId('access-profiles-view');
-    expect(await within(view).findByTestId('access-profile-row-team-curator')).toHaveTextContent('v2');
-    fireEvent.click(within(view).getByTestId('access-profile-row-team-curator'));
-    expect(await within(view).findByTestId('access-profile-versions')).toHaveTextContent('v1');
-    expect(within(view).getByTestId('access-profile-versions')).toHaveTextContent('v2');
+    const view = await screen.findByTestId('access-roles-view');
+    expect(await within(view).findByTestId('access-role-row-team-curator')).toHaveTextContent('v2');
+    fireEvent.click(within(view).getByTestId('access-role-row-team-curator'));
+    expect(await within(view).findByTestId('access-role-versions')).toHaveTextContent('v1');
+    expect(within(view).getByTestId('access-role-versions')).toHaveTextContent('v2');
 
-    const create = within(view).getByTestId('access-profile-create');
-    fireEvent.change(within(create).getByTestId('access-profile-name'), { target: { value: 'Release operator' } });
-    fireEvent.change(within(create).getByTestId('access-profile-description'), { target: { value: 'release work' } });
+    const create = within(view).getByTestId('access-role-create');
+    fireEvent.change(within(create).getByTestId('access-role-name'), { target: { value: 'Release operator' } });
+    fireEvent.change(within(create).getByTestId('access-role-description'), { target: { value: 'release work' } });
     fireEvent.click(within(create).getByText('org.read'));
     fireEvent.click(within(create).getByText('project.write'));
-    fireEvent.click(within(create).getByTestId('access-profile-create-submit'));
+    fireEvent.click(within(create).getByTestId('access-role-create-submit'));
 
-    await waitFor(() => expect(screen.getByTestId('access-profile-detail')).toHaveTextContent('Release operator'));
-    const detail = screen.getByTestId('access-profile-detail');
-    await waitFor(() => expect(within(detail).getByTestId('access-profile-new-version-submit')).toHaveTextContent('Publish v2'));
-    expect(within(detail).getByTestId('access-profile-new-version-submit')).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId('access-role-detail')).toHaveTextContent('Release operator'));
+    const detail = screen.getByTestId('access-role-detail');
+    await waitFor(() => expect(within(detail).getByTestId('access-role-new-version-submit')).toHaveTextContent('Publish v2'));
+    expect(within(detail).getByTestId('access-role-new-version-submit')).not.toBeDisabled();
     fireEvent.click(within(detail).getByText('team.memory.review'));
-    fireEvent.click(within(detail).getByTestId('access-profile-new-version-submit'));
+    fireEvent.click(within(detail).getByTestId('access-role-new-version-submit'));
 
     await waitFor(() => {
       expect(publishBody).toEqual({
@@ -310,16 +313,17 @@ describe('Access page', () => {
       });
     });
     await waitFor(() => expect(detail).toHaveTextContent('Latest v2'));
-    const versions = within(detail).getByTestId('access-profile-versions');
+    const versions = within(detail).getByTestId('access-role-versions');
     expect(versions).toHaveTextContent('v2');
     expect(versions).toHaveTextContent('team.memory.review');
     expect(versions).toHaveTextContent('v1');
   });
 
-  it('keeps profile versions pinned and shows an error when publish hits a CAS conflict', async () => {
-    const profileV1 = {
-      id: 'profile-cas',
+  it('keeps RAM role versions pinned and shows an error when publish hits a CAS conflict', async () => {
+    const roleV1 = {
+      id: 'role-cas',
       name: 'Deploy operator',
+      kind: 'custom',
       description: 'deploy work',
       version: 1,
       permissions: ['org.read', 'project.write'],
@@ -327,20 +331,21 @@ describe('Access page', () => {
     };
     let publishBody: { permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
-      http.get('/api/orgs/:slug/access/profiles', () => HttpResponse.json({
-        profiles: [profileV1],
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
+        roles: [roleV1],
       })),
-      http.get('/api/orgs/:slug/access/profiles/profile-cas', () => HttpResponse.json({
-        id: profileV1.id,
-        name: profileV1.name,
-        description: profileV1.description,
-        latest: profileV1,
-        versions: [profileV1],
+      http.get('/api/orgs/:slug/access/ram-roles/role-cas', () => HttpResponse.json({
+        id: roleV1.id,
+        name: roleV1.name,
+        kind: roleV1.kind,
+        description: roleV1.description,
+        latest: roleV1,
+        versions: [roleV1],
       })),
-      http.post('/api/orgs/:slug/access/profiles/profile-cas/versions', async ({ request }) => {
+      http.post('/api/orgs/:slug/access/ram-roles/role-cas/versions', async ({ request }) => {
         publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
         return HttpResponse.json(
-          { error: 'version_conflict', message: 'access profile latest version changed' },
+          { error: 'version_conflict', message: 'access RAM role latest version changed' },
           { status: 409 },
         );
       }),
@@ -349,15 +354,15 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-unified-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-profiles'));
+    fireEvent.click(screen.getByTestId('access-view-roles'));
 
-    const view = await screen.findByTestId('access-profiles-view');
-    fireEvent.click(await within(view).findByTestId('access-profile-row-profile-cas'));
-    const detail = await screen.findByTestId('access-profile-detail');
+    const view = await screen.findByTestId('access-roles-view');
+    fireEvent.click(await within(view).findByTestId('access-role-row-role-cas'));
+    const detail = await screen.findByTestId('access-role-detail');
     await waitFor(() => expect(detail).toHaveTextContent('Latest v1'));
 
     fireEvent.click(within(detail).getByText('team.memory.review'));
-    fireEvent.click(within(detail).getByTestId('access-profile-new-version-submit'));
+    fireEvent.click(within(detail).getByTestId('access-role-new-version-submit'));
 
     await waitFor(() => {
       expect(publishBody).toEqual({
@@ -365,9 +370,9 @@ describe('Access page', () => {
         expected_latest_version: 1,
       });
     });
-    expect(await within(detail).findByRole('alert')).toHaveTextContent('access profile latest version changed');
+    expect(await within(detail).findByRole('alert')).toHaveTextContent('access RAM role latest version changed');
     expect(detail).toHaveTextContent('Latest v1');
-    const versions = within(detail).getByTestId('access-profile-versions');
+    const versions = within(detail).getByTestId('access-role-versions');
     expect(versions).toHaveTextContent('v1');
     expect(versions).not.toHaveTextContent('v2');
   });

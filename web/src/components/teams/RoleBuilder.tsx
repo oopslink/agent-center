@@ -3,7 +3,7 @@
 // team role definition edits can hide it while keeping per-agent defaults.
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAccessProfiles } from '@/api/access';
+import { useRAMRoles } from '@/api/access';
 import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import type { EntityOption } from '@/components/EntitySelect';
 import { roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
@@ -48,7 +48,7 @@ export function RoleBuilder({
 }): React.ReactElement {
   const { t } = useTranslation('teams');
   const runtimeCatalog = useRuntimeSelectorCatalog();
-  const accessProfiles = useAccessProfiles();
+  const ramRolesQuery = useRAMRoles();
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
@@ -62,25 +62,25 @@ export function RoleBuilder({
           !runtimeCatalog.isLoading &&
           (Boolean(runtimeCatalog.error) || !isSelectableRuntimePair(runtimeCatalog.catalog, r.cli, r.model, 'model-key'));
         const selectedRamRoles = ramRoleMode === 'ids' ? r.ram_role_ids ?? [] : r.ram_role_keys ?? [];
-        const profiles = accessProfiles.data?.profiles ?? [];
-        const selectedProfiles = profiles.filter((profile) => selectedRamRoles.includes(ramRoleValue(profile, ramRoleMode)));
-        const ramRoleOptions: EntityOption[] = profiles.map((profile) => ({
-          value: ramRoleValue(profile, ramRoleMode),
-          label: `${profile.name} v${profile.version}`,
-          hint: profile.description,
+        const ramRoles = ramRolesQuery.data?.roles ?? [];
+        const selectedRAMRoles = ramRoles.filter((role) => selectedRamRoles.includes(ramRoleValue(role, ramRoleMode)));
+        const ramRoleOptions: EntityOption[] = ramRoles.map((role) => ({
+          value: ramRoleValue(role, ramRoleMode),
+          label: `${role.name} v${role.version}`,
+          hint: role.description,
         }));
         const selectedPermissions = uniqueSorted([
           ...(r.access_requirements ?? []),
-          ...selectedProfiles.flatMap((profile) => profile.permissions),
+          ...selectedRAMRoles.flatMap((role) => role.permissions),
         ]);
         const setRamRoles = (nextRefs: string[]) => {
-          const nextProfiles = profiles.filter((profile) => nextRefs.includes(ramRoleValue(profile, ramRoleMode)));
+          const nextRAMRoles = ramRoles.filter((role) => nextRefs.includes(ramRoleValue(role, ramRoleMode)));
           const nextPatch: Partial<RoleInput> = {
-            access_requirements: uniqueSorted(nextProfiles.flatMap((profile) => profile.permissions)),
+            access_requirements: uniqueSorted(nextRAMRoles.flatMap((role) => role.permissions)),
           };
           if (ramRoleMode === 'ids') {
             nextPatch.ram_role_ids = nextRefs;
-            nextPatch.ram_role_keys = nextProfiles.map((profile) => profile.name);
+            nextPatch.ram_role_keys = nextRAMRoles.map((role) => role.name);
           } else {
             nextPatch.ram_role_keys = nextRefs;
           }
@@ -223,21 +223,21 @@ export function RoleBuilder({
             </div>
             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem]">
               <div>
-                <SmallLabel>{t('roleBuilder.accessProfileLabel')}</SmallLabel>
+                <SmallLabel>{t('roleBuilder.ramRoleLabel')}</SmallLabel>
                 <select
                   className={inputCls}
-                  value={profileValue(r.access_requirements ?? [], accessProfiles.data?.profiles ?? [])}
-                  data-testid={`${idPrefix}-role-${i}-access-profile`}
+                  value={roleValue(r.access_requirements ?? [], ramRolesQuery.data?.roles ?? [])}
+                  data-testid={`${idPrefix}-role-${i}-access-role`}
                   onChange={(e) => {
-                    const profile = accessProfiles.data?.profiles.find((p) => `${p.id}@${p.version}` === e.target.value);
-                    patch(i, { access_requirements: profile ? profile.permissions : [] });
+                    const role = ramRolesQuery.data?.roles.find((p) => `${p.id}@${p.version}` === e.target.value);
+                    patch(i, { access_requirements: role ? role.permissions : [] });
                   }}
-                  disabled={accessProfiles.isLoading}
+                  disabled={ramRolesQuery.isLoading}
                 >
-                  <option value="">{t('roleBuilder.accessProfileNone')}</option>
-                  {(accessProfiles.data?.profiles ?? []).map((profile) => (
-                    <option key={`${profile.id}@${profile.version}`} value={`${profile.id}@${profile.version}`}>
-                      {t('roleBuilder.accessProfileOption', { name: profile.name, version: profile.version })}
+                  <option value="">{t('roleBuilder.ramRoleNone')}</option>
+                  {(ramRolesQuery.data?.roles ?? []).map((role) => (
+                    <option key={`${role.id}@${role.version}`} value={`${role.id}@${role.version}`}>
+                      {t('roleBuilder.ramRoleOption', { name: role.name, version: role.version })}
                     </option>
                   ))}
                 </select>
@@ -248,12 +248,12 @@ export function RoleBuilder({
                       {t('roleBuilder.ramRoleSummary', { count: selectedRamRoles.length, permissions: selectedPermissions.length })}
                     </span>
                   </div>
-                  {accessProfiles.isLoading && (
+                  {ramRolesQuery.isLoading && (
                     <p className="text-[0.6875rem] text-text-muted" data-testid={`${idPrefix}-role-${i}-ram-role-loading`}>
                       {t('roleBuilder.ramRoleLoading')}
                     </p>
                   )}
-                  {accessProfiles.isError && (
+                  {ramRolesQuery.isError && (
                     <p className="text-[0.6875rem] text-danger" data-testid={`${idPrefix}-role-${i}-ram-role-error`}>
                       {t('roleBuilder.ramRoleError')}
                     </p>
@@ -263,7 +263,7 @@ export function RoleBuilder({
                     options={ramRoleOptions}
                     values={selectedRamRoles}
                     onChange={setRamRoles}
-                    disabled={accessProfiles.isLoading || accessProfiles.isError}
+                    disabled={ramRolesQuery.isLoading || ramRolesQuery.isError}
                     placeholder={t('roleBuilder.ramRolePlaceholder')}
                     searchPlaceholder={t('roleBuilder.ramRoleSearch')}
                     emptyLabel={t('roleBuilder.ramRoleEmpty')}
@@ -315,14 +315,14 @@ export function totalSlots(roles: RoleInput[]): number {
   return roles.reduce((s, r) => s + r.count, 0);
 }
 
-function profileValue(requirements: string[], profiles: Array<{ id: string; version: number; permissions: string[] }>): string {
+function roleValue(requirements: string[], roles: Array<{ id: string; version: number; permissions: string[] }>): string {
   const normalized = requirements.slice().sort().join('\n');
-  const profile = profiles.find((p) => p.permissions.slice().sort().join('\n') === normalized);
-  return profile ? `${profile.id}@${profile.version}` : '';
+  const role = roles.find((p) => p.permissions.slice().sort().join('\n') === normalized);
+  return role ? `${role.id}@${role.version}` : '';
 }
 
-function ramRoleValue(profile: { id: string; name: string }, mode: 'keys' | 'ids'): string {
-  return mode === 'ids' ? profile.id : profile.name;
+function ramRoleValue(role: { id: string; name: string }, mode: 'keys' | 'ids'): string {
+  return mode === 'ids' ? role.id : role.name;
 }
 
 function uniqueSorted(values: string[]): string[] {

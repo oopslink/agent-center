@@ -8,7 +8,7 @@ import {
   type AccessBatchResult,
   type AccessDecision,
   type AccessGrant,
-  type AccessProfile,
+  type RAMRole,
   type AccessPermissionDefinition,
   type AccessResourceKind,
   type AccessResourceScope,
@@ -20,11 +20,11 @@ import {
   useAccessBatchPreview,
   useAccessBulkRevoke,
   useAccessOverview,
-  useAccessProfile,
-  useAccessProfileCreate,
-  useAccessProfileDisable,
-  useAccessProfileNewVersion,
-  useAccessProfiles,
+  useRAMRole,
+  useRAMRoleCreate,
+  useRAMRoleNewVersion,
+  useRAMRoleRevoke,
+  useRAMRoles,
   useAccessRevokePreview,
   useAccessRoleUpdate,
 } from '@/api/access';
@@ -60,7 +60,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'roles' | 'subjects' | 'profiles';
+type AccessView = 'roles' | 'subjects';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -122,7 +122,7 @@ export default function Access(): React.ReactElement {
     status,
   }, currentPermissions.isSuccess && canManageAccess);
   const data = overview.data;
-  const ramRoles = useAccessProfiles();
+  const ramRoles = useRAMRoles();
   const teams = useTeams();
   const mappingEntries = useAllTeamRoleRAMMappings(teams.data ?? []);
   const memberEntries = useAllTeamMembers(teams.data ?? []);
@@ -206,16 +206,6 @@ export default function Access(): React.ReactElement {
           >
             Subject access
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'profiles'}
-            className={segmentedClass(view === 'profiles')}
-            onClick={() => setView('profiles')}
-            data-testid="access-view-profiles"
-          >
-            Profiles
-          </button>
         </div>
         <label className="relative min-w-[14rem] flex-1 md:max-w-xs">
           <span className="sr-only">Search access</span>
@@ -243,18 +233,18 @@ export default function Access(): React.ReactElement {
       )}
 
       {!overview.isLoading && !overview.isError && data && (
-        view === 'profiles' ? (
-          <AccessProfilesView catalog={data.catalog} canManageAccess={canManageAccess} />
-        ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
             {view === 'roles' ? (
-              <UnifiedRolesView
-                roles={ramRoles.data?.profiles ?? []}
-                teams={teams.data ?? []}
-                mappingEntries={mappingEntries}
-                canManageAccess={canManageAccess}
-              />
+              <>
+                <RAMRolesView catalog={data.catalog} canManageAccess={canManageAccess} />
+                <UnifiedRolesView
+                  roles={ramRoles.data?.roles ?? []}
+                  teams={teams.data ?? []}
+                  mappingEntries={mappingEntries}
+                  canManageAccess={canManageAccess}
+                />
+              </>
             ) : (
               <SubjectDecisionView
                 decisions={data.decisions}
@@ -271,7 +261,6 @@ export default function Access(): React.ReactElement {
             <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
           </aside>
         </div>
-        )
       )}
 
       {drawerOpen && data && (
@@ -353,18 +342,18 @@ function Select({
   );
 }
 
-function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermissionDefinition[]; canManageAccess: boolean }): React.ReactElement {
-  const profiles = useAccessProfiles();
-  const create = useAccessProfileCreate();
-  const newVersion = useAccessProfileNewVersion();
-  const disable = useAccessProfileDisable();
+function RAMRolesView({ catalog, canManageAccess }: { catalog: AccessPermissionDefinition[]; canManageAccess: boolean }): React.ReactElement {
+  const roles = useRAMRoles();
+  const create = useRAMRoleCreate();
+  const newVersion = useRAMRoleNewVersion();
+  const revoke = useRAMRoleRevoke();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftDescription, setDraftDescription] = useState('');
   const [createPermissions, setCreatePermissions] = useState<string[]>([]);
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
-  const selected = selectedId ?? profiles.data?.profiles[0]?.id ?? null;
-  const detail = useAccessProfile(selected);
+  const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
+  const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
   const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
 
@@ -374,48 +363,48 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
   const toggleCreatePermission = (permission: string): void => {
     setCreatePermissions((prev) => toggleValue(prev, permission).sort());
   };
-  const resetDraft = (profile?: AccessProfile): void => {
+  const resetDraft = (role?: RAMRole): void => {
     setDraftName('');
     setDraftDescription('');
-    setDraftPermissions(profile?.permissions ?? []);
+    setDraftPermissions(role?.permissions ?? []);
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-profiles-view">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">Access profiles</h2>
-          <AccessMetaPill>{profiles.data?.profiles.length ?? 0} current versions</AccessMetaPill>
+          <h2 className="text-sm font-semibold text-text-primary">Access roles</h2>
+          <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
               <tr>
-                <th className="px-4 py-2 font-semibold">Profile</th>
+                <th className="px-4 py-2 font-semibold">Role</th>
                 <th className="px-4 py-2 font-semibold">Version</th>
                 <th className="px-4 py-2 font-semibold">Risk</th>
                 <th className="px-4 py-2 font-semibold">Permissions</th>
               </tr>
             </thead>
             <tbody>
-              {(profiles.data?.profiles ?? []).map((profile) => (
+              {(roles.data?.roles ?? []).map((role) => (
                 <tr
-                  key={profile.id}
-                  className={['cursor-pointer border-b border-border-base last:border-0', selected === profile.id ? 'bg-brand/5' : 'hover:bg-bg-subtle'].join(' ')}
+                  key={role.id}
+                  className={['cursor-pointer border-b border-border-base last:border-0', selected === role.id ? 'bg-brand/5' : 'hover:bg-bg-subtle'].join(' ')}
                   onClick={() => {
-                    setSelectedId(profile.id);
-                    resetDraft(profile);
+                    setSelectedId(role.id);
+                    resetDraft(role);
                   }}
-                  data-testid={`access-profile-row-${profile.id}`}
+                  data-testid={`access-role-row-${role.id}`}
                 >
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-text-primary">{profile.name}</div>
-                    <div className="text-xs text-text-muted">{profile.description}</div>
-                    <div className="font-mono text-[0.6875rem] text-text-muted">{profile.id}</div>
+                    <div className="font-semibold text-text-primary">{role.name}</div>
+                    <div className="text-xs text-text-muted">{role.description}</div>
+                    <div className="font-mono text-[0.6875rem] text-text-muted">{role.id}</div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{profile.version}</td>
-                  <td className="px-4 py-3"><AccessRiskBadge risk={profile.risk} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{profile.permissions.join(', ')}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{role.version}</td>
+                  <td className="px-4 py-3"><AccessRiskBadge risk={role.risk} /></td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.permissions.join(', ')}</td>
                 </tr>
               ))}
             </tbody>
@@ -424,16 +413,16 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
       </section>
 
       <aside className="space-y-4">
-        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-profile-create">
-          <h2 className="text-sm font-semibold text-text-primary">Create profile</h2>
-          <ProfileTextField label="Name" value={draftName} onChange={setDraftName} testId="access-profile-name" />
-          <ProfileTextField label="Description" value={draftDescription} onChange={setDraftDescription} testId="access-profile-description" />
+        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-create">
+          <h2 className="text-sm font-semibold text-text-primary">Create role</h2>
+          <RoleTextField label="Name" value={draftName} onChange={setDraftName} testId="access-role-name" />
+          <RoleTextField label="Description" value={draftDescription} onChange={setDraftDescription} testId="access-role-description" />
           <PermissionChecklist catalog={catalog} selected={createPermissions} onToggle={toggleCreatePermission} />
           <button
             type="button"
             className="mt-3 rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg disabled:opacity-50"
             disabled={!canManageAccess || !draftName.trim() || createPermissions.length === 0 || create.isPending}
-            data-testid="access-profile-create-submit"
+            data-testid="access-role-create-submit"
             onClick={() => create.mutate({
               name: draftName,
               description: draftDescription,
@@ -451,7 +440,7 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
           {create.isError && <p className="mt-2 text-xs text-danger" role="alert">{(create.error as Error).message}</p>}
         </section>
 
-        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-profile-detail">
+        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-detail">
           <h2 className="text-sm font-semibold text-text-primary">Version history</h2>
           {detail.isLoading && <Skeleton height="8rem" />}
           {detail.data && (
@@ -460,7 +449,7 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
                 <div className="font-semibold text-text-primary">{detail.data.name}</div>
                 <div className="text-xs text-text-muted">Latest v{detail.data.latest.version}</div>
               </div>
-              <div className="mt-3 space-y-2" data-testid="access-profile-versions">
+              <div className="mt-3 space-y-2" data-testid="access-role-versions">
                 {detail.data.versions.map((version) => (
                   <div key={version.version} className="rounded border border-border-base p-2">
                     <div className="flex items-center justify-between">
@@ -477,8 +466,8 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
                 <button
                   type="button"
                   className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-                  disabled={!canManageAccess || !latest || !selected || selected.startsWith('team-') || versionPermissions.length === 0 || newVersion.isPending}
-                  data-testid="access-profile-new-version-submit"
+                  disabled={!canManageAccess || !latest || !selected || detail.data?.kind !== 'custom' || versionPermissions.length === 0 || newVersion.isPending}
+                  data-testid="access-role-new-version-submit"
                   onClick={() => {
                     if (!latest || !selected) return;
                     newVersion.mutate({
@@ -495,24 +484,24 @@ function AccessProfilesView({ catalog, canManageAccess }: { catalog: AccessPermi
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || disable.isPending || selected.startsWith('team-')}
-                  data-testid="access-profile-disable-submit"
-                  onClick={() => selected && disable.mutate(selected)}
+                  disabled={!canManageAccess || !selected || !latest || detail.data?.kind !== 'custom' || revoke.isPending}
+                  data-testid="access-role-disable-submit"
+                  onClick={() => selected && latest && revoke.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role retired' })}
                 >
-                  Disable
+                  Revoke
                 </button>
               </div>
             </>
           )}
           {newVersion.isError && <p className="mt-2 text-xs text-danger" role="alert">{(newVersion.error as Error).message}</p>}
-          {disable.isError && <p className="mt-2 text-xs text-danger" role="alert">{(disable.error as Error).message}</p>}
+          {revoke.isError && <p className="mt-2 text-xs text-danger" role="alert">{(revoke.error as Error).message}</p>}
         </section>
       </aside>
     </div>
   );
 }
 
-function ProfileTextField({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId: string }): React.ReactElement {
+function RoleTextField({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId: string }): React.ReactElement {
   return (
     <label className="mt-3 block">
       <span className="text-xs font-semibold uppercase text-text-muted">{label}</span>
@@ -528,7 +517,7 @@ function ProfileTextField({ label, value, onChange, testId }: { label: string; v
 
 function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessPermissionDefinition[]; selected: string[]; onToggle: (permission: string) => void }): React.ReactElement {
   return (
-    <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded border border-border-base p-2" data-testid="access-profile-permissions">
+    <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded border border-border-base p-2" data-testid="access-role-permissions">
       {catalog.map((permission) => (
         <button
           key={permission.key}
@@ -565,7 +554,7 @@ function UnifiedRolesView({
   mappingEntries,
   canManageAccess,
 }: {
-  roles: AccessProfile[];
+  roles: RAMRole[];
   teams: TeamView[];
   mappingEntries: MappingEntry[];
   canManageAccess: boolean;
@@ -633,7 +622,7 @@ function UnifiedRolesView({
   );
 }
 
-function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingEntry; roles: AccessProfile[]; canManageAccess: boolean }): React.ReactElement {
+function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingEntry; roles: RAMRole[]; canManageAccess: boolean }): React.ReactElement {
   const preview = usePreviewTeamRoleRAMMapping();
   const replace = useReplaceTeamRoleRAMMapping();
   const current = entry.query.data;

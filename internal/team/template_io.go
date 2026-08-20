@@ -128,6 +128,9 @@ type ImportTemplateInput struct {
 // project-specific facts. The imported template lands Curated=false: the
 // destination org re-reviews before re-export.
 func ImportTemplate(data []byte, in ImportTemplateInput) (*TeamTemplate, error) {
+	if err := rejectRetiredRoleBundleFields(data); err != nil {
+		return nil, err
+	}
 	var env exportEnvelope
 	if err := json.Unmarshal(data, &env); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidTemplate, err)
@@ -193,4 +196,37 @@ func ImportTemplate(data []byte, in ImportTemplateInput) (*TeamTemplate, error) 
 		Curated:             false,
 		CreatedAt:           in.Now,
 	})
+}
+
+func rejectRetiredRoleBundleFields(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidTemplate, err)
+	}
+	var walk func(any) bool
+	walk = func(v any) bool {
+		switch x := v.(type) {
+		case map[string]any:
+			for key, value := range x {
+				switch key {
+				case "access_profile_id", "access_profile_ids", "access_profile_key", "access_profile_keys":
+					return true
+				}
+				if walk(value) {
+					return true
+				}
+			}
+		case []any:
+			for _, value := range x {
+				if walk(value) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if walk(raw) {
+		return fmt.Errorf("%w: access_profile_* fields are retired; use ram_role_keys", ErrInvalidTemplate)
+	}
+	return nil
 }

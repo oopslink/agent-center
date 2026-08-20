@@ -72,27 +72,29 @@ export interface AccessRole {
   high_risk?: boolean;
 }
 
-export interface AccessProfile {
+export interface RAMRole {
   id: string;
   name: string;
   version: number;
+  kind: 'system' | 'custom';
   description: string;
   permissions: string[];
   risk: AccessRisk;
-  disabled_at?: string | null;
+  revoked_at?: string | null;
   created_at?: string;
 }
 
-export interface AccessProfileDetail {
+export interface RAMRoleDetail {
   id: string;
   name: string;
   description: string;
-  disabled_at?: string | null;
-  latest: AccessProfile;
-  versions: AccessProfile[];
+  kind: 'system' | 'custom';
+  revoked_at?: string | null;
+  latest: RAMRole;
+  versions: RAMRole[];
 }
 
-export interface AccessProfileWriteRequest {
+export interface RAMRoleWriteRequest {
   name?: string;
   description?: string;
   permissions: string[];
@@ -232,16 +234,16 @@ function qs(filters?: AccessFilters): string {
 export const accessApi = {
   overview: (filters?: AccessFilters) =>
     api.get<AccessOverview>(`/access/overview${qs(filters)}`),
-  profiles: () =>
-    api.get<{ profiles: AccessProfile[] }>('/access/profiles'),
-  profile: (id: string) =>
-    api.get<AccessProfileDetail>(`/access/profiles/${encodeURIComponent(id)}`),
-  createProfile: (payload: AccessProfileWriteRequest) =>
-    api.post<AccessProfileDetail>('/access/profiles', payload),
-  createProfileVersion: (id: string, payload: AccessProfileWriteRequest) =>
-    api.post<AccessProfileDetail>(`/access/profiles/${encodeURIComponent(id)}/versions`, payload),
-  disableProfile: (id: string) =>
-    api.post<void>(`/access/profiles/${encodeURIComponent(id)}/disable`, {}),
+  ramRoles: () =>
+    api.get<{ roles: RAMRole[] }>('/access/ram-roles'),
+  ramRole: (id: string) =>
+    api.get<RAMRoleDetail>(`/access/ram-roles/${encodeURIComponent(id)}`),
+  createRAMRole: (payload: RAMRoleWriteRequest) =>
+    api.post<RAMRoleDetail>('/access/ram-roles', payload),
+  createRAMRoleVersion: (id: string, payload: RAMRoleWriteRequest) =>
+    api.post<RAMRoleDetail>(`/access/ram-roles/${encodeURIComponent(id)}/versions`, payload),
+  revokeRAMRole: (id: string, payload: { expected_latest_version?: number; reason?: string }) =>
+    api.post<void>(`/access/ram-roles/${encodeURIComponent(id)}/revoke`, payload),
   previewBatch: (payload: AccessBatchRequest) =>
     api.post<AccessBatchPreview>('/access/batch/preview', payload),
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
@@ -257,52 +259,53 @@ export const accessApi = {
     }),
 };
 
-export function useAccessProfiles() {
+export function useRAMRoles() {
   return useQuery({
-    queryKey: qk.accessProfiles(),
-    queryFn: () => accessApi.profiles(),
+    queryKey: qk.ramRoles(),
+    queryFn: () => accessApi.ramRoles(),
     staleTime: 60_000,
   });
 }
 
-export function useAccessProfile(id: string | null) {
+export function useRAMRole(id: string | null) {
   return useQuery({
-    queryKey: id ? qk.accessProfile(id) : qk.accessProfile(''),
-    queryFn: () => accessApi.profile(id ?? ''),
+    queryKey: id ? qk.ramRole(id) : qk.ramRole(''),
+    queryFn: () => accessApi.ramRole(id ?? ''),
     enabled: Boolean(id),
     staleTime: 10_000,
   });
 }
 
-export function useAccessProfileCreate() {
+export function useRAMRoleCreate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: AccessProfileWriteRequest) => accessApi.createProfile(payload),
+    mutationFn: (payload: RAMRoleWriteRequest) => accessApi.createRAMRole(payload),
     onSuccess: (detail) => {
-      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
-      void qc.setQueryData(qk.accessProfile(detail.id), detail);
+      void qc.invalidateQueries({ queryKey: qk.ramRoles() });
+      void qc.setQueryData(qk.ramRole(detail.id), detail);
     },
   });
 }
 
-export function useAccessProfileNewVersion() {
+export function useRAMRoleNewVersion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: AccessProfileWriteRequest }) =>
-      accessApi.createProfileVersion(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: RAMRoleWriteRequest }) =>
+      accessApi.createRAMRoleVersion(id, payload),
     onSuccess: (detail) => {
-      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
-      void qc.setQueryData(qk.accessProfile(detail.id), detail);
+      void qc.invalidateQueries({ queryKey: qk.ramRoles() });
+      void qc.setQueryData(qk.ramRole(detail.id), detail);
     },
   });
 }
 
-export function useAccessProfileDisable() {
+export function useRAMRoleRevoke() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => accessApi.disableProfile(id),
+    mutationFn: ({ id, expected_latest_version, reason }: { id: string; expected_latest_version?: number; reason?: string }) =>
+      accessApi.revokeRAMRole(id, { expected_latest_version, reason }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.accessProfiles() });
+      void qc.invalidateQueries({ queryKey: qk.ramRoles() });
     },
   });
 }
