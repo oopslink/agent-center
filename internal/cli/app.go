@@ -269,6 +269,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 			return nil, err
 		}
 	}
+	if authzMode == authorization.EnforcementLegacy {
+		if err := authorizationSvc.AuditEnforcementModeSelected(context.Background(), "system", "explicit AGENT_CENTER_AUTHZ_MODE=legacy rollback"); err != nil {
+			return nil, fmt.Errorf("audit authorization legacy rollback: %w", err)
+		}
+	}
 	wr := wfsqlite.NewWorkerRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.

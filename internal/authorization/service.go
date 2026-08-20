@@ -222,51 +222,24 @@ func (s *Service) ValidateEnforceReadiness(ctx context.Context, required []Trans
 	return nil
 }
 
-func (s *Service) recordReadinessRejection(ctx context.Context, required []Transport, cause error) {
-	if s == nil || s.store == nil {
-		return
+func (s *Service) AuditEnforcementModeSelected(ctx context.Context, actor SubjectRef, reason string) error {
+	if s == nil || s.db == nil || s.store == nil {
+		return errors.New("authorization service: nil db")
 	}
-	now := s.clock.Now().UTC()
-	reason := "enforce readiness rejected: " + cause.Error()
-	_ = s.store.persistShadowReadiness(ctx, shadowReadinessRecord{
-		Mode: s.mode, WindowStartedAt: now, WindowEndedAt: now,
-		Transports: transportStrings(required), Checks: s.metrics.checks.Load(), Mismatches: 1,
-		Ready: false, Reason: reason,
-	})
-	_ = s.audit(ctx, auditEvent{
-		ID:        "audit-" + shortHash("authorization.enforce_readiness_rejected|"+now.Format(time.RFC3339Nano)+"|"+reason),
-		EventType: "authorization.enforce_readiness_rejected",
-		ActorRef:  "system",
-		RequestID: "authorization-enforce-startup",
-		Payload:   map[string]any{"reason": reason, "required_transports": transportStrings(required)},
-		CreatedAt: now,
-	})
-	_ = s.audit(ctx, auditEvent{
-		ID:        "audit-" + shortHash("authorization.enforce_rollback|"+now.Format(time.RFC3339Nano)+"|"+reason),
-		EventType: "authorization.enforce_rollback",
-		ActorRef:  "system",
-		RequestID: "authorization-enforce-startup",
-		Payload:   map[string]any{"from": string(EnforcementEnforce), "to": string(EnforcementShadow), "reason": reason},
-		CreatedAt: now,
-	})
-}
-
-func transportStrings(transports []Transport) []string {
-	out := make([]string, 0, len(transports))
-	seen := map[string]struct{}{}
-	for _, t := range transports {
-		raw := strings.TrimSpace(string(t))
-		if raw == "" {
-			continue
-		}
-		if _, ok := seen[raw]; ok {
-			continue
-		}
-		seen[raw] = struct{}{}
-		out = append(out, raw)
+	if actor == "" {
+		actor = "system"
 	}
-	sort.Strings(out)
-	return out
+	return s.audit(ctx, auditEvent{
+		EventType:    "authorization.enforcement_mode.selected",
+		ActorRef:     actor,
+		ResourceKind: "authorization",
+		ResourceID:   string(s.mode),
+		Payload: map[string]any{
+			"mode":    string(s.mode),
+			"reason":  strings.TrimSpace(reason),
+			"message": strings.TrimSpace(reason),
+		},
+	})
 }
 
 type effectiveCache struct {

@@ -91,28 +91,14 @@ func TestT1438PersistedReadinessControlsEnforceStartup(t *testing.T) {
 	}
 	execMany(t, db, `UPDATE authorization_shadow_readiness SET window_started_at = '2000-01-01T00:00:00Z' WHERE id = 'current'`)
 
-	enforced := New(Deps{
-		DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce,
-		RequireEnforceReadiness: true, RequiredShadowTransports: required, MinShadowChecks: int64(len(reqs)),
-	})
-	if enforced.EnforcementMode() != EnforcementEnforce {
-		t.Fatalf("startup should remain enforce after durable readiness, got %s", enforced.EnforcementMode())
+	enforced := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce, RequiredShadowTransports: required, MinShadowChecks: int64(len(reqs))})
+	if err := enforced.ValidateEnforceReadiness(ctx, required, time.Hour); err != nil {
+		t.Fatalf("startup should accept durable readiness: %v", err)
 	}
 
 	execMany(t, db, `DELETE FROM authorization_shadow_readiness`)
-	rolledBack := New(Deps{
-		DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce,
-		RequireEnforceReadiness: true, RequiredShadowTransports: required, MinShadowChecks: int64(len(reqs)),
-	})
-	if rolledBack.EnforcementMode() != EnforcementShadow {
-		t.Fatalf("startup without readiness must fail closed to shadow, got %s", rolledBack.EnforcementMode())
-	}
-	events, err := rolledBack.store.listAuditEventsForSubject(ctx, "system", 10)
-	if err != nil {
-		t.Fatalf("rollback audit readback: %v", err)
-	}
-	if !hasAuditEventType(events, "authorization.enforce_rollback") {
-		t.Fatalf("missing enforce rollback audit event: %+v", events)
+	if err := enforced.ValidateEnforceReadiness(ctx, required, time.Hour); err == nil {
+		t.Fatalf("startup without readiness must return an error")
 	}
 }
 
