@@ -633,6 +633,15 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 	}
 	var firstErr error
 	for _, p := range plans {
+		if aerr := s.requireBackgroundAuthorization(ctx, "plan.write", planWriteResource(p.ID(), p.ProjectID())); aerr != nil {
+			if errFn != nil {
+				errFn(p.ID(), aerr)
+			}
+			if firstErr == nil {
+				firstErr = aerr
+			}
+			continue
+		}
 		perr := s.runInTx(ctx, func(txCtx context.Context) error {
 			// Re-load inside the tx so the dispatch core sees a consistent snapshot
 			// (status could have changed between the list and this tick).

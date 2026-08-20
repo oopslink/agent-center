@@ -12,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/conversation/replyguard"
@@ -110,6 +111,7 @@ func newFBFixture(t *testing.T) *fbFixture {
 			ReadStateSvc:      readStateSvc,
 			MessageWriter:     msgWriter,
 			ConvRepo:          convs,
+			Authorizer:        authz.New(authz.Deps{DB: db, IDGen: gen, Clock: clk}),
 		},
 		verifier: verifier, agents: agents, activity: activity, outbox: ob,
 		convs: convs, msgs: msgs, readState: readState, gen: gen, clk: clk, ctx: ctx,

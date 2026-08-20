@@ -14,6 +14,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -77,7 +78,6 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 	}
 	clk := clock.NewFakeClock(atNow)
 	gen := idgen.NewGenerator(clk)
-	seedAgentToolAuthzBase(t, db)
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)
@@ -139,22 +139,22 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 		DB:         db,
 		AgentSvc:   svc,
 		WorkerRepo: workers,
+		Authorizer: authz.New(authz.Deps{DB: db, IDGen: gen, Clock: clk}),
+	}
+	if decision, err := deps.Authorizer.Check(ctx, authz.CheckRequest{
+		SubjectRef: authz.WorkerSubject(atWorker1),
+		Transport:  authz.TransportMCP,
+		Permission: "agent.operate.self",
+		Resource: authz.ResourceScope{
+			Kind:  "agent",
+			ID:    atAgent1,
+			OrgID: atTestOrg,
+		},
+	}); err != nil || !decision.Allowed {
+		t.Fatalf("fixture worker/agent authorization = %#v err=%v", decision, err)
 	}
 	return &agentToolsFixture{
 		deps: deps, verifier: verifier, agents: agents, clk: clk, db: db,
-	}
-}
-
-func seedAgentToolAuthzBase(t *testing.T, db *sql.DB) {
-	t.Helper()
-	now := atNow.UTC().Format(time.RFC3339Nano)
-	if _, err := db.ExecContext(context.Background(), `INSERT OR IGNORE INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at)
-		VALUES (?, 'org-one', 'Org One', 'AG1', ?, ?)`, atTestOrg, now, now); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.ExecContext(context.Background(), `INSERT OR IGNORE INTO members (id, organization_id, identity_id, role, status, joined_at)
-		VALUES ('AG1', ?, 'AG1', 'member', 'joined', ?), ('AG2', ?, 'AG2', 'member', 'joined', ?)`, atTestOrg, now, atTestOrg, now); err != nil {
-		t.Fatal(err)
 	}
 }
 

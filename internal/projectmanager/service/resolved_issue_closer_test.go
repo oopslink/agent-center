@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -113,6 +115,40 @@ func TestCloseResolvedIssues_Idempotent(t *testing.T) {
 	}
 	if n, err := svc.CloseResolvedIssues(ctx, 72*time.Hour); err != nil || n != 0 {
 		t.Fatalf("second close: n=%d err=%v, want 0 nil", n, err)
+	}
+}
+
+func TestCloseResolvedIssues_BackgroundAuthorizationRevokedFailsClosed(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, err := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iid, err := h.svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SetIssueStatus(ctx, iid, pm.IssueResolved, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.clk.Advance(ResolvedIssueCloseDefaultDelay + time.Second)
+	if _, err := h.svc.db.ExecContext(ctx, `UPDATE authorization_role_assignments
+		SET revoked_at = ?, revoked_by = 'test', revoked_reason = 'background revoke'
+		WHERE subject_ref = 'worker:background-reconciler' AND resource_kind = 'issue'`,
+		h.clk.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	n, err := h.svc.CloseResolvedIssues(ctx, ResolvedIssueCloseDefaultDelay)
+	if !errors.Is(err, authz.ErrDenied) || n != 0 {
+		t.Fatalf("CloseResolvedIssues after revoke n=%d err=%v, want denied and no close", n, err)
+	}
+	got, err := h.svc.issues.FindByID(ctx, iid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.IssueResolved {
+		t.Fatalf("status=%s, want resolved after denied background run", got.Status())
 	}
 }
 

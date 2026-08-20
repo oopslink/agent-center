@@ -95,12 +95,12 @@ func (r *AuditLogRepo) ListByObject(ctx context.Context, objType pm.AuditObjectT
 	         FROM pm_audit_log WHERE object_type = ? AND object_id = ?`
 	if curOccurred == "" && strings.TrimSpace(cursor) == "" {
 		rows, err = exec.QueryContext(ctx,
-			base+` ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+			base+` ORDER BY occurred_at DESC, rowid DESC LIMIT ?`,
 			string(objType), objID, limit+1)
 	} else {
 		rows, err = exec.QueryContext(ctx,
 			base+` AND (occurred_at < ? OR (occurred_at = ? AND id < ?))
-			       ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+			       ORDER BY occurred_at DESC, rowid DESC LIMIT ?`,
 			string(objType), objID, curOccurred, curOccurred, strings.TrimSpace(cursor), limit+1)
 	}
 	if err != nil {

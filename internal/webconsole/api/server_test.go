@@ -15,6 +15,7 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
@@ -102,6 +103,7 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
 	deps.InvitationRepo = identity.NewSQLiteInvitationRepo(db)
 	deps.MemberRemoveSvc = identity.NewMemberRemoveService(db, deps.MemberRepo, identity.NewOrganizationLockManager())
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
 	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
 	// routes (the pm handlers in handlers_pm.go).
 	// v2.18.4 BE-1: workspace CodeRepo service (its own fresh master key for credential
@@ -127,6 +129,7 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		Outbox:           outboxsql.NewOutboxRepo(db),
 		IDGen:            idgen.NewGenerator(clock.SystemClock{}),
 		Clock:            clock.SystemClock{},
+		Authorizer:       authz.NewResolver(deps.Authorizer),
 		// #5a: assigning a Task to an agent grants it project membership, which is
 		// cross-org-guarded via the AgentDirectory (and fail-closed when nil). Wire
 		// the real directory over the test agent repo so agent assignment works.

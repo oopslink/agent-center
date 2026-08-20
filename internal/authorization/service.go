@@ -22,26 +22,23 @@ import (
 )
 
 type Service struct {
-	db                       *sql.DB
-	store                    *Store
-	gen                      idgen.Generator
-	clock                    clock.Clock
-	sink                     *observability.EventSink
-	effectiveCache           effectiveCache
-	mode                     EnforcementMode
-	metrics                  shadowMetricCounters
-	requiredShadowTransports []Transport
+	db             *sql.DB
+	store          *Store
+	gen            idgen.Generator
+	clock          clock.Clock
+	sink           *observability.EventSink
+	effectiveCache effectiveCache
+	mode           EnforcementMode
+	metrics        shadowMetricCounters
 }
 
 type Deps struct {
-	DB                       *sql.DB
-	Store                    *Store
-	IDGen                    idgen.Generator
-	Clock                    clock.Clock
-	EventSink                *observability.EventSink
-	Mode                     EnforcementMode
-	RequireEnforceReadiness  bool
-	RequiredShadowTransports []Transport
+	DB        *sql.DB
+	Store     *Store
+	IDGen     idgen.Generator
+	Clock     clock.Clock
+	EventSink *observability.EventSink
+	Mode      EnforcementMode
 }
 
 func New(deps Deps) *Service {
@@ -58,23 +55,7 @@ func New(deps Deps) *Service {
 		store = NewStore(deps.DB)
 	}
 	mode := NormalizeEnforcementMode(deps.Mode)
-	required := deps.RequiredShadowTransports
-	if len(required) == 0 && deps.RequireEnforceReadiness {
-		required = []Transport{TransportWeb, TransportMCP, TransportBackground}
-	}
-	s := &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode, requiredShadowTransports: required}
-	if mode == EnforcementEnforce && deps.RequireEnforceReadiness {
-		if err := s.ValidateEnforceReadiness(context.Background(), required, 24*time.Hour); err != nil {
-			s.mode = EnforcementShadow
-			_ = s.store.persistShadowReadiness(context.Background(), shadowReadinessRecord{
-				Mode: mode, WindowStartedAt: clk.Now().UTC(), WindowEndedAt: clk.Now().UTC(),
-				Transports: transportStrings(required), Checks: s.metrics.checks.Load(), Mismatches: 1,
-				LegacyOnly: 0, EquivalentOnly: 0, Ready: false,
-				Reason: "enforce readiness rejected: " + err.Error(),
-			})
-		}
-	}
-	return s
+	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode}
 }
 
 type shadowMetricCounters struct {
@@ -124,93 +105,7 @@ func (s *Service) ShadowMetrics() ShadowMetrics {
 		Mismatches:     s.metrics.mismatches.Load(),
 		LegacyOnly:     s.metrics.legacyOnly.Load(),
 		EquivalentOnly: s.metrics.equivalentOnly.Load(),
-		ReadyToEnforce: s.ShadowReadyToEnforce(),
 	}
-}
-
-func (s *Service) ShadowReadyToEnforce() bool {
-	if s == nil {
-		return false
-	}
-	if s.store != nil && len(s.requiredShadowTransports) > 0 {
-		return s.ValidateEnforceReadiness(context.Background(), s.requiredShadowTransports, 24*time.Hour) == nil
-	}
-	return s.metrics.checks.Load() > 0 && s.metrics.mismatches.Load() == 0
-}
-
-func (s *Service) ShadowReadiness(ctx context.Context) (ShadowReadiness, error) {
-	if s == nil || s.store == nil {
-		return ShadowReadiness{}, fmt.Errorf("%w: shadow readiness store is not wired", ErrDenied)
-	}
-	rec, err := s.store.getShadowReadiness(ctx)
-	if err != nil {
-		return ShadowReadiness{}, err
-	}
-	return ShadowReadiness{
-		Mode:            rec.Mode,
-		WindowStartedAt: rec.WindowStartedAt.UTC().Format(time.RFC3339Nano),
-		WindowEndedAt:   rec.WindowEndedAt.UTC().Format(time.RFC3339Nano),
-		Transports:      append([]string(nil), rec.Transports...),
-		Checks:          rec.Checks,
-		Mismatches:      rec.Mismatches,
-		LegacyOnly:      rec.LegacyOnly,
-		EquivalentOnly:  rec.EquivalentOnly,
-		Ready:           rec.Ready,
-		Reason:          rec.Reason,
-	}, nil
-}
-
-func (s *Service) ValidateEnforceReadiness(ctx context.Context, required []Transport, maxAge time.Duration) error {
-	if s == nil || s.store == nil {
-		return fmt.Errorf("%w: shadow readiness store is not wired", ErrDenied)
-	}
-	rec, err := s.store.getShadowReadiness(ctx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: shadow readiness evidence missing", ErrDenied)
-		}
-		return err
-	}
-	if rec.Checks <= 0 {
-		return fmt.Errorf("%w: shadow readiness has no checks", ErrDenied)
-	}
-	if rec.Mismatches != 0 || !rec.Ready {
-		return fmt.Errorf("%w: shadow readiness has mismatches", ErrDenied)
-	}
-	if rec.WindowStartedAt.IsZero() || rec.WindowEndedAt.IsZero() || rec.WindowEndedAt.Before(rec.WindowStartedAt) {
-		return fmt.Errorf("%w: shadow readiness window is incomplete", ErrDenied)
-	}
-	if maxAge > 0 && s.clock.Now().UTC().Sub(rec.WindowEndedAt.UTC()) > maxAge {
-		return fmt.Errorf("%w: shadow readiness evidence is stale", ErrDenied)
-	}
-	have := map[string]bool{}
-	for _, transport := range rec.Transports {
-		have[transport] = true
-	}
-	for _, transport := range required {
-		if !have[string(transport)] {
-			return fmt.Errorf("%w: shadow readiness missing %s coverage", ErrDenied, transport)
-		}
-	}
-	return nil
-}
-
-func transportStrings(transports []Transport) []string {
-	out := make([]string, 0, len(transports))
-	seen := map[string]struct{}{}
-	for _, t := range transports {
-		raw := strings.TrimSpace(string(t))
-		if raw == "" {
-			continue
-		}
-		if _, ok := seen[raw]; ok {
-			continue
-		}
-		seen[raw] = struct{}{}
-		out = append(out, raw)
-	}
-	sort.Strings(out)
-	return out
 }
 
 type effectiveCache struct {
@@ -282,45 +177,6 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, 
 	return exp.Decision, nil
 }
 
-func bearerOnlyDecision(req CheckRequest) (AccessDecision, bool) {
-	decision := AccessDecision{
-		SubjectRef: req.SubjectRef,
-		Permission: req.Permission,
-		Resource:   req.Resource,
-		Reason:     "permission_denied",
-	}
-	if strings.TrimSpace(req.BearerScope) == "" {
-		return decision, false
-	}
-	key, ok := PermissionForBearerScope(req.BearerScope)
-	if !ok {
-		return decision, false
-	}
-	if key != "*" && key != req.Permission {
-		return decision, false
-	}
-	r := req.Resource
-	if r.ID == "" {
-		r.ID = "*"
-	}
-	if r.Kind == "" {
-		return decision, false
-	}
-	if req.Permission != "*" && !PermissionDefinedForResource(req.Permission, r.Kind) {
-		return decision, false
-	}
-	decision.Allowed = true
-	decision.Resource = r
-	decision.Source = SourceAdminTokenScope
-	decision.Reason = "matched " + string(SourceAdminTokenScope)
-	if key == "*" {
-		decision.EvidenceRef = "admin_tokens:*"
-	} else {
-		decision.EvidenceRef = "admin_tokens:" + req.BearerScope
-	}
-	return decision, true
-}
-
 func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult, error) {
 	decision := AccessDecision{
 		SubjectRef: req.SubjectRef,
@@ -328,7 +184,7 @@ func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult,
 		Resource:   req.Resource,
 		Reason:     "permission_denied",
 	}
-	if s == nil {
+	if s == nil || s.db == nil || s.store == nil {
 		decision.Reason = "authorization_not_wired"
 		return ExplainResult{Decision: decision, DeniedBy: []string{"authorization service is not wired"}}, ErrDenied
 	}
@@ -347,13 +203,6 @@ func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult,
 	if strings.TrimSpace(string(req.Permission)) == "" {
 		decision.Reason = "permission_required"
 		return ExplainResult{Decision: decision, DeniedBy: []string{"permission is required"}}, ErrInvalid
-	}
-	if s.db == nil || s.store == nil {
-		if decision, ok := bearerOnlyDecision(req); ok {
-			return ExplainResult{Decision: decision}, nil
-		}
-		decision.Reason = "authorization_not_wired"
-		return ExplainResult{Decision: decision, DeniedBy: []string{"authorization service is not wired"}}, ErrDenied
 	}
 	resolved, denied, err := s.resolveResource(ctx, req.Resource)
 	if err != nil {
@@ -1206,17 +1055,12 @@ func (s *Service) effectiveVersion(ctx context.Context) (string, error) {
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || subject_ref || ':' || role_id || ':' || resource_kind || ':' || resource_id || ':' || version || ':' || COALESCE(revoked_at, '') || ':' || COALESCE(expires_at, '') AS v FROM authorization_role_assignments ORDER BY id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT role_id || ':' || permission_key || ':' || resource_kind || ':' || delegatable AS v FROM authorization_role_permissions ORDER BY role_id, permission_key, resource_kind)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || identity_id || ':' || role || ':' || created_at AS v FROM pm_project_members ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || COALESCE(assignee, '') || ':' || created_by || ':' || updated_at AS v FROM pm_tasks ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || updated_at AS v FROM pm_issues ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || project_id || ':' || updated_at AS v FROM pm_plans ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || COALESCE(owner_ref, '') || ':' || organization_id || ':' || participants || ':' || updated_at AS v FROM conversations ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT file_uri || ':' || scope || ':' || scope_id || ':' || COALESCE(deleted_at, '') AS v FROM file_references ORDER BY file_uri, scope, scope_id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || member_ref || ':' || role || ':' || created_at AS v FROM team_members ORDER BY team_id, member_ref)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || project_id || ':' || created_at AS v FROM team_projects ORDER BY team_id, project_id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || ram_role_id || ':' || created_at AS v FROM team_role_ram_role_mappings ORDER BY team_id, team_role, ram_role_id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || version || ':' || updated_at AS v FROM team_role_ram_role_versions ORDER BY team_id, team_role)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || agent_ref || ':' || created_at AS v FROM team_memory_policy_curators ORDER BY team_id, agent_ref)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || file_uri || ':' || scope || ':' || scope_id || ':' || COALESCE(deleted_at, '') AS v FROM file_references ORDER BY id)`,
 	}
 	for _, query := range queries {
 		var part string
@@ -2071,7 +1915,7 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 			add("file.upload", SourceFileScope, evidence, false)
 			return nil
 		}
-		if s.fileRefReachable(ctx, subject, r.OrgID, ref) {
+		if s.fileRefReachable(ctx, subject, ref) {
 			evidence := "file_references:" + ref.Scope + "/" + ref.ScopeID
 			add("file.download", SourceFileScope, evidence, false)
 			add("file.attach", SourceFileScope, evidence, false)
@@ -2083,30 +1927,69 @@ func (s *Service) addFileEffective(ctx context.Context, subject SubjectRef, r Re
 	return nil
 }
 
-func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, orgID string, ref FileRef) bool {
-	allowed := func(exp ExplainResult) bool {
-		if !exp.Decision.Allowed {
+func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, ref FileRef) bool {
+	if subject.IsAgent() {
+		subjectOrg, err := s.agentSubjectOrg(ctx, subject)
+		if err != nil {
 			return false
 		}
-		return orgID == "" || exp.Decision.Resource.OrgID == orgID || exp.ResolvedOrg == orgID
+		refOrg, err := s.fileRefOrg(ctx, ref)
+		if err != nil || refOrg != "" && refOrg != subjectOrg {
+			return false
+		}
 	}
 	switch ref.Scope {
 	case "uploader":
 		return ref.ScopeID == string(subject)
 	case "conversation":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: ref.ScopeID}})
-		return allowed(exp)
+		return exp.Decision.Allowed
 	case "project":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: ref.ScopeID}})
-		return allowed(exp)
+		return exp.Decision.Allowed
 	case "task":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "task.read", Resource: ResourceScope{Kind: "task", ID: ref.ScopeID}})
-		return allowed(exp)
+		return exp.Decision.Allowed
 	case "issue":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
-		return allowed(exp)
+		return exp.Decision.Allowed
+	case "plan":
+		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "plan.read", Resource: ResourceScope{Kind: "plan", ID: ref.ScopeID}})
+		return exp.Decision.Allowed
 	default:
 		return false
+	}
+}
+
+func (s *Service) agentSubjectOrg(ctx context.Context, subject SubjectRef) (string, error) {
+	exec, err := s.store.exec(ctx)
+	if err != nil {
+		return "", err
+	}
+	var orgID string
+	if err := exec.QueryRowContext(ctx, `SELECT organization_id FROM agents WHERE id = ? OR identity_member_id = ? LIMIT 1`, subject.BareID(), subject.BareID()).Scan(&orgID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return orgID, nil
+}
+
+func (s *Service) fileRefOrg(ctx context.Context, ref FileRef) (string, error) {
+	switch ref.Scope {
+	case "conversation":
+		return s.conversationOrg(ctx, ref.ScopeID)
+	case "project":
+		return s.projectOrg(ctx, ref.ScopeID)
+	case "task", "issue", "plan":
+		projectID, err := s.parentProject(ctx, ref.Scope, ref.ScopeID)
+		if err != nil {
+			return "", err
+		}
+		return s.projectOrg(ctx, projectID)
+	default:
+		return "", nil
 	}
 }
 
@@ -2190,7 +2073,6 @@ func compareEffective(req CheckRequest, legacy, equivalent []EffectivePermission
 	cmp := ShadowComparison{
 		Mode:              EnforcementShadow,
 		SubjectRef:        req.SubjectRef,
-		Transport:         req.Transport,
 		Permission:        req.Permission,
 		Resource:          req.Resource,
 		LegacyAllowed:     hasPermissionKey(legacySet, req.Permission),
@@ -2234,77 +2116,31 @@ func (s *Service) recordShadowComparison(ctx context.Context, cmp ShadowComparis
 	}
 	cmp.Mode = s.mode
 	s.metrics.checks.Add(1)
-	if cmp.Mismatch {
-		s.metrics.mismatches.Add(1)
-		s.metrics.legacyOnly.Add(int64(len(cmp.LegacyOnly)))
-		s.metrics.equivalentOnly.Add(int64(len(cmp.EquivalentOnly)))
-	}
-	s.persistShadowReadiness(ctx, cmp)
-	if cmp.Mismatch && s.sink != nil {
-		_, _ = s.sink.Emit(ctx, observability.EmitCommand{
-			EventType: observability.EventType("authorization.shadow.diff"),
-			Refs:      observability.EventRefs{OrganizationID: cmp.Resource.OrgID, ProjectID: cmp.Resource.ProjectID},
-			Actor:     observability.Actor(cmp.SubjectRef),
-			Payload: map[string]any{
-				"mode":               string(cmp.Mode),
-				"subject_ref":        string(cmp.SubjectRef),
-				"permission":         string(cmp.Permission),
-				"resource_kind":      cmp.Resource.Kind,
-				"resource_id":        cmp.Resource.ID,
-				"transport":          string(cmp.Transport),
-				"legacy_allowed":     cmp.LegacyAllowed,
-				"equivalent_allowed": cmp.EquivalentAllowed,
-				"legacy_only":        permissionKeysToStrings(cmp.LegacyOnly),
-				"equivalent_only":    permissionKeysToStrings(cmp.EquivalentOnly),
-			},
-		})
-	}
-}
-
-func (s *Service) persistShadowReadiness(ctx context.Context, cmp ShadowComparison) {
-	if s == nil || s.store == nil {
+	if !cmp.Mismatch {
 		return
 	}
-	now := s.clock.Now().UTC()
-	transports := []string{string(cmp.Transport)}
-	if existing, err := s.store.getShadowReadiness(ctx); err == nil {
-		transports = append(transports, existing.Transports...)
-		if !existing.WindowStartedAt.IsZero() {
-			now = existing.WindowStartedAt.UTC()
-		}
+	s.metrics.mismatches.Add(1)
+	s.metrics.legacyOnly.Add(int64(len(cmp.LegacyOnly)))
+	s.metrics.equivalentOnly.Add(int64(len(cmp.EquivalentOnly)))
+	if s.sink == nil {
+		return
 	}
-	checks := s.metrics.checks.Load()
-	mismatches := s.metrics.mismatches.Load()
-	_ = s.store.persistShadowReadiness(ctx, shadowReadinessRecord{
-		Mode:            s.mode,
-		WindowStartedAt: now,
-		WindowEndedAt:   s.clock.Now().UTC(),
-		Transports:      dedupeStrings(transports),
-		Checks:          checks,
-		Mismatches:      mismatches,
-		LegacyOnly:      s.metrics.legacyOnly.Load(),
-		EquivalentOnly:  s.metrics.equivalentOnly.Load(),
-		Ready:           checks > 0 && mismatches == 0,
-		Reason:          "shadow comparison persisted",
+	_, _ = s.sink.Emit(ctx, observability.EmitCommand{
+		EventType: observability.EventType("authorization.shadow.diff"),
+		Refs:      observability.EventRefs{OrganizationID: cmp.Resource.OrgID, ProjectID: cmp.Resource.ProjectID},
+		Actor:     observability.Actor(cmp.SubjectRef),
+		Payload: map[string]any{
+			"mode":               string(cmp.Mode),
+			"subject_ref":        string(cmp.SubjectRef),
+			"permission":         string(cmp.Permission),
+			"resource_kind":      cmp.Resource.Kind,
+			"resource_id":        cmp.Resource.ID,
+			"legacy_allowed":     cmp.LegacyAllowed,
+			"equivalent_allowed": cmp.EquivalentAllowed,
+			"legacy_only":        permissionKeysToStrings(cmp.LegacyOnly),
+			"equivalent_only":    permissionKeysToStrings(cmp.EquivalentOnly),
+		},
 	})
-}
-
-func dedupeStrings(in []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(in))
-	for _, v := range in {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		if _, ok := seen[v]; ok {
-			continue
-		}
-		seen[v] = struct{}{}
-		out = append(out, v)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func permissionKeysToStrings(keys []PermissionKey) []string {
@@ -2389,7 +2225,7 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		if r.URI == "" {
 			r.URI = r.ID
 		}
-		if r.URI == "" && len(r.Refs) == 0 {
+		if r.URI == "" {
 			return r, []string{"file uri required"}, ErrInvalid
 		}
 	case "agent":

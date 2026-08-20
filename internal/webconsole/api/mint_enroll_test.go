@@ -13,6 +13,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	atsqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -83,10 +84,10 @@ func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.Worke
 // requireWorkerInOrg, so these tests must authenticate + scope by org.
 func wireWorkerAuth(t *testing.T, db *sql.DB, deps *HandlerDeps) testSession {
 	t.Helper()
-	deps.DB = db
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
+	deps.Authorizer = authz.New(authz.Deps{DB: db})
 	return setupTestSession(t, db, *deps)
 }
 

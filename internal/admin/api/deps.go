@@ -253,18 +253,12 @@ type depsKey struct{}
 // hd retrieves the typed dep bag from request context.
 func hd(r *http.Request) HandlerDeps {
 	v, _ := r.Context().Value(depsKey{}).(HandlerDeps)
-	if v.Authorizer == nil {
-		v.Authorizer = authz.New(authz.Deps{DB: v.DB})
-	}
 	return v
 }
 
 // WithDeps installs the dep bag into the request context. Use as
 // middleware around all handlers.
 func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
-	if deps.Authorizer == nil {
-		deps.Authorizer = authz.New(authz.Deps{DB: deps.DB})
-	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), depsKey{}, deps)

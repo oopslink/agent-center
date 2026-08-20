@@ -2,10 +2,8 @@ package authorization
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
-	"time"
 )
 
 func TestT1411EnforcementModesRejectLongTermORAllow(t *testing.T) {
@@ -45,9 +43,6 @@ func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 	if metrics := svc.ShadowMetrics(); metrics.Checks != int64(len(reqs)) || metrics.Mismatches != 0 {
 		t.Fatalf("shadow metrics after equivalent checks = %+v", metrics)
 	}
-	if metrics := svc.ShadowMetrics(); !metrics.ReadyToEnforce || !svc.ShadowReadyToEnforce() {
-		t.Fatalf("shadow diff=0 gate should be ready after equivalent checks: %+v", metrics)
-	}
 
 	enforced := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce})
 	for _, req := range reqs {
@@ -62,82 +57,6 @@ func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 	}
 	if metrics := legacy.ShadowMetrics(); metrics.Checks != 0 {
 		t.Fatalf("legacy mode should not shadow-compare, metrics=%+v", metrics)
-	}
-}
-
-func TestT1411ShadowReadinessPersistsAndGatesProductionEnforce(t *testing.T) {
-	ctx := context.Background()
-	db, svc := newAuthzTestService(t)
-	seedAuthzBase(t, db)
-	seedProject(t, db, "project-1", "org-1")
-	seedProjectMember(t, db, "pm-member", "project-1", "user:user-member", "member")
-	seedTeam(t, db)
-
-	req := CheckRequest{SubjectRef: "user:user-member", Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}}
-	for _, transport := range []Transport{TransportWeb, TransportMCP, TransportBackground} {
-		req.Transport = transport
-		if _, err := svc.Check(ctx, req); err != nil {
-			t.Fatalf("shadow check %s: %v", transport, err)
-		}
-	}
-	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); err != nil {
-		t.Fatalf("persisted shadow readiness should allow enforce: %v", err)
-	}
-	restarted := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce, RequireEnforceReadiness: true, RequiredShadowTransports: []Transport{TransportWeb, TransportMCP, TransportBackground}})
-	if restarted.EnforcementMode() != EnforcementEnforce {
-		t.Fatalf("restart did not read persisted readiness, mode=%q", restarted.EnforcementMode())
-	}
-
-	execMany(t, db, `UPDATE authorization_shadow_readiness SET window_ended_at=?, updated_at=? WHERE id='current'`, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano))
-	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, time.Hour); !errors.Is(err, ErrDenied) {
-		t.Fatalf("stale readiness err=%v, want ErrDenied", err)
-	}
-	execMany(t, db, `UPDATE authorization_shadow_readiness SET window_ended_at=?, transports_json='["web","mcp"]', updated_at=? WHERE id='current'`, svc.clock.Now().UTC().Format(time.RFC3339Nano), svc.clock.Now().UTC().Format(time.RFC3339Nano))
-	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); !errors.Is(err, ErrDenied) {
-		t.Fatalf("incomplete readiness err=%v, want ErrDenied", err)
-	}
-}
-
-func TestT1411ReadinessMissingEvidenceFailsClosed(t *testing.T) {
-	ctx := context.Background()
-	db, base := newAuthzTestService(t)
-	execMany(t, db, `DELETE FROM authorization_shadow_readiness`)
-	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce, RequireEnforceReadiness: true, RequiredShadowTransports: []Transport{TransportWeb}})
-	if enforced.EnforcementMode() != EnforcementShadow {
-		t.Fatalf("missing readiness must keep production in shadow, got %q", enforced.EnforcementMode())
-	}
-	var reason string
-	if err := db.QueryRowContext(ctx, `SELECT reason FROM authorization_shadow_readiness WHERE id='current'`).Scan(&reason); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		t.Fatal(err)
-	}
-	if reason == "" {
-		t.Fatal("readiness rejection should be persisted for audit")
-	}
-}
-
-func TestT1411TransportConsistencyForSameEffectivePermission(t *testing.T) {
-	ctx := context.Background()
-	db, base := newAuthzTestService(t)
-	seedAuthzBase(t, db)
-	seedProject(t, db, "project-1", "org-1")
-	seedTeamRAM(t, db)
-	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
-	var source DecisionSource
-	for _, transport := range []Transport{TransportWeb, TransportMCP, TransportBackground} {
-		decision, err := enforced.Check(ctx, CheckRequest{
-			SubjectRef: "user:user-member",
-			Transport:  transport,
-			Permission: "project.read",
-			Resource:   ResourceScope{Kind: "project", ID: "project-1"},
-		})
-		if err != nil || !decision.Allowed {
-			t.Fatalf("%s decision=%#v err=%v", transport, decision, err)
-		}
-		if source == "" {
-			source = decision.Source
-		} else if decision.Source != source {
-			t.Fatalf("source mismatch for %s: got %s want %s", transport, decision.Source, source)
-		}
 	}
 }
 
@@ -160,32 +79,10 @@ func TestT1411ShadowMetricsExposeLegacyEquivalentDrift(t *testing.T) {
 	if metrics.Checks != 1 || metrics.Mismatches != 1 || metrics.LegacyOnly == 0 {
 		t.Fatalf("shadow metrics did not capture drift: %+v", metrics)
 	}
-	if metrics.ReadyToEnforce || svc.ShadowReadyToEnforce() {
-		t.Fatalf("shadow diff gate must block enforce while mismatches exist: %+v", metrics)
-	}
 
 	enforced := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce})
 	if _, err := enforced.Check(ctx, req); !errors.Is(err, ErrDenied) {
 		t.Fatalf("enforce should fail closed on equivalent drift, err=%v", err)
-	}
-}
-
-func TestT1412ProjectMembershipRevokeInvalidatesCachedEffective(t *testing.T) {
-	ctx := context.Background()
-	db, base := newAuthzTestService(t)
-	seedAuthzBase(t, db)
-	seedProject(t, db, "project-1", "org-1")
-	seedProjectMember(t, db, "pm-cached", "project-1", "user:user-member", "member")
-
-	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
-	req := CheckRequest{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}}
-	if _, err := enforced.Check(ctx, req); err != nil {
-		t.Fatalf("warm project member cache: %v", err)
-	}
-	execMany(t, db, `DELETE FROM pm_project_members WHERE id='pm-cached'`)
-	decision, err := enforced.Check(ctx, req)
-	if !errors.Is(err, ErrDenied) || decision.Allowed {
-		t.Fatalf("project membership revoke must invalidate cached effective permissions, decision=%#v err=%v", decision, err)
 	}
 }
 

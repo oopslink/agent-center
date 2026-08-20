@@ -56,7 +56,7 @@ func (s *Server) permissionsCheckHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	decision, err := svc.Check(r.Context(), req)
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(svc), req)
 	if err != nil {
 		writeAuthorizationError(w, decision, err)
 		return
@@ -144,15 +144,9 @@ func (s *Server) permissionsShadowHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
-	readiness, readinessErr := svc.ShadowReadiness(r.Context())
-	readinessPayload := any(readiness)
-	if readinessErr != nil {
-		readinessPayload = map[string]any{"ready": false, "reason": readinessErr.Error()}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mode":      svc.EnforcementMode(),
-		"metrics":   svc.ShadowMetrics(),
-		"readiness": readinessPayload,
+		"mode":    svc.EnforcementMode(),
+		"metrics": svc.ShadowMetrics(),
 	})
 }
 

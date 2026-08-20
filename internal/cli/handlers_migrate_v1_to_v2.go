@@ -181,7 +181,7 @@ func MigrateV1ToV2Command() *Command {
 // Team Memory observability projection; 0126 retires AI Runtime Profile schema;
 // 0127 adds immutable Plan Generation snapshots; 0128 audits Team Rule loads;
 // 0129-0136-0137 add the unified authorization/RAM role migrations.
-const targetSchemaVersion = 138
+const targetSchemaVersion = 137
 
 func runMigrateV1ToV2(
 	ctx context.Context,

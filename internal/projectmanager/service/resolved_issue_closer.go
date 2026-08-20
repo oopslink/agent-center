@@ -34,6 +34,9 @@ func (s *Service) CloseResolvedIssues(ctx context.Context, delay time.Duration) 
 	}
 	closed := 0
 	for _, snap := range resolved {
+		if err := s.requireBackgroundAuthorization(ctx, "issue.write", issueWriteResource(snap.ID(), snap.ProjectID())); err != nil {
+			return closed, err
+		}
 		if snap.StatusChangedAt().After(cutoff) {
 			continue
 		}

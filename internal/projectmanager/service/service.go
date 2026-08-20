@@ -316,9 +316,8 @@ type Service struct {
 	// liveExecutors is OPTIONAL (nil-safe). When wired, the lease checker can compare
 	// DB-running executor-fork tasks with the worker heartbeat's live executor snapshot.
 	liveExecutors concurrency.LiveStateStore
-	// authorizer is OPTIONAL for older tests. Production wires it so background
-	// sweeps pass through the unified effective-permission resolver.
-	authorizer *authz.Service
+	// authorizer is mandatory for production background mutators. Nil fails closed.
+	authorizer authz.Resolver
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -430,9 +429,8 @@ type Deps struct {
 	// by worker heartbeats. It lets the stuck-node reconciler detect DB-running executor
 	// tasks whose owner is alive/idle but has no live executor for the task.
 	LiveExecutors concurrency.LiveStateStore
-	// Authorizer is OPTIONAL for older tests. Production wires it so background sweeps
-	// exercise the same effective-permission resolver as HTTP and MCP.
-	Authorizer *authz.Service
+	// Authorizer is the unified resolver used by background sweepers.
+	Authorizer authz.Resolver
 }
 
 // New constructs the Service.
@@ -471,24 +469,6 @@ func New(d Deps) *Service {
 		liveExecutors:      d.LiveExecutors,
 		authorizer:         d.Authorizer,
 	}
-}
-
-func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation string) error {
-	if s == nil || s.authorizer == nil {
-		return nil
-	}
-	subject := authz.WorkerSubject("background")
-	_, err := s.authorizer.Check(ctx, authz.CheckRequest{
-		SubjectRef: subject,
-		Transport:  authz.TransportBackground,
-		Permission: "worker.capability.report",
-		Resource: authz.ResourceScope{
-			Kind: "worker",
-			ID:   subject.BareID(),
-		},
-		RequestID: "background:" + operation,
-	})
-	return err
 }
 
 // flushActionLogs persists the domain's freshly-appended TaskActionLog entries

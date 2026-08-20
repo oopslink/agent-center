@@ -147,7 +147,25 @@ func (s *Server) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		mapTeamError(w, err)
 		return
 	}
+	if err := grantTeamCreatorAuthorization(r.Context(), d, a, view.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "authorization_grant_failed", err.Error())
+		return
+	}
 	writeJSON(w, http.StatusCreated, view)
+}
+
+func grantTeamCreatorAuthorization(ctx context.Context, d HandlerDeps, a *agent.Agent, teamID string) error {
+	if d.DB == nil {
+		return nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := d.DB.ExecContext(ctx, `
+		INSERT OR IGNORE INTO authorization_role_assignments
+			(id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at)
+		VALUES (?, ?, ?, 'sys-team-web-owner', 'team', ?, 'system', ?)`,
+		"asgn-team-creator-"+teamID+"-"+strings.ReplaceAll(string(a.ID()), ":", "_"),
+		a.OrganizationID(), agentActor(a), teamID, now)
+	return err
 }
 
 // --- update_team -------------------------------------------------------------

@@ -18,19 +18,6 @@ type Store struct {
 	db *sql.DB
 }
 
-type shadowReadinessRecord struct {
-	Mode            EnforcementMode
-	WindowStartedAt time.Time
-	WindowEndedAt   time.Time
-	Transports      []string
-	Checks          int64
-	Mismatches      int64
-	LegacyOnly      int64
-	EquivalentOnly  int64
-	Ready           bool
-	Reason          string
-}
-
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
@@ -72,81 +59,6 @@ func (s *Store) ListDefinitions(ctx context.Context) ([]PermissionDefinition, er
 		out = append(out, d)
 	}
 	return out, rows.Err()
-}
-
-func (s *Store) persistShadowReadiness(ctx context.Context, rec shadowReadinessRecord) error {
-	exec, err := s.exec(ctx)
-	if err != nil {
-		return err
-	}
-	if rec.WindowStartedAt.IsZero() {
-		rec.WindowStartedAt = time.Now().UTC()
-	}
-	if rec.WindowEndedAt.IsZero() {
-		rec.WindowEndedAt = rec.WindowStartedAt
-	}
-	rawTransports, err := json.Marshal(rec.Transports)
-	if err != nil {
-		return err
-	}
-	ready := 0
-	if rec.Ready {
-		ready = 1
-	}
-	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_shadow_readiness
-		(id, mode, window_started_at, window_ended_at, transports_json, checks, mismatches, legacy_only, equivalent_only, ready, reason, updated_at)
-		VALUES ('current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			mode = excluded.mode,
-			window_started_at = CASE
-				WHEN authorization_shadow_readiness.window_started_at = '' THEN excluded.window_started_at
-				ELSE authorization_shadow_readiness.window_started_at
-			END,
-			window_ended_at = excluded.window_ended_at,
-			transports_json = excluded.transports_json,
-			checks = excluded.checks,
-			mismatches = excluded.mismatches,
-			legacy_only = excluded.legacy_only,
-			equivalent_only = excluded.equivalent_only,
-			ready = excluded.ready,
-			reason = excluded.reason,
-			updated_at = excluded.updated_at`,
-		rec.Mode, rec.WindowStartedAt.UTC().Format(time.RFC3339Nano), rec.WindowEndedAt.UTC().Format(time.RFC3339Nano),
-		string(rawTransports), rec.Checks, rec.Mismatches, rec.LegacyOnly, rec.EquivalentOnly, ready, rec.Reason,
-		time.Now().UTC().Format(time.RFC3339Nano))
-	return err
-}
-
-func (s *Store) getShadowReadiness(ctx context.Context) (shadowReadinessRecord, error) {
-	exec, err := s.exec(ctx)
-	if err != nil {
-		return shadowReadinessRecord{}, err
-	}
-	var rec shadowReadinessRecord
-	var started, ended, rawTransports string
-	var ready int
-	err = exec.QueryRowContext(ctx, `SELECT mode, window_started_at, window_ended_at, transports_json,
-		checks, mismatches, legacy_only, equivalent_only, ready, reason
-		FROM authorization_shadow_readiness WHERE id = 'current'`).Scan(&rec.Mode, &started, &ended, &rawTransports,
-		&rec.Checks, &rec.Mismatches, &rec.LegacyOnly, &rec.EquivalentOnly, &ready, &rec.Reason)
-	if err != nil {
-		return shadowReadinessRecord{}, err
-	}
-	if started != "" {
-		if rec.WindowStartedAt, err = time.Parse(time.RFC3339Nano, started); err != nil {
-			return shadowReadinessRecord{}, err
-		}
-	}
-	if ended != "" {
-		if rec.WindowEndedAt, err = time.Parse(time.RFC3339Nano, ended); err != nil {
-			return shadowReadinessRecord{}, err
-		}
-	}
-	if err := json.Unmarshal([]byte(rawTransports), &rec.Transports); err != nil {
-		return shadowReadinessRecord{}, err
-	}
-	rec.Ready = ready == 1
-	return rec, nil
 }
 
 func (s *Store) getRole(ctx context.Context, id string) (Role, error) {
@@ -373,8 +285,8 @@ func (s *Store) activeAssignmentsFor(ctx context.Context, orgID string, subject 
 	rows, err := exec.QueryContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
 		created_by, created_at, expires_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments
-		WHERE org_id = ? AND subject_ref = ? AND resource_kind = ? AND resource_id = ? AND revoked_at IS NULL
-		ORDER BY created_at, id`, orgID, subject, kind, id)
+		WHERE org_id IN (?, '*') AND subject_ref = ? AND resource_kind = ? AND resource_id IN (?, '*') AND revoked_at IS NULL
+		ORDER BY CASE WHEN org_id = ? THEN 0 ELSE 1 END, CASE WHEN resource_id = ? THEN 0 ELSE 1 END, created_at, id`, orgID, subject, kind, id, orgID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -627,6 +539,46 @@ func (s *Store) listAuditEventsForSubject(ctx context.Context, subject SubjectRe
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) saveReadiness(ctx context.Context, snap ReadinessSnapshot) error {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_readiness_gates
+		(id, mode, transports_json, permissions_json, resources_json, checks, mismatches, started_at, observed_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		snap.ID, snap.Mode, readinessJSON(snap.Transports), readinessJSON(snap.Permissions), readinessJSON(snap.Resources),
+		snap.Checks, snap.Mismatches,
+		snap.StartedAt.UTC().Format(time.RFC3339Nano),
+		snap.ObservedAt.UTC().Format(time.RFC3339Nano),
+		snap.ExpiresAt.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) latestReadiness(ctx context.Context) (ReadinessSnapshot, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return ReadinessSnapshot{}, err
+	}
+	var snap ReadinessSnapshot
+	var transports, permissions, resources, started, observed, expires string
+	row := exec.QueryRowContext(ctx, `SELECT id, mode, transports_json, permissions_json, resources_json,
+			checks, mismatches, started_at, observed_at, expires_at
+		FROM authorization_readiness_gates
+		ORDER BY observed_at DESC, id DESC
+		LIMIT 1`)
+	if err := row.Scan(&snap.ID, &snap.Mode, &transports, &permissions, &resources, &snap.Checks, &snap.Mismatches, &started, &observed, &expires); err != nil {
+		return ReadinessSnapshot{}, err
+	}
+	_ = json.Unmarshal([]byte(transports), &snap.Transports)
+	_ = json.Unmarshal([]byte(permissions), &snap.Permissions)
+	_ = json.Unmarshal([]byte(resources), &snap.Resources)
+	snap.StartedAt = parseDBTime(started)
+	snap.ObservedAt = parseDBTime(observed)
+	snap.ExpiresAt = parseDBTime(expires)
+	return snap, nil
 }
 
 type auditEvent struct {

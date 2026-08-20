@@ -61,6 +61,9 @@ func (s *Service) NudgeExpiredLeases(ctx context.Context) (int, error) {
 	nudged := 0
 	for _, snap := range running {
 		taskID := snap.ID()
+		if err := s.requireBackgroundAuthorization(ctx, "task.write", taskWriteResource(taskID, snap.ProjectID())); err != nil {
+			return nudged, err
+		}
 		// Lease snapshot read at the TOP of the sweep — BEFORE this sweep's own nudge — so
 		// the confirmed-dead activity check compares against the value the previous sweep
 		// left (post its nudge), never counting our own nudge as agent activity.

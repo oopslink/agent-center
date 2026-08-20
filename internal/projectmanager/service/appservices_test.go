@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -24,6 +25,9 @@ func setup(t *testing.T) (*Service, *outboxsql.OutboxRepo, context.Context) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	ob := outboxsql.NewOutboxRepo(db)
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	authzSvc := authz.New(authz.Deps{DB: db, IDGen: gen, Clock: clk})
 	svc := New(Deps{
 		DB:           db,
 		Projects:     pmsql.NewProjectRepo(db),
@@ -35,8 +39,9 @@ func setup(t *testing.T) (*Service, *outboxsql.OutboxRepo, context.Context) {
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
 		Outbox:       ob,
 		AgentDir:     allOrgDir("org-1"),
-		IDGen:        idgen.NewGenerator(clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())),
-		Clock:        clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC()),
+		IDGen:        gen,
+		Clock:        clk,
+		Authorizer:   authz.NewResolver(authzSvc),
 	})
 	return svc, ob, context.Background()
 }

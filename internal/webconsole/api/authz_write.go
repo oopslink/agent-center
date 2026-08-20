@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -9,16 +8,7 @@ import (
 )
 
 func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, caller *identity.Identity, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	if d.Authorizer == nil {
-		writeAuthorizationError(w, authz.AccessDecision{
-			SubjectRef: authz.UserSubject(caller.ID()),
-			Permission: permission,
-			Resource:   resource,
-			Reason:     "authorization_not_wired",
-		}, authz.ErrDenied)
-		return false
-	}
-	decision, err := checkWebAuthorization(r.Context(), d, authz.CheckRequest{
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
 		SubjectRef: authz.UserSubject(caller.ID()),
 		Transport:  authz.TransportWeb,
 		Permission: permission,
@@ -32,16 +22,7 @@ func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDe
 }
 
 func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, subject authz.SubjectRef, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	if d.Authorizer == nil {
-		writeAuthorizationError(w, authz.AccessDecision{
-			SubjectRef: subject,
-			Permission: permission,
-			Resource:   resource,
-			Reason:     "authorization_not_wired",
-		}, authz.ErrDenied)
-		return false
-	}
-	decision, err := checkWebAuthorization(r.Context(), d, authz.CheckRequest{
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
 		SubjectRef: subject,
 		Transport:  authz.TransportWeb,
 		Permission: permission,
@@ -52,8 +33,4 @@ func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d Ha
 		return false
 	}
 	return true
-}
-
-func checkWebAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
-	return d.Authorizer.Check(ctx, req)
 }

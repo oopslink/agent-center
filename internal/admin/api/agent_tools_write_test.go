@@ -7,11 +7,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
@@ -88,7 +90,12 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	}
 	clk := clock.NewFakeClock(atNow)
 	gen := idgen.NewGenerator(clk)
-	seedAgentToolAuthzBase(t, db)
+	if _, err := db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at)
+		VALUES (?, ?, ?, 'system', ?, ?)`,
+		atTestOrg, atTestOrg, "Test Org", atNow.Format(time.RFC3339Nano), atNow.Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)
@@ -121,6 +128,17 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		DB: db, Repos: coderepsql.NewRepoRepo(db), IDGen: gen, Clock: clk,
 		MasterKey: crMK, Providers: fakeRepoProvider{},
 	})
+	authzSvc := authz.New(authz.Deps{DB: db, IDGen: gen, Clock: clk})
+	if _, err := db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO authorization_role_assignments
+			(id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at)
+		VALUES
+			('asgn-agent-tools-org-ag1', ?, ?, 'sys-org-member', 'org', ?, 'system', ?),
+			('asgn-agent-tools-org-ag2', ?, ?, 'sys-org-member', 'org', ?, 'system', ?)`,
+		atTestOrg, "agent:"+atAgent1, atTestOrg, atNow.Format(time.RFC3339Nano),
+		atTestOrg, "agent:"+atAgent2, atTestOrg, atNow.Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
 
 	plans := pmsql.NewPlanRepo(db)
 	pmSvc := pmservice.New(pmservice.Deps{
@@ -142,6 +160,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		Clock:            clk,
 		AgentDir:         atAllAgentsDir{},
 		Audit:            pmsql.NewAuditLogRepo(db, gen),
+		Authorizer:       authz.NewResolver(authzSvc),
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, func(_ context.Context, ref string) (string, bool) {
 			if i := strings.IndexByte(ref, ':'); i >= 0 {
 				ref = ref[i+1:]
@@ -206,6 +225,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		CodeRepoSvc:      codeRepoSvc,
 		OutboxRepo:       outboxRepo,
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(db),
+		Authorizer:       authzSvc,
 	}
 	return &writeToolsFixture{
 		deps: deps, verifier: verifier, db: db, agents: agents, pmSvc: pmSvc, codeRepoSvc: codeRepoSvc, convRepo: convRepo,

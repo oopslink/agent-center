@@ -189,6 +189,9 @@ func (s *Service) autoAssignSweep(ctx context.Context, scope pm.ProjectID) (int,
 // status, per-org candidates, project switch, reservations) live in sw so a sweep
 // amortises the reads.
 func (s *Service) autoAssignOne(ctx context.Context, sw *autoAssignSweepCtx, t *pm.Task) (bool, error) {
+	if err := s.requireBackgroundAuthorization(ctx, "project.write", projectWriteResource(t.ProjectID())); err != nil {
+		return false, err
+	}
 	planID := t.PlanID()
 	if planID == "" {
 		if s.pools == nil {
@@ -622,9 +625,6 @@ func NewAutoAssignReconciler(svc *Service, clk clock.Clock, tick time.Duration, 
 
 // Tick runs one sweep. Exposed for tests + the boot reconcile.
 func (r *AutoAssignReconciler) Tick(ctx context.Context) (int, error) {
-	if err := r.svc.requireBackgroundAuthorization(ctx, "auto_assign_sweep"); err != nil {
-		return 0, err
-	}
 	return r.svc.AutoAssignSweep(ctx)
 }
 

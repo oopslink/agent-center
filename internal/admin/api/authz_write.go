@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -11,18 +10,8 @@ import (
 )
 
 func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	subject := authz.SubjectRef(agentActor(a))
-	if d.Authorizer == nil {
-		writeAuthorizationError(w, authz.AccessDecision{
-			SubjectRef: subject,
-			Permission: permission,
-			Resource:   resource,
-			Reason:     "authorization_not_wired",
-		}, authz.ErrDenied)
-		return false
-	}
-	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
-		SubjectRef: subject,
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,
 		Resource:   resource,
@@ -40,49 +29,31 @@ func (s *Server) requireAgentProjectWrite(w http.ResponseWriter, r *http.Request
 		ID:    projectID,
 		OrgID: a.OrganizationID(),
 	}
-	if d.Authorizer == nil {
-		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: "project.write", Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
-		return false
-	}
-	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: "project.write",
 		Resource:   resource,
 	})
-	if err != nil || !decision.Allowed {
-		switch {
-		case errors.Is(err, authz.ErrNotFound):
-			memberID := a.IdentityMemberID()
-			if memberID == "" {
-				memberID = string(a.ID())
-			}
-			writeError(w, http.StatusNotFound, "project_not_found",
-				"project "+projectID+" not found"+availableProjectsHint(r.Context(), d, a.OrganizationID(), memberID))
-		case errors.Is(err, authz.ErrDenied):
-			if agentProjectMember(r.Context(), d, projectID, agentActor(a)) {
-				writeAuthorizationError(w, decision, err)
-			} else {
-				writeError(w, http.StatusForbidden, "not_a_project_member",
-					"not a member of project "+projectID+", ask owner to add this agent")
-			}
-		default:
-			writeAuthorizationError(w, decision, err)
-		}
+	if err == nil && decision.Allowed {
+		return true
+	}
+	if errors.Is(err, authz.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "project_not_found",
+			"project "+projectID+" not found"+availableProjectsHint(r.Context(), d, a.OrganizationID(), a.IdentityMemberID()))
 		return false
 	}
-	return true
-}
-
-func agentProjectMember(ctx context.Context, d HandlerDeps, projectID, actor string) bool {
-	if d.DB == nil {
+	if decision.Reason == "authorization_not_wired" {
+		writeAuthorizationError(w, decision, err)
 		return false
 	}
-	var n int
-	if err := d.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pm_project_members WHERE project_id = ? AND identity_id = ?`, projectID, actor).Scan(&n); err != nil {
+	if d.Authorizer != nil && d.Authorizer.EnforcementMode() == authz.EnforcementEnforce {
+		writeAuthorizationError(w, decision, err)
 		return false
 	}
-	return n > 0
+	writeError(w, http.StatusForbidden, "not_a_project_member",
+		"not a member of project "+projectID+", please ask an owner to add you")
+	return false
 }
 
 func (s *Server) requireAgentTeamCreate(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent) bool {
@@ -110,11 +81,26 @@ func (s *Server) requireAgentOrgTemplateRead(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) requireAgentConversationRead(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, convID string) bool {
-	return s.requireAgentAuthorization(w, r, d, a, "conversation.read", authz.ResourceScope{
+	resource := authz.ResourceScope{
 		Kind:  "conversation",
 		ID:    convID,
 		OrgID: a.OrganizationID(),
+	}
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(agentActor(a)),
+		Transport:  authz.TransportMCP,
+		Permission: "conversation.read",
+		Resource:   resource,
 	})
+	if err == nil && decision.Allowed {
+		return true
+	}
+	if err != nil && !errors.Is(err, authz.ErrNotFound) && decision.Reason != "authorization_not_wired" {
+		writeError(w, http.StatusForbidden, "not_a_channel_member", "agent is not a member of this channel")
+		return false
+	}
+	writeAuthorizationError(w, decision, err)
+	return false
 }
 
 func (s *Server) requireAgentTeamPermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, teamID string, permission authz.PermissionKey) bool {
@@ -166,6 +152,9 @@ func (s *Server) requireAgentConversationPost(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, fileURI string, refs []authz.FileRef) bool {
+	if fileURI == "" && permission == "file.upload" {
+		fileURI = "upload://pending"
+	}
 	resource := authz.ResourceScope{
 		Kind:             "file",
 		ID:               fileURI,
@@ -175,29 +164,21 @@ func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Reque
 		IdentityMemberID: a.IdentityMemberID(),
 		Refs:             refs,
 	}
-	if d.Authorizer == nil {
-		writeAuthorizationError(w, authz.AccessDecision{SubjectRef: authz.SubjectRef(agentActor(a)), Permission: permission, Resource: resource, Reason: "authorization_not_wired"}, authz.ErrDenied)
-		return false
-	}
-	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,
 		Resource:   resource,
 	})
-	if err != nil || !decision.Allowed {
-		if permission == "file.upload" || permission == "file.attach" {
-			writeError(w, http.StatusForbidden, "scope_not_in_agent_domain", "requested scope is not in the agent's own domain")
-		} else {
-			writeAuthorizationError(w, decision, err)
-		}
+	if err == nil && decision.Allowed {
+		return true
+	}
+	if len(refs) > 0 && (permission == "file.upload" || permission == "file.attach") && decision.Reason != "authorization_not_wired" {
+		writeError(w, http.StatusForbidden, "scope_not_in_agent_domain", "scope is not in the agent domain")
 		return false
 	}
-	return true
-}
-
-func checkAdminAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
-	return d.Authorizer.Check(ctx, req)
+	writeAuthorizationError(w, decision, err)
+	return false
 }
 
 func agentAuthzFileRef(scope files.FileScope, scopeID string) authz.FileRef {

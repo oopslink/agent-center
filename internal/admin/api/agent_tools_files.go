@@ -326,12 +326,9 @@ func dedupScopeRefs(in []filesservice.ScopeRef) []filesservice.ScopeRef {
 }
 
 // agentReachable reports whether the agent may download the blob at fileURI.
-// Shared RAM authorization is authoritative and fail-closed.
+// Shared RAM authorization is authoritative and fail-closed when not wired.
 func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, fileURI files.FileURI) (bool, error) {
-	if d.Authorizer == nil {
-		return false, nil
-	}
-	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
+	decision, err := authz.Authorize(r.Context(), authz.NewResolver(d.Authorizer), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: "file.download",
