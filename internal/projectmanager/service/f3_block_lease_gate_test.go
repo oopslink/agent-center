@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -372,6 +373,7 @@ func TestActionLog_BlockUnblockPersisted(t *testing.T) {
 // block outlives the threshold, never reclaims the task, and re-arms after unblock.
 func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
 	h := planAdvanceSetup(t)
+	h.svc.authorizer = authz.New(authz.Deps{DB: h.svc.db, Clock: h.clk, Mode: authz.EnforcementEnforce})
 	_, tid := startedPoolTask(t, h, "org-od", "P", "agent:w1")
 	if err := h.svc.BlockTask(h.ctx, tid, "waiting on owner", pm.BlockReasonObstacle, "agent:w1"); err != nil {
 		t.Fatal(err)

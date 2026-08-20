@@ -170,6 +170,12 @@ func NewLeaseChecker(svc *Service, clk clock.Clock, tick time.Duration, log func
 
 // Tick runs one sweep. Exposed for tests + the boot reconcile.
 func (c *LeaseChecker) Tick(ctx context.Context) (int, error) {
+	if c == nil || c.svc == nil {
+		return 0, nil
+	}
+	if err := c.svc.requireBackgroundAuthorization(ctx, "lease_checker"); err != nil {
+		return 0, err
+	}
 	return c.svc.NudgeExpiredLeases(ctx)
 }
 

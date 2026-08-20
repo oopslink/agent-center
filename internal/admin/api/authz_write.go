@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -13,7 +14,7 @@ func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Reques
 	if d.Authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,
@@ -124,6 +125,15 @@ func (s *Server) requireAgentFilePermission(w http.ResponseWriter, r *http.Reque
 		IdentityMemberID: a.IdentityMemberID(),
 		Refs:             refs,
 	})
+}
+
+func checkAdminAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
+	var resolver authz.EffectiveResolver = d.Authorizer
+	exp, err := resolver.ResolveEffective(ctx, req)
+	if err == nil && !exp.Decision.Allowed {
+		err = authz.ErrDenied
+	}
+	return exp.Decision, err
 }
 
 func agentAuthzFileRef(scope files.FileScope, scopeID string) authz.FileRef {

@@ -73,6 +73,10 @@ func (l *PlanReconcileLoop) runOnce(ctx context.Context) {
 	if l.svc == nil {
 		return
 	}
+	if err := l.svc.requireBackgroundAuthorization(ctx, "plan_reconcile"); err != nil {
+		l.log("plan reconcile loop: " + err.Error())
+		return
+	}
 	// Per-plan errors are logged so one bad plan never silences the whole sweep;
 	// the returned (first) error is also logged for the list/setup failures.
 	errFn := func(planID pm.PlanID, err error) {
