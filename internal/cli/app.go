@@ -261,12 +261,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	sink := observability.NewEventSink(er, er, gen, clk)
 	authzMode, err := authorization.ParseEnforcementMode(os.Getenv("AGENT_CENTER_AUTHZ_MODE"))
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("authorization mode: %w", err)
 	}
-	authorizationSvc := authorization.New(authorization.Deps{
-		DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode,
-		RequireEnforceReadiness: authzMode == authorization.EnforcementEnforce,
-	})
+	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode})
+	if authzMode == authorization.EnforcementEnforce {
+		if err := authorizationSvc.ValidateEnforceReady(context.Background()); err != nil {
+			return nil, err
+		}
+	}
 	wr := wfsqlite.NewWorkerRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.

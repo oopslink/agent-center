@@ -217,6 +217,50 @@ func TestT1410TeamRoleRAMEffectiveScopesCacheAndImmediateRevoke(t *testing.T) {
 	}
 }
 
+func TestT1438BackgroundLoopDirectBindingRevokeFailClosed(t *testing.T) {
+	ctx := context.Background()
+	db, base := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-2", "org-1")
+	seedTeamRAM(t, db)
+	enforced := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementEnforce})
+	req := CheckRequest{
+		SubjectRef: "user:user-member",
+		Transport:  TransportSystem,
+		Permission: "project.write",
+		Resource:   ResourceScope{Kind: "project", ID: "project-2"},
+	}
+
+	backgroundIteration := func() error {
+		decision, err := enforced.Check(ctx, req)
+		if err != nil {
+			return err
+		}
+		if !decision.Allowed || decision.Source != SourceCustomRole {
+			return fmt.Errorf("background decision=%#v, want direct custom role", decision)
+		}
+		return nil
+	}
+	if err := backgroundIteration(); err != nil {
+		t.Fatalf("first background authorization iteration: %v", err)
+	}
+	if err := backgroundIteration(); err != nil {
+		t.Fatalf("cached background authorization iteration: %v", err)
+	}
+	if _, err := enforced.RevokeBatch(ctx, BatchRequest{
+		IdempotencyKey: "t1438-background-direct-revoke",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations:     []BatchOperation{{ID: "revoke", Revoke: RevokeInput{AssignmentID: "asgn-direct-project-writer", Reason: "background loop revoke"}}},
+	}); err != nil {
+		t.Fatalf("revoke direct binding: %v", err)
+	}
+	decision, err := enforced.Check(ctx, req)
+	if !errors.Is(err, ErrDenied) || decision.Allowed {
+		t.Fatalf("background iteration after revoke decision=%#v err=%v, want denied", decision, err)
+	}
+}
+
 func TestSupervisorCrossOrgRevokeMustFailClosed(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)

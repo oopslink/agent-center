@@ -42,7 +42,6 @@ type Deps struct {
 	Clock                    clock.Clock
 	EventSink                *observability.EventSink
 	Mode                     EnforcementMode
-	RequireEnforceReadiness  bool
 	RequiredShadowTransports []Transport
 	MinShadowChecks          int64
 	MinShadowWindow          time.Duration
@@ -73,27 +72,9 @@ func New(deps Deps) *Service {
 		store = NewStore(deps.DB)
 	}
 	mode := NormalizeEnforcementMode(deps.Mode)
-	required := deps.RequiredShadowTransports
-	if len(required) == 0 && deps.RequireEnforceReadiness {
-		required = []Transport{TransportWeb, TransportMCP, TransportBackground}
-	}
-	minChecks := deps.MinShadowChecks
-	if minChecks <= 0 && deps.RequireEnforceReadiness {
-		minChecks = int64(len(required))
-	}
-	minWindow := deps.MinShadowWindow
-	if minWindow <= 0 && deps.RequireEnforceReadiness {
-		minWindow = defaultEnforceShadowWindow
-	}
 	s := &Service{
 		db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode,
-		requiredShadowTransports: required, minShadowChecks: minChecks, minShadowWindow: minWindow,
-	}
-	if mode == EnforcementEnforce && deps.RequireEnforceReadiness {
-		if err := s.ValidateEnforceReadiness(context.Background(), required, defaultEnforceReadinessMaxAge); err != nil {
-			s.mode = EnforcementShadow
-			s.recordReadinessRejection(context.Background(), required, err)
-		}
+		requiredShadowTransports: deps.RequiredShadowTransports, minShadowChecks: deps.MinShadowChecks, minShadowWindow: deps.MinShadowWindow,
 	}
 	return s
 }
