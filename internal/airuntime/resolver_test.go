@@ -77,7 +77,7 @@ func TestRuntimeResolverStructuredFailures(t *testing.T) {
 		want Reason
 	}{
 		{"inherit default missing", RuntimeSelection{Mode: SelectionInherit}, nil, ReasonDefaultMissing},
-		{"retired profile selection", RuntimeSelection{Mode: "profile"}, nil, ReasonSelectionInvalid},
+		{"unknown selection mode", RuntimeSelection{Mode: "unknown"}, nil, ReasonSelectionInvalid},
 		{"cli disabled", RuntimeSelection{Mode: SelectionOverride, CLIID: "codex", ModelID: "gpt"}, func() { repo.catalog.CLIs[0].Enabled = false }, ReasonCLIDisabled},
 		{"model disabled", RuntimeSelection{Mode: SelectionOverride, CLIID: "codex", ModelID: "gpt"}, func() { repo.catalog.Models[0].Enabled = false }, ReasonModelDisabled},
 		{"incompatible", RuntimeSelection{Mode: SelectionOverride, CLIID: "codex", ModelID: "gpt"}, func() { repo.catalog.Models[0].CompatibleCLIKeys = []string{"claude-code"} }, ReasonIncompatible},

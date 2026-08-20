@@ -2,9 +2,9 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Revised（2026-08-09：Runtime Profile 已退役） |
-| 日期 | 2026-07-22；2026-07-29 更新；2026-08-09 Profile 清退 |
-| 范围 | Organization CLI Catalog、Model Catalog、Worker 能力匹配、批量导入导出；Runtime Profile、默认 Profile 已移除 |
+| 状态 | Revised（2026-08-20：CLI / Model 直接配置） |
+| 日期 | 2026-07-22；2026-07-29 更新；2026-08-20 清理旧间接配置层 |
+| 范围 | Organization CLI Catalog、Model Catalog、Worker 能力匹配、批量导入导出 |
 
 ## 1. 背景
 
@@ -40,7 +40,7 @@
 ### 2.1 目标
 
 1. 用户只在 `Organization Settings > AI Runtime` 定义组织级 CLI 和模型目录。
-2. Agent 的 desired runtime config、Runtime effective config 和 `allowed_executors` 继续直接保存在 Agent 配置中，不经 Runtime Profile 间接绑定。
+2. Agent 的 desired runtime config、Runtime effective config 和 `allowed_executors` 直接保存在 Agent 配置中。
 3. CLI / Model 定义不依赖当前 Worker；调度时才匹配 Worker 实际能力。
 4. 配置可批量导入、导出、审阅、审计，并可跨环境迁移。
 5. 历史配置和执行记录可解释，不因 Catalog 后续变化而漂移。
@@ -140,13 +140,7 @@ type ModelDefinition = {
 - Model Catalog 是唯一模型定义源。业务页面不得接受未入 Catalog 的自由文本模型。
 - 管理员需要未知模型时，先创建 Model Definition，再在业务配置中选择。
 
-### 5.3 Runtime Profile（已退役）
-
-T1310 起不再提供 Runtime Profile、Organization default Profile、Profile coverage 或 Profile API。
-删除迁移会在发现 `ai_runtime_profiles` 行或 `ai_runtime_catalogs.default_profile_id` 绑定时失败，
-避免在无法证明安全时破坏真实绑定。
-
-### 5.4 Runtime Selection
+### 5.3 Runtime Selection
 
 Runtime Selection 不再接受 Profile 引用：
 
@@ -313,11 +307,11 @@ Profile coverage projection 已退役。面向具体 execution 的页面和 API 
 | Models | 现有 Model Catalog；增加稳定 key、兼容 CLI、默认参数、启停状态 |
 | CLIs | 管理 CLI Definition、版本约束、feature 和参数 schema |
 
-顶部提供 `Import`、`Export`。权限沿用 Organization 管理权限；无管理权限用户只读。旧 `tab=profiles` URL 不再渲染 Profile UI。
+顶部提供 `Import`、`Export`。权限沿用 Organization 管理权限；无管理权限用户只读。
 
 ### 8.3 业务选择器
 
-Agent、Executor candidate、Team Role 不再共用 Runtime Profile 选择器。Agent 配置继续直接编辑 CLI、Model、reasoning、mode、
+Agent、Executor candidate、Team Role 直接编辑各自的 CLI、Model、reasoning、mode、
 provider 与 `allowed_executors`。
 
 ```text
@@ -327,9 +321,7 @@ provider 与 `allowed_executors`。
   allowed_executors
 ```
 
-- 不在业务页面提供 Runtime Profile 选择；
 - `allowed_executors` 是 Agent CLI/Model 选择和执行路由的权威候选池；
-- 不在业务页面提供未受控的 Runtime Profile 绑定。
 
 #### 8.3.1 当前 legacy Agent CLI / Model selector 契约（T1305）
 
@@ -345,8 +337,8 @@ AI Runtime Catalog，并继续写 legacy Agent profile 字段：
 
 Selector 语义：
 
-- 共享 selector / hook 的输入只允许依赖 `clis[]`、`models[]` 与 Agent 当前 `cli/model/allowed_executors`；T1310 清退 Runtime Profile 后，`default_runtime_profile_id` / `profiles[]` 字段可以从 API 类型中消失，不得影响 selector 行为；
-- 初始默认值不读取 Runtime Profile；当 Agent 当前值为空时，按 Catalog 返回顺序选择第一个 enabled CLI 及其第一个 enabled 且兼容的 Model，作为确定性 UI 默认；
+- 共享 selector / hook 的输入只允许依赖 `clis[]`、`models[]` 与 Agent 当前 `cli/model/allowed_executors`；
+- 当 Agent 当前值为空时，按 Catalog 返回顺序选择第一个 enabled CLI 及其第一个 enabled 且兼容的 Model，作为确定性 UI 默认；
 - 若 Agent 已有 legacy 值，优先回显该值；Catalog 中已删除/停用/不兼容的当前值保留为不可选项，保存时必须改成有效组合；
 - CLI 变化后，若当前 Model 与新 CLI 不兼容，清空 Model 并要求用户重新选择；不得自动替换成第一个兼容模型；
 - Executor candidate 添加行复用同一 CLI / Model 过滤与搜索逻辑；提交前按 `{cli, model}` 去重，服务端再次规范化；
@@ -381,7 +373,7 @@ runtime:
       default_parameters: {}
 ```
 
-数据库 ID、Secret、Worker capability、绝对路径和健康状态不得导出。`profiles` 与 `default_profile_key` 字段已退役，导入时拒绝。
+数据库 ID、Secret、Worker capability、绝对路径和健康状态不得导出。导入只接受 `clis` 与 `models`。
 
 ### 9.2 导出范围
 
@@ -435,8 +427,6 @@ GET    /api/orgs/{org_id}/ai-runtime/models
 POST   /api/orgs/{org_id}/ai-runtime/models
 PATCH  /api/orgs/{org_id}/ai-runtime/models/{id}
 ```
-
-旧 `/ai-runtime/profiles` 与 `/ai-runtime/default-profile` 路由不注册，返回 404。
 
 ### 10.2 解析
 
@@ -515,7 +505,7 @@ MCP 写工具必须复用相同权限与应用服务，不能绕过 Web API 的�
 
 ### Phase 3：Agent 单入口纵向接入
 
-1. Agent 保持直接 runtime config 与 `allowed_executors`，不接入 Runtime Profile。
+1. Agent 保持直接 runtime config 与 `allowed_executors`。
 2. 在 feature flag 下完成 Agent selection 到 TaskExecution Snapshot，再到 scheduler 和 supervisor / executor 启动参数的真实链路。
 3. legacy 路径继续可用，同时 shadow resolve 新旧结果并记录差异；不双写两套独立语义。
 4. Team Role 与 Executor candidate 留到运行闭环通过后分别接入。
@@ -580,7 +570,6 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 ### 16.3 Web
 
 - AI Runtime 管理面只展示 Models / CLIs；
-- 旧 Profile tab URL 不再展示 Profile UI；
 - CLI 变化清理不兼容 Model；
 - 停用 / 历史引用可解释；
 - 导入逐项 diff 和导出范围正确；
@@ -589,7 +578,7 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 ### 16.4 核心验收场景
 
 1. 在没有任何在线 Worker 时，管理员可导入完整 Runtime Catalog。
-2. Agent 直接 runtime config 与 `allowed_executors` 不受 AI Runtime Profile 清退影响。
+2. Agent 直接 runtime config 与 `allowed_executors` 在 Catalog 更新后保持可解释。
 3. Worker 上线并上报匹配 CLI 后，等待中的 execution 自动进入调度。
 4. 修改 Agent direct runtime config 后，新 reconcile 使用新值，旧 execution Snapshot 保持不变。
 5. 导出 Organization A 配置后可预检并导入 Organization B，不依赖数据库 ID。
@@ -623,14 +612,13 @@ runtime_selection 不存在且 legacy cli/model 存在 -> LegacyAdapter -> Runti
 
 1. **配置定义不依赖 Worker。** Worker 是动态资源，不应决定长期配置能否存在。
 2. **Model Catalog 保留并成为唯一模型源。** 它不再是孤立页面，而是 AI Runtime 的基础数据。
-3. **Runtime Profile 已退役。** Agent 直接持有 desired runtime config 和 `allowed_executors`。
-4. **不再维护 Organization default Profile。** 没有直接配置时 fail closed，不静默选择。
-5. **执行必须冻结 Snapshot。** 保证可审计与可复现。
-6. **导入先预检后原子应用。** 跨环境配置使用稳定 key，不使用数据库 ID。
-7. **无匹配 Worker 是可恢复调度状态。** 不属于 executor 执行失败，也不触发静默降级。
-8. **CLI 启动经受控 adapter。** Catalog 不授予任意进程或参数执行能力。
-9. **Coverage 不等于可调度。** 组织级基础能力数字不能替代 execution 级完整约束判断。
-10. **先闭合运行链，再扩管理面。** 实施按纵向薄切推进，不按页面或实体横向铺开。
+3. **Agent 直接持有 desired runtime config 和 `allowed_executors`。** 没有直接配置时 fail closed，不静默选择。
+4. **执行必须冻结 Snapshot。** 保证可审计与可复现。
+5. **导入先预检后原子应用。** 跨环境配置使用稳定 key，不使用数据库 ID。
+6. **无匹配 Worker 是可恢复调度状态。** 不属于 executor 执行失败，也不触发静默降级。
+7. **CLI 启动经受控 adapter。** Catalog 不授予任意进程或参数执行能力。
+8. **Coverage 不等于可调度。** 组织级基础能力数字不能替代 execution 级完整约束判断。
+9. **先闭合运行链，再扩管理面。** 实施按纵向薄切推进，不按页面或实体横向铺开。
 
 ## 20. 实施拆分
 

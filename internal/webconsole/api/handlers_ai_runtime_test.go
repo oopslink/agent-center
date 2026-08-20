@@ -34,28 +34,6 @@ func TestAIRuntimeCatalogHTTPFlowAndPermissions(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&modelResult)
 	resp.Body.Close()
 
-	retired := []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{http.MethodGet, "/api/ai-runtime/profiles", ""},
-		{http.MethodPost, "/api/ai-runtime/profiles", fmt.Sprintf(`{"expected_revision":%d,"value":{"key":"default-coding","name":"Default coding","cli_key":"codex","model_key":"%s","parameters":{},"enabled":true}}`, modelResult.Revision, modelResult.Entry.Key)},
-		{http.MethodPatch, "/api/ai-runtime/profiles/runtime-profile-default", `{"expected_revision":1,"value":{"key":"default-coding"}}`},
-		{http.MethodPut, "/api/ai-runtime/default-profile", `{"expected_revision":1,"profile_id":"runtime-profile-default"}`},
-	}
-	for _, tc := range retired {
-		url := orgScopedURL(server.URL+tc.path, owner.OrgSlug)
-		req, _ := http.NewRequest(tc.method, url, strings.NewReader(tc.body))
-		req.Header.Set("Content-Type", "application/json")
-		req.AddCookie(owner.Cookie)
-		resp, _ = http.DefaultClient.Do(req)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("retired %s %s status=%d want 404", tc.method, tc.path, resp.StatusCode)
-		}
-		resp.Body.Close()
-	}
-
 	member := memberSessionInOrg(t, db, owner.OrgID, owner.OrgSlug)
 	resp = orgScopedGet(t, server.URL+"/api/ai-runtime", member)
 	if resp.StatusCode != http.StatusOK {

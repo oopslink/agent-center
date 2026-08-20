@@ -50,8 +50,8 @@ export function deriveRuntimeChoices(
       }));
   }
 
-  // Runtime profiles were removed in T1310. Defaults now come directly from
-  // the first enabled catalog entries; worker capability mismatches are warnings.
+  // Defaults come directly from the first enabled catalog entries; worker
+  // capability mismatches are warnings.
   const defaultCli = cliOptions[0]?.value ?? '';
   const defaultModel = modelOptionsByCli[defaultCli]?.[0]?.value ?? '';
 

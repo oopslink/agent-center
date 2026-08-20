@@ -90,10 +90,9 @@ describe('AiRuntime page', () => {
     expect(screen.queryByTestId('ai-runtime-bulk-delete-clis')).not.toBeInTheDocument();
   });
 
-  it('ignores the retired profiles tab URL and keeps the Models tab active', async () => {
-    renderPage('/organizations/test/ai-runtime?tab=profiles');
+  it('ignores an unknown tab URL and keeps the Models tab active', async () => {
+    renderPage('/organizations/test/ai-runtime?tab=unknown');
     expect(await screen.findByText('GPT-5')).toBeInTheDocument();
-    expect(screen.queryByTestId('ai-runtime-tab-profiles')).not.toBeInTheDocument();
     expect(screen.getByTestId('ai-runtime-tab-models')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -430,7 +429,6 @@ describe('AiRuntime page', () => {
     fireEvent.click(screen.getByTestId('ai-runtime-model-import-preview-btn'));
     expect(await screen.findByTestId('ai-runtime-model-import-change')).toHaveTextContent('gpt-5-mini');
     expect(screen.getByTestId('ai-runtime-model-import-preview')).toHaveTextContent('1 CLIs');
-    expect(screen.getByTestId('ai-runtime-model-import-preview')).not.toHaveTextContent('Profiles');
     expect(screen.getByTestId('ai-runtime-model-import-diagnostics')).toHaveTextContent('tier is optional');
     await waitFor(() => {
       const payload = previewPayload as {
@@ -445,8 +443,7 @@ describe('AiRuntime page', () => {
         expect.objectContaining({ key: 'gpt-5' }),
         expect.objectContaining({ key: 'gpt-5-mini' }),
       ]));
-      expect(payload.body?.document?.runtime?.profiles).toBeUndefined();
-      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
+      expect(Object.keys(payload.body?.document?.runtime ?? {}).sort()).toEqual(['clis', 'models']);
     });
     fireEvent.click(screen.getByTestId('ai-runtime-model-import-apply'));
     expect(await screen.findByTestId('ai-runtime-model-import-applied')).toHaveTextContent('4');
@@ -460,8 +457,7 @@ describe('AiRuntime page', () => {
       expect(payload.body?.validation_token).toBe('validation-token-1');
       expect(payload.body?.document?.runtime?.clis).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'codex' })]));
       expect(payload.body?.document?.runtime?.models).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'gpt-5-mini' })]));
-      expect(payload.body?.document?.runtime?.profiles).toBeUndefined();
-      expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
+      expect(Object.keys(payload.body?.document?.runtime ?? {}).sort()).toEqual(['clis', 'models']);
     });
   });
 });

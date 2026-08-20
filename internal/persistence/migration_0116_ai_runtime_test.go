@@ -71,6 +71,25 @@ func TestMigration0126RemovesAIRuntimeProfileSchemaWhenUnbound(t *testing.T) {
 	if !tableExists(t, db, "ai_runtime_clis") || !tableExists(t, db, "pm_model_catalog") {
 		t.Fatal("runtime CLI/model catalog schema was removed with profiles")
 	}
+
+	// Rollback restores only the historical schema needed by an older binary;
+	// rolling forward again must return to the direct CLI/Model-only schema
+	// without disturbing either catalog.
+	if err := m.Down(ctx, 125); err != nil {
+		t.Fatal(err)
+	}
+	if !tableExists(t, db, "ai_runtime_profiles") || !columnExists(t, db, "ai_runtime_catalogs", "default_profile_id") {
+		t.Fatal("migration 0126 rollback did not restore historical schema")
+	}
+	if err := m.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if tableExists(t, db, "ai_runtime_profiles") || columnExists(t, db, "ai_runtime_catalogs", "default_profile_id") {
+		t.Fatal("migration 0126 re-apply left historical schema behind")
+	}
+	if !tableExists(t, db, "ai_runtime_clis") || !tableExists(t, db, "pm_model_catalog") {
+		t.Fatal("runtime CLI/model catalogs did not survive rollback round trip")
+	}
 }
 
 func TestMigration0126BlocksActiveAIRuntimeProfileBindings(t *testing.T) {

@@ -38,25 +38,6 @@ describe('runtime selector model', () => {
     expect(model.selectablePairCount).toBe(2);
   });
 
-  it('does not consult Runtime Profile fields even if an older API response still includes them', () => {
-    const cat = {
-      ...catalog({
-        models: [
-          { key: 'fast', model_key: 'gpt-5-mini', display_name: 'GPT-5 Mini', compatible_cli_keys: ['codex'], enabled: true },
-          { key: 'default', model_key: 'gpt-5-pro', display_name: 'GPT-5 Pro', compatible_cli_keys: ['codex'], enabled: true },
-        ],
-      }),
-      default_runtime_profile_id: 'profile-default',
-      profiles: [
-        { id: 'profile-default', cli_key: 'codex', model_key: 'default', enabled: true },
-      ],
-    };
-    const model = buildRuntimeSelectorModel(cat);
-    expect(runtimeModelChoicesForCLI(model, 'codex').map((choice) => choice.value)).toEqual(['gpt-5-mini', 'gpt-5-pro']);
-    expect(model.defaultModel).toBe('gpt-5-mini');
-    expect(defaultModelForCLI(model, 'codex')).toBe('gpt-5-mini');
-  });
-
   it('filters models by CLI compatibility and search text', () => {
     const model = buildRuntimeSelectorModel(catalog());
     expect(runtimeModelChoicesForCLI(model, 'codex').map((choice) => choice.value)).toEqual(['gpt-5']);

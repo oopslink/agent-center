@@ -179,7 +179,7 @@ func decodeRuntimeDocument(r *http.Request, dst any) error {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return err
 	}
-	if err := rejectRetiredRuntimeProfileFields(value); err != nil {
+	if err := rejectRemovedRuntimeFields(value); err != nil {
 		return err
 	}
 	if err := json.Unmarshal(raw, dst); err != nil {
@@ -193,7 +193,7 @@ func decodeRuntimeDocument(r *http.Request, dst any) error {
 	return nil
 }
 
-func rejectRetiredRuntimeProfileFields(value any) error {
+func rejectRemovedRuntimeFields(value any) error {
 	root, ok := value.(map[string]any)
 	if !ok {
 		return nil
@@ -201,10 +201,10 @@ func rejectRetiredRuntimeProfileFields(value any) error {
 	doc, _ := root["document"].(map[string]any)
 	runtime, _ := doc["runtime"].(map[string]any)
 	if _, ok := runtime["default_profile_key"]; ok {
-		return errors.New("runtime.default_profile_key is retired; AI Runtime Profile import is no longer supported")
+		return errors.New("runtime.default_profile_key was removed and is not supported")
 	}
 	if _, ok := runtime["profiles"]; ok {
-		return errors.New("runtime.profiles is retired; AI Runtime Profile import is no longer supported")
+		return errors.New("runtime.profiles was removed and is not supported")
 	}
 	return nil
 }

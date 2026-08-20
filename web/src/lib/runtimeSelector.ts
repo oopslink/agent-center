@@ -16,8 +16,7 @@ export interface RuntimeSelectorCatalogModel {
   enabled?: boolean;
 }
 
-// Deliberately structural: T1310 removes Runtime Profile fields from the API, so
-// the shared selector only accepts the CLI/Model catalog slice it actually owns.
+// The shared selector only accepts the CLI/Model catalog slice it owns.
 export interface RuntimeSelectorCatalog {
   revision?: number;
   clis?: RuntimeSelectorCatalogCLI[];
