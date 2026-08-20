@@ -639,13 +639,8 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
   const current = entry.query.data;
   const [draft, setDraft] = useState<string[] | null>(null);
   const selected = draft ?? current?.ram_role_ids ?? [];
-  const roleOptions = useMemo(() => roles.map((role) => ({
-    value: role.id,
-    label: role.name,
-    hint: `v${role.version} - ${role.risk} risk`,
-  })), [roles]);
   const changed = Boolean(current && [...selected].sort().join('|') !== [...current.ram_role_ids].sort().join('|'));
-  const setSelectedRoles = (roleIDs: string[]): void => {
+  const updateSelection = (roleIDs: string[]): void => {
     setDraft(roleIDs);
     preview.reset();
   };
@@ -669,15 +664,15 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
         <>
           <div className="mt-2 max-w-xl">
             <EntityMultiSelect
-              testId={`access-mapping-${entry.team.id}-${entry.role}-ram-roles`}
-              options={roleOptions}
+              testId={`access-mapping-roles-${entry.team.id}-${entry.role}`}
+              options={roles.map((role) => ({ value: role.id, label: role.name, hint: role.description }))}
               values={selected}
-              onChange={setSelectedRoles}
+              onChange={updateSelection}
               placeholder="Select RAM Roles"
               searchPlaceholder="Search RAM Roles"
-              emptyLabel="No RAM Roles"
+              emptyLabel="No matching RAM Roles"
+              ariaLabel={`RAM Roles for ${entry.team.name} / ${entry.role}`}
               disabled={!canManageAccess || replace.isPending}
-              ariaLabel={`RAM Roles for ${entry.team.name} ${entry.role}`}
             />
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
