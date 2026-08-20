@@ -9,9 +9,9 @@ interface ParsedMsgEvent {
 function parseMessageEvents(events: SSEEvent[]): ParsedMsgEvent[] {
   const out: ParsedMsgEvent[] = [];
   for (const ev of events) {
-    if (ev.event !== "conversation.message_added") continue;
     try {
-      const parsed = JSON.parse(ev.data) as ParsedMsgEvent["data"];
+      const parsed = JSON.parse(ev.data) as ParsedMsgEvent["data"] & { event_type?: string };
+      if (parsed.event_type !== "conversation.message_added") continue;
       out.push({ raw: ev, data: parsed });
     } catch {
       // ignore malformed
@@ -24,30 +24,33 @@ test.describe("SSE Last-Event-ID recovery", () => {
   test("reconnect with last_event_id receives events sent during the gap", async ({
     request,
     agentCenter,
+    authSession,
   }) => {
     // Setup: channel + SSE subscription.
-    const cR = await request.post(agentCenter.apiURL + "/conversations", {
-      data: { kind: "channel", name: "recovery-room" },
+    const cR = await request.post(authSession.orgApiURL + "/conversations", {
+      data: { kind: "channel", name: "recovery-room", members: ["agent:recovery"] },
     });
     expect(cR.status(), `channel: ${await cR.text()}`).toBe(201);
     const channelID = ((await cR.json()) as { conversation_id: string })
       .conversation_id;
 
+    const userRef = `user:${authSession.identityID}`;
     const subR = await request.post(agentCenter.apiURL + "/sse/subscribe", {
-      data: { user_id: "user:hayang", conversation_id: channelID },
+      data: { user_id: userRef, conversation_id: channelID },
     });
     expect(subR.status()).toBe(200);
 
     // ---- Phase A: open stream, send 1, capture last event id ----
     const eventsA: SSEEvent[] = [];
     const stopA = await subscribeSSE(
-      `${agentCenter.baseURL}/api/sse?user_id=user:hayang`,
+      `${agentCenter.baseURL}/api/sse?user_id=${encodeURIComponent(userRef)}`,
       (ev) => eventsA.push(ev),
+      { headers: { Cookie: `ac_session=${authSession.sessionCookie}` } },
     );
     await new Promise((r) => setTimeout(r, 100)); // handshake settle
 
     const m1 = await request.post(
-      agentCenter.apiURL + "/conversations/" + channelID + "/messages",
+      authSession.orgApiURL + "/conversations/" + channelID + "/messages",
       { data: { content: "before disconnect" } },
     );
     expect(m1.status()).toBe(201);
@@ -70,12 +73,12 @@ test.describe("SSE Last-Event-ID recovery", () => {
 
     // ---- Phase B: 2 messages sent while disconnected ----
     const m2 = await request.post(
-      agentCenter.apiURL + "/conversations/" + channelID + "/messages",
+      authSession.orgApiURL + "/conversations/" + channelID + "/messages",
       { data: { content: "during gap 1" } },
     );
     expect(m2.status()).toBe(201);
     const m3 = await request.post(
-      agentCenter.apiURL + "/conversations/" + channelID + "/messages",
+      authSession.orgApiURL + "/conversations/" + channelID + "/messages",
       { data: { content: "during gap 2" } },
     );
     expect(m3.status()).toBe(201);
@@ -83,10 +86,11 @@ test.describe("SSE Last-Event-ID recovery", () => {
     // ---- Phase C: reconnect with last_event_id; expect 2 replays ----
     const eventsB: SSEEvent[] = [];
     const stopB = await subscribeSSE(
-      `${agentCenter.baseURL}/api/sse?user_id=user:hayang&last_event_id=${encodeURIComponent(
+      `${agentCenter.baseURL}/api/sse?user_id=${encodeURIComponent(userRef)}&last_event_id=${encodeURIComponent(
         lastEventA!,
       )}`,
       (ev) => eventsB.push(ev),
+      { headers: { Cookie: `ac_session=${authSession.sessionCookie}` } },
     );
 
     try {

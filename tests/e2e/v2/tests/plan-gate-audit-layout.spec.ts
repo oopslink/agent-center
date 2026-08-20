@@ -62,13 +62,34 @@ const stages = {
 async function mockPlanGateApis(page: import("@playwright/test").Page) {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.startsWith("/api/auth/") || path === "/api/orgs") return route.continue();
+    if (path.startsWith("/api/auth/") || path === "/api/orgs" || path === "/api/sse") return route.continue();
     const resource = path.replace(/^\/api\/orgs\/[^/]+/, "/api");
     if (resource === "/api/projects/proj-a") return route.fulfill({ json: project });
     if (resource === "/api/projects/proj-a/plans/PL-1") return route.fulfill({ json: plan });
     if (resource === "/api/projects/proj-a/plans/PL-1/stages") return route.fulfill({ json: stages });
     if (resource === "/api/projects/proj-a/plans/PL-1/graph") return route.fulfill({ json: { has_graph: false } });
-    if (resource.endsWith("/related-issues")) return route.fulfill({ json: [] });
+    if (resource === "/api/projects/proj-a/plans/PL-1/generations") {
+      return route.fulfill({
+        json: {
+          plan_id: "PL-1",
+          active_generation_id: "",
+          plan_version: 0,
+          generations: [],
+          nodes: [],
+        },
+      });
+    }
+    if (resource.endsWith("/related-issues")) return route.fulfill({ json: { issues: [] } });
+    if (resource === "/api/attention") return route.fulfill({ json: { items: [] } });
+    if (resource === "/api/permissions/effective") {
+      return route.fulfill({
+        json: {
+          subject_ref: "user:owner",
+          resource: { kind: "org", id: "org-test" },
+          permissions: [],
+        },
+      });
+    }
     return route.fulfill({ json: [] });
   });
 }
@@ -104,7 +125,7 @@ test("stage gate audit does not overlap member cards and remains complete on mob
   await page.goto(`${agentCenter.baseURL}/organizations/${slug}/projects/proj-a/plans/PL-1`);
   await page.getByTestId("plan-tab-dag").click();
 
-  const audit = page.getByTestId("plan-stage-gate-audit-st-ui");
+  const audit = page.getByTestId("plan-stage-header-button-st-ui");
   const firstMember = page.getByTestId("plan-dag-node").first();
   await expect(audit).toBeVisible();
   await expect(firstMember).toBeVisible();
@@ -122,7 +143,17 @@ test("stage gate audit does not overlap member cards and remains complete on mob
     await page.emulateMedia({ colorScheme: "light" });
   }
 
+  await page.getByTestId("plan-stage-header-button-st-ui").click();
+  await expect(page.getByTestId("plan-stage-gate-evaluator-st-ui")).toContainText("human · agent:reviewer");
+  await expect(page.getByTestId("plan-stage-gate-contract-st-ui")).toContainText("Verify desktop and mobile");
+  await expect(page.getByTestId("plan-stage-gate-evidence-st-ui")).toContainText("Outcome pending");
+  await expect(page.getByTestId("plan-stage-gate-evidence-st-ui")).toContainText("No evidence");
+  await expect(page.getByTestId("plan-stage-gate-evidence-st-ui")).toContainText("No reviewed SHA");
+  await expect(page.getByTestId("plan-stage-gate-diagnostics-st-ui")).toContainText("missing_browser_evidence");
+  await page.getByTestId("plan-stage-gate-audit-dialog-close-st-ui").click();
+
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("plan-stage-mobile-audit-st-ui").click();
   await expect(page.getByTestId("plan-stage-mobile-gate-evaluator-st-ui")).toContainText("human · agent:reviewer");
   await expect(page.getByTestId("plan-stage-mobile-gate-contract-st-ui")).toContainText("Verify desktop and mobile");
   await expect(page.getByTestId("plan-stage-mobile-gate-evidence-st-ui")).toContainText("Outcome pending");

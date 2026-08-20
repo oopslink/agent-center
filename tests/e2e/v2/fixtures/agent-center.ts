@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { test as base, expect, type APIRequestContext } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -22,7 +22,50 @@ export interface AgentCenter {
   tempDir: string;
 }
 
-export const test = base.extend<{ agentCenter: AgentCenter }>({
+export interface AuthSession {
+  identityID: string;
+  organizationID: string;
+  orgSlug: string;
+  orgApiURL: string;
+  sessionCookie: string;
+}
+
+async function createAuthSession(
+  request: APIRequestContext,
+  baseURL: string,
+): Promise<AuthSession> {
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const displayName = `e2e-${suffix}`;
+  const passcode = "E2ePass1!";
+  const response = await request.post(baseURL + "/api/auth/signup", {
+    data: {
+      display_name: displayName,
+      passcode,
+      email: `${displayName}@example.test`,
+      organization_name: `E2E Org ${suffix}`,
+    },
+  });
+  expect(response.status(), `signup: ${await response.text()}`).toBe(201);
+  const sessionCookie = /ac_session=([^;]+)/.exec(response.headers()["set-cookie"] || "")?.[1];
+  expect(sessionCookie, "signup session cookie").toBeTruthy();
+  const body = (await response.json()) as {
+    identity_id: string;
+    organization_id: string;
+    organization_slug: string;
+  };
+  return {
+    identityID: body.identity_id,
+    organizationID: body.organization_id,
+    orgSlug: body.organization_slug,
+    orgApiURL: `${baseURL}/api/orgs/${body.organization_slug}`,
+    sessionCookie: sessionCookie!,
+  };
+}
+
+export const test = base.extend<{
+  agentCenter: AgentCenter;
+  authSession: AuthSession;
+}>({
   // worker-scoped fixture would share one binary across tests in the
   // same worker; we picked test-scoped so a single broken test can't
   // corrupt later tests' DB state. Cost: ~1s setup per test.
@@ -140,6 +183,20 @@ secret_management:
       await rm(tempDir, { recursive: true, force: true });
     }
   },
+  authSession: async ({ agentCenter, request, context }, use) => {
+    const session = await createAuthSession(request, agentCenter.baseURL);
+    await context.addCookies([
+      {
+        name: "ac_session",
+        value: session.sessionCookie,
+        domain: "127.0.0.1",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    await use(session);
+  },
 });
 
-export const expect = test.expect;
+export { expect };

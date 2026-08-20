@@ -5,21 +5,22 @@ test.describe("DM flow", () => {
   test("happy path: create DM → send msg → SSE delivers conversation.message_added", async ({
     request,
     agentCenter,
+    authSession,
   }) => {
-    // Create DM with one extra peer (owner = user:hayang via fixture
-    // default; member = user:peer-alice). The fixture's default actor
-    // becomes the implicit owner.
-    const cR = await request.post(agentCenter.apiURL + "/conversations", {
-      data: { kind: "dm", members: ["user:peer-alice"], name: "alice" },
+    // Create DM with one extra peer. The authenticated fixture user becomes the
+    // implicit owner.
+    const cR = await request.post(authSession.orgApiURL + "/conversations", {
+      data: { kind: "dm", members: ["agent:peer-alice"], name: "alice" },
     });
     expect(cR.status(), `dm create: ${await cR.text()}`).toBe(201);
     const dm = (await cR.json()) as { conversation_id: string };
     const dmID = dm.conversation_id;
 
-    // Subscribe user:hayang's SSE stream to this DM. The subscribe
+    // Subscribe the authenticated user's SSE stream to this DM. The subscribe
     // endpoint is what tells the bus to fan events for this user.
+    const userRef = `user:${authSession.identityID}`;
     const subR = await request.post(agentCenter.apiURL + "/sse/subscribe", {
-      data: { user_id: "user:hayang", conversation_id: dmID },
+      data: { user_id: userRef, conversation_id: dmID },
     });
     expect(subR.status(), `subscribe: ${await subR.text()}`).toBe(200);
 
@@ -28,8 +29,9 @@ test.describe("DM flow", () => {
     // connected sessions.
     const events: SSEEvent[] = [];
     const stop = await subscribeSSE(
-      `${agentCenter.baseURL}/api/sse?user_id=user:hayang`,
+      `${agentCenter.baseURL}/api/sse?user_id=${encodeURIComponent(userRef)}`,
       (ev) => events.push(ev),
+      { headers: { Cookie: `ac_session=${authSession.sessionCookie}` } },
     );
 
     try {
@@ -40,7 +42,7 @@ test.describe("DM flow", () => {
 
       // Send a message — fires conversation.message_added.
       const mR = await request.post(
-        agentCenter.apiURL + "/conversations/" + dmID + "/messages",
+        authSession.orgApiURL + "/conversations/" + dmID + "/messages",
         { data: { content: "hi alice — checking sse" } },
       );
       expect(mR.status(), `send msg: ${await mR.text()}`).toBe(201);
@@ -51,10 +53,9 @@ test.describe("DM flow", () => {
         .poll(
           () =>
             events.some((ev) => {
-              if (ev.event !== "conversation.message_added") return false;
               try {
                 const data = JSON.parse(ev.data) as Record<string, unknown>;
-                return data.conversation_id === dmID;
+                return data.event_type === "conversation.message_added" && data.conversation_id === dmID;
               } catch {
                 return false;
               }
@@ -68,7 +69,7 @@ test.describe("DM flow", () => {
 
     // Confirm via REST too — message landed in the DM.
     const lR = await request.get(
-      agentCenter.apiURL + "/conversations/" + dmID + "/messages",
+      authSession.orgApiURL + "/conversations/" + dmID + "/messages",
     );
     expect(lR.status()).toBe(200);
     const msgs = (await lR.json()) as Array<Record<string, unknown>>;
@@ -78,9 +79,9 @@ test.describe("DM flow", () => {
 
   test("error path: DM create without members → 400 invalid_input", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
-    const r = await request.post(agentCenter.apiURL + "/conversations", {
+    const r = await request.post(authSession.orgApiURL + "/conversations", {
       data: { kind: "dm" },
     });
     expect(r.status()).toBe(400);

@@ -1,40 +1,29 @@
-import { execFile as execFileCb } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { promisify } from "node:util";
+import type { APIRequestContext } from "@playwright/test";
 
 import { test, expect } from "../fixtures/agent-center.js";
 
-const execFile = promisify(execFileCb);
-
-// Seed a project via direct sqlite INSERT. We deliberately bypass the
-// `agent-center project add` CLI because that subprocess emits a
-// domain event with its own seq counter; running it concurrently with
-// the live server race-conflicts on events.uniq_events_seq. Direct
-// INSERT into the `projects` table skips the event sink (projects
-// don't need an event for derive-issue to find them — the projects
-// table is the truth) and stays race-free.
-async function seedProject(dbPath: string): Promise<string> {
-  const id = `p-demo-${randomUUID().slice(0, 8)}`;
-  const now = new Date().toISOString();
-  const sql = `INSERT INTO projects
-    (id, name, created_at, updated_at, created_by_identity_id, version)
-    VALUES ('${id}', 'Demo ${id}', '${now}', '${now}', 'user:hayang', 1);`;
-  await execFile("sqlite3", [dbPath, sql]);
-  return id;
+async function createProject(request: APIRequestContext, orgApiURL: string): Promise<string> {
+  const r = await request.post(orgApiURL + "/projects", {
+    data: { name: "Demo Project", description: "cold-start e2e" },
+  });
+  expect(r.status(), `project create: ${await r.text()}`).toBe(200);
+  const body = (await r.json()) as { id: string };
+  expect(body.id).toBeTruthy();
+  return body.id;
 }
 
 test.describe("cold-start journey (Web Console surfaces)", () => {
   test("secret CRUD round-trip — value never echoed", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
     // initial list
-    const r0 = await request.get(agentCenter.apiURL + "/secrets");
+    const r0 = await request.get(authSession.orgApiURL + "/secrets");
     expect(r0.status()).toBe(200);
     expect(await r0.json()).toEqual([]);
 
     // create
-    const r1 = await request.post(agentCenter.apiURL + "/secrets", {
+    const r1 = await request.post(authSession.orgApiURL + "/secrets", {
       data: {
         name: "claude-key-1",
         kind: "mcp",
@@ -50,7 +39,7 @@ test.describe("cold-start journey (Web Console surfaces)", () => {
     expect(JSON.stringify(created)).not.toContain("TOP-SECRET-VALUE-XYZ");
 
     // list — same no-plaintext guarantee
-    const r2 = await request.get(agentCenter.apiURL + "/secrets");
+    const r2 = await request.get(authSession.orgApiURL + "/secrets");
     expect(r2.status()).toBe(200);
     const list = (await r2.json()) as Array<Record<string, unknown>>;
     expect(list).toHaveLength(1);
@@ -59,14 +48,14 @@ test.describe("cold-start journey (Web Console surfaces)", () => {
     expect(JSON.stringify(list)).not.toContain("TOP-SECRET-VALUE-XYZ");
   });
 
-  test("channel → messages → derive issue → refs link source messages", async ({
+  test("channel → messages → create PM issue in project", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
-    const projectID = await seedProject(agentCenter.dbPath);
+    const projectID = await createProject(request, authSession.orgApiURL);
 
     // create channel
-    const cR = await request.post(agentCenter.apiURL + "/conversations", {
+    const cR = await request.post(authSession.orgApiURL + "/conversations", {
       data: { kind: "channel", name: "design-review" },
     });
     expect(cR.status(), `channel create: ${await cR.text()}`).toBe(201);
@@ -77,10 +66,9 @@ test.describe("cold-start journey (Web Console surfaces)", () => {
     const sentIDs: string[] = [];
     for (let i = 0; i < 3; i++) {
       const mR = await request.post(
-        agentCenter.apiURL + "/conversations/" + channelID + "/messages",
+        authSession.orgApiURL + "/conversations/" + channelID + "/messages",
         {
           data: {
-            sender_identity_id: "user:hayang",
             content: `Message ${i + 1} — investigating auth flow`,
           },
         },
@@ -92,47 +80,37 @@ test.describe("cold-start journey (Web Console surfaces)", () => {
 
     // verify messages persisted
     const mlR = await request.get(
-      agentCenter.apiURL + "/conversations/" + channelID + "/messages",
+      authSession.orgApiURL + "/conversations/" + channelID + "/messages",
     );
     expect(mlR.status()).toBe(200);
     const msgs = (await mlR.json()) as Array<Record<string, unknown>>;
     expect(msgs.length).toBeGreaterThanOrEqual(3);
 
-    // derive Issue from first 2 messages
-    const dR = await request.post(agentCenter.apiURL + "/issues", {
+    // Create a ProjectManager issue in the project. The legacy flat
+    // derive-from-message endpoint is retired; PM issue creation is now nested.
+    const dR = await request.post(`${authSession.orgApiURL}/projects/${projectID}/issues`, {
       data: {
-        source_conversation_id: channelID,
-        source_message_ids: sentIDs.slice(0, 2),
-        project_id: projectID,
         title: "Investigate auth flow",
         description: "Carried over from design-review",
       },
     });
-    expect(dR.status()).toBe(201);
+    expect(dR.status(), `issue create: ${await dR.text()}`).toBe(200);
     const derived = (await dR.json()) as {
-      issue_id: string;
-      conversation_id: string;
-      reference_count: number;
+      id: string;
+      project_id: string;
+      title: string;
     };
-    expect(derived.reference_count).toBe(2);
-    expect(derived.conversation_id).not.toBe(channelID);
-
-    // refs of the new issue conversation point back to the source
-    const refsR = await request.get(
-      agentCenter.apiURL + "/conversations/" + derived.conversation_id + "/refs",
-    );
-    expect(refsR.status()).toBe(200);
-    const refs = (await refsR.json()) as Array<{ source_message_id: string }>;
-    const refIDs = refs.map((r) => r.source_message_id).sort();
-    expect(refIDs).toEqual(sentIDs.slice(0, 2).sort());
+    expect(derived.project_id).toBe(projectID);
+    expect(derived.title).toBe("Investigate auth flow");
+    expect(sentIDs).toHaveLength(3);
   });
 
   test("error path: duplicate channel name → 409 already_exists", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
     const create = () =>
-      request.post(agentCenter.apiURL + "/conversations", {
+      request.post(authSession.orgApiURL + "/conversations", {
         data: { kind: "channel", name: "dupe-name" },
       });
 

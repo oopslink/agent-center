@@ -1,108 +1,70 @@
-import { execFile as execFileCb } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { promisify } from "node:util";
-
 import { test, expect } from "../fixtures/agent-center.js";
 
-const execFile = promisify(execFileCb);
+type ProjectDTO = { id: string };
+type TaskDTO = { id: string; status: string; blocked_reason?: string };
 
-// Seed a project/task/task_execution/IR chain via direct sqlite
-// INSERT — per the S9 codified rule ("never CLI subprocess while
-// server runs"). Each seed call uses fresh randomized IDs so tests
-// stay independent under parallel workers.
-async function seedIRChain(dbPath: string): Promise<{
-  projectID: string;
-  taskID: string;
-  executionID: string;
-  irID: string;
-}> {
-  const projectID = `p-ir-${randomUUID().slice(0, 8)}`;
-  const taskID = `T-${randomUUID().slice(0, 8)}`;
-  const executionID = `E-${randomUUID().slice(0, 8)}`;
-  const irID = `IR-${randomUUID().slice(0, 8)}`;
-  const now = new Date().toISOString();
+async function createProjectAndTask(
+  request: import("@playwright/test").APIRequestContext,
+  orgApiURL: string,
+): Promise<{ projectID: string; taskID: string }> {
+  const projectResp = await request.post(orgApiURL + "/projects", {
+    data: { name: "Input Response Demo", description: "current PM task flow" },
+  });
+  expect(projectResp.status(), `project create: ${await projectResp.text()}`).toBe(200);
+  const project = (await projectResp.json()) as ProjectDTO;
 
-  const sql = `
-    INSERT INTO projects (id, name, created_at, updated_at, created_by_identity_id, version)
-      VALUES ('${projectID}', 'IR Demo', '${now}', '${now}', 'user:hayang', 1);
-    INSERT INTO tasks (id, project_id, title, status, priority, requires_worktree, created_by, created_at, updated_at, version)
-      VALUES ('${taskID}', '${projectID}', 'Q1 audit', 'open', 'medium', 1, 'user:hayang', '${now}', '${now}', 1);
-    INSERT INTO task_executions
-      (id, task_id, worker_id, agent_cli, workspace_mode, status, started_at, working_started_at, created_at, updated_at, version)
-      VALUES ('${executionID}', '${taskID}', 'W-1', 'claudecode', 'worktree', 'input_required', '${now}', '${now}', '${now}', '${now}', 1);
-    INSERT INTO input_requests
-      (id, task_execution_id, status, question, options, urgency, requested_at, created_at, updated_at, version)
-      VALUES ('${irID}', '${executionID}', 'pending', 'Approve audit scope?', '[]', 'normal', '${now}', '${now}', '${now}', 1);
-  `;
-  await execFile("sqlite3", [dbPath, sql]);
-  return { projectID, taskID, executionID, irID };
+  const taskResp = await request.post(`${orgApiURL}/projects/${project.id}/tasks`, {
+    data: { title: "Q1 audit", description: "needs human input" },
+  });
+  expect(taskResp.status(), `task create: ${await taskResp.text()}`).toBe(200);
+  const task = (await taskResp.json()) as TaskDTO;
+  return { projectID: project.id, taskID: task.id };
 }
 
-async function readIRStatus(dbPath: string, irID: string): Promise<string> {
-  const { stdout } = await execFile("sqlite3", [
-    dbPath,
-    `SELECT status FROM input_requests WHERE id='${irID}';`,
-  ]);
-  return stdout.trim();
-}
-
-async function readExecStatus(
-  dbPath: string,
-  executionID: string,
-): Promise<string> {
-  const { stdout } = await execFile("sqlite3", [
-    dbPath,
-    `SELECT status FROM task_executions WHERE id='${executionID}';`,
-  ]);
-  return stdout.trim();
-}
-
-test.describe("input-request respond", () => {
-  test("happy path: pending IR → respond → status flips + exec leaves input_required", async ({
+test.describe("input-response task flow", () => {
+  test("blocked task → unblock response clears blocked state", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
-    const { executionID, irID } = await seedIRChain(agentCenter.dbPath);
+    const { projectID, taskID } = await createProjectAndTask(request, authSession.orgApiURL);
+    const taskBase = `${authSession.orgApiURL}/projects/${projectID}/tasks/${taskID}`;
 
-    // visible in pending list
-    const lR = await request.get(agentCenter.apiURL + "/input_requests");
-    expect(lR.status()).toBe(200);
-    const list = (await lR.json()) as Array<Record<string, unknown>>;
-    const me = list.find((row) => row.id === irID);
-    expect(me, `IR ${irID} should be in pending list`).toBeDefined();
-    expect(me?.status).toBe("pending");
-    expect(me?.question).toBe("Approve audit scope?");
+    const start = await request.post(taskBase + "/start");
+    expect(start.status(), `start: ${await start.text()}`).toBe(200);
 
-    // respond
-    const rR = await request.post(
-      agentCenter.apiURL + "/input_requests/" + irID + "/respond",
-      {
-        data: { answer: "yes — proceed", decided_by: "user:hayang" },
-      },
-    );
-    expect(rR.status(), `respond: ${await rR.text()}`).toBe(200);
-    expect(await rR.json()).toEqual({ answered: true });
+    const block = await request.post(taskBase + "/block", {
+      data: { reason: "Approve audit scope?" },
+    });
+    expect(block.status(), `block: ${await block.text()}`).toBe(200);
+    const blocked = (await block.json()) as TaskDTO;
+    expect(blocked.status).toBe("blocked");
 
-    // pending list no longer shows it
-    const l2 = await request.get(agentCenter.apiURL + "/input_requests");
-    const list2 = (await l2.json()) as Array<Record<string, unknown>>;
-    expect(list2.find((row) => row.id === irID)).toBeUndefined();
+    const unblock = await request.post(taskBase + "/unblock", {
+      data: { comment: "yes - proceed" },
+    });
+    expect(unblock.status(), `unblock: ${await unblock.text()}`).toBe(200);
+    const unblocked = (await unblock.json()) as TaskDTO;
+    expect(unblocked.status).not.toBe("blocked");
 
-    // DB state proof
-    expect(await readIRStatus(agentCenter.dbPath, irID)).toBe("responded");
-    // execution.status: input_required → working (LeaveInputRequired)
-    expect(await readExecStatus(agentCenter.dbPath, executionID)).toBe(
-      "working",
-    );
+    const get = await request.get(taskBase);
+    expect(get.status(), `get task: ${await get.text()}`).toBe(200);
+    const current = (await get.json()) as TaskDTO;
+    expect(current.status).toBe(unblocked.status);
+    expect(current.blocked_reason ?? "").toBe("");
   });
 
-  test("error path: respond to nonexistent IR → 404 not_found", async ({
+  test("error path: unblock nonexistent task → 404 not_found", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
+    const projectResp = await request.post(authSession.orgApiURL + "/projects", {
+      data: { name: "Input Response Errors", description: "current PM task flow" },
+    });
+    expect(projectResp.status(), `project create: ${await projectResp.text()}`).toBe(200);
+    const project = (await projectResp.json()) as ProjectDTO;
     const r = await request.post(
-      agentCenter.apiURL + "/input_requests/IR-does-not-exist/respond",
-      { data: { answer: "x", decided_by: "user:hayang" } },
+      `${authSession.orgApiURL}/projects/${project.id}/tasks/task-does-not-exist/unblock`,
+      { data: { comment: "x" } },
     );
     expect(r.status()).toBe(404);
     const body = (await r.json()) as { error?: string };

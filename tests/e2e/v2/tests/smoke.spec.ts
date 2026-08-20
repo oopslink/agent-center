@@ -10,23 +10,21 @@ test.describe("smoke", () => {
   test("SPA loads and Channels nav link is visible", async ({
     page,
     agentCenter,
+    authSession,
   }) => {
-    await page.goto(agentCenter.baseURL + "/");
+    await page.goto(`${agentCenter.baseURL}/organizations/${authSession.orgSlug}/channels`);
 
     // index.html title is set by vite (see web/index.html).
     await expect(page).toHaveTitle("agent-center");
 
-    // The AppLayout renders a left nav; first link is 'Channels'.
-    // Use a role-based locator so it survives styling changes.
-    const channelsLink = page.getByRole("link", { name: "Channels" });
-    await expect(channelsLink).toBeVisible();
+    await expect(page.getByTestId("page-Channels")).toBeVisible();
   });
 
   test("API mux + DB respond to /api/conversations", async ({
     request,
-    agentCenter,
+    authSession,
   }) => {
-    const r = await request.get(agentCenter.apiURL + "/conversations");
+    const r = await request.get(authSession.orgApiURL + "/conversations");
     expect(r.status()).toBe(200);
     const body = await r.json();
     // Fresh DB has zero conversations; assert the shape, not the count.

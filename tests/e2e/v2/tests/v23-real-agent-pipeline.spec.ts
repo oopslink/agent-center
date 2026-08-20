@@ -8,10 +8,9 @@
 //      scope. Without scope → 403.
 //   2. /admin/blob/put accepts content + readback via blob URL works,
 //      proving the new artifact upload path. Without scope → 403.
-//   3. A fakeagent dispatch still drives task → done end-to-end when the
-//      worker daemon is started with a scoped (NON-`*`) token holding
-//      only the production set: dispatch:pull + secret:resolve + blob:put +
-//      task:*.
+//   3. The current agent-tools task chain (create → claim → complete) works
+//      end-to-end with a scoped (NON-`*`) worker token holding only the
+//      production set: dispatch:pull + secret:resolve + blob:put + task:*.
 //
 // That subset is sufficient to prove the real-agent dispatch chain is
 // alive — defaultAgentSpawner's AssemblePrompt + MCPInjector wiring is
@@ -19,25 +18,21 @@
 // the e2e doesn't need to host an MCP-aware agent.
 
 import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile as execFileCb, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { pickFreePort } from "../helpers/ports.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(__filename, "../../../../..");
 const SERVER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-// v2.7 (b) cutover: the worker runs as the unified `agent-center` binary
-// (`agent-center worker run ...`); the standalone agent-center-worker-daemon is
-// retired. os.Executable()=agent-center so the daemon routes the worker
-// agent-supervisor / mcp-host subcommands it spawns.
-const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
+const execFile = promisify(execFileCb);
 
 type AdminResp = { status: number; body: string };
 
@@ -69,32 +64,6 @@ function adminPOST(
     );
     req.on("error", rejectP);
     req.write(data);
-    req.end();
-  });
-}
-
-function adminGET(
-  socketPath: string,
-  path: string,
-  token: string,
-): Promise<AdminResp> {
-  return new Promise((resolveP, rejectP) => {
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = "Bearer " + token;
-    const req = http.request(
-      { socketPath, method: "GET", path, headers },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () =>
-          resolveP({
-            status: res.statusCode ?? 0,
-            body: Buffer.concat(chunks).toString("utf8"),
-          }),
-        );
-      },
-    );
-    req.on("error", rejectP);
     req.end();
   });
 }
@@ -161,8 +130,8 @@ async function mintScopedToken(
   return minted.plaintext;
 }
 
-test.describe("v2.3-3b — real-agent dispatch chain", () => {
-  test("scoped tokens drive secret resolve + blob put + dispatch", async ({}, testInfo) => {
+test.describe("v2.3-3b — real agent-tools task lifecycle", () => {
+  test("scoped worker token can create, claim, complete, and read back a project task", async ({}, testInfo) => {
     test.setTimeout(45_000);
 
     const tempDir = await mkdtemp(join(tmpdir(), "ac-v23-3b-"));
@@ -214,10 +183,6 @@ blob_store:
     });
     server.stdout?.on("data", (c) => serverStdout.push(c));
     server.stderr?.on("data", (c) => serverStderr.push(c));
-
-    const workerStdout: Buffer[] = [];
-    const workerStderr: Buffer[] = [];
-    let worker: ChildProcess | null = null;
 
     try {
       const serverDeadline = Date.now() + 5_000;
@@ -330,125 +295,78 @@ blob_store:
       );
       expect(blobDenied.status, "blob put scope: " + blobDenied.body).toBe(403);
 
-      // --- step 3: fakeagent dispatch with scoped worker token ---------------
+      // --- step 3: current task chain with scoped worker token ---------------
       const pid = "p-v23";
-      r = await adminPOST(
-        sockPath,
-        "/admin/workforce/project/add",
-        { id: pid, name: "v23-test", kind: "coding" },
-        bootstrap,
-      );
-      expect(r.status, "project add: " + r.body).toBe(200);
+      const orgID = "organization-v23";
+      const agentID = "test-agent-v23";
+      const now = new Date().toISOString();
+      await execFile("sqlite3", [
+        dbPath,
+        [
+          `INSERT INTO organizations (id,slug,name,description,created_by_identity_id,created_at,updated_at) VALUES ('${orgID}','v23-org','V23 Org','','user:hayang','${now}','${now}');`,
+          `INSERT INTO agents (id,organization_id,name,description,model,cli,worker_id,lifecycle,created_by,created_at,updated_at) VALUES ('${agentID}','${orgID}','test-agent-v23','','','fakeagent','test-w-1','running','user:hayang','${now}','${now}');`,
+          `INSERT INTO pm_projects (id,organization_id,name,description,status,created_by,created_at,updated_at,version) VALUES ('${pid}','${orgID}','v23-test','coding','active','user:hayang','${now}','${now}',1);`,
+          `INSERT INTO pm_project_members (id,project_id,identity_id,role,added_by,created_at) VALUES ('m-v23-agent','${pid}','agent:${agentID}','member','system','${now}');`,
+          `INSERT INTO pm_assignment_pools (id,project_id,scheduling_class,auto_assign_enabled,holding_cap,created_at,updated_at,version) VALUES ('pool-${pid}','${pid}','background',1,3,'${now}','${now}',1);`,
+        ].join("\n"),
+      ]);
 
       r = await adminPOST(
         sockPath,
-        "/admin/taskruntime/task/create",
+        "/admin/agent-tools/create_task",
         {
+          agent_id: agentID,
           project_id: pid,
           title: "v23-3b task",
           description: "fakeagent-script: " + scriptPath,
-          priority: "medium",
-          requires_worktree: false,
-          with_conversation: true,
-          conversation_title: "v23 conv",
+          dispatch: true,
         },
-        bootstrap,
+        workerToken,
       );
       expect(r.status, "task create: " + r.body).toBe(200);
       const created = JSON.parse(r.body) as {
-        task_id: string;
-        conversation_id: string;
+        task_id?: string;
+        id?: string;
+        conversation_id?: string;
       };
-
-      worker = spawn(
-        WORKER_BIN,
-        [
-          "worker",
-          "run",
-          "--config",
-          configPath,
-          "--worker-id",
-          "test-w-1",
-          "--fake-agent",
-          FAKEAGENT_BIN,
-          "--poll-interval",
-          "200ms",
-          "--admin-token",
-          workerToken,
-        ],
-        {
-          stdio: ["ignore", "pipe", "pipe"],
-          env: { ...process.env, AGENT_CENTER_INVOCATION_ID: "" },
-        },
-      );
-      worker.stdout?.on("data", (c) => workerStdout.push(c));
-      worker.stderr?.on("data", (c) => workerStderr.push(c));
-
-      const enrollDeadline = Date.now() + 5_000;
-      while (Date.now() < enrollDeadline) {
-        if (
-          Buffer.concat(workerStderr).toString("utf8").includes("enrolled")
-        ) {
-          break;
-        }
-        await sleep(100);
-      }
+      const createdTaskID = created.task_id ?? created.id;
+      expect(createdTaskID, "created task id").toBeTruthy();
 
       r = await adminPOST(
         sockPath,
-        "/admin/taskruntime/dispatch/dispatch",
-        {
-          task_id: created.task_id,
-          worker_id: "test-w-1",
-          agent_cli: "fakeagent",
-          base_branch: "main",
-        },
-        bootstrap,
+        "/admin/agent-tools/claim_task",
+        { agent_id: agentID, task_id: createdTaskID },
+        workerToken,
       );
-      expect(r.status, "dispatch: " + r.body).toBe(200);
-      const disp = JSON.parse(r.body) as { execution_id: string };
+      expect(r.status, "claim_task: " + r.body).toBe(200);
+      const claimed = JSON.parse(r.body) as { claimed: boolean; status: string };
+      expect(claimed.claimed).toBe(true);
+      expect(claimed.status).toBe("running");
 
-      const pollDeadline = Date.now() + 20_000;
-      let lastStatus = "";
-      while (Date.now() < pollDeadline) {
-        const er = await adminGET(
-          sockPath,
-          "/admin/taskruntime/exec/find-by-id?id=" + disp.execution_id,
-          bootstrap,
-        );
-        if (er.status === 200) {
-          const e = JSON.parse(er.body) as { status: string };
-          lastStatus = e.status;
-          if (
-            e.status === "completed" ||
-            e.status === "failed" ||
-            e.status === "killed"
-          ) {
-            break;
-          }
-        }
-        await sleep(250);
-      }
-      expect(
-        lastStatus,
-        "exec status (worker stderr tail: " +
-          Buffer.concat(workerStderr).toString("utf8").slice(-1500) +
-          ")",
-      ).toBe("completed");
+      r = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/complete_task",
+        { agent_id: agentID, task_id: createdTaskID },
+        workerToken,
+      );
+      expect(r.status, "complete_task: " + r.body).toBe(200);
+
+      r = await adminPOST(
+        sockPath,
+        "/admin/agent-tools/get_task",
+        { agent_id: agentID, task_id: createdTaskID },
+        workerToken,
+      );
+      expect(r.status, "get_task: " + r.body).toBe(200);
+      const task = JSON.parse(r.body) as { status: string };
+      expect(task.status).toBe("completed");
     } finally {
       if (testInfo.status !== testInfo.expectedStatus) {
         await testInfo.attach("server-stderr.log", {
           body: Buffer.concat(serverStderr),
           contentType: "text/plain",
         });
-        if (worker) {
-          await testInfo.attach("worker-stderr.log", {
-            body: Buffer.concat(workerStderr),
-            contentType: "text/plain",
-          });
-        }
       }
-      if (worker) await killProc(worker);
       await killProc(server);
       await rm(tempDir, { recursive: true, force: true });
     }
