@@ -35,6 +35,7 @@ import {
   usePermissionExplain,
 } from '@/api/permissions';
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
+import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { useModalA11y } from '@/components/useModalA11y';
@@ -638,9 +639,14 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
   const current = entry.query.data;
   const [draft, setDraft] = useState<string[] | null>(null);
   const selected = draft ?? current?.ram_role_ids ?? [];
+  const roleOptions = useMemo(() => roles.map((role) => ({
+    value: role.id,
+    label: role.name,
+    hint: `v${role.version} - ${role.risk} risk`,
+  })), [roles]);
   const changed = Boolean(current && [...selected].sort().join('|') !== [...current.ram_role_ids].sort().join('|'));
-  const toggle = (roleID: string): void => {
-    setDraft(selected.includes(roleID) ? selected.filter((id) => id !== roleID) : [...selected, roleID]);
+  const setSelectedRoles = (roleIDs: string[]): void => {
+    setDraft(roleIDs);
     preview.reset();
   };
   const runPreview = (): void => preview.mutate({ team_id: entry.team.id, role: entry.role, ram_role_ids: selected });
@@ -661,13 +667,18 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
         <p className="mt-2 text-xs text-danger" role="alert">{(entry.query.error as Error)?.message ?? 'Mapping unavailable'}</p>
       ) : (
         <>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roles.map((role) => (
-              <label key={role.id} className="flex items-center gap-1.5 rounded border border-border-base px-2 py-1 text-xs">
-                <input type="checkbox" checked={selected.includes(role.id)} onChange={() => toggle(role.id)} disabled={!canManageAccess || replace.isPending} />
-                {role.name}
-              </label>
-            ))}
+          <div className="mt-2 max-w-xl">
+            <EntityMultiSelect
+              testId={`access-mapping-${entry.team.id}-${entry.role}-ram-roles`}
+              options={roleOptions}
+              values={selected}
+              onChange={setSelectedRoles}
+              placeholder="Select RAM Roles"
+              searchPlaceholder="Search RAM Roles"
+              emptyLabel="No RAM Roles"
+              disabled={!canManageAccess || replace.isPending}
+              ariaLabel={`RAM Roles for ${entry.team.name} ${entry.role}`}
+            />
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" className="rounded border border-border-base px-2.5 py-1 text-xs" disabled={!changed || preview.isPending} onClick={runPreview}>Preview impact</button>
