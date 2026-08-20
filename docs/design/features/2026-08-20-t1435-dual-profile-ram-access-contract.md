@@ -1,182 +1,179 @@
-# T1435 双 Profile / Team RAM Access 冻结合同
+# T1435 Profile 分域 / Team RAM Access 冻结合同
 
 | 字段 | 值 |
 |---|---|
-| 状态 | Frozen executable contract |
+| 状态 | Frozen executable contract（S1 remediation） |
 | 日期 | 2026-08-20 |
-| 审计基线 | `origin/main@05de26039c389be3bcb4faed4f759d972db80e0b` |
-| 范围 | AI Runtime Profile 删除线、Access Profile 保留线、Team Role -> RAM Role、Access IA、截图验收 |
-| 前置文档 | `docs/design/features/ai-runtime-configuration.md`、`docs/design/features/unified-permission-contract.md`、`docs/design/features/2026-08-17-access-management-redesign.md` |
+| 审计基线 | 候选提交 `9da26a8e`；执行前必须回读并记录实际 `origin/main` |
+| 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role -> RAM Role、Access IA、迁移/回滚、A1-A16 截图验收 |
+| 配套矩阵 | `docs/design/features/2026-08-20-t1435-residual-matrix.md` |
 
-## 1. 双 Profile 冻结边界
+## 1. Profile 分域边界
 
-### 1.1 AI Runtime Profile 是已删除对象
+`profile` 不是一个可跨域复用的产品实体。以下三个词必须保持隔离：
 
-AI Runtime Profile 指旧 `ai_runtime_profiles` 表、`ai_runtime_catalogs.default_profile_id`、导入导出的 `runtime.profiles` / `runtime.default_profile_key`，以及“Agent / Team / Org default 通过 Runtime Profile 间接选择 CLI+Model+Parameters”的设计。
-
-冻结规则：
-
-- 生产 Schema 不允许存在 `ai_runtime_profiles` 表。
-- 生产 Schema 不允许 `ai_runtime_catalogs.default_profile_id` 承载非空绑定。
-- AI Runtime import 必须拒绝 `runtime.profiles` 和 `runtime.default_profile_key`。
-- Agent desired runtime、executor candidates、Team Role runtime config 必须直接保存 CLI / Model / parameters / concurrency，不得恢复 Runtime Profile 绑定。
-- Runtime Profile 相关文档命中只能作为历史、测试拒绝、迁移 down 或清退说明存在。
-
-执行点：
-
-- `internal/persistence/migrations/0126_remove_ai_runtime_profiles.up.sql` 先检查 `ai_runtime_profiles` 行数和非空 `default_profile_id`，不为 0 则迁移失败；然后 drop 表和列。
-- `internal/webconsole/api/handlers_ai_runtime.go::rejectRetiredRuntimeProfileFields` 对导入文档硬拒绝 retired 字段。
-- `web/src/lib/runtimeSelector.ts` 只消费 Catalog 的 CLI / Model 与现有 Agent runtime 字段。
-
-### 1.2 Access Profile 是当前保留对象
-
-Access Profile 指 Access 管理域内的可版本化权限包：`access_profiles` + `access_profile_versions`。它被 UI 作为 RAM Role catalog 展示，并通过 `0136_access_profile_ram_role_contract` 镜像为 `authorization_roles` system/custom rows，供 Team Role -> RAM Role 映射解析。
-
-冻结规则：
-
-- Access Profile 不得因 AI Runtime Profile 清退而删除。
-- Access Profile 的 ID 在 Team RAM mapping API 中就是可提交的 RAM Role ID。
-- 内置 `team-basic` / `team-contributor` / `team-curator` 必须同时存在于 `access_profiles`、`access_profile_versions`、`authorization_roles`、`authorization_role_permissions`。
-- org-owned Access Profile 可以新增版本和 disable；system built-ins 不允许通过 UI 发布新版本或 disable。
-- Access Profile 只定义权限包，不直接绑定 subject；subject 授权仍通过 Team Role 映射或 explicit role assignment。
-
-执行点：
-
-- `internal/persistence/migrations/0132_access_profile_versions.up.sql` 创建 Access Profile 版本表并 seed built-ins。
-- `internal/persistence/migrations/0136_access_profile_ram_role_contract.up.sql` 将 built-in Access Profile 镜像成 system authorization roles。
-- `internal/webconsole/api/handlers_access.go` 暴露 `/access/profiles` CRUD/version/disable。
-- `web/src/pages/Access.tsx` Profiles tab 管理 Access Profile，Roles & mappings tab 把 Access Profile 当 RAM Role catalog。
-
-## 2. Team Role -> RAM Role 契约
-
-### 2.1 领域语言
-
-| 名称 | 权威含义 | 权威结构 |
+| 名称 | 含义 | 本合同结论 |
 |---|---|---|
-| Team Role | Team 内的功能角色，携带 runtime config 和声明式需求；本身不授予权限 | `team_roles`、`team.RoleConfig` |
-| RAM Role | 权限包，持有 `authorization_role_permissions` | `authorization_roles`、`access_profiles` 投影 |
-| Mapping | 一个 Team Role 绑定 0..N 个 RAM Role | `team_role_ram_role_mappings` |
-| Mapping version | CAS 写入版本 | `team_role_ram_role_versions` |
-| Mapping audit | 每次替换的前后角色集、actor、版本 | `team_role_ram_role_audit_events` |
+| AI Runtime Profile | 旧 CLI / Model / parameters 间接选择器 | 已删除；禁止恢复表、字段、API 或 UI |
+| Access Profile | 旧 Access 权限包产品、Profiles tab、`/access/profiles*` | 删除；不得重命名 UI 文案后继续保留同一产品/API |
+| 身份资料 profile | 用户/Agent 的头像、名称、简介等 identity metadata | 不在 T1435 范围；不得与授权或 runtime 配置联表/互转 |
 
-硬规则：
+### 1.1 AI Runtime Profile 删除线
 
-- Team Role 的 `cli`、`model`、`capability_tags`、`max_concurrency` 是 runtime config，不是 access grant。
-- Team Role 的 `ram_role_keys` 是模板/create/update 可移植输入，按 Access Profile / authorization role name 解析。
-- Team Role RAM mapping 的写 API 使用 `ram_role_ids`，并要求 `expected_version`。
-- 任何 mapping 替换必须是全量 replace，不允许 patch append。
-- 角色 ID 去重、排序、空值清理由 service 层统一完成。
+- 生产 Schema 不允许存在 `ai_runtime_profiles`，`ai_runtime_catalogs.default_profile_id` 不得承载绑定。
+- import 必须拒绝 `runtime.profiles`、`runtime.default_profile_key`；export 不得输出它们。
+- Agent desired runtime、executor candidates 与 Team Role runtime config 直接保存 CLI、Model、parameters、concurrency。
+- `0126_remove_ai_runtime_profiles` 及 retired-field 拒绝测试是永久防回归合同，不属于 Access/RAM 迁移。
 
-### 2.2 数据与迁移
+### 1.2 Access Profile 产品删除线
 
-| 表 | 生产者 | 消费者 | 不变量 |
-|---|---|---|---|
-| `team_role_ram_role_mappings` | `team.Service.ReplaceRAMRoleMapping`、Team create/update 的 RAM key resolver | `authorization.Service.addTeamRAMEffective`、Web Access/Team pages | FK 到 declared Team Role；FK 到 active authorization role；按 `(team_id, team_role, ram_role_id)` 唯一 |
-| `team_role_ram_role_versions` | mapping replace / Team role persist | Web PUT CAS、cache version hash | version > 0；每次 replace +1 |
-| `team_role_ram_role_audit_events` | mapping replace | audit/report 验证 | 保存 previous/next role ids 与 previous/next version |
-| `access_profiles` | Access Profile API / migration seed | `/access/profiles`、RoleBuilder、Access page | active name 在 org 内唯一；system built-ins org_id 为空 |
-| `authorization_roles` | unified authorization migration、Access role API、0136 built-in mirror | `validateRAMRoles`、`addTeamRAMEffective`、custom direct binding | revoked role 不可被 mapping 使用 |
+目标态不存在 Access Profile 产品概念。以下均为必须删除项，而不是保留面：
+
+- 数据：`access_profiles`、`access_profile_versions` 的活跃读写与 seed；兼容窗口结束后删除旧表。
+- API：`GET/POST /api/orgs/{slug}/access/profiles`、detail、`versions`、`disable`；切换后不得由别名或 rewrite 继续服务。
+- UI：Access 的 `Profiles` tab、profile list/detail/create/version/disable 表单、`AccessProfile*` 类型/hooks/i18n/mocks。
+- 模板：不得出现 `access_profile_id(s)`、`access_profile_key(s)` 或名为 profile 的权限包模板。现有 `ram_role_keys` 是 RAM Role 稳定名称引用，可以保留。
+- 生产消费者：RoleBuilder、Team detail、mapping preview/save、authorization effective 只能读 RAM Role repository；不得读旧表或调用旧 profile API。
+
+删除旧产品不删除权限含义。权限包以独立 **RAM Role** 模型承接，其权威当前态为 `authorization_roles` + `authorization_role_permissions`，历史态为 `authorization_role_versions`。RAM Role 不是任何一种 profile。
+
+## 2. 独立 RAM Role 合同
+
+### 2.1 权威模型
+
+| 实体 | 权威结构 | 不变量 |
+|---|---|---|
+| RAM Role current | `authorization_roles` | `id` 稳定；system role 的 `org_id=''`；org role 的 `org_id` 必须匹配；active name 唯一；`revoked_at` 后不可新绑定 |
+| RAM Role permissions | `authorization_role_permissions` | 只引用已注册 permission；`(role_id, permission_key, resource_kind)` 唯一 |
+| RAM Role history | `authorization_role_versions` | `(role_id, version)` 唯一；保存规范化 permissions JSON、risk snapshot、actor、timestamp；只追加 |
+| Team Role mapping | `team_role_ram_role_mappings` + versions + audit | Team Role 绑定 0..N RAM Role；CAS 全量 replace；前后集合可审计 |
+
+`authorization_role_versions` 的冻结列为：`role_id TEXT`、`version INTEGER`、`permissions_json TEXT`、`risk_snapshot TEXT`、`created_by TEXT`、`created_at TEXT`，主键 `(role_id, version)`。`risk_snapshot` 只保存当时风险展示值；实际风险始终由 permission registry 推导。
+
+内置 `team-basic`、`team-contributor`、`team-curator` 只在 RAM Role 表中各存在一份。禁止再向旧 profile 表镜像，也禁止双写两套领域对象。
+
+### 2.2 领域与模板语言
+
+| 名称 | 权威含义 |
+|---|---|
+| Team Role | Team 内功能角色，携带 runtime config/声明式需求；本身不授予权限 |
+| RAM Role | 独立权限包，持有 RAM permissions；不是 profile |
+| `ram_role_keys` | template/create/update 的可移植 RAM Role 名称；只解析 `authorization_roles` |
+| `ram_role_ids` | mapping preview/PUT 的稳定 ID；只校验 active `authorization_roles` |
+
+`ram_role_keys` 的 resolver 必须优先匹配同 org role，再匹配 system role；歧义、dangling、cross-org 或 revoked 均失败，不得 fallback 到 `access_profiles`。
 
 ### 2.3 API 合同
 
-| API | 作用 | 鉴权 | 请求 | 响应/错误 |
-|---|---|---|---|---|
-| `GET /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles` | 读取 mapping | org member + team in org | none | `TeamRAMRoleMapping`，missing role -> `404 team_role_not_found` |
-| `POST /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles/preview` | 预览 replace 影响 | org member + team in org | `{ram_role_ids}` | `affected_members`、`affected_project_ids`、added/removed role ids |
-| `PUT /api/orgs/{slug}/teams/{id}/roles/{role}/ram-roles` | CAS 全量替换 | `team.runtime_config.manage` on team | `{ram_role_ids, expected_version}` | `200` new mapping；stale -> `409 version_conflict`；cross-org/dangling role -> `422 invalid_ram_role` |
-| `GET /api/orgs/{slug}/access/profiles` | RAM Role catalog | org member | none | active latest profile list |
-| `POST /api/orgs/{slug}/access/profiles` | 创建 org-owned Access Profile | owner/admin | `{name, description, permissions}` | `201` detail；unknown permission -> `422 invalid_access_profile` |
-| `POST /api/orgs/{slug}/access/profiles/{id}/versions` | 发布新版本 | owner/admin；system built-in forbidden | `{expected_latest_version, permissions}` | CAS stale -> `409 version_conflict` |
-| `POST /api/orgs/{slug}/access/profiles/{id}/disable` | disable org-owned profile | owner/admin；system built-in forbidden | none | `204` |
+| API | 作用 | 鉴权 | 关键行为 |
+|---|---|---|---|
+| `GET /api/orgs/{slug}/access/ram-roles` | RAM Role catalog | org member | 返回 active system + current-org roles，不含 profile DTO/术语 |
+| `GET /api/orgs/{slug}/access/ram-roles/{id}` | current + version history | org member | cross-org opaque 404 |
+| `POST /api/orgs/{slug}/access/ram-roles` | 创建 org RAM Role | owner/admin | 校验 permission registry；写 current、permissions、version 1 与 audit |
+| `POST /api/orgs/{slug}/access/ram-roles/{id}/versions` | CAS 更新权限集合 | owner/admin；system forbidden | `expected_version` stale -> 409；事务更新 current/version/history/audit |
+| `POST /api/orgs/{slug}/access/ram-roles/{id}/revoke` | revoke org RAM Role | owner/admin；system forbidden | 先 preview 已有 mapping/direct binding；确认后 fail closed，不能称 disable profile |
+| Team RAM GET/preview/PUT | 读取、预览、CAS 全量替换 mapping | member/read；manage/write | 请求使用 `ram_role_ids`；invalid role -> 422；stale -> 409 |
 
-### 2.4 Scope 与多 Project
+旧 `/access/profiles*` 在兼容窗口的 W0/W1 只允许旧版本服务继续工作；新版本不得新增调用。W2 切换时路由移除并返回明确的 `410 access_profile_retired`（不做写入、不代理 RAM API），W3 后完全删除路由。410 只是短期客户端诊断，不是兼容 API。
 
-`authorization.Service.addTeamRAMEffective` 是 Team RAM 生效的唯一授权消费者。
+## 3. `access_profile*` -> RAM Role 逐表迁移
 
-Scope 规则：
+迁移必须可重跑、事务化、遇冲突即停止；禁止用 `INSERT OR IGNORE` 隐藏不一致。
 
-- `team` resource：只在 `resource.id == team_id` 时生效。
-- `project` resource：Team 必须通过 `team_projects` 关联该 project。
-- `task` / `issue` / `plan` resource：必须带 `project_id`，且该 project 必须关联 Team。
-- `conversation` resource：必须解析 owner 为 project/task/issue/plan conversation，且 `project_id` 关联 Team；`project.read` / `task.read` / `issue.read` / `plan.read` 可派生 `conversation.read`。
-- 同一个 Team 关联多个 Project 时，mapping 同时在所有 linked projects 生效；preview 必须列出全部 `affected_project_ids`。
-- 取消 project link、移除 Team member、删除 mapping 必须立即 fail closed。
+### 3.1 回滚前快照（W0）
 
-### 2.5 Direct Binding 与并存
+在任何双写/回填前，生成同一数据库事务视图下的只读快照：
 
-显式 direct binding 是 `authorization_role_assignments`，来源为 `custom_role`。它与 Team RAM 并存但互不覆盖：
+1. 导出 `access_profiles`、`access_profile_versions`、`authorization_roles`、`authorization_role_permissions`、`team_role_ram_role_mappings`、mapping versions/audit、`authorization_role_assignments`。
+2. 记录每表 row count、主键排序后的 SHA-256、schema version、候选 SHA、UTC timestamp。
+3. 单独记录 orphan version、重复 active org/name、unknown permission、profile/role 同 ID 非等价冲突；任一非零则阻断。
+4. 快照写入受控备份位置并做恢复演练；应用只记录 snapshot ID/checksum，不在日志输出权限数据。
 
-- effective permissions 是 legacy/domain source、Team RAM、custom role direct assignment 的并集。
-- direct binding 只能由授权服务 `ApplyBatch` 写入，必须有 idempotency key。
-- revoke direct binding 只能走两阶段 preview/confirm；直接 revoke endpoint 必须拒绝。
-- revoke 一个 direct binding 后，如果 Team RAM 仍授予同 permission，则 effective permission 仍 allowed，但 evidence/source 必须显示真实来源。
-- Team RAM mapping 删除后，如果 direct binding 仍授予同 permission，则不能误判为 denied。
+### 3.2 逐表转换（W1）
 
-### 2.6 Cache、Shadow、Audit、Rollback
+| 来源 | 目标 | 逐行映射与校验 |
+|---|---|---|
+| `access_profiles` | `authorization_roles` | `id -> id`，`org_id -> org_id`，空 org -> `kind=system`，非空 -> `kind=custom`，name/description/created_by/created_at/updated_at 原样；`disabled_at -> revoked_at`；`version = max(access_profile_versions.version)`。目标同 ID 已存在时必须逐字段等价，否则阻断 |
+| `access_profile_versions` 每一行 | `authorization_role_versions` 每一行 | `profile_id -> role_id`，version/permissions_json/risk/created_by/created_at 原样映射；permissions 先规范化去重排序并验证 registry；不得只迁 latest 而丢历史 |
+| 每个 profile 的 latest version | `authorization_role_permissions` | 展开 permissions JSON；从 registry 展开其合法 `resource_kind`；与目标 role 现有集合做集合等价校验后 upsert。空/unknown/非法 JSON 阻断 |
+| built-in seed/0136 mirror | RAM Role current/history | 以迁移后 RAM Role 三表为唯一 seed；删除 profile seed 与 bridge mirror，内置 ID 不变，从而无需改写 mapping FK |
+| `team_role_ram_role_mappings` | 原表 | role ID 保持不变；逐行验证目标 active RAM Role 与 org scope，不合法则阻断，不静默删除 |
+| `team_roles.ram_role_keys` 与模板 payload | 原字段/新模板 | key 保持 RAM Role name；resolver 攅读 `authorization_roles`；旧 profile 命名字段拒绝导入 |
 
-| 切面 | 合同 |
+回填后必须证明：source profile count = migrated role count（排除迁移前已等价 role 后按 ID 去重）、source version count = history count、每个 latest permission 集合相等、全部 mapping/direct assignment 可解析、三 built-in 只存在一份权威行。
+
+### 3.3 兼容窗口与切换顺序
+
+| 阶段 | 读 | 写 | 退出门槛 |
+|---|---|---|---|
+| W0 snapshot | 旧服务照常；新 RAM repo 不接流量 | 旧写 | 快照校验/恢复演练通过 |
+| W1 backfill + dual-write | 生产仍旧读；shadow 读 RAM 并逐请求比对 | 临时 adapter 先写 RAM 事务，再写旧表；任一失败整体回滚 | 连续观测窗口内 row/hash、API DTO 语义、effective permission、mapping preview 均零差异 |
+| W2 RAM cutover | 所有生产消费者只读 RAM；旧读仅离线 shadow | 只写 RAM；旧 profile 写冻结；旧 API 410 | 缓存版本、shadow、审计与定向测试通过；无新版本客户端访问旧 API |
+| W3 cleanup | RAM only | RAM only | 删除旧路由/UI/types/mocks/handlers、旧表与 dual adapter；全仓仅迁移/历史/retired guard 允许命中旧词 |
+
+双写是限时迁移机制，不是目标架构。W2 后不得为了“兼容”从旧表 fallback；否则 RAM revoke 可能被旧数据复活。
+
+### 3.4 回退方案
+
+- W1 失败：回滚当前事务，保留旧服务权威；用 W0 快照恢复被验证的 RAM 目标表，修复后全量重跑。不得在部分 profile 上继续。
+- W2 应用回退：先停止写入，导出 W2 增量 RAM role/version/permission/mapping/audit；仅当旧双写仍完整且 checksum 等价时，短时回到 W1 旧读。若不等价，恢复 RAM 版本应用，不允许丢弃增量。
+- W2 数据回退：从 W0 快照恢复目标表，再按保存的 W1/W2 audit 顺序重放；mapping 与 direct assignment 必须同一恢复点。授权 enforcement 可临时切 `legacy`，但不等于数据恢复完成。
+- W3 drop 前再做一份相同格式终态快照并保留至兼容期结束；drop 后若必须回退，先恢复旧 schema + 快照，再部署旧二进制。禁止只执行 0132/0136 down，因为这会丢版本、mapping 关联或 W2 增量。
+- 每次回退后从数据库权威源回读 counts/checksums，并跑 explain/effective probes；日志中的 `ok` 不构成成功证据。
+
+## 4. Team RAM 生效合同
+
+- Team RAM 唯一消费者为 authorization effective service；team scope 只匹配本 Team。
+- project 以及 task/issue/plan/conversation 派生 scope 必须落在 `team_projects` 关联中；多 Project 时全部关联项目同时生效并完整出现在 preview。
+- 移除 mapping、member 或 project link 必须立即 fail closed。
+- direct binding (`authorization_role_assignments`) 与 Team RAM 求并集、互不覆盖；撤销一条来源不得抹掉另一条来源，explain 必须显示真实 source chain。
+- mapping replace 使用 CAS 全量 replace、写 previous/next role IDs/version/actor audit；不得 patch append。
+
+## 5. Cache、Shadow、Audit
+
+| 切面 | 冻结规则 |
 |---|---|
-| Cache | `effectiveVersion` 必须纳入 `authorization_role_assignments`、`authorization_roles`、`authorization_role_permissions`、`team_members`、`team_projects`、`team_role_ram_role_mappings`、`team_role_ram_role_versions`、`team_memory_policy_curators`。授权写入后必须 `invalidateEffectiveCache()`。 |
-| Shadow | 默认 enforcement mode 是 `shadow`；Team RAM 必须进入 legacy/equivalent 双侧比较，避免 enforce 模式误删有效 mapping grant。 |
-| Audit | direct grant/revoke 写 `authorization_audit_events`；Team RAM replace 写 `team_role_ram_role_audit_events`。审计 payload 不得省略 actor、subject/resource 或 previous/next。 |
-| Rollback | 授权模式可回退到 `legacy`；DB rollback 可 drop 0132/0133/0136 表，但会丢失 Access Profile 与 Team RAM mapping 数据。产品 rollback 前必须导出 mapping/profile 快照。 |
-| Migration | 0129 建统一授权核心；0130 建 revoke preview；0132 建 Access Profile；0133 建 Team RAM mapping；0136 镜像 built-in Access Profile 为 system authorization roles。不得把 AI Runtime Profile 0126 rollback 与 Access Profile 0132 rollback 混用。 |
+| Cache | effective version 纳入 roles、role permissions、role versions、assignments、members、projects、mapping/version 与 curator policy；写后 invalidate |
+| Shadow | W1 比较旧读与 RAM 读；授权默认 shadow，Team RAM 必须进入 legacy/equivalent 双侧；差异按 role/permission/scope 分类且不含敏感 payload |
+| Audit | RAM Role create/version/revoke 与 direct grant/revoke、mapping replace 各写权威 audit；actor、subject/resource、previous/next 不得省略 |
+| Rollback | `legacy` 只回退 enforcement；数据回退必须按第 3.4 节快照与重放执行 |
 
-## 3. Access IA 冻结
+## 6. Access IA 与 A1-A16 截图矩阵
 
-Access 的一屏 IA：
+Access 只有两个 tab：`Roles & mappings`（默认）与 `Subject access`。不存在 `Profiles` tab。RAM Role 的创建、编辑、历史与 revoke 均在 Roles & mappings 内完成，并始终使用 RAM Role 文案。
 
-1. Header：页面标题、`Batch grant` 操作；无 `org.member.role.manage` 时展示 forbidden 解释，并禁用所有写控件。
-2. Summary：Allowed / High risk / Expiring / No access / Not applicable。
-3. Filters：Search、Resource、Risk、Status。
-4. Tabs：
-   - `Roles & mappings`：默认页，显示 RAM Roles catalog 与 Team Role mappings。
-   - `Subject access`：按 subject 展开 source chain、decision table、direct/other bindings。
-   - `Profiles`：管理 Access Profile 和版本历史。
-5. Side panels：
-   - 在 `Subject access` 显示 Role management 与 Grant revoke。
-   - 全局 Batch grant drawer 从 header 打开。
+截图必须来自真实导航路径，保存到 `docs/releases/<version>-screenshots/access/` 并在报告内联引用。
 
-Access 不是 AI Runtime 页面，也不是 Team settings 的替代页：
+| ID | 页面/状态 | 必须可见 | 导航路径 | 建议文件名 |
+|---|---|---|---|---|
+| A1 | Access no permission | forbidden reason；写控件禁用 | member -> sidebar Access | `access-forbidden.png` |
+| A2 | Access loading | summary/table skeleton；无布局跳动 | admin -> Access，延迟 overview | `access-loading.png` |
+| A3 | Roles & mappings happy | RAM Role catalog、Team mappings、version、used-by | Access -> Roles & mappings | `access-ram-roles-mappings.png` |
+| A4 | mapping preview | members、+/- roles、全部 projects | edit mapping -> Preview | `access-mapping-preview.png` |
+| A5 | mapping saved | version +1、draft 清空、server 回读 | Preview -> Save | `access-mapping-saved.png` |
+| A6 | mapping conflict | inline 409；无部分写 | stale expected_version save | `access-mapping-conflict.png` |
+| A7 | Subject access chain | membership -> Team Role -> RAM Role -> scoped permissions | Subject access -> expand | `access-subject-chain.png` |
+| A8 | direct coexists | direct binding 与 Team RAM source 并存 | subject with both sources | `access-direct-coexist.png` |
+| A9 | batch grant preview | grantable/high risk/unauthorized/not applicable | Batch grant -> Preview | `access-grant-preview.png` |
+| A10 | derived revoke | not_applicable；禁止直接 revoke | Subject access -> revoke derived | `access-derived-revoke-blocked.png` |
+| A11 | direct revoke confirm | token 二阶段、revoked、audit 可查 | direct revoke -> Confirm | `access-direct-revoke-confirmed.png` |
+| A12 | RAM Role detail/history | current permissions、version history、risk；无 Profile 文案/tab | Roles & mappings -> RAM Role | `access-ram-role-detail.png` |
+| A13 | RAM Role create | create form、permission checklist、created role selected | Roles & mappings -> New RAM Role | `access-ram-role-created.png` |
+| A14 | RAM Role version conflict | stale expected_version 409；无新版本 | RAM Role -> publish stale edit | `access-ram-role-version-conflict.png` |
+| A15 | Team detail mapping | RAM Role multi-select；save 后 `ram_role_keys` server 回读 | Team detail -> edit roles | `team-role-ram-builder.png` |
+| A16 | AI Runtime retired guard | export 无 retired fields；import retired fields 报错 | System -> AI Runtime -> Import | `ai-runtime-retired-guard.png` |
 
-- Runtime CLI/Model/Catalog 仍在 AI Runtime 页面。
-- Team Role runtime config 仍在 Team detail / RoleBuilder。
-- Access 只管理权限包、mapping、direct grants/revoke 和 explain。
-
-## 4. 逐页逐状态截图验收矩阵
-
-截图必须来自真实导航路径，不允许只开孤儿 URL。每张截图保存到后续验收 commit 的 `docs/releases/<version>-screenshots/access/`，报告内联引用。
-
-| ID | 页面/入口 | 状态 | 必须可见 | 导航路径 | 建议文件名 |
-|---|---|---|---|---|---|
-| A1 | Access | no permission | forbidden alert、后端 reason、Batch grant disabled/不可达 | Sign in member -> sidebar Access | `access-forbidden.png` |
-| A2 | Access | loading | Summary/表格 skeleton，无布局跳动 | Sign in admin -> sidebar Access，延迟 `/access/overview` | `access-loading.png` |
-| A3 | Access Roles & mappings | happy | RAM Roles 卡片、Team Role mappings、mapping version、Used by Team Roles | Access -> Roles & mappings | `access-roles-mappings.png` |
-| A4 | Access Roles & mappings | preview changed | preview impact 显示 members、+/- roles、projects | 修改 mapping -> Preview impact | `access-mapping-preview.png` |
-| A5 | Access Roles & mappings | save success | version +1、draft 清空、query cache 刷新 | Preview -> Save mapping | `access-mapping-saved.png` |
-| A6 | Access Roles & mappings | stale conflict | `version_conflict` 错误 inline 显示，不落部分写 | 用旧 expected_version 保存 | `access-mapping-conflict.png` |
-| A7 | Access Subject access | source chain | `membership:<team>` -> Team Role -> RAM Role -> scoped effective permissions | Access -> Subject access -> expand subject | `access-subject-chain.png` |
-| A8 | Access Subject access | direct coexists | Direct/other bindings 行与 Team RAM source 并存 | 有 direct grant + Team RAM 的 subject | `access-direct-coexist.png` |
-| A9 | Access grant drawer | preview | grantable/high risk/unauthorized/not applicable summary | Batch grant -> select subject/permission/resource -> Preview | `access-grant-preview.png` |
-| A10 | Access revoke | derived grant | derived grant revoke preview 显示 not_applicable，不能直接 revoke | Subject access -> revoke derived grant | `access-derived-revoke-blocked.png` |
-| A11 | Access revoke | direct confirm | preview_id/token 二阶段，confirm 后 grant revoked，audit 可查 | Revoke direct grant -> Confirm | `access-direct-revoke-confirmed.png` |
-| A12 | Profiles | list/detail | built-ins、latest version、version history、risk badges | Access -> Profiles | `access-profiles.png` |
-| A13 | Profiles | create | create form、permission checklist、created profile selected | Profiles -> Create profile | `access-profile-created.png` |
-| A14 | Profiles | version CAS conflict | stale expected_latest_version 显示 conflict，不写新版本 | Profiles -> Publish with stale version | `access-profile-version-conflict.png` |
-| A15 | Team detail | role builder mapping | RAM role multi-select、save 后 role `ram_role_keys` 从 server 回读 | Teams -> Team detail -> edit roles | `team-role-ram-builder.png` |
-| A16 | AI Runtime | retired profile guard | export/import 不含 profiles/default_profile_key；导入 retired 字段报错 | System -> AI Runtime -> Import preview | `ai-runtime-profile-retired-guard.png` |
-
-## 5. 验证命令
+## 7. 定向验收
 
 ```bash
 git fetch origin main
 git rev-parse origin/main
 
-rg -n "runtime\\.profiles|default_profile_key|ai_runtime_profiles|AI Runtime Profile|Runtime Profile" internal docs web sites README*
-rg -n "access_profiles|access_profile_versions|access/profiles|AccessProfile|access profile|Access profiles" internal docs web sites README*
-rg -n "team_role_ram_role|ram_role_ids|ram_role_keys|SourceTeamRoleRAM|RAM Role|RAM roles" internal docs web sites README*
+# 旧产品命中只能在历史迁移、迁移兼容/删除说明和 retired 断言白名单中。
+rg -n "access_profiles|access_profile_versions|access/profiles|AccessProfile|access profile|Access Profile|Profiles tab" internal web sites README* docs
+rg -n "authorization_role_versions|authorization_roles|authorization_role_permissions|ram_role_ids|ram_role_keys|RAM Role" internal web docs
+rg -n "runtime\\.profiles|default_profile_key|ai_runtime_profiles|AI Runtime Profile" internal web docs
 
-go test ./internal/persistence ./internal/airuntime ./internal/authorization ./internal/team/service ./internal/webconsole/api
-(cd web && pnpm test -- --run src/pages/Access.test.tsx src/pages/TeamDetail.test.tsx src/api/access.ts src/api/teams.test.tsx)
+go test ./internal/persistence ./internal/authorization ./internal/team/service ./internal/webconsole/api
+(cd web && pnpm test -- --run src/pages/Access.test.tsx src/pages/TeamDetail.test.tsx src/pages/AiRuntime.test.tsx)
 ```
-
