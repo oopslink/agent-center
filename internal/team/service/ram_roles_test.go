@@ -17,6 +17,14 @@ func seedRAMRole(t *testing.T, svc *Service, id, orgID, name string) {
 	}
 }
 
+func seedSystemRAMRole(t *testing.T, svc *Service, id, name string) {
+	t.Helper()
+	_, err := svc.db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES (?,'','system',?,'','system',datetime('now'),datetime('now'),1)`, id, name)
+	if err != nil {
+		t.Fatalf("seed system RAM role: %v", err)
+	}
+}
+
 func TestRAMRoleMapping_ReplaceIsAtomicCASAndAudited(t *testing.T) {
 	svc, db := newService(t)
 	ctx := context.Background()
@@ -121,6 +129,64 @@ func TestCreateAndUpdateTeam_PersistRAMRoleKeysAtomically(t *testing.T) {
 	}
 	if err := db.QueryRow(`SELECT COUNT(*) FROM teams WHERE name='Broken'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("failed create was not atomic: count=%d err=%v", n, err)
+	}
+}
+
+func TestRAMRoleStableKeyResolver_TargetOrgWinsThenSystemAndRejectsBadStates(t *testing.T) {
+	svc, db := newService(t)
+	ctx := context.Background()
+	seedSystemRAMRole(t, svc, "role-system-reviewer", "Reviewer")
+	seedRAMRole(t, svc, "role-org-reviewer", "org-1", "Reviewer")
+	seedSystemRAMRole(t, svc, "role-system-observer", "Observer")
+	seedRAMRole(t, svc, "role-revoked", "org-1", "Retired reviewer")
+	if _, err := db.Exec(`UPDATE authorization_roles SET revoked_at=datetime('now') WHERE id='role-revoked'`); err != nil {
+		t.Fatal(err)
+	}
+
+	tm, err := svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Resolver", Roles: []team.RoleConfig{
+		{Role: "review", RAMRoleKeys: []string{"Reviewer"}},
+		{Role: "observe", RAMRoleKeys: []string{"Observer"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := svc.GetRAMRoleMapping(ctx, tm.ID(), "review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(review.RAMRoleIDs) != 1 || review.RAMRoleIDs[0] != "role-org-reviewer" {
+		t.Fatalf("target org role should win over system role: %+v", review)
+	}
+	observe, err := svc.GetRAMRoleMapping(ctx, tm.ID(), "observe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observe.RAMRoleIDs) != 1 || observe.RAMRoleIDs[0] != "role-system-observer" {
+		t.Fatalf("system fallback failed: %+v", observe)
+	}
+
+	for _, tc := range []struct {
+		name string
+		key  string
+		want error
+	}{
+		{name: "unknown", key: "Missing", want: team.ErrRAMRoleKeyNotFound},
+		{name: "revoked", key: "Retired reviewer", want: team.ErrRAMRoleKeyRevoked},
+	} {
+		_, err := svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Bad " + tc.name, Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{tc.key}}}})
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("%s key error = %v, want %v", tc.name, err, tc.want)
+		}
+	}
+
+	if _, err := db.Exec(`DROP INDEX idx_authorization_roles_custom_org_name`); err != nil {
+		t.Fatal(err)
+	}
+	seedRAMRole(t, svc, "role-dup-a", "org-1", "Duplicated")
+	seedRAMRole(t, svc, "role-dup-b", "org-1", "Duplicated")
+	_, err = svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Bad ambiguous", Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Duplicated"}}}})
+	if !errors.Is(err, team.ErrRAMRoleKeyAmbiguous) {
+		t.Fatalf("ambiguous key error = %v, want %v", err, team.ErrRAMRoleKeyAmbiguous)
 	}
 }
 

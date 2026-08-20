@@ -26,28 +26,31 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('defaults to RAM Roles and exposes only the three Access views', async () => {
+  it('defaults to Roles & mappings and exposes only the two Access tabs', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     expect(await screen.findByText('Permission catalog')).toBeInTheDocument();
     expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'RAM Roles' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Team Role mappings' })).toBeInTheDocument();
+    expect(screen.getByTestId('access-team-role-mappings-view')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Subject access' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'RAM Roles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Team Role mappings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Profiles/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
   });
 
-  it('opens Team Role mappings from the dedicated Access view, then exposes expandable subject access', async () => {
+  it('opens Team Role mappings from secondary navigation inside Roles & mappings, then exposes expandable subject access', async () => {
     renderPage('/organizations/test/access?view=team-role-mappings');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByRole('tab', { name: 'Team Role mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
     expect(await screen.findByTestId('access-team-role-mappings-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Team Role mappings' })).toBeInTheDocument();
     expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
 
-    fireEvent.click(screen.getByTestId('access-view-subject-access'));
+    fireEvent.click(screen.getByTestId('access-view-subjects'));
     expect(await screen.findByTestId('access-subject-view')).toBeInTheDocument();
     expect(window.location.search).toBe('?view=subject-access');
     expect(screen.getByTestId('access-subject-view')).toBeInTheDocument();
@@ -83,7 +86,7 @@ describe('Access page', () => {
       }),
     );
     renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
+    fireEvent.click(await screen.findByTestId('access-view-roles'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     expect(within(row).queryByRole('checkbox')).toBeNull();
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
@@ -114,7 +117,7 @@ describe('Access page', () => {
       })),
     );
     renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
+    fireEvent.click(await screen.findByTestId('access-view-roles'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
     const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
@@ -301,7 +304,7 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-ram-roles'));
+    fireEvent.click(screen.getByTestId('access-view-roles'));
 
     const view = await screen.findByTestId('access-roles-view');
     expect(await within(view).findByTestId('access-role-row-team-curator')).toHaveTextContent('v2');
@@ -371,7 +374,7 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-ram-roles'));
+    fireEvent.click(screen.getByTestId('access-view-roles'));
 
     const view = await screen.findByTestId('access-roles-view');
     fireEvent.click(await within(view).findByTestId('access-role-row-role-cas'));

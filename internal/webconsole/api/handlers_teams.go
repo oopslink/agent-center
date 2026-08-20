@@ -332,6 +332,12 @@ func mapTeamWebError(w http.ResponseWriter, err error) {
 		errors.Is(err, team.ErrAgentAlreadyInTeam), errors.Is(err, team.ErrProjectAlreadyAssociated),
 		errors.Is(err, team.ErrRoleInUse):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, team.ErrRAMRoleKeyAmbiguous):
+		writeError(w, http.StatusUnprocessableEntity, "ram_role_key_ambiguous", err.Error())
+	case errors.Is(err, team.ErrRAMRoleKeyRevoked):
+		writeError(w, http.StatusUnprocessableEntity, "ram_role_key_revoked", err.Error())
+	case errors.Is(err, team.ErrRAMRoleKeyNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "ram_role_key_unknown", err.Error())
 	case errors.Is(err, team.ErrInvalidTeam), errors.Is(err, team.ErrInvalidMemberRef),
 		errors.Is(err, team.ErrInvalidRole), errors.Is(err, team.ErrRoleNotDeclared),
 		errors.Is(err, team.ErrInvalidProject):

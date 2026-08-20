@@ -1,6 +1,9 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -8,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
+	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
 
 // Team WebUI Phase-1 facade — P3 slice (task follow-up to 48bf401d). Completes
@@ -111,6 +115,10 @@ func (s *Server) saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if !valid {
 		return
 	}
+	if err := validateTemplateRAMRoleKeys(r, d, orgID, slots); err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{
 		ID:          facadeIDGen.NewEntityID("teamtmpl"),
 		OrgID:       orgID,
@@ -167,8 +175,17 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if hasRetiredRoleBundleField(raw) {
+		writeError(w, http.StatusBadRequest, "access_profile_retired", "access_profile_* fields are retired; use ram_role_keys")
+		return
+	}
 	var req importTemplateReq
-	if err := decodeJSON(r, &req); err != nil {
+	if err := json.Unmarshal(raw, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
@@ -202,6 +219,10 @@ func (s *Server) importTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if !valid {
 		return
 	}
+	if err := validateTemplateRAMRoleKeys(r, d, orgID, slots); err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
 	tmpl, err := team.NewTemplate(team.NewTemplateInput{
 		ID:                  facadeIDGen.NewEntityID("teamtmpl"),
 		OrgID:               orgID,
@@ -227,6 +248,50 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+func validateTemplateRAMRoleKeys(r *http.Request, d HandlerDeps, orgID string, slots []team.RoleSlot) error {
+	if d.DB == nil {
+		return errors.New("team template RAM Role resolver unavailable")
+	}
+	for _, slot := range slots {
+		for _, key := range slot.Config.RAMRoleKeys {
+			if _, err := teamsql.ResolveRAMRoleKey(r.Context(), d.DB, orgID, key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func hasRetiredRoleBundleField(data []byte) bool {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	var walk func(any) bool
+	walk = func(v any) bool {
+		switch x := v.(type) {
+		case map[string]any:
+			for key, value := range x {
+				switch key {
+				case "access_profile_id", "access_profile_ids", "access_profile_key", "access_profile_keys":
+					return true
+				}
+				if walk(value) {
+					return true
+				}
+			}
+		case []any:
+			for _, value := range x {
+				if walk(value) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(raw)
 }
 
 // ---------------------------------------------------------------------------

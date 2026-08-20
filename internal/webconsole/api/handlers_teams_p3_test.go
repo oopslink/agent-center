@@ -151,6 +151,68 @@ func TestImportTemplate_UncuratedWithDefaults(t *testing.T) {
 	}
 }
 
+func TestImportTemplate_ValidatesTargetOrgRAMRoleStableKeys(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	wireRuntimeCatalogForTest(t, db, &deps, sess.OrgID)
+	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-system-reviewer','','system','Reviewer','','system',datetime('now'),datetime('now'),1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-org-reviewer',?,'custom','Reviewer','','user:owner',datetime('now'),datetime('now'),1)`, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	resp := orgScopedPost(t, ts.URL+"/api/team-templates/import", `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Reviewer"]}]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("import with target-org RAM role key = %d, want 201", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	roles := body["roles"].([]any)
+	keys := roles[0].(map[string]any)["ram_role_keys"].([]any)
+	if len(keys) != 1 || keys[0] != "Reviewer" {
+		t.Fatalf("imported ram_role_keys=%#v", keys)
+	}
+}
+
+func TestImportTemplate_RejectsUnknownRevokedAmbiguousAndRetiredRAMRoleKeys(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	wireRuntimeCatalogForTest(t, db, &deps, sess.OrgID)
+	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version,revoked_at) VALUES ('role-revoked',?,'custom','Retired','','user:owner',datetime('now'),datetime('now'),1,datetime('now'))`, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP INDEX idx_authorization_roles_custom_org_name`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-dup-a',?,'custom','Duplicated','','user:owner',datetime('now'),datetime('now'),1),('role-dup-b',?,'custom','Duplicated','','user:owner',datetime('now'),datetime('now'),1)`, sess.OrgID, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	cases := []struct {
+		name   string
+		body   string
+		status int
+		code   string
+	}{
+		{name: "unknown", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Missing"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_unknown"},
+		{name: "revoked", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Retired"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_revoked"},
+		{name: "ambiguous", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Duplicated"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_ambiguous"},
+		{name: "retired profile field", body: `{"name":"Imported","roles":[{"role":"reviewer","access_profile_keys":["legacy"]}]}`, status: http.StatusBadRequest, code: "access_profile_retired"},
+	}
+	for _, tc := range cases {
+		resp := orgScopedPost(t, ts.URL+"/api/team-templates/import", tc.body, sess)
+		if resp.StatusCode != tc.status {
+			t.Fatalf("%s status = %d, want %d", tc.name, resp.StatusCode, tc.status)
+		}
+		got := decodeBody(t, resp)["error"]
+		if got != tc.code {
+			t.Fatalf("%s error = %v, want %s", tc.name, got, tc.code)
+		}
+	}
+}
+
 // --- template instances ------------------------------------------------------
 
 func TestTemplateInstances_ReturnsInstantiatedTeams(t *testing.T) {

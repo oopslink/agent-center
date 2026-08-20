@@ -61,7 +61,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'ram-roles' | 'team-role-mappings' | 'subject-access';
+type AccessView = 'roles' | 'subjects';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -119,7 +119,7 @@ export default function Access(): React.ReactElement {
   const setView = (next: AccessView): void => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
-      params.set('view', next);
+      params.set('view', next === 'subjects' ? 'subject-access' : 'roles-and-mappings');
       return params;
     }, { replace: true });
   };
@@ -198,30 +198,20 @@ export default function Access(): React.ReactElement {
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'ram-roles'}
-            className={segmentedClass(view === 'ram-roles')}
-            onClick={() => setView('ram-roles')}
-            data-testid="access-view-ram-roles"
+            aria-selected={view === 'roles'}
+            className={segmentedClass(view === 'roles')}
+            onClick={() => setView('roles')}
+            data-testid="access-view-roles"
           >
-            RAM Roles
+            Roles & mappings
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'team-role-mappings'}
-            className={segmentedClass(view === 'team-role-mappings')}
-            onClick={() => setView('team-role-mappings')}
-            data-testid="access-view-team-role-mappings"
-          >
-            Team Role mappings
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'subject-access'}
-            className={segmentedClass(view === 'subject-access')}
-            onClick={() => setView('subject-access')}
-            data-testid="access-view-subject-access"
+            aria-selected={view === 'subjects'}
+            className={segmentedClass(view === 'subjects')}
+            onClick={() => setView('subjects')}
+            data-testid="access-view-subjects"
           >
             Subject access
           </button>
@@ -254,22 +244,21 @@ export default function Access(): React.ReactElement {
       {!overview.isLoading && !overview.isError && data && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
-            {view === 'ram-roles' && (
-              <RAMRolesView
-                catalog={data.catalog}
-                mappingEntries={mappingEntries}
-                canManageAccess={canManageAccess}
-              />
-            )}
-            {view === 'team-role-mappings' && (
-              <TeamRoleMappingsView
-                roles={ramRoles.data?.roles ?? []}
-                teams={teams.data ?? []}
-                mappingEntries={mappingEntries}
-                canManageAccess={canManageAccess}
-              />
-            )}
-            {view === 'subject-access' && (
+            {view === 'roles' ? (
+              <>
+                <RAMRolesView
+                  catalog={data.catalog}
+                  mappingEntries={mappingEntries}
+                  canManageAccess={canManageAccess}
+                />
+                <TeamRoleMappingsView
+                  roles={ramRoles.data?.roles ?? []}
+                  teams={teams.data ?? []}
+                  mappingEntries={mappingEntries}
+                  canManageAccess={canManageAccess}
+                />
+              </>
+            ) : (
               <SubjectDecisionView
                 decisions={data.decisions}
                 subjectByRef={subjectByRef}
@@ -281,7 +270,7 @@ export default function Access(): React.ReactElement {
             <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
-            {view === 'subject-access' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
+            {view === 'subjects' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
             <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
           </aside>
         </div>
@@ -303,8 +292,8 @@ export default function Access(): React.ReactElement {
 }
 
 function parseAccessView(value: string | null): AccessView {
-  if (value === 'team-role-mappings' || value === 'subject-access') return value;
-  return 'ram-roles';
+  if (value === 'subject-access') return 'subjects';
+  return 'roles';
 }
 
 function AccessForbidden({ reason, status }: { reason: string; status: number }): React.ReactElement {

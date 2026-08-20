@@ -129,11 +129,7 @@ func replaceRoleRAMRoles(ctx context.Context, exec persistence.SQLExecutor, team
 			continue
 		}
 		seen[key] = struct{}{}
-		var roleID string
-		err := exec.QueryRowContext(ctx, `SELECT ar.id FROM authorization_roles ar JOIN teams t ON t.id=? WHERE ar.name=? AND ar.revoked_at IS NULL AND ar.org_id IN ('',t.org_id) ORDER BY CASE WHEN ar.org_id=t.org_id THEN 0 ELSE 1 END LIMIT 1`, teamID.String(), key).Scan(&roleID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
-		}
+		roleID, err := resolveRAMRoleKeyForTeam(ctx, exec, teamID, key)
 		if err != nil {
 			return err
 		}
@@ -161,6 +157,62 @@ func replaceRoleRAMRoles(ctx context.Context, exec persistence.SQLExecutor, team
 		return err
 	}
 	return nil
+}
+
+func resolveRAMRoleKeyForTeam(ctx context.Context, exec persistence.SQLExecutor, teamID team.TeamID, key string) (string, error) {
+	var orgID string
+	if err := exec.QueryRowContext(ctx, `SELECT org_id FROM teams WHERE id=?`, teamID.String()).Scan(&orgID); err != nil {
+		return "", err
+	}
+	return ResolveRAMRoleKey(ctx, exec, orgID, key)
+}
+
+// ResolveRAMRoleKey resolves a portable RAM Role stable name into a concrete
+// authorization_roles.id for the destination org. Destination-org custom roles
+// win over system roles; each scope must resolve to at most one active role.
+// Unknown, ambiguous, and revoked-only keys are intentionally distinct so API
+// import paths can fail closed with actionable diagnostics.
+func ResolveRAMRoleKey(ctx context.Context, exec persistence.SQLExecutor, orgID, key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
+	}
+	for _, scopeOrg := range []string{strings.TrimSpace(orgID), ""} {
+		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE name=? AND org_id=? AND revoked_at IS NULL ORDER BY id`, key, scopeOrg)
+		if err != nil {
+			return "", err
+		}
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return "", err
+			}
+			ids = append(ids, id)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return "", err
+		}
+		if err := rows.Close(); err != nil {
+			return "", err
+		}
+		if len(ids) > 1 {
+			return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyAmbiguous, key)
+		}
+		if len(ids) == 1 {
+			return ids[0], nil
+		}
+	}
+	var revoked int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE name=? AND org_id IN (?, '') AND revoked_at IS NOT NULL`, key, strings.TrimSpace(orgID)).Scan(&revoked); err != nil {
+		return "", err
+	}
+	if revoked > 0 {
+		return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyRevoked, key)
+	}
+	return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
 }
 
 // UpdateTeam persists name/description/version for an existing team.

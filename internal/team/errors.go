@@ -41,7 +41,13 @@ var (
 	// ErrRAMRoleKeyNotFound is returned when a template-declared stable RAM role
 	// key cannot be resolved to a system role or destination-org custom role.
 	ErrRAMRoleKeyNotFound = errors.New("team: RAM role key not found")
-	ErrRoleInUse          = errors.New("team: role is assigned to one or more members")
+	// ErrRAMRoleKeyAmbiguous is returned when a destination-org or system stable
+	// RAM Role name resolves to more than one active authorization role.
+	ErrRAMRoleKeyAmbiguous = errors.New("team: RAM role key ambiguous")
+	// ErrRAMRoleKeyRevoked is returned when a stable RAM Role name exists only as
+	// revoked roles in the destination-org/system resolver scope.
+	ErrRAMRoleKeyRevoked = errors.New("team: RAM role key revoked")
+	ErrRoleInUse         = errors.New("team: role is assigned to one or more members")
 
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.
