@@ -1,5 +1,15 @@
 # T1441 Independent Security / Migration / Authz Acceptance
 
+## Evidence-Only Continuation: exec-aafae534
+
+Supplemental evidence for the fixed base `origin/main@69d5b662bef16882f1e163546da7b7168f80e1cd` was added under `docs/acceptance/t1441/evidence-exec-aafae534/`.
+
+- New coverage: real Projects UI multi-project creation/switching; UI-created direct project grant plus team inherited mapping with Subject access source chain expanded; direct revoke before/after immediate refresh.
+- Reused green evidence: `d3ca6c14` and `eaebddbfc01fcb42259ee98a4ee398b806ac16e5` for all already-green gates this continuation was instructed not to rerun.
+- Formal cleanup: the fresh instance at `/tmp/ac-t1441-exec-aafae534` was uninstalled with purge and verified removed.
+
+See `docs/acceptance/t1441/evidence-exec-aafae534/REPORT.md` for the full screenshot/log index.
+
 ## Verdict
 
 **REJECT**
