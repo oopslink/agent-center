@@ -1,0 +1,9 @@
+$ go test ./internal/persistence ./internal/authorization ./internal/team/service ./internal/webconsole/api ./internal/admin/api ./internal/mcphost ./internal/cli ./internal/workerdaemon
+ok  	github.com/oopslink/agent-center/internal/persistence	17.164s
+ok  	github.com/oopslink/agent-center/internal/authorization	9.516s
+ok  	github.com/oopslink/agent-center/internal/team/service	7.416s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	57.268s
+ok  	github.com/oopslink/agent-center/internal/admin/api	44.062s
+ok  	github.com/oopslink/agent-center/internal/mcphost	2.426s
+ok  	github.com/oopslink/agent-center/internal/cli	21.561s
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	24.050s

@@ -1,0 +1,150 @@
+$ GOMAXPROCS=2 GOFLAGS=-p=1 make test-race
+go test -race -count=10 ./internal/agentruntime/...
+--- FAIL: TestSnapshotAgentConcurrency_FullSlotsAfterLiveResize (0.00s)
+    executor_engine_test.go:135: HandleWork second: orchestrator: launch executor: executor: spawn exec-1a61dd5c: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_ForkFailsAfterAdmission (0.00s)
+    executor_runtime_test.go:503: saturate 1: orchestrator: launch executor: executor: spawn exec-f343276a: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestNotifyWork_ExecutorBranchForks (0.00s)
+    executor_runtime_test.go:778: NotifyWork: agent_controller: agent=agent-nw fork executor: orchestrator: launch executor: executor: spawn exec-2990f46a: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex (0.00s)
+    executor_runtime_test.go:819: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRecover_AdoptsRunningFinalizesTerminal (0.00s)
+    executor_runtime_test.go:873: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRunWatchdog_PollsAdoptedOrphanToCompletion (0.00s)
+    executor_runtime_test.go:924: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRecover_RealGit_BootHookReapsOrphan (0.00s)
+    orphan_reap_runtime_test.go:56: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_RealGit_SpawnHookReapsOrphan (0.00s)
+    orphan_reap_runtime_test.go:138: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestRecover_RealGit_BootHookKeepsLiveOrphan (0.00s)
+    orphan_reap_runtime_test.go:227: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_RealGit_ColdClone_ControlPathNeverBlocksAndTaskStillRuns (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_RealGit_WarmSourceForksInline (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_RealGit_ConcurrentTasksCloneOnce (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_StaleRefreshDegradesToExistingSource (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_DegradeRefusesAVanishedSource (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_AlwaysStaleSourceStillTerminates (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone (0.00s)
+    repo_workspace_test.go:563: read record: open /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone2491237835/002/agents/agent-repo-off/executors/exec-6060be94/orchestrator.json: no such file or directory
+--- FAIL: TestRepo_RealGitWorktreeSwitchOffIndependentLocalClone (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestRepo_RealGitWorktreeSwitchOffRejectsLocalRemoteMismatch (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_Repo_PrepareBeforeStartTask (0.00s)
+    repo_workspace_test.go:777: read record: open /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_Repo_PrepareBeforeStartTask1707773053/002/agents/agent-repo/executors/exec-f10eafd6/orchestrator.json: no such file or directory
+--- FAIL: TestSpawnExecutor_Repo_ForkFailsCleansWorktree (0.00s)
+    repo_workspace_test.go:882: saturate 0: orchestrator: launch executor: executor: spawn exec-7f054236: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestRecover_Repo_CleansWorktreeSourceSurvives (0.00s)
+    repo_workspace_test.go:955: start: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestRepo_RealGitEndToEndCanonicalSourceSurvives (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestAttachExecutorEngine_ForksExecutor (0.00s)
+    attach_executor_test.go:48: an attached engine must really fork: tool calls = [get_task start_task get_team_rule_index block_task] — call #3 is "block_task"; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow
+--- FAIL: TestReconcile_DeadShouldContinue_RecoversNotFinalizes (0.00s)
+    attach_executor_test.go:160: start true: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestRelaunchExecutor_ReapsOrphan_T877 (0.00s)
+    boot_reconcile_test.go:240: relaunched orphan not registered: map[]
+--- FAIL: TestStartCodex_IncludesMemoryHarnessInFreshPrompt (0.00s)
+    codex_start_mcp_test.go:254: EnsureRootInit: memory: git operation failed: rev-parse: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_DispatchModeAbsent_StillForks (0.00s)
+    dispatch_mode_gate_test.go:38: a task with no dispatch_mode must fork: tool calls = [get_task start_task get_team_rule_index block_task] — call #3 is "block_task"; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow
+--- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork (0.01s)
+    --- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork/empty_string (0.00s)
+        dispatch_mode_gate_test.go:78: dispatch_mode= must not take the inline/block path
+    --- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork/whitespace_only (0.00s)
+        dispatch_mode_gate_test.go:78: dispatch_mode=    must not take the inline/block path
+    --- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork/unknown_value_from_a_newer_center (0.00s)
+        dispatch_mode_gate_test.go:78: dispatch_mode=some_future_mode must not take the inline/block path
+    --- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork/case_mismatch_is_NOT_inline (0.00s)
+        dispatch_mode_gate_test.go:78: dispatch_mode=SUPERVISOR_INLINE must not take the inline/block path
+    --- FAIL: TestSpawnExecutor_DispatchModeDefaults_StillFork/near-miss_typo_is_NOT_inline (0.00s)
+        dispatch_mode_gate_test.go:78: dispatch_mode=supervisor-inline must not take the inline/block path
+--- FAIL: TestNotifyWork_DispatchModeDefaults_StillFork (0.01s)
+    --- FAIL: TestNotifyWork_DispatchModeDefaults_StillFork/mode= (0.00s)
+        dispatch_mode_gate_test.go:240: NotifyWork: agent_controller: agent=agent-nwf fork executor: orchestrator: launch executor: executor: spawn exec-010c52fa: fork/exec /usr/bin/true: resource temporarily unavailable
+    --- FAIL: TestNotifyWork_DispatchModeDefaults_StillFork/mode=___ (0.00s)
+        dispatch_mode_gate_test.go:240: NotifyWork: agent_controller: agent=agent-nwf fork executor: orchestrator: launch executor: executor: spawn exec-f457b157: fork/exec /usr/bin/true: resource temporarily unavailable
+    --- FAIL: TestNotifyWork_DispatchModeDefaults_StillFork/mode=some_future_mode (0.00s)
+        dispatch_mode_gate_test.go:240: NotifyWork: agent_controller: agent=agent-nwf fork executor: orchestrator: launch executor: executor: spawn exec-27b8eb11: fork/exec /usr/bin/true: resource temporarily unavailable
+    --- FAIL: TestNotifyWork_DispatchModeDefaults_StillFork/mode=SUPERVISOR_INLINE (0.00s)
+        dispatch_mode_gate_test.go:240: NotifyWork: agent_controller: agent=agent-nwf fork executor: orchestrator: launch executor: executor: spawn exec-fd0d852b: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestSnapshotConcurrency_LiveAndOrphanMerged (0.00s)
+    executor_engine_test.go:46: HandleWork: orchestrator: launch executor: executor: spawn exec-43578b5e: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestSnapshotConcurrency_DedupsOrphanAlsoLive (0.00s)
+    executor_engine_test.go:108: HandleWork: orchestrator: launch executor: executor: spawn exec-be08eb61: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestSnapshotAgentConcurrency_FullSlotsAfterLiveResize (0.00s)
+    executor_engine_test.go:128: HandleWork first: orchestrator: launch executor: executor: spawn exec-d0ea5d9f: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestBuildExecutorEngine_ForksAndDrainFreesSlot (0.00s)
+    executor_runtime_test.go:103: HandleWork: orchestrator: launch executor: executor: spawn exec-b6e4f1e7: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestWorkViaExecutor_ForksAndRegistersRouting (0.00s)
+    executor_runtime_test.go:125: workViaExecutor: agent_controller: agent=agent-y fork executor: orchestrator: launch executor: executor: spawn exec-daa2d3d7: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestWorkViaExecutor_AtCapacityRetryable (0.00s)
+    executor_runtime_test.go:176: saturating launch 0: orchestrator: launch executor: executor: spawn exec-30be4147: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_AdmitsThenForks (0.00s)
+    executor_runtime_test.go:285: admission must run get_task→start_task before forking: tool calls = [get_task start_task get_team_rule_index block_task] — call #3 is "block_task"; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow
+--- FAIL: TestSpawnExecutor_OwnAssignee_ForksNormally (0.00s)
+    executor_runtime_test.go:445: an own-assignee task must fork normally (② guard must NOT false-positive): tool calls = [get_task start_task get_team_rule_index block_task] — call #3 is "block_task"; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow
+--- FAIL: TestSpawnExecutor_ForkFailsAfterAdmission (0.00s)
+    executor_runtime_test.go:503: saturate 0: orchestrator: launch executor: executor: spawn exec-1e201602: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestNotifyWork_ExecutorBranchForks (0.00s)
+    executor_runtime_test.go:778: NotifyWork: agent_controller: agent=agent-nw fork executor: orchestrator: launch executor: executor: spawn exec-be0f9092: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex (0.00s)
+    executor_runtime_test.go:819: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRecover_AdoptsRunningFinalizesTerminal (0.00s)
+    executor_runtime_test.go:873: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRunWatchdog_PollsAdoptedOrphanToCompletion (0.00s)
+    executor_runtime_test.go:924: start live child: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRecover_RealGit_BootHookReapsOrphan (0.00s)
+    orphan_reap_runtime_test.go:56: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_RealGit_SpawnHookReapsOrphan (0.00s)
+    orphan_reap_runtime_test.go:138: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestRecover_RealGit_BootHookKeepsLiveOrphan (0.00s)
+    orphan_reap_runtime_test.go:227: git init -q -b master: fork/exec /usr/bin/git: resource temporarily unavailable
+--- FAIL: TestSpawnExecutor_RealGit_ColdClone_ControlPathNeverBlocksAndTaskStillRuns (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_RealGit_WarmSourceForksInline (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_RealGit_ConcurrentTasksCloneOnce (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_StaleRefreshDegradesToExistingSource (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_DegradeRefusesAVanishedSource (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSourceGate_AlwaysStaleSourceStillTerminates (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone (0.00s)
+    repo_workspace_test.go:563: read record: open /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_Repo_WorktreeSwitchOffUsesIndependentClone2337058543/002/agents/agent-repo-off/executors/exec-bf745915/orchestrator.json: no such file or directory
+--- FAIL: TestRepo_RealGitWorktreeSwitchOffIndependentLocalClone (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestRepo_RealGitWorktreeSwitchOffRejectsLocalRemoteMismatch (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestSpawnExecutor_Repo_PrepareBeforeStartTask (0.00s)
+    repo_workspace_test.go:777: read record: open /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/TestSpawnExecutor_Repo_PrepareBeforeStartTask3557656343/002/agents/agent-repo/executors/exec-e6aa1073/orchestrator.json: no such file or directory
+--- FAIL: TestSpawnExecutor_Repo_ForkFailsCleansWorktree (0.00s)
+    repo_workspace_test.go:882: saturate 0: orchestrator: launch executor: executor: spawn exec-d3327b98: fork/exec /usr/bin/true: resource temporarily unavailable
+--- FAIL: TestRecover_Repo_CleansWorktreeSourceSurvives (0.00s)
+    repo_workspace_test.go:955: start: fork/exec /bin/sh: resource temporarily unavailable
+--- FAIL: TestRepoCacheDelivery_ActualWorkspaceFlowsThroughPoolRecordAndFinalize (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+--- FAIL: TestRepo_RealGitEndToEndCanonicalSourceSurvives (0.00s)
+    repo_workspace_test.go:50: git [init -q -b main]: fork/exec /usr/bin/git: resource temporarily unavailable: 
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/agentruntime	47.363s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	102.679s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	1.277s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	6.408s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	61.109s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	1.710s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	1.550s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	1.862s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	1.481s
+FAIL
+make: *** [test-race] Error 1
