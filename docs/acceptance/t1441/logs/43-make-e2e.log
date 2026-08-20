@@ -1,0 +1,741 @@
+$ make e2e
+cd web && pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 303ms using pnpm v10.31.0
+cd web && pnpm run build
+
+> agent-center-web@0.1.0 build /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/web
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2705 modules transformed.
+rendering chunks...
+warnings when minifying css:
+▲ [WARNING] Expected identifier but found "-" [css-syntax-error]
+
+    <stdin>:3028:2:
+      3028 │   -: ·;
+           ╵   ^
+
+
+computing gzip size...
+../internal/webconsole/spa/dist/index.html                                         0.59 kB │ gzip:   0.39 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-TlSL6hXd.css                  0.55 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/index-6EKax83m.css                         67.66 kB │ gzip:  13.87 kB
+../internal/webconsole/spa/dist/assets/channel-B9iS9I3A.js                         0.11 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/fleet-gbthJWZZ.js                           0.14 kB │ gzip:   0.14 kB
+../internal/webconsole/spa/dist/assets/init-Gi6I4Gst.js                            0.15 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/conversationSegments-CmhG79J6.js            0.19 kB │ gzip:   0.12 kB
+../internal/webconsole/spa/dist/assets/chunk-2Q5K7J3B-Bjeako0B.js                  0.20 kB │ gzip:   0.16 kB
+../internal/webconsole/spa/dist/assets/users-BXTgpoiS.js                           0.20 kB │ gzip:   0.18 kB
+../internal/webconsole/spa/dist/assets/agentLifecycleTime-B8yYLUxQ.js              0.20 kB │ gzip:   0.14 kB
+../internal/webconsole/spa/dist/assets/chunk-JWPE2WC7-C57Z8V9l.js                  0.23 kB │ gzip:   0.17 kB
+../internal/webconsole/spa/dist/assets/chunk-XXDRQBXY-CHFC5pUI.js                  0.24 kB │ gzip:   0.21 kB
+../internal/webconsole/spa/dist/assets/chunk-5VM5RSS4-CH_OrQtd.js                  0.37 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSSEConversationSubscribe-Dc9X7ak7.js     0.39 kB │ gzip:   0.26 kB
+../internal/webconsole/spa/dist/assets/passcode-DA4UUc52.js                        0.40 kB │ gzip:   0.23 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-v2-UEYNNEHI-kdc300mc.js        0.43 kB │ gzip:   0.30 kB
+../internal/webconsole/spa/dist/assets/TypeChip-BdzBg5zs.js                        0.46 kB │ gzip:   0.33 kB
+../internal/webconsole/spa/dist/assets/system-BHknnOXN.js                          0.46 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSystemSegments-BEnhmq5n.js               0.47 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/classDiagram-JCYQIIEL-DTSJzt3a.js           0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/classDiagram-v2-OCEON4UE-DTSJzt3a.js        0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/chunk-KBJHAD2P-CpezL2VK.js                  0.51 kB │ gzip:   0.36 kB
+../internal/webconsole/spa/dist/assets/NotFound-CvxvX72u.js                        0.52 kB │ gzip:   0.30 kB
+../internal/webconsole/spa/dist/assets/swimlanesDiagram-ULZ7WXOC-2LYPqlFI.js       0.55 kB │ gzip:   0.37 kB
+../internal/webconsole/spa/dist/assets/ToggleSwitch-tav57Rxm.js                    0.56 kB │ gzip:   0.38 kB
+../internal/webconsole/spa/dist/assets/infoDiagram-6WML65LV-7FZHf7qD.js            0.59 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/EntityRef-BuMFPVET.js                       0.63 kB │ gzip:   0.37 kB
+../internal/webconsole/spa/dist/assets/useTablistKeyboard-CFD1BM4H.js              0.67 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/SegmentedNav-D19Rn-qB.js                    0.70 kB │ gzip:   0.48 kB
+../internal/webconsole/spa/dist/assets/workers-qcyxIpJJ.js                         0.71 kB │ gzip:   0.34 kB
+../internal/webconsole/spa/dist/assets/ErrorState-Bh5KadqP.js                      0.76 kB │ gzip:   0.44 kB
+../internal/webconsole/spa/dist/assets/Breadcrumb-JOKElJQh.js                      0.82 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/issues-B7mHfPzz.js                          0.91 kB │ gzip:   0.43 kB
+../internal/webconsole/spa/dist/assets/sizeCapture-X5ZJPWSS-c99xBfti.js            0.94 kB │ gzip:   0.53 kB
+../internal/webconsole/spa/dist/assets/invitations-C_YrS81D.js                     1.01 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/executorProfiles-D7vODP3H.js                1.15 kB │ gzip:   0.56 kB
+../internal/webconsole/spa/dist/assets/ordinal-Cboi1Yqb.js                         1.19 kB │ gzip:   0.57 kB
+../internal/webconsole/spa/dist/assets/EmptyState-NxyYETJj.js                      1.19 kB │ gzip:   0.64 kB
+../internal/webconsole/spa/dist/assets/Avatar-T18sKi6_.js                          1.31 kB │ gzip:   0.72 kB
+../internal/webconsole/spa/dist/assets/orgWorkItems-B4FD1p2I.js                    1.37 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/InvitationAccept-DrcEA6fO.js                1.38 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/tasks-CK4FURkN.js                           1.41 kB │ gzip:   0.60 kB
+../internal/webconsole/spa/dist/assets/CapabilitiesEditor-DbEvmdUx.js              1.42 kB │ gzip:   0.77 kB
+../internal/webconsole/spa/dist/assets/kit-BjatWqta.js                             1.51 kB │ gzip:   0.54 kB
+../internal/webconsole/spa/dist/assets/railroadDiagram-AXF67PYL-5IKNWjwS.js        1.61 kB │ gzip:   0.76 kB
+../internal/webconsole/spa/dist/assets/Version-CHccLGzE.js                         1.66 kB │ gzip:   0.68 kB
+../internal/webconsole/spa/dist/assets/abnfDiagram-N423BO3Z-QIPtTbdB.js            1.81 kB │ gzip:   0.90 kB
+../internal/webconsole/spa/dist/assets/chunk-2GRJ4B5K-D6lI14Gw.js                  1.86 kB │ gzip:   0.82 kB
+../internal/webconsole/spa/dist/assets/pegDiagram-VL7TDLO6-BW2t1FrZ.js             1.96 kB │ gzip:   0.93 kB
+../internal/webconsole/spa/dist/assets/listControls-DZ46d_lT.js                    1.96 kB │ gzip:   0.95 kB
+../internal/webconsole/spa/dist/assets/ebnfDiagram-BXEA7PRR-CZhRtjQJ.js            2.01 kB │ gzip:   0.89 kB
+../internal/webconsole/spa/dist/assets/repoDisplay-id_zvlWg.js                     2.01 kB │ gzip:   0.73 kB
+../internal/webconsole/spa/dist/assets/aiRuntime-DW2jWspT.js                       2.12 kB │ gzip:   0.87 kB
+../internal/webconsole/spa/dist/assets/access-Co-pgbmj.js                          2.44 kB │ gzip:   0.80 kB
+../internal/webconsole/spa/dist/assets/ForceDeleteModal-HCQzgfTf.js                2.56 kB │ gzip:   1.01 kB
+../internal/webconsole/spa/dist/assets/AgentBadges-BCjXViz9.js                     2.58 kB │ gzip:   0.89 kB
+../internal/webconsole/spa/dist/assets/Signin-CAEiRZSY.js                          2.71 kB │ gzip:   1.04 kB
+../internal/webconsole/spa/dist/assets/ConversationInfoPanel-sKrYIROl.js           2.80 kB │ gzip:   0.97 kB
+../internal/webconsole/spa/dist/assets/arc-DswfKPnw.js                             3.43 kB │ gzip:   1.45 kB
+../internal/webconsole/spa/dist/assets/planDisplay-C1SXGOLC.js                     3.54 kB │ gzip:   1.14 kB
+../internal/webconsole/spa/dist/assets/FloatingDmWindow-BqJq6Dk7.js                3.64 kB │ gzip:   1.59 kB
+../internal/webconsole/spa/dist/assets/icons-BXf6W_aJ.js                           3.74 kB │ gzip:   0.66 kB
+../internal/webconsole/spa/dist/assets/EntitySelect-CdNfTl2B.js                    4.03 kB │ gzip:   1.67 kB
+../internal/webconsole/spa/dist/assets/ChannelDetail-CF3oVPOw.js                   4.13 kB │ gzip:   1.61 kB
+../internal/webconsole/spa/dist/assets/ConversationSurfaceMobile-ByfoWWwl.js       4.15 kB │ gzip:   1.56 kB
+../internal/webconsole/spa/dist/assets/diagram-LBJQPF4R-BHGtZlP3.js                4.22 kB │ gzip:   1.83 kB
+../internal/webconsole/spa/dist/assets/agents-wOcL3abH.js                          4.28 kB │ gzip:   1.50 kB
+../internal/webconsole/spa/dist/assets/Unread-HSw2iep1.js                          4.38 kB │ gzip:   1.60 kB
+../internal/webconsole/spa/dist/assets/Signup-YGxRtt0V.js                          4.57 kB │ gzip:   1.77 kB
+../internal/webconsole/spa/dist/assets/defaultLocale-CrowFXzY.js                   4.69 kB │ gzip:   2.17 kB
+../internal/webconsole/spa/dist/assets/Me-D1jfLy9B.js                              4.83 kB │ gzip:   1.37 kB
+../internal/webconsole/spa/dist/assets/kit-DAnVGB54.js                             4.96 kB │ gzip:   1.62 kB
+../internal/webconsole/spa/dist/assets/map--5OmGKFp.js                             5.07 kB │ gzip:   2.07 kB
+../internal/webconsole/spa/dist/assets/EntityMultiSelect-Bhjr7p4L.js               5.07 kB │ gzip:   2.02 kB
+../internal/webconsole/spa/dist/assets/Settings-DZqphR70.js                        5.12 kB │ gzip:   1.88 kB
+../internal/webconsole/spa/dist/assets/plans-BjXg3chl.js                           5.14 kB │ gzip:   1.43 kB
+../internal/webconsole/spa/dist/assets/linear-ByDg5_UA.js                          5.66 kB │ gzip:   2.31 kB
+../internal/webconsole/spa/dist/assets/diagram-UB23O5K3-CCzQILqF.js                6.09 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/pieDiagram-7S7Q4E2Y-DA00uiw8.js             6.31 kB │ gzip:   2.64 kB
+../internal/webconsole/spa/dist/assets/DMDetail-DKhYLRU0.js                        6.88 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/chunk-RYQCIY6F-k4YY9qk0.js                  7.08 kB │ gzip:   2.72 kB
+../internal/webconsole/spa/dist/assets/InstallCommandModal-CA_h8w6X.js             7.22 kB │ gzip:   2.12 kB
+../internal/webconsole/spa/dist/assets/ObjectAuditTimeline-L0SGibnl.js             7.24 kB │ gzip:   2.48 kB
+../internal/webconsole/spa/dist/assets/diagram-7IWD3JNH-JxHmYpyQ.js                8.28 kB │ gzip:   3.72 kB
+../internal/webconsole/spa/dist/assets/Secrets-BuX4ppKK.js                         8.41 kB │ gzip:   2.26 kB
+../internal/webconsole/spa/dist/assets/dagre-VZM6K2ZE-B3bVo0t7.js                  8.60 kB │ gzip:   3.31 kB
+../internal/webconsole/spa/dist/assets/DMs-CVB9uq4I.js                             8.66 kB │ gzip:   2.73 kB
+../internal/webconsole/spa/dist/assets/Teams-Bo6-7bv-.js                           8.70 kB │ gzip:   2.66 kB
+../internal/webconsole/spa/dist/assets/AgentCreateModal-B2_8leJK.js                8.79 kB │ gzip:   2.80 kB
+../internal/webconsole/spa/dist/assets/RoleBuilder-CVSZfJX4.js                     9.19 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/AttachmentsSection-D7BgKw4u.js              9.39 kB │ gzip:   3.30 kB
+../internal/webconsole/spa/dist/assets/Trans-Wre1ZM2H.js                           9.40 kB │ gzip:   4.08 kB
+../internal/webconsole/spa/dist/assets/UserDetail-CXclUcNF.js                      9.76 kB │ gzip:   3.03 kB
+../internal/webconsole/spa/dist/assets/cynefinDiagram-MW4NZA55-DzUuhXk1.js        10.09 kB │ gzip:   3.61 kB
+../internal/webconsole/spa/dist/assets/RuntimeSelectors-BK_vu_ZT.js               10.32 kB │ gzip:   3.71 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-OKZ733FA-CIv0Oery.js          10.42 kB │ gzip:   3.65 kB
+../internal/webconsole/spa/dist/assets/diagram-B4RE2ZJO-Cvss-BTB.js               10.76 kB │ gzip:   4.15 kB
+../internal/webconsole/spa/dist/assets/OrgPlans-BytS_10Q.js                       10.92 kB │ gzip:   2.87 kB
+../internal/webconsole/spa/dist/assets/Channels-DGKBstEh.js                       11.64 kB │ gzip:   3.40 kB
+../internal/webconsole/spa/dist/assets/TaskCreateModal-CXbMQjQJ.js                12.05 kB │ gzip:   3.21 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryHumans-BwRXKMcD.js           12.16 kB │ gzip:   3.82 kB
+../internal/webconsole/spa/dist/assets/OrgWorkItems-CjrJJ6aa.js                   12.66 kB │ gzip:   3.18 kB
+../internal/webconsole/spa/dist/assets/AccessPermissionsPanel-D6ROv3WI.js         13.26 kB │ gzip:   3.44 kB
+../internal/webconsole/spa/dist/assets/Projects-BfpmI7ON.js                       14.14 kB │ gzip:   3.75 kB
+../internal/webconsole/spa/dist/assets/WorkerDetail-C9kYpZAX.js                   14.25 kB │ gzip:   3.90 kB
+../internal/webconsole/spa/dist/assets/ExecutorSlotPanel-C29VsIar.js              14.31 kB │ gzip:   3.94 kB
+../internal/webconsole/spa/dist/assets/chunk-6Q2QTUOP-BUgFCy5V.js                 15.74 kB │ gzip:   4.40 kB
+../internal/webconsole/spa/dist/assets/Reminders-vrY5c0K3.js                      15.76 kB │ gzip:   4.29 kB
+../internal/webconsole/spa/dist/assets/diagram-Q27KOJAE-5rdy7tpD.js               15.96 kB │ gzip:   5.70 kB
+../internal/webconsole/spa/dist/assets/ContextPanelMobileButton-BLju33pf.js       16.21 kB │ gzip:   4.52 kB
+../internal/webconsole/spa/dist/assets/IssueDetail-CC2b1kbP.js                    17.12 kB │ gzip:   4.66 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryAgents-BhCHLmDD.js           17.33 kB │ gzip:   5.16 kB
+../internal/webconsole/spa/dist/assets/ishikawaDiagram-WSZJBQD7-2eFzAqeG.js       17.47 kB │ gzip:   6.61 kB
+../internal/webconsole/spa/dist/assets/OrgRepos-D8QT7mlw.js                       17.76 kB │ gzip:   5.07 kB
+../internal/webconsole/spa/dist/assets/MarkdownMessage-Bb3oDbLx.js                17.78 kB │ gzip:   6.15 kB
+../internal/webconsole/spa/dist/assets/TaskDetail-D9fiN6AQ.js                     18.63 kB │ gzip:   5.24 kB
+../internal/webconsole/spa/dist/assets/kanban-definition-27J2QSJJ-DBcUEYg6.js     20.30 kB │ gzip:   7.14 kB
+../internal/webconsole/spa/dist/assets/mindmap-definition-FAOFIHXS-CO2YJP9X.js    23.18 kB │ gzip:   7.74 kB
+../internal/webconsole/spa/dist/assets/sankeyDiagram-W5VNT64P-D26pWcFi.js         23.21 kB │ gzip:   8.50 kB
+../internal/webconsole/spa/dist/assets/journeyDiagram-NVQOT4AX-Bmp8dgRM.js        23.59 kB │ gzip:   8.31 kB
+../internal/webconsole/spa/dist/assets/graph-CXBbwMuG.js                          23.92 kB │ gzip:   8.30 kB
+../internal/webconsole/spa/dist/assets/agentActivityGrouping-CLUk8Jad.js          24.03 kB │ gzip:   6.93 kB
+../internal/webconsole/spa/dist/assets/OrganizationSettings-Cr4n8Qnq.js           25.20 kB │ gzip:   5.99 kB
+../internal/webconsole/spa/dist/assets/wardleyDiagram-T6FBY63Y-BEV6GxsN.js        25.51 kB │ gzip:   6.76 kB
+../internal/webconsole/spa/dist/assets/erDiagram-JOGREHBK-C5NTaUgJ.js             27.11 kB │ gzip:   9.32 kB
+../internal/webconsole/spa/dist/assets/Environment-CmG7a35v.js                    27.11 kB │ gzip:   6.59 kB
+../internal/webconsole/spa/dist/assets/gitGraphDiagram-DS77QQ5N-08lEhBee.js       29.43 kB │ gzip:   8.67 kB
+../internal/webconsole/spa/dist/assets/timeline-definition-Z64GVDOM-C-gNECJ7.js   30.85 kB │ gzip:  10.11 kB
+../internal/webconsole/spa/dist/assets/layout-DqmBkSZF.js                         31.00 kB │ gzip:  11.18 kB
+../internal/webconsole/spa/dist/assets/requirementDiagram-LRYGKXZP-CZE2q673.js    31.01 kB │ gzip:   9.61 kB
+../internal/webconsole/spa/dist/assets/SenderSidebarContext-CPjus2lp.js           31.15 kB │ gzip:   8.43 kB
+../internal/webconsole/spa/dist/assets/ProjectPlans-Bh_ng8h_.js                   32.58 kB │ gzip:   8.55 kB
+../internal/webconsole/spa/dist/assets/quadrantDiagram-CIZ2JOQS-D2gni769.js       34.01 kB │ gzip:   9.85 kB
+../internal/webconsole/spa/dist/assets/AiRuntime-8QEDz5wD.js                      35.69 kB │ gzip:   7.08 kB
+../internal/webconsole/spa/dist/assets/chunk-5RXB4S5H-BzZxTDNY.js                 38.12 kB │ gzip:  12.38 kB
+../internal/webconsole/spa/dist/assets/ProjectDetail-BT3c-V1_.js                  39.85 kB │ gzip:   8.50 kB
+../internal/webconsole/spa/dist/assets/Access-C3oGRQZp.js                         40.09 kB │ gzip:   9.05 kB
+../internal/webconsole/spa/dist/assets/xychartDiagram-ELKLHX3M-Cwdn2HIr.js        41.92 kB │ gzip:  11.85 kB
+../internal/webconsole/spa/dist/assets/vennDiagram-T6HMQDX7-Bu1RDOn8.js           41.97 kB │ gzip:  15.56 kB
+../internal/webconsole/spa/dist/assets/ConversationView-C51SOx9X.js               43.42 kB │ gzip:  12.13 kB
+../internal/webconsole/spa/dist/assets/chunk-GF5L2VYU-C0Ve5RNX.js                 49.19 kB │ gzip:  15.55 kB
+../internal/webconsole/spa/dist/assets/TeamDetail-CeY_7pkn.js                     51.48 kB │ gzip:  12.65 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-ZsAPBOGs.js                  54.06 kB │ gzip:  17.35 kB
+../internal/webconsole/spa/dist/assets/flowDiagram-UKHOOZJN-C-RZmbMn.js           60.71 kB │ gzip:  19.23 kB
+../internal/webconsole/spa/dist/assets/ganttDiagram-PKOTCBZU-CnFyQNVr.js          69.44 kB │ gzip:  23.19 kB
+../internal/webconsole/spa/dist/assets/c4Diagram-5PPSVZJV-DEoWEX1S.js             69.93 kB │ gzip:  19.46 kB
+../internal/webconsole/spa/dist/assets/blockDiagram-VBNYF7ZC-BQTPm3fX.js          73.75 kB │ gzip:  21.09 kB
+../internal/webconsole/spa/dist/assets/cose-bilkent-JH36ORCC-DxYaXz6e.js          81.53 kB │ gzip:  22.35 kB
+../internal/webconsole/spa/dist/assets/AgentDetail-BpwiDzOP.js                    94.57 kB │ gzip:  22.95 kB
+../internal/webconsole/spa/dist/assets/PlanDetail-CdYWlodx.js                    114.29 kB │ gzip:  25.88 kB
+../internal/webconsole/spa/dist/assets/sequenceDiagram-SI44F4Z6-D2ZtAh8t.js      116.95 kB │ gzip:  30.86 kB
+../internal/webconsole/spa/dist/assets/swimlanes-SLNWSIFB-CZ_IawGU.js            118.83 kB │ gzip:  43.31 kB
+../internal/webconsole/spa/dist/assets/architectureDiagram-T3A2C74G-BnZGTFTY.js  151.63 kB │ gzip:  42.77 kB
+../internal/webconsole/spa/dist/assets/index-DlkbXg1p.js                         156.75 kB │ gzip:  47.18 kB
+../internal/webconsole/spa/dist/assets/katex-HP8lGamR.js                         258.47 kB │ gzip:  77.25 kB
+../internal/webconsole/spa/dist/assets/cytoscape.esm-BvX2Lq_V.js                 443.77 kB │ gzip: 141.77 kB
+../internal/webconsole/spa/dist/assets/mermaid.core-COCmZq2C.js                  622.98 kB │ gzip: 148.82 kB
+../internal/webconsole/spa/dist/assets/index-B7Drko04.js                         643.88 kB │ gzip: 207.85 kB
+../internal/webconsole/spa/dist/assets/cynefin-VYW2F7L2-B1GhaDxT.js              687.73 kB │ gzip: 151.36 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.42s
+# vite's emptyOutDir wipes .gitkeep; restore it so the directory
+# survives `make clean` + remains tracked for fresh clones (go:embed
+# needs the dir to exist before the SPA is ever built).
+echo "Populated by 'make build-frontend' (vite build outDir)." > ./internal/webconsole/spa/dist/.gitkeep
+go build -ldflags "-X main.buildVersion=review/t1441-independent-authz-acceptance-dec77bc7 -X main.buildCommit=dec77bc7 -X main.buildBranch=review/t1441-independent-authz-acceptance -X main.buildBuiltAt=2026-08-20T13:24:27Z" \
+	    -o ./bin/agent-center ./cmd/agent-center
+go build -o ./bin/fakeagent ./cmd/fakeagent
+cd tests/e2e/v2 && pnpm test
+
+> agent-center-e2e-v2@0.0.0 test /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2
+> playwright test
+
+
+Running 18 tests using 2 workers
+
+(node:95706) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:95707) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:95707) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:95706) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over (1.6s)
+(node:95919) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:95919) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium-mac] › tests/ai-runtime.spec.ts:36:3 › AI Runtime deployed-binary browser acceptance › owner can edit/import while member is read-only and System nav owns AI Runtime (2.5s)
+  ✘   3 [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed (816ms)
+(node:96134) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96134) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages (791ms)
+(node:96208) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96208) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists (804ms)
+(node:96259) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96259) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added (883ms)
+(node:96426) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96426) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input (804ms)
+(node:96437) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96437) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required (804ms)
+(node:96459) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96459) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found (725ms)
+(node:96468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible (6.0s)
+(node:96497) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96497) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations (640ms)
+(node:96503) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96503) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap (638ms)
+(node:96516) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96516) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile (11.2s)
+(node:96524) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit (718ms)
+(node:96524) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96529) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96529) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [chromium-mac] › tests/v210-findings-deployed.spec.ts:87:1 › v2.10 findings: record_finding/list_findings served by the real binary over the admin socket (642ms)
+  ✘  17 [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch (715ms)
+(node:96549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  16 [chromium-mac] › tests/v22-deployed-pipeline.spec.ts:207:3 › deployed-binary smoke — control-plane task-dispatch pipeline › server + worker enroll + agent-tools dispatch → claim (open → running) (2.1s)
+  ✘  18 [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` (725ms)
+
+
+  1) [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over 
+
+    Error: Command failed: sqlite3 /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-MhR4Rg/agent-center.db INSERT INTO projects
+        (id, name, created_at, updated_at, created_by_identity_id, version)
+        VALUES ('p-co-c82d240d', 'Carry-over Demo', '2026-08-20T13:24:41.293Z', '2026-08-20T13:24:41.293Z', 'user:hayang', 1);
+    Parse error in 2nd command line argument: no such table: projects
+
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-MhR4Rg/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-MhR4Rg/agent-center.db web=127.0.0.1:61653 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/carry-over-ui-Carry-over-d-dab11--Issue-page-with-carry-over-chromium-mac/error-context.md
+
+  2) [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m401[39m
+
+      31 |     // initial list
+      32 |     const r0 = await request.get(agentCenter.apiURL + "/secrets");
+    > 33 |     expect(r0.status()).toBe(200);
+         |                         ^
+      34 |     expect(await r0.json()).toEqual([]);
+      35 |
+      36 |     // create
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/cold-start.spec.ts:33:25
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-kNjWLL/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-kNjWLL/agent-center.db web=127.0.0.1:61929 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-d0cd4-d-trip-—-value-never-echoed-chromium-mac/error-context.md
+
+  3) [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages 
+
+    Error: Command failed: sqlite3 /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-sDGNCF/agent-center.db INSERT INTO projects
+        (id, name, created_at, updated_at, created_by_identity_id, version)
+        VALUES ('p-demo-751af017', 'Demo p-demo-751af017', '2026-08-20T13:24:43.150Z', '2026-08-20T13:24:43.150Z', 'user:hayang', 1);
+    Parse error in 2nd command line argument: no such table: projects
+
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-sDGNCF/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-sDGNCF/agent-center.db web=127.0.0.1:62054 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-c3a48-→-refs-link-source-messages-chromium-mac/error-context.md
+
+  4) [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m201[39m
+    Received: [31m401[39m
+
+      138 |
+      139 |     const first = await create();
+    > 140 |     expect(first.status()).toBe(201);
+          |                            ^
+      141 |
+      142 |     const second = await create();
+      143 |     expect(second.status()).toBe(409);
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/cold-start.spec.ts:140:28
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-wFALUX/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-wFALUX/agent-center.db web=127.0.0.1:62149 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/cold-start-cold-start-jour-cd8b7-l-name-→-409-already-exists-chromium-mac/error-context.md
+
+  5) [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added 
+
+    Error: dm create: {"error":"unauthenticated","message":"no session cookie"}
+
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m201[39m
+    Received: [31m401[39m
+
+      13 |       data: { kind: "dm", members: ["user:peer-alice"], name: "alice" },
+      14 |     });
+    > 15 |     expect(cR.status(), `dm create: ${await cR.text()}`).toBe(201);
+         |                                                          ^
+      16 |     const dm = (await cR.json()) as { conversation_id: string };
+      17 |     const dmID = dm.conversation_id;
+      18 |
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/dm-flow.spec.ts:15:58
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-6YTF5w/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-6YTF5w/agent-center.db web=127.0.0.1:62181 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/dm-flow-DM-flow-happy-path-4ff2d--conversation-message-added-chromium-mac/error-context.md
+
+  6) [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m400[39m
+    Received: [31m401[39m
+
+      84 |       data: { kind: "dm" },
+      85 |     });
+    > 86 |     expect(r.status()).toBe(400);
+         |                        ^
+      87 |     const body = (await r.json()) as { error?: string };
+      88 |     expect(body.error).toBe("invalid_input");
+      89 |   });
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/dm-flow.spec.ts:86:24
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-1RXkDT/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-1RXkDT/agent-center.db web=127.0.0.1:62314 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/dm-flow-DM-flow-error-path-45c6f-members-→-400-invalid-input-chromium-mac/error-context.md
+
+  7) [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile 
+
+    TimeoutError: locator.click: Timeout 10000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('plan-tab-dag')[22m
+
+
+      103 |   await mockPlanGateApis(page);
+      104 |   await page.goto(`${agentCenter.baseURL}/organizations/${slug}/projects/proj-a/plans/PL-1`);
+    > 105 |   await page.getByTestId("plan-tab-dag").click();
+          |                                          ^
+      106 |
+      107 |   const audit = page.getByTestId("plan-stage-gate-audit-st-ui");
+      108 |   const firstMember = page.getByTestId("plan-dag-node").first();
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/plan-gate-audit-layout.spec.ts:105:42
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-1P2Mas/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-1P2Mas/agent-center.db web=127.0.0.1:62414 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/plan-gate-audit-layout-sta-8e729--remains-complete-on-mobile-chromium-mac/error-context.md
+
+  8) [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required 
+
+    Error: Command failed: sqlite3 /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-JHZaV0/agent-center.db 
+        INSERT INTO projects (id, name, created_at, updated_at, created_by_identity_id, version)
+          VALUES ('p-ir-723cda2b', 'IR Demo', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', 'user:hayang', 1);
+        INSERT INTO tasks (id, project_id, title, status, priority, requires_worktree, created_by, created_at, updated_at, version)
+          VALUES ('T-d4585962', 'p-ir-723cda2b', 'Q1 audit', 'open', 'medium', 1, 'user:hayang', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', 1);
+        INSERT INTO task_executions
+          (id, task_id, worker_id, agent_cli, workspace_mode, status, started_at, working_started_at, created_at, updated_at, version)
+          VALUES ('E-a9af0eda', 'T-d4585962', 'W-1', 'claudecode', 'worktree', 'input_required', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', 1);
+        INSERT INTO input_requests
+          (id, task_execution_id, status, question, options, urgency, requested_at, created_at, updated_at, version)
+          VALUES ('IR-5f39dd60', 'E-a9af0eda', 'pending', 'Approve audit scope?', '[]', 'normal', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', '2026-08-20T13:24:45.973Z', 1);
+      
+    Parse error in 2nd command line argument: no such table: projects
+
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-JHZaV0/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-JHZaV0/agent-center.db web=127.0.0.1:62425 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/respond-input-request-inpu-445a3--exec-leaves-input-required-chromium-mac/error-context.md
+
+  9) [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m404[39m
+    Received: [31m401[39m
+
+      105 |       { data: { answer: "x", decided_by: "user:hayang" } },
+      106 |     );
+    > 107 |     expect(r.status()).toBe(404);
+          |                        ^
+      108 |     const body = (await r.json()) as { error?: string };
+      109 |     expect(body.error).toBe("not_found");
+      110 |   });
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/respond-input-request.spec.ts:107:24
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-sLgzka/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-sLgzka/agent-center.db web=127.0.0.1:62455 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/respond-input-request-inpu-29f71-existent-IR-→-404-not-found-chromium-mac/error-context.md
+
+  10) [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('link', { name: 'Channels' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByRole('link', { name: 'Channels' })[22m
+    [2m    - waiting for" http://127.0.0.1:62470/signup" navigation to finish...[22m
+    [2m    - navigated to "http://127.0.0.1:62470/signup"[22m
+
+
+      20 |     // Use a role-based locator so it survives styling changes.
+      21 |     const channelsLink = page.getByRole("link", { name: "Channels" });
+    > 22 |     await expect(channelsLink).toBeVisible();
+         |                                ^
+      23 |   });
+      24 |
+      25 |   test("API mux + DB respond to /api/conversations", async ({
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/smoke.spec.ts:22:32
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-frdHiL/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-frdHiL/agent-center.db web=127.0.0.1:62470 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/smoke-smoke-SPA-loads-and-Channels-nav-link-is-visible-chromium-mac/error-context.md
+
+  11) [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m401[39m
+
+      28 |   }) => {
+      29 |     const r = await request.get(agentCenter.apiURL + "/conversations");
+    > 30 |     expect(r.status()).toBe(200);
+         |                        ^
+      31 |     const body = await r.json();
+      32 |     // Fresh DB has zero conversations; assert the shape, not the count.
+      33 |     expect(Array.isArray(body)).toBe(true);
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/smoke.spec.ts:30:24
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-EFv9wr/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-EFv9wr/agent-center.db web=127.0.0.1:62496 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/smoke-smoke-API-mux-DB-respond-to-api-conversations-chromium-mac/error-context.md
+
+  12) [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap 
+
+    Error: channel: {"error":"unauthenticated","message":"no session cookie"}
+
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m201[39m
+    Received: [31m401[39m
+
+      30 |       data: { kind: "channel", name: "recovery-room" },
+      31 |     });
+    > 32 |     expect(cR.status(), `channel: ${await cR.text()}`).toBe(201);
+         |                                                        ^
+      33 |     const channelID = ((await cR.json()) as { conversation_id: string })
+      34 |       .conversation_id;
+      35 |
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/sse-recovery.spec.ts:32:56
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-dLuqw1/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-dLuqw1/agent-center.db web=127.0.0.1:62514 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/sse-recovery-SSE-Last-Even-9c76d--events-sent-during-the-gap-chromium-mac/error-context.md
+
+  13) [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m201[39m
+    Received: [31m401[39m
+
+      20 |       data: { kind: "channel", name: channelName },
+      21 |     });
+    > 22 |     expect(cR.status()).toBe(201);
+         |                         ^
+      23 |     const channelID = ((await cR.json()) as { conversation_id: string })
+      24 |       .conversation_id;
+      25 |
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/unread-tracking.spec.ts:22:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-5TTRhZ/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-5TTRhZ/agent-center.db web=127.0.0.1:62536 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/unread-tracking-Unread-tra-3b931-essages-and-clears-on-visit-chromium-mac/error-context.md
+
+  14) [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch 
+
+    Error: project add: 404 page not found
+
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      339 |         bootstrap,
+      340 |       );
+    > 341 |       expect(r.status, "project add: " + r.body).toBe(200);
+          |                                                  ^
+      342 |
+      343 |       r = await adminPOST(
+      344 |         sockPath,
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/v23-real-agent-pipeline.spec.ts:341:50
+
+    Error Context: artifacts/test-results/v23-real-agent-pipeline-v2-e496d-t-resolve-blob-put-dispatch-chromium-mac/error-context.md
+
+  15) [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` 
+
+    Error: channel: {"error":"unauthenticated","message":"no session cookie"}
+
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m201[39m
+    Received: [31m401[39m
+
+      20 |       data: { kind: "channel", name: "ops-room" },
+      21 |     });
+    > 22 |     expect(cR.status(), `channel: ${await cR.text()}`).toBe(201);
+         |                                                        ^
+      23 |     const channelID = ((await cR.json()) as { conversation_id: string })
+      24 |       .conversation_id;
+      25 |
+        at /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/tests/e2e/v2/tests/web-cli-bidi.spec.ts:22:56
+
+    attachment #1: server-stdout.log (text/plain) ──────────────────────────────────────────────────
+    [server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-ZnGOjB/bootstrap_token (scope=* owner=system:bootstrap)
+    agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-e2e-ZnGOjB/agent-center.db web=127.0.0.1:62594 admin=/...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: server-stderr.log (text/plain) ──────────────────────────────────────────────────
+    
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/test-results/web-cli-bidi-Web↔CLI-share-ef46b-t-center-conversation-tail--chromium-mac/error-context.md
+
+  15 failed
+    [chromium-mac] › tests/carry-over-ui.spec.ts:27:3 › Carry-over derive UI › multi-select → derive Issue → navigate to new Issue page with carry-over 
+    [chromium-mac] › tests/cold-start.spec.ts:27:3 › cold-start journey (Web Console surfaces) › secret CRUD round-trip — value never echoed 
+    [chromium-mac] › tests/cold-start.spec.ts:62:3 › cold-start journey (Web Console surfaces) › channel → messages → derive issue → refs link source messages 
+    [chromium-mac] › tests/cold-start.spec.ts:130:3 › cold-start journey (Web Console surfaces) › error path: duplicate channel name → 409 already_exists 
+    [chromium-mac] › tests/dm-flow.spec.ts:5:3 › DM flow › happy path: create DM → send msg → SSE delivers conversation.message_added 
+    [chromium-mac] › tests/dm-flow.spec.ts:79:3 › DM flow › error path: DM create without members → 400 invalid_input 
+    [chromium-mac] › tests/plan-gate-audit-layout.spec.ts:76:1 › stage gate audit does not overlap member cards and remains complete on mobile 
+    [chromium-mac] › tests/respond-input-request.spec.ts:61:3 › input-request respond › happy path: pending IR → respond → status flips + exec leaves input_required 
+    [chromium-mac] › tests/respond-input-request.spec.ts:99:3 › input-request respond › error path: respond to nonexistent IR → 404 not_found 
+    [chromium-mac] › tests/smoke.spec.ts:10:3 › smoke › SPA loads and Channels nav link is visible ─
+    [chromium-mac] › tests/smoke.spec.ts:25:3 › smoke › API mux + DB respond to /api/conversations ─
+    [chromium-mac] › tests/sse-recovery.spec.ts:24:3 › SSE Last-Event-ID recovery › reconnect with last_event_id receives events sent during the gap 
+    [chromium-mac] › tests/unread-tracking.spec.ts:13:3 › Unread tracking › channel list badge ticks on new messages and clears on visit 
+    [chromium-mac] › tests/v23-real-agent-pipeline.spec.ts:165:3 › v2.3-3b — real-agent dispatch chain › scoped tokens drive secret resolve + blob put + dispatch 
+    [chromium-mac] › tests/web-cli-bidi.spec.ts:14:3 › Web↔CLI shared truth › API-written messages are visible to `agent-center conversation tail` 
+  3 passed (19.3s)
+ ELIFECYCLE  Test failed. See above for more details.
+make: *** [e2e] Error 1

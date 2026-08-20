@@ -1,0 +1,1309 @@
+$ go test -race -count=10 ./internal/authorization ./internal/team/service ./internal/webconsole/api ./internal/admin/api ./internal/workerdaemon
+panic: test timed out after 10m0s
+	running tests:
+		TestStoreRoleAssignmentLifecycleAndScopedRevoke (2s)
+
+goroutine 20663 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2802 +0x498
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/time/sleep.go:215 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc00053c008, {0x104fb4ae0, 0x2f}, 0x1054423d8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2109 +0x7dc
+testing.runTests.func1(0xc00053c008)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2585 +0x78
+testing.tRunner(0xc00053c008, 0xc000535ab8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+testing.runTests({0x104fad582, 0x20}, {0x104fb7bc3, 0x37}, 0xc000010138, {0x10549c9a0, 0x28, 0x28}, {0xc0006c5d80?, 0xc00036c7a0?, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2583 +0x7a4
+testing.(*M).Run(0xc00008a460)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2443 +0xb3c
+main.main()
+	_testmain.go:124 +0x104
+
+goroutine 20602 [runnable]:
+modernc.org/sqlite/lib._sqlite3GetToken(0xc000424540, 0x1569f60ba, 0x155d00610)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:165068 +0x1f14
+modernc.org/sqlite/lib._sqlite3RunParser(0xc000424540, 0x155d00430, 0x1569f6028)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:165533 +0x638
+modernc.org/sqlite/lib._renameParseSql(0xc000424540, 0x155d00430, 0x156f07558, 0x1555fe428, 0x1569f6028, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:95165 +0x1f0
+modernc.org/sqlite/lib._renameTableTest(0xc000424540, 0x156f0b648, 0x0?, 0x156f0b678)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:96156 +0x4a0
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xc000424540, 0x156f05938)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:79368 +0x2a804
+modernc.org/sqlite/lib._sqlite3Step(0xc000424540, 0x156f05938)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69812 +0x1a0
+modernc.org/sqlite/lib.Xsqlite3_step(0xc000424540, 0x156f05938)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69875 +0x1ac
+modernc.org/sqlite.(*conn).step(0xc0001c2f80, 0x156f05938)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1027 +0x48
+modernc.org/sqlite.(*stmt).exec.func2(0xc0004d0e10, 0xc0001b46d8, {0x1054c9e20, 0x0, 0x0}, 0xc0001b4758)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:552 +0x1bc
+modernc.org/sqlite.(*stmt).exec(0xc0004d0e10, {0x1054481e8, 0xc000aac690}, {0x1054c9e20, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:565 +0x290
+modernc.org/sqlite.(*conn).exec(0xc0001c2f80, {0x1054481e8, 0xc000aac690}, {0xc00075a9a0, 0x147}, {0x1054c9e20, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1697 +0xd8
+modernc.org/sqlite.(*conn).ExecContext(0xc0001c2f80, {0x1054481e8, 0xc000aac690}, {0xc00075a9a0, 0x147}, {0x1054c9e20, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite_go18.go:53 +0x64
+database/sql.ctxDriverExec({0x1054481e8, 0xc000aac690}, {0x154c2b808, 0xc0001c2f80}, {0x0, 0x0}, {0xc00075a9a0, 0x147}, {0x1054c9e20, 0x0, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/ctxutil.go:31 +0xa4
+database/sql.(*DB).execDC.func2()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1713 +0x188
+database/sql.withLock({0x105447b38, 0xc000828100}, 0xc0001b4da8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:3572 +0x90
+database/sql.(*DB).execDC(0xc0006f8e00?, {0x1054481e8, 0xc000aac690}, 0xc000828100, 0xc0004d0e00, {0xc00075a9a0, 0x147}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1708 +0x284
+database/sql.(*Tx).ExecContext(0xc0006f8e00, {0x1054481e8, 0xc000aac690}, {0xc00075a9a0, 0x147}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2516 +0xc4
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne.func1({0x1054481e8, 0xc000aac690})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:329 +0xa8
+github.com/oopslink/agent-center/internal/persistence.runTxOnce({0x105448108, 0x1054c9e20}, 0xc0004d71e0, 0xc0001b5150)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:146 +0xe8
+github.com/oopslink/agent-center/internal/persistence.RunInTx({0x105448108, 0x1054c9e20}, 0xc0004d71e0, 0xc0001b5150)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:103 +0x18c
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne(0xc0001b5570, {0x105448108, 0x1054c9e20}, {0x5d, {0x104fb6da6, 0x1b}, {0xc00075a9a0, 0x147}, {0xc00074a5a0, 0x10c}}, ...)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:324 +0x110
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).Up(0xc0001b5570, {0x105448108, 0x1054c9e20})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:86 +0x2b4
+github.com/oopslink/agent-center/internal/authorization.newAuthzTestService(0xc00067cfc8)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/authorization/service_test.go:621 +0x1a0
+github.com/oopslink/agent-center/internal/authorization.TestStoreRoleAssignmentLifecycleAndScopedRevoke(0xc00067cfc8)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/authorization/service_behavior_test.go:280 +0x34
+testing.tRunner(0xc00067cfc8, 0x1054423d8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2101 +0x7c0
+
+goroutine 20603 [select]:
+database/sql.(*DB).connectionOpener(0xc0004d71e0, {0x105448220, 0xc0008a0f00})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1261 +0xbc
+created by database/sql.OpenDB in goroutine 20602
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:841 +0x250
+
+goroutine 20695 [chan receive]:
+database/sql.(*Tx).awaitDone(0xc0006f8e00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2212 +0x4c
+created by database/sql.(*DB).beginDC in goroutine 20602
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1925 +0x338
+FAIL	github.com/oopslink/agent-center/internal/authorization	600.471s
+panic: test timed out after 10m0s
+	running tests:
+		TestService_UpdateTeamRoles_RejectsRemovingRoleInUse (2s)
+
+goroutine 18262 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2802 +0x498
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/time/sleep.go:215 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc0005de248, {0x104cd11fd, 0x34}, 0x1051336a0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2109 +0x7dc
+testing.runTests.func1(0xc0005de248)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2585 +0x78
+testing.tRunner(0xc0005de248, 0xc0005f3ab8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+testing.runTests({0x104cc90b0, 0x20}, {0x104cd1b36, 0x36}, 0xc000010138, {0x1051801a0, 0x1b, 0x1b}, {0xc00016e0c0?, 0xc000313c60?, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2583 +0x7a4
+testing.(*M).Run(0xc000090960)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2443 +0xb3c
+main.main()
+	_testmain.go:98 +0x104
+
+goroutine 18247 [select]:
+database/sql.(*DB).connectionOpener(0xc0004a8340, {0x105139228, 0xc0002e1860})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1261 +0xbc
+created by database/sql.OpenDB in goroutine 18246
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:841 +0x250
+
+goroutine 18349 [chan receive]:
+database/sql.(*Tx).awaitDone(0xc000221d00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2212 +0x4c
+created by database/sql.(*DB).beginDC in goroutine 18246
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1925 +0x338
+
+goroutine 18246 [runnable]:
+modernc.org/libc.Xmemset(0xc0001f9c38?, 0x135d00600, 0x0, 0x88)
+	/Users/oopslink/go/pkg/mod/modernc.org/libc@v1.55.3/libc.go:1700 +0x26c
+modernc.org/libc.X__builtin___memset_chk(0xc000816180, 0x135d00600, 0x0, 0x88, 0xffffffffffffffff)
+	/Users/oopslink/go/pkg/mod/modernc.org/libc@v1.55.3/libc.go:717 +0x60
+modernc.org/sqlite/lib._sqlite3Prepare(0xc000816180, 0x135200428, 0x1369f8828, 0xffffffff, 0x0, 0x0, 0x135d004d0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:122269 +0xc8
+modernc.org/sqlite/lib._sqlite3InitCallback(0xc000816180, 0x135d00478, 0x0?, 0x137509670, 0x0?)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:121699 +0x814
+modernc.org/sqlite/lib.Xsqlite3_exec(0xc000816180, 0x135200428, 0x1375094c8, 0x105135880, 0x135d00478, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:116352 +0xbcc
+modernc.org/sqlite/lib._sqlite3InitOne(0xc000816180, 0x135200428, 0x0, 0x137505080, 0x2)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:121913 +0x1d44
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xc000816180, 0x137504fd8)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:77942 +0x1bce4
+modernc.org/sqlite/lib._sqlite3Step(0xc000816180, 0x137504fd8)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69812 +0x1a0
+modernc.org/sqlite/lib.Xsqlite3_step(0xc000816180, 0x137504fd8)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69875 +0x1ac
+modernc.org/sqlite.(*conn).step(0xc000702500, 0x137504fd8)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1027 +0x48
+modernc.org/sqlite.(*stmt).exec.func2(0xc000199570, 0xc0001faf88, {0x1051ac100, 0x0, 0x0}, 0xc0001fb008)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:552 +0x1bc
+modernc.org/sqlite.(*stmt).exec(0xc000199570, {0x1051391f0, 0xc0002f78c0}, {0x1051ac100, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:565 +0x290
+modernc.org/sqlite.(*conn).exec(0xc000702500, {0x1051391f0, 0xc0002f78c0}, {0xc0005f9ce0, 0x147}, {0x1051ac100, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1697 +0xd8
+modernc.org/sqlite.(*conn).ExecContext(0xc000702500, {0x1051391f0, 0xc0002f78c0}, {0xc0005f9ce0, 0x147}, {0x1051ac100, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite_go18.go:53 +0x64
+database/sql.ctxDriverExec({0x1051391f0, 0xc0002f78c0}, {0x1344a5148, 0xc000702500}, {0x0, 0x0}, {0xc0005f9ce0, 0x147}, {0x1051ac100, 0x0, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/ctxutil.go:31 +0xa4
+database/sql.(*DB).execDC.func2()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1713 +0x188
+database/sql.withLock({0x105138b78, 0xc0002ed080}, 0xc0001fb658)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:3572 +0x90
+database/sql.(*DB).execDC(0xc000221d00?, {0x1051391f0, 0xc0002f78c0}, 0xc0002ed080, 0xc000199560, {0xc0005f9ce0, 0x147}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1708 +0x284
+database/sql.(*Tx).ExecContext(0xc000221d00, {0x1051391f0, 0xc0002f78c0}, {0xc0005f9ce0, 0x147}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2516 +0xc4
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne.func1({0x1051391f0, 0xc0002f78c0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:329 +0xa8
+github.com/oopslink/agent-center/internal/persistence.runTxOnce({0x105139148, 0x1051ac100}, 0xc0004a8340, 0xc0001fba00)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:146 +0xe8
+github.com/oopslink/agent-center/internal/persistence.RunInTx({0x105139148, 0x1051ac100}, 0xc0004a8340, 0xc0001fba00)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:103 +0x18c
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne(0xc0001fbcf0, {0x105139148, 0x1051ac100}, {0x5d, {0x104cd14e5, 0x1b}, {0xc0005f9ce0, 0x147}, {0xc0008c26c0, 0x10c}}, ...)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:324 +0x110
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).Up(0xc0001fbcf0, {0x105139148, 0x1051ac100})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:86 +0x2b4
+github.com/oopslink/agent-center/internal/team/service.newService(0xc000314008)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/team/service/service_test.go:24 +0x19c
+github.com/oopslink/agent-center/internal/team/service.TestService_UpdateTeamRoles_RejectsRemovingRoleInUse(0xc000314008)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/team/service/service_test.go:84 +0x34
+testing.tRunner(0xc000314008, 0x1051336a0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2101 +0x7c0
+FAIL	github.com/oopslink/agent-center/internal/team/service	600.894s
+panic: test timed out after 10m0s
+	running tests:
+		TestAPI_EnvWorkers_GetOwnAndCrossOrg404 (1s)
+
+goroutine 30359 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2802 +0x498
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/time/sleep.go:215 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc0001f9d48, {0x102f1770e, 0x27}, 0x10391a520)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2109 +0x7dc
+testing.runTests.func1(0xc0001f9d48)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2585 +0x78
+testing.tRunner(0xc0001f9d48, 0xc0003ebab8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+testing.runTests({0x102f0c60b, 0x20}, {0x102f2be2f, 0x38}, 0xc000194c48, {0x1039d3ae0, 0x186, 0x186}, {0xc0006944c0?, 0xc000471c20?, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2583 +0x7a4
+testing.(*M).Run(0xc0001934a0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2443 +0xb3c
+main.main()
+	_testmain.go:824 +0x104
+
+goroutine 8920 [select, 5 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b172c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 9279
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5935 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc0006757c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 5934
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2918 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000174280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3046
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2615 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000675040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2755
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4645 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b6e640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4676
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1277 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000001180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1071
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4603 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000a0f180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4677
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 218 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000000500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 245
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4328 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000174640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4015
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 3128 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000a0e280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3188
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4211 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000001900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3936
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1053 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f43c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1058
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4210 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000001900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3936
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4602 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000a0f180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4677
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2913 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f5400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2898
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1276 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000001180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1071
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 15713 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000ea0c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 15687
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 5936 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc0006757c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 5934
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 217 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000000500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 245
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4327 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000174640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4015
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 288 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f5900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 286
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 287 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f5900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 286
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 815 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000674780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 813
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27426 [select, 1 minutes]:
+net/http.(*persistConn).writeLoop(0xc000814f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 27376
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1918 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f4c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1937
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 3455 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000a0e780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3469
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1712 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f4780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1710
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4833 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000814a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4832
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 814 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000674780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 813
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2323 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f5040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2338
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 3456 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000a0e780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3469
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 30324 [runnable]:
+sync.(*Mutex).Lock(0x103a017b8?)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/sync/mutex.go:45 +0x38
+modernc.org/libc.Xmalloc(0xc000610000, 0xe)
+	/Users/oopslink/go/pkg/mod/modernc.org/libc@v1.55.3/mem.go:30 +0x40
+modernc.org/sqlite/lib._sqlite3MemMalloc(0xc000610000, 0x6)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:17890 +0x8c
+modernc.org/sqlite/lib._sqlite3Malloc(0xc000610000, 0x6)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:18764 +0x260
+modernc.org/sqlite/lib._dbMallocRawFinish(0xc000610000, 0x154000428, 0x6)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:19072 +0x38
+modernc.org/sqlite/lib._sqlite3DbMallocRawNN(0xc000610000, 0x154000428, 0x6)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:19124 +0x7b0
+modernc.org/sqlite/lib._sqlite3DbStrNDup(0xc000610000, 0x154000428, 0x153ff0af0, 0x5)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:19254 +0x54
+modernc.org/sqlite/lib._vdbeChangeP4Full(0xc000610000, 0x153cfe428, 0x1540252e0, 0x153ff0af0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:65515 +0x230
+modernc.org/sqlite/lib._sqlite3VdbeChangeP4(0xc000610000, 0x153cfe428, 0x1d, 0x153ff0af0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:65538 +0x340
+modernc.org/sqlite/lib._sqlite3VdbeAddOp4(0xc000610000, 0x153cfe428, 0x75, 0x0, 0xe, 0x0, 0x153ff0af0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:64782 +0x78
+modernc.org/sqlite/lib._sqlite3VdbeLoadString(...)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:64716
+modernc.org/sqlite/lib._sqlite3ExprCodeTarget(0xc000610000, 0x157500060, 0x153ff0aa8, 0xe)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:91516 +0x1248
+modernc.org/sqlite/lib._sqlite3ExprCode(0xc000610000, 0x157500060, 0x153ff0aa8, 0xe)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:92104 +0x94
+modernc.org/sqlite/lib._sqlite3Update(0xc000610000, 0x157500060, 0x153ff6528, 0x153cfb828, 0x153ff8e28, 0xb, 0x0, 0x0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:133982 +0x4688
+modernc.org/sqlite/lib._yy_reduce(0xc000610000, 0x157502058, 0x9f, 0x0?, {0x7245000000000000?, 0x856ed8?}, 0x157500060)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:161915 +0x7d70
+modernc.org/sqlite/lib._sqlite3Parser(0xc000610000, 0x157502058, 0x1, {0x0?, 0x856f98?})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:162913 +0x18c
+modernc.org/sqlite/lib._sqlite3RunParser(0xc000610000, 0x157500060, 0x1540fd028)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:165586 +0xbf8
+modernc.org/sqlite/lib._sqlite3NestedParse(0xc000610000, 0x157500060, 0x102fa6423, 0x157500ca0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:99901 +0x3f0
+modernc.org/sqlite/lib._sqlite3EndTable(0xc000610000, 0x157500060, 0x1575002b0, 0x1575002c8, 0x0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:102913 +0x27d8
+modernc.org/sqlite/lib._yy_reduce(0xc000610000, 0x157500228, 0x13, 0x0?, {0x78540001020ff720?, 0x857798?}, 0x157500060)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:161246 +0x638
+modernc.org/sqlite/lib._sqlite3Parser(0xc000610000, 0x157500228, 0x1, {0x102108c68?, 0x857858?})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:162913 +0x18c
+modernc.org/sqlite/lib._sqlite3RunParser(0xc000610000, 0x157500060, 0x15949ccc3)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:165586 +0xbf8
+modernc.org/sqlite/lib._sqlite3Prepare(0xc000610000, 0x154000428, 0x15949ccc3, 0xffffffff, 0x80, 0x0, 0x153bff0b0, 0x153bfe480)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:122357 +0x8cc
+modernc.org/sqlite/lib._sqlite3LockAndPrepare(0xc000610000, 0x154000428, 0x15949ccc3, 0xffffffff, 0x80, 0x0, 0x153bff0b0, 0x153bfe480)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:122416 +0x24c
+modernc.org/sqlite/lib.Xsqlite3_prepare_v2(...)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:122508
+modernc.org/sqlite.(*conn).prepareV2(0xc001516200, 0xc000857bf0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1292 +0x1cc
+modernc.org/sqlite.(*stmt).exec(0xc00055bcc0, {0x1039295b0, 0xc0002c2210}, {0x103a012e0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:524 +0x260
+modernc.org/sqlite.(*conn).exec(0xc001516200, {0x1039295b0, 0xc0002c2210}, {0xc000824600, 0x101d}, {0x103a012e0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1697 +0xd8
+modernc.org/sqlite.(*conn).ExecContext(0xc001516200, {0x1039295b0, 0xc0002c2210}, {0xc000824600, 0x101d}, {0x103a012e0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite_go18.go:53 +0x64
+database/sql.ctxDriverExec({0x1039295b0, 0xc0002c2210}, {0x152c7b258, 0xc001516200}, {0x0, 0x0}, {0xc000824600, 0x101d}, {0x103a012e0, 0x0, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/ctxutil.go:31 +0xa4
+database/sql.(*DB).execDC.func2()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1713 +0x188
+database/sql.withLock({0x103927438, 0xc001052000}, 0xc0008582b8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:3572 +0x90
+database/sql.(*DB).execDC(0xc001188680?, {0x1039295b0, 0xc0002c2210}, 0xc001052000, 0xc00055bcb0, {0xc000824600, 0x101d}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1708 +0x284
+database/sql.(*Tx).ExecContext(0xc001188680, {0x1039295b0, 0xc0002c2210}, {0xc000824600, 0x101d}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2516 +0xc4
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne.func1({0x1039295b0, 0xc0002c2210})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:329 +0xa8
+github.com/oopslink/agent-center/internal/persistence.runTxOnce({0x103929338, 0x103a012e0}, 0xc0005fd040, 0xc000858660)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:146 +0xe8
+github.com/oopslink/agent-center/internal/persistence.RunInTx({0x103929338, 0x103a012e0}, 0xc0005fd040, 0xc000858660)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:103 +0x18c
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne(0xc000858c80, {0x103929338, 0x103a012e0}, {0x4e, {0x102f26ec9, 0x19}, {0xc000824600, 0x101d}, {0xc0006891e0, 0x18b}}, ...)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:324 +0x110
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).Up(0xc000858c80, {0x103929338, 0x103a012e0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:86 +0x2b4
+github.com/oopslink/agent-center/internal/webconsole/api.setupAPI(_)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/webconsole/api/server_test.go:48 +0x1b0
+github.com/oopslink/agent-center/internal/webconsole/api.setupAPIWithAuth(_)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/webconsole/api/server_test.go:98 +0x90
+github.com/oopslink/agent-center/internal/webconsole/api.TestAPI_EnvWorkers_GetOwnAndCrossOrg404(0xc00057c488)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/webconsole/api/handlers_environment_test.go:136 +0x5c
+testing.tRunner(0xc00057c488, 0x10391a520)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2101 +0x7c0
+
+goroutine 1048 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000000a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1038
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7404 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc001324280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 7418
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 15714 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000ea0c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 15687
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1051 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000000f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1040
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1052 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f43c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1058
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4302 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc0006748c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4301
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4834 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000814a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4832
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 16443 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b16500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 16159
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 29585 [select]:
+net/http.(*persistConn).readLoop(0xc000ea17c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 28455
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 5531 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000174f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 5520
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 21041 [select, 3 minutes]:
+net/http.(*persistConn).readLoop(0xc000b17900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 21028
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1050 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000000f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1040
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7541 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b168c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 7539
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 23193 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc000815a40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 23201
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 2914 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f5400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2898
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 3601 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b6e780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3597
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4001 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000b6e140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3808
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1049 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000000a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1038
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 21597 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc000ea1680)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 21596
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 6474 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b16140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 6571
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 6855 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000a0fa40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 6853
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27078 [select, 1 minutes]:
+net/http.(*persistConn).readLoop(0xc000675b80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 27118
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 23981 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc000a0e3c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 23931
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 811 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000674500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 810
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 812 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000674500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 810
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4644 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000b6e640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4676
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 30460 [chan receive]:
+database/sql.(*Tx).awaitDone(0xc001188680)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2212 +0x4c
+created by database/sql.(*DB).beginDC in goroutine 30324
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1925 +0x338
+
+goroutine 20255 [select, 3 minutes]:
+net/http.(*persistConn).readLoop(0xc000ea0640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 20483
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 28022 [select]:
+net/http.(*persistConn).readLoop(0xc001325a40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 28007
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 826 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f4a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 825
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 827 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f4a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 825
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 29170 [select]:
+net/http.(*persistConn).writeLoop(0xc001337900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 29165
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4373 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b6e500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4371
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 3129 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000a0e280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3188
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1120 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0000017c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 1512
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1711 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f4780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1710
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4508 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc0008143c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4202
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4509 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc0008143c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4202
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5593 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000175180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 5731
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2109 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc000674c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2139
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2919 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000174280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3046
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1119 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0000017c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1512
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7905 [select, 6 minutes]:
+net/http.(*persistConn).readLoop(0xc000814640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 7903
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 23192 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc000815a40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 23201
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 9591 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc001324a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 15657
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 7906 [select, 6 minutes]:
+net/http.(*persistConn).writeLoop(0xc000814640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 7903
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 23917 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc001337400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 23632
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 16442 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000b16500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 16159
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 26874 [select, 1 minutes]:
+net/http.(*persistConn).writeLoop(0xc0008152c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 26895
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 20256 [select, 3 minutes]:
+net/http.(*persistConn).writeLoop(0xc000ea0640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 20483
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5340 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000174c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 5347
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2324 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f5040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2338
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 3520 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000b6e780)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 3597
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 27819 [select]:
+net/http.(*persistConn).readLoop(0xc001325040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 27664
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 29586 [select]:
+net/http.(*persistConn).writeLoop(0xc000ea17c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 28455
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 1917 [select, 9 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f4c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 1937
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 9590 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc001324a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 15657
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2704 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000b6e8c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2703
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 17471 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000b16f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 17503
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7540 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000b168c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 7539
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4303 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc0006748c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4301
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4993 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b6e8c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2703
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 22705 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc000ea08c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 22692
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27820 [select]:
+net/http.(*persistConn).writeLoop(0xc001325040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 27664
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 23080 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc001336a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 23049
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 16725 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc0013363c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 15816
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7947 [select, 6 minutes]:
+net/http.(*persistConn).readLoop(0xc001325900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 8044
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4534 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000675400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 4532
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 17322 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b16a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 17268
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 7282 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc0008157c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 7268
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 2110 [select, 9 minutes]:
+net/http.(*persistConn).writeLoop(0xc000674c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2139
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 30325 [select]:
+database/sql.(*DB).connectionOpener(0xc0005fd040, {0x1039295e8, 0xc0005da460})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1261 +0xbc
+created by database/sql.OpenDB in goroutine 30324
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:841 +0x250
+
+goroutine 8919 [select, 5 minutes]:
+net/http.(*persistConn).readLoop(0xc000b172c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 9279
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 2614 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000675040)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2755
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 6854 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000a0fa40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 6853
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 29169 [select]:
+net/http.(*persistConn).readLoop(0xc001337900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 29165
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 4002 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b6e140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 3808
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4372 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000b6e500)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4371
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1848 [select, 8 minutes]:
+net/http.(*persistConn).writeLoop(0xc0001f5cc0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 2536
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 7948 [select, 6 minutes]:
+net/http.(*persistConn).writeLoop(0xc001325900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 8044
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 21275 [select, 3 minutes]:
+net/http.(*persistConn).writeLoop(0xc001336140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 21308
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 4533 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc000675400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 4532
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 23445 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc001336b40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 23436
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 1847 [select, 8 minutes]:
+net/http.(*persistConn).readLoop(0xc0001f5cc0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 2536
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 6473 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000b16140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 6571
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 22464 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc000ea08c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 22692
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 17684 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000b177c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 17680
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 23918 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc001337400)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 23632
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 21274 [select, 3 minutes]:
+net/http.(*persistConn).readLoop(0xc001336140)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 21308
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 9651 [select, 5 minutes]:
+net/http.(*persistConn).writeLoop(0xc001324640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 9296
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27610 [select]:
+net/http.(*persistConn).writeLoop(0xc000814c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 27595
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 26863 [select, 1 minutes]:
+net/http.(*persistConn).readLoop(0xc000814b40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 26816
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 17472 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b16f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 17503
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5594 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000175180)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 5731
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 23446 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc001336b40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 23436
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 29895 [select]:
+net/http.(*persistConn).readLoop(0xc000b6ec80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 29911
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 21042 [select, 3 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b17900)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 21028
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 17266 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000ea0280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 17240
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 5341 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000174c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 5347
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5170 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000174a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 5163
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 5171 [select, 7 minutes]:
+net/http.(*persistConn).writeLoop(0xc000174a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 5163
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 5530 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc000174f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 5520
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 17685 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000b177c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 17680
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 26864 [select, 1 minutes]:
+net/http.(*persistConn).writeLoop(0xc000814b40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 26816
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 7403 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc001324280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 7418
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 7281 [select, 7 minutes]:
+net/http.(*persistConn).readLoop(0xc0008157c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 7268
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 27425 [select, 1 minutes]:
+net/http.(*persistConn).readLoop(0xc000814f00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 27376
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 23980 [select, 2 minutes]:
+net/http.(*persistConn).readLoop(0xc000a0e3c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 23931
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 16726 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc0013363c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 15816
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 17267 [select, 4 minutes]:
+net/http.(*persistConn).writeLoop(0xc000ea0280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 17240
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 23081 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc001336a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 23049
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27079 [select, 1 minutes]:
+net/http.(*persistConn).writeLoop(0xc000675b80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 27118
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 9650 [select, 5 minutes]:
+net/http.(*persistConn).readLoop(0xc001324640)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 9296
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 17321 [select, 4 minutes]:
+net/http.(*persistConn).readLoop(0xc000b16a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 17268
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 29896 [select]:
+net/http.(*persistConn).writeLoop(0xc000b6ec80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 29911
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 27609 [select]:
+net/http.(*persistConn).readLoop(0xc000814c80)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 27595
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 21598 [select, 2 minutes]:
+net/http.(*persistConn).writeLoop(0xc000ea1680)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 21596
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+
+goroutine 26873 [select, 1 minutes]:
+net/http.(*persistConn).readLoop(0xc0008152c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2450 +0xf38
+created by net/http.(*Transport).dialConn in goroutine 26895
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1994 +0x2238
+
+goroutine 28023 [select]:
+net/http.(*persistConn).writeLoop(0xc001325a40)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:2652 +0x118
+created by net/http.(*Transport).dialConn in goroutine 28007
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/net/http/transport.go:1995 +0x22a0
+FAIL	github.com/oopslink/agent-center/internal/webconsole/api	600.594s
+panic: test timed out after 10m0s
+	running tests:
+		TestGetIssue_NonMember_403 (1s)
+
+goroutine 23564 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2802 +0x498
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/time/sleep.go:215 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc0000d86c8, {0x105760912, 0x1a}, 0x1060b5440)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2109 +0x7dc
+testing.runTests.func1(0xc0000d86c8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2585 +0x78
+testing.tRunner(0xc0000d86c8, 0xc000199ab8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+testing.runTests({0x105768a38, 0x20}, {0x10578188b, 0x33}, 0xc0000101e0, {0x10615f2e0, 0x15d, 0x15d}, {0xc0001a6b80?, 0xc00039e240?, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2583 +0x7a4
+testing.(*M).Run(0xc00009f2c0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2443 +0xb3c
+main.main()
+	_testmain.go:742 +0x104
+
+goroutine 23620 [select]:
+database/sql.(*DB).connectionOpener(0xc0004d0270, {0x1060c44f8, 0xc0002f7a90})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1261 +0xbc
+created by database/sql.OpenDB in goroutine 23619
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:841 +0x250
+
+goroutine 23619 [runnable]:
+modernc.org/sqlite/lib._strHash(...)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:24871
+modernc.org/sqlite/lib._findElementWithHash(0x100578d18?, 0x1362f8530, 0x1361fba28, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:24991 +0x3c0
+modernc.org/sqlite/lib._sqlite3HashFind(...)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:25052
+modernc.org/sqlite/lib._sqlite3FindTable(0xc0000aaa80, 0x136300428, 0x1361fba28, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:99970 +0x1bc
+modernc.org/sqlite/lib._sqlite3ShadowTableName(0xc0000aaa80, 0x136300428, 0x1361fba28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:102617 +0xd8
+modernc.org/sqlite/lib._sqlite3EndTable(0xc0000aaa80, 0x1373004e0, 0x1373020e0, 0x1373020f8, 0x0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:102667 +0x1a8
+modernc.org/sqlite/lib._yy_reduce(0xc0000aaa80, 0x137302058, 0x13, 0x0?, {0x6559000000000000?, 0x5794e8?}, 0x1373004e0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:161246 +0x638
+modernc.org/sqlite/lib._sqlite3Parser(0xc0000aaa80, 0x137302058, 0x1, {0x0?, 0x5795a8?})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:162913 +0x18c
+modernc.org/sqlite/lib._sqlite3RunParser(0xc0000aaa80, 0x1373004e0, 0x137be6028)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:165586 +0xbf8
+modernc.org/sqlite/lib._sqlite3Prepare(0xc0000aaa80, 0x136300428, 0x137be6028, 0xffffffff, 0x0, 0x0, 0x1373004d0, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:122357 +0x8cc
+modernc.org/sqlite/lib._sqlite3InitCallback(0xc0000aaa80, 0x137300478, 0x0?, 0x137a0a270, 0x0?)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:121699 +0x814
+modernc.org/sqlite/lib.Xsqlite3_exec(0xc0000aaa80, 0x136300428, 0x137a0acc8, 0x1060b8188, 0x137300478, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:116352 +0xbcc
+modernc.org/sqlite/lib._sqlite3InitOne(0xc0000aaa80, 0x136300428, 0x0, 0x135ffced0, 0x3)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:121913 +0x1d44
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xc0000aaa80, 0x135ffce28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:77942 +0x1bce4
+modernc.org/sqlite/lib._sqlite3Step(0xc0000aaa80, 0x135ffce28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69812 +0x1a0
+modernc.org/sqlite/lib.Xsqlite3_step(0xc0000aaa80, 0x135ffce28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69875 +0x1ac
+modernc.org/sqlite.(*conn).step(0xc0004ea780, 0x135ffce28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1027 +0x48
+modernc.org/sqlite.(*stmt).exec.func2(0xc0000376f0, 0xc00057a9d8, {0x10618bac0, 0x0, 0x0}, 0xc00057aa58)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:552 +0x1bc
+modernc.org/sqlite.(*stmt).exec(0xc0000376f0, {0x1060c44c0, 0xc00080ddd0}, {0x10618bac0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:565 +0x290
+modernc.org/sqlite.(*conn).exec(0xc0004ea780, {0x1060c44c0, 0xc00080ddd0}, {0xc000b0b200, 0x418}, {0x10618bac0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1697 +0xd8
+modernc.org/sqlite.(*conn).ExecContext(0xc0004ea780, {0x1060c44c0, 0xc00080ddd0}, {0xc000b0b200, 0x418}, {0x10618bac0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite_go18.go:53 +0x64
+database/sql.ctxDriverExec({0x1060c44c0, 0xc00080ddd0}, {0x10db8bb38, 0xc0004ea780}, {0x0, 0x0}, {0xc000b0b200, 0x418}, {0x10618bac0, 0x0, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/ctxutil.go:31 +0xa4
+database/sql.(*DB).execDC.func2()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1713 +0x188
+database/sql.withLock({0x1060c2598, 0xc0006ac680}, 0xc00057b0a8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:3572 +0x90
+database/sql.(*DB).execDC(0xc00011d280?, {0x1060c44c0, 0xc00080ddd0}, 0xc0006ac680, 0xc0000376e0, {0xc000b0b200, 0x418}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1708 +0x284
+database/sql.(*Tx).ExecContext(0xc00011d280, {0x1060c44c0, 0xc00080ddd0}, {0xc000b0b200, 0x418}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2516 +0xc4
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne.func1({0x1060c44c0, 0xc00080ddd0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:329 +0xa8
+github.com/oopslink/agent-center/internal/persistence.runTxOnce({0x1060c42b8, 0x10618bac0}, 0xc0004d0270, 0xc00057b450)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:146 +0xe8
+github.com/oopslink/agent-center/internal/persistence.RunInTx({0x1060c42b8, 0x10618bac0}, 0xc0004d0270, 0xc00057b450)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/tx.go:103 +0x18c
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne(0xc00057bd00, {0x1060c42b8, 0x10618bac0}, {0x58, {0x10577f305, 0x17}, {0xc000b0b200, 0x418}, {0xc0001fa000, 0x122}}, ...)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:324 +0x110
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).Up(0xc00057bd00, {0x1060c42b8, 0x10618bac0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/persistence/migrator.go:86 +0x2b4
+github.com/oopslink/agent-center/internal/admin/api.newWriteToolsFixture(0xc00034c008)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/admin/api/agent_tools_write_test.go:86 +0x188
+github.com/oopslink/agent-center/internal/admin/api.TestGetIssue_NonMember_403(0xc00034c008)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15be4c4c/internal/admin/api/agent_tools_passthrough_test.go:851 +0x34
+testing.tRunner(0xc00034c008, 0x1060b5440)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2101 +0x7c0
+
+goroutine 23717 [chan receive]:
+database/sql.(*Tx).awaitDone(0xc00011d280)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2212 +0x4c
+created by database/sql.(*DB).beginDC in goroutine 23619
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1925 +0x338
+FAIL	github.com/oopslink/agent-center/internal/admin/api	601.085s
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	226.195s
+FAIL

@@ -1,0 +1,443 @@
+$ rg RAM role contract surface
+web/src/pages/TeamDetail.test.tsx:92:    let body: { roles?: Array<{ role: string; ram_role_keys?: string[]; access_requirements?: string[] }> } | undefined;
+web/src/pages/TeamDetail.test.tsx:93:    let previewBody: { ram_role_ids?: string[] } | undefined;
+web/src/pages/TeamDetail.test.tsx:94:    let putBody: { ram_role_ids?: string[]; expected_version?: number } | undefined;
+web/src/pages/TeamDetail.test.tsx:102:          ram_role_keys: ['Team basic'],
+web/src/pages/TeamDetail.test.tsx:111:      ram_role_ids: ['team-basic'],
+web/src/pages/TeamDetail.test.tsx:138:          current_ram_role_ids: ['team-basic'],
+web/src/pages/TeamDetail.test.tsx:139:          next_ram_role_ids: previewBody?.ram_role_ids ?? [],
+web/src/pages/TeamDetail.test.tsx:140:          added_ram_role_ids: ['team-curator'],
+web/src/pages/TeamDetail.test.tsx:141:          removed_ram_role_ids: [],
+web/src/pages/TeamDetail.test.tsx:152:          ram_role_ids: putBody?.ram_role_ids ?? [],
+web/src/pages/TeamDetail.test.tsx:180:    await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toEqual(['Team basic', 'Team curator']));
+web/src/pages/TeamDetail.test.tsx:182:    await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
+web/src/pages/TeamDetail.test.tsx:183:    expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 1 });
+docs/design/features/2026-08-20-t1435-residual-matrix.md:14:| AI Runtime Profile | 是 | 历史 migration/down、import retired guard、历史报告 | RAM Role、身份资料 profile |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:16:| RAM Role | 否 | 独立 authorization schema/API/UI/template | 任何 `Profile` 命名或旧表 fallback |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:25:| `access_profiles` | 0132 seed；profile handlers；RoleBuilder/Access catalog | 每行无损映射到 `authorization_roles`；disabled -> revoked；collision 非等价即阻断 | W3 终态快照、count/hash/effective 等价通过 | active schema 无该表；历史 migration 命中白名单 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:26:| `access_profile_versions` | create/version API；detail/history | 每行迁到 `authorization_role_versions`；latest 展开到 role permissions | source/history count 相等、latest permission 集合相等 | active schema 无该表；RAM history 可回读 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:29:| `/access/profiles*` routes/handlers | Web profile CRUD/version/disable | 新 RAM Role API；旧 API W2 只 410，W3 删除 | 新客户端零旧调用、服务访问日志零调用 | server route 表无旧 route |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:31:| Access `Profiles` tab/view | human admin | Roles & mappings 内的 RAM Role detail/create/history/revoke | A12-A14 新证据通过 | tab 只有 Roles & mappings / Subject access |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:32:| RoleBuilder `useAccessProfiles` | Team template/create/edit | `useRAMRoles`; selection 保存 `ram_role_keys` 或 mapping IDs | resolver RAM-only 且 cross-org/revoked 测试通过 | RoleBuilder 不读 profile API |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:33:| fixtures/i18n/MSW mocks | tests/dev | RAM Role fixture/文案/routes | 前端定向测试更新 | 非历史源无旧词 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:34:| `access_profile_*` template/import fields | 外部模板（若存在） | 拒绝并提示使用 `ram_role_keys`；不得自动猜测 | compatibility release notes/guard tests | import contract 明确拒绝 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:40:| profile rows | 每个 source ID 有且仅有一个等价 RAM Role；org/kind/name/description/timestamps/revocation/version 映射正确 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:43:| mappings | 每个 `ram_role_id` 指向 active、同 org 可见的 RAM Role；ID 不变，无需批量改 FK |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:45:| templates | `ram_role_keys` 只按 RAM Role name 解析；同 org 优先 system；歧义/unknown 失败 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:69:## 4. RAM Role / Team Mapping 保留矩阵
+docs/design/features/2026-08-20-t1435-residual-matrix.md:73:| `authorization_roles` | RAM current | RAM API/migration | catalog、resolver、auth effective | active name 唯一；system/current-org scope；revoked fail closed |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:74:| `authorization_role_permissions` | RAM current permissions | RAM version transaction | auth effective/explain | registry-valid；集合与 latest history 相等 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:75:| `authorization_role_versions` | RAM history | create/version/migration | detail/audit/rollback | append-only CAS；完整承接每个旧 version |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:76:| `team_roles.ram_role_keys` | portable template declaration | team template/create/update | RAM-only resolver | 不得读 profile 表；unknown/ambiguous/revoked 失败 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:88:| audit | authorization、mapping、RAM Role audit | actor、subject/resource、previous/next、request ID 可追溯 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:93:不存在 Profiles surface。A12-A14 验证 Roles & mappings 内的 RAM Role 工作流。
+docs/design/features/2026-08-20-t1435-residual-matrix.md:98:| RAM Roles + Team mapping | catalog/preview/saved/conflict | RAM APIs + Team RAM APIs | A3-A6 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:101:| RAM Role in Roles & mappings | detail/history/create/version conflict | `/access/ram-roles*` | A12-A14 |
+docs/design/features/2026-08-20-t1435-residual-matrix.md:114:rg -n "authorization_role_versions|authorization_roles|authorization_role_permissions|ram_role_ids|ram_role_keys|RAM Role" internal web docs
+docs/design/features/2026-08-17-access-management-redesign.md:30:迁移进 `authorization_role_assignments`。
+docs/design/features/2026-08-17-access-management-redesign.md:42:- explicit role assignment：`authorization_role_assignments(subject_ref, role_id, resource_scope)`。
+docs/design/features/2026-08-17-access-management-redesign.md:116:- `authorization_roles` 和 `authorization_role_permissions` 定义 system / custom role 的权限集合。
+docs/design/features/2026-08-17-access-management-redesign.md:117:- `authorization_role_assignments` 是显式 role assignment overlay。
+docs/design/features/2026-08-17-access-management-redesign.md:133:| `custom_role` | `authorization_role_assignments` | explicit overlay permissions |
+docs/design/features/2026-08-17-access-management-redesign.md:913:如现有 `authorization_roles`、`authorization_role_permissions`、`authorization_role_assignments`
+docs/design/features/2026-08-17-access-management-redesign.md:918:- `authorization_role_versions`；
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:8:| 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role -> RAM Role、Access IA、迁移/回滚、A1-A16 截图验收 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:35:- 模板：不得出现 `access_profile_id(s)`、`access_profile_key(s)` 或名为 profile 的权限包模板。现有 `ram_role_keys` 是 RAM Role 稳定名称引用，可以保留。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:36:- 生产消费者：RoleBuilder、Team detail、mapping preview/save、authorization effective 只能读 RAM Role repository；不得读旧表或调用旧 profile API。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:38:删除旧产品不删除权限含义。权限包以独立 **RAM Role** 模型承接，其权威当前态为 `authorization_roles` + `authorization_role_permissions`，历史态为 `authorization_role_versions`。RAM Role 不是任何一种 profile。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:40:## 2. 独立 RAM Role 合同
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:46:| RAM Role current | `authorization_roles` | `id` 稳定；system role 的 `org_id=''`；org role 的 `org_id` 必须匹配；active name 唯一；`revoked_at` 后不可新绑定 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:47:| RAM Role permissions | `authorization_role_permissions` | 只引用已注册 permission；`(role_id, permission_key, resource_kind)` 唯一 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:48:| RAM Role history | `authorization_role_versions` | `(role_id, version)` 唯一；保存规范化 permissions JSON、risk snapshot、actor、timestamp；只追加 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:49:| Team Role mapping | `team_role_ram_role_mappings` + versions + audit | Team Role 绑定 0..N RAM Role；CAS 全量 replace；前后集合可审计 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:51:`authorization_role_versions` 的冻结列为：`role_id TEXT`、`version INTEGER`、`permissions_json TEXT`、`risk_snapshot TEXT`、`created_by TEXT`、`created_at TEXT`，主键 `(role_id, version)`。`risk_snapshot` 只保存当时风险展示值；实际风险始终由 permission registry 推导。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:53:内置 `team-basic`、`team-contributor`、`team-curator` 只在 RAM Role 表中各存在一份。禁止再向旧 profile 表镜像，也禁止双写两套领域对象。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:60:| RAM Role | 独立权限包，持有 RAM permissions；不是 profile |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:61:| `ram_role_keys` | template/create/update 的可移植 RAM Role 名称；只解析 `authorization_roles` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:62:| `ram_role_ids` | mapping preview/PUT 的稳定 ID；只校验 active `authorization_roles` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:64:`ram_role_keys` 的 resolver 必须优先匹配同 org role，再匹配 system role；歧义、dangling、cross-org 或 revoked 均失败，不得 fallback 到 `access_profiles`。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:70:| `GET /api/orgs/{slug}/access/ram-roles` | RAM Role catalog | org member | 返回 active system + current-org roles，不含 profile DTO/术语 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:72:| `POST /api/orgs/{slug}/access/ram-roles` | 创建 org RAM Role | owner/admin | 校验 permission registry；写 current、permissions、version 1 与 audit |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:74:| `POST /api/orgs/{slug}/access/ram-roles/{id}/revoke` | revoke org RAM Role | owner/admin；system forbidden | 先 preview 已有 mapping/direct binding；确认后 fail closed，不能称 disable profile |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:75:| Team RAM GET/preview/PUT | 读取、预览、CAS 全量替换 mapping | member/read；manage/write | 请求使用 `ram_role_ids`；invalid role -> 422；stale -> 409 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:79:## 3. `access_profile*` -> RAM Role 逐表迁移
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:87:1. 导出 `access_profiles`、`access_profile_versions`、`authorization_roles`、`authorization_role_permissions`、`team_role_ram_role_mappings`、mapping versions/audit、`authorization_role_assignments`。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:96:| `access_profiles` | `authorization_roles` | `id -> id`，`org_id -> org_id`，空 org -> `kind=system`，非空 -> `kind=custom`，name/description/created_by/created_at/updated_at 原样；`disabled_at -> revoked_at`；`version = max(access_profile_versions.version)`。目标同 ID 已存在时必须逐字段等价，否则阻断 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:97:| `access_profile_versions` 每一行 | `authorization_role_versions` 每一行 | `profile_id -> role_id`，version/permissions_json/risk/created_by/created_at 原样映射；permissions 先规范化去重排序并验证 registry；不得只迁 latest 而丢历史 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:98:| 每个 profile 的 latest version | `authorization_role_permissions` | 展开 permissions JSON；从 registry 展开其合法 `resource_kind`；与目标 role 现有集合做集合等价校验后 upsert。空/unknown/非法 JSON 阻断 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:99:| built-in seed/0136 mirror | RAM Role current/history | 以迁移后 RAM Role 三表为唯一 seed；删除 profile seed 与 bridge mirror，内置 ID 不变，从而无需改写 mapping FK |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:100:| `team_role_ram_role_mappings` | 原表 | role ID 保持不变；逐行验证目标 active RAM Role 与 org scope，不合法则阻断，不静默删除 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:101:| `team_roles.ram_role_keys` 与模板 payload | 原字段/新模板 | key 保持 RAM Role name；resolver 攅读 `authorization_roles`；旧 profile 命名字段拒绝导入 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:129:- direct binding (`authorization_role_assignments`) 与 Team RAM 求并集、互不覆盖；撤销一条来源不得抹掉另一条来源，explain 必须显示真实 source chain。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:138:| Audit | RAM Role create/version/revoke 与 direct grant/revoke、mapping replace 各写权威 audit；actor、subject/resource、previous/next 不得省略 |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:143:Access 只有两个 tab：`Roles & mappings`（默认）与 `Subject access`。不存在 `Profiles` tab。RAM Role 的创建、编辑、历史与 revoke 均在 Roles & mappings 内完成，并始终使用 RAM Role 文案。
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:151:| A3 | Roles & mappings happy | RAM Role catalog、Team mappings、version、used-by | Access -> Roles & mappings | `access-ram-roles-mappings.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:155:| A7 | Subject access chain | membership -> Team Role -> RAM Role -> scoped permissions | Subject access -> expand | `access-subject-chain.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:160:| A12 | RAM Role detail/history | current permissions、version history、risk；无 Profile 文案/tab | Roles & mappings -> RAM Role | `access-ram-role-detail.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:161:| A13 | RAM Role create | create form、permission checklist、created role selected | Roles & mappings -> New RAM Role | `access-ram-role-created.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:162:| A14 | RAM Role version conflict | stale expected_version 409；无新版本 | RAM Role -> publish stale edit | `access-ram-role-version-conflict.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:163:| A15 | Team detail mapping | RAM Role multi-select；save 后 `ram_role_keys` server 回读 | Team detail -> edit roles | `team-role-ram-builder.png` |
+docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md:174:rg -n "authorization_role_versions|authorization_roles|authorization_role_permissions|ram_role_ids|ram_role_keys|RAM Role" internal web docs
+web/src/AppLayout.tsx:210:        { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
+web/src/App.test.tsx:146:        ['RAM Roles', `${ORG_BASE}/access?view=ram-roles`],
+web/src/mocks/handlers.ts:870:              evidence_ref: 'authorization_role_assignments:asgn-direct-settings',
+web/src/mocks/teamHandlers.ts:40:  return Array.from(new Set((rv?.ram_role_keys ?? []).map((key) => ramRoleIdByKey[key] ?? key))).sort();
+web/src/mocks/teamHandlers.ts:48:    ram_role_ids: roleRAMRoleIDs(teamId, role),
+web/src/mocks/teamHandlers.ts:90:          ram_role_keys: (r as { ram_role_keys?: string[] }).ram_role_keys ?? [],
+web/src/mocks/teamHandlers.ts:118:      const body = await request.json() as { ram_role_ids?: string[] };
+web/src/mocks/teamHandlers.ts:119:      const next = Array.from(new Set(body.ram_role_ids ?? [])).sort();
+web/src/mocks/teamHandlers.ts:123:        current_ram_role_ids: current,
+web/src/mocks/teamHandlers.ts:124:        next_ram_role_ids: next,
+web/src/mocks/teamHandlers.ts:125:        added_ram_role_ids: next.filter((id) => !current.includes(id)),
+web/src/mocks/teamHandlers.ts:126:        removed_ram_role_ids: current.filter((id) => !next.includes(id)),
+web/src/mocks/teamHandlers.ts:136:      const body = await request.json() as { ram_role_ids?: string[]; expected_version?: number };
+web/src/mocks/teamHandlers.ts:144:      rv.ram_role_keys = Array.from(new Set(body.ram_role_ids ?? [])).map((id) => ramRoleKeyById[id] ?? id).sort();
+web/src/mocks/teamHandlers.ts:451:          ram_role_keys: r.ram_role_keys ?? [],
+web/src/mocks/teamHandlers.ts:541:          ram_role_keys: (r as { ram_role_keys?: string[] }).ram_role_keys ?? [],
+web/src/pages/TeamDetail.tsx:172:                {(r.ram_role_keys ?? []).map((ramRole) => (
+web/src/pages/TeamDetail.tsx:175:                {(r.ram_role_keys ?? []).length === 0 && <span>{t('teamDetail.overview.noRamRoles')}</span>}
+web/src/pages/TeamDetail.tsx:215:    ram_role_keys: role.ram_role_keys ?? [],
+web/src/pages/TeamDetail.tsx:232:        ram_role_ids: mapping.ram_role_ids,
+web/src/pages/TeamDetail.tsx:236:  }, [mappingQueries.map((query) => `${query.data?.team_role ?? ''}:${query.data?.version ?? ''}:${query.data?.ram_role_ids.join('|') ?? ''}`).join('\n')]);
+web/src/pages/TeamDetail.tsx:244:    ram_role_keys: role.ram_role_keys ?? [],
+web/src/pages/TeamDetail.tsx:245:    ram_role_ids: mappingQueries.find((query) => query.data?.team_role === role.role)?.data?.ram_role_ids ?? [],
+web/src/pages/TeamDetail.tsx:272:      ram_role_keys: mode === 'access' ? role.ram_role_keys : original?.ram_role_keys ?? role.ram_role_keys,
+web/src/pages/TeamDetail.tsx:293:      const nextIds = uniqueSorted(role.ram_role_ids ?? []);
+web/src/pages/TeamDetail.tsx:294:      const originalIds = uniqueSorted(original?.ram_role_ids ?? []);
+web/src/pages/TeamDetail.tsx:297:      impacts.push(await previewRAMRoles.mutateAsync({ team_id: team.id, role: role.role, ram_role_ids: nextIds }));
+web/src/pages/TeamDetail.tsx:310:      const nextIds = uniqueSorted(role.ram_role_ids ?? []);
+web/src/pages/TeamDetail.tsx:314:        ram_role_ids: nextIds,
+web/src/pages/TeamDetail.tsx:397:                {impact.team_role}: {impact.current_ram_role_ids.join(', ') || 'none'} → {impact.next_ram_role_ids.join(', ') || 'none'} · {impact.affected_members} members · {impact.affected_project_ids.length} projects
+web/src/pages/TeamDetail.tsx:474:                  team.roles.find((r) => r.role === role)?.ram_role_keys ?? [],
+web/src/pages/TeamDetail.tsx:606:      ram_role_keys: uniqueSorted(role.ram_role_keys ?? []),
+web/src/pages/TeamDetail.tsx:607:      ram_role_ids: uniqueSorted(role.ram_role_ids ?? []),
+web/src/pages/TeamDetail.tsx:626:    if (mode !== 'runtime' && uniqueSorted(prev.ram_role_ids ?? []).join('|') !== uniqueSorted(next.ram_role_ids ?? []).join('|')) details.push('RAM roles');
+web/src/components/teams/RoleBuilder.tsx:29:    ram_role_keys: [],
+web/src/components/teams/RoleBuilder.tsx:72:        const selectedRamRoles = ramRoleMode === 'ids' ? r.ram_role_ids ?? [] : r.ram_role_keys ?? [];
+web/src/components/teams/RoleBuilder.tsx:90:            nextPatch.ram_role_ids = nextRefs;
+web/src/components/teams/RoleBuilder.tsx:91:            nextPatch.ram_role_keys = nextRAMRoles.map((role) => role.name);
+web/src/components/teams/RoleBuilder.tsx:93:            nextPatch.ram_role_keys = nextRefs;
+web/src/components/AccessPermissionsPanel.test.tsx:46:              evidence_ref: 'authorization_role_assignments:asgn-direct-read',
+web/src/components/AccessPermissionsPanel.test.tsx:54:        evidence_ref: 'authorization_role_assignments:asgn-direct-list',
+internal/authorization/readiness.go:44:		"authorization_roles",
+internal/authorization/readiness.go:45:		"authorization_role_permissions",
+internal/authorization/readiness.go:46:		"authorization_role_assignments",
+internal/authorization/readiness.go:50:		"team_role_ram_role_mappings",
+internal/authorization/t1411_shadow_enforcement_test.go:110:	execMany(t, db, `DELETE FROM authorization_role_permissions WHERE role_id = 'sys-team-web-member' AND permission_key = 'team.member.manage'`)
+internal/authorization/t1411_shadow_enforcement_test.go:150:	execMany(t, db, `DELETE FROM team_role_ram_role_mappings WHERE team_id='team-ram' AND team_role='developer'`)
+web/src/pages/Access.test.tsx:34:    expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
+web/src/pages/Access.test.tsx:38:    expect(screen.queryByRole('tab', { name: 'RAM Roles' })).not.toBeInTheDocument();
+web/src/pages/Access.test.tsx:75:    let previewBody: { ram_role_ids?: string[] } | null = null;
+web/src/pages/Access.test.tsx:76:    let putBody: { ram_role_ids?: string[]; expected_version?: number } | null = null;
+web/src/pages/Access.test.tsx:78:      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
+web/src/pages/Access.test.tsx:81:        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', current_ram_role_ids: ['team-basic'], next_ram_role_ids: previewBody?.ram_role_ids ?? [], added_ram_role_ids: ['team-curator'], removed_ram_role_ids: [], affected_members: 1, affected_project_ids: ['project-c7073e48'], version: 7 });
+web/src/pages/Access.test.tsx:85:        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 8 });
+web/src/pages/Access.test.tsx:103:    await waitFor(() => expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 7 }));
+web/src/pages/Access.test.tsx:105:    expect(previewBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'] });
+web/src/pages/Access.test.tsx:110:      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
+web/src/pages/Access.test.tsx:114:        current_ram_role_ids: ['team-basic'],
+web/src/pages/Access.test.tsx:115:        next_ram_role_ids: ['team-basic', 'team-curator'],
+web/src/pages/Access.test.tsx:116:        added_ram_role_ids: ['team-curator'],
+web/src/pages/Access.test.tsx:117:        removed_ram_role_ids: null,
+internal/authorization/t1343_permission_parity_test.go:48:	if err != nil || human.Source != SourceCustomRole || human.EvidenceRef != "authorization_role_assignments:asgn-human-proposer" {
+internal/authorization/t1343_permission_parity_test.go:77:		if err != nil || got.Source != SourceCustomRole || got.EvidenceRef != "authorization_role_assignments:asgn-human-proposer" {
+internal/authorization/t1343_permission_parity_test.go:108:	execMany(t, db, `INSERT INTO authorization_role_assignments
+web/src/pages/Access.tsx:404:          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
+web/src/pages/Access.tsx:624:      for (const roleID of entry.query.data?.ram_role_ids ?? []) {
+web/src/pages/Access.tsx:640:  const selected = draft ?? current?.ram_role_ids ?? [];
+web/src/pages/Access.tsx:641:  const changed = Boolean(current && [...selected].sort().join('|') !== [...current.ram_role_ids].sort().join('|'));
+web/src/pages/Access.tsx:646:  const runPreview = (): void => preview.mutate({ team_id: entry.team.id, role: entry.role, ram_role_ids: selected });
+web/src/pages/Access.tsx:650:      { team_id: entry.team.id, role: entry.role, ram_role_ids: selected, expected_version: current.version },
+web/src/pages/Access.tsx:654:  const previewAddedRoleCount = preview.data?.added_ram_role_ids?.length ?? 0;
+web/src/pages/Access.tsx:655:  const previewRemovedRoleCount = preview.data?.removed_ram_role_ids?.length ?? 0;
+web/src/pages/Access.tsx:673:              placeholder="Select RAM Roles"
+web/src/pages/Access.tsx:674:              searchPlaceholder="Search RAM Roles"
+web/src/pages/Access.tsx:675:              emptyLabel="No matching RAM Roles"
+web/src/pages/Access.tsx:676:              ariaLabel={`RAM Roles for ${entry.team.name} / ${entry.role}`}
+web/src/pages/Access.tsx:693:                  {(preview.data?.current_ram_role_ids ?? []).join(', ') || 'none'} → {(preview.data?.next_ram_role_ids ?? []).join(', ') || 'none'}
+web/src/pages/Access.tsx:762:                      return <p key={`${team.id}:${teamRole}`} className="mb-1"><span className="font-mono">membership:{team.name}</span> → Team Role <strong>{teamRole}</strong> → RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} → scoped effective permissions</p>;
+internal/authorization/service_test.go:191:	execMany(t, db, `DELETE FROM team_role_ram_role_mappings WHERE team_id='team-ram' AND team_role='developer'`)
+internal/authorization/service_test.go:203:	execMany(t, db, `INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES ('team-ram', 'developer', 'role-team-project-reader', ?, 'system')`, time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC).Format(time.RFC3339Nano))
+internal/authorization/service_test.go:416:	if _, err := db.ExecContext(ctx, `UPDATE authorization_role_assignments SET version = version + 1 WHERE id = 'asgn-revoke-drift'`); err != nil {
+internal/authorization/service_test.go:576:	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id = 'role-concurrent'`).Scan(&roles); err != nil {
+internal/authorization/service_test.go:715:		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/authorization/service_test.go:720:		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/authorization/service_test.go:725:		`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by)
+internal/authorization/service_test.go:735:		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/authorization/service_test.go:740:		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/authorization/service_test.go:745:		`INSERT INTO authorization_role_assignments
+internal/authorization/service_test.go:756:		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/authorization/service_test.go:761:		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/authorization/service_test.go:766:		`INSERT INTO authorization_role_assignments
+internal/authorization/service_test.go:777:		`SELECT revoked_at FROM authorization_role_assignments WHERE org_id = ? AND id = ?`,
+internal/authorization/store.go:214:		FROM authorization_roles WHERE id = ? AND revoked_at IS NULL`, strings.TrimSpace(id))
+internal/authorization/store.go:224:		FROM authorization_roles
+internal/authorization/store.go:258:			if _, err := exec.ExecContext(ctx, `UPDATE authorization_roles
+internal/authorization/store.go:274:	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_roles
+internal/authorization/store.go:297:	if _, err := exec.ExecContext(ctx, `DELETE FROM authorization_role_permissions WHERE role_id = ?`, roleID); err != nil {
+internal/authorization/store.go:317:		if _, err := exec.ExecContext(ctx, `INSERT INTO authorization_role_permissions
+internal/authorization/store.go:323:	_, err = exec.ExecContext(ctx, `UPDATE authorization_roles
+internal/authorization/store.go:334:		FROM authorization_role_permissions WHERE role_id = ? ORDER BY permission_key, resource_kind`, roleID)
+internal/authorization/store.go:369:	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_role_assignments
+internal/authorization/store.go:391:		FROM authorization_role_assignments WHERE org_id = ? AND id = ?`,
+internal/authorization/store.go:403:		FROM authorization_role_assignments
+internal/authorization/store.go:416:		FROM authorization_role_assignments
+internal/authorization/store.go:431:		FROM authorization_role_assignments
+internal/authorization/store.go:465:	query := `UPDATE authorization_role_assignments
+web/src/i18n/locales/en/teams.json:287:    "permissionsSource": "RAM Role → permissions",
+internal/authorization/service.go:1075:	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments
+internal/authorization/service.go:1196:		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || subject_ref || ':' || role_id || ':' || resource_kind || ':' || resource_id || ':' || version || ':' || COALESCE(revoked_at, '') || ':' || COALESCE(expires_at, '') AS v FROM authorization_role_assignments ORDER BY id)`,
+internal/authorization/service.go:1197:		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
+internal/authorization/service.go:1198:		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT role_id || ':' || permission_key || ':' || resource_kind || ':' || delegatable AS v FROM authorization_role_permissions ORDER BY role_id, permission_key, resource_kind)`,
+internal/authorization/service.go:1201:		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || team_role || ':' || ram_role_id || ':' || created_at AS v FROM team_role_ram_role_mappings ORDER BY team_id, team_role, ram_role_id)`,
+internal/authorization/service.go:1243:	// Team Role -> RAM Role mappings are the unified model introduced by the
+internal/authorization/service.go:1811:		JOIN team_role_ram_role_mappings trm ON trm.team_id = tm.team_id AND trm.team_role = tm.role
+internal/authorization/service.go:1812:		JOIN authorization_roles ar ON ar.id = trm.ram_role_id AND ar.revoked_at IS NULL AND ar.kind IN ('system', 'custom') AND (ar.org_id = '' OR ar.org_id = t.org_id)
+internal/authorization/service.go:1813:		JOIN authorization_role_permissions arp ON arp.role_id = ar.id
+internal/authorization/service.go:1836:					EvidenceRef: "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + roleID,
+internal/authorization/service.go:1849:			EvidenceRef: "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + roleID,
+internal/authorization/service.go:2154:				EvidenceRef:  "authorization_role_assignments:" + a.ID,
+internal/authorization/service_behavior_test.go:188:	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='role-preview'`).Scan(&count); err != nil || count != 0 {
+internal/authorization/service_behavior_test.go:198:	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='role-rollback'`).Scan(&count); err != nil || count != 0 {
+internal/authorization/service_behavior_test.go:241:	execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-expired','org-1','custom','expired','system',?,?)`, expired.Format(time.RFC3339Nano), expired.Format(time.RFC3339Nano))
+internal/authorization/service_behavior_test.go:242:	execMany(t, db, `INSERT INTO authorization_role_permissions (role_id,permission_key,resource_kind,delegatable,created_at) VALUES ('role-expired','org.settings.manage','org',0,?)`, expired.Format(time.RFC3339Nano))
+internal/authorization/service_behavior_test.go:269:	execMany(t, db, `INSERT INTO authorization_role_assignments
+internal/authorization/service_behavior_test.go:510:	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-project-owner','org-1','user:user-member','sys-project-owner','project','project-1','system',?)`, now)
+internal/authorization/service_behavior_test.go:515:	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-project-by-id','org-1','user:user-member','sys-project-owner','project','project-1','system',?)`, now)
+internal/authorization/service_behavior_test.go:613:	execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-empty','org-1','custom','empty','system',?,?)`, now, now)
+internal/authorization/service_behavior_test.go:617:	execMany(t, db, `INSERT INTO authorization_role_permissions (role_id,permission_key,resource_kind,delegatable,created_at) VALUES ('role-empty','project.read','project',1,?)`, now)
+internal/authorization/service_behavior_test.go:621:	if _, err := db.ExecContext(ctx, `UPDATE authorization_role_permissions SET permission_key='undefined.permission' WHERE role_id='role-empty'`); err != nil {
+internal/authorization/service_behavior_test.go:629:	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('owner-a','org-1','user:user-owner','sys-org-owner','org','org-1','system',?)`, now)
+internal/authorization/service_behavior_test.go:630:	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('owner-b','org-1','user:user-admin','sys-org-owner','org','org-1','system',?)`, now)
+internal/authorization/service_behavior_test.go:696:	execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('foreign-role','org-2','custom','foreign','system',?,?)`, now, now)
+internal/authorization/service_behavior_test.go:721:	execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-trigger','org-1','custom','trigger','system',?,?)`, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+internal/authorization/service_behavior_test.go:722:	execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-trigger','org-1','user:user-member','role-trigger','org','org-1','system',?)`, now.Format(time.RFC3339Nano))
+internal/authorization/service_behavior_test.go:723:	execMany(t, db, `CREATE TRIGGER reject_authz_revoke BEFORE UPDATE OF revoked_at ON authorization_role_assignments BEGIN SELECT RAISE(ABORT, 'reject revoke'); END`)
+internal/authorization/service_behavior_test.go:759:		if _, err := db.Exec(`DROP TABLE authorization_role_assignments`); err != nil {
+internal/authorization/service_behavior_test.go:770:		execMany(t, db, `INSERT INTO authorization_roles (id,org_id,kind,name,created_by,created_at,updated_at) VALUES ('role-invalid-resource','org-1','custom','invalid','system',?,?)`, now, now)
+internal/authorization/service_behavior_test.go:771:		execMany(t, db, `INSERT INTO authorization_role_assignments (id,org_id,subject_ref,role_id,resource_kind,resource_id,created_by,created_at) VALUES ('asgn-invalid-resource','org-1','user:u','role-invalid-resource','invalid','x','system',?)`, now)
+internal/authorization/supervisor_cross_org_test.go:14:	if _, err := db.ExecContext(ctx, `INSERT INTO authorization_role_assignments
+internal/authorization/supervisor_cross_org_test.go:35:	if _, err := db.ExecContext(ctx, `INSERT INTO authorization_roles
+web/src/api/teams.ts:31:  ram_role_keys?: string[];
+web/src/api/teams.ts:238:  ram_role_keys?: string[];
+web/src/api/teams.ts:239:  ram_role_ids?: string[];
+web/src/api/teams.ts:248:  ram_role_ids: string[];
+web/src/api/teams.ts:257:  current_ram_role_ids: string[];
+web/src/api/teams.ts:258:  next_ram_role_ids: string[];
+web/src/api/teams.ts:259:  added_ram_role_ids: string[];
+web/src/api/teams.ts:260:  removed_ram_role_ids: string[];
+web/src/api/teams.ts:268:  'current_ram_role_ids' | 'next_ram_role_ids' | 'added_ram_role_ids' | 'removed_ram_role_ids' | 'affected_project_ids'
+web/src/api/teams.ts:270:  current_ram_role_ids?: string[] | null;
+web/src/api/teams.ts:271:  next_ram_role_ids?: string[] | null;
+web/src/api/teams.ts:272:  added_ram_role_ids?: string[] | null;
+web/src/api/teams.ts:273:  removed_ram_role_ids?: string[] | null;
+web/src/api/teams.ts:284:    current_ram_role_ids: normalizeStringArray(impact.current_ram_role_ids),
+web/src/api/teams.ts:285:    next_ram_role_ids: normalizeStringArray(impact.next_ram_role_ids),
+web/src/api/teams.ts:286:    added_ram_role_ids: normalizeStringArray(impact.added_ram_role_ids),
+web/src/api/teams.ts:287:    removed_ram_role_ids: normalizeStringArray(impact.removed_ram_role_ids),
+web/src/api/teams.ts:427:    mutationFn: async (v: { team_id: string; role: string; ram_role_ids: string[] }) => {
+web/src/api/teams.ts:429:        ram_role_ids: v.ram_role_ids,
+web/src/api/teams.ts:439:    mutationFn: (v: { team_id: string; role: string; ram_role_ids: string[]; expected_version: number }) =>
+web/src/api/teams.ts:441:        ram_role_ids: v.ram_role_ids,
+web/src/api/teams.ts:801:      ram_role_keys: r.ram_role_keys ?? [],
+web/src/api/teams.ts:814: *  resolves portable RAM role keys against the target organization's RAM Role
+web/src/i18n/locales/zh/teams.json:125:      "noRamRoles": "未映射 RAM Role",
+web/src/i18n/locales/zh/teams.json:279:    "ramRoleLabel": "RAM Role",
+web/src/i18n/locales/zh/teams.json:280:    "ramRoleNone": "不使用 RAM Role",
+web/src/i18n/locales/zh/teams.json:287:    "permissionsSource": "RAM Role → permissions",
+web/src/api/teamsFixtures.ts:67:        { role: 'planner', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_role_keys: ['Team contributor'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+web/src/api/teamsFixtures.ts:68:        { role: 'coder', count: 3, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [], ram_role_keys: ['Team contributor'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+web/src/api/teamsFixtures.ts:69:        { role: 'reviewer', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_role_keys: ['Team curator'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose', 'team.memory.review'] },
+web/src/api/teamsFixtures.ts:70:        { role: 'ops', count: 1, cli: 'codex', model: 'gpt-5', max_concurrency: 1, capability_tags: [], ram_role_keys: ['Team basic'], access_requirements: ['team.read', 'team.memory.read'] },
+web/src/api/teamsFixtures.ts:85:        { role: 'planner', count: 1, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1, capability_tags: [], ram_role_keys: ['Team basic'], access_requirements: ['team.read', 'team.memory.read'] },
+web/src/api/teamsFixtures.ts:86:        { role: 'coder', count: 2, cli: 'claude-code', model: 'sonnet-5', max_concurrency: 2, capability_tags: [], ram_role_keys: ['Team contributor'], access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'] },
+web/src/api/teamsFixtures.ts:87:        { role: 'researcher', count: 1, cli: 'claude-code', model: 'opus-4.8', max_concurrency: 1, capability_tags: [], ram_role_keys: ['Team basic'], access_requirements: ['team.read', 'team.memory.read'] },
+web/src/api/teams.test.tsx:32:    expect(roles[0].ram_role_keys).toEqual(t.roles[0].ram_role_keys ?? []);
+web/src/api/teams.test.tsx:58:          ram_role_keys: ['Team contributor'],
+web/src/api/teams.test.tsx:66:    expect(created.roles[0].ram_role_keys).toEqual(['Team contributor']);
+web/src/api/teams.test.tsx:76:  it('useSaveTemplate persists source metadata and role ram_role_keys', async () => {
+web/src/api/teams.test.tsx:92:          ram_role_keys: ['Team curator'],
+web/src/api/teams.test.tsx:100:    expect(saved.roles[0].ram_role_keys).toEqual(['Team curator']);
+internal/admin/api/agent_tools_team_test.go:81:	if _, ok := roles[0].(map[string]any)["ram_role_keys"]; !ok {
+internal/admin/api/agent_tools_team_test.go:181:				"ram_role_keys": []string{"missing destination role"},
+internal/persistence/migration_0137_ram_role_versions_test.go:52:	want137Schema := snapshotSelectedSchema(t, db, "authorization_role_versions")
+internal/persistence/migration_0137_ram_role_versions_test.go:68:	if got := snapshotSelectedSchema(t, db, "authorization_role_versions"); !reflect.DeepEqual(got, want137Schema) {
+internal/persistence/migration_0137_ram_role_versions_test.go:110:		FROM authorization_roles WHERE id = 'profile-round-trip'`).Scan(&orgID, &kind, &name, &description, &revokedAt); err != nil {
+internal/persistence/migration_0137_ram_role_versions_test.go:117:	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_versions
+internal/admin/api/t1416_ram_read_auth_test.go:22:		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/admin/api/t1416_ram_read_auth_test.go:28:		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/admin/api/t1416_ram_read_auth_test.go:53:		INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by)
+internal/admin/api/t1413_ram_write_auth_test.go:30:	_, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-project-member' AND permission_key='project.write'`)
+internal/admin/api/t1413_ram_write_auth_test.go:63:	if _, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-project-member' AND permission_key='project.write'`); err != nil {
+internal/admin/api/t1413_ram_write_auth_test.go:81:	if _, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-org-member' AND permission_key='team.create'`); err != nil {
+internal/admin/api/t1413_ram_write_auth_test.go:110:	if _, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE permission_key='team.member.manage'`); err != nil {
+internal/admin/api/agent_tools_team.go:709:	RAMRoleKeys        []string `json:"ram_role_keys"`
+internal/admin/api/agent_tools_team.go:793:			"ram_role_keys": sl.Config.RAMRoleKeys, "max_concurrency": sl.Config.MaxConcurrency,
+internal/admin/api/t1438_effective_permissions_e2e_test.go:17:		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/admin/api/t1438_effective_permissions_e2e_test.go:23:		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/admin/api/t1438_effective_permissions_e2e_test.go:46:		INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by)
+internal/admin/api/t1438_effective_permissions_e2e_test.go:62:	if _, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-project-member' AND permission_key='project.write'`); err != nil {
+internal/admin/api/t1438_effective_permissions_e2e_test.go:76:	if _, err := f.db.Exec(`DELETE FROM team_role_ram_role_mappings WHERE team_id='team-t1438-mcp' AND team_role='writer'`); err != nil {
+internal/admin/api/t1438_effective_permissions_e2e_test.go:95:	if _, err := f.db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-project-member' AND permission_key='project.write'`); err != nil {
+internal/persistence/migration_0129_unified_authorization_test.go:21:		"authorization_roles",
+internal/persistence/migration_0129_unified_authorization_test.go:22:		"authorization_role_permissions",
+internal/persistence/migration_0129_unified_authorization_test.go:23:		"authorization_role_assignments",
+internal/persistence/migration_0129_unified_authorization_test.go:46:		"authorization_roles",
+internal/persistence/migration_0129_unified_authorization_test.go:47:		"authorization_role_permissions",
+internal/persistence/migration_0129_unified_authorization_test.go:48:		"authorization_role_assignments",
+internal/persistence/migration_0129_unified_authorization_test.go:62:	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE kind = 'system'`).Scan(&definitions); err != nil {
+internal/persistence/migration_0129_unified_authorization_test.go:68:	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id IN ('sys-team-web-owner','sys-team-web-admin','sys-team-web-member')`).Scan(&definitions); err != nil {
+internal/persistence/migrations/0136_access_profile_ram_role_contract.up.sql:8:INSERT OR IGNORE INTO authorization_roles
+internal/persistence/migrations/0136_access_profile_ram_role_contract.up.sql:15:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0135_authz_s4_read_boundaries.down.sql:1:DELETE FROM authorization_role_permissions
+internal/persistence/migrations/0134_authz_s2_builtin_role_equivalence.up.sql:7:INSERT OR IGNORE INTO authorization_roles
+internal/persistence/migrations/0134_authz_s2_builtin_role_equivalence.up.sql:14:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0129_unified_authorization.up.sql:18:CREATE TABLE IF NOT EXISTS authorization_roles (
+internal/persistence/migrations/0129_unified_authorization.up.sql:31:CREATE UNIQUE INDEX IF NOT EXISTS idx_authorization_roles_system_name
+internal/persistence/migrations/0129_unified_authorization.up.sql:32:    ON authorization_roles(name)
+internal/persistence/migrations/0129_unified_authorization.up.sql:35:CREATE UNIQUE INDEX IF NOT EXISTS idx_authorization_roles_custom_org_name
+internal/persistence/migrations/0129_unified_authorization.up.sql:36:    ON authorization_roles(org_id, name)
+internal/persistence/migrations/0129_unified_authorization.up.sql:39:CREATE INDEX IF NOT EXISTS idx_authorization_roles_org
+internal/persistence/migrations/0129_unified_authorization.up.sql:40:    ON authorization_roles(org_id, kind)
+internal/persistence/migrations/0129_unified_authorization.up.sql:43:CREATE TABLE IF NOT EXISTS authorization_role_permissions (
+internal/persistence/migrations/0129_unified_authorization.up.sql:52:CREATE INDEX IF NOT EXISTS idx_authorization_role_permissions_permission
+internal/persistence/migrations/0129_unified_authorization.up.sql:53:    ON authorization_role_permissions(permission_key, resource_kind);
+internal/persistence/migrations/0129_unified_authorization.up.sql:55:CREATE TABLE IF NOT EXISTS authorization_role_assignments (
+internal/persistence/migrations/0129_unified_authorization.up.sql:72:    ON authorization_role_assignments(org_id, subject_ref, role_id, resource_kind, resource_id)
+internal/persistence/migrations/0129_unified_authorization.up.sql:76:    ON authorization_role_assignments(org_id, subject_ref, resource_kind, resource_id)
+internal/persistence/migrations/0129_unified_authorization.up.sql:179:INSERT OR IGNORE INTO authorization_roles
+internal/persistence/migrations/0129_unified_authorization.up.sql:193:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0133_team_role_ram_roles.up.sql:3:CREATE TABLE IF NOT EXISTS team_role_ram_role_mappings (
+internal/persistence/migrations/0133_team_role_ram_roles.up.sql:11:    FOREIGN KEY (ram_role_id) REFERENCES authorization_roles(id)
+internal/persistence/migrations/0133_team_role_ram_roles.up.sql:13:CREATE INDEX IF NOT EXISTS idx_team_role_ram_role_reverse ON team_role_ram_role_mappings(ram_role_id, team_id, team_role);
+internal/persistence/migrations/0137_ram_role_versions.down.sql:38:FROM authorization_roles r
+internal/persistence/migrations/0137_ram_role_versions.down.sql:40:    SELECT 1 FROM authorization_role_versions v WHERE v.role_id = r.id
+internal/persistence/migrations/0137_ram_role_versions.down.sql:46:FROM authorization_role_versions;
+internal/persistence/migrations/0137_ram_role_versions.down.sql:48:DROP TABLE IF EXISTS authorization_role_versions;
+internal/team/errors.go:45:	// RAM Role name resolves to more than one active authorization role.
+internal/team/errors.go:47:	// ErrRAMRoleKeyRevoked is returned when a stable RAM Role name exists only as
+internal/team/tool/tools.go:64:	RAMRoleKeys        []string `json:"ram_role_keys,omitempty" jsonschema:"stable RAM role names mapped to this Team Role"`
+internal/team/tool/tools.go:97:	RAMRoleKeys        []string `json:"ram_role_keys"`
+internal/persistence/migrations/0134_authz_s2_builtin_role_equivalence.down.sql:1:DELETE FROM authorization_role_permissions
+internal/persistence/migrations/0134_authz_s2_builtin_role_equivalence.down.sql:6:DELETE FROM authorization_roles
+internal/team/ram_roles.go:10:	RAMRoleIDs []string  `json:"ram_role_ids"`
+internal/team/ram_roles.go:22:	CurrentRoleIDs []string `json:"current_ram_role_ids"`
+internal/team/ram_roles.go:23:	NextRoleIDs    []string `json:"next_ram_role_ids"`
+internal/team/ram_roles.go:24:	AddedRoleIDs   []string `json:"added_ram_role_ids"`
+internal/team/ram_roles.go:25:	RemovedRoleIDs []string `json:"removed_ram_role_ids"`
+internal/team/template_io.go:42:	RAMRoleKeys        []string `json:"ram_role_keys,omitempty"`
+internal/team/template_io.go:229:		return fmt.Errorf("%w: access_profile_* fields are retired; use ram_role_keys", ErrInvalidTemplate)
+internal/team/service/ram_roles.go:98:	if _, err := tx.ExecContext(ctx, `DELETE FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=?`, teamID.String(), role); err != nil {
+internal/team/service/ram_roles.go:102:		if _, err := tx.ExecContext(ctx, `INSERT INTO team_role_ram_role_mappings (team_id,team_role,ram_role_id,created_at,created_by) VALUES (?,?,?,?,?)`, teamID.String(), role, id, stamp, in.ActorRef); err != nil {
+internal/team/service/ram_roles.go:151:		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id=? AND revoked_at IS NULL AND org_id IN ('',?)`, id, orgID).Scan(&n); err != nil {
+internal/team/service/ram_roles.go:172:	rows, err := q.QueryContext(ctx, `SELECT ram_role_id FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=? ORDER BY ram_role_id`, teamID.String(), role)
+internal/persistence/migrations/0139_background_worker_authorization.down.sql:10:DELETE FROM authorization_role_assignments
+internal/persistence/migrations/0139_background_worker_authorization.down.sql:19:DELETE FROM authorization_role_permissions
+internal/persistence/migrations/0139_background_worker_authorization.down.sql:22:DELETE FROM authorization_roles
+internal/team/service/ram_roles_test.go:14:	_, err := svc.db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES (?,?, 'custom',?,'','user:owner',datetime('now'),datetime('now'),1)`, id, orgID, name)
+internal/team/service/ram_roles_test.go:22:	_, err := svc.db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES (?,'','system',?,'','system',datetime('now'),datetime('now'),1)`, id, name)
+internal/team/service/ram_roles_test.go:119:	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE team_id=? AND ram_role_id='role-contributor'`, tm.ID().String()).Scan(&n); err != nil || n != 1 {
+internal/team/service/ram_roles_test.go:142:	if _, err := db.Exec(`UPDATE authorization_roles SET revoked_at=datetime('now') WHERE id='role-revoked'`); err != nil {
+internal/team/service/ram_roles_test.go:182:	if _, err := db.Exec(`DROP INDEX idx_authorization_roles_custom_org_name`); err != nil {
+internal/team/service/ram_roles_test.go:196:	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id='team-basic' AND name='Team basic'`).Scan(&n); err != nil || n != 1 {
+internal/team/service/ram_roles_test.go:199:	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_permissions WHERE role_id='team-basic' AND permission_key IN ('team.read','team.memory.read')`).Scan(&n); err != nil || n != 2 {
+internal/team/service/ram_roles_test.go:203:		t.Fatal("access_profiles table must not remain in the final RAM Role schema")
+internal/persistence/migrations/0129_unified_authorization.down.sql:5:DROP TABLE IF EXISTS authorization_role_assignments;
+internal/persistence/migrations/0129_unified_authorization.down.sql:6:DROP TABLE IF EXISTS authorization_role_permissions;
+internal/persistence/migrations/0129_unified_authorization.down.sql:7:DROP TABLE IF EXISTS authorization_roles;
+internal/projectmanager/service/t1438_background_authz_test.go:56:	if err := svc.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id = 'sys-background-worker' AND kind = 'system'`).Scan(&roleCount); err != nil {
+internal/projectmanager/service/t1438_background_authz_test.go:59:	if err := svc.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments WHERE subject_ref = 'agent:background' AND role_id = 'sys-background-worker' AND resource_kind = 'worker' AND resource_id LIKE 'background:%' AND revoked_at IS NULL`).Scan(&assignmentCount); err != nil {
+internal/persistence/migrations/0138_authorization_shadow_readiness.up.sql:23:INSERT OR IGNORE INTO authorization_role_permissions
+internal/webconsole/api/handlers_teams.go:89:		"ram_role_keys":       nonNilStrings(rc.RAMRoleKeys),
+internal/webconsole/api/handlers_teams.go:464:	RAMRoleKeys        []string `json:"ram_role_keys"`
+internal/team/sqlite/repo.go:94:	rows, err := exec.QueryContext(ctx, `SELECT ram_role_id FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=? ORDER BY ram_role_id`, teamID.String(), role)
+internal/team/sqlite/repo.go:118:	if _, err := exec.ExecContext(ctx, `DELETE FROM team_role_ram_role_mappings WHERE team_id=? AND team_role=?`, teamID.String(), role); err != nil {
+internal/team/sqlite/repo.go:136:		if _, err := exec.ExecContext(ctx, `INSERT INTO team_role_ram_role_mappings (team_id,team_role,ram_role_id,created_at,created_by) VALUES (?,?,?,?,?)`, teamID.String(), role, roleID, now.UTC().Format(tsLayout), actor); err != nil {
+internal/team/sqlite/repo.go:170:// ResolveRAMRoleKey resolves a portable RAM Role stable name into a concrete
+internal/team/sqlite/repo.go:171:// authorization_roles.id for the destination org. Destination-org custom roles
+internal/team/sqlite/repo.go:181:		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE name=? AND org_id=? AND revoked_at IS NULL ORDER BY id`, key, scopeOrg)
+internal/team/sqlite/repo.go:209:	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE name=? AND org_id IN (?, '') AND revoked_at IS NOT NULL`, key, strings.TrimSpace(orgID)).Scan(&revoked); err != nil {
+internal/team/sqlite/repo.go:438:	rows, err := exec.QueryContext(ctx, `SELECT ar.name FROM team_role_ram_role_mappings m JOIN authorization_roles ar ON ar.id=m.ram_role_id WHERE m.team_id=? AND m.team_role=? ORDER BY ar.name`, id.String(), role)
+internal/webconsole/api/t1438_effective_permissions_e2e_test.go:24:		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/webconsole/api/t1438_effective_permissions_e2e_test.go:29:		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/webconsole/api/t1438_effective_permissions_e2e_test.go:40:	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reader', 'role-t1438-web-reader', ?, 'system')`, tm.ID().String(), now); err != nil {
+internal/webconsole/api/handlers_teams_p2_test.go:97:	if _, err := db.Exec(`DELETE FROM authorization_role_permissions WHERE role_id='sys-org-owner' AND permission_key='team.create'`); err != nil {
+internal/persistence/migrations/0135_authz_s4_read_boundaries.up.sql:10:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0139_background_worker_authorization.up.sql:1:INSERT OR IGNORE INTO authorization_roles
+internal/persistence/migrations/0139_background_worker_authorization.up.sql:6:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0139_background_worker_authorization.up.sql:11:INSERT OR IGNORE INTO authorization_role_assignments
+internal/persistence/migrations/0137_ram_role_versions.up.sql:1:-- 0137_ram_role_versions.up.sql -- RAM Role history and access-profile retirement.
+internal/persistence/migrations/0137_ram_role_versions.up.sql:3:CREATE TABLE IF NOT EXISTS authorization_role_versions (
+internal/persistence/migrations/0137_ram_role_versions.up.sql:11:    FOREIGN KEY (role_id) REFERENCES authorization_roles(id) ON DELETE CASCADE
+internal/persistence/migrations/0137_ram_role_versions.up.sql:14:CREATE INDEX IF NOT EXISTS idx_authorization_role_versions_role
+internal/persistence/migrations/0137_ram_role_versions.up.sql:15:    ON authorization_role_versions(role_id, version DESC);
+internal/persistence/migrations/0137_ram_role_versions.up.sql:17:INSERT OR IGNORE INTO authorization_roles
+internal/persistence/migrations/0137_ram_role_versions.up.sql:32:UPDATE authorization_roles
+internal/persistence/migrations/0137_ram_role_versions.up.sql:34:    SELECT COALESCE(MAX(v.version), authorization_roles.version)
+internal/persistence/migrations/0137_ram_role_versions.up.sql:36:    WHERE v.profile_id = authorization_roles.id
+internal/persistence/migrations/0137_ram_role_versions.up.sql:40:INSERT OR IGNORE INTO authorization_role_versions
+internal/persistence/migrations/0137_ram_role_versions.up.sql:45:DELETE FROM authorization_role_permissions
+internal/persistence/migrations/0137_ram_role_versions.up.sql:48:INSERT OR IGNORE INTO authorization_role_permissions
+internal/persistence/migrations/0136_access_profile_ram_role_contract.down.sql:1:DELETE FROM authorization_role_permissions
+internal/persistence/migrations/0136_access_profile_ram_role_contract.down.sql:4:DELETE FROM authorization_roles
+internal/persistence/migrations/0138_authorization_shadow_readiness.down.sql:1:DELETE FROM authorization_role_permissions
+internal/webconsole/api/handlers_teams_p3_test.go:157:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-system-reviewer','','system','Reviewer','','system',datetime('now'),datetime('now'),1)`); err != nil {
+internal/webconsole/api/handlers_teams_p3_test.go:160:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-org-reviewer',?,'custom','Reviewer','','user:owner',datetime('now'),datetime('now'),1)`, sess.OrgID); err != nil {
+internal/webconsole/api/handlers_teams_p3_test.go:166:	resp := orgScopedPost(t, ts.URL+"/api/team-templates/import", `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Reviewer"]}]}`, sess)
+internal/webconsole/api/handlers_teams_p3_test.go:172:	keys := roles[0].(map[string]any)["ram_role_keys"].([]any)
+internal/webconsole/api/handlers_teams_p3_test.go:174:		t.Fatalf("imported ram_role_keys=%#v", keys)
+internal/webconsole/api/handlers_teams_p3_test.go:181:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version,revoked_at) VALUES ('role-revoked',?,'custom','Retired','','user:owner',datetime('now'),datetime('now'),1,datetime('now'))`, sess.OrgID); err != nil {
+internal/webconsole/api/handlers_teams_p3_test.go:184:	if _, err := db.Exec(`DROP INDEX idx_authorization_roles_custom_org_name`); err != nil {
+internal/webconsole/api/handlers_teams_p3_test.go:187:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-dup-a',?,'custom','Duplicated','','user:owner',datetime('now'),datetime('now'),1),('role-dup-b',?,'custom','Duplicated','','user:owner',datetime('now'),datetime('now'),1)`, sess.OrgID, sess.OrgID); err != nil {
+internal/webconsole/api/handlers_teams_p3_test.go:199:		{name: "unknown", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Missing"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_unknown"},
+internal/webconsole/api/handlers_teams_p3_test.go:200:		{name: "revoked", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Retired"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_revoked"},
+internal/webconsole/api/handlers_teams_p3_test.go:201:		{name: "ambiguous", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Duplicated"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_ambiguous"},
+internal/webconsole/api/handlers_team_ram_roles.go:13:	RAMRoleIDs      []string `json:"ram_role_ids"`
+internal/persistence/migrations/0133_team_role_ram_roles.down.sql:5:DROP TABLE IF EXISTS team_role_ram_role_mappings;
+internal/webconsole/api/handlers_access.go:212:		FROM authorization_roles
+internal/webconsole/api/handlers_access.go:247:		FROM authorization_role_permissions
+internal/webconsole/api/handlers_access.go:474:		FROM authorization_roles ar
+internal/webconsole/api/handlers_access.go:475:		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
+internal/webconsole/api/handlers_access.go:515:		FROM authorization_roles
+internal/webconsole/api/handlers_access.go:529:		FROM authorization_roles ar
+internal/webconsole/api/handlers_access.go:530:		JOIN authorization_role_versions v ON v.role_id = ar.id
+internal/webconsole/api/handlers_access.go:593:		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/webconsole/api/handlers_access.go:626:	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest); err != nil {
+internal/webconsole/api/handlers_access.go:642:	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, now, roleID, latest); err != nil {
+internal/webconsole/api/handlers_access.go:669:		INSERT INTO authorization_role_versions (role_id, version, permissions_json, risk, created_by, created_at)
+internal/webconsole/api/handlers_access.go:682:	if err := tx.QueryRowContext(ctx, `SELECT version FROM authorization_roles WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, roleID, orgID).Scan(&version); err != nil {
+internal/webconsole/api/handlers_access.go:692:	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE ram_role_id=?`, roleID).Scan(&n); err != nil {
+internal/webconsole/api/handlers_access.go:698:	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id=? AND org_id=? AND revoked_at IS NULL`, roleID, orgID).Scan(&n); err != nil {
+internal/webconsole/api/handlers_access.go:706:	res, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET revoked_at=?, updated_at=?, version=version+1 WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, now, now, roleID, orgID)
+internal/webconsole/api/handlers_access.go:772:	if _, err := exec.ExecContext(ctx, `DELETE FROM authorization_role_permissions WHERE role_id=?`, roleID); err != nil {
+internal/webconsole/api/handlers_access.go:783:		if _, err := exec.ExecContext(ctx, `INSERT INTO authorization_role_permissions (role_id,permission_key,resource_kind,delegatable,created_at) VALUES (?,?,?,?,?)`, roleID, permission, resourceKind, 0, now); err != nil {
+internal/webconsole/api/handlers_access.go:791:	rows, err := db.QueryContext(ctx, `SELECT permission_key FROM authorization_role_permissions WHERE role_id=? ORDER BY permission_key`, roleID)
+internal/webconsole/api/handlers_access.go:999:		FROM authorization_roles
+internal/webconsole/api/handlers_access.go:1327:	if decision.Source == string(authz.SourceCustomRole) && strings.HasPrefix(decision.EvidenceRef, "authorization_role_assignments:") {
+internal/webconsole/api/handlers_access.go:1328:		return strings.TrimPrefix(decision.EvidenceRef, "authorization_role_assignments:")
+internal/webconsole/api/handlers_permissions_test.go:158:		`SELECT revoked_at FROM authorization_role_assignments WHERE org_id = 'org-http-other' AND id = 'asgn-http-cross'`,
+internal/webconsole/api/handlers_permissions_test.go:312:		if d.Permission == permission && d.Source == string(authz.SourceCustomRole) && d.GrantID == grantID && d.Status == "allowed" && d.EvidenceRef == "authorization_role_assignments:"+grantID {
+internal/webconsole/api/handlers_permissions_test.go:341:		`INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+internal/webconsole/api/handlers_permissions_test.go:346:		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+internal/webconsole/api/handlers_permissions_test.go:351:		`INSERT INTO authorization_role_assignments
+internal/webconsole/api/handlers_teams_p3.go:155:	RAMRoleKeys        []string `json:"ram_role_keys"`
+internal/webconsole/api/handlers_teams_p3.go:184:		writeError(w, http.StatusBadRequest, "access_profile_retired", "access_profile_* fields are retired; use ram_role_keys")
+internal/webconsole/api/handlers_teams_p3.go:255:		return errors.New("team template RAM Role resolver unavailable")
+internal/webconsole/api/handlers_teams_p2.go:73:	RAMRoleKeys        *[]string `json:"ram_role_keys"`
+internal/webconsole/api/handlers_teams_p2.go:1054:	RAMRoleKeys        []string `json:"ram_role_keys"`
+internal/webconsole/api/handlers_teams_p2.go:1231:			"ram_role_keys":       nonNilStrings(sl.Config.RAMRoleKeys),
+internal/webconsole/api/handlers_team_ram_roles_test.go:17:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-contributor',?,'custom','Contributor','','user:owner',datetime('now'),datetime('now'),1)`, sess.OrgID); err != nil {
+internal/webconsole/api/handlers_team_ram_roles_test.go:25:	resp := orgScopedPut(t, path, []byte(`{"ram_role_ids":["role-contributor"],"expected_version":1}`), sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:34:	resp = orgScopedPost(t, path+"/preview", `{"ram_role_ids":[]}`, sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:39:	removed, _ := preview["removed_ram_role_ids"].([]any)
+internal/webconsole/api/handlers_team_ram_roles_test.go:44:	resp = orgScopedPut(t, path, []byte(`{"ram_role_ids":[],"expected_version":1}`), sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:57:	ids := mapping["ram_role_ids"].([]any)
+internal/webconsole/api/handlers_team_ram_roles_test.go:65:	if _, err := db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,name,description,created_by,created_at,updated_at,version) VALUES ('role-other','org-other','custom','Other','','user:owner',datetime('now'),datetime('now'),1)`); err != nil {
+internal/webconsole/api/handlers_team_ram_roles_test.go:71:	resp := orgScopedPut(t, ts.URL+"/api/teams/"+tm.ID().String()+"/roles/impl/ram-roles", []byte(`{"ram_role_ids":["role-other"],"expected_version":1}`), sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:99:	create := orgScopedPost(t, ts.URL+"/api/teams", `{"name":"Team Basic Contract","description":"ram","visibility":"org-private","roles":[{"role":"dev","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team basic"],"access_requirements":["team.read","team.memory.read"]}]}`, sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:106:	keys := roles[0].(map[string]any)["ram_role_keys"].([]any)
+internal/webconsole/api/handlers_team_ram_roles_test.go:108:		t.Fatalf("created ram_role_keys=%#v", keys)
+internal/webconsole/api/handlers_team_ram_roles_test.go:112:	preview := orgScopedPost(t, path+"/preview", `{"ram_role_ids":["team-basic"]}`, sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:117:	if got := previewBody["next_ram_role_ids"].([]any); len(got) != 1 || got[0] != "team-basic" {
+internal/webconsole/api/handlers_team_ram_roles_test.go:120:	replace := orgScopedPut(t, path, []byte(`{"ram_role_ids":["team-basic"],"expected_version":1}`), sess)
+internal/webconsole/api/handlers_team_ram_roles_test.go:158:	revoke := orgScopedPut(t, path, []byte(`{"ram_role_ids":[],"expected_version":2}`), sess)

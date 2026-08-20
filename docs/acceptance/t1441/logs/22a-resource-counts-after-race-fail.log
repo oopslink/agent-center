@@ -1,0 +1,6 @@
+$ ulimit -u
+4000
+$ ulimit -n
+256
+$ ps -A | wc -l
+    4172

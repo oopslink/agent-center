@@ -1,0 +1,106 @@
+$ go test ./...
+?   	github.com/oopslink/agent-center/cmd/agent-center	[no test files]
+ok  	github.com/oopslink/agent-center/cmd/fakeagent	0.441s
+?   	github.com/oopslink/agent-center/cmd/mcp-tools-export	[no test files]
+ok  	github.com/oopslink/agent-center/internal/admin/api	(cached)
+ok  	github.com/oopslink/agent-center/internal/admin/backup	2.499s
+ok  	github.com/oopslink/agent-center/internal/admin/clienttransport	0.974s
+ok  	github.com/oopslink/agent-center/internal/admintoken	1.226s
+ok  	github.com/oopslink/agent-center/internal/admintoken/service	2.768s
+ok  	github.com/oopslink/agent-center/internal/admintoken/sqlite	3.392s
+ok  	github.com/oopslink/agent-center/internal/agent	2.299s
+ok  	github.com/oopslink/agent-center/internal/agent/service	5.663s
+ok  	github.com/oopslink/agent-center/internal/agent/sqlite	5.252s
+ok  	github.com/oopslink/agent-center/internal/agentadapter	3.410s
+ok  	github.com/oopslink/agent-center/internal/agentadapter/claudecode	3.123s
+ok  	github.com/oopslink/agent-center/internal/agentadapter/codex	3.330s
+ok  	github.com/oopslink/agent-center/internal/agentadapter/opencode	3.372s
+ok  	github.com/oopslink/agent-center/internal/agentruntime	12.335s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	27.282s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	2.884s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	9.436s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	15.645s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	2.779s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	2.835s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	2.854s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	2.393s
+ok  	github.com/oopslink/agent-center/internal/agentsupervisor	4.179s
+ok  	github.com/oopslink/agent-center/internal/airuntime	2.619s
+ok  	github.com/oopslink/agent-center/internal/airuntime/sqlite	5.299s
+ok  	github.com/oopslink/agent-center/internal/authorization	(cached)
+ok  	github.com/oopslink/agent-center/internal/autoassign	2.434s
+ok  	github.com/oopslink/agent-center/internal/background	2.314s
+ok  	github.com/oopslink/agent-center/internal/blobstore	2.372s
+ok  	github.com/oopslink/agent-center/internal/claudestream	1.990s
+ok  	github.com/oopslink/agent-center/internal/cli	(cached)
+ok  	github.com/oopslink/agent-center/internal/clock	1.599s
+?   	github.com/oopslink/agent-center/internal/coderepo	[no test files]
+ok  	github.com/oopslink/agent-center/internal/coderepo/provider	1.417s
+ok  	github.com/oopslink/agent-center/internal/coderepo/service	3.127s
+?   	github.com/oopslink/agent-center/internal/coderepo/sqlite	[no test files]
+ok  	github.com/oopslink/agent-center/internal/cognition/memory	17.639s
+ok  	github.com/oopslink/agent-center/internal/cognition/memory/centergit	44.213s
+ok  	github.com/oopslink/agent-center/internal/cognition/memory/teammemory	2.019s
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder	2.023s
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/service	6.271s
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/sqlite	3.702s
+?   	github.com/oopslink/agent-center/internal/cognition/ruleregistry	[no test files]
+ok  	github.com/oopslink/agent-center/internal/cognition/ruleregistry/sqlite	2.512s
+ok  	github.com/oopslink/agent-center/internal/cognition/wakeguard	1.696s
+ok  	github.com/oopslink/agent-center/internal/concurrency	1.765s
+ok  	github.com/oopslink/agent-center/internal/config	1.095s
+ok  	github.com/oopslink/agent-center/internal/conversation	0.778s
+ok  	github.com/oopslink/agent-center/internal/conversation/replyguard	0.899s
+ok  	github.com/oopslink/agent-center/internal/conversation/service	39.488s
+ok  	github.com/oopslink/agent-center/internal/conversation/sqlite	24.919s
+ok  	github.com/oopslink/agent-center/internal/environment	1.086s
+ok  	github.com/oopslink/agent-center/internal/environment/controlstream	1.081s
+ok  	github.com/oopslink/agent-center/internal/environment/service	35.008s
+ok  	github.com/oopslink/agent-center/internal/environment/sqlite	4.888s
+ok  	github.com/oopslink/agent-center/internal/files	0.856s
+ok  	github.com/oopslink/agent-center/internal/files/service	5.800s
+ok  	github.com/oopslink/agent-center/internal/files/sqlite	2.931s
+ok  	github.com/oopslink/agent-center/internal/identity	19.038s
+ok  	github.com/oopslink/agent-center/internal/idgen	0.381s
+ok  	github.com/oopslink/agent-center/internal/mcphost	(cached)
+ok  	github.com/oopslink/agent-center/internal/mention	0.381s
+ok  	github.com/oopslink/agent-center/internal/observability	0.415s
+ok  	github.com/oopslink/agent-center/internal/observability/escalator	2.689s
+ok  	github.com/oopslink/agent-center/internal/observability/peek	1.216s
+ok  	github.com/oopslink/agent-center/internal/observability/query	19.103s
+ok  	github.com/oopslink/agent-center/internal/observability/sqlite	8.091s
+?   	github.com/oopslink/agent-center/internal/outbox	[no test files]
+ok  	github.com/oopslink/agent-center/internal/outbox/sqlite	1.613s
+ok  	github.com/oopslink/agent-center/internal/persistence	(cached)
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.382s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration	2.344s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite	1.250s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	50.140s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	17.631s
+ok  	github.com/oopslink/agent-center/internal/runtimefs	1.147s
+ok  	github.com/oopslink/agent-center/internal/secretmgmt	0.395s
+ok  	github.com/oopslink/agent-center/internal/secretmgmt/service	6.949s
+ok  	github.com/oopslink/agent-center/internal/secretmgmt/sqlite	6.224s
+?   	github.com/oopslink/agent-center/internal/settings	[no test files]
+ok  	github.com/oopslink/agent-center/internal/settings/sqlite	1.083s
+ok  	github.com/oopslink/agent-center/internal/supervisormanager	28.456s
+ok  	github.com/oopslink/agent-center/internal/team	0.476s
+ok  	github.com/oopslink/agent-center/internal/team/migration	1.684s
+ok  	github.com/oopslink/agent-center/internal/team/service	(cached)
+ok  	github.com/oopslink/agent-center/internal/team/sqlite	3.688s
+ok  	github.com/oopslink/agent-center/internal/team/tool	1.199s
+ok  	github.com/oopslink/agent-center/internal/usage	0.372s
+ok  	github.com/oopslink/agent-center/internal/usage/sqlite	5.924s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	(cached)
+ok  	github.com/oopslink/agent-center/internal/webconsole/spa	0.627s
+ok  	github.com/oopslink/agent-center/internal/webconsole/sse	1.398s
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	(cached)
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol	2.415s
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher	0.460s
+ok  	github.com/oopslink/agent-center/internal/workerdaemon/workercontroller	1.159s
+ok  	github.com/oopslink/agent-center/internal/workforce	0.755s
+ok  	github.com/oopslink/agent-center/internal/workforce/service	12.045s
+ok  	github.com/oopslink/agent-center/internal/workforce/sqlite	9.657s
+ok  	github.com/oopslink/agent-center/tests/e2e	50.529s
+?   	github.com/oopslink/agent-center/tests/e2e/cmd/fakeclaude	[no test files]
+ok  	github.com/oopslink/agent-center/tests/integration	3.827s
