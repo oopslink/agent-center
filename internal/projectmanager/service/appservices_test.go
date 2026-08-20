@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -38,6 +39,8 @@ func setup(t *testing.T) (*Service, *outboxsql.OutboxRepo, context.Context) {
 		IDGen:        idgen.NewGenerator(clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())),
 		Clock:        clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC()),
 	})
+	authorizer := authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
+	svc.authorizer = authorizer
 	return svc, ob, context.Background()
 }
 

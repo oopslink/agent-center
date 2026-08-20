@@ -167,6 +167,12 @@ func NewOverdueBlockedReminder(svc *Service, clk clock.Clock, threshold, tick ti
 // latch for tasks no longer blocked. Returns the number of reminders emitted this
 // sweep. Exposed for tests.
 func (c *OverdueBlockedReminder) Tick(ctx context.Context) (int, error) {
+	if c == nil || c.svc == nil {
+		return 0, nil
+	}
+	if err := c.svc.requireBackgroundAuthorization(ctx, "overdue_block_reminder"); err != nil {
+		return 0, err
+	}
 	now := c.clk.Now()
 	blocked, err := c.svc.listBlockedWithSince(ctx)
 	if err != nil {

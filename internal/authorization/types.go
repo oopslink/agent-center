@@ -6,6 +6,7 @@
 package authorization
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,12 +19,21 @@ type Transport string
 type DecisionSource string
 type EnforcementMode string
 
+// EffectiveResolver is the stable authorization entrypoint for production
+// transports. HTTP, MCP/admin, and background callers must route permission
+// decisions through ResolveEffective so shadow/enforce mode, cache invalidation,
+// and audit behavior stay transport-independent.
+type EffectiveResolver interface {
+	ResolveEffective(context.Context, CheckRequest) (ExplainResult, error)
+}
+
 const (
-	TransportWeb       Transport = "web"
-	TransportMCP       Transport = "mcp"
-	TransportAdminHTTP Transport = "admin_http"
-	TransportGitHTTP   Transport = "git_http"
-	TransportSystem    Transport = "system"
+	TransportWeb        Transport = "web"
+	TransportMCP        Transport = "mcp"
+	TransportAdminHTTP  Transport = "admin_http"
+	TransportGitHTTP    Transport = "git_http"
+	TransportBackground Transport = "background"
+	TransportSystem     Transport = "system"
 
 	SourceOrgRole                 DecisionSource = "org_role"
 	SourceProjectMember           DecisionSource = "project_member"
@@ -122,6 +132,7 @@ type ExplainResult struct {
 type ShadowComparison struct {
 	Mode              EnforcementMode `json:"mode"`
 	SubjectRef        SubjectRef      `json:"subject_ref"`
+	Transport         Transport       `json:"transport"`
 	Permission        PermissionKey   `json:"permission"`
 	Resource          ResourceScope   `json:"resource"`
 	LegacyAllowed     bool            `json:"legacy_allowed"`
@@ -136,6 +147,19 @@ type ShadowMetrics struct {
 	Mismatches     int64 `json:"mismatches"`
 	LegacyOnly     int64 `json:"legacy_only"`
 	EquivalentOnly int64 `json:"equivalent_only"`
+}
+
+type ShadowReadiness struct {
+	Mode            EnforcementMode `json:"mode"`
+	WindowStartedAt string          `json:"window_started_at"`
+	WindowEndedAt   string          `json:"window_ended_at"`
+	Transports      []string        `json:"transports"`
+	Checks          int64           `json:"checks"`
+	Mismatches      int64           `json:"mismatches"`
+	LegacyOnly      int64           `json:"legacy_only"`
+	EquivalentOnly  int64           `json:"equivalent_only"`
+	Ready           bool            `json:"ready"`
+	Reason          string          `json:"reason"`
 }
 
 type PermissionDefinition struct {

@@ -107,6 +107,12 @@ func NewResolvedIssueCloser(svc *Service, delay, tick time.Duration, log func(st
 }
 
 func (c *ResolvedIssueCloser) Tick(ctx context.Context) (int, error) {
+	if c == nil || c.svc == nil {
+		return 0, nil
+	}
+	if err := c.svc.requireBackgroundAuthorization(ctx, "resolved_issue_closer"); err != nil {
+		return 0, err
+	}
 	return c.svc.CloseResolvedIssues(ctx, c.delay)
 }
 

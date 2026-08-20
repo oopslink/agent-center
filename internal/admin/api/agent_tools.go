@@ -83,7 +83,7 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 		return nil, false
 	}
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		decision, err := checkAdminAuthorization(r.Context(), d, authz.CheckRequest{
 			SubjectRef: authz.WorkerSubject(workerID),
 			Transport:  authz.TransportMCP,
 			Permission: "agent.operate.self",
