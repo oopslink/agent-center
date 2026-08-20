@@ -811,7 +811,8 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
 
 /** import_team_template — re-home an exported envelope into this org
  *  (POST /team-templates/import). The backend applies envelope defaults and
- *  resolves missing runtime fields through the org AI Runtime default profile. */
+ *  resolves portable RAM role keys against the target organization's RAM Role
+ *  catalog, preferring target-org roles before system roles. */
 export function useImportTemplate() {
   const qc = useQueryClient();
   return useMutation({
@@ -820,6 +821,8 @@ export function useImportTemplate() {
       description?: string;
       roles?: Array<Partial<RoleSlot>>;
       workflow_template_ref?: string;
+      source_org_id?: string;
+      source_id?: string;
     }) => api.post<TeamTemplate>('/team-templates/import', doc),
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.templates() }),
   });

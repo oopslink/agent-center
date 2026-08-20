@@ -131,7 +131,7 @@ func TestImportTemplate_UncuratedWithDefaults(t *testing.T) {
 	ts := newTestServer(t, deps)
 	defer ts.Close()
 
-	// a partial envelope — missing runtime fields fall back to the org AI Runtime default profile.
+	// a partial envelope — missing runtime fields fall back to direct runtime defaults.
 	body := `{"name":"Imported","roles":[{"role":"reviewer"}],"workflow_template_ref":"plan-x"}`
 	resp := orgScopedPost(t, ts.URL+"/api/team-templates/import", body, sess)
 	if resp.StatusCode != http.StatusCreated {
