@@ -652,6 +652,9 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
       { onSuccess: () => { setDraft(null); preview.reset(); } },
     );
   };
+  const previewAddedRoleCount = preview.data?.added_ram_role_ids?.length ?? 0;
+  const previewRemovedRoleCount = preview.data?.removed_ram_role_ids?.length ?? 0;
+  const previewProjectCount = preview.data?.affected_project_ids?.length ?? 0;
   return (
     <div className="p-4" data-testid={`access-mapping-${entry.team.id}-${entry.role}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -678,7 +681,7 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" className="rounded border border-border-base px-2.5 py-1 text-xs" disabled={!changed || preview.isPending} onClick={runPreview}>Preview impact</button>
             <button type="button" className="rounded bg-btn-primary-bg px-2.5 py-1 text-xs font-medium text-btn-primary-fg" disabled={!preview.data || replace.isPending} onClick={save}>Save mapping</button>
-            {preview.data && <span className="text-xs text-text-muted" data-testid="access-mapping-preview">{preview.data.affected_members} members · +{preview.data.added_ram_role_ids.length} / −{preview.data.removed_ram_role_ids.length} roles · {preview.data.affected_project_ids.length} projects</span>}
+            {preview.data && <span className="text-xs text-text-muted" data-testid="access-mapping-preview">{preview.data.affected_members} members · +{previewAddedRoleCount} / −{previewRemovedRoleCount} roles · {previewProjectCount} projects</span>}
           </div>
           {(preview.isError || replace.isError) && <p className="mt-2 text-xs text-danger" role="alert">{((preview.error ?? replace.error) as Error).message}</p>}
         </>

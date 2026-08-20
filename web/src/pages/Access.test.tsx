@@ -82,6 +82,31 @@ describe('Access page', () => {
     expect(previewBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'] });
   });
 
+  it('renders Team Role mapping preview when nullable impact arrays are returned', async () => {
+    server.use(
+      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
+      http.post('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles/preview', () => HttpResponse.json({
+        team_id: 'team-7c19b0',
+        team_role: 'planner',
+        current_ram_role_ids: ['team-basic'],
+        next_ram_role_ids: ['team-basic', 'team-curator'],
+        added_ram_role_ids: ['team-curator'],
+        removed_ram_role_ids: null,
+        affected_members: 1,
+        affected_project_ids: null,
+        version: 7,
+      })),
+    );
+    renderPage();
+    const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
+    fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
+    const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
+    fireEvent.click(within(options).getByRole('option', { name: /Team curator/ }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
+
+    expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members · +1 / −0 roles · 0 projects');
+  });
+
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();

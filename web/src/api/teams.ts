@@ -256,10 +256,10 @@ export interface TeamRAMRoleMappingImpact {
   team_role: string;
   current_ram_role_ids: string[];
   next_ram_role_ids: string[];
-  added_ram_role_ids: string[];
-  removed_ram_role_ids: string[];
+  added_ram_role_ids: string[] | null;
+  removed_ram_role_ids: string[] | null;
   affected_members: number;
-  affected_project_ids: string[];
+  affected_project_ids: string[] | null;
   version: number;
 }
 
