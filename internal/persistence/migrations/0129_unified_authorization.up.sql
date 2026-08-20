@@ -174,7 +174,12 @@ VALUES
     ('admin_token.manage', 'access', '["admin_token"]', '["manage"]', '["admin_tokens.scopes_json"]', datetime('now')),
     ('git.global.read', 'access', '["git"]', '["read"]', '["system"]', datetime('now')),
     ('git.agent.read.self', 'access', '["agent"]', '["read"]', '["agents.identity_member_id"]', datetime('now')),
-    ('git.agent.write.self', 'access', '["agent"]', '["update"]', '["agents.identity_member_id"]', datetime('now'));
+    ('git.agent.write.self', 'access', '["agent"]', '["update"]', '["agents.identity_member_id"]', datetime('now')),
+    ('background.auto_assign', 'access', '["background"]', '["run"]', '["system.background"]', datetime('now')),
+    ('background.lease_check', 'access', '["background"]', '["run"]', '["system.background"]', datetime('now')),
+    ('background.overdue_block_reminder', 'access', '["background"]', '["run"]', '["system.background"]', datetime('now')),
+    ('background.plan_reconcile', 'access', '["background"]', '["run"]', '["system.background"]', datetime('now')),
+    ('background.resolved_issue_close', 'access', '["background"]', '["run"]', '["system.background"]', datetime('now'));
 
 INSERT OR IGNORE INTO authorization_roles
     (id, org_id, kind, name, description, created_by, created_at, updated_at)

@@ -60,13 +60,14 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 		permission, mapped := authz.PermissionForBearerScope(string(scope))
 		if mapped {
 			matchedScope := matchedBearerScope(auth.Scopes, scope)
-			decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+			explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 				SubjectRef:  adminBearerSubject(auth.Owner),
 				Transport:   authz.TransportAdminHTTP,
 				BearerScope: matchedScope,
 				Permission:  permission,
 				Resource:    bearerResource(permission),
 			})
+			decision := explain.Decision
 			if err != nil || !decision.Allowed {
 				writeError(w, http.StatusForbidden, "scope_forbidden",
 					"token lacks required scope: "+string(scope))

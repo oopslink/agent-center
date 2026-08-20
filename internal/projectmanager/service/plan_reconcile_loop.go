@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/background"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -34,14 +35,19 @@ type PlanReconcileLoop struct {
 	svc      *Service
 	interval time.Duration
 	logger   func(string)
+	auth     *authz.Service
 }
 
 // NewPlanReconcileLoop builds the loop. interval<=0 defaults to 60s.
-func NewPlanReconcileLoop(svc *Service, interval time.Duration, logger func(string)) *PlanReconcileLoop {
+func NewPlanReconcileLoop(svc *Service, interval time.Duration, logger func(string), authorizer ...*authz.Service) *PlanReconcileLoop {
 	if interval <= 0 {
 		interval = 60 * time.Second
 	}
-	return &PlanReconcileLoop{svc: svc, interval: interval, logger: logger}
+	var auth *authz.Service
+	if len(authorizer) > 0 {
+		auth = authorizer[0]
+	}
+	return &PlanReconcileLoop{svc: svc, interval: interval, logger: logger, auth: auth}
 }
 
 // Run executes one reconcile sweep immediately, then on each tick, until ctx is
@@ -49,7 +55,7 @@ func NewPlanReconcileLoop(svc *Service, interval time.Duration, logger func(stri
 // error is logged and the loop keeps running (the failed work retries next tick).
 func (l *PlanReconcileLoop) Run(ctx context.Context) {
 	if passCtx, cancel, ok := background.OperationContext(ctx, 0); ok {
-		l.runOnce(passCtx)
+		_ = l.Tick(passCtx)
 		cancel()
 	}
 	t := time.NewTicker(l.interval)
@@ -63,15 +69,19 @@ func (l *PlanReconcileLoop) Run(ctx context.Context) {
 			if !ok {
 				return
 			}
-			l.runOnce(passCtx)
+			_ = l.Tick(passCtx)
 			cancel()
 		}
 	}
 }
 
-func (l *PlanReconcileLoop) runOnce(ctx context.Context) {
+func (l *PlanReconcileLoop) Tick(ctx context.Context) error {
 	if l.svc == nil {
-		return
+		return nil
+	}
+	if err := requireBackgroundAuthorization(ctx, l.auth, "plan_reconcile"); err != nil {
+		l.log("plan reconcile loop: authorization failed: " + err.Error())
+		return err
 	}
 	// Per-plan errors are logged so one bad plan never silences the whole sweep;
 	// the returned (first) error is also logged for the list/setup failures.
@@ -80,7 +90,9 @@ func (l *PlanReconcileLoop) runOnce(ctx context.Context) {
 	}
 	if err := l.svc.ReconcileRunningPlans(ctx, errFn); err != nil {
 		l.log("plan reconcile loop: " + err.Error())
+		return err
 	}
+	return nil
 }
 
 func (l *PlanReconcileLoop) log(msg string) {

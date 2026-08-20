@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strings"
@@ -28,6 +29,7 @@ import (
 // plan conversation + a permissive AgentDirectory), the relay (to materialize
 // the plan conversation), and the conversation/message repos to assert dispatch.
 type planAdvanceHarness struct {
+	rawDB      *sql.DB
 	svc        *Service
 	plans      *pmsql.PlanRepo
 	tasks      *pmsql.TaskRepo

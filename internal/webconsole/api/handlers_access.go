@@ -1228,7 +1228,7 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 			out = append(out, decision)
 			continue
 		}
-		explain, err := svc.Explain(ctx, authz.CheckRequest{
+		explain, err := svc.ResolveEffective(ctx, authz.CheckRequest{
 			SubjectRef: authz.SubjectRef(decision.SubjectRef),
 			Transport:  authz.TransportWeb,
 			Permission: authz.PermissionKey(decision.Permission),

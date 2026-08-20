@@ -13,12 +13,13 @@ func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Reques
 	if d.Authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,
 		Resource:   resource,
 	})
+	decision := explain.Decision
 	if err != nil || !decision.Allowed {
 		writeAuthorizationError(w, decision, err)
 		return false

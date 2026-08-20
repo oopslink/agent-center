@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -141,13 +142,14 @@ type OverdueBlockedReminder struct {
 	threshold time.Duration
 	tick      time.Duration
 	log       func(string, ...any)
+	auth      *authz.Service
 
 	reminded map[pm.TaskID]bool
 }
 
 // NewOverdueBlockedReminder wires the checker. Zero threshold/tick → package defaults;
 // nil clk → system clock; nil log → no-op.
-func NewOverdueBlockedReminder(svc *Service, clk clock.Clock, threshold, tick time.Duration, log func(string, ...any)) *OverdueBlockedReminder {
+func NewOverdueBlockedReminder(svc *Service, clk clock.Clock, threshold, tick time.Duration, log func(string, ...any), authorizer ...*authz.Service) *OverdueBlockedReminder {
 	if threshold <= 0 {
 		threshold = BlockOverdueDefaultThreshold
 	}
@@ -160,13 +162,20 @@ func NewOverdueBlockedReminder(svc *Service, clk clock.Clock, threshold, tick ti
 	if log == nil {
 		log = func(string, ...any) {}
 	}
-	return &OverdueBlockedReminder{svc: svc, clk: clk, threshold: threshold, tick: tick, log: log, reminded: map[pm.TaskID]bool{}}
+	var auth *authz.Service
+	if len(authorizer) > 0 {
+		auth = authorizer[0]
+	}
+	return &OverdueBlockedReminder{svc: svc, clk: clk, threshold: threshold, tick: tick, log: log, auth: auth, reminded: map[pm.TaskID]bool{}}
 }
 
 // Tick runs one sweep: emit a reminder for each newly-overdue block, and prune the
 // latch for tasks no longer blocked. Returns the number of reminders emitted this
 // sweep. Exposed for tests.
 func (c *OverdueBlockedReminder) Tick(ctx context.Context) (int, error) {
+	if err := requireBackgroundAuthorization(ctx, c.auth, "overdue_block_reminder"); err != nil {
+		return 0, err
+	}
 	now := c.clk.Now()
 	blocked, err := c.svc.listBlockedWithSince(ctx)
 	if err != nil {

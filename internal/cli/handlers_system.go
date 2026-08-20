@@ -265,6 +265,7 @@ func ServerCommand() *Command {
 				leaseChecker := pmservice.NewLeaseChecker(
 					app.PMService, nil, 0,
 					func(msg string, a ...any) { fmt.Fprintf(out, "[lease-checker] "+msg+"\n", a...) },
+					app.Authorization,
 				)
 				leaseCheckerCtx, leaseCheckerCancel := context.WithCancel(ctx)
 				go func() {
@@ -281,6 +282,7 @@ func ServerCommand() *Command {
 				overdueReminder := pmservice.NewOverdueBlockedReminder(
 					app.PMService, nil, 0, 0,
 					func(msg string, a ...any) { fmt.Fprintf(out, "[overdue-block-reminder] "+msg+"\n", a...) },
+					app.Authorization,
 				)
 				overdueReminderCtx, overdueReminderCancel := context.WithCancel(ctx)
 				go func() {
@@ -298,6 +300,7 @@ func ServerCommand() *Command {
 				autoAssign := pmservice.NewAutoAssignReconciler(
 					app.PMService, nil, 0,
 					func(msg string, a ...any) { fmt.Fprintf(out, "[auto-assign] "+msg+"\n", a...) },
+					app.Authorization,
 				)
 				autoAssignCtx, autoAssignCancel := context.WithCancel(ctx)
 				go func() {
@@ -311,6 +314,7 @@ func ServerCommand() *Command {
 				resolvedIssueCloser := pmservice.NewResolvedIssueCloser(
 					app.PMService, 0, 0,
 					func(msg string, a ...any) { fmt.Fprintf(out, "[resolved-issue-closer] "+msg+"\n", a...) },
+					app.Authorization,
 				)
 				resolvedIssueCloserCtx, resolvedIssueCloserCancel := context.WithCancel(ctx)
 				go func() {

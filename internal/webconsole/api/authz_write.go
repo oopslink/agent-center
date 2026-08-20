@@ -11,12 +11,13 @@ func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDe
 	if d.Authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.UserSubject(caller.ID()),
 		Transport:  authz.TransportWeb,
 		Permission: permission,
 		Resource:   resource,
 	})
+	decision := explain.Decision
 	if err != nil || !decision.Allowed {
 		writeAuthorizationError(w, decision, err)
 		return false
@@ -28,12 +29,13 @@ func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d Ha
 	if d.Authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 		SubjectRef: subject,
 		Transport:  authz.TransportWeb,
 		Permission: permission,
 		Resource:   resource,
 	})
+	decision := explain.Decision
 	if err != nil || !decision.Allowed {
 		writeAuthorizationError(w, decision, err)
 		return false

@@ -167,7 +167,7 @@ func (s *Service) ListDefinitions(ctx context.Context) ([]PermissionDefinition, 
 }
 
 func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, error) {
-	exp, err := s.Explain(ctx, req)
+	exp, err := s.ResolveEffective(ctx, req)
 	if err != nil {
 		return exp.Decision, err
 	}
@@ -178,6 +178,10 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, 
 }
 
 func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult, error) {
+	return s.ResolveEffective(ctx, req)
+}
+
+func (s *Service) ResolveEffective(ctx context.Context, req CheckRequest) (ExplainResult, error) {
 	decision := AccessDecision{
 		SubjectRef: req.SubjectRef,
 		Permission: req.Permission,
@@ -775,13 +779,19 @@ func (s *Service) requireManageRBAC(ctx context.Context, actor SubjectRef, orgID
 	if actor == "system" {
 		return nil
 	}
-	_, err := s.Check(ctx, CheckRequest{
+	exp, err := s.ResolveEffective(ctx, CheckRequest{
 		SubjectRef: actor,
 		Transport:  TransportSystem,
 		Permission: "org.member.role.manage",
 		Resource:   ResourceScope{Kind: "org", ID: orgID},
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if !exp.Decision.Allowed {
+		return ErrDenied
+	}
+	return nil
 }
 
 func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, roleID string, resource ResourceScope) error {
@@ -804,7 +814,7 @@ func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, 
 		}
 		target := resource
 		target.Kind = p.ResourceKind
-		exp, err := s.Explain(ctx, CheckRequest{
+		exp, err := s.ResolveEffective(ctx, CheckRequest{
 			SubjectRef: actor,
 			Transport:  TransportSystem,
 			Permission: p.PermissionKey,
@@ -883,7 +893,7 @@ func (s *Service) requireRevokeAllowed(ctx context.Context, actor SubjectRef, or
 	if actor == "system" {
 		return nil
 	}
-	if _, err := s.Check(ctx, CheckRequest{SubjectRef: actor, Transport: TransportSystem, Permission: "org.member.role.manage", Resource: ResourceScope{Kind: "org", ID: orgID}}); err == nil {
+	if exp, err := s.ResolveEffective(ctx, CheckRequest{SubjectRef: actor, Transport: TransportSystem, Permission: "org.member.role.manage", Resource: ResourceScope{Kind: "org", ID: orgID}}); err == nil && exp.Decision.Allowed {
 		return nil
 	}
 	return s.requireDelegatableRole(ctx, actor, target.RoleID, ResourceScope{
@@ -1160,6 +1170,8 @@ func (s *Service) addLegacyEffective(ctx context.Context, req CheckRequest, add 
 		return s.addWorkerEffective(req, add, denied)
 	case "git":
 		add("git.global.read", SourceSystem, "system:global_git_read", false)
+	case "background":
+		return s.addBackgroundEffective(req, add, denied)
 	}
 	return nil
 }
@@ -1214,6 +1226,8 @@ func (s *Service) addBuiltinEquivalentEffective(ctx context.Context, req CheckRe
 		return s.addWorkerEffective(req, add, denied)
 	case "git":
 		add("git.global.read", SourceSystem, "system:global_git_read", false)
+	case "background":
+		return s.addBackgroundEffective(req, add, denied)
 	}
 	return nil
 }
@@ -1931,16 +1945,16 @@ func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, ref 
 	case "uploader":
 		return ref.ScopeID == string(subject)
 	case "conversation":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: ref.ScopeID}})
+		exp, _ := s.ResolveEffective(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: ref.ScopeID}})
 		return exp.Decision.Allowed
 	case "project":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: ref.ScopeID}})
+		exp, _ := s.ResolveEffective(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: ref.ScopeID}})
 		return exp.Decision.Allowed
 	case "task":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "task.read", Resource: ResourceScope{Kind: "task", ID: ref.ScopeID}})
+		exp, _ := s.ResolveEffective(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "task.read", Resource: ResourceScope{Kind: "task", ID: ref.ScopeID}})
 		return exp.Decision.Allowed
 	case "issue":
-		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
+		exp, _ := s.ResolveEffective(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
 		return exp.Decision.Allowed
 	default:
 		return false
@@ -1983,6 +1997,34 @@ func (s *Service) addWorkerEffective(req CheckRequest, add func(PermissionKey, D
 	}
 	add("worker.heartbeat", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
 	add("worker.capability.report", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
+	return nil
+}
+
+var backgroundPermissions = map[string]PermissionKey{
+	"auto_assign":            "background.auto_assign",
+	"lease_check":            "background.lease_check",
+	"overdue_block_reminder": "background.overdue_block_reminder",
+	"plan_reconcile":         "background.plan_reconcile",
+	"resolved_issue_close":   "background.resolved_issue_close",
+}
+
+const BackgroundSubject SubjectRef = "system:background"
+
+func BackgroundResource(capability string) ResourceScope {
+	return ResourceScope{Kind: "background", ID: strings.TrimSpace(capability), OrgID: "system"}
+}
+
+func (s *Service) addBackgroundEffective(req CheckRequest, add func(PermissionKey, DecisionSource, string, bool), denied *[]string) error {
+	if req.SubjectRef != BackgroundSubject {
+		*denied = append(*denied, "subject is not the system background principal")
+		return nil
+	}
+	key, ok := backgroundPermissions[req.Resource.ID]
+	if !ok {
+		*denied = append(*denied, "background capability is not authorized")
+		return nil
+	}
+	add(key, SourceSystem, "system_background:"+req.Resource.ID, false)
 	return nil
 }
 
@@ -2196,6 +2238,11 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		if r.ID == "" {
 			r.ID = "*"
 		}
+	case "background":
+		if r.ID == "" {
+			return r, []string{"background capability required"}, ErrInvalid
+		}
+		r.OrgID = "system"
 	default:
 		return r, []string{"unsupported resource kind"}, ErrInvalid
 	}

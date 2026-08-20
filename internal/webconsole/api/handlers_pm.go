@@ -257,7 +257,7 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 		return nil, "", false
 	}
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.UserSubject(callerID.ID()),
 			Transport:  authz.TransportWeb,
 			Permission: "project.read",
@@ -267,6 +267,7 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 				OrgID: orgID,
 			},
 		})
+		decision := explain.Decision
 		if err != nil || !decision.Allowed {
 			writeAuthorizationError(w, decision, err)
 			return nil, "", false

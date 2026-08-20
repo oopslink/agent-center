@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -151,11 +152,12 @@ type LeaseChecker struct {
 	clk  clock.Clock
 	tick time.Duration
 	log  func(string, ...any)
+	auth *authz.Service
 }
 
 // NewLeaseChecker wires the checker. Zero tick → LeaseCheckDefaultTick; nil clk →
 // system clock; nil log → no-op.
-func NewLeaseChecker(svc *Service, clk clock.Clock, tick time.Duration, log func(string, ...any)) *LeaseChecker {
+func NewLeaseChecker(svc *Service, clk clock.Clock, tick time.Duration, log func(string, ...any), authorizer ...*authz.Service) *LeaseChecker {
 	if tick <= 0 {
 		tick = LeaseCheckDefaultTick
 	}
@@ -165,11 +167,18 @@ func NewLeaseChecker(svc *Service, clk clock.Clock, tick time.Duration, log func
 	if log == nil {
 		log = func(string, ...any) {}
 	}
-	return &LeaseChecker{svc: svc, clk: clk, tick: tick, log: log}
+	var auth *authz.Service
+	if len(authorizer) > 0 {
+		auth = authorizer[0]
+	}
+	return &LeaseChecker{svc: svc, clk: clk, tick: tick, log: log, auth: auth}
 }
 
 // Tick runs one sweep. Exposed for tests + the boot reconcile.
 func (c *LeaseChecker) Tick(ctx context.Context) (int, error) {
+	if err := requireBackgroundAuthorization(ctx, c.auth, "lease_check"); err != nil {
+		return 0, err
+	}
 	return c.svc.NudgeExpiredLeases(ctx)
 }
 

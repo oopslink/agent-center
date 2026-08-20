@@ -301,7 +301,7 @@ func (s SubjectRef) Validate() error {
 	if v == "system" {
 		return nil
 	}
-	for _, p := range []string{"user:", "agent:", "worker:"} {
+	for _, p := range []string{"user:", "agent:", "worker:", "system:"} {
 		if strings.HasPrefix(v, p) && len(v) > len(p) {
 			return nil
 		}
@@ -320,6 +320,9 @@ func (s SubjectRef) BareID() string {
 func (s SubjectRef) IsUser() bool   { return strings.HasPrefix(string(s), "user:") }
 func (s SubjectRef) IsAgent() bool  { return strings.HasPrefix(string(s), "agent:") }
 func (s SubjectRef) IsWorker() bool { return strings.HasPrefix(string(s), "worker:") }
+func (s SubjectRef) IsSystem() bool {
+	return string(s) == "system" || strings.HasPrefix(string(s), "system:")
+}
 func UserSubject(identityID string) SubjectRef {
 	return SubjectRef("user:" + strings.TrimSpace(identityID))
 }
@@ -328,6 +331,14 @@ func AgentSubject(identityMemberID string) SubjectRef {
 }
 func WorkerSubject(workerID string) SubjectRef {
 	return SubjectRef("worker:" + strings.TrimSpace(workerID))
+}
+
+func SystemSubject(name string) SubjectRef {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "system"
+	}
+	return SubjectRef("system:" + name)
 }
 
 func (r ResourceScope) Key() (string, string) {

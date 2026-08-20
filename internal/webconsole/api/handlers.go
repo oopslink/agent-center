@@ -303,12 +303,13 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 		return nil, nil, "", false
 	}
 	if d.Authorizer != nil {
-		if decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		if explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.UserSubject(callerID.ID()),
 			Transport:  authz.TransportWeb,
 			Permission: "org.read",
 			Resource:   authz.ResourceScope{Kind: "org", ID: orgID},
-		}); err != nil || !decision.Allowed {
+		}); err != nil || !explain.Decision.Allowed {
+			decision := explain.Decision
 			writeAuthorizationError(w, decision, err)
 			return nil, nil, "", false
 		}

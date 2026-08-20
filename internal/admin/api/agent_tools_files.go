@@ -330,7 +330,7 @@ func dedupScopeRefs(in []filesservice.ScopeRef) []filesservice.ScopeRef {
 // retained as a compatibility fallback.
 func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, fileURI files.FileURI) (bool, error) {
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.SubjectRef(agentActor(a)),
 			Transport:  authz.TransportMCP,
 			Permission: "file.download",
@@ -343,6 +343,7 @@ func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, 
 				IdentityMemberID: a.IdentityMemberID(),
 			},
 		})
+		decision := explain.Decision
 		return err == nil && decision.Allowed, nil
 	}
 	scopes, err := s.agentOwnDomainScopes(d, r, a)

@@ -69,6 +69,11 @@ var definitions = []PermissionDefinition{
 	def("git.global.read", []string{"git"}, []string{"read"}, []string{"system"}),
 	def("git.agent.read.self", []string{"agent"}, []string{"read"}, []string{"agents.identity_member_id"}),
 	def("git.agent.write.self", []string{"agent"}, []string{"update"}, []string{"agents.identity_member_id"}),
+	def("background.auto_assign", []string{"background"}, []string{"run"}, []string{"system.background"}),
+	def("background.lease_check", []string{"background"}, []string{"run"}, []string{"system.background"}),
+	def("background.overdue_block_reminder", []string{"background"}, []string{"run"}, []string{"system.background"}),
+	def("background.plan_reconcile", []string{"background"}, []string{"run"}, []string{"system.background"}),
+	def("background.resolved_issue_close", []string{"background"}, []string{"run"}, []string{"system.background"}),
 }
 
 func def(key string, kinds, actions, sources []string) PermissionDefinition {

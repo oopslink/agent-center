@@ -56,12 +56,16 @@ func (s *Server) permissionsCheckHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	decision, err := svc.Check(r.Context(), req)
+	explain, err := svc.ResolveEffective(r.Context(), req)
 	if err != nil {
-		writeAuthorizationError(w, decision, err)
+		writeAuthorizationError(w, explain.Decision, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, decision)
+	if !explain.Decision.Allowed {
+		writeAuthorizationError(w, explain.Decision, authz.ErrDenied)
+		return
+	}
+	writeJSON(w, http.StatusOK, explain.Decision)
 }
 
 func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +88,7 @@ func (s *Server) permissionsExplainHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	explain, err := svc.Explain(r.Context(), req)
+	explain, err := svc.ResolveEffective(r.Context(), req)
 	if err != nil && !errors.Is(err, authz.ErrDenied) {
 		writeAuthorizationError(w, explain.Decision, err)
 		return

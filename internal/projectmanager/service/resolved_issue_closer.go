@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/background"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -91,9 +92,10 @@ type ResolvedIssueCloser struct {
 	delay time.Duration
 	tick  time.Duration
 	log   func(string, ...any)
+	auth  *authz.Service
 }
 
-func NewResolvedIssueCloser(svc *Service, delay, tick time.Duration, log func(string, ...any)) *ResolvedIssueCloser {
+func NewResolvedIssueCloser(svc *Service, delay, tick time.Duration, log func(string, ...any), authorizer ...*authz.Service) *ResolvedIssueCloser {
 	if delay <= 0 {
 		delay = ResolvedIssueCloseDefaultDelay
 	}
@@ -103,10 +105,17 @@ func NewResolvedIssueCloser(svc *Service, delay, tick time.Duration, log func(st
 	if log == nil {
 		log = func(string, ...any) {}
 	}
-	return &ResolvedIssueCloser{svc: svc, delay: delay, tick: tick, log: log}
+	var auth *authz.Service
+	if len(authorizer) > 0 {
+		auth = authorizer[0]
+	}
+	return &ResolvedIssueCloser{svc: svc, delay: delay, tick: tick, log: log, auth: auth}
 }
 
 func (c *ResolvedIssueCloser) Tick(ctx context.Context) (int, error) {
+	if err := requireBackgroundAuthorization(ctx, c.auth, "resolved_issue_close"); err != nil {
+		return 0, err
+	}
 	return c.svc.CloseResolvedIssues(ctx, c.delay)
 }
 

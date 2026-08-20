@@ -709,7 +709,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	planReconcileLoopCtx, planReconcileLoopCancel := context.WithCancel(ctx)
 	planReconcileLoop := pmservice.NewPlanReconcileLoop(a.PMService, 60*time.Second, func(msg string) {
 		logger("webconsole plan reconcile: " + msg)
-	})
+	}, a.Authorization)
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
 	// Resolved issue lifecycle: after an issue remains resolved for the default
@@ -718,7 +718,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	resolvedIssueCloserCtx, resolvedIssueCloserCancel := context.WithCancel(ctx)
 	resolvedIssueCloser := pmservice.NewResolvedIssueCloser(a.PMService, 0, 0, func(msg string, args ...any) {
 		logger("webconsole resolved issue closer: " + fmt.Sprintf(msg, args...))
-	})
+	}, a.Authorization)
 	go func() {
 		_ = resolvedIssueCloser.Run(resolvedIssueCloserCtx)
 	}()

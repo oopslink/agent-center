@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/autoassign"
 	"github.com/oopslink/agent-center/internal/background"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -603,11 +604,12 @@ type AutoAssignReconciler struct {
 	clk  clock.Clock
 	tick time.Duration
 	log  func(string, ...any)
+	auth *authz.Service
 }
 
 // NewAutoAssignReconciler wires the reconciler. Zero tick → AutoAssignDefaultTick; nil
 // clk → system clock; nil log → no-op.
-func NewAutoAssignReconciler(svc *Service, clk clock.Clock, tick time.Duration, log func(string, ...any)) *AutoAssignReconciler {
+func NewAutoAssignReconciler(svc *Service, clk clock.Clock, tick time.Duration, log func(string, ...any), authorizer ...*authz.Service) *AutoAssignReconciler {
 	if tick <= 0 {
 		tick = AutoAssignDefaultTick
 	}
@@ -617,11 +619,18 @@ func NewAutoAssignReconciler(svc *Service, clk clock.Clock, tick time.Duration, 
 	if log == nil {
 		log = func(string, ...any) {}
 	}
-	return &AutoAssignReconciler{svc: svc, clk: clk, tick: tick, log: log}
+	var auth *authz.Service
+	if len(authorizer) > 0 {
+		auth = authorizer[0]
+	}
+	return &AutoAssignReconciler{svc: svc, clk: clk, tick: tick, log: log, auth: auth}
 }
 
 // Tick runs one sweep. Exposed for tests + the boot reconcile.
 func (r *AutoAssignReconciler) Tick(ctx context.Context) (int, error) {
+	if err := requireBackgroundAuthorization(ctx, r.auth, "auto_assign"); err != nil {
+		return 0, err
+	}
 	return r.svc.AutoAssignSweep(ctx)
 }
 

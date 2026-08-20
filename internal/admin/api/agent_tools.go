@@ -83,7 +83,7 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 		return nil, false
 	}
 	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+		explain, err := d.Authorizer.ResolveEffective(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.WorkerSubject(workerID),
 			Transport:  authz.TransportMCP,
 			Permission: "agent.operate.self",
@@ -94,6 +94,7 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 				IdentityMemberID: a.IdentityMemberID(),
 			},
 		})
+		decision := explain.Decision
 		if err != nil || !decision.Allowed {
 			writeError(w, http.StatusForbidden, "agent_not_bound_to_worker",
 				"agent is not bound to this worker")
