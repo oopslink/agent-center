@@ -1,4 +1,9 @@
-import { test as base, expect, type APIRequestContext } from "@playwright/test";
+import {
+  test as base,
+  expect,
+  request as playwrightRequest,
+  type APIRequestContext,
+} from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -183,19 +188,29 @@ secret_management:
       await rm(tempDir, { recursive: true, force: true });
     }
   },
-  authSession: async ({ agentCenter, request, context }, use) => {
-    const session = await createAuthSession(request, agentCenter.baseURL);
+  authSession: async ({ agentCenter, context }, use) => {
+    const signupRequest = await playwrightRequest.newContext();
+    const session = await createAuthSession(signupRequest, agentCenter.baseURL);
+    await signupRequest.dispose();
     await context.addCookies([
       {
         name: "ac_session",
         value: session.sessionCookie,
-        domain: "127.0.0.1",
-        path: "/",
+        url: agentCenter.baseURL,
         httpOnly: true,
         sameSite: "Lax",
       },
     ]);
     await use(session);
+  },
+  request: async ({ authSession }, use) => {
+    const authenticatedRequest = await playwrightRequest.newContext({
+      extraHTTPHeaders: {
+        Cookie: `ac_session=${authSession.sessionCookie}`,
+      },
+    });
+    await use(authenticatedRequest);
+    await authenticatedRequest.dispose();
   },
 });
 
