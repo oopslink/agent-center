@@ -478,14 +478,15 @@ func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation 
 	if s == nil || s.authorizer == nil {
 		return fmt.Errorf("%w: background authorization resolver is not wired for %s", authz.ErrDenied, operation)
 	}
-	subject := authz.WorkerSubject("background")
+	subject := authz.AgentSubject("background")
 	exp, err := s.authorizer.ResolveEffective(ctx, authz.CheckRequest{
 		SubjectRef: subject,
 		Transport:  authz.TransportBackground,
 		Permission: "worker.capability.report",
 		Resource: authz.ResourceScope{
-			Kind: "worker",
-			ID:   subject.BareID(),
+			Kind:  "worker",
+			ID:    "background:" + operation,
+			OrgID: "system",
 		},
 		RequestID: "background:" + operation,
 	})
