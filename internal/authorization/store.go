@@ -31,6 +31,13 @@ type shadowReadinessRecord struct {
 	Reason          string
 }
 
+type shadowAuditCoverage struct {
+	Checks        int64
+	Mismatches    int64
+	Transports    map[string]bool
+	CoveragePairs map[string]bool
+}
+
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
@@ -147,6 +154,55 @@ func (s *Store) getShadowReadiness(ctx context.Context) (shadowReadinessRecord, 
 	}
 	rec.Ready = ready == 1
 	return rec, nil
+}
+
+func (s *Store) shadowAuditCoverage(ctx context.Context, started, ended time.Time) (shadowAuditCoverage, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return shadowAuditCoverage{}, err
+	}
+	rows, err := exec.QueryContext(ctx, `SELECT payload_json, created_at
+		FROM authorization_audit_events
+		WHERE event_type = 'authorization.shadow.compare'
+		ORDER BY created_at, id`)
+	if err != nil {
+		return shadowAuditCoverage{}, err
+	}
+	defer rows.Close()
+	out := shadowAuditCoverage{Transports: map[string]bool{}, CoveragePairs: map[string]bool{}}
+	for rows.Next() {
+		var raw, createdRaw string
+		if err := rows.Scan(&raw, &createdRaw); err != nil {
+			return shadowAuditCoverage{}, err
+		}
+		created := parseDBTime(createdRaw)
+		if !started.IsZero() && created.Before(started) {
+			continue
+		}
+		if !ended.IsZero() && created.After(ended) {
+			continue
+		}
+		var payload struct {
+			Transport    string `json:"transport"`
+			Permission   string `json:"permission"`
+			ResourceKind string `json:"resource_kind"`
+			Mismatch     bool   `json:"mismatch"`
+		}
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			return shadowAuditCoverage{}, err
+		}
+		out.Checks++
+		if payload.Mismatch {
+			out.Mismatches++
+		}
+		if strings.TrimSpace(payload.Transport) != "" {
+			out.Transports[payload.Transport] = true
+		}
+		if strings.TrimSpace(payload.Permission) != "" && strings.TrimSpace(payload.ResourceKind) != "" {
+			out.CoveragePairs[payload.ResourceKind+":"+payload.Permission] = true
+		}
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) getRole(ctx context.Context, id string) (Role, error) {

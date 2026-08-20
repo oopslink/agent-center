@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 func TestT1411EnforcementModesRejectLongTermORAllow(t *testing.T) {
@@ -73,15 +75,23 @@ func TestT1411ShadowReadinessPersistsAndGatesProductionEnforce(t *testing.T) {
 	seedProjectMember(t, db, "pm-member", "project-1", "user:user-member", "member")
 	seedTeam(t, db)
 
-	req := CheckRequest{SubjectRef: "user:user-member", Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}}
-	for _, transport := range []Transport{TransportWeb, TransportMCP, TransportBackground} {
-		req.Transport = transport
+	checks := []CheckRequest{
+		{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}},
+		{SubjectRef: "user:user-member", Transport: TransportMCP, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: "project-1"}},
+		{SubjectRef: "user:user-member", Transport: TransportBackground, Permission: "org.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}},
+	}
+	for _, req := range checks {
 		if _, err := svc.Check(ctx, req); err != nil {
-			t.Fatalf("shadow check %s: %v", transport, err)
+			t.Fatalf("shadow check %s/%s: %v", req.Transport, req.Permission, err)
 		}
+		svc.clock.(*clock.FakeClock).Advance(30 * time.Second)
 	}
 	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); err != nil {
 		t.Fatalf("persisted shadow readiness should allow enforce: %v", err)
+	}
+	shortWindow := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementShadow, MinShadowWindow: 2 * time.Minute})
+	if err := shortWindow.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); !errors.Is(err, ErrDenied) {
+		t.Fatalf("short readiness window err=%v, want ErrDenied", err)
 	}
 	restarted := New(Deps{DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce, RequireEnforceReadiness: true, RequiredShadowTransports: []Transport{TransportWeb, TransportMCP, TransportBackground}})
 	if restarted.EnforcementMode() != EnforcementEnforce {
@@ -95,6 +105,20 @@ func TestT1411ShadowReadinessPersistsAndGatesProductionEnforce(t *testing.T) {
 	execMany(t, db, `UPDATE authorization_shadow_readiness SET window_ended_at=?, transports_json='["web","mcp"]', updated_at=? WHERE id='current'`, svc.clock.Now().UTC().Format(time.RFC3339Nano), svc.clock.Now().UTC().Format(time.RFC3339Nano))
 	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); !errors.Is(err, ErrDenied) {
 		t.Fatalf("incomplete readiness err=%v, want ErrDenied", err)
+	}
+}
+
+func TestT1411ForgedReadinessSummaryWithoutAuditFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	now := svc.clock.Now().UTC()
+	execMany(t, db, `INSERT INTO authorization_shadow_readiness
+		(id, mode, window_started_at, window_ended_at, transports_json, checks, mismatches, legacy_only, equivalent_only, ready, reason, updated_at)
+		VALUES ('current', 'shadow', ?, ?, '["web","mcp","background"]', 100, 0, 0, 0, 1, 'forged', ?)`,
+		now.Add(-time.Hour).Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	if err := svc.ValidateEnforceReadiness(ctx, []Transport{TransportWeb, TransportMCP, TransportBackground}, 24*time.Hour); !errors.Is(err, ErrDenied) {
+		t.Fatalf("forged readiness summary err=%v, want ErrDenied", err)
 	}
 }
 
@@ -112,6 +136,13 @@ func TestT1411ReadinessMissingEvidenceFailsClosed(t *testing.T) {
 	}
 	if reason == "" {
 		t.Fatal("readiness rejection should be persisted for audit")
+	}
+	var auditCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_audit_events WHERE event_type IN ('authorization.enforce_readiness_rejected','authorization.enforce_rollback')`).Scan(&auditCount); err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 2 {
+		t.Fatalf("readiness rejection/rollback audit rows = %d, want 2", auditCount)
 	}
 }
 

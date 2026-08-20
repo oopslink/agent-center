@@ -55,5 +55,10 @@ func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d Ha
 }
 
 func checkWebAuthorization(ctx context.Context, d HandlerDeps, req authz.CheckRequest) (authz.AccessDecision, error) {
-	return d.Authorizer.Check(ctx, req)
+	var resolver authz.EffectiveResolver = d.Authorizer
+	exp, err := resolver.ResolveEffective(ctx, req)
+	if err == nil && !exp.Decision.Allowed {
+		err = authz.ErrDenied
+	}
+	return exp.Decision, err
 }

@@ -51,9 +51,26 @@ func TestAuthorizationProductionDepsCanCutOverToEnforceWithPersistentReadiness(t
 	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
 	if _, err := db.Exec(`INSERT INTO authorization_shadow_readiness
 		(id, mode, window_started_at, window_ended_at, transports_json, checks, mismatches, legacy_only, equivalent_only, ready, reason, updated_at)
-		VALUES ('current', 'shadow', ?, ?, '["background","mcp","web"]', 9, 0, 0, 0, 1, 'test evidence', ?)`,
+		VALUES ('current', 'shadow', ?, ?, '["background","mcp","web"]', 3, 0, 0, 0, 1, 'test evidence', ?)`,
 		now.Add(-time.Hour).Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
 		t.Fatal(err)
+	}
+	for i, sample := range []struct {
+		transport string
+		kind      string
+		perm      string
+	}{
+		{"web", "project", "project.write"},
+		{"mcp", "project", "project.read"},
+		{"background", "org", "org.read"},
+	} {
+		payload := `{"transport":"` + sample.transport + `","resource_kind":"` + sample.kind + `","permission":"` + sample.perm + `","mismatch":false}`
+		if _, err := db.Exec(`INSERT INTO authorization_audit_events
+			(id, event_type, actor_ref, subject_ref, permission_key, resource_kind, resource_id, payload_json, created_at)
+			VALUES (?, 'authorization.shadow.compare', 'user:test', 'user:test', ?, ?, 'resource', ?, ?)`,
+			"shadow-sample-"+sample.transport, sample.perm, sample.kind, payload, now.Add(-time.Duration(50-i)*time.Minute).Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cfg := config.DefaultConfig()
 	mkPath := dir + "/master.key"

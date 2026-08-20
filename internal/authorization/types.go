@@ -6,6 +6,7 @@
 package authorization
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +18,14 @@ type SubjectRef string
 type Transport string
 type DecisionSource string
 type EnforcementMode string
+
+// EffectiveResolver is the stable authorization entrypoint for production
+// transports. HTTP, MCP/admin, and background callers must route permission
+// decisions through ResolveEffective so shadow/enforce mode, cache invalidation,
+// and audit behavior stay transport-independent.
+type EffectiveResolver interface {
+	ResolveEffective(context.Context, CheckRequest) (ExplainResult, error)
+}
 
 const (
 	TransportWeb        Transport = "web"
