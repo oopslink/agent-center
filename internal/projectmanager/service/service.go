@@ -12,9 +12,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -315,6 +317,9 @@ type Service struct {
 	// liveExecutors is OPTIONAL (nil-safe). When wired, the lease checker can compare
 	// DB-running executor-fork tasks with the worker heartbeat's live executor snapshot.
 	liveExecutors concurrency.LiveStateStore
+	// authorizer is OPTIONAL for older tests. Production wires it so background
+	// sweeps pass through the unified effective-permission resolver.
+	authorizer authz.EffectiveResolver
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -426,6 +431,9 @@ type Deps struct {
 	// by worker heartbeats. It lets the stuck-node reconciler detect DB-running executor
 	// tasks whose owner is alive/idle but has no live executor for the task.
 	LiveExecutors concurrency.LiveStateStore
+	// Authorizer is OPTIONAL for older tests. Production wires it so background sweeps
+	// exercise the same effective-permission resolver as HTTP and MCP.
+	Authorizer authz.EffectiveResolver
 }
 
 // New constructs the Service.
@@ -462,7 +470,29 @@ func New(d Deps) *Service {
 		deadlinePolicy:     d.DeadlinePolicy,
 		timeoutSink:        d.TimeoutSink,
 		liveExecutors:      d.LiveExecutors,
+		authorizer:         d.Authorizer,
 	}
+}
+
+func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation string) error {
+	if s == nil || s.authorizer == nil {
+		return fmt.Errorf("%w: background authorization resolver is not wired for %s", authz.ErrDenied, operation)
+	}
+	subject := authz.WorkerSubject("background")
+	exp, err := s.authorizer.ResolveEffective(ctx, authz.CheckRequest{
+		SubjectRef: subject,
+		Transport:  authz.TransportBackground,
+		Permission: "worker.capability.report",
+		Resource: authz.ResourceScope{
+			Kind: "worker",
+			ID:   subject.BareID(),
+		},
+		RequestID: "background:" + operation,
+	})
+	if err == nil && !exp.Decision.Allowed {
+		return authz.ErrDenied
+	}
+	return err
 }
 
 // flushActionLogs persists the domain's freshly-appended TaskActionLog entries

@@ -22,23 +22,41 @@ import (
 )
 
 type Service struct {
-	db             *sql.DB
-	store          *Store
-	gen            idgen.Generator
-	clock          clock.Clock
-	sink           *observability.EventSink
-	effectiveCache effectiveCache
-	mode           EnforcementMode
-	metrics        shadowMetricCounters
+	db                       *sql.DB
+	store                    *Store
+	gen                      idgen.Generator
+	clock                    clock.Clock
+	sink                     *observability.EventSink
+	effectiveCache           effectiveCache
+	mode                     EnforcementMode
+	metrics                  shadowMetricCounters
+	requiredShadowTransports []Transport
+	minShadowChecks          int64
+	minShadowWindow          time.Duration
 }
 
 type Deps struct {
-	DB        *sql.DB
-	Store     *Store
-	IDGen     idgen.Generator
-	Clock     clock.Clock
-	EventSink *observability.EventSink
-	Mode      EnforcementMode
+	DB                       *sql.DB
+	Store                    *Store
+	IDGen                    idgen.Generator
+	Clock                    clock.Clock
+	EventSink                *observability.EventSink
+	Mode                     EnforcementMode
+	RequireEnforceReadiness  bool
+	RequiredShadowTransports []Transport
+	MinShadowChecks          int64
+	MinShadowWindow          time.Duration
+}
+
+const (
+	defaultEnforceReadinessMaxAge = 24 * time.Hour
+	defaultEnforceShadowWindow    = time.Minute
+)
+
+var defaultReadinessCoveragePairs = []string{
+	"org:org.read",
+	"project:project.read",
+	"project:project.write",
 }
 
 func New(deps Deps) *Service {
@@ -55,7 +73,29 @@ func New(deps Deps) *Service {
 		store = NewStore(deps.DB)
 	}
 	mode := NormalizeEnforcementMode(deps.Mode)
-	return &Service{db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode}
+	required := deps.RequiredShadowTransports
+	if len(required) == 0 && deps.RequireEnforceReadiness {
+		required = []Transport{TransportWeb, TransportMCP, TransportBackground}
+	}
+	minChecks := deps.MinShadowChecks
+	if minChecks <= 0 && deps.RequireEnforceReadiness {
+		minChecks = int64(len(required))
+	}
+	minWindow := deps.MinShadowWindow
+	if minWindow <= 0 && deps.RequireEnforceReadiness {
+		minWindow = defaultEnforceShadowWindow
+	}
+	s := &Service{
+		db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode,
+		requiredShadowTransports: required, minShadowChecks: minChecks, minShadowWindow: minWindow,
+	}
+	if mode == EnforcementEnforce && deps.RequireEnforceReadiness {
+		if err := s.ValidateEnforceReadiness(context.Background(), required, defaultEnforceReadinessMaxAge); err != nil {
+			s.mode = EnforcementShadow
+			s.recordReadinessRejection(context.Background(), required, err)
+		}
+	}
+	return s
 }
 
 type shadowMetricCounters struct {
@@ -106,6 +146,146 @@ func (s *Service) ShadowMetrics() ShadowMetrics {
 		LegacyOnly:     s.metrics.legacyOnly.Load(),
 		EquivalentOnly: s.metrics.equivalentOnly.Load(),
 	}
+}
+
+func (s *Service) ShadowReadyToEnforce() bool {
+	if s == nil {
+		return false
+	}
+	if s.store != nil && len(s.requiredShadowTransports) > 0 {
+		return s.ValidateEnforceReadiness(context.Background(), s.requiredShadowTransports, defaultEnforceReadinessMaxAge) == nil
+	}
+	return s.metrics.checks.Load() > 0 && s.metrics.mismatches.Load() == 0
+}
+
+func (s *Service) ShadowReadiness(ctx context.Context) (ShadowReadiness, error) {
+	if s == nil || s.store == nil {
+		return ShadowReadiness{}, fmt.Errorf("%w: shadow readiness store is not wired", ErrDenied)
+	}
+	rec, err := s.store.getShadowReadiness(ctx)
+	if err != nil {
+		return ShadowReadiness{}, err
+	}
+	return ShadowReadiness{
+		Mode:            rec.Mode,
+		WindowStartedAt: rec.WindowStartedAt.UTC().Format(time.RFC3339Nano),
+		WindowEndedAt:   rec.WindowEndedAt.UTC().Format(time.RFC3339Nano),
+		Transports:      append([]string(nil), rec.Transports...),
+		Checks:          rec.Checks,
+		Mismatches:      rec.Mismatches,
+		LegacyOnly:      rec.LegacyOnly,
+		EquivalentOnly:  rec.EquivalentOnly,
+		Ready:           rec.Ready,
+		Reason:          rec.Reason,
+	}, nil
+}
+
+func (s *Service) ValidateEnforceReadiness(ctx context.Context, required []Transport, maxAge time.Duration) error {
+	if s == nil || s.store == nil {
+		return fmt.Errorf("%w: shadow readiness store is not wired", ErrDenied)
+	}
+	rec, err := s.store.getShadowReadiness(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: shadow readiness evidence missing", ErrDenied)
+		}
+		return err
+	}
+	if rec.Checks <= 0 {
+		return fmt.Errorf("%w: shadow readiness has no checks", ErrDenied)
+	}
+	minChecks := s.minShadowChecks
+	if minChecks <= 0 && len(required) > 0 {
+		minChecks = int64(len(required))
+	}
+	if minChecks > 0 && rec.Checks < minChecks {
+		return fmt.Errorf("%w: shadow readiness has too few checks", ErrDenied)
+	}
+	if rec.Mismatches != 0 || !rec.Ready {
+		return fmt.Errorf("%w: shadow readiness has mismatches", ErrDenied)
+	}
+	if rec.WindowStartedAt.IsZero() || rec.WindowEndedAt.IsZero() || rec.WindowEndedAt.Before(rec.WindowStartedAt) {
+		return fmt.Errorf("%w: shadow readiness window is incomplete", ErrDenied)
+	}
+	if s.minShadowWindow > 0 && rec.WindowEndedAt.Sub(rec.WindowStartedAt) < s.minShadowWindow {
+		return fmt.Errorf("%w: shadow readiness window is too short", ErrDenied)
+	}
+	if maxAge > 0 && s.clock.Now().UTC().Sub(rec.WindowEndedAt.UTC()) > maxAge {
+		return fmt.Errorf("%w: shadow readiness evidence is stale", ErrDenied)
+	}
+	auditCoverage, err := s.store.shadowAuditCoverage(ctx, rec.WindowStartedAt, rec.WindowEndedAt)
+	if err != nil {
+		return err
+	}
+	if auditCoverage.Checks < rec.Checks || auditCoverage.Checks < minChecks {
+		return fmt.Errorf("%w: shadow readiness audit evidence is incomplete", ErrDenied)
+	}
+	if auditCoverage.Mismatches != 0 {
+		return fmt.Errorf("%w: shadow readiness audit evidence has mismatches", ErrDenied)
+	}
+	have := map[string]bool{}
+	for _, transport := range rec.Transports {
+		have[transport] = true
+	}
+	for _, transport := range required {
+		raw := string(transport)
+		if !have[raw] || !auditCoverage.Transports[raw] {
+			return fmt.Errorf("%w: shadow readiness missing %s coverage", ErrDenied, transport)
+		}
+	}
+	for _, pair := range defaultReadinessCoveragePairs {
+		if !auditCoverage.CoveragePairs[pair] {
+			return fmt.Errorf("%w: shadow readiness missing %s coverage", ErrDenied, pair)
+		}
+	}
+	return nil
+}
+
+func (s *Service) recordReadinessRejection(ctx context.Context, required []Transport, cause error) {
+	if s == nil || s.store == nil {
+		return
+	}
+	now := s.clock.Now().UTC()
+	reason := "enforce readiness rejected: " + cause.Error()
+	_ = s.store.persistShadowReadiness(ctx, shadowReadinessRecord{
+		Mode: s.mode, WindowStartedAt: now, WindowEndedAt: now,
+		Transports: transportStrings(required), Checks: s.metrics.checks.Load(), Mismatches: 1,
+		Ready: false, Reason: reason,
+	})
+	_ = s.audit(ctx, auditEvent{
+		ID:        "audit-" + shortHash("authorization.enforce_readiness_rejected|"+now.Format(time.RFC3339Nano)+"|"+reason),
+		EventType: "authorization.enforce_readiness_rejected",
+		ActorRef:  "system",
+		RequestID: "authorization-enforce-startup",
+		Payload:   map[string]any{"reason": reason, "required_transports": transportStrings(required)},
+		CreatedAt: now,
+	})
+	_ = s.audit(ctx, auditEvent{
+		ID:        "audit-" + shortHash("authorization.enforce_rollback|"+now.Format(time.RFC3339Nano)+"|"+reason),
+		EventType: "authorization.enforce_rollback",
+		ActorRef:  "system",
+		RequestID: "authorization-enforce-startup",
+		Payload:   map[string]any{"from": string(EnforcementEnforce), "to": string(EnforcementShadow), "reason": reason},
+		CreatedAt: now,
+	})
+}
+
+func transportStrings(transports []Transport) []string {
+	out := make([]string, 0, len(transports))
+	seen := map[string]struct{}{}
+	for _, t := range transports {
+		raw := strings.TrimSpace(string(t))
+		if raw == "" {
+			continue
+		}
+		if _, ok := seen[raw]; ok {
+			continue
+		}
+		seen[raw] = struct{}{}
+		out = append(out, raw)
+	}
+	sort.Strings(out)
+	return out
 }
 
 type effectiveCache struct {
@@ -167,7 +347,7 @@ func (s *Service) ListDefinitions(ctx context.Context) ([]PermissionDefinition, 
 }
 
 func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, error) {
-	exp, err := s.Explain(ctx, req)
+	exp, err := s.ResolveEffective(ctx, req)
 	if err != nil {
 		return exp.Decision, err
 	}
@@ -178,6 +358,10 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (AccessDecision, 
 }
 
 func (s *Service) Explain(ctx context.Context, req CheckRequest) (ExplainResult, error) {
+	return s.ResolveEffective(ctx, req)
+}
+
+func (s *Service) ResolveEffective(ctx context.Context, req CheckRequest) (ExplainResult, error) {
 	decision := AccessDecision{
 		SubjectRef: req.SubjectRef,
 		Permission: req.Permission,
@@ -278,6 +462,9 @@ func (s *Service) ListSubjectAudit(ctx context.Context, subject SubjectRef, orgI
 	}
 	out := make([]AuditEvent, 0, len(events))
 	for _, e := range events {
+		if strings.HasPrefix(e.EventType, "authorization.shadow.") {
+			continue
+		}
 		if !s.auditEventInOrg(ctx, e, orgID) {
 			continue
 		}
@@ -2027,6 +2214,7 @@ func compareEffective(req CheckRequest, legacy, equivalent []EffectivePermission
 	cmp := ShadowComparison{
 		Mode:              EnforcementShadow,
 		SubjectRef:        req.SubjectRef,
+		Transport:         req.Transport,
 		Permission:        req.Permission,
 		Resource:          req.Resource,
 		LegacyAllowed:     hasPermissionKey(legacySet, req.Permission),
@@ -2070,31 +2258,110 @@ func (s *Service) recordShadowComparison(ctx context.Context, cmp ShadowComparis
 	}
 	cmp.Mode = s.mode
 	s.metrics.checks.Add(1)
-	if !cmp.Mismatch {
+	if cmp.Mismatch {
+		s.metrics.mismatches.Add(1)
+		s.metrics.legacyOnly.Add(int64(len(cmp.LegacyOnly)))
+		s.metrics.equivalentOnly.Add(int64(len(cmp.EquivalentOnly)))
+	}
+	s.recordShadowComparisonAudit(ctx, cmp)
+	s.persistShadowReadiness(ctx, cmp)
+	if cmp.Mismatch && s.sink != nil {
+		_, _ = s.sink.Emit(ctx, observability.EmitCommand{
+			EventType: observability.EventType("authorization.shadow.diff"),
+			Refs:      observability.EventRefs{OrganizationID: cmp.Resource.OrgID, ProjectID: cmp.Resource.ProjectID},
+			Actor:     observability.Actor(cmp.SubjectRef),
+			Payload: map[string]any{
+				"mode":               string(cmp.Mode),
+				"subject_ref":        string(cmp.SubjectRef),
+				"permission":         string(cmp.Permission),
+				"resource_kind":      cmp.Resource.Kind,
+				"resource_id":        cmp.Resource.ID,
+				"transport":          string(cmp.Transport),
+				"legacy_allowed":     cmp.LegacyAllowed,
+				"equivalent_allowed": cmp.EquivalentAllowed,
+				"legacy_only":        permissionKeysToStrings(cmp.LegacyOnly),
+				"equivalent_only":    permissionKeysToStrings(cmp.EquivalentOnly),
+			},
+		})
+	}
+}
+
+func (s *Service) recordShadowComparisonAudit(ctx context.Context, cmp ShadowComparison) {
+	if s == nil || s.store == nil {
 		return
 	}
-	s.metrics.mismatches.Add(1)
-	s.metrics.legacyOnly.Add(int64(len(cmp.LegacyOnly)))
-	s.metrics.equivalentOnly.Add(int64(len(cmp.EquivalentOnly)))
-	if s.sink == nil {
-		return
-	}
-	_, _ = s.sink.Emit(ctx, observability.EmitCommand{
-		EventType: observability.EventType("authorization.shadow.diff"),
-		Refs:      observability.EventRefs{OrganizationID: cmp.Resource.OrgID, ProjectID: cmp.Resource.ProjectID},
-		Actor:     observability.Actor(cmp.SubjectRef),
+	now := s.clock.Now().UTC()
+	_ = s.audit(ctx, auditEvent{
+		ID:            "audit-" + shortHash("authorization.shadow.compare|"+string(cmp.SubjectRef)+"|"+string(cmp.Transport)+"|"+string(cmp.Permission)+"|"+cmp.Resource.Kind+"|"+cmp.Resource.ID+"|"+now.Format(time.RFC3339Nano)),
+		EventType:     "authorization.shadow.compare",
+		ActorRef:      cmp.SubjectRef,
+		SubjectRef:    cmp.SubjectRef,
+		PermissionKey: cmp.Permission,
+		ResourceKind:  cmp.Resource.Kind,
+		ResourceID:    cmp.Resource.ID,
 		Payload: map[string]any{
 			"mode":               string(cmp.Mode),
 			"subject_ref":        string(cmp.SubjectRef),
+			"transport":          string(cmp.Transport),
 			"permission":         string(cmp.Permission),
 			"resource_kind":      cmp.Resource.Kind,
 			"resource_id":        cmp.Resource.ID,
+			"project_id":         cmp.Resource.ProjectID,
+			"org_id":             cmp.Resource.OrgID,
 			"legacy_allowed":     cmp.LegacyAllowed,
 			"equivalent_allowed": cmp.EquivalentAllowed,
+			"mismatch":           cmp.Mismatch,
 			"legacy_only":        permissionKeysToStrings(cmp.LegacyOnly),
 			"equivalent_only":    permissionKeysToStrings(cmp.EquivalentOnly),
 		},
+		CreatedAt: now,
 	})
+}
+
+func (s *Service) persistShadowReadiness(ctx context.Context, cmp ShadowComparison) {
+	if s == nil || s.store == nil {
+		return
+	}
+	now := s.clock.Now().UTC()
+	transports := []string{string(cmp.Transport)}
+	if existing, err := s.store.getShadowReadiness(ctx); err == nil {
+		transports = append(transports, existing.Transports...)
+		if !existing.WindowStartedAt.IsZero() {
+			now = existing.WindowStartedAt.UTC()
+		}
+	}
+	checks := s.metrics.checks.Load()
+	mismatches := s.metrics.mismatches.Load()
+	_ = s.store.persistShadowReadiness(ctx, shadowReadinessRecord{
+		Mode:            s.mode,
+		WindowStartedAt: now,
+		WindowEndedAt:   s.clock.Now().UTC(),
+		Transports:      dedupeStrings(transports),
+		Checks:          checks,
+		Mismatches:      mismatches,
+		LegacyOnly:      s.metrics.legacyOnly.Load(),
+		EquivalentOnly:  s.metrics.equivalentOnly.Load(),
+		Ready:           checks > 0 && mismatches == 0,
+		Reason:          "shadow comparison persisted",
+	})
+}
+
+func dedupeStrings(in []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func permissionKeysToStrings(keys []PermissionKey) []string {

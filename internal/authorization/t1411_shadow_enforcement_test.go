@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestT1411EnforcementModesRejectLongTermORAllow(t *testing.T) {
@@ -57,6 +58,61 @@ func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 	}
 	if metrics := legacy.ShadowMetrics(); metrics.Checks != 0 {
 		t.Fatalf("legacy mode should not shadow-compare, metrics=%+v", metrics)
+	}
+}
+
+func TestT1438PersistedReadinessControlsEnforceStartup(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedProject(t, db, "project-1", "org-1")
+	seedProjectMember(t, db, "pm-member", "project-1", "user:user-member", "member")
+
+	required := []Transport{TransportWeb, TransportMCP, TransportBackground}
+	reqs := []CheckRequest{
+		{SubjectRef: "user:user-member", Transport: TransportWeb, Permission: "org.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}},
+		{SubjectRef: "user:user-member", Transport: TransportMCP, Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: "project-1"}},
+		{SubjectRef: "user:user-member", Transport: TransportBackground, Permission: "project.write", Resource: ResourceScope{Kind: "project", ID: "project-1"}},
+	}
+	for _, req := range reqs {
+		if _, err := svc.Check(ctx, req); err != nil {
+			t.Fatalf("shadow check %s/%s/%s: %v", req.Transport, req.Resource.Kind, req.Permission, err)
+		}
+	}
+	if err := svc.ValidateEnforceReadiness(ctx, required, time.Hour); err != nil {
+		t.Fatalf("persisted readiness should validate: %v", err)
+	}
+	ready, err := svc.ShadowReadiness(ctx)
+	if err != nil {
+		t.Fatalf("readiness readback: %v", err)
+	}
+	if !ready.Ready || ready.Checks != int64(len(reqs)) || ready.Mismatches != 0 {
+		t.Fatalf("readiness = %+v", ready)
+	}
+	execMany(t, db, `UPDATE authorization_shadow_readiness SET window_started_at = '2000-01-01T00:00:00Z' WHERE id = 'current'`)
+
+	enforced := New(Deps{
+		DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce,
+		RequireEnforceReadiness: true, RequiredShadowTransports: required, MinShadowChecks: int64(len(reqs)),
+	})
+	if enforced.EnforcementMode() != EnforcementEnforce {
+		t.Fatalf("startup should remain enforce after durable readiness, got %s", enforced.EnforcementMode())
+	}
+
+	execMany(t, db, `DELETE FROM authorization_shadow_readiness`)
+	rolledBack := New(Deps{
+		DB: db, Store: svc.store, IDGen: svc.gen, Clock: svc.clock, Mode: EnforcementEnforce,
+		RequireEnforceReadiness: true, RequiredShadowTransports: required, MinShadowChecks: int64(len(reqs)),
+	})
+	if rolledBack.EnforcementMode() != EnforcementShadow {
+		t.Fatalf("startup without readiness must fail closed to shadow, got %s", rolledBack.EnforcementMode())
+	}
+	events, err := rolledBack.store.listAuditEventsForSubject(ctx, "system", 10)
+	if err != nil {
+		t.Fatalf("rollback audit readback: %v", err)
+	}
+	if !hasAuditEventType(events, "authorization.enforce_rollback") {
+		t.Fatalf("missing enforce rollback audit event: %+v", events)
 	}
 }
 
@@ -147,4 +203,13 @@ func TestT1413EnforceConversationPostUsesOwnedTaskProjectScope(t *testing.T) {
 	if !errors.Is(err, ErrDenied) || decision.Allowed {
 		t.Fatalf("conversation post must fail closed after project membership revoke, decision=%#v err=%v", decision, err)
 	}
+}
+
+func hasAuditEventType(events []AuditEvent, eventType string) bool {
+	for _, event := range events {
+		if event.EventType == eventType {
+			return true
+		}
+	}
+	return false
 }
