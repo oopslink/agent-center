@@ -1,0 +1,7 @@
+### /api/auth/me
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 20 Aug 2026 15:49:55 GMT
+Content-Length: 87
+
+{"display_name":"Owner t1450-seed-234910","identity_id":"user-3123b6c2","kind":"user"}

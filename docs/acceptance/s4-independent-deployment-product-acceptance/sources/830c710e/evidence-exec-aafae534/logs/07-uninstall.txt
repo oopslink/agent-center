@@ -1,0 +1,6 @@
+agent-center uninstall center (default):
+  prefix:        /tmp/ac-t1441-exec-aafae534
+  purge:         true
+
+✓ AgentCenter center (default) uninstalled
+  All data wiped. Prefix /tmp/ac-t1441-exec-aafae534 removed.

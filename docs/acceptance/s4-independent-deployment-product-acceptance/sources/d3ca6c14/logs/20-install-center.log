@@ -1,0 +1,17 @@
+agent-center install center:
+  instance:      default
+  prefix:        /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001
+  user-mode:     true
+  web port:      7191
+  server port:   7151
+  admin tcp:     127.0.0.1:7391
+  state:         fresh
+
+✓ AgentCenter origin-main-69d5b662 installed
+  prefix:    /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001
+  config:    /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/etc/config.yaml
+  data:      /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var
+  Web Console: http://127.0.0.1:7191/
+  run (foreground): /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/current/bin/agent-center server --config=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/etc/config.yaml
+  (or re-run with --service to register a launchd/systemd background service)
+  (then open the Web Console URL; first-time setup mints the bootstrap admin token)

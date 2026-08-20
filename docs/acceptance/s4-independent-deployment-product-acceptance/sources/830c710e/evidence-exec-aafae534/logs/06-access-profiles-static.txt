@@ -1,0 +1,22 @@
+Access nav labels in UI source
+web/src/i18n/locales/en/admin.json:88:    "profile": {
+web/src/pages/Access.tsx:217:            Subject access
+web/src/pages/Access.tsx:404:          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
+web/src/pages/Access.tsx:603:          <h2 className="text-sm font-semibold text-text-primary">Team Role mappings</h2>
+web/src/pages/Access.tsx:673:              placeholder="Select RAM Roles"
+web/src/pages/Access.tsx:674:              searchPlaceholder="Search RAM Roles"
+web/src/pages/Access.tsx:675:              emptyLabel="No matching RAM Roles"
+web/src/pages/Access.tsx:676:              ariaLabel={`RAM Roles for ${entry.team.name} / ${entry.role}`}
+web/src/i18n/locales/en/common.json:240:      "profile": "Profile",
+web/src/shell/nav/OrgSettingsSecondaryNav.tsx:21:  { slug: 'profile', label: 'Profile', labelKey: 'shell.orgSettings.profile' },
+web/src/i18n/locales/en/members.json:309:        "executorsLabel": "Allowed executor unit profiles",
+web/src/i18n/locales/en/members.json:311:        "executorsEmpty": "No executor unit profiles — agent stays single-active.",
+web/src/i18n/locales/en/members.json:318:        "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor unit profile to run in parallel."
+web/src/i18n/locales/en/members.json:326:        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled for the bound worker.",
+web/src/i18n/locales/en/members.json:448:        "profile": "Profile",
+web/src/i18n/locales/en/members.json:509:    "profile": {
+web/src/i18n/locales/en/members.json:582:        "executorUnavailable": "Executor profile {{cli}} · {{model}} is not enabled in the Runtime catalog.",
+web/src/i18n/locales/en/members.json:708:        "profile": "Profile",
+web/src/i18n/locales/en/members.json:713:      "profile": {
+web/src/i18n/locales/en/members.json:906:        "profile": "Profile",
+web/src/i18n/locales/en/members.json:916:    "profile": {

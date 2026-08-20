@@ -1,0 +1,6 @@
+dist/t525f2500-candidate/LICENSE
+dist/t525f2500-candidate/README.md
+dist/t525f2500-candidate/bin/agent-center
+dist/t525f2500-candidate/install
+dist/t525f2500-candidate/uninstall
+dist/t525f2500-candidate/upgrade

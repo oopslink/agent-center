@@ -1,0 +1,12 @@
+origin/main
+69d5b662bef16882f1e163546da7b7168f80e1cd
+HEAD
+69d5b662bef16882f1e163546da7b7168f80e1cd
+merge-base
+69d5b662bef16882f1e163546da7b7168f80e1cd
+ahead
+0
+branch
+ac-exec/task-525f2500/exec-aafae534
+status
+?? docs/acceptance/t1441/evidence-exec-aafae534/

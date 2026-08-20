@@ -1,0 +1,7 @@
+- textbox "Display name" [ref=e1]
+- textbox "Email" [ref=e2]
+- textbox "Passcode" [ref=e3]
+- textbox "Confirm passcode" [ref=e4]
+- textbox "Organization name" [ref=e5]
+- button "Create account" [ref=e6] [disabled]
+- link "Sign in" [ref=e7]

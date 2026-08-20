@@ -1,0 +1,13 @@
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/current
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/etc
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/etc/config.yaml
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/logs
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/master.key
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions/origin-main-69d5b662
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions/origin-main-69d5b662/COMMIT
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions/origin-main-69d5b662/VERSION
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions/origin-main-69d5b662/bin
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/versions/origin-main-69d5b662/bin/agent-center

@@ -1,0 +1,6 @@
+prefix=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001
+prefix_exists=no
+health_after_uninstall:
+curl: (7) Failed to connect to 127.0.0.1 port 7191 after 0 ms: Couldn't connect to server
+server_port_after_uninstall:
+curl: (7) Failed to connect to 127.0.0.1 port 7151 after 0 ms: Couldn't connect to server

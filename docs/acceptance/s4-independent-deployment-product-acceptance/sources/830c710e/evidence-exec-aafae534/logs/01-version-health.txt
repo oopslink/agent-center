@@ -1,0 +1,25 @@
+VERSION
+{"branch":"ac-exec/task-525f2500/exec-aafae534","built_at":"2026-08-20T16:22:00Z","commit":"69d5b662","install_path":"/tmp/ac-t1441-exec-aafae534/current/bin/agent-center","parent_pid":17025,"pid":19180,"started_at":"2026-08-20T16:22:34.274972Z","version":"ac-exec/task-525f2500/exec-aafae534-69d5b662"}
+
+HEALTH_ROOT
+HTTP/1.1 200 OK
+Cache-Control: no-cache
+Content-Type: text/html; charset=utf-8
+Date: Thu, 20 Aug 2026 16:35:57 GMT
+Content-Length: 594
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>agent-center</title>
+    <!-- Fonts self-hosted (GDPR / zero-CDN, Hex spec §06 decision) -->
+    <script type="module" crossorigin src="/assets/index-B7Drko04.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-6EKax83m.css">
+  </head>
+  <body class="bg-bg-base text-text-primary font-sans antialiased">
+    <div id="root"></div>
+  </body>
+</html>

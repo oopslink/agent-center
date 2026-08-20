@@ -1,0 +1,7 @@
+branch=ac-exec/task-525f2500/exec-db58108b
+head=5b9b3ee9bc53606ac18259097e764a7d3155dfea
+origin_main=69d5b662bef16882f1e163546da7b7168f80e1cd
+remote_exec=5b9b3ee9bc53606ac18259097e764a7d3155dfea
+status_before_final_commit:
+## ac-exec/task-525f2500/exec-db58108b
+?? docs/acceptance/t525f2500-test-instance/logs/99-final-git-readback.txt

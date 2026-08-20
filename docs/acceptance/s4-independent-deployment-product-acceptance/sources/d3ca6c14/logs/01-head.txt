@@ -1,0 +1,4 @@
+69d5b662bef16882f1e163546da7b7168f80e1cd
+HEAD -> ac-exec/task-525f2500/exec-db58108b, recovery/t1448-manual, main, ac-exec/task-d55da710/recovery-5e707c85
+2026-08-20 22:54:21 +0800
+test(e2e): authenticate shared request fixture

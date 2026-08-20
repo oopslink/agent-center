@@ -1,0 +1,6 @@
+agent-center uninstall center (default):
+  prefix:        /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001
+  purge:         true
+
+✓ AgentCenter center (default) uninstalled
+  All data wiped. Prefix /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001 removed.

@@ -1,0 +1,42 @@
+### mint org-bound worker 3
+{
+  "worker_id": "worker-d1385464",
+  "bootstrap_host": "127.0.0.1:50486",
+  "fingerprint": "sha256:E0:90:A8:F9:EB:F2:9C:FE:A2:50:62:86:0E:18:97:7D:66:90:BD:94:3F:94:88:55:1E:05:C1:90:60:4B:7D:F2",
+  "token": "<redacted>"
+}
+agent-center install worker:
+  prefix:        /Users/oopslink/.agent-center-test/t1450-seed-234910/worker-3
+  user-mode:     true
+  worker-id:     worker-d1385464
+  bootstrap:     tcp://127.0.0.1:50486
+  state:         fresh
+  waiting for daemon to connect...
+
+✓ AgentCenter worker ui-hard-gate-69d5b662 installed + connected
+  worker-id: worker-d1385464
+  bootstrap: tcp://127.0.0.1:50486
+  service:   com.agent-center.worker.worker-d1385464 (launchd)
+  config:    /Users/oopslink/.agent-center-test/t1450-seed-234910/worker-3/etc/config.yaml
+  Visible now in the Web Console Fleet view.
+### mint org-bound worker 4
+{
+  "worker_id": "worker-d45afebe",
+  "bootstrap_host": "127.0.0.1:50486",
+  "fingerprint": "sha256:E0:90:A8:F9:EB:F2:9C:FE:A2:50:62:86:0E:18:97:7D:66:90:BD:94:3F:94:88:55:1E:05:C1:90:60:4B:7D:F2",
+  "token": "<redacted>"
+}
+agent-center install worker:
+  prefix:        /Users/oopslink/.agent-center-test/t1450-seed-234910/worker-4
+  user-mode:     true
+  worker-id:     worker-d45afebe
+  bootstrap:     tcp://127.0.0.1:50486
+  state:         fresh
+  waiting for daemon to connect...
+
+✓ AgentCenter worker ui-hard-gate-69d5b662 installed + connected
+  worker-id: worker-d45afebe
+  bootstrap: tcp://127.0.0.1:50486
+  service:   com.agent-center.worker.worker-d45afebe (launchd)
+  config:    /Users/oopslink/.agent-center-test/t1450-seed-234910/worker-4/etc/config.yaml
+  Visible now in the Web Console Fleet view.

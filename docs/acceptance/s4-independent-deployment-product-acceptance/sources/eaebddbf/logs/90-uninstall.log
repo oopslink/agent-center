@@ -1,0 +1,6 @@
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.center.test-t1450-seed-234910.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.test-t1450-seed-234910-w1.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.test-t1450-seed-234910-w2.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.worker-d1385464.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.worker-d45afebe.plist
+✓ test-instance t1450-seed-234910 torn down (labels booted out + /Users/oopslink/.agent-center-test/t1450-seed-234910 removed)
