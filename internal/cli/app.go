@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
@@ -263,10 +264,24 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("authorization mode: %w", err)
 	}
-	authorizationSvc := authorization.New(authorization.Deps{DB: db, IDGen: gen, Clock: clk, EventSink: sink, Mode: authzMode})
+	requiredAuthzTransports := []authorization.Transport{
+		authorization.TransportWeb,
+		authorization.TransportMCP,
+		authorization.TransportBackground,
+	}
+	authorizationSvc := authorization.New(authorization.Deps{
+		DB:                       db,
+		IDGen:                    gen,
+		Clock:                    clk,
+		EventSink:                sink,
+		Mode:                     authzMode,
+		RequiredShadowTransports: requiredAuthzTransports,
+		MinShadowChecks:          6,
+		MinShadowWindow:          time.Minute,
+	})
 	if authzMode == authorization.EnforcementEnforce {
-		if err := authorizationSvc.ValidateEnforceReady(context.Background()); err != nil {
-			return nil, err
+		if err := authorizationSvc.ValidateEnforceReadiness(context.Background(), requiredAuthzTransports, 24*time.Hour); err != nil {
+			return nil, fmt.Errorf("authorization enforce readiness: %w", err)
 		}
 	}
 	if authzMode == authorization.EnforcementLegacy {
