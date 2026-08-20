@@ -1,0 +1,3 @@
+ee1a98d38032756d627c9c5fcf1acfb4c895fb9c85a6488fa71c6675760337bf  dist/t525f2500-candidate/bin/agent-center
+6f6e95b42f88aadb730be8d1729fe84304acd85c51e401ca300e94819f53fa13  dist/t525f2500-candidate/install
+fa685ea7cb953bdfc18ebe801f82a28544d08ea6dd713c0232d6422de1434be3  dist/t525f2500-candidate/uninstall

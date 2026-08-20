@@ -1,0 +1,72 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "QA Org 525f2500" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-4ef6bb92/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-4ef6bb92/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-4ef6bb92/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-4ef6bb92/access
+    - link "Reminders" [ref=e7]:
+      - /url: /organizations/org-4ef6bb92/reminders
+    - link "System" [ref=e8]:
+      - /url: /organizations/org-4ef6bb92/environment
+    - button "Alerts" [ref=e9]
+    - button "QA Admin" [ref=e10]: Q
+  - navigation "primary" [ref=e11]:
+    - button "Search (⌘K)" [ref=e12]: Search ⌘K
+    - list:
+      - listitem:
+        - heading "Access" [ref=e13] [level=2]:
+          - button "Access" [ref=e14] [expanded]
+        - list:
+          - listitem:
+            - link "RAM Roles" [ref=e15]:
+              - /url: /organizations/org-4ef6bb92/access?view=ram-roles
+          - listitem:
+            - link "Team Role mappings" [ref=e16]:
+              - /url: /organizations/org-4ef6bb92/access?view=team-role-mappings
+          - listitem:
+            - link "Subject access" [ref=e17]:
+              - /url: /organizations/org-4ef6bb92/access?view=subject-access
+    - button "Collapse sidebar" [ref=e18]
+  - main:
+    - heading "Access" [ref=e19] [nth=1] [level=1]
+    - button "Batch grant" [ref=e20]
+    - text: Allowed 0 High risk 0 Expiring 0 No access 0 Not applicable 0
+    - tablist "Access view":
+      - tab "Roles & mappings" [ref=e21]
+      - tab "Subject access" [ref=e22] [selected]
+    - text: Search access
+    - textbox "Search access" [ref=e23]:
+      - /placeholder: Search subject, permission, reason
+    - text: Resource
+    - combobox "Resource" [ref=e24]:
+      - option "All resource" [ref=e25] [selected]
+      - option "org" [ref=e26]
+      - option "project" [ref=e27]
+      - option "team" [ref=e28]
+      - option "task" [ref=e29]
+      - option "issue" [ref=e30]
+      - option "plan" [ref=e31]
+      - option "conversation" [ref=e32]
+      - option "file" [ref=e33]
+      - option "agent" [ref=e34]
+      - option "worker" [ref=e35]
+      - option "admin_token" [ref=e36]
+    - text: Risk
+    - combobox "Risk" [ref=e37]:
+      - option "All risk" [ref=e38] [selected]
+      - option "high" [ref=e39]
+      - option "medium" [ref=e40]
+      - option "low" [ref=e41]
+    - text: Status
+    - combobox "Status" [ref=e42]:
+      - option "All status" [ref=e43] [selected]
+      - option "allowed" [ref=e44]
+      - option "denied" [ref=e45]
+      - option "unauthorized" [ref=e46]
+      - option "not_applicable" [ref=e47]
+    - alert: "[0 network_error] Failed to fetch"

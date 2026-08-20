@@ -1,0 +1,7 @@
+[server] admin token bootstrap: wrote /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/bootstrap_token (scope=* owner=system:bootstrap)
+[server] admin: admin api: listen unix "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/admin.sock": listen unix /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/admin.sock: bind: invalid argument
+agent-center server: db=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/agent-center.db web=127.0.0.1:7191 admin=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-db58108b/.tmp/t525f2500-prefix-20260820233001/var/admin.sock (escalator running)
+  admin tcp:  127.0.0.1:7391 (TLS, auto-generated)
+              cert valid until 2027-08-20 (364 days)
+              fingerprint: sha256:B4:B5:68:BB:6E:72:46:DF:04:BD:14:2D:23:1E:CA:C6:1D:DA:15:3D:5E:4E:F9:77:7E:6D:E3:18:84:C8:68:72
+signal interrupt received; shutting down

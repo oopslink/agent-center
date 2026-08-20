@@ -1,0 +1,64 @@
+
+### /health
+zsh:4: command not found: curl
+
+
+### /api/health
+zsh:4: command not found: curl
+
+
+### /api/version
+zsh:4: command not found: curl
+
+
+### /api/bootstrap
+zsh:4: command not found: curl
+
+
+### /api/auth/bootstrap
+zsh:4: command not found: curl
+
+
+### /api/me
+zsh:4: command not found: curl
+
+
+### /api/access
+zsh:4: command not found: curl
+
+
+### /version
+zsh:4: command not found: curl
+
+
+### /health
+zsh:3: command not found: curl
+
+
+### /api/health
+zsh:3: command not found: curl
+
+
+### /api/version
+zsh:3: command not found: curl
+
+
+### /api/bootstrap
+zsh:3: command not found: curl
+
+
+### /api/auth/bootstrap
+zsh:3: command not found: curl
+
+
+### /api/me
+zsh:3: command not found: curl
+
+
+### /api/access
+zsh:3: command not found: curl
+
+
+### /version
+zsh:3: command not found: curl
+

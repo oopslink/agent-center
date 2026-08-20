@@ -1,0 +1,3 @@
+rm -rf ./bin coverage.out coverage.html
+# Leave .gitkeep in spa/dist/ so go:embed still has a directory.
+find ./internal/webconsole/spa/dist -mindepth 1 ! -name '.gitkeep' -delete
