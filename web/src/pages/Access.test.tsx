@@ -69,7 +69,10 @@ describe('Access page', () => {
     );
     renderPage();
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
-    fireEvent.click(within(row).getByRole('checkbox', { name: 'Team curator' }));
+    fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
+    const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
+    fireEvent.click(within(options).getByRole('option', { name: /Team curator/ }));
+    expect(within(row).getAllByTestId('access-mapping-roles-team-7c19b0-planner-chip').map((chip) => chip.textContent)).toContain('Team curator×');
     fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
     expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members');
     fireEvent.click(within(row).getByRole('button', { name: 'Save mapping' }));
