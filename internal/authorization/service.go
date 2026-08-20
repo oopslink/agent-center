@@ -70,14 +70,14 @@ func NormalizeEnforcementMode(mode EnforcementMode) EnforcementMode {
 	case EnforcementLegacy, EnforcementShadow, EnforcementEnforce:
 		return mode
 	default:
-		return EnforcementShadow
+		return EnforcementEnforce
 	}
 }
 
 func ParseEnforcementMode(raw string) (EnforcementMode, error) {
 	mode := EnforcementMode(strings.TrimSpace(strings.ToLower(raw)))
 	if mode == "" {
-		return EnforcementShadow, nil
+		return EnforcementEnforce, nil
 	}
 	switch mode {
 	case EnforcementLegacy, EnforcementShadow, EnforcementEnforce:
@@ -122,7 +122,7 @@ type effectiveCacheEntry struct {
 
 func effectiveCacheKey(req CheckRequest) string {
 	r := req.Resource
-	return strings.Join([]string{
+	parts := []string{
 		string(req.SubjectRef),
 		string(req.Transport),
 		req.BearerScope,
@@ -134,7 +134,16 @@ func effectiveCacheKey(req CheckRequest) string {
 		r.URI,
 		r.OwnerRef,
 		r.IdentityMemberID,
-	}, "\x00")
+	}
+	if len(r.Refs) > 0 {
+		refs := make([]string, 0, len(r.Refs))
+		for _, ref := range r.Refs {
+			refs = append(refs, strings.TrimSpace(ref.Scope)+":"+strings.TrimSpace(ref.ScopeID))
+		}
+		sort.Strings(refs)
+		parts = append(parts, strings.Join(refs, "\x01"))
+	}
+	return strings.Join(parts, "\x00")
 }
 
 func cloneEffectivePermissions(in []EffectivePermission) []EffectivePermission {
@@ -1941,6 +1950,9 @@ func (s *Service) fileRefReachable(ctx context.Context, subject SubjectRef, ref 
 		return exp.Decision.Allowed
 	case "issue":
 		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: ref.ScopeID}})
+		return exp.Decision.Allowed
+	case "plan":
+		exp, _ := s.Explain(ctx, CheckRequest{SubjectRef: subject, Transport: TransportSystem, Permission: "plan.read", Resource: ResourceScope{Kind: "plan", ID: ref.ScopeID}})
 		return exp.Decision.Allowed
 	default:
 		return false

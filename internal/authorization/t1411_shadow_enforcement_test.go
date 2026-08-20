@@ -7,8 +7,8 @@ import (
 )
 
 func TestT1411EnforcementModesRejectLongTermORAllow(t *testing.T) {
-	if got := NormalizeEnforcementMode(""); got != EnforcementShadow {
-		t.Fatalf("default mode = %q want shadow", got)
+	if got := NormalizeEnforcementMode(""); got != EnforcementEnforce {
+		t.Fatalf("default mode = %q want enforce", got)
 	}
 	for _, raw := range []string{"or", "dual_allow", "fallback"} {
 		if _, err := ParseEnforcementMode(raw); !errors.Is(err, ErrInvalid) {
@@ -22,7 +22,8 @@ func TestT1411EnforcementModesRejectLongTermORAllow(t *testing.T) {
 
 func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 	ctx := context.Background()
-	db, svc := newAuthzTestService(t)
+	db, base := newAuthzTestService(t)
+	svc := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementShadow})
 	seedAuthzBase(t, db)
 	seedProject(t, db, "project-1", "org-1")
 	seedProjectMember(t, db, "pm-member", "project-1", "user:user-member", "member")
@@ -62,7 +63,8 @@ func TestT1411ShadowCompareBuiltinRoleEquivalenceAndEnforce(t *testing.T) {
 
 func TestT1411ShadowMetricsExposeLegacyEquivalentDrift(t *testing.T) {
 	ctx := context.Background()
-	db, svc := newAuthzTestService(t)
+	db, base := newAuthzTestService(t)
+	svc := New(Deps{DB: db, Store: base.store, IDGen: base.gen, Clock: base.clock, Mode: EnforcementShadow})
 	seedAuthzBase(t, db)
 	seedTeam(t, db)
 	execMany(t, db, `DELETE FROM authorization_role_permissions WHERE role_id = 'sys-team-web-member' AND permission_key = 'team.member.manage'`)

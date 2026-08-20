@@ -8,10 +8,11 @@ import (
 )
 
 func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, caller *identity.Identity, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	if d.Authorizer == nil {
+	authorizer := permissionAuthorizer(d)
+	if authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.UserSubject(caller.ID()),
 		Transport:  authz.TransportWeb,
 		Permission: permission,
@@ -25,10 +26,11 @@ func requireWebAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDe
 }
 
 func requireWebSubjectAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, subject authz.SubjectRef, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	if d.Authorizer == nil {
+	authorizer := permissionAuthorizer(d)
+	if authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: subject,
 		Transport:  authz.TransportWeb,
 		Permission: permission,

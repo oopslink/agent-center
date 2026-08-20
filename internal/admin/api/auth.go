@@ -56,11 +56,11 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 			"endpoint requires authenticated bearer")
 		return false
 	}
-	if d := hd(r); d.Authorizer != nil {
+	if authorizer := effectiveAuthorizer(hd(r)); authorizer != nil {
 		permission, mapped := authz.PermissionForBearerScope(string(scope))
 		if mapped {
 			matchedScope := matchedBearerScope(auth.Scopes, scope)
-			decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+			decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
 				SubjectRef:  adminBearerSubject(auth.Owner),
 				Transport:   authz.TransportAdminHTTP,
 				BearerScope: matchedScope,
@@ -81,6 +81,13 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 		return false
 	}
 	return true
+}
+
+func effectiveAuthorizer(d HandlerDeps) *authz.Service {
+	if d.Authorizer != nil {
+		return d.Authorizer
+	}
+	return nil
 }
 
 func adminBearerSubject(owner admintoken.Owner) authz.SubjectRef {

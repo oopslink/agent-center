@@ -10,10 +10,11 @@ import (
 )
 
 func (s *Server) requireAgentAuthorization(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, permission authz.PermissionKey, resource authz.ResourceScope) bool {
-	if d.Authorizer == nil {
+	authorizer := effectiveAuthorizer(d)
+	if authorizer == nil {
 		return true
 	}
-	decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
 		SubjectRef: authz.SubjectRef(agentActor(a)),
 		Transport:  authz.TransportMCP,
 		Permission: permission,

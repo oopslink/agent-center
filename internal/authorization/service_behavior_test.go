@@ -77,6 +77,7 @@ func TestServiceEffectiveAcrossResourceKinds(t *testing.T) {
 		"f-project":  {Scope: "project", ScopeID: "project-1"},
 		"f-task":     {Scope: "task", ScopeID: "task-1"},
 		"f-issue":    {Scope: "issue", ScopeID: "issue-1"},
+		"f-plan":     {Scope: "plan", ScopeID: "plan-1"},
 		"f-conv":     {Scope: "conversation", ScopeID: "conv-1"},
 	} {
 		execMany(t, db, `INSERT INTO file_references (id,file_uri,scope,scope_id,created_by,created_at) VALUES (?, ?, ?, ?, 'system', ?)`, "ref-"+id, "ac://"+id, scope.Scope, scope.ScopeID, now)
@@ -98,10 +99,16 @@ func TestServiceEffectiveAcrossResourceKinds(t *testing.T) {
 			t.Errorf("%s on %s denied: %#v %v", req.Permission, req.Resource.Kind, decision, err)
 		}
 	}
-	for _, uri := range []string{"ac://f-uploader", "ac://f-project", "ac://f-task", "ac://f-issue", "ac://f-conv"} {
+	for _, uri := range []string{"ac://f-uploader", "ac://f-project", "ac://f-task", "ac://f-issue", "ac://f-plan", "ac://f-conv"} {
 		if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-owner", Permission: "file.download", Resource: ResourceScope{Kind: "file", URI: uri}}); err != nil {
 			t.Errorf("reachable file %s denied: %v", uri, err)
 		}
+	}
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-owner", Permission: "file.download", Resource: ResourceScope{Kind: "file", URI: "ac://explicit", Refs: []FileRef{{Scope: "uploader", ScopeID: "user:user-owner"}}}}); err != nil {
+		t.Fatalf("explicit uploader file ref denied: %v", err)
+	}
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-owner", Permission: "file.download", Resource: ResourceScope{Kind: "file", URI: "ac://explicit", Refs: []FileRef{{Scope: "uploader", ScopeID: "user:someone-else"}}}}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("explicit file refs must be part of cache key; got err=%v", err)
 	}
 	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-admin", Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: "conv-1"}}); !errors.Is(err, ErrDenied) {
 		t.Fatalf("left participant err=%v, want denied", err)

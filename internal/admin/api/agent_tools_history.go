@@ -19,8 +19,8 @@ import (
 // history: it could not catch up on a channel it just joined, re-read context it
 // already marked seen, or read messages it was never @mentioned in. This tool
 // closes that gap for every conversation kind, behind the shared
-// conversation.read RAM gate. Legacy participant checks are retained only when
-// the Authorizer is not wired.
+// conversation.read RAM gate. Isolated handler tests without an Authorizer keep
+// the historical participant fallback.
 // =============================================================================
 
 // listMessagesReq is the body for POST /admin/agent-tools/list_messages.
@@ -87,7 +87,7 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	} else if !agentIsActiveParticipant(conv, a) {
 		if conv.Kind() == conversation.ConversationKindChannel {
 			writeError(w, http.StatusForbidden, "not_a_channel_member",
-				"not a member of channel "+conv.Name()+" — ask an owner to add you before reading its history")
+				"not a member of channel "+conv.Name()+" - ask an owner to add you before reading its history")
 			return
 		}
 		writeError(w, http.StatusForbidden, "not_a_participant",

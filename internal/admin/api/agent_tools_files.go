@@ -2,8 +2,7 @@ package api
 
 // v2.7 post-D3 — agent MCP file tools (server contract, task #104). Admin HTTP
 // endpoints that let an agent (via its Worker daemon) upload/download/attach
-// files, gated by shared RAM authorization when wired. The old per-agent
-// enumerable domain remains only as an unwired compatibility fallback.
+// files, gated by shared RAM authorization when wired.
 //
 // These are the agent-side analog of D3-d's HUMAN file transport
 // (webconsole/api/handlers_files.go): the byte mechanics
@@ -22,8 +21,8 @@ package api
 // proven by the TOKEN OWNER, target agent bound to it). Upload/complete/attach
 // that name a {scope, scope_id} are AUTHZ-FIRST: the shared file permission must
 // pass before any blob or reference write. Download is FAIL-CLOSED through
-// file.download; legacy own-domain reachability is used only when Authorizer is
-// absent.
+// file.download; isolated handler tests without an Authorizer keep the
+// historical own-domain fallback.
 //
 // The daemon-side byte-mover + path containment is a SEPARATE follow-up slice —
 // NOT built here.
@@ -84,10 +83,6 @@ func mapFilesError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 	}
 }
-
-// =============================================================================
-// Legacy own-domain helper, used only when the shared Authorizer is not wired.
-// =============================================================================
 
 // agentOwnDomainScopes returns every FileReference scope the agent may read or
 // write — the agent's enumerable domain. It is the agent-side analog of the
@@ -326,11 +321,12 @@ func dedupScopeRefs(in []filesservice.ScopeRef) []filesservice.ScopeRef {
 }
 
 // agentReachable reports whether the agent may download the blob at fileURI.
-// Shared RAM authorization is authoritative when wired; the own-domain scan is
-// retained as a compatibility fallback.
+// Shared RAM authorization is authoritative when wired; isolated handler tests
+// without an Authorizer keep the historical own-domain fallback.
 func (s *Server) agentReachable(d HandlerDeps, r *http.Request, a *agent.Agent, fileURI files.FileURI) (bool, error) {
-	if d.Authorizer != nil {
-		decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
+	authorizer := effectiveAuthorizer(d)
+	if authorizer != nil {
+		decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
 			SubjectRef: authz.SubjectRef(agentActor(a)),
 			Transport:  authz.TransportMCP,
 			Permission: "file.download",
@@ -406,7 +402,7 @@ func (s *Server) uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
 			return
 		}
-		if d.Authorizer == nil {
+		if effectiveAuthorizer(d) == nil {
 			inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "internal", err.Error())
@@ -509,7 +505,7 @@ func (s *Server) completeFileHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
 			return
 		}
-		if d.Authorizer == nil {
+		if effectiveAuthorizer(d) == nil {
 			inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "internal", err.Error())
@@ -647,7 +643,7 @@ func (s *Server) attachFileHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_scope_id", "")
 		return
 	}
-	if d.Authorizer == nil {
+	if effectiveAuthorizer(d) == nil {
 		inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal", err.Error())

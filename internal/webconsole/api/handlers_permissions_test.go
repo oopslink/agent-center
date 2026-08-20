@@ -116,7 +116,7 @@ func TestPermissionsHTTP_ShadowMetricsEndpoint(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&bodyOut); err != nil {
 		t.Fatal(err)
 	}
-	if bodyOut.Mode != string(authz.EnforcementShadow) || bodyOut.Metrics.Checks == 0 {
+	if bodyOut.Mode != string(authz.EnforcementEnforce) || bodyOut.Metrics.Checks == 0 {
 		t.Fatalf("shadow payload = %+v", bodyOut)
 	}
 }

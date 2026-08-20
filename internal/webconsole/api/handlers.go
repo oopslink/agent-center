@@ -302,17 +302,6 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 			"missing or unknown organization scope (use /api/orgs/{slug}/...)")
 		return nil, nil, "", false
 	}
-	if d.Authorizer != nil {
-		if decision, err := d.Authorizer.Check(r.Context(), authz.CheckRequest{
-			SubjectRef: authz.UserSubject(callerID.ID()),
-			Transport:  authz.TransportWeb,
-			Permission: "org.read",
-			Resource:   authz.ResourceScope{Kind: "org", ID: orgID},
-		}); err != nil || !decision.Allowed {
-			writeAuthorizationError(w, decision, err)
-			return nil, nil, "", false
-		}
-	}
 	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())
 	if err != nil || member == nil {
 		writeError(w, http.StatusForbidden, "forbidden", "not a member of this organization")
@@ -331,6 +320,17 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 		if member.Role() != identity.RoleOwner {
 			writeError(w, http.StatusForbidden, "org_disabled",
 				"this organization is disabled; contact an owner to re-enable it")
+			return nil, nil, "", false
+		}
+	}
+	if authorizer := permissionAuthorizer(d); authorizer != nil {
+		if decision, err := authorizer.Check(r.Context(), authz.CheckRequest{
+			SubjectRef: authz.UserSubject(callerID.ID()),
+			Transport:  authz.TransportWeb,
+			Permission: "org.read",
+			Resource:   authz.ResourceScope{Kind: "org", ID: orgID},
+		}); err != nil || !decision.Allowed {
+			writeAuthorizationError(w, decision, err)
 			return nil, nil, "", false
 		}
 	}
