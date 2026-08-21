@@ -2400,7 +2400,10 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		if r.URI == "" {
 			r.URI = r.ID
 		}
-		if r.URI == "" {
+		// A new upload has no file URI until its transfer session is created.
+		// In that pre-creation check, the requested live placement refs are the
+		// resource being authorized. Existing-file operations still require a URI.
+		if r.URI == "" && len(r.Refs) == 0 {
 			return r, []string{"file uri required"}, ErrInvalid
 		}
 	case "agent":

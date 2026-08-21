@@ -70,7 +70,7 @@ func TestServiceEffectiveAcrossResourceKinds(t *testing.T) {
 	execMany(t, db, `INSERT INTO pm_tasks (id, project_id, title, status, assignee, created_by, created_at, updated_at) VALUES ('task-1','project-1','T','running','agent:mem-agent','user:user-owner',?,?)`, now, now)
 	execMany(t, db, `INSERT INTO pm_issues (id, project_id, title, status, created_by, created_at, updated_at) VALUES ('issue-1','project-1','I','open','user:user-owner',?,?)`, now, now)
 	execMany(t, db, `INSERT INTO pm_plans (id, project_id, name, status, creator_ref, created_at, updated_at) VALUES ('plan-1','project-1','P','active','user:user-owner',?,?)`, now, now)
-	execMany(t, db, `INSERT INTO conversations (id, kind, status, opened_at, created_at, updated_at, organization_id, participants) VALUES ('conv-1','dm','open',?,?,?,'org-1','[{"identity_id":"user:user-owner"},{"identity_id":"user:user-admin","left_at":"2026-01-01T00:00:00Z"}]')`, now, now, now)
+	execMany(t, db, `INSERT INTO conversations (id, kind, status, opened_at, created_at, updated_at, organization_id, participants) VALUES ('conv-1','dm','open',?,?,?,'org-1','[{"identity_id":"user:user-owner"},{"identity_id":"agent:mem-agent"},{"identity_id":"user:user-admin","left_at":"2026-01-01T00:00:00Z"}]')`, now, now, now)
 	execMany(t, db, `INSERT INTO agents (id, organization_id, name, worker_id, lifecycle, created_by, identity_member_id, created_at, updated_at) VALUES ('agent-runtime','org-1','A','worker-1','running','system','mem-agent',?,?)`, now, now)
 	for id, scope := range map[string]FileRef{
 		"f-uploader": {Scope: "uploader", ScopeID: "user:user-owner"},
@@ -102,6 +102,20 @@ func TestServiceEffectiveAcrossResourceKinds(t *testing.T) {
 		if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-owner", Permission: "file.download", Resource: ResourceScope{Kind: "file", URI: uri}}); err != nil {
 			t.Errorf("reachable file %s denied: %v", uri, err)
 		}
+	}
+	if decision, err := svc.Check(ctx, CheckRequest{
+		SubjectRef: "agent:mem-agent",
+		Permission: "file.upload",
+		Resource:   ResourceScope{Kind: "file", Refs: []FileRef{{Scope: "conversation", ScopeID: "conv-1"}}},
+	}); err != nil || !decision.Allowed {
+		t.Fatalf("pre-creation upload to reachable conversation denied: %#v %v", decision, err)
+	}
+	if _, err := svc.Check(ctx, CheckRequest{
+		SubjectRef: "agent:mem-agent",
+		Permission: "file.upload",
+		Resource:   ResourceScope{Kind: "file"},
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("upload without file URI or placement refs err=%v, want invalid", err)
 	}
 	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-admin", Permission: "conversation.read", Resource: ResourceScope{Kind: "conversation", ID: "conv-1"}}); !errors.Is(err, ErrDenied) {
 		t.Fatalf("left participant err=%v, want denied", err)
