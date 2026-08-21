@@ -144,6 +144,7 @@ type accessGrantDTO struct {
 type accessBatchRequestDTO struct {
 	SubjectRefs      []string                 `json:"subject_refs"`
 	PermissionKeys   []string                 `json:"permission_keys"`
+	RoleID           string                   `json:"role_id,omitempty"`
 	Resources        []accessResourceScopeDTO `json:"resources"`
 	ExpiresAt        *string                  `json:"expires_at"`
 	Reason           string                   `json:"reason"`
@@ -162,6 +163,7 @@ type accessBatchItemDTO struct {
 	Reason      string                 `json:"reason"`
 	EvidenceRef string                 `json:"evidence_ref,omitempty"`
 	GrantID     string                 `json:"grant_id,omitempty"`
+	RoleID      string                 `json:"role_id,omitempty"`
 }
 
 type accessRevokeRequestDTO struct {
@@ -653,7 +655,10 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	if name == "" {
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
 	}
-	stableKey := normalizeRAMRoleStableKey(body.StableKey)
+	stableKey, validStableKey := validateRAMRoleStableKey(body.StableKey)
+	if !validStableKey {
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
+	}
 	if stableKey == "" {
 		stableKey = normalizeRAMRoleStableKey(name)
 	}
@@ -725,7 +730,10 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleConflict
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	nextStableKey := normalizeRAMRoleStableKey(body.StableKey)
+	nextStableKey, validStableKey := validateRAMRoleStableKey(body.StableKey)
+	if !validStableKey {
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
+	}
 	if nextStableKey == "" {
 		nextStableKey = currentStableKey
 	}
@@ -852,7 +860,7 @@ func accessRAMRoleReferences(ctx context.Context, db *sql.DB, roleID string) ([]
 
 func normalizeAccessRAMRolePermissions(in []string) ([]string, string, error) {
 	known := map[string]accessPermissionDefinitionDTO{}
-	for _, def := range accessCatalog {
+	for _, def := range accessCatalogFromDefinitions(authz.Definitions()) {
 		known[def.Key] = def
 	}
 	seen := map[string]struct{}{}
@@ -965,7 +973,7 @@ func normalizeRAMRoleScope(scope string, permissions []string) string {
 	}
 	kinds := map[string]struct{}{}
 	for _, permission := range permissions {
-		for _, def := range accessCatalog {
+		for _, def := range accessCatalogFromDefinitions(authz.Definitions()) {
 			if def.Key != permission {
 				continue
 			}
@@ -1003,6 +1011,31 @@ func normalizeRAMRoleStableKey(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+// validateRAMRoleStableKey preserves an explicitly supplied stable key exactly.
+// Stable keys are API identifiers: silently slugifying a typo would make the
+// value shown in the form differ from the value that was actually persisted.
+// Empty input remains valid so create can derive a key from the display name and
+// PATCH can retain the current key.
+func validateRAMRoleStableKey(value string) (string, bool) {
+	if value == "" {
+		return "", true
+	}
+	if value != strings.TrimSpace(value) || value != strings.ToLower(value) {
+		return "", false
+	}
+	for i, r := range value {
+		alphaNumeric := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		separator := r == '-' || r == '_' || r == '.'
+		if !alphaNumeric && !separator {
+			return "", false
+		}
+		if separator && (i == 0 || i == len(value)-1) {
+			return "", false
+		}
+	}
+	return value, value != ""
 }
 
 func insertRAMRoleAudit(ctx context.Context, exec interface {
@@ -1798,6 +1831,18 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
 	}
+	if body.RoleID != "" {
+		role, found, roleErr := accessRAMRoleDetail(r.Context(), d.DB, orgID, body.RoleID)
+		if roleErr != nil {
+			writeError(w, http.StatusInternalServerError, "ram_role_lookup_failed", roleErr.Error())
+			return
+		}
+		if !found || role.RevokedAt != nil {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_direct_binding", "RAM role is unavailable")
+			return
+		}
+		body.PermissionKeys = append([]string(nil), role.Latest.Permissions...)
+	}
 	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
 	if preview {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1819,6 +1864,14 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, applied bool) []accessBatchItemDTO {
 	items := []accessBatchItemDTO{}
 	expiresAt, expiresErr := parseAccessExpiry(body.ExpiresAt)
+	if body.RoleID != "" {
+		for _, subjectRef := range body.SubjectRefs {
+			for _, resource := range body.Resources {
+				items = append(items, accessEvaluateDirectBinding(ctx, svc, orgID, actor, body, state, len(items)+1, subjectRef, resource, expiresAt, expiresErr, applied))
+			}
+		}
+		return items
+	}
 	for _, subjectRef := range body.SubjectRefs {
 		for _, permission := range body.PermissionKeys {
 			for _, resource := range body.Resources {
@@ -1829,6 +1882,94 @@ func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, act
 		}
 	}
 	return items
+}
+
+func accessEvaluateDirectBinding(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
+	subj, subjectFound := state.subjectByRef[subjectRef]
+	item := accessBatchItemDTO{
+		ID:          fmt.Sprintf("item-%d", idx),
+		SubjectRef:  subjectRef,
+		SubjectName: fallback(subj.Name, subjectRef),
+		Permission:  strings.Join(body.PermissionKeys, ", "),
+		Resource:    resource,
+		RoleID:      body.RoleID,
+		Status:      "denied",
+		Risk:        accessPermissionsRisk(body.PermissionKeys),
+		Reason:      "direct binding denied by unified authorization service",
+	}
+	item.HighRisk = item.Risk == "high"
+	if expiresErr != nil {
+		item.Reason = "invalid expiry: " + expiresErr.Error()
+		return item
+	}
+	if !subjectFound || subj.Status != string(identity.MemberJoined) {
+		item.Status = "unauthorized"
+		item.Reason = "subject is unavailable or outside this organization"
+		return item
+	}
+	applicable := false
+	for _, permission := range body.PermissionKeys {
+		if accessPermissionApplies(state.catalogByKey[permission], resource.Kind) {
+			applicable = true
+			break
+		}
+	}
+	if !applicable {
+		item.Status = "not_applicable"
+		item.Reason = "RAM role has no permissions for " + resource.Kind
+		return item
+	}
+	req := accessDirectBindingAuthorizationRequest(orgID, actor, body, item, expiresAt)
+	var (
+		result authz.BatchResult
+		err    error
+	)
+	if applied {
+		result, err = svc.ApplyBatch(ctx, req)
+	} else {
+		result, err = svc.PreviewBatch(ctx, req)
+	}
+	if err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	for _, operation := range result.Operations {
+		if operation.Reason != "" || operation.Status == "denied" {
+			item.Status = accessBatchStatusForReason(operation.Reason)
+			item.Reason = fallback(operation.Reason, operation.Status)
+			return item
+		}
+		if operation.AssignmentID != "" {
+			item.GrantID = operation.AssignmentID
+		}
+	}
+	item.Status = "allowed"
+	item.Reason = "direct RAM role binding can be applied by unified authorization API"
+	item.EvidenceRef = "authorization_preview:" + item.ID
+	if applied {
+		item.Reason = "direct RAM role binding applied by unified authorization API"
+		item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	}
+	return item
+}
+
+func accessDirectBindingAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
+	return authz.BatchRequest{
+		IdempotencyKey: accessBatchIdempotencyKey("direct", orgID, actor, body.PreviewRequestID, item),
+		ActorRef:       actor,
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{{
+			ID:   item.ID,
+			Type: "assign_role",
+			Assignment: authz.AssignmentInput{
+				SubjectRef: authz.SubjectRef(item.SubjectRef),
+				RoleID:     body.RoleID,
+				Resource:   accessAuthzResource(item.Resource),
+				ExpiresAt:  expiresAt,
+			},
+		}},
+	}
 }
 
 func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef, permission string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
@@ -1959,7 +2100,7 @@ func accessRoleIDForPermission(permission, resourceKind string) string {
 }
 
 func accessBatchIdempotencyKey(prefix, orgID string, actor authz.SubjectRef, previewID string, item accessBatchItemDTO) string {
-	seed := strings.Join([]string{prefix, orgID, string(actor), previewID, item.SubjectRef, item.Permission, resourceKey(item.Resource)}, "|")
+	seed := strings.Join([]string{prefix, orgID, string(actor), previewID, item.SubjectRef, item.RoleID, item.Permission, resourceKey(item.Resource)}, "|")
 	return "access-" + prefix + "-" + accessHash(seed)
 }
 

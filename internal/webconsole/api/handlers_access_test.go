@@ -494,6 +494,54 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 		t.Fatalf("created stable key/scope wrong: %+v", created)
 	}
 
+	// The RAM Role editor and overview must use the same authoritative
+	// permission registry. org.analytics.read is deliberately outside the old
+	// hand-maintained UI metadata subset that previously made this return 422.
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Analytics reader","stable_key":"org.analytics-reader","scope":"org","permissions":["org.analytics.read"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create registered org.analytics.read RAM role status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var analyticsRole struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&analyticsRole); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	directRoleBody := `{"subject_refs":["user:` + sess.IdentityID + `"],"role_id":"` + analyticsRole.ID + `","resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `"}],"reason":"temporary analytics role"}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", directRoleBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct RAM role binding status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var directRoleResult struct {
+		Items []struct {
+			Status  string `json:"status"`
+			RoleID  string `json:"role_id"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&directRoleResult); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(directRoleResult.Items) != 1 || directRoleResult.Items[0].Status != "allowed" || directRoleResult.Items[0].RoleID != analyticsRole.ID || directRoleResult.Items[0].GrantID == "" {
+		t.Fatalf("direct binding did not preserve selected RAM role: %+v", directRoleResult.Items)
+	}
+	var assignedRole string
+	if err := db.QueryRow(`SELECT role_id FROM authorization_role_assignments WHERE id=?`, directRoleResult.Items[0].GrantID).Scan(&assignedRole); err != nil || assignedRole != analyticsRole.ID {
+		t.Fatalf("direct binding role_id=%q want=%q err=%v", assignedRole, analyticsRole.ID, err)
+	}
+
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Invalid key","stable_key":"Silently Rewritten","scope":"org","permissions":["org.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("non-canonical stable key status=%d want 422 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	resp.Body.Close()
+	var invalidKeyRows int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE org_id=? AND name='Invalid key'`, sess.OrgID).Scan(&invalidKeyRows); err != nil || invalidKeyRows != 0 {
+		t.Fatalf("invalid stable key was partially persisted rows=%d err=%v", invalidKeyRows, err)
+	}
+
 	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","stable_key":"deploy-admin","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("patch status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
