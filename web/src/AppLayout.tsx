@@ -32,6 +32,7 @@ import { BottomSheet } from '@/shell/BottomSheet';
 import { SECONDARY_NAV_REGISTRY, type ShellModuleId } from '@/shell/secondaryNav';
 import { OrgSettingsSecondaryNav } from '@/shell/nav/OrgSettingsSecondaryNav';
 import { hasEffectivePermission, useCurrentSubjectEffectivePermissions } from '@/api/permissions';
+import { LanguageSegmented } from '@/components/LanguagePanel';
 
 // AppLayout v5 — v2.10.0 [T1] three-column module rail + per-module secondary
 // nav + on-demand context panel (col④). Desktop: col①(rail) | col②(secondary nav)
@@ -744,6 +745,11 @@ export default function AppLayout(): React.ReactElement {
             </Link>
             <div className="border-t border-border-base pt-2">
               <ThemeSegmented collapsed={false} theme={theme} onSetTheme={onSetTheme} />
+              <LanguageSegmented
+                testId="mobile-language-toggle"
+                segmentTestIdPrefix="mobile-language-segment"
+                className="mt-2 flex gap-1 rounded-md border border-border-base bg-bg-elevated p-0.5"
+              />
             </div>
             <button
               type="button"
@@ -1135,6 +1141,11 @@ function RailUserPanel({
       </Link>
       <div className="border-t border-border-base pt-2">
         <ThemeSegmented collapsed={false} theme={theme} onSetTheme={onSetTheme} />
+        <LanguageSegmented
+          testId="rail-language-toggle"
+          segmentTestIdPrefix="rail-language-segment"
+          className="mt-2 flex gap-1 rounded-md border border-border-base bg-bg-elevated p-0.5"
+        />
       </div>
       <button
         type="button"
