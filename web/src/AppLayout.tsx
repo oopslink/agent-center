@@ -1,7 +1,7 @@
 import type React from 'react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, type Location } from 'react-router-dom';
 import { useSSE } from '@/sse/useSSE';
 import {
   conversationDeleteErrorMessage,
@@ -168,6 +168,7 @@ interface NavItem {
   label: string;
   end?: boolean;
   Icon: () => React.ReactElement;
+  iconId?: string;
 }
 
 interface NavSection {
@@ -207,9 +208,9 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       ] }];
     case 'access':
       return [{ label: 'Access', items: [
-        { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
-        { to: `${p('access')}?view=team-role-mappings`, label: 'Team Role mappings', Icon: AccessIcon },
-        { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: AccessIcon },
+        { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: RamRolesIcon, iconId: 'ram-roles' },
+        { to: `${p('access')}?view=team-role-mappings`, label: 'Team Role mappings', Icon: TeamRoleMappingsIcon, iconId: 'team-role-mappings' },
+        { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: SubjectAccessIcon, iconId: 'subject-access' },
       ] }];
     case 'system':
       return [{ label: 'System', items: [
@@ -221,6 +222,24 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     default:
       return [];
   }
+}
+
+function splitPathAndSearch(to: string): { pathname: string; search: string | null } {
+  const queryIndex = to.indexOf('?');
+  if (queryIndex === -1) return { pathname: to, search: null };
+  return {
+    pathname: to.slice(0, queryIndex),
+    search: to.slice(queryIndex),
+  };
+}
+
+function isPrimaryNavItemActive(item: NavItem, location: Location): boolean {
+  const target = splitPathAndSearch(item.to);
+  if (target.search !== null) {
+    return location.pathname === target.pathname && location.search === target.search;
+  }
+  if (item.end) return location.pathname === target.pathname;
+  return location.pathname === target.pathname || location.pathname.startsWith(`${target.pathname}/`);
 }
 
 // ============================================================================
@@ -935,19 +954,20 @@ function DefaultModuleNav({
                       : item.to.endsWith('/projects') ? projectChildren
                       : null;
                     const subOpen = isSubItemOpen(item.to);
+                    const active = isPrimaryNavItemActive(item, location);
                     return (
                       <li key={item.to}>
                         <div className="flex items-center gap-1">
-                          <NavLink
+                          <Link
                             to={item.to}
-                            end={item.end}
-                            className={({ isActive }) => [
+                            aria-current={active ? 'page' : undefined}
+                            className={[
                               'flex flex-1 items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-                              isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
+                              active ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
                             ].join(' ')}
                           >
                             <span className="flex items-center gap-2">
-                              <span aria-hidden="true" className="inline-flex h-4 w-4"><item.Icon /></span>
+                              <span aria-hidden="true" data-icon={item.iconId ?? item.label} className="inline-flex h-4 w-4"><item.Icon /></span>
                               <span className="flex flex-1 items-center justify-between gap-1.5">
                                 <span>{item.label}</span>
                                 {subChildren && (
@@ -961,7 +981,7 @@ function DefaultModuleNav({
                                 )}
                               </span>
                             </span>
-                          </NavLink>
+                          </Link>
                           {subChildren && (
                             <button
                               type="button"
@@ -1404,6 +1424,15 @@ function TeamsRailIcon(): React.ReactElement {
 }
 function AccessIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="8.5" width="12" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" strokeLinecap="round" /><path d="M10 12v1.8" strokeLinecap="round" /></svg>);
+}
+function RamRolesIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.8 15.5 5v4.3c0 3.4-2.1 6.3-5.5 7.9-3.4-1.6-5.5-4.5-5.5-7.9V5z" strokeLinejoin="round" /><path d="M8.5 10.2a2 2 0 1 1 1.6 1.9v2M11.5 12.1H14" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+}
+function TeamRoleMappingsIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="2.8" y="4" width="5" height="4" rx="1" /><rect x="12.2" y="4" width="5" height="4" rx="1" /><rect x="7.5" y="12" width="5" height="4" rx="1" /><path d="M7.8 6h4.4M5.3 8v2a2 2 0 0 0 2 2h2.7M14.7 8v2a2 2 0 0 1-2 2H10" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+}
+function SubjectAccessIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="8" cy="6" r="2.5" /><path d="M3.5 16a4.5 4.5 0 0 1 8.1-2.7" strokeLinecap="round" /><rect x="11.5" y="10.5" width="5" height="5.5" rx="1" /><path d="M13 10.5V9.3a1.3 1.3 0 0 1 2.6 0v1.2" strokeLinecap="round" /></svg>);
 }
 function TrashIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" /></svg>);

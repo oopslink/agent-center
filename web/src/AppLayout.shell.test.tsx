@@ -48,6 +48,19 @@ function renderShell(initial = '/channels') {
   );
 }
 
+function primaryCurrentLinks() {
+  const nav = screen.getByRole('navigation', { name: /^primary$/ });
+  return within(nav)
+    .getAllByRole('link')
+    .filter((link) => link.getAttribute('aria-current') === 'page');
+}
+
+function expectOnlyCurrentPrimaryLink(label: string) {
+  const current = primaryCurrentLinks();
+  expect(current).toHaveLength(1);
+  expect(current[0]).toHaveTextContent(label);
+}
+
 describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () => {
   afterEach(() => cleanup());
 
@@ -107,6 +120,46 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(within(nav2).getByTestId('section-label')).toHaveTextContent('Workspace');
     expect(within(nav2).getByRole('link', { name: /projects/i })).toHaveAttribute('href', '/projects');
     expect(within(nav2).getByRole('link', { name: /tasks/i })).toHaveAttribute('href', '/tasks');
+  });
+
+  it('Access second-level nav uses exact query routes for a single active item on deep links', () => {
+    const cases: Array<[string, string]> = [
+      ['/access?view=ram-roles', 'RAM Roles'],
+      ['/access?view=team-role-mappings', 'Team Role mappings'],
+      ['/access?view=subject-access', 'Subject access'],
+    ];
+
+    for (const [route, label] of cases) {
+      const { unmount } = renderShell(route);
+      expect(screen.getByTestId('page-Access')).toBeInTheDocument();
+      expectOnlyCurrentPrimaryLink(label);
+      unmount();
+    }
+  });
+
+  it('Access second-level nav keeps one active item while switching query routes', () => {
+    renderShell('/access?view=ram-roles');
+    expectOnlyCurrentPrimaryLink('RAM Roles');
+
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    fireEvent.click(within(nav).getByRole('link', { name: /team role mappings/i }));
+    expectOnlyCurrentPrimaryLink('Team Role mappings');
+
+    fireEvent.click(within(nav).getByRole('link', { name: /subject access/i }));
+    expectOnlyCurrentPrimaryLink('Subject access');
+
+    fireEvent.click(within(nav).getByRole('link', { name: /ram roles/i }));
+    expectOnlyCurrentPrimaryLink('RAM Roles');
+  });
+
+  it('Access second-level nav uses distinct semantic icon identifiers', () => {
+    renderShell('/access?view=ram-roles');
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    const iconIds = ['RAM Roles', 'Team Role mappings', 'Subject access'].map((label) => {
+      const link = within(nav).getByRole('link', { name: label });
+      return link.querySelector('[data-icon]')?.getAttribute('data-icon');
+    });
+    expect(new Set(iconIds)).toEqual(new Set(['ram-roles', 'team-role-mappings', 'subject-access']));
   });
 
   it('content shell uses the full remaining width (no centering / max-width)', () => {
