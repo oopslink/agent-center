@@ -1,0 +1,31 @@
+{
+  "reviewed_sha": "d1bb07bc273b8a8f4d6a24621f25c1e59123b81b",
+  "base_sha": "00adf6b7b3c6871e3dff118d4af2b85a2c23a1c6",
+  "recovered_sha": "50f728dc842cb525499a1ca4fd1bdd46078c567c",
+  "verdict": "BLOCKED",
+  "runtime_product_verdict": "PASS",
+  "approved_mockup_verdict": "BLOCKED_MISSING_INPUT",
+  "responsive_visual_risk": "1280x720 zero-result guidance is partially clipped",
+  "runtime": {
+    "instance_id": "s3d1bb07",
+    "branch": "ac-exec/task-a3046a0b/exec-4c6a98f1",
+    "commit": "d1bb07bc",
+    "install_path": "/Users/oopslink/.agent-center-test/s3d1bb07/center/current/bin/agent-center",
+    "commit_marker": "d1bb07bc"
+  },
+  "browser": {
+    "real_navigation": true,
+    "console_messages_after_normal_reload": 0,
+    "page_errors_after_normal_reload": 0,
+    "mixed_preview_status": 422,
+    "mixed_apply_status": 422,
+    "mixed_error": "mixed_direct_binding_scope"
+  },
+  "tests": {
+    "make_lint": "PASS",
+    "make_build": "PASS",
+    "go_target_packages": "PASS",
+    "access_vitest": "15/15 PASS",
+    "access_playwright": "2/2 PASS"
+  }
+}
