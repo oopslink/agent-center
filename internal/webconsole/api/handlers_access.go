@@ -593,7 +593,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at,
+		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), v.name, ar.kind, v.description, v.scope_kind, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at,
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
@@ -679,7 +679,7 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	if err := replaceRAMRolePermissionRows(ctx, tx, id, permissions, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
+	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, name, strings.TrimSpace(body.Description), scope, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.created", actor, id, "", map[string]any{"name": name, "stable_key": stableKey, "scope": scope, "permissions": permissions}); err != nil {
@@ -702,10 +702,10 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		return accessRAMRoleDetailDTO{}, err
 	}
 	defer tx.Rollback()
-	var ownerOrg, kind, currentName, currentDescription, currentScope string
+	var ownerOrg, kind, currentStableKey, currentName, currentDescription, currentScope string
 	var revoked sql.NullString
 	var latest int
-	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version, name, description, COALESCE(NULLIF(scope_kind, ''), 'org') FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest, &currentName, &currentDescription, &currentScope); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version, COALESCE(NULLIF(stable_key, ''), id), name, description, COALESCE(NULLIF(scope_kind, ''), 'org') FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest, &currentStableKey, &currentName, &currentDescription, &currentScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return accessRAMRoleDetailDTO{}, errAccessRAMRoleNotFound
 		}
@@ -721,6 +721,10 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleConflict
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	nextStableKey := normalizeRAMRoleStableKey(body.StableKey)
+	if nextStableKey == "" {
+		nextStableKey = currentStableKey
+	}
 	nextName := strings.TrimSpace(body.Name)
 	if nextName == "" {
 		nextName = currentName
@@ -733,16 +737,16 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 	if body.Scope == "" {
 		nextScope = currentScope
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET name = ?, description = ?, scope_kind = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, nextName, nextDescription, nextScope, now, roleID, latest); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET stable_key = ?, name = ?, description = ?, scope_kind = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, nextStableKey, nextName, nextDescription, nextScope, now, roleID, latest); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := replaceRAMRolePermissionRows(ctx, tx, roleID, permissions, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, permissions, risk, actor, now); err != nil {
+	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, nextName, nextDescription, nextScope, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "name": nextName, "scope": nextScope, "permissions": permissions}); err != nil {
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "name": nextName, "stable_key": nextStableKey, "scope": nextScope, "permissions": permissions}); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -758,14 +762,14 @@ func accessUpdateRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 
 func insertAccessRAMRoleVersion(ctx context.Context, exec interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, roleID string, version int, permissions []string, risk, actor, now string) error {
+}, roleID string, version int, name, description, scope string, permissions []string, risk, actor, now string) error {
 	raw, err := json.Marshal(permissions)
 	if err != nil {
 		return err
 	}
 	_, err = exec.ExecContext(ctx, `
-		INSERT INTO authorization_role_versions (role_id, version, permissions_json, risk, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, roleID, version, string(raw), risk, actor, now)
+		INSERT INTO authorization_role_versions (role_id, version, name, description, scope_kind, permissions_json, risk, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, roleID, version, name, description, scope, string(raw), risk, actor, now)
 	return err
 }
 
