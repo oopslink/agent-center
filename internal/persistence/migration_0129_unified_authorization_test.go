@@ -56,8 +56,8 @@ func TestMigration_0129_UnifiedAuthorizationRollback(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("re-Up: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 139 {
-		t.Fatalf("version after re-Up: got %d want 139", v)
+	if v, want := func() (int, int) { v, _ := mig.Version(ctx); return v, latestMigrationVersionForTest(t) }(); v != want {
+		t.Fatalf("version after re-Up: got %d want %d", v, want)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE kind = 'system'`).Scan(&definitions); err != nil {
 		t.Fatal(err)

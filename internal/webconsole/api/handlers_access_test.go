@@ -355,3 +355,110 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Deploy operator","stable_key":"deploy-operator","description":"deploy work","scope":"project","permissions":["project.read"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var created struct {
+		ID        string `json:"id"`
+		StableKey string `json:"stable_key"`
+		Latest    struct {
+			Version int    `json:"version"`
+			Scope   string `json:"scope"`
+		} `json:"latest"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if created.ID == "" || created.ID == created.StableKey || created.StableKey != "deploy-operator" || created.Latest.Scope != "project" {
+		t.Fatalf("created stable key/scope wrong: %+v", created)
+	}
+
+	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var edited struct {
+		Name   string `json:"name"`
+		Scope  string `json:"scope"`
+		Latest struct {
+			Version int    `json:"version"`
+			Risk    string `json:"risk"`
+			Scope   string `json:"scope"`
+		} `json:"latest"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&edited); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if edited.Name != "Deploy admin" || edited.Scope != "team" || edited.Latest.Version != 2 || edited.Latest.Risk != "high" {
+		t.Fatalf("edited role wrong: %+v", edited)
+	}
+
+	resp = orgScopedDelete(t, server.URL+"/api/access/ram-roles/"+created.ID, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("delete without confirm status=%d want 409", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp = orgScopedDeleteJSON(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"expected_latest_version":2,"confirm_unreferenced":true,"reason":"retire"}`, sess)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("confirmed delete status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	resp.Body.Close()
+
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Mapped operator","stable_key":"mapped-operator","scope":"team","permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create mapped status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var mapped struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&mapped); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	now := "2026-08-21T00:00:00Z"
+	if _, err := db.Exec(`INSERT INTO teams (id, org_id, name, created_at, updated_at) VALUES ('team-v4', ?, 'Core team', ?, ?)`, sess.OrgID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO team_roles (team_id, role, created_at) VALUES ('team-v4', 'planner', ?)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES ('team-v4', 'planner', ?, ?, 'test')`, mapped.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	resp = orgScopedGet(t, server.URL+"/api/access/ram-roles/"+mapped.ID, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("detail mapped status=%d", resp.StatusCode)
+	}
+	var detail struct {
+		References []struct {
+			TeamName string `json:"team_name"`
+			TeamRole string `json:"team_role"`
+		} `json:"references"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(detail.References) != 1 || detail.References[0].TeamName != "Core team" || detail.References[0].TeamRole != "planner" {
+		t.Fatalf("references not exposed: %+v", detail.References)
+	}
+	resp = orgScopedDeleteJSON(t, server.URL+"/api/access/ram-roles/"+mapped.ID, `{"confirm_unreferenced":true,"reason":"retire"}`, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("mapped delete status=%d want 409", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	resp.Body.Close()
+	if body["error"] != "ram_role_referenced" {
+		t.Fatalf("mapped delete error=%v", body)
+	}
+}

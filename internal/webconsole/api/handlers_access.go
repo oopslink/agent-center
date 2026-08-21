@@ -61,36 +61,51 @@ type accessRoleDTO struct {
 
 type accessRAMRoleDTO struct {
 	ID          string   `json:"id"`
+	StableKey   string   `json:"stable_key"`
 	Name        string   `json:"name"`
 	Version     int      `json:"version"`
 	Kind        string   `json:"kind"`
 	Description string   `json:"description"`
 	Permissions []string `json:"permissions"`
 	Risk        string   `json:"risk"`
+	Scope       string   `json:"scope"`
 	RevokedAt   *string  `json:"revoked_at,omitempty"`
 	CreatedAt   string   `json:"created_at,omitempty"`
+	References  int      `json:"references,omitempty"`
 }
 
 type accessRAMRoleDetailDTO struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Kind        string             `json:"kind"`
-	RevokedAt   *string            `json:"revoked_at,omitempty"`
-	Latest      accessRAMRoleDTO   `json:"latest"`
-	Versions    []accessRAMRoleDTO `json:"versions"`
+	ID          string                      `json:"id"`
+	StableKey   string                      `json:"stable_key"`
+	Name        string                      `json:"name"`
+	Description string                      `json:"description"`
+	Kind        string                      `json:"kind"`
+	Scope       string                      `json:"scope"`
+	RevokedAt   *string                     `json:"revoked_at,omitempty"`
+	Latest      accessRAMRoleDTO            `json:"latest"`
+	Versions    []accessRAMRoleDTO          `json:"versions"`
+	References  []accessRAMRoleReferenceDTO `json:"references"`
+}
+
+type accessRAMRoleReferenceDTO struct {
+	TeamID   string `json:"team_id"`
+	TeamName string `json:"team_name"`
+	TeamRole string `json:"team_role"`
 }
 
 type accessRAMRoleWriteDTO struct {
 	Name                  string   `json:"name"`
+	StableKey             string   `json:"stable_key"`
 	Description           string   `json:"description"`
 	Permissions           []string `json:"permissions"`
+	Scope                 string   `json:"scope"`
 	ExpectedLatestVersion *int     `json:"expected_latest_version,omitempty"`
 }
 
 type accessRAMRoleRevokeDTO struct {
 	ExpectedLatestVersion *int   `json:"expected_latest_version,omitempty"`
 	Reason                string `json:"reason,omitempty"`
+	ConfirmUnreferenced   bool   `json:"confirm_unreferenced,omitempty"`
 }
 
 type accessDecisionDTO struct {
@@ -439,6 +454,29 @@ func (s *Server) accessRAMRoleNewVersionHandler(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusCreated, role)
 }
 
+func (s *Server) accessRAMRoleUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage RAM roles")
+		return
+	}
+	var body accessRAMRoleWriteDTO
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	role, err := accessUpdateRAMRole(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body)
+	if err != nil {
+		writeAccessRAMRoleWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, role)
+}
+
 func (s *Server) accessRAMRoleRevokeHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	caller, member, orgID, ok := requireOrgMember(w, r, d)
@@ -453,6 +491,31 @@ func (s *Server) accessRAMRoleRevokeHandler(w http.ResponseWriter, r *http.Reque
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
 		return
+	}
+	body.ConfirmUnreferenced = true
+	if err := accessRevokeRAMRole(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body); err != nil {
+		writeAccessRAMRoleWriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) accessRAMRoleDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "permission_denied", "only owner or admin can manage RAM roles")
+		return
+	}
+	var body accessRAMRoleRevokeDTO
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+			return
+		}
 	}
 	if err := accessRevokeRAMRole(r.Context(), d.DB, orgID, r.PathValue("id"), string(authz.UserSubject(caller.ID())), body); err != nil {
 		writeAccessRAMRoleWriteError(w, err)
@@ -470,7 +533,8 @@ var (
 
 func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at
+		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at,
+			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
 		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL
@@ -500,6 +564,7 @@ func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]access
 	for _, idx := range missingPermissions {
 		out[idx].Permissions = accessRAMRoleCurrentPermissions(ctx, db, out[idx].ID)
 		out[idx].Risk = accessPermissionsRisk(out[idx].Permissions)
+		out[idx].Scope = accessRAMRoleScope(out[idx].Permissions)
 	}
 	return out, nil
 }
@@ -511,10 +576,10 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 	var detail accessRAMRoleDetailDTO
 	var revoked sql.NullString
 	err := db.QueryRowContext(ctx, `
-		SELECT id, name, kind, description, revoked_at
+		SELECT id, COALESCE(NULLIF(stable_key, ''), id), name, kind, description, COALESCE(NULLIF(scope_kind, ''), 'org'), revoked_at
 		FROM authorization_roles
 		WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).
-		Scan(&detail.ID, &detail.Name, &detail.Kind, &detail.Description, &revoked)
+		Scan(&detail.ID, &detail.StableKey, &detail.Name, &detail.Kind, &detail.Description, &detail.Scope, &revoked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return accessRAMRoleDetailDTO{}, false, nil
@@ -525,7 +590,8 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at
+		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at,
+			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
 		WHERE ar.id = ?
@@ -545,11 +611,16 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		return accessRAMRoleDetailDTO{}, false, err
 	}
 	if len(detail.Versions) == 0 {
-		current := accessRAMRoleDTO{ID: detail.ID, Name: detail.Name, Kind: detail.Kind, Description: detail.Description, Version: 1, Permissions: accessRAMRoleCurrentPermissions(ctx, db, roleID)}
+		current := accessRAMRoleDTO{ID: detail.ID, StableKey: detail.StableKey, Name: detail.Name, Kind: detail.Kind, Description: detail.Description, Scope: detail.Scope, Version: 1, Permissions: accessRAMRoleCurrentPermissions(ctx, db, roleID)}
 		current.Risk = accessPermissionsRisk(current.Permissions)
 		detail.Versions = []accessRAMRoleDTO{current}
 	}
 	detail.Latest = detail.Versions[0]
+	refs, err := accessRAMRoleReferences(ctx, db, roleID)
+	if err != nil {
+		return accessRAMRoleDetailDTO{}, false, err
+	}
+	detail.References = refs
 	return detail, true, nil
 }
 
@@ -561,7 +632,7 @@ func scanAccessRAMRoleVersion(row accessRAMRoleScanner) (accessRAMRoleDTO, error
 	var role accessRAMRoleDTO
 	var permissionsJSON string
 	var revoked sql.NullString
-	if err := row.Scan(&role.ID, &role.Name, &role.Kind, &role.Description, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt); err != nil {
+	if err := row.Scan(&role.ID, &role.StableKey, &role.Name, &role.Kind, &role.Description, &role.Scope, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt, &role.References); err != nil {
 		return accessRAMRoleDTO{}, err
 	}
 	if revoked.Valid {
@@ -578,20 +649,28 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	if name == "" {
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
 	}
+	stableKey := normalizeRAMRoleStableKey(body.StableKey)
+	if stableKey == "" {
+		stableKey = normalizeRAMRoleStableKey(name)
+	}
+	if stableKey == "" {
+		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
+	}
 	permissions, risk, err := normalizeAccessRAMRolePermissions(body.Permissions)
 	if err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	id := "role-" + accessHash(orgID+"|"+name+"|"+time.Now().UTC().Format(time.RFC3339Nano))
+	scope := normalizeRAMRoleScope(body.Scope, permissions)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	id := "role-" + accessHash(orgID+"|"+stableKey+"|"+now)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, 1)`, id, orgID, name, strings.TrimSpace(body.Description), actor, now, now); err != nil {
+		INSERT INTO authorization_roles (id, org_id, kind, stable_key, name, description, scope_kind, created_by, created_at, updated_at, version)
+		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, ?, ?, 1)`, id, orgID, stableKey, name, strings.TrimSpace(body.Description), scope, actor, now, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := replaceRAMRolePermissionRows(ctx, tx, id, permissions, now); err != nil {
@@ -600,7 +679,7 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.created", actor, id, "", map[string]any{"name": name, "permissions": permissions}); err != nil {
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.created", actor, id, "", map[string]any{"name": name, "stable_key": stableKey, "scope": scope, "permissions": permissions}); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -620,10 +699,10 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		return accessRAMRoleDetailDTO{}, err
 	}
 	defer tx.Rollback()
-	var ownerOrg, kind string
+	var ownerOrg, kind, currentName, currentDescription, currentScope string
 	var revoked sql.NullString
 	var latest int
-	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version, name, description, COALESCE(NULLIF(scope_kind, ''), 'org') FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest, &currentName, &currentDescription, &currentScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return accessRAMRoleDetailDTO{}, errAccessRAMRoleNotFound
 		}
@@ -639,7 +718,19 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleConflict
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, now, roleID, latest); err != nil {
+	nextName := strings.TrimSpace(body.Name)
+	if nextName == "" {
+		nextName = currentName
+	}
+	nextDescription := strings.TrimSpace(body.Description)
+	if body.Description == "" {
+		nextDescription = currentDescription
+	}
+	nextScope := normalizeRAMRoleScope(body.Scope, permissions)
+	if body.Scope == "" {
+		nextScope = currentScope
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET name = ?, description = ?, scope_kind = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, nextName, nextDescription, nextScope, now, roleID, latest); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := replaceRAMRolePermissionRows(ctx, tx, roleID, permissions, now); err != nil {
@@ -648,7 +739,7 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "permissions": permissions}); err != nil {
+	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "name": nextName, "scope": nextScope, "permissions": permissions}); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -656,6 +747,10 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 	}
 	detail, _, err := accessRAMRoleDetail(ctx, db, orgID, roleID)
 	return detail, err
+}
+
+func accessUpdateRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor string, body accessRAMRoleWriteDTO) (accessRAMRoleDetailDTO, error) {
+	return accessCreateRAMRoleVersion(ctx, db, orgID, roleID, actor, body)
 }
 
 func insertAccessRAMRoleVersion(ctx context.Context, exec interface {
@@ -695,6 +790,9 @@ func accessRevokeRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 	if n > 0 {
 		return fmt.Errorf("%w: team_role_mappings=%d", errAccessRAMRoleReferenced, n)
 	}
+	if !body.ConfirmUnreferenced {
+		return fmt.Errorf("%w: confirm_unreferenced required", errAccessRAMRoleConflict)
+	}
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id=? AND org_id=? AND revoked_at IS NULL`, roleID, orgID).Scan(&n); err != nil {
 		return err
 	}
@@ -714,6 +812,28 @@ func accessRevokeRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 		return err
 	}
 	return tx.Commit()
+}
+
+func accessRAMRoleReferences(ctx context.Context, db *sql.DB, roleID string) ([]accessRAMRoleReferenceDTO, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT m.team_id, COALESCE(t.name, m.team_id), m.team_role
+		FROM team_role_ram_role_mappings m
+		LEFT JOIN teams t ON t.id = m.team_id
+		WHERE m.ram_role_id = ?
+		ORDER BY t.name, m.team_id, m.team_role`, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var refs []accessRAMRoleReferenceDTO
+	for rows.Next() {
+		var ref accessRAMRoleReferenceDTO
+		if err := rows.Scan(&ref.TeamID, &ref.TeamName, &ref.TeamRole); err != nil {
+			return nil, err
+		}
+		refs = append(refs, ref)
+	}
+	return refs, rows.Err()
 }
 
 func normalizeAccessRAMRolePermissions(in []string) ([]string, string, error) {
@@ -810,6 +930,57 @@ func accessPermissionsRisk(permissions []string) string {
 		return "low"
 	}
 	return risk
+}
+
+func accessRAMRoleScope(permissions []string) string {
+	return normalizeRAMRoleScope("", permissions)
+}
+
+func normalizeRAMRoleScope(scope string, permissions []string) string {
+	scope = strings.TrimSpace(scope)
+	if scope != "" {
+		return scope
+	}
+	kinds := map[string]struct{}{}
+	for _, permission := range permissions {
+		for _, def := range accessCatalog {
+			if def.Key != permission {
+				continue
+			}
+			for _, kind := range def.ResourceKinds {
+				kinds[kind] = struct{}{}
+			}
+		}
+	}
+	if len(kinds) == 1 {
+		for kind := range kinds {
+			return kind
+		}
+	}
+	if len(kinds) > 1 {
+		return "mixed"
+	}
+	return "org"
+}
+
+func normalizeRAMRoleStableKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "_", "-")
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if ok {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func insertRAMRoleAudit(ctx context.Context, exec interface {
