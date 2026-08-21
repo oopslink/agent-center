@@ -263,16 +263,17 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	}
 	var listed struct {
 		Roles []struct {
-			ID      string   `json:"id"`
-			Version int      `json:"version"`
-			Perms   []string `json:"permissions"`
+			ID        string   `json:"id"`
+			Version   int      `json:"version"`
+			Perms     []string `json:"permissions"`
+			UpdatedAt string   `json:"updated_at"`
 		} `json:"roles"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if len(listed.Roles) == 0 || listed.Roles[0].Version == 0 || len(listed.Roles[0].Perms) == 0 {
+	if len(listed.Roles) == 0 || listed.Roles[0].Version == 0 || len(listed.Roles[0].Perms) == 0 || listed.Roles[0].UpdatedAt == "" {
 		t.Fatalf("seeded persistent RAM roles missing: %+v", listed.Roles)
 	}
 

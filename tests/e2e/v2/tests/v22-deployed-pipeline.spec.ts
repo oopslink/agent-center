@@ -97,7 +97,7 @@ function adminPOST(
 
 async function webJSON(
   baseURL: string,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   path: string,
   body?: unknown,
   cookie?: string,
@@ -372,6 +372,139 @@ secret_management:
       expect(replayPayload.summary).toEqual(confirmPayload.summary);
       expect(replayPayload.items[0].status).toBe(confirmPayload.items[0].status);
       expect(replayPayload.items[0].grant_id).toBe(confirmPayload.items[0].grant_id);
+
+      // RAM Role CRUD + Team Role reference blocking/migration over deployed Web API.
+      const oldRoleCreate = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/ram-roles`,
+        {
+          name: "Deploy runner legacy",
+          description: "legacy deploy permission set",
+          permissions: ["team.read", "project.write"],
+        },
+        sessionCookie,
+      );
+      expect(oldRoleCreate.status, "create legacy RAM role: " + oldRoleCreate.body).toBe(201);
+      const oldRole = JSON.parse(oldRoleCreate.body) as {
+        id: string;
+        name: string;
+        latest: { version: number; permissions: string[]; risk: string };
+      };
+      expect(oldRole.id, "legacy RAM role id").toBeTruthy();
+      expect(oldRole.latest.version).toBe(1);
+      expect(oldRole.latest.risk).toBe("medium");
+
+      const targetRoleCreate = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/ram-roles`,
+        {
+          name: "Deploy runner current",
+          description: "current deploy permission set",
+          permissions: ["team.read", "project.write"],
+        },
+        sessionCookie,
+      );
+      expect(targetRoleCreate.status, "create target RAM role: " + targetRoleCreate.body).toBe(201);
+      const targetRole = JSON.parse(targetRoleCreate.body) as { id: string; name: string; latest: { version: number } };
+      expect(targetRole.id, "target RAM role id").toBeTruthy();
+
+      const ramList = await webJSON(baseURL, "GET", `${accessBase}/ram-roles`, undefined, sessionCookie);
+      expect(ramList.status, "list RAM roles: " + ramList.body).toBe(200);
+      expect(JSON.parse(ramList.body).roles.map((r: { name: string }) => r.name)).toContain(oldRole.name);
+      const oldDetail = await webJSON(baseURL, "GET", `${accessBase}/ram-roles/${oldRole.id}`, undefined, sessionCookie);
+      expect(oldDetail.status, "RAM role detail: " + oldDetail.body).toBe(200);
+      expect(JSON.parse(oldDetail.body).latest.permissions).toContain("project.write");
+
+      const runtimeCatalog = await webJSON(
+        baseURL,
+        "GET",
+        `/api/orgs/${signedUp.organization_slug}/ai-runtime`,
+        undefined,
+        sessionCookie,
+      );
+      expect(runtimeCatalog.status, "read runtime catalog: " + runtimeCatalog.body).toBe(200);
+      const runtimeRevision = (JSON.parse(runtimeCatalog.body) as { revision: number }).revision;
+      const runtimeModel = await webJSON(
+        baseURL,
+        "POST",
+        `/api/orgs/${signedUp.organization_slug}/ai-runtime/models`,
+        {
+          expected_revision: runtimeRevision,
+          value: {
+            key: "gpt-5",
+            model_key: "gpt-5",
+            display_name: "GPT-5",
+            compatible_cli_keys: ["codex"],
+            default_parameters: {},
+            enabled: true,
+          },
+        },
+        sessionCookie,
+      );
+      expect(runtimeModel.status, "create runtime model for team validation: " + runtimeModel.body).toBe(201);
+
+      const teamCreate = await webJSON(
+        baseURL,
+        "POST",
+        `/api/orgs/${signedUp.organization_slug}/teams`,
+        {
+          name: "Deploy Reference Smoke",
+          description: "exercises RAM Role migration",
+          visibility: "org-private",
+          roles: [
+            {
+              role: "runner",
+              cli: "codex",
+              model: "gpt-5",
+              max_concurrency: 1,
+              count: 1,
+              tags: "deploy",
+              ram_role_keys: [oldRole.name],
+            },
+          ],
+        },
+        sessionCookie,
+      );
+      expect(teamCreate.status, "create team with RAM role key: " + teamCreate.body).toBe(201);
+      const team = JSON.parse(teamCreate.body) as { id: string };
+
+      const mappingPath = `/api/orgs/${signedUp.organization_slug}/teams/${team.id}/roles/runner/ram-roles`;
+      const mapping = await webJSON(baseURL, "GET", mappingPath, undefined, sessionCookie);
+      expect(mapping.status, "read Team Role RAM mapping: " + mapping.body).toBe(200);
+      const mappingPayload = JSON.parse(mapping.body) as { ram_role_ids: string[]; version: number };
+      expect(mappingPayload.ram_role_ids).toContain(oldRole.id);
+
+      const blockedDelete = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/ram-roles/${oldRole.id}/revoke`,
+        { expected_latest_version: oldRole.latest.version, reason: "blocked while referenced" },
+        sessionCookie,
+      );
+      expect(blockedDelete.status, "referenced RAM role delete must be blocked: " + blockedDelete.body).toBe(409);
+      expect(blockedDelete.body).toContain("ram_role_referenced");
+
+      const migrated = await webJSON(
+        baseURL,
+        "PUT",
+        mappingPath,
+        { ram_role_ids: [targetRole.id], expected_version: mappingPayload.version },
+        sessionCookie,
+      );
+      expect(migrated.status, "migrate Team Role RAM mapping: " + migrated.body).toBe(200);
+      const migratedPayload = JSON.parse(migrated.body) as { ram_role_ids: string[] };
+      expect(migratedPayload.ram_role_ids).toEqual([targetRole.id]);
+
+      const deleteAfterMigration = await webJSON(
+        baseURL,
+        "POST",
+        `${accessBase}/ram-roles/${oldRole.id}/revoke`,
+        { expected_latest_version: oldRole.latest.version, reason: "delete after migration" },
+        sessionCookie,
+      );
+      expect(deleteAfterMigration.status, "delete migrated RAM role: " + deleteAfterMigration.body).toBe(204);
 
       // --- PHASE 2: the worker BINARY boots + enrolls over the socket -------
       worker = spawn(

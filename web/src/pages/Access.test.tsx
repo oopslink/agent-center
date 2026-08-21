@@ -316,7 +316,8 @@ describe('Access page', () => {
     expect(await within(view).findByTestId('access-role-versions')).toHaveTextContent('v1');
     expect(within(view).getByTestId('access-role-versions')).toHaveTextContent('v2');
 
-    const create = within(view).getByTestId('access-role-create');
+    fireEvent.click(within(view).getByTestId('access-role-new'));
+    const create = await screen.findByTestId('access-role-create');
     fireEvent.change(within(create).getByTestId('access-role-name'), { target: { value: 'Release operator' } });
     fireEvent.change(within(create).getByTestId('access-role-description'), { target: { value: 'release work' } });
     fireEvent.click(within(create).getByText('org.read'));
@@ -341,6 +342,122 @@ describe('Access page', () => {
     expect(versions).toHaveTextContent('v2');
     expect(versions).toHaveTextContent('team.memory.review');
     expect(versions).toHaveTextContent('v1');
+  });
+
+  it('blocks referenced RAM role delete, shows references, and migrates them through real Team mapping saves', async () => {
+    const oldRole = {
+      id: 'role-old',
+      name: 'Old deployer',
+      kind: 'custom',
+      description: 'legacy deploy access',
+      version: 3,
+      permissions: ['project.write'],
+      risk: 'medium',
+      created_at: '2026-08-14T08:02:00Z',
+    };
+    const targetRole = {
+      id: 'role-target',
+      name: 'New deployer',
+      kind: 'custom',
+      description: 'replacement deploy access',
+      version: 1,
+      permissions: ['project.write', 'team.read'],
+      risk: 'medium',
+      created_at: '2026-08-14T08:03:00Z',
+    };
+    let putBody: { ram_role_ids?: string[]; expected_version?: number } | null = null;
+    server.use(
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [oldRole, targetRole] })),
+      http.get('/api/orgs/:slug/access/ram-roles/role-old', () => HttpResponse.json({
+        id: oldRole.id,
+        name: oldRole.name,
+        kind: oldRole.kind,
+        description: oldRole.description,
+        latest: oldRole,
+        versions: [oldRole],
+      })),
+      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({
+        team_id: 'team-7c19b0',
+        team_role: 'planner',
+        ram_role_ids: ['role-old', 'team-basic'],
+        version: 9,
+      })),
+      http.put('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', async ({ request }) => {
+        putBody = await request.json() as typeof putBody;
+        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 10 });
+      }),
+    );
+
+    renderPage();
+    const view = await screen.findByTestId('access-roles-view');
+    fireEvent.click(await within(view).findByTestId('access-role-row-role-old'));
+
+    const detail = await screen.findByTestId('access-role-detail');
+    await waitFor(() => expect(detail).toHaveTextContent('Referenced by: agent-center core / planner'));
+    expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
+    expect(within(detail).getByTestId('access-role-delete-blocked')).toHaveTextContent('cannot be deleted');
+    fireEvent.click(within(detail).getByTestId('access-role-view-references'));
+    expect(within(detail).getByTestId('access-role-references')).toHaveTextContent('agent-center core / planner');
+    fireEvent.change(within(detail).getByTestId('access-role-migrate-target'), { target: { value: 'role-target' } });
+    fireEvent.click(within(detail).getByTestId('access-role-migrate-references'));
+
+    await waitFor(() => expect(putBody).toEqual({
+      ram_role_ids: ['role-target', 'team-basic'],
+      expected_version: 9,
+    }));
+    expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Migrated 1 Team Role references.');
+  });
+
+  it('requires the full RAM role name before deleting an unreferenced custom role', async () => {
+    const role = {
+      id: 'role-unused',
+      name: 'Unused reviewer',
+      kind: 'custom',
+      description: 'cleanup candidate',
+      version: 2,
+      permissions: ['team.read'],
+      risk: 'low',
+      created_at: '2026-08-14T08:02:00Z',
+    };
+    let revokeBody: { expected_latest_version?: number; reason?: string } | null = null;
+    server.use(
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
+      http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => HttpResponse.json({
+        id: role.id,
+        name: role.name,
+        kind: role.kind,
+        description: role.description,
+        latest: role,
+        versions: [role],
+      })),
+      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({
+        team_id: 'team-7c19b0',
+        team_role: 'planner',
+        ram_role_ids: ['team-basic'],
+        version: 7,
+      })),
+      http.post('/api/orgs/:slug/access/ram-roles/role-unused/revoke', async ({ request }) => {
+        revokeBody = await request.json() as typeof revokeBody;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderPage();
+    const view = await screen.findByTestId('access-roles-view');
+    fireEvent.click(await within(view).findByTestId('access-role-row-role-unused'));
+    const detail = await screen.findByTestId('access-role-detail');
+    await waitFor(() => expect(detail).toHaveTextContent('Unused reviewer'));
+    expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
+    fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused' } });
+    expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
+    fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused reviewer' } });
+    fireEvent.click(within(detail).getByTestId('access-role-disable-submit'));
+
+    await waitFor(() => expect(revokeBody).toEqual({
+      expected_latest_version: 2,
+      reason: 'RAM role deleted after reference-impact review',
+    }));
+    expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
   });
 
   it('keeps RAM role versions pinned and shows an error when publish hits a CAS conflict', async () => {

@@ -69,6 +69,7 @@ type accessRAMRoleDTO struct {
 	Risk        string   `json:"risk"`
 	RevokedAt   *string  `json:"revoked_at,omitempty"`
 	CreatedAt   string   `json:"created_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
 }
 
 type accessRAMRoleDetailDTO struct {
@@ -470,7 +471,7 @@ var (
 
 func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at
+		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at, ar.updated_at
 		FROM authorization_roles ar
 		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
 		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL
@@ -525,7 +526,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at
+		SELECT ar.id, ar.name, ar.kind, ar.description, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
 		WHERE ar.id = ?
@@ -561,7 +562,7 @@ func scanAccessRAMRoleVersion(row accessRAMRoleScanner) (accessRAMRoleDTO, error
 	var role accessRAMRoleDTO
 	var permissionsJSON string
 	var revoked sql.NullString
-	if err := row.Scan(&role.ID, &role.Name, &role.Kind, &role.Description, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt); err != nil {
+	if err := row.Scan(&role.ID, &role.Name, &role.Kind, &role.Description, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt, &role.UpdatedAt); err != nil {
 		return accessRAMRoleDTO{}, err
 	}
 	if revoked.Valid {

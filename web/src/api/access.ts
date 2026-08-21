@@ -82,6 +82,7 @@ export interface RAMRole {
   risk: AccessRisk;
   revoked_at?: string | null;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface RAMRoleDetail {
