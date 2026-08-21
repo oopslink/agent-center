@@ -103,6 +103,33 @@ export function teamHandlers() {
       return t ? json(t) : notFound();
     }),
 
+    http.patch('/api/teams/:id', async ({ params, request }) => {
+      const s = teamsStore();
+      const t = s.teams.find((x) => x.id === String(params.id));
+      if (!t) return notFound();
+      const input = await request.json() as {
+        roles?: Array<{ role: string; cli: string; model: string; max_concurrency: number; tags?: string; ram_role_keys?: string[]; access_requirements?: string[] }>;
+        expected_version?: number;
+      };
+      if (input.expected_version != null && input.expected_version !== t.version) {
+        return HttpResponse.json({ error: 'conflict', message: 'team: version conflict' }, { status: 409 });
+      }
+      if (input.roles) {
+        t.roles = input.roles.map((r) => ({
+          role: r.role,
+          cli: r.cli,
+          model: r.model,
+          max_concurrency: r.max_concurrency,
+          count: s.members[t.id]?.filter((m) => (m.roles ?? [m.role]).includes(r.role)).length ?? 0,
+          ram_role_keys: r.ram_role_keys ?? [],
+          access_requirements: r.access_requirements ?? [],
+          capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
+        }));
+      }
+      t.version += 1;
+      return json(t);
+    }),
+
     http.get('/api/teams/:id/roles/:role/ram-roles', ({ params }) => {
       const teamId = String(params.id);
       const role = String(params.role);
@@ -144,6 +171,59 @@ export function teamHandlers() {
       rv.ram_role_keys = Array.from(new Set(body.ram_role_ids ?? [])).map((id) => ramRoleKeyById[id] ?? id).sort();
       (rv as { ram_role_version?: number }).ram_role_version = version + 1;
       return json(roleMapping(teamId, role));
+    }),
+
+    http.get('/api/teams/:id/roles/:role/delete-impact', ({ params }) => {
+      const teamId = String(params.id);
+      const role = String(params.role);
+      const t = teamsStore().teams.find((x) => x.id === teamId);
+      if (!t?.roles.some((r) => r.role === role)) return notFound();
+      return json({
+        team_id: teamId,
+        team_role: role,
+        affected_members: teamsStore().members[teamId]?.filter((m) => (m.roles ?? [m.role]).includes(role)).length ?? 0,
+        affected_project_ids: (teamsStore().projects[teamId] ?? []).map((project) => project.project_id),
+        version: t.version,
+        protected: t.roles.length <= 1,
+      });
+    }),
+
+    http.delete('/api/teams/:id/roles/:role', async ({ params, request }) => {
+      const teamId = String(params.id);
+      const role = String(params.role);
+      const s = teamsStore();
+      const t = s.teams.find((x) => x.id === teamId);
+      if (!t?.roles.some((r) => r.role === role)) return notFound();
+      const body = await request.json() as { expected_version?: number; reassign_role?: string; confirm_name?: string };
+      if (body.expected_version !== t.version) {
+        return HttpResponse.json({ error: 'conflict', message: 'team: version conflict' }, { status: 409 });
+      }
+      if (t.roles.length <= 1) {
+        return HttpResponse.json({ error: 'role_protected', message: 'team: role is protected' }, { status: 403 });
+      }
+      if (body.confirm_name !== role || !body.reassign_role || body.reassign_role === role) {
+        return HttpResponse.json({ error: 'invalid_input', message: 'team: invalid role config' }, { status: 400 });
+      }
+      const affectedProjectIds = (s.projects[teamId] ?? []).map((project) => project.project_id);
+      const affectedMembers = s.members[teamId]?.filter((m) => (m.roles ?? [m.role]).includes(role)).length ?? 0;
+      t.roles = t.roles.filter((r) => r.role !== role);
+      t.version += 1;
+      s.members[teamId] = (s.members[teamId] ?? []).map((m) => {
+        const roles = (m.roles ?? [m.role]).map((r) => (r === role ? body.reassign_role as string : r));
+        return { ...m, role: roles[0], roles: Array.from(new Set(roles)) };
+      });
+      return json({
+        team: t,
+        impact: {
+          team_id: teamId,
+          team_role: role,
+          reassign_role: body.reassign_role,
+          affected_members: affectedMembers,
+          affected_project_ids: affectedProjectIds,
+          version: t.version,
+          protected: false,
+        },
+      });
     }),
 
     http.delete('/api/teams/:id', ({ params }) => {

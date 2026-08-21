@@ -10,7 +10,9 @@ import {
   useAssociateProject,
   useDisassociateProject,
   useDirectoryAgents,
+  useDeleteTeamRole,
   useRemoveMember,
+  usePreviewDeleteTeamRole,
   usePreviewTeamRoleRAMMapping,
   useReadTeam,
   useReplaceTeamRoleRAMMapping,
@@ -25,6 +27,7 @@ import {
   type TeamMemoryPolicy,
   type RoleInput,
   type MemberView,
+  type TeamRoleDeleteImpact,
   type TeamRAMRoleMappingImpact,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
@@ -146,6 +149,7 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
   const memory = useTeamMemoryIndex(tv.id);
   const memoryEntries = memory.data?.filter((node) => node.slug).length;
   const [editingRoles, setEditingRoles] = useState(false);
+  const [roleSaveMessage, setRoleSaveMessage] = useState('');
   const NA = <span className="text-text-muted">—</span>;
   return (
     <div className="grid gap-3.5 md:grid-cols-2">
@@ -190,18 +194,25 @@ function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
         <SpecLine k={t('teamDetail.overview.runningTasks')} v={NA} />
         <SpecLine k={t('teamDetail.overview.blockedTasks')} v={NA} />
         <Note testId="team-health-note">{t('teamDetail.overview.healthNote')}</Note>
+        {roleSaveMessage && (
+          <div role="status" data-testid="team-role-save-success" className="mt-3 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+            {roleSaveMessage}
+          </div>
+        )}
       </Card>
-      {editingRoles && <EditRolesModal team={tv} onClose={() => setEditingRoles(false)} />}
+      {editingRoles && <EditRolesModal team={tv} onClose={() => setEditingRoles(false)} onSaved={(message) => setRoleSaveMessage(message)} />}
     </div>
   );
 }
 
-function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: TeamView; onClose: () => void; initialPanel?: 'runtime' | 'access' }): React.ReactElement {
+function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { team: TeamView; onClose: () => void; onSaved?: (message: string) => void; initialPanel?: 'runtime' | 'access' }): React.ReactElement {
   const { t } = useTranslation('teams');
   const update = useUpdateTeamRoles();
   const readTeam = useReadTeam();
   const previewRAMRoles = usePreviewTeamRoleRAMMapping();
   const replaceRAMRoles = useReplaceTeamRoleRAMMapping();
+  const previewDeleteRole = usePreviewDeleteTeamRole();
+  const deleteRole = useDeleteTeamRole();
   const runtimeCatalog = useRuntimeSelectorCatalog();
   const members = useTeamMembers(team.id);
   const mappingQueries = useTeamRoleRAMMappings(team.id, team.roles.map((role) => role.role));
@@ -220,6 +231,12 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
   const [pendingAccess, setPendingAccess] = useState<{
     roles: RoleInput[];
     impacts: TeamRAMRoleMappingImpact[];
+  } | null>(null);
+  const [deleteState, setDeleteState] = useState<{
+    role: RoleInput;
+    impact: TeamRoleDeleteImpact;
+    reassignRole: string;
+    confirmName: string;
   } | null>(null);
   useEffect(() => {
     if (mappingQueries.some((query) => !query.isSuccess)) return;
@@ -280,8 +297,10 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
     await update.mutateAsync({
       team_id: team.id,
       roles: buildPatchRoles(normalizedRoles, 'runtime'),
+      expected_version: team.version,
     });
     await readTeam(team.id);
+    onSaved?.(t('teamDetail.roles.saveSuccess'));
     onClose();
   };
   const previewAccess = async () => {
@@ -303,6 +322,7 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
     await update.mutateAsync({
       team_id: team.id,
       roles: buildPatchRoles(pendingAccess.roles, 'access'),
+      expected_version: team.version,
     });
     for (const role of pendingAccess.roles) {
       const impact = pendingAccess.impacts.find((item) => item.team_role === role.role);
@@ -317,8 +337,47 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
     }
     await readTeam(team.id);
     setPendingAccess(null);
+    onSaved?.(t('teamDetail.roles.saveSuccess'));
     onClose();
   };
+  const duplicateRoleAt = (index: number) => {
+    const source = roles[index];
+    const names = new Set(roles.map((role) => role.role.trim()));
+    let copyName = `${source.role.trim() || 'role'}-copy`;
+    let n = 2;
+    while (names.has(copyName)) {
+      copyName = `${source.role.trim() || 'role'}-copy-${n}`;
+      n += 1;
+    }
+    setRoles([...roles.slice(0, index + 1), { ...source, role: copyName, count: 1 }, ...roles.slice(index + 1)]);
+  };
+  const removeRoleAt = async (index: number) => {
+    const target = roles[index];
+    const targetName = target.role.trim();
+    const existed = originalRoles.some((role) => role.role === targetName);
+    if (!existed) {
+      setRoles(roles.filter((_, i) => i !== index));
+      return;
+    }
+    const impact = await previewDeleteRole.mutateAsync({ team_id: team.id, role: targetName });
+    const fallback = roles.find((role) => role.role.trim() !== targetName)?.role.trim() ?? '';
+    setDeleteState({ role: target, impact, reassignRole: fallback, confirmName: '' });
+  };
+  const applyDeleteRole = async () => {
+    if (!deleteState) return;
+    await deleteRole.mutateAsync({
+      team_id: team.id,
+      role: deleteState.role.role.trim(),
+      expected_version: deleteState.impact.version,
+      reassign_role: deleteState.reassignRole,
+      confirm_name: deleteState.confirmName,
+    });
+    await readTeam(team.id);
+    onSaved?.(t('teamDetail.roles.deleteSuccess', { role: deleteState.role.role.trim() }));
+    setDeleteState(null);
+    onClose();
+  };
+  const deleteReassignOptions = roles.map((role) => role.role.trim()).filter((name) => name && name !== deleteState?.role.role.trim());
   return <ModalShell open onClose={onClose} wide testId="edit-team-roles-modal" title={t('teamDetail.roles.title')}
     subtitle={t('teamDetail.roles.subtitle')} footer={<div className="ml-auto flex gap-2.5">
       <button type="button" className={btnGhost} onClick={onClose}>{t('common.cancel')}</button>
@@ -337,7 +396,17 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
       </button>
     </div>
     {panel === 'runtime' ? (
-      <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team" ramRoleMode="ids" showAccess={false} />
+      <RoleBuilder
+        roles={roles}
+        onChange={setRoles}
+        showCount={false}
+        idPrefix="edit-team"
+        ramRoleMode="ids"
+        showAccess={false}
+        onDuplicateRole={duplicateRoleAt}
+        onRemoveRole={(index) => void removeRoleAt(index)}
+        canRemoveRole={() => roles.length > 1}
+      />
     ) : (
       <RoleBuilder roles={roles} onChange={setRoles} showCount={false} idPrefix="edit-team-access" ramRoleMode="ids" showRuntime={false} showTags={false} showAccess allowStructureEdit={false} />
     )}
@@ -385,6 +454,8 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
     {mappingError && <p className="mt-3 text-xs text-danger" role="alert">{mappingError.message}</p>}
     {previewRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewRAMRoles.error as Error).message}</p>}
     {replaceRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(replaceRAMRoles.error as Error).message}</p>}
+    {previewDeleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewDeleteRole.error as Error).message}</p>}
+    {deleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
     <ConfirmModal
       open={pendingAccess !== null}
       title={t('teamDetail.roles.confirmAccessTitle')}
@@ -405,6 +476,42 @@ function EditRolesModal({ team, onClose, initialPanel = 'runtime' }: { team: Tea
       busy={update.isPending || replaceRAMRoles.isPending}
       onCancel={() => setPendingAccess(null)}
       onConfirm={() => void applyAccess()}
+    />
+    <ConfirmModal
+      open={deleteState !== null}
+      title={t('teamDetail.roles.deleteTitle', { role: deleteState?.role.role })}
+      message={deleteState ? (
+        <div className="space-y-3" data-testid="team-role-delete-confirm">
+          <p>{t('teamDetail.roles.deleteImpact', { members: deleteState.impact.affected_members, projects: deleteState.impact.affected_project_ids.length })}</p>
+          {deleteState.impact.protected && <p className="font-semibold text-danger">{t('teamDetail.roles.deleteProtected')}</p>}
+          <Field label={t('teamDetail.roles.reassignLabel')}>
+            <select
+              className={inputCls}
+              value={deleteState.reassignRole}
+              data-testid="team-role-delete-reassign"
+              onChange={(event) => setDeleteState({ ...deleteState, reassignRole: event.target.value })}
+              disabled={deleteState.impact.protected}
+            >
+              {deleteReassignOptions.map((role) => <option key={role} value={role}>{role}</option>)}
+            </select>
+          </Field>
+          <Field label={t('teamDetail.roles.confirmNameLabel', { role: deleteState.role.role })}>
+            <input
+              className={inputCls}
+              value={deleteState.confirmName}
+              data-testid="team-role-delete-confirm-name"
+              onChange={(event) => setDeleteState({ ...deleteState, confirmName: event.target.value })}
+              disabled={deleteState.impact.protected}
+            />
+          </Field>
+        </div>
+      ) : undefined}
+      confirmLabel={t('teamDetail.roles.deleteConfirm')}
+      danger
+      busy={deleteRole.isPending}
+      confirmDisabled={Boolean(deleteState?.impact.protected) || !deleteState?.reassignRole || deleteState?.confirmName.trim() !== deleteState?.role.role.trim()}
+      onCancel={() => setDeleteState(null)}
+      onConfirm={() => void applyDeleteRole()}
     />
   </ModalShell>;
 }

@@ -263,6 +263,21 @@ export interface TeamRAMRoleMappingImpact {
   version: number;
 }
 
+export interface TeamRoleDeleteImpact {
+  team_id: string;
+  team_role: string;
+  reassign_role?: string;
+  affected_members: number;
+  affected_project_ids: string[];
+  version: number;
+  protected: boolean;
+}
+
+export interface DeleteTeamRoleResult {
+  team: TeamView;
+  impact: TeamRoleDeleteImpact;
+}
+
 type TeamRAMRoleMappingImpactWire = Omit<
   TeamRAMRoleMappingImpact,
   'current_ram_role_ids' | 'next_ram_role_ids' | 'added_ram_role_ids' | 'removed_ram_role_ids' | 'affected_project_ids'
@@ -389,12 +404,37 @@ export function useDeleteTeam() {
 export function useUpdateTeamRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { team_id: string; roles: RoleInput[] }) => {
-      await api.patch<TeamView>(`/teams/${v.team_id}`, { roles: v.roles });
+    mutationFn: async (v: { team_id: string; roles: RoleInput[]; expected_version?: number }) => {
+      const cached = qc.getQueryData<TeamView>(teamKeys.detail(v.team_id));
+      await api.patch<TeamView>(`/teams/${v.team_id}`, { roles: v.roles, expected_version: v.expected_version ?? cached?.version });
       return api.get<TeamView>(`/teams/${v.team_id}`);
     },
     onSuccess: (team) => {
       qc.setQueryData(teamKeys.detail(team.id), team);
+      qc.invalidateQueries({ queryKey: teamKeys.list() });
+    },
+  });
+}
+
+export function usePreviewDeleteTeamRole() {
+  return useMutation({
+    mutationFn: (v: { team_id: string; role: string }) =>
+      api.get<TeamRoleDeleteImpact>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}/delete-impact`),
+  });
+}
+
+export function useDeleteTeamRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { team_id: string; role: string; expected_version: number; reassign_role: string; confirm_name: string }) =>
+      api.del<DeleteTeamRoleResult>(`/teams/${v.team_id}/roles/${encodeURIComponent(v.role)}`, {
+        expected_version: v.expected_version,
+        reassign_role: v.reassign_role,
+        confirm_name: v.confirm_name,
+      }),
+    onSuccess: ({ team }) => {
+      qc.setQueryData(teamKeys.detail(team.id), team);
+      qc.invalidateQueries({ queryKey: teamKeys.members(team.id) });
       qc.invalidateQueries({ queryKey: teamKeys.list() });
     },
   });

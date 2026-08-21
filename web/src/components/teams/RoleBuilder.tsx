@@ -42,6 +42,9 @@ export function RoleBuilder({
   showTags = true,
   showAccess = true,
   allowStructureEdit = true,
+  onDuplicateRole,
+  onRemoveRole,
+  canRemoveRole,
 }: {
   roles: RoleInput[];
   onChange: (next: RoleInput[]) => void;
@@ -53,6 +56,9 @@ export function RoleBuilder({
   showTags?: boolean;
   showAccess?: boolean;
   allowStructureEdit?: boolean;
+  onDuplicateRole?: (index: number) => void;
+  onRemoveRole?: (index: number) => void;
+  canRemoveRole?: (index: number) => boolean;
 }): React.ReactElement {
   const { t } = useTranslation('teams');
   const runtimeCatalog = useRuntimeSelectorCatalog();
@@ -61,6 +67,14 @@ export function RoleBuilder({
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
   const remove = (i: number) => onChange(roles.filter((_, j) => j !== i));
+  const duplicate = (i: number) => {
+    const original = roles[i];
+    onChange([
+      ...roles.slice(0, i + 1),
+      { ...original, role: `${original.role}-copy` },
+      ...roles.slice(i + 1),
+    ]);
+  };
   const add = () => onChange([...roles, newRole()]);
 
   return (
@@ -139,14 +153,25 @@ export function RoleBuilder({
               </>
             )}
             {allowStructureEdit && (
-              <button
-                type="button"
-                className="ml-auto text-xs text-text-muted hover:text-danger"
-                data-testid={`${idPrefix}-role-${i}-remove`}
-                onClick={() => remove(i)}
-              >
-                {t('roleBuilder.remove')}
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  className="text-xs text-text-muted hover:text-brand"
+                  data-testid={`${idPrefix}-role-${i}-duplicate`}
+                  onClick={() => (onDuplicateRole ? onDuplicateRole(i) : duplicate(i))}
+                >
+                  {t('roleBuilder.duplicate')}
+                </button>
+                <button
+                  type="button"
+                  className="text-xs text-text-muted hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid={`${idPrefix}-role-${i}-remove`}
+                  disabled={canRemoveRole ? !canRemoveRole(i) : false}
+                  onClick={() => (onRemoveRole ? onRemoveRole(i) : remove(i))}
+                >
+                  {t('roleBuilder.remove')}
+                </button>
+              </div>
             )}
           </div>
 

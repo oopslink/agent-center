@@ -56,9 +56,10 @@ var facadeIDGen = idgen.NewGenerator(clock.SystemClock{})
 // updateTeamReq is the update body — name/description are optional (nil = leave
 // unchanged), mirroring teamservice.UpdateTeamInput.
 type updateTeamReq struct {
-	Name        *string               `json:"name"`
-	Description *string               `json:"description"`
-	Roles       *[]updateRoleInputReq `json:"roles"`
+	Name            *string               `json:"name"`
+	Description     *string               `json:"description"`
+	Roles           *[]updateRoleInputReq `json:"roles"`
+	ExpectedVersion *int                  `json:"expected_version"`
 }
 
 type updateRoleInputReq struct {
@@ -117,9 +118,11 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 		configs = &converted
 	}
 	t, err := d.TeamService.UpdateTeam(r.Context(), team.TeamID(r.PathValue("id")), teamservice.UpdateTeamInput{
-		Name:        req.Name,
-		Description: req.Description,
-		Roles:       configs,
+		Name:            req.Name,
+		Description:     req.Description,
+		Roles:           configs,
+		ExpectedVersion: req.ExpectedVersion,
+		ActorRef:        string(authz.UserSubject(caller.ID())),
 	})
 	if err != nil {
 		mapTeamWebError(w, err)
@@ -136,6 +139,70 @@ func (s *Server) updateTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, teamViewMapForMember(t, members, len(projects), member.Role(), teamMemoryConfigured(d)))
+}
+
+type deleteTeamRoleReq struct {
+	ExpectedVersion int    `json:"expected_version"`
+	ReassignRole    string `json:"reassign_role"`
+	ConfirmName     string `json:"confirm_name"`
+}
+
+func (s *Server) previewDeleteTeamRoleHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := teamGuardMember(w, r, d)
+	if !ok {
+		return
+	}
+	if _, err := getTeamInOrg(r, d, orgID, r.PathValue("id")); err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
+	impact, err := d.TeamService.PreviewDeleteRole(r.Context(), team.TeamID(r.PathValue("id")), r.PathValue("role"))
+	if err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, impact)
+}
+
+func (s *Server) deleteTeamRoleHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	caller, member, orgID, ok := teamGuardMember(w, r, d)
+	if !ok {
+		return
+	}
+	currentTeam, err := getTeamInOrg(r, d, orgID, r.PathValue("id"))
+	if err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
+	if !requireWebTeamPermission(w, r, d, caller, orgID, currentTeam.ID().String(), "team.write") {
+		return
+	}
+	var req deleteTeamRoleReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	t, impact, err := d.TeamService.DeleteRole(r.Context(), currentTeam.ID(), r.PathValue("role"), teamservice.DeleteRoleInput{
+		ActorRef:        string(authz.UserSubject(caller.ID())),
+		ExpectedVersion: req.ExpectedVersion,
+		ReassignRole:    req.ReassignRole,
+		ConfirmName:     req.ConfirmName,
+	})
+	if err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
+	members, err := d.TeamService.ListMembers(r.Context(), t.ID())
+	if err != nil {
+		mapTeamWebError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"team":   teamViewMapForMember(t, members, len(impact.ProjectIDs), member.Role(), teamMemoryConfigured(d)),
+		"impact": impact,
+	})
 }
 
 // ---------------------------------------------------------------------------

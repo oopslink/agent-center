@@ -7,6 +7,10 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -89,10 +93,29 @@ func (s *Service) CreateTeam(ctx context.Context, in CreateTeamInput) (*team.Tea
 
 // UpdateTeamInput is the update_team tool payload. Nil fields are left unchanged.
 type UpdateTeamInput struct {
-	Name         *string
-	Description  *string
-	Roles        *[]team.RoleConfig
-	MemoryPolicy *team.TeamMemoryPolicy
+	Name            *string
+	Description     *string
+	Roles           *[]team.RoleConfig
+	MemoryPolicy    *team.TeamMemoryPolicy
+	ExpectedVersion *int
+	ActorRef        string
+}
+
+type RoleDeleteImpact struct {
+	TeamID       team.TeamID `json:"team_id"`
+	TeamRole     string      `json:"team_role"`
+	ReassignRole string      `json:"reassign_role,omitempty"`
+	MemberCount  int         `json:"affected_members"`
+	ProjectIDs   []string    `json:"affected_project_ids"`
+	Version      int         `json:"version"`
+	Protected    bool        `json:"protected"`
+}
+
+type DeleteRoleInput struct {
+	ActorRef        string
+	ExpectedVersion int
+	ReassignRole    string
+	ConfirmName     string
 }
 
 // UpdateTeam mutates name/description of an existing team.
@@ -103,6 +126,9 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 		if err != nil {
 			return err
 		}
+		if in.ExpectedVersion != nil && t.Version() != *in.ExpectedVersion {
+			return team.ErrTeamVersionConflict
+		}
 		now := s.clock.Now()
 		if in.Name != nil {
 			if err := t.Rename(*in.Name, now); err != nil {
@@ -112,7 +138,10 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 		if in.Description != nil {
 			t.SetDescription(*in.Description, now)
 		}
+		var beforeRoles []team.RoleConfig
+		var affectedRoleMembers int
 		if in.Roles != nil {
+			beforeRoles = t.Roles()
 			if err := t.SetRoles(*in.Roles, now); err != nil {
 				return err
 			}
@@ -124,6 +153,7 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 			if err != nil {
 				return err
 			}
+			affectedRoleMembers = len(members)
 			for _, member := range members {
 				if _, ok := roles[member.Role]; !ok {
 					return team.ErrRoleInUse
@@ -149,6 +179,13 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 			if err := s.repo.ReplaceRoles(ctx, t); err != nil {
 				return err
 			}
+			exec, err := persistence.ExecutorFromCtx(ctx, s.db)
+			if err != nil {
+				return err
+			}
+			if err := insertTeamRoleAudit(ctx, exec, t.OrgID(), t.ID(), "*", "team.roles.updated", in.ActorRef, beforeRoles, t.Roles(), affectedRoleMembers, 0, now); err != nil {
+				return err
+			}
 		}
 		if in.MemoryPolicy != nil {
 			if err := s.repo.SetMemoryPolicy(ctx, t); err != nil {
@@ -162,6 +199,151 @@ func (s *Service) UpdateTeam(ctx context.Context, id team.TeamID, in UpdateTeamI
 		return nil, err
 	}
 	return updated, nil
+}
+
+func (s *Service) PreviewDeleteRole(ctx context.Context, id team.TeamID, role string) (RoleDeleteImpact, error) {
+	role = strings.TrimSpace(role)
+	t, err := s.repo.GetTeam(ctx, id)
+	if err != nil {
+		return RoleDeleteImpact{}, err
+	}
+	if !t.HasRole(role) {
+		return RoleDeleteImpact{}, team.ErrRoleNotDeclared
+	}
+	impact := RoleDeleteImpact{TeamID: id, TeamRole: role, Version: t.Version(), Protected: len(t.Roles()) <= 1}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT member_ref) FROM team_members WHERE team_id=? AND role=?`, id.String(), role).Scan(&impact.MemberCount); err != nil {
+		return RoleDeleteImpact{}, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT project_id FROM team_projects WHERE team_id=? ORDER BY created_at, project_id`, id.String())
+	if err != nil {
+		return RoleDeleteImpact{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var projectID string
+		if err := rows.Scan(&projectID); err != nil {
+			return RoleDeleteImpact{}, err
+		}
+		impact.ProjectIDs = append(impact.ProjectIDs, projectID)
+	}
+	return impact, rows.Err()
+}
+
+func (s *Service) DeleteRole(ctx context.Context, id team.TeamID, role string, in DeleteRoleInput) (*team.Team, RoleDeleteImpact, error) {
+	role = strings.TrimSpace(role)
+	in.ReassignRole = strings.TrimSpace(in.ReassignRole)
+	in.ConfirmName = strings.TrimSpace(in.ConfirmName)
+	if role == "" || in.ConfirmName != role {
+		return nil, RoleDeleteImpact{}, team.ErrInvalidRole
+	}
+	var updated *team.Team
+	var impact RoleDeleteImpact
+	err := persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		t, err := s.repo.GetTeam(ctx, id)
+		if err != nil {
+			return err
+		}
+		if t.Version() != in.ExpectedVersion {
+			return team.ErrTeamVersionConflict
+		}
+		if !t.HasRole(role) {
+			return team.ErrRoleNotDeclared
+		}
+		if len(t.Roles()) <= 1 {
+			return team.ErrRoleProtected
+		}
+		if in.ReassignRole == "" || in.ReassignRole == role || !t.HasRole(in.ReassignRole) {
+			return team.ErrRoleNotDeclared
+		}
+		exec, err := persistence.ExecutorFromCtx(ctx, s.db)
+		if err != nil {
+			return err
+		}
+		impact = RoleDeleteImpact{TeamID: id, TeamRole: role, ReassignRole: in.ReassignRole, Version: t.Version()}
+		if err := exec.QueryRowContext(ctx, `SELECT COUNT(DISTINCT member_ref) FROM team_members WHERE team_id=? AND role=?`, id.String(), role).Scan(&impact.MemberCount); err != nil {
+			return err
+		}
+		projectRows, err := exec.QueryContext(ctx, `SELECT project_id FROM team_projects WHERE team_id=? ORDER BY created_at, project_id`, id.String())
+		if err != nil {
+			return err
+		}
+		for projectRows.Next() {
+			var projectID string
+			if err := projectRows.Scan(&projectID); err != nil {
+				_ = projectRows.Close()
+				return err
+			}
+			impact.ProjectIDs = append(impact.ProjectIDs, projectID)
+		}
+		if err := projectRows.Err(); err != nil {
+			_ = projectRows.Close()
+			return err
+		}
+		if err := projectRows.Close(); err != nil {
+			return err
+		}
+
+		beforeRoles := t.Roles()
+		nextRoles := make([]team.RoleConfig, 0, len(beforeRoles)-1)
+		for _, rc := range beforeRoles {
+			if rc.Role != role {
+				nextRoles = append(nextRoles, rc)
+			}
+		}
+		now := s.clock.Now()
+		if err := t.SetRoles(nextRoles, now); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(ctx, `DELETE FROM team_members
+			WHERE team_id=? AND role=? AND member_ref IN (
+				SELECT member_ref FROM team_members WHERE team_id=? AND role=?
+			)`, id.String(), role, id.String(), in.ReassignRole); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(ctx, `UPDATE team_members SET role=? WHERE team_id=? AND role=?`, in.ReassignRole, id.String(), role); err != nil {
+			return err
+		}
+		if err := s.repo.UpdateTeam(ctx, t); err != nil {
+			return err
+		}
+		if err := s.repo.ReplaceRoles(ctx, t); err != nil {
+			return err
+		}
+		if err := insertTeamRoleAudit(ctx, exec, t.OrgID(), id, role, "team.role.deleted", in.ActorRef, beforeRoles, nextRoles, impact.MemberCount, len(impact.ProjectIDs), now); err != nil {
+			return err
+		}
+		updated = t
+		impact.Version = t.Version()
+		return nil
+	})
+	if err != nil {
+		return nil, RoleDeleteImpact{}, err
+	}
+	return updated, impact, nil
+}
+
+func insertTeamRoleAudit(ctx context.Context, exec persistence.SQLExecutor, orgID string, teamID team.TeamID, role, eventType, actor string, previous, next []team.RoleConfig, members, projects int, now time.Time) error {
+	if strings.TrimSpace(actor) == "" {
+		actor = "system"
+	}
+	prevJSON, err := json.Marshal(previous)
+	if err != nil {
+		return fmt.Errorf("marshal previous role audit: %w", err)
+	}
+	nextJSON, err := json.Marshal(next)
+	if err != nil {
+		return fmt.Errorf("marshal next role audit: %w", err)
+	}
+	stamp := now.UTC().Format(time.RFC3339Nano)
+	_, err = exec.ExecContext(ctx, `INSERT INTO team_role_audit_events
+		(id, org_id, team_id, team_role, event_type, actor_ref, previous_config, next_config, affected_members, affected_projects, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		fmt.Sprintf("trole-%s-%s-%d-%d-%d", teamID.String(), role, now.UnixNano(), len(previous), len(next)), orgID, teamID.String(), role, eventType, actor,
+		string(prevJSON), string(nextJSON), members, projects, stamp)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetTeamMemoryPolicy replaces the controlled-write policy for a team. Curator
