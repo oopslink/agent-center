@@ -71,6 +71,7 @@ type accessRAMRoleDTO struct {
 	Scope       string   `json:"scope"`
 	RevokedAt   *string  `json:"revoked_at,omitempty"`
 	CreatedAt   string   `json:"created_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
 	References  int      `json:"references,omitempty"`
 }
 
@@ -535,7 +536,7 @@ var (
 
 func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at,
+		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at, ar.updated_at,
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
@@ -592,7 +593,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at,
+		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at,
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
@@ -634,7 +635,7 @@ func scanAccessRAMRoleVersion(row accessRAMRoleScanner) (accessRAMRoleDTO, error
 	var role accessRAMRoleDTO
 	var permissionsJSON string
 	var revoked sql.NullString
-	if err := row.Scan(&role.ID, &role.StableKey, &role.Name, &role.Kind, &role.Description, &role.Scope, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt, &role.References); err != nil {
+	if err := row.Scan(&role.ID, &role.StableKey, &role.Name, &role.Kind, &role.Description, &role.Scope, &revoked, &role.Version, &permissionsJSON, &role.Risk, &role.CreatedAt, &role.UpdatedAt, &role.References); err != nil {
 		return accessRAMRoleDTO{}, err
 	}
 	if revoked.Valid {

@@ -194,7 +194,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(screen.queryByTestId('mobile-context-toggle')).not.toBeInTheDocument();
   });
 
-  it('mobile account sheet exposes org switch / account / theme / sign out', () => {
+  it('mobile account sheet exposes org switch / account / theme / language / sign out', () => {
     renderShell('/channels');
     expect(screen.queryByTestId('account-sheet')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('mobile-account-toggle'));
@@ -202,6 +202,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(sheet).toHaveAttribute('role', 'dialog');
     expect(within(sheet).getByTestId('account-profile-link')).toHaveAttribute('href', '/me');
     expect(within(sheet).getByTestId('theme-toggle')).toBeInTheDocument();
+    expect(within(sheet).getByTestId('mobile-language-toggle')).toBeInTheDocument();
     expect(within(sheet).getByTestId('account-signout')).toBeInTheDocument();
   });
 });

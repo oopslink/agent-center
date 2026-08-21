@@ -2,18 +2,29 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGS, writeLang, type Lang } from '@/i18n/lang';
 
-// v2.25 F0 — the Language panel under System → Settings. A segmented
-// EN | 中文 control mirroring ThemeSegmented's pattern. Selecting a language:
+interface LanguageSegmentedProps {
+  className?: string;
+  testId?: string;
+  segmentTestIdPrefix?: string;
+}
+
+// v2.25 F0 — segmented EN | 中文 control mirroring ThemeSegmented's pattern.
+// Selecting a language:
 //   1. i18n.changeLanguage(l) — re-renders the whole tree in the new language
 //      immediately (react-i18next subscription), and
 //   2. writeLang(l) — persists to localStorage `ac.lang` + sets <html lang>,
 //      so a reload keeps the choice (and applyInitialLang avoids any flash).
 // The two are the runtime + persistence halves of the same switch.
-export function LanguagePanel(): React.ReactElement {
+export function LanguageSegmented({
+  className = 'flex gap-1 rounded-md border border-border-base bg-bg-base p-0.5',
+  testId = 'language-toggle',
+  segmentTestIdPrefix = 'language-segment',
+}: LanguageSegmentedProps): React.ReactElement {
   const { t, i18n } = useTranslation('common');
   // i18n.language can be a region tag (e.g. 'en-US') under some detectors; we
   // only ever store the base, so compare on the base for the active segment.
-  const current = (i18n.language?.split('-')[0] as Lang) ?? 'en';
+  const currentBase = i18n.language?.split('-')[0] as Lang | undefined;
+  const current = SUPPORTED_LANGS.includes(currentBase as Lang) ? (currentBase as Lang) : 'en';
 
   const setLang = (l: Lang) => {
     if (l === current) return;
@@ -34,39 +45,48 @@ export function LanguagePanel(): React.ReactElement {
 
   return (
     <div
+      role="radiogroup"
+      aria-label={t('settings.language.title')}
+      data-testid={testId}
+      onKeyDown={onKeyDown}
+      className={className}
+    >
+      {SUPPORTED_LANGS.map((l) => {
+        const selected = current === l;
+        return (
+          <button
+            key={l}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            data-testid={`${segmentTestIdPrefix}-${l}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => setLang(l)}
+            className={[
+              'flex flex-1 items-center justify-center rounded px-3 py-1.5 text-xs font-medium motion-safe:transition-colors',
+              selected ? 'bg-brand-hover text-white shadow-sm' : 'text-text-secondary hover:text-text-primary',
+            ].join(' ')}
+          >
+            {t(`settings.language.${l}`)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// v2.25 F0 — the Language panel under System → Settings.
+export function LanguagePanel(): React.ReactElement {
+  const { t } = useTranslation('common');
+
+  return (
+    <div
       className="max-w-md rounded-lg border border-border-base bg-bg-elevated p-4"
       data-testid="language-panel"
     >
       <h2 className="text-sm font-semibold text-text-primary">{t('settings.language.title')}</h2>
       <p className="mt-1 text-xs text-text-muted">{t('settings.language.description')}</p>
-      <div
-        role="radiogroup"
-        aria-label={t('settings.language.title')}
-        data-testid="language-toggle"
-        onKeyDown={onKeyDown}
-        className="mt-3 flex gap-1 rounded-md border border-border-base bg-bg-base p-0.5"
-      >
-        {SUPPORTED_LANGS.map((l) => {
-          const selected = current === l;
-          return (
-            <button
-              key={l}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              data-testid={`language-segment-${l}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => setLang(l)}
-              className={[
-                'flex flex-1 items-center justify-center rounded px-3 py-1.5 text-xs font-medium motion-safe:transition-colors',
-                selected ? 'bg-brand-hover text-white shadow-sm' : 'text-text-secondary hover:text-text-primary',
-              ].join(' ')}
-            >
-              {t(`settings.language.${l}`)}
-            </button>
-          );
-        })}
-      </div>
+      <LanguageSegmented className="mt-3 flex gap-1 rounded-md border border-border-base bg-bg-base p-0.5" />
     </div>
   );
 }

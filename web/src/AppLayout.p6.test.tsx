@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+import i18n from '@/i18n';
 import AppLayout from './AppLayout';
 
 // Polyfill localStorage so AppLayout's persist effect works.
@@ -23,9 +24,11 @@ beforeAll(() => {
   server.use(http.get('/api/conversations', () => HttpResponse.json([])));
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
   localStorage.clear();
   document.documentElement.classList.remove('dark');
+  document.documentElement.lang = 'en';
 });
 afterEach(() => cleanup());
 
@@ -78,6 +81,22 @@ describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     fireEvent.keyDown(group, { key: 'ArrowLeft' });
     expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+
+  it('segmented language control lives in the rail user panel and persists', async () => {
+    renderShell();
+    fireEvent.click(screen.getByTestId('sidebar-user'));
+    const group = screen.getByTestId('rail-language-toggle');
+    expect(group).toHaveAttribute('role', 'radiogroup');
+    expect(screen.getByTestId('rail-language-segment-en')).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(screen.getByTestId('rail-language-segment-zh'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rail-language-segment-zh')).toHaveAttribute('aria-checked', 'true');
+    });
+    expect(localStorage.getItem('ac.lang')).toBe('zh');
+    expect(document.documentElement.lang).toBe('zh');
   });
 
   it('sidebar collapse toggle flips width + persists', () => {
