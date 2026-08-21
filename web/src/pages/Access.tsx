@@ -25,6 +25,7 @@ import {
   useRAMRole,
   useRAMRoleCreate,
   useRAMRoleDelete,
+  useRAMRoleRevoke,
   useRAMRoleUpdate,
   useRAMRoles,
   useAccessRevokePreview,
@@ -439,6 +440,8 @@ function RAMRolesView({
   const create = useRAMRoleCreate();
   const update = useRAMRoleUpdate();
   const deleteRole = useRAMRoleDelete();
+  const revokeRole = useRAMRoleRevoke();
+  const replaceMapping = useReplaceTeamRoleRAMMapping();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
   const [draftName, setDraftName] = useState('');
@@ -451,11 +454,17 @@ function RAMRolesView({
   const [createPermissions, setCreatePermissions] = useState<string[]>([]);
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [createdRoleId, setCreatedRoleId] = useState<string | null>(null);
+  const [deleteNameConfirm, setDeleteNameConfirm] = useState('');
+  const [showReferences, setShowReferences] = useState(false);
+  const [migrationTarget, setMigrationTarget] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
   const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
   const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
   const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
   const mappedByRAMRole = useRAMRoleReferences(mappingEntries);
+  const mappedReferences = selected ? mappedByRAMRole.get(selected) ?? [] : [];
   const filteredRoles = useMemo(() => {
     const q = roleSearch.trim().toLowerCase();
     const all = roles.data?.roles ?? [];
@@ -475,6 +484,9 @@ function RAMRolesView({
     setDraftDescription('');
     setDraftScope(role?.scope ?? 'team');
     setDraftPermissions(role?.permissions ?? []);
+    setDeleteNameConfirm('');
+    setShowReferences(false);
+    setMigrationTarget('');
   };
   useEffect(() => {
     if (!detail.data) return;
@@ -484,16 +496,41 @@ function RAMRolesView({
     setDraftPermissions(detail.data.latest.permissions ?? []);
   }, [detail.data?.id, detail.data?.latest.version]);
   const selectedReferences = detail.data?.references ?? [];
-  const selectedIsReferenced = selectedReferences.length > 0;
+  const selectedIsReferenced = selectedReferences.length > 0 || mappedReferences.length > 0;
   const selectedIsCustom = detail.data?.kind === 'custom';
+  const selectedWasCreatedHere = selected === createdRoleId;
+  const runReferenceMigration = async (): Promise<void> => {
+    if (!selected || !migrationTarget || migrationTarget === selected) return;
+    const pending = mappedReferences
+      .map((ref) => {
+        const mapping = mappingEntries.find((entry) => entry.team.id === ref.team.id && entry.role === ref.role)?.query.data;
+        if (!mapping) return null;
+        const next = Array.from(new Set(mapping.ram_role_ids.map((id) => (id === selected ? migrationTarget : id))));
+        return { mapping, next };
+      })
+      .filter((item): item is { mapping: TeamRAMRoleMapping; next: string[] } => item !== null);
+    for (const item of pending) {
+      await replaceMapping.mutateAsync({
+        team_id: item.mapping.team_id,
+        role: item.mapping.team_role,
+        ram_role_ids: item.next,
+        expected_version: item.mapping.version,
+      });
+    }
+    setStatus(`Migrated ${pending.length} Team Role references.`);
+  };
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
-          <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
+          <div className="flex items-center gap-2">
+            <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
+            <button type="button" data-testid="access-role-new" className="rounded bg-btn-primary-bg px-3 py-1.5 text-xs font-semibold text-btn-primary-fg" onClick={() => document.querySelector<HTMLInputElement>('[data-testid="access-role-name"]')?.focus()}>New RAM Role</button>
+          </div>
         </div>
+        {status && <div className="border-b border-success/30 bg-success/10 px-4 py-2 text-sm text-success" role="status" data-testid="access-role-success">{status}</div>}
         <div className="border-b border-border-base px-4 py-3">
           <label className="relative block">
             <span className="sr-only">Search RAM Roles</span>
@@ -572,6 +609,7 @@ function RAMRolesView({
             }, {
               onSuccess: (created) => {
                 setSelectedId(created.id);
+                setCreatedRoleId(created.id);
                 setCreatePermissions([]);
                 resetDraft(created.latest);
               },
@@ -592,18 +630,26 @@ function RAMRolesView({
                 <div className="text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
-                  {selectedReferences.length === 0
-                    ? 'None'
-                    : selectedReferences.map((ref) => `${ref.team_name} / ${ref.team_role}`).join(', ')}
+                  {mappedReferences.length > 0
+                    ? mappedReferences.map((ref) => `${ref.team.name} / ${ref.role}`).join(', ')
+                    : selectedReferences.length > 0
+                      ? selectedReferences.map((ref) => `${ref.team_name} / ${ref.team_role}`).join(', ')
+                      : 'None'}
                 </div>
-                {selectedReferences.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs" onClick={() => document.querySelector(`[data-testid="access-mapping-${selectedReferences[0].team_id}-${selectedReferences[0].team_role}"]`)?.scrollIntoView({ block: 'center' })}>
+                {selectedIsReferenced && (
+                  <div className="mt-2 space-y-2" data-testid="access-role-delete-blocked">
+                    <p className="text-xs text-danger">This RAM Role cannot be deleted until references are migrated.</p>
+                    <button type="button" data-testid="access-role-view-references" className="rounded border border-border-base px-2 py-1 text-xs" onClick={() => setShowReferences((value) => !value)}>
                       View references
                     </button>
-                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs" onClick={() => document.querySelector(`[data-testid="access-mapping-${selectedReferences[0].team_id}-${selectedReferences[0].team_role}"]`)?.scrollIntoView({ block: 'center' })}>
-                      Migrate references
-                    </button>
+                    {showReferences && <div className="space-y-2" data-testid="access-role-references">
+                      {mappedReferences.map((ref) => <p key={`${ref.team.id}:${ref.role}`} className="text-xs">{ref.team.name} / {ref.role}</p>)}
+                      <select data-testid="access-role-migrate-target" className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm" value={migrationTarget} onChange={(event) => setMigrationTarget(event.target.value)}>
+                        <option value="">Select RAM Role</option>
+                        {(roles.data?.roles ?? []).filter((role) => role.id !== selected).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                      </select>
+                      <button type="button" data-testid="access-role-migrate-references" className="rounded bg-btn-primary-bg px-2 py-1 text-xs font-semibold text-btn-primary-fg" disabled={!migrationTarget || replaceMapping.isPending} onClick={() => void runReferenceMigration()}>Migrate references</button>
+                    </div>}
                   </div>
                 )}
               </div>
@@ -648,20 +694,31 @@ function RAMRolesView({
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || deleteRole.isPending}
+                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending || revokeRole.isPending}
                   data-testid="access-role-disable-submit"
-                  onClick={() => setDeleteConfirmOpen(true)}
+                  onClick={() => {
+                    if (selectedWasCreatedHere) {
+                      setDeleteConfirmOpen(true);
+                      return;
+                    }
+                    revokeRole.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role deleted after reference-impact review' }, { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data.name}.`); setSelectedId(null); } });
+                  }}
                 >
                   Delete
                 </button>
                 {selectedIsReferenced && (
                   <p className="mt-2 text-xs text-danger">Delete is blocked while Team Role references exist. Use View references or Migrate references first.</p>
                 )}
+                {!selectedIsReferenced && !selectedWasCreatedHere && (
+                  <RoleTextField label={`Type ${detail.data.name} to delete`} value={deleteNameConfirm} onChange={setDeleteNameConfirm} testId="access-role-delete-name" />
+                )}
               </div>
             </>
           )}
           {update.isError && <p className="mt-2 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
           {deleteRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
+          {revokeRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(revokeRole.error as Error).message}</p>}
+          {replaceMapping.isError && <p className="mt-2 text-xs text-danger" role="alert">{(replaceMapping.error as Error).message}</p>}
         </section>
       </aside>
       <ConfirmModal
