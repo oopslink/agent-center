@@ -328,6 +328,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/access/ram-roles", s.accessRAMRolesHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/ram-roles", s.accessRAMRoleCreateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/access/ram-roles/{id}", s.accessRAMRoleDetailHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/access/ram-roles/{id}", s.accessRAMRoleUpdateHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/access/ram-roles/{id}", s.accessRAMRoleDeleteHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/ram-roles/{id}/versions", s.accessRAMRoleNewVersionHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/ram-roles/{id}/revoke", s.accessRAMRoleRevokeHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/batch/preview", s.accessBatchPreviewHandler)

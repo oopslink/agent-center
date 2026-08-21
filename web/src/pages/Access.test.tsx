@@ -274,7 +274,7 @@ describe('Access page', () => {
       latest: roleV1,
       versions: [roleV1],
     };
-    let publishBody: { permissions?: string[]; expected_latest_version?: number } | null = null;
+    let publishBody: { name?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
         roles: [
@@ -297,8 +297,8 @@ describe('Access page', () => {
         };
         return HttpResponse.json(roleDetail, { status: 201 });
       }),
-      http.post('/api/orgs/:slug/access/ram-roles/role-created/versions', async ({ request }) => {
-        publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
+      http.patch('/api/orgs/:slug/access/ram-roles/role-created', async ({ request }) => {
+        publishBody = (await request.json()) as { name?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
         const latest = { ...roleDetail.latest, version: 2, permissions: publishBody.permissions ?? [], risk: 'high' };
         roleDetail = { ...roleDetail, latest, versions: [latest, roleDetail.latest] };
         return HttpResponse.json(roleDetail, { status: 201 });
@@ -325,13 +325,16 @@ describe('Access page', () => {
 
     await waitFor(() => expect(screen.getByTestId('access-role-detail')).toHaveTextContent('Release operator'));
     const detail = screen.getByTestId('access-role-detail');
-    await waitFor(() => expect(within(detail).getByTestId('access-role-new-version-submit')).toHaveTextContent('Publish v2'));
+    await waitFor(() => expect(within(detail).getByTestId('access-role-new-version-submit')).toHaveTextContent('Save changes'));
     expect(within(detail).getByTestId('access-role-new-version-submit')).not.toBeDisabled();
     fireEvent.click(within(detail).getByText('team.memory.review'));
     fireEvent.click(within(detail).getByTestId('access-role-new-version-submit'));
 
     await waitFor(() => {
       expect(publishBody).toEqual({
+        name: 'Release operator',
+        description: 'release work',
+        scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],
         expected_latest_version: 1,
       });
@@ -353,7 +356,7 @@ describe('Access page', () => {
       permissions: ['org.read', 'project.write'],
       risk: 'medium',
     };
-    let publishBody: { permissions?: string[]; expected_latest_version?: number } | null = null;
+    let publishBody: { name?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
         roles: [roleV1],
@@ -366,8 +369,8 @@ describe('Access page', () => {
         latest: roleV1,
         versions: [roleV1],
       })),
-      http.post('/api/orgs/:slug/access/ram-roles/role-cas/versions', async ({ request }) => {
-        publishBody = (await request.json()) as { permissions: string[]; expected_latest_version?: number };
+      http.patch('/api/orgs/:slug/access/ram-roles/role-cas', async ({ request }) => {
+        publishBody = (await request.json()) as { name?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
         return HttpResponse.json(
           { error: 'version_conflict', message: 'access RAM role latest version changed' },
           { status: 409 },
@@ -390,6 +393,9 @@ describe('Access page', () => {
 
     await waitFor(() => {
       expect(publishBody).toEqual({
+        name: 'Deploy operator',
+        description: 'deploy work',
+        scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],
         expected_latest_version: 1,
       });

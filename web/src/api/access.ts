@@ -74,30 +74,44 @@ export interface AccessRole {
 
 export interface RAMRole {
   id: string;
+  stable_key: string;
   name: string;
   version: number;
   kind: 'system' | 'custom';
   description: string;
   permissions: string[];
   risk: AccessRisk;
+  scope: AccessResourceKind | 'mixed' | string;
   revoked_at?: string | null;
   created_at?: string;
+  references?: number;
+}
+
+export interface RAMRoleReference {
+  team_id: string;
+  team_name: string;
+  team_role: string;
 }
 
 export interface RAMRoleDetail {
   id: string;
+  stable_key: string;
   name: string;
   description: string;
   kind: 'system' | 'custom';
+  scope: AccessResourceKind | 'mixed' | string;
   revoked_at?: string | null;
   latest: RAMRole;
   versions: RAMRole[];
+  references: RAMRoleReference[];
 }
 
 export interface RAMRoleWriteRequest {
   name?: string;
+  stable_key?: string;
   description?: string;
   permissions: string[];
+  scope?: string;
   expected_latest_version?: number;
 }
 
@@ -242,8 +256,12 @@ export const accessApi = {
     api.post<RAMRoleDetail>('/access/ram-roles', payload),
   createRAMRoleVersion: (id: string, payload: RAMRoleWriteRequest) =>
     api.post<RAMRoleDetail>(`/access/ram-roles/${encodeURIComponent(id)}/versions`, payload),
+  updateRAMRole: (id: string, payload: RAMRoleWriteRequest) =>
+    api.patch<RAMRoleDetail>(`/access/ram-roles/${encodeURIComponent(id)}`, payload),
   revokeRAMRole: (id: string, payload: { expected_latest_version?: number; reason?: string }) =>
     api.post<void>(`/access/ram-roles/${encodeURIComponent(id)}/revoke`, payload),
+  deleteRAMRole: (id: string, payload: { expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean }) =>
+    api.del<void>(`/access/ram-roles/${encodeURIComponent(id)}`, payload),
   previewBatch: (payload: AccessBatchRequest) =>
     api.post<AccessBatchPreview>('/access/batch/preview', payload),
   applyBatch: (payload: AccessBatchRequest & { preview_request_id?: string }) =>
@@ -299,6 +317,18 @@ export function useRAMRoleNewVersion() {
   });
 }
 
+export function useRAMRoleUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: RAMRoleWriteRequest }) =>
+      accessApi.updateRAMRole(id, payload),
+    onSuccess: (detail) => {
+      void qc.invalidateQueries({ queryKey: qk.ramRoles() });
+      void qc.setQueryData(qk.ramRole(detail.id), detail);
+    },
+  });
+}
+
 export function useRAMRoleRevoke() {
   const qc = useQueryClient();
   return useMutation({
@@ -306,6 +336,19 @@ export function useRAMRoleRevoke() {
       accessApi.revokeRAMRole(id, { expected_latest_version, reason }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.ramRoles() });
+    },
+  });
+}
+
+export function useRAMRoleDelete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, expected_latest_version, reason, confirm_unreferenced }: { id: string; expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean }) =>
+      accessApi.deleteRAMRole(id, { expected_latest_version, reason, confirm_unreferenced }),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: qk.ramRoles() });
+      void qc.invalidateQueries({ queryKey: qk.accessOverview() });
+      void qc.invalidateQueries({ queryKey: qk.ramRole(vars.id) });
     },
   });
 }

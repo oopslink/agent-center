@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import {
@@ -23,8 +23,8 @@ import {
   useAccessOverview,
   useRAMRole,
   useRAMRoleCreate,
-  useRAMRoleNewVersion,
-  useRAMRoleRevoke,
+  useRAMRoleDelete,
+  useRAMRoleUpdate,
   useRAMRoles,
   useAccessRevokePreview,
   useAccessRoleUpdate,
@@ -372,18 +372,31 @@ function RAMRolesView({
 }): React.ReactElement {
   const roles = useRAMRoles();
   const create = useRAMRoleCreate();
-  const newVersion = useRAMRoleNewVersion();
-  const revoke = useRAMRoleRevoke();
+  const update = useRAMRoleUpdate();
+  const deleteRole = useRAMRoleDelete();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [roleSearch, setRoleSearch] = useState('');
   const [draftName, setDraftName] = useState('');
+  const [draftStableKey, setDraftStableKey] = useState('');
   const [draftDescription, setDraftDescription] = useState('');
+  const [draftScope, setDraftScope] = useState('team');
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editScope, setEditScope] = useState('team');
   const [createPermissions, setCreatePermissions] = useState<string[]>([]);
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
   const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
   const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
   const mappedByRAMRole = useRAMRoleReferences(mappingEntries);
+  const filteredRoles = useMemo(() => {
+    const q = roleSearch.trim().toLowerCase();
+    const all = roles.data?.roles ?? [];
+    if (!q) return all;
+    return all.filter((role) => [role.name, role.stable_key, role.id, role.description, role.scope].some((v) => (v ?? '').toLowerCase().includes(q)));
+  }, [roleSearch, roles.data?.roles]);
 
   const toggleDraftPermission = (permission: string): void => {
     setDraftPermissions((prev) => toggleValue(prev, permission).sort());
@@ -393,9 +406,21 @@ function RAMRolesView({
   };
   const resetDraft = (role?: RAMRole): void => {
     setDraftName('');
+    setDraftStableKey('');
     setDraftDescription('');
+    setDraftScope(role?.scope ?? 'team');
     setDraftPermissions(role?.permissions ?? []);
   };
+  useEffect(() => {
+    if (!detail.data) return;
+    setEditName(detail.data.name);
+    setEditDescription(detail.data.description);
+    setEditScope(detail.data.scope || 'team');
+    setDraftPermissions(detail.data.latest.permissions ?? []);
+  }, [detail.data?.id, detail.data?.latest.version]);
+  const selectedReferences = detail.data?.references ?? [];
+  const selectedIsReferenced = selectedReferences.length > 0;
+  const selectedIsCustom = detail.data?.kind === 'custom';
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
@@ -404,18 +429,34 @@ function RAMRolesView({
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
           <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
         </div>
+        <div className="border-b border-border-base px-4 py-3">
+          <label className="relative block">
+            <span className="sr-only">Search RAM Roles</span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+              <IconSearch />
+            </span>
+            <input
+              className="w-full rounded border border-border-base bg-bg-base py-2 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent focus-visible:outline-none"
+              placeholder="Search name, stable key, scope"
+              value={roleSearch}
+              onChange={(e) => setRoleSearch(e.target.value)}
+              data-testid="access-role-search"
+            />
+          </label>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
               <tr>
                 <th className="px-4 py-2 font-semibold">Role</th>
+                <th className="px-4 py-2 font-semibold">Scope</th>
                 <th className="px-4 py-2 font-semibold">Version</th>
                 <th className="px-4 py-2 font-semibold">Risk</th>
                 <th className="px-4 py-2 font-semibold">Permissions</th>
               </tr>
             </thead>
             <tbody>
-              {(roles.data?.roles ?? []).map((role) => (
+              {filteredRoles.map((role) => (
                 <tr
                   key={role.id}
                   className={['cursor-pointer border-b border-border-base last:border-0', selected === role.id ? 'bg-brand/5' : 'hover:bg-bg-subtle'].join(' ')}
@@ -428,11 +469,12 @@ function RAMRolesView({
                   <td className="px-4 py-3">
                     <div className="font-semibold text-text-primary">{role.name}</div>
                     <div className="text-xs text-text-muted">{role.description}</div>
-                    <div className="font-mono text-[0.6875rem] text-text-muted">{role.id}</div>
+                    <div className="font-mono text-[0.6875rem] text-text-muted">{role.stable_key || role.id}</div>
                     <div className="mt-1 text-[0.6875rem] text-text-muted">
-                      Referenced by {(mappedByRAMRole.get(role.id) ?? []).length} Team Roles
+                      Referenced by {role.references ?? (mappedByRAMRole.get(role.id) ?? []).length} Team Roles
                     </div>
                   </td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.scope}</td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{role.version}</td>
                   <td className="px-4 py-3"><AccessRiskBadge risk={role.risk} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.permissions.join(', ')}</td>
@@ -447,7 +489,9 @@ function RAMRolesView({
         <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-create">
           <h2 className="text-sm font-semibold text-text-primary">Create role</h2>
           <RoleTextField label="Name" value={draftName} onChange={setDraftName} testId="access-role-name" />
+          <RoleTextField label="Stable key" value={draftStableKey} onChange={setDraftStableKey} testId="access-role-stable-key" />
           <RoleTextField label="Description" value={draftDescription} onChange={setDraftDescription} testId="access-role-description" />
+          <RoleTextField label="Scope" value={draftScope} onChange={setDraftScope} testId="access-role-scope" />
           <PermissionChecklist catalog={catalog} selected={createPermissions} onToggle={toggleCreatePermission} />
           <button
             type="button"
@@ -456,7 +500,9 @@ function RAMRolesView({
             data-testid="access-role-create-submit"
             onClick={() => create.mutate({
               name: draftName,
+              stable_key: draftStableKey,
               description: draftDescription,
+              scope: draftScope,
               permissions: createPermissions,
             }, {
               onSuccess: (created) => {
@@ -478,13 +524,23 @@ function RAMRolesView({
             <>
               <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
                 <div className="font-semibold text-text-primary">{detail.data.name}</div>
-                <div className="text-xs text-text-muted">Latest v{detail.data.latest.version}</div>
+                <div className="text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
-                  {(mappedByRAMRole.get(detail.data.id) ?? []).length === 0
+                  {selectedReferences.length === 0
                     ? 'None'
-                    : (mappedByRAMRole.get(detail.data.id) ?? []).map(({ team, role }) => `${team.name} / ${role}`).join(', ')}
+                    : selectedReferences.map((ref) => `${ref.team_name} / ${ref.team_role}`).join(', ')}
                 </div>
+                {selectedReferences.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs" onClick={() => document.querySelector(`[data-testid="access-mapping-${selectedReferences[0].team_id}-${selectedReferences[0].team_role}"]`)?.scrollIntoView({ block: 'center' })}>
+                      View references
+                    </button>
+                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs" onClick={() => document.querySelector(`[data-testid="access-mapping-${selectedReferences[0].team_id}-${selectedReferences[0].team_role}"]`)?.scrollIntoView({ block: 'center' })}>
+                      Migrate references
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="mt-3 space-y-2" data-testid="access-role-versions">
                 {detail.data.versions.map((version) => (
@@ -498,42 +554,76 @@ function RAMRolesView({
                 ))}
               </div>
               <div className="mt-3 border-t border-border-base pt-3">
-                <h3 className="text-xs font-semibold uppercase text-text-muted">Publish new version</h3>
+                <h3 className="text-xs font-semibold uppercase text-text-muted">Edit RAM Role</h3>
+                <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
+                <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
+                <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
                 <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
                 <button
                   type="button"
                   className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-                  disabled={!canManageAccess || !latest || !selected || detail.data?.kind !== 'custom' || versionPermissions.length === 0 || newVersion.isPending}
+                  disabled={!canManageAccess || !latest || !selected || !selectedIsCustom || versionPermissions.length === 0 || update.isPending}
                   data-testid="access-role-new-version-submit"
                   onClick={() => {
                     if (!latest || !selected) return;
-                    newVersion.mutate({
+                    update.mutate({
                       id: selected,
                       payload: {
+                        name: editName,
+                        description: editDescription,
+                        scope: editScope,
                         permissions: versionPermissions,
                         expected_latest_version: latest.version,
                       },
                     }, { onSuccess: (updated) => resetDraft(updated.latest) });
                   }}
                 >
-                  Publish v{(latest?.version ?? 0) + 1}
+                  Save changes
                 </button>
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || !latest || detail.data?.kind !== 'custom' || revoke.isPending}
+                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || deleteRole.isPending}
                   data-testid="access-role-disable-submit"
-                  onClick={() => selected && latest && revoke.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role revoked after reference-impact review' })}
+                  onClick={() => setDeleteConfirmOpen(true)}
                 >
-                  Revoke
+                  Delete
                 </button>
+                {selectedIsReferenced && (
+                  <p className="mt-2 text-xs text-danger">Delete is blocked while Team Role references exist. Use View references or Migrate references first.</p>
+                )}
               </div>
             </>
           )}
-          {newVersion.isError && <p className="mt-2 text-xs text-danger" role="alert">{(newVersion.error as Error).message}</p>}
-          {revoke.isError && <p className="mt-2 text-xs text-danger" role="alert">{(revoke.error as Error).message}</p>}
+          {update.isError && <p className="mt-2 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
+          {deleteRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
         </section>
       </aside>
+      <ConfirmModal
+        open={deleteConfirmOpen}
+        title="Delete RAM Role"
+        message={
+          <div className="space-y-2">
+            {selectedIsReferenced ? (
+              <p>This RAM Role is referenced by Team Roles. Remove or migrate references before deleting.</p>
+            ) : (
+              <>
+                <p>This unreferenced RAM Role will be revoked after this second confirmation.</p>
+                <p className="font-mono text-xs">{detail.data?.stable_key}</p>
+              </>
+            )}
+          </div>
+        }
+        confirmLabel={selectedIsReferenced ? 'Blocked' : 'Delete'}
+        danger
+        busy={deleteRole.isPending}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          if (!selected || !latest || selectedIsReferenced) return;
+          setDeleteConfirmOpen(false);
+          deleteRole.mutate({ id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' });
+        }}
+      />
     </div>
   );
 }
