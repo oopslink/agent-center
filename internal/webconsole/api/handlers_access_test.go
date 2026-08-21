@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -493,25 +494,81 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 		t.Fatalf("created stable key/scope wrong: %+v", created)
 	}
 
-	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
+	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","stable_key":"deploy-admin","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("patch status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
 	}
 	var edited struct {
-		Name   string `json:"name"`
-		Scope  string `json:"scope"`
-		Latest struct {
+		StableKey   string `json:"stable_key"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Scope       string `json:"scope"`
+		Latest      struct {
 			Version int    `json:"version"`
 			Risk    string `json:"risk"`
 			Scope   string `json:"scope"`
 		} `json:"latest"`
+		Versions []struct {
+			Version     int    `json:"version"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Scope       string `json:"scope"`
+		} `json:"versions"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&edited); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if edited.Name != "Deploy admin" || edited.Scope != "team" || edited.Latest.Version != 2 || edited.Latest.Risk != "high" {
+	if edited.StableKey != "deploy-admin" || edited.Name != "Deploy admin" || edited.Description != "deploy high risk" || edited.Scope != "team" || edited.Latest.Version != 2 || edited.Latest.Risk != "high" {
 		t.Fatalf("edited role wrong: %+v", edited)
+	}
+	if len(edited.Versions) != 2 || edited.Versions[0].Version != 2 || edited.Versions[0].Name != "Deploy admin" || edited.Versions[0].Description != "deploy high risk" || edited.Versions[0].Scope != "team" || edited.Versions[1].Version != 1 || edited.Versions[1].Name != "Deploy operator" || edited.Versions[1].Description != "deploy work" || edited.Versions[1].Scope != "project" {
+		t.Fatalf("version metadata is not immutable: %+v", edited.Versions)
+	}
+
+	resp = orgScopedGet(t, server.URL+"/api/access/ram-roles/"+created.ID, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("readback status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var readback struct {
+		StableKey string `json:"stable_key"`
+		Versions  []struct {
+			Version     int    `json:"version"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Scope       string `json:"scope"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&readback); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if readback.StableKey != "deploy-admin" || len(readback.Versions) != 2 || readback.Versions[0].Name != "Deploy admin" || readback.Versions[1].Name != "Deploy operator" {
+		t.Fatalf("HTTP readback did not preserve renamed key and distinct history: %+v", readback)
+	}
+	var persistedKey string
+	if err := db.QueryRow(`SELECT stable_key FROM authorization_roles WHERE id = ?`, created.ID).Scan(&persistedKey); err != nil || persistedKey != "deploy-admin" {
+		t.Fatalf("persisted stable key=%q err=%v", persistedKey, err)
+	}
+	rows, err := db.Query(`SELECT version, name, description, scope_kind FROM authorization_role_versions WHERE role_id = ? ORDER BY version`, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var snapshots [][]any
+	for rows.Next() {
+		var version int
+		var name, description, scope string
+		if err := rows.Scan(&version, &name, &description, &scope); err != nil {
+			t.Fatal(err)
+		}
+		snapshots = append(snapshots, []any{version, name, description, scope})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fmt.Sprint(snapshots), "[[1 Deploy operator deploy work project] [2 Deploy admin deploy high risk team]]"; got != want {
+		t.Fatalf("persisted version snapshots=%s want=%s", got, want)
 	}
 
 	resp = orgScopedDelete(t, server.URL+"/api/access/ram-roles/"+created.ID, sess)
