@@ -651,7 +651,7 @@ function RAMRolesView({
           {detail.isLoading && <Skeleton height="8rem" />}
           {!selected && (
             <EmptyState
-              title={filteredRoles.length === 0 ? 'No RAM Role selected' : 'Select a RAM Role'}
+              title="No RAM Role selected"
               body={filteredRoles.length === 0 ? 'No role matches the current search.' : 'Choose a row to view its history and edit controls.'}
               testId="access-role-detail-empty"
             />
