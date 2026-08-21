@@ -13,6 +13,8 @@ interface ConfirmModalProps {
   danger?: boolean;
   /** Disable both buttons while the confirmed action is in flight. */
   busy?: boolean;
+  /** Disable only the confirm action while keeping cancel available. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -30,6 +32,7 @@ export function ConfirmModal({
   cancelLabel,
   danger = false,
   busy = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps): React.ReactElement | null {
@@ -71,7 +74,7 @@ export function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             className={
               danger
                 ? 'rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50'
