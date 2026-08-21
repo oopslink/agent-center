@@ -123,7 +123,10 @@ export function App(): React.ReactElement {
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
-          <Route path="access" element={<Access />} />
+          <Route path="access" element={<Navigate to="ram-roles" replace />} />
+          <Route path="access/ram-roles" element={<Access surface="ram-roles" />} />
+          <Route path="access/team-roles" element={<Access surface="team-roles" />} />
+          <Route path="access/subject-access" element={<Access surface="subject-access" />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />

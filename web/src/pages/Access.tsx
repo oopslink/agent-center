@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
@@ -66,7 +66,8 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'roles' | 'subjects';
+export type AccessSurface = 'ram-roles' | 'team-roles' | 'subject-access';
+type AccessView = 'roles' | 'team-roles' | 'subjects';
 type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
@@ -104,7 +105,7 @@ function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): Ac
   return [...byKey.values()].sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b)));
 }
 
-export default function Access(): React.ReactElement {
+export default function Access({ surface }: { surface?: AccessSurface }): React.ReactElement {
   const org = useOptionalOrgContext();
   const subjectRef = useAppStore((s) => s.currentUserId);
   const orgResource = useMemo<ResourceScope>(() => ({ kind: 'org', id: org?.orgId ?? 'org-test' }), [org?.orgId]);
@@ -117,7 +118,10 @@ export default function Access(): React.ReactElement {
     currentPermissions.isSuccess && !canManageAccess,
   );
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = parseAccessView(searchParams.get('view'));
+  const view = surface ? parseAccessView(surface) : parseAccessView(searchParams.get('view'));
+  // Direct component consumers retain the old combined view for compatibility;
+  // production routes always pass a surface and render one bounded product page.
+  const legacyCombined = surface === undefined;
   const [query, setQuery] = useState('');
   const [subjectKind, setSubjectKind] = useState<AccessSubjectKind | 'all'>('all');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
@@ -168,9 +172,11 @@ export default function Access(): React.ReactElement {
       {toast && <AccessToastNotice toast={toast} onDismiss={() => setToast(null)} />}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Access</h1>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">
+            {legacyCombined ? 'Access' : view === 'roles' ? 'RAM Roles' : view === 'team-roles' ? 'Team Roles' : 'Subject access'}
+          </h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {(view === 'subjects' || legacyCombined) && <div className="flex flex-wrap gap-2">
           <button
             type="button"
             className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
@@ -191,7 +197,7 @@ export default function Access(): React.ReactElement {
           >
             Batch grant
           </button>
-        </div>
+        </div>}
       </header>
 
       {currentPermissions.isLoading && <Skeleton height="10rem" />}
@@ -210,14 +216,15 @@ export default function Access(): React.ReactElement {
 
       {currentPermissions.isSuccess && canManageAccess && (
       <>
-      <div className="grid gap-3 md:grid-cols-5">
+      {view === 'subjects' && <div className="grid gap-3 md:grid-cols-5">
         <SummaryTile label="Allowed" value={data?.summary.allowed ?? 0} tone="success" />
         <SummaryTile label="High risk" value={data?.summary.high_risk ?? 0} tone="danger" />
         <SummaryTile label="Expiring" value={data?.summary.expiring ?? 0} tone="warning" />
         <SummaryTile label="No access" value={data?.summary.denied ?? 0} tone="warning" />
         <SummaryTile label="Not applicable" value={data?.summary.not_applicable ?? 0} tone="muted" />
-      </div>
+      </div>}
 
+      {legacyCombined && (
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded border border-border-base bg-bg-elevated p-0.5" role="tablist" aria-label="Access view">
           <button
@@ -259,6 +266,7 @@ export default function Access(): React.ReactElement {
         <Select label="Risk" value={risk} onChange={(v) => setRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
         <Select label="Status" value={status} onChange={(v) => setStatus(v as AccessStatus | 'all')} options={STATUS_OPTIONS} />
       </div>
+      )}
 
       {overview.isLoading && <Skeleton height="18rem" />}
       {overview.isError && (
@@ -276,14 +284,22 @@ export default function Access(): React.ReactElement {
                   catalog={data.catalog}
                   mappingEntries={mappingEntries}
                   canManageAccess={canManageAccess}
+                  confirmDelete={!legacyCombined}
                 />
-                <TeamRoleMappingsView
+                {legacyCombined && <TeamRoleMappingsView
                   roles={ramRoles.data?.roles ?? []}
                   teams={teams.data ?? []}
                   mappingEntries={mappingEntries}
                   canManageAccess={canManageAccess}
-                />
+                />}
               </>
+            ) : view === 'team-roles' ? (
+              <TeamRoleMappingsView
+                roles={ramRoles.data?.roles ?? []}
+                teams={teams.data ?? []}
+                mappingEntries={mappingEntries}
+                canManageAccess={canManageAccess}
+              />
             ) : (
               <SubjectDecisionView
                 decisions={data.decisions}
@@ -294,7 +310,7 @@ export default function Access(): React.ReactElement {
                 onSelectSubject={setSelectedSubjectRef}
               />
             )}
-            <PermissionCatalog catalog={data.catalog} />
+            {view === 'roles' && <PermissionCatalog catalog={data.catalog} />}
           </div>
           <aside className="space-y-4">
             {view === 'subjects' && (
@@ -317,6 +333,7 @@ export default function Access(): React.ReactElement {
           subjects={data.subjects}
           permissions={data.catalog}
           resources={resources}
+          selectedSubjectRef={selectedSubjectRef}
           canManageAccess={canManageAccess}
           mode={drawerMode}
           onToast={setToast}
@@ -360,6 +377,7 @@ function accessToastFromError(error: unknown, fallbackMessage: string): AccessTo
 
 function parseAccessView(value: string | null): AccessView {
   if (value === 'subject-access') return 'subjects';
+  if (value === 'team-roles') return 'team-roles';
   return 'roles';
 }
 
@@ -431,10 +449,12 @@ function RAMRolesView({
   catalog,
   mappingEntries,
   canManageAccess,
+  confirmDelete,
 }: {
   catalog: AccessPermissionDefinition[];
   mappingEntries: MappingEntry[];
   canManageAccess: boolean;
+  confirmDelete: boolean;
 }): React.ReactElement {
   const roles = useRAMRoles();
   const create = useRAMRoleCreate();
@@ -449,12 +469,12 @@ function RAMRolesView({
   const [draftDescription, setDraftDescription] = useState('');
   const [draftScope, setDraftScope] = useState('team');
   const [editName, setEditName] = useState('');
+  const [editStableKey, setEditStableKey] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editScope, setEditScope] = useState('team');
   const [createPermissions, setCreatePermissions] = useState<string[]>([]);
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [createdRoleId, setCreatedRoleId] = useState<string | null>(null);
   const [deleteNameConfirm, setDeleteNameConfirm] = useState('');
   const [showReferences, setShowReferences] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState('');
@@ -491,6 +511,7 @@ function RAMRolesView({
   useEffect(() => {
     if (!detail.data) return;
     setEditName(detail.data.name);
+    setEditStableKey(detail.data.stable_key ?? '');
     setEditDescription(detail.data.description);
     setEditScope(detail.data.scope || 'team');
     setDraftPermissions(detail.data.latest.permissions ?? []);
@@ -498,7 +519,6 @@ function RAMRolesView({
   const selectedReferences = detail.data?.references ?? [];
   const selectedIsReferenced = selectedReferences.length > 0 || mappedReferences.length > 0;
   const selectedIsCustom = detail.data?.kind === 'custom';
-  const selectedWasCreatedHere = selected === createdRoleId;
   const runReferenceMigration = async (): Promise<void> => {
     if (!selected || !migrationTarget || migrationTarget === selected) return;
     const pending = mappedReferences
@@ -609,7 +629,6 @@ function RAMRolesView({
             }, {
               onSuccess: (created) => {
                 setSelectedId(created.id);
-                setCreatedRoleId(created.id);
                 setCreatePermissions([]);
                 resetDraft(created.latest);
               },
@@ -633,7 +652,7 @@ function RAMRolesView({
                   {mappedReferences.length > 0
                     ? mappedReferences.map((ref) => `${ref.team.name} / ${ref.role}`).join(', ')
                     : selectedReferences.length > 0
-                      ? selectedReferences.map((ref) => `${ref.team_name} / ${ref.team_role}`).join(', ')
+                      ? selectedReferences.map((ref) => ref.kind === 'direct_binding' ? `${ref.subject_ref} / ${ref.resource_kind}:${ref.resource_id}` : `${ref.team_name} / ${ref.team_role}`).join(', ')
                       : 'None'}
                 </div>
                 {selectedIsReferenced && (
@@ -644,11 +663,12 @@ function RAMRolesView({
                     </button>
                     {showReferences && <div className="space-y-2" data-testid="access-role-references">
                       {mappedReferences.map((ref) => <p key={`${ref.team.id}:${ref.role}`} className="text-xs">{ref.team.name} / {ref.role}</p>)}
-                      <select data-testid="access-role-migrate-target" className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm" value={migrationTarget} onChange={(event) => setMigrationTarget(event.target.value)}>
+                      {selectedReferences.filter((ref) => ref.kind === 'direct_binding').map((ref) => <p key={`${ref.subject_ref}:${ref.resource_kind}:${ref.resource_id}`} className="text-xs">Direct binding: {ref.subject_ref} / {ref.resource_kind}:{ref.resource_id} — revoke it from Subject access.</p>)}
+                      {mappedReferences.length > 0 && <><select data-testid="access-role-migrate-target" className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm" value={migrationTarget} onChange={(event) => setMigrationTarget(event.target.value)}>
                         <option value="">Select RAM Role</option>
                         {(roles.data?.roles ?? []).filter((role) => role.id !== selected).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                       </select>
-                      <button type="button" data-testid="access-role-migrate-references" className="rounded bg-btn-primary-bg px-2 py-1 text-xs font-semibold text-btn-primary-fg" disabled={!migrationTarget || replaceMapping.isPending} onClick={() => void runReferenceMigration()}>Migrate references</button>
+                      <button type="button" data-testid="access-role-migrate-references" className="rounded bg-btn-primary-bg px-2 py-1 text-xs font-semibold text-btn-primary-fg" disabled={!migrationTarget || replaceMapping.isPending} onClick={() => void runReferenceMigration()}>Migrate references</button></>}
                     </div>}
                   </div>
                 )}
@@ -661,12 +681,14 @@ function RAMRolesView({
                       <AccessRiskBadge risk={version.risk} />
                     </div>
                     <div className="mt-1 font-mono text-[0.6875rem] text-text-secondary">{version.permissions.join(', ')}</div>
+                    <div className="mt-1 text-[0.6875rem] text-text-muted">{version.name} · {version.stable_key} · {version.scope}</div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 border-t border-border-base pt-3">
                 <h3 className="text-xs font-semibold uppercase text-text-muted">Edit RAM Role</h3>
                 <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
+                <RoleTextField label="Stable key" value={editStableKey} onChange={setEditStableKey} testId="access-role-edit-stable-key" />
                 <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
                 <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
                 <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
@@ -681,6 +703,7 @@ function RAMRolesView({
                       id: selected,
                       payload: {
                         name: editName,
+                        stable_key: editStableKey || undefined,
                         description: editDescription,
                         scope: editScope,
                         permissions: versionPermissions,
@@ -694,15 +717,15 @@ function RAMRolesView({
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending || revokeRole.isPending}
+                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || deleteNameConfirm !== detail.data.name || deleteRole.isPending || revokeRole.isPending}
                   data-testid="access-role-disable-submit"
                   onClick={() => {
                     if (!selected || !latest) return;
-                    if (selectedWasCreatedHere) {
+                    if (confirmDelete) {
                       setDeleteConfirmOpen(true);
-                      return;
+                    } else {
+                      revokeRole.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role deleted after reference-impact review' }, { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data.name}.`); setSelectedId(null); } });
                     }
-                    revokeRole.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role deleted after reference-impact review' }, { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data.name}.`); setSelectedId(null); } });
                   }}
                 >
                   Delete
@@ -710,7 +733,7 @@ function RAMRolesView({
                 {selectedIsReferenced && (
                   <p className="mt-2 text-xs text-danger">Delete is blocked while Team Role references exist. Use View references or Migrate references first.</p>
                 )}
-                {!selectedIsReferenced && !selectedWasCreatedHere && (
+                {!selectedIsReferenced && (
                   <RoleTextField label={`Type ${detail.data.name} to delete`} value={deleteNameConfirm} onChange={setDeleteNameConfirm} testId="access-role-delete-name" />
                 )}
               </div>
@@ -731,7 +754,7 @@ function RAMRolesView({
               <p>This RAM Role is referenced by Team Roles. Remove or migrate references before deleting.</p>
             ) : (
               <>
-                <p>This unreferenced RAM Role will be revoked after this second confirmation.</p>
+                <p>This unreferenced RAM Role will be deleted after typed-name confirmation.</p>
                 <p className="font-mono text-xs">{detail.data?.stable_key}</p>
               </>
             )}
@@ -814,7 +837,7 @@ function TeamRoleMappingsView({
       <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-team-role-mappings">
         <div className="border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">Team Role mappings</h2>
-          <p className="mt-1 text-xs text-text-muted">Preview impact, then replace with optimistic concurrency control.</p>
+          <p className="mt-1 text-xs text-text-muted">Create, edit, or delete functional roles in the team editor; preview and apply their RAM Role mappings here.</p>
         </div>
         {teams.length === 0 ? (
           <p className="p-4 text-sm text-text-muted">No teams.</p>
@@ -871,7 +894,10 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
     <div className="p-4" data-testid={`access-mapping-${entry.team.id}-${entry.role}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div><span className="font-semibold text-text-primary">{entry.team.name}</span><span className="mx-2 text-text-muted">/</span><span className="font-mono text-sm">{entry.role}</span></div>
-        {current && <AccessMetaPill>v{current.version}</AccessMetaPill>}
+        <div className="flex items-center gap-2">
+          <Link className="rounded border border-border-base px-2 py-1 text-xs font-medium text-text-primary hover:bg-bg-subtle" to={`../teams/${entry.team.id}`} data-testid={`access-team-role-edit-${entry.team.id}-${entry.role}`}>Edit / delete role</Link>
+          {current && <AccessMetaPill>v{current.version}</AccessMetaPill>}
+        </div>
       </div>
       {entry.query.isLoading ? <p className="mt-2 text-xs text-text-muted">Loading mapping…</p> : entry.query.isError ? (
         <p className="mt-2 text-xs text-danger" role="alert">{(entry.query.error as Error)?.message ?? 'Mapping unavailable'}</p>
@@ -1404,6 +1430,7 @@ function BatchGrantDrawer({
   subjects,
   permissions,
   resources,
+  selectedSubjectRef,
   canManageAccess,
   mode,
   onToast,
@@ -1412,6 +1439,7 @@ function BatchGrantDrawer({
   subjects: AccessSubject[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
+  selectedSubjectRef: string;
   canManageAccess: boolean;
   mode: 'direct' | 'batch';
   onToast: (toast: AccessToast) => void;
@@ -1421,7 +1449,10 @@ function BatchGrantDrawer({
   const previewMutation = useAccessBatchPreview();
   const applyMutation = useAccessBatchApply();
   const [step, setStep] = useState(0);
-  const [request, setRequest] = useState<AccessBatchRequest>(() => emptyBatchRequest(resources));
+  const [request, setRequest] = useState<AccessBatchRequest>(() => ({
+    ...emptyBatchRequest(resources),
+    subject_refs: mode === 'direct' && selectedSubjectRef ? [selectedSubjectRef] : [],
+  }));
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
@@ -1436,7 +1467,10 @@ function BatchGrantDrawer({
   const canConfirm = canManageAccess && !!preview && (preview.summary.high_risk === 0 || highRiskAck);
 
   const toggleSubject = (ref: string): void => {
-    setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
+    setRequest((prev) => ({
+      ...prev,
+      subject_refs: mode === 'direct' ? (prev.subject_refs.includes(ref) ? [] : [ref]) : toggleValue(prev.subject_refs, ref),
+    }));
   };
   const togglePermission = (key: string): void => {
     setRequest((prev) => ({ ...prev, permission_keys: toggleValue(prev.permission_keys, key) }));
@@ -1519,7 +1553,7 @@ function BatchGrantDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {step === 0 && (
             <div className="space-y-4">
-              <Picker title="Subjects">
+              <Picker title={mode === 'direct' ? 'Selected subject' : 'Subjects'}>
                 {subjects.map((subject) => (
                   <ChoiceRow
                     key={subject.ref}

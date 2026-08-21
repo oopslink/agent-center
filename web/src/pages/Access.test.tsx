@@ -5,16 +5,16 @@ import { http, HttpResponse } from 'msw';
 import { BrowserRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { useAppStore } from '@/store/app';
-import Access from './Access';
+import Access, { type AccessSurface } from './Access';
 
-function renderPage(path = '/organizations/test/access', currentUserId = 'user:hayang') {
+function renderPage(path = '/organizations/test/access', currentUserId = 'user:hayang', surface?: AccessSurface) {
   window.history.pushState({}, '', path);
   useAppStore.setState({ currentUserId });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <BrowserRouter>
-        <Access />
+        <Access surface={surface} />
       </BrowserRouter>
     </QueryClientProvider>,
   );
@@ -26,6 +26,19 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
+  it.each([
+    ['ram-roles', 'RAM Roles', 'access-roles-view', 'access-team-role-mappings-view', 'access-subject-view'],
+    ['team-roles', 'Team Roles', 'access-team-role-mappings-view', 'access-roles-view', 'access-subject-view'],
+    ['subject-access', 'Subject access', 'access-subject-view', 'access-roles-view', 'access-team-role-mappings-view'],
+  ] as const)('renders %s as a distinct routed product surface', async (surface, heading, present, absentA, absentB) => {
+    renderPage(`/organizations/test/access/${surface}`, 'user:hayang', surface);
+    expect(await screen.findByRole('heading', { name: heading, level: 1 })).toBeInTheDocument();
+    expect(await screen.findByTestId(present)).toBeInTheDocument();
+    expect(screen.queryByTestId(absentA)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(absentB)).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Access view' })).not.toBeInTheDocument();
+  });
+
   it('defaults to Roles & mappings and exposes only the two Access tabs', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();

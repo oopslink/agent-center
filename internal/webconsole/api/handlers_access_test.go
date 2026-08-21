@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -473,7 +474,7 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
-	resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Deploy operator","stable_key":"deploy-operator","description":"deploy work","scope":"project","permissions":["project.read"]}`, sess)
+	resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Deploy operator","stable_key":"deploy.operator_read","description":"deploy work","scope":"project","permissions":["project.read"]}`, sess)
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("create status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
 	}
@@ -489,29 +490,41 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if created.ID == "" || created.ID == created.StableKey || created.StableKey != "deploy-operator" || created.Latest.Scope != "project" {
+	if created.ID == "" || created.ID == created.StableKey || created.StableKey != "deploy.operator_read" || created.Latest.Scope != "project" {
 		t.Fatalf("created stable key/scope wrong: %+v", created)
 	}
 
-	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
+	resp = orgScopedPatch(t, server.URL+"/api/access/ram-roles/"+created.ID, `{"name":"Deploy admin","stable_key":"deploy.admin_read","description":"deploy high risk","scope":"team","permissions":["team.read","team.memory.review"],"expected_latest_version":1}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("patch status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
 	}
 	var edited struct {
-		Name   string `json:"name"`
-		Scope  string `json:"scope"`
-		Latest struct {
-			Version int    `json:"version"`
-			Risk    string `json:"risk"`
-			Scope   string `json:"scope"`
+		Name      string `json:"name"`
+		StableKey string `json:"stable_key"`
+		Scope     string `json:"scope"`
+		Latest    struct {
+			Version   int    `json:"version"`
+			Risk      string `json:"risk"`
+			Scope     string `json:"scope"`
+			StableKey string `json:"stable_key"`
 		} `json:"latest"`
+		Versions []struct {
+			Version     int    `json:"version"`
+			Name        string `json:"name"`
+			StableKey   string `json:"stable_key"`
+			Description string `json:"description"`
+			Scope       string `json:"scope"`
+		} `json:"versions"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&edited); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if edited.Name != "Deploy admin" || edited.Scope != "team" || edited.Latest.Version != 2 || edited.Latest.Risk != "high" {
+	if edited.Name != "Deploy admin" || edited.StableKey != "deploy.admin_read" || edited.Scope != "team" || edited.Latest.Version != 2 || edited.Latest.Risk != "high" || edited.Latest.StableKey != "deploy.admin_read" {
 		t.Fatalf("edited role wrong: %+v", edited)
+	}
+	if len(edited.Versions) != 2 || edited.Versions[1].Name != "Deploy operator" || edited.Versions[1].StableKey != "deploy.operator_read" || edited.Versions[1].Description != "deploy work" || edited.Versions[1].Scope != "project" {
+		t.Fatalf("v1 display snapshot was mutated: %+v", edited.Versions)
 	}
 
 	resp = orgScopedDelete(t, server.URL+"/api/access/ram-roles/"+created.ID, sess)
@@ -571,5 +584,66 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 	resp.Body.Close()
 	if body["error"] != "ram_role_referenced" {
 		t.Fatalf("mapped delete error=%v", body)
+	}
+}
+
+func TestRAMRoleWriteCatalogMatchesAuthoritativePermissionRegistry(t *testing.T) {
+	for _, definition := range authz.Definitions() {
+		permissions, _, err := normalizeAccessRAMRolePermissions([]string{string(definition.Key)})
+		if err != nil {
+			t.Fatalf("rendered authoritative permission %q rejected by RAM Role write validation: %v", definition.Key, err)
+		}
+		if len(permissions) != 1 || permissions[0] != string(definition.Key) {
+			t.Fatalf("permission %q changed during validation: %#v", definition.Key, permissions)
+		}
+	}
+
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+	resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Analytics reader","stable_key":"org.analytics_reader","scope":"org","permissions":["org.analytics.read"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("authoritative catalog permission create status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var created struct {
+		ID        string `json:"id"`
+		StableKey string `json:"stable_key"`
+		Latest    struct {
+			Permissions []string `json:"permissions"`
+		} `json:"latest"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if created.StableKey != "org.analytics_reader" || !slices.Contains(created.Latest.Permissions, "org.analytics.read") {
+		t.Fatalf("authoritative catalog create changed payload: %+v", created)
+	}
+	duplicate := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Duplicate analytics reader","stable_key":"org.analytics_reader","scope":"org","permissions":["org.analytics.read"]}`, sess)
+	if duplicate.StatusCode != http.StatusConflict {
+		t.Fatalf("duplicate stable key status=%d want 409 body=%v", duplicate.StatusCode, decodeBody(t, duplicate))
+	}
+	duplicateBody := decodeBody(t, duplicate)
+	duplicate.Body.Close()
+	if duplicateBody["error"] != "stable_key_conflict" {
+		t.Fatalf("duplicate stable key error=%v", duplicateBody)
+	}
+	if _, err := db.Exec(`INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at) VALUES ('assignment-direct-ref', ?, 'user:direct', ?, 'org', ?, 'user:owner', '2026-08-21T00:00:00Z')`, sess.OrgID, created.ID, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	detailResponse := orgScopedGet(t, server.URL+"/api/access/ram-roles/"+created.ID, sess)
+	if detailResponse.StatusCode != http.StatusOK {
+		t.Fatalf("direct reference detail status=%d", detailResponse.StatusCode)
+	}
+	var detail struct {
+		References []accessRAMRoleReferenceDTO `json:"references"`
+	}
+	if err := json.NewDecoder(detailResponse.Body).Decode(&detail); err != nil {
+		t.Fatal(err)
+	}
+	detailResponse.Body.Close()
+	if len(detail.References) != 1 || detail.References[0].Kind != "direct_binding" || detail.References[0].SubjectRef != "user:direct" {
+		t.Fatalf("direct binding reference not exposed: %+v", detail.References)
 	}
 }

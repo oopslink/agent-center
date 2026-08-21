@@ -90,9 +90,13 @@ export interface RAMRole {
 }
 
 export interface RAMRoleReference {
-  team_id: string;
-  team_name: string;
-  team_role: string;
+  kind: 'team_role' | 'direct_binding';
+  team_id?: string;
+  team_name?: string;
+  team_role?: string;
+  subject_ref?: string;
+  resource_kind?: string;
+  resource_id?: string;
 }
 
 export interface RAMRoleDetail {
