@@ -88,6 +88,10 @@ describe('Access page', () => {
     expect(builder).toHaveTextContent('RAM Role team-curator');
     expect(builder).toHaveTextContent('direct binding');
     expect(builder).toHaveTextContent('RAM Role role-access-project-write');
+    const sidebar = await screen.findByTestId('access-subject-sidebar');
+    expect(within(sidebar).getByTestId('access-permission-trace')).toHaveTextContent('Team membership -> Team Role -> RAM Role team-curator');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('role-access-project-write');
+    expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created');
 
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
     expect(await screen.findByRole('dialog', { name: 'Add direct binding' })).toBeInTheDocument();
@@ -213,6 +217,54 @@ describe('Access page', () => {
     expect(result).toHaveTextContent('Partial failure');
     expect(result).toHaveTextContent('derived permission and must be revoked at its source');
     expect(result).toHaveTextContent('Not applicable');
+    expect(await screen.findByTestId('access-toast')).toHaveTextContent('Revoke completed with partial failure');
+  });
+
+  it('shows a success toast after the Add direct binding flow applies', async () => {
+    server.use(
+      http.post('*/api/orgs/:slug/access/batch/apply', async ({ request }) => {
+        const body = (await request.json()) as { subject_refs?: string[]; permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> };
+        return HttpResponse.json({
+          operation_id: 'access-op-success',
+          applied_at: '2026-08-14T08:01:00Z',
+          items: [{
+            id: 'item-1',
+            subject_ref: body.subject_refs?.[0] ?? 'agent:builder',
+            subject_name: 'Builder',
+            permission: body.permission_keys?.[0] ?? 'project.write',
+            resource: body.resources?.[0] ?? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'allowed',
+            risk: 'medium',
+            high_risk: false,
+            reason: 'grant applied by unified authorization API',
+            grant_id: 'grant-new-direct',
+          }],
+          summary: { total: 1, succeeded: 1, failed: 0, unauthorized: 0, not_applicable: 0, partial_failure: false },
+        });
+      }),
+    );
+    renderPage('/organizations/test/access?view=subject-access');
+    expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
+    fireEvent.click(within(drawer).getByRole('button', { name: /project\.write/ }));
+    fireEvent.click(within(drawer).getAllByRole('button', { name: /agent-center core/ })[0]);
+    fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+    fireEvent.change(within(drawer).getByTestId('access-batch-reason'), {
+      target: { value: 'temporary direct binding' },
+    });
+    fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+
+    await within(drawer).findByTestId('access-preview-summary');
+    fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+    await within(drawer).findByText(/Ready to apply/);
+    fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+
+    expect(await within(drawer).findByTestId('access-result')).toHaveTextContent('Authorization result');
+    expect(await screen.findByTestId('access-toast')).toHaveTextContent('Direct binding granted');
   });
 
   it('confirms revoke with the original preview token, stable idempotency key, and reason/message', async () => {
