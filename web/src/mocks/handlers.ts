@@ -383,6 +383,7 @@ function accessHandlers() {
     reason: string;
     evidence_ref?: string;
     grant_id?: string;
+    role_id?: string;
   };
 
   const subjects = [
@@ -492,13 +493,14 @@ function accessHandlers() {
       subject_name: 'Builder',
       permission: 'project.write',
       resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
-      source: 'project_member',
+      source: 'custom_role',
       status: 'expires_soon',
       starts_at: '2026-08-14T00:00:00Z',
       expires_at: '2026-08-21T00:00:00Z',
       created_by: 'user:hayang',
       created_at: '2026-08-14T00:00:00Z',
       revoked_at: null,
+      role_id: 'role-access-project-write',
       risk: 'medium',
     },
     {
@@ -552,6 +554,32 @@ function accessHandlers() {
       expires_at: '2026-08-21T00:00:00Z',
       grant_id: 'grant-custom-1',
       risk: 'medium',
+    },
+    {
+      allowed: true,
+      subject_ref: 'agent:builder',
+      permission: 'project.write',
+      resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+      source: 'custom_role',
+      reason: 'matched unified authorization service',
+      evidence_ref: 'authorization_role_assignments:grant-custom-1',
+      status: 'allowed',
+      expires_at: '2026-08-21T00:00:00Z',
+      grant_id: 'grant-custom-1',
+      role_id: 'role-access-project-write',
+      risk: 'medium',
+    },
+    {
+      allowed: true,
+      subject_ref: 'agent:builder',
+      permission: 'team.memory.review',
+      resource: { kind: 'team', id: 'team-7c19b0', org_id: 'org-test', label: 'agent-center core' },
+      source: 'team_role_ram',
+      reason: 'matched team_role_ram',
+      evidence_ref: 'team_role_ram_role_mappings:team-7c19b0/reviewer/team-curator',
+      status: 'allowed',
+      role_id: 'team-curator',
+      risk: 'high',
     },
     {
       allowed: false,
@@ -639,9 +667,13 @@ function accessHandlers() {
       const q = (url.searchParams.get('q') ?? '').toLowerCase();
       const risk = url.searchParams.get('risk');
       const status = url.searchParams.get('status');
+      const subjectKind = url.searchParams.get('subject_kind');
+      const resourceKind = url.searchParams.get('resource_kind');
       const filtered = baseDecisions.filter((d) => {
         const subject = findSubject(d.subject_ref);
         if (q && !`${subject?.name ?? ''} ${d.subject_ref} ${d.permission} ${d.reason}`.toLowerCase().includes(q)) return false;
+        if (subjectKind && subjectKind !== 'all' && subject?.kind !== subjectKind) return false;
+        if (resourceKind && resourceKind !== 'all' && d.resource.kind !== resourceKind) return false;
         if (risk && risk !== 'all' && d.risk !== risk) return false;
         if (status && status !== 'all' && d.status !== status) return false;
         return true;

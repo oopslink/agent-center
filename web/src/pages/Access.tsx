@@ -31,8 +31,10 @@ import {
 } from '@/api/access';
 import {
   hasEffectivePermission,
+  type PermissionAuditEvent,
   type ResourceScope,
   useCurrentSubjectEffectivePermissions,
+  usePermissionAudit,
   usePermissionExplain,
 } from '@/api/permissions';
 import { IconCalendar, IconClose, IconSearch, IconTrash } from '@/components/icons';
@@ -63,9 +65,11 @@ import {
 } from '@/components/access/kit';
 
 type AccessView = 'roles' | 'subjects';
+type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
+const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'worker', 'system'];
 const RESOURCE_OPTIONS: Array<AccessResourceKind | 'all'> = [
   'all',
   'org',
@@ -113,10 +117,14 @@ export default function Access(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseAccessView(searchParams.get('view'));
   const [query, setQuery] = useState('');
+  const [subjectKind, setSubjectKind] = useState<AccessSubjectKind | 'all'>('all');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
   const [status, setStatus] = useState<AccessStatus | 'all'>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'direct' | 'batch'>('direct');
+  const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
+  const [toast, setToast] = useState<AccessToast>(null);
   const setView = (next: AccessView): void => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
@@ -127,6 +135,7 @@ export default function Access(): React.ReactElement {
 
   const overview = useAccessOverview({
     q: query,
+    subject_kind: subjectKind,
     resource_kind: resourceKind,
     risk,
     status,
@@ -154,20 +163,33 @@ export default function Access(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-Access">
+      {toast && <AccessToastNotice toast={toast} onDismiss={() => setToast(null)} />}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Access</h1>
         </div>
-        <button
-          type="button"
-          className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-          onClick={() => setDrawerOpen(true)}
-          disabled={!canManageAccess}
-          title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
-          data-testid="access-open-batch"
-        >
-          Batch grant
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
+            onClick={() => { setDrawerMode('direct'); setDrawerOpen(true); }}
+            disabled={!canManageAccess}
+            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
+            data-testid="access-open-direct-binding"
+          >
+            Add direct binding
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+            onClick={() => { setDrawerMode('batch'); setDrawerOpen(true); }}
+            disabled={!canManageAccess}
+            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
+            data-testid="access-open-batch"
+          >
+            Batch grant
+          </button>
+        </div>
       </header>
 
       {currentPermissions.isLoading && <Skeleton height="10rem" />}
@@ -231,6 +253,7 @@ export default function Access(): React.ReactElement {
           />
         </label>
         <Select label="Resource" value={resourceKind} onChange={(v) => setResourceKind(v as AccessResourceKind | 'all')} options={RESOURCE_OPTIONS} />
+        <Select label="Subject" value={subjectKind} onChange={(v) => setSubjectKind(v as AccessSubjectKind | 'all')} options={SUBJECT_OPTIONS} />
         <Select label="Risk" value={risk} onChange={(v) => setRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
         <Select label="Status" value={status} onChange={(v) => setStatus(v as AccessStatus | 'all')} options={STATUS_OPTIONS} />
       </div>
@@ -266,13 +289,23 @@ export default function Access(): React.ReactElement {
                 permissionByKey={permissionByKey}
                 memberEntries={memberEntries}
                 mappingEntries={mappingEntries}
+                onSelectSubject={setSelectedSubjectRef}
               />
             )}
             <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
+            {view === 'subjects' && (
+              <SubjectAccessSidebar
+                decisions={data.decisions}
+                grants={data.grants}
+                subjects={data.subjects}
+                selectedSubjectRef={selectedSubjectRef}
+                permissionByKey={permissionByKey}
+              />
+            )}
             {view === 'subjects' && <RoleManagement roles={data.roles} catalog={data.catalog} canManageAccess={canManageAccess} />}
-            <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} />
+            <GrantRevoke grants={data.grants} canManageAccess={canManageAccess} onToast={setToast} />
           </aside>
         </div>
       )}
@@ -283,6 +316,8 @@ export default function Access(): React.ReactElement {
           permissions={data.catalog}
           resources={resources}
           canManageAccess={canManageAccess}
+          mode={drawerMode}
+          onToast={setToast}
           onClose={() => setDrawerOpen(false)}
         />
       )}
@@ -290,6 +325,35 @@ export default function Access(): React.ReactElement {
       )}
     </section>
   );
+}
+
+function AccessToastNotice({ toast, onDismiss }: { toast: NonNullable<AccessToast>; onDismiss: () => void }): React.ReactElement {
+  const toneClass = toast.tone === 'success'
+    ? 'border-status-emerald-border bg-status-emerald-bg text-status-emerald-fg'
+    : toast.tone === 'warning'
+      ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
+      : 'border-danger/40 bg-danger/10 text-danger';
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="access-toast"
+      className={`fixed right-4 top-4 z-50 flex max-w-md items-start gap-3 rounded border px-4 py-3 text-sm shadow-2 ${toneClass}`}
+    >
+      <span className="font-medium">{toast.message}</span>
+      <button type="button" className="rounded px-1 text-current hover:bg-bg-subtle/50" aria-label="Dismiss notification" onClick={onDismiss}>
+        <IconClose className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function accessToastFromError(error: unknown, fallbackMessage: string): AccessToast {
+  const status = error instanceof ApiError ? error.status : undefined;
+  const message = error instanceof Error ? error.message : fallbackMessage;
+  if (status === 403) return { tone: 'danger', message: `403: ${message}` };
+  if (status === 409) return { tone: 'warning', message: `409: ${message}` };
+  return { tone: 'danger', message };
 }
 
 function parseAccessView(value: string | null): AccessView {
@@ -803,12 +867,14 @@ function SubjectDecisionView({
   permissionByKey,
   memberEntries,
   mappingEntries,
+  onSelectSubject,
 }: {
   decisions: AccessDecision[];
   subjectByRef: Map<string, AccessSubject>;
   permissionByKey: Map<string, AccessPermissionDefinition>;
   memberEntries: MemberEntry[];
   mappingEntries: MappingEntry[];
+  onSelectSubject: (subjectRef: string) => void;
 }): React.ReactElement {
   const groups = useMemo(() => {
     const bySubject = new Map<string, AccessDecision[]>();
@@ -827,7 +893,7 @@ function SubjectDecisionView({
       {groups.map(([subjectRef, rows]) => {
         const subject = subjectByRef.get(subjectRef);
         return (
-          <section key={subjectRef} className="rounded border border-border-base bg-bg-elevated">
+          <section key={subjectRef} className="rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base px-4 py-3">
               <div>
                 <h2 className="text-sm font-semibold text-text-primary">{subject?.name ?? subjectRef}</h2>
@@ -849,10 +915,21 @@ function SubjectDecisionView({
                     const teamRoles = member.roles ?? [member.role];
                     return teamRoles.map((teamRole) => {
                       const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
-                      return <p key={`${team.id}:${teamRole}`} className="mb-1"><span className="font-mono">membership:{team.name}</span> → Team Role <strong>{teamRole}</strong> → RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} → scoped effective permissions</p>;
+                      const sourced = rows.filter((row) => row.source === 'team_role_ram' && row.evidence_ref.includes(`${team.id}/${teamRole}/`));
+                      return (
+                        <p key={`${team.id}:${teamRole}`} className="mb-1">
+                          <span className="font-mono">membership:{team.name}</span> -&gt; Team Role <strong>{teamRole}</strong> -&gt; RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} -&gt; {sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions
+                        </p>
+                      );
                     });
                   }))}
-                {rows.some((row) => row.source !== 'team_member') && <p>Direct/other bindings: {[...new Set(rows.filter((row) => row.source !== 'team_member').map((row) => row.source))].join(', ')}</p>}
+                {rows.filter((row) => row.source === 'custom_role').map((row) => (
+                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1">
+                    <span className="font-mono">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                    {row.expires_at ? ` - expires ${displayAccessDate(row.expires_at)}` : ''}
+                  </p>
+                ))}
+                {rows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && <p>Other bindings: {[...new Set(rows.filter((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)).map((row) => row.source))].join(', ')}</p>}
               </div>
               <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
             </details>
@@ -892,7 +969,7 @@ function DecisionTable({
           {decisions.map((decision) => {
             const subject = subjectByRef.get(decision.subject_ref);
             const permission = permissionByKey.get(decision.permission);
-            const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.status}`;
+            const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.source}-${decision.evidence_ref}-${decision.status}`;
             return (
               <tr key={rowKey} className="border-b border-border-base last:border-0">
                 <td className="px-4 py-3">
@@ -955,6 +1032,99 @@ function PermissionCatalog({ catalog }: { catalog: AccessPermissionDefinition[] 
         </table>
       </div>
     </section>
+  );
+}
+
+function SubjectAccessSidebar({
+  decisions,
+  grants,
+  subjects,
+  selectedSubjectRef,
+  permissionByKey,
+}: {
+  decisions: AccessDecision[];
+  grants: AccessGrant[];
+  subjects: AccessSubject[];
+  selectedSubjectRef: string;
+  permissionByKey: Map<string, AccessPermissionDefinition>;
+}): React.ReactElement {
+  const subjectRef = selectedSubjectRef || decisions[0]?.subject_ref || subjects[0]?.ref || '';
+  const subject = subjects.find((entry) => entry.ref === subjectRef);
+  const rows = decisions.filter((decision) => decision.subject_ref === subjectRef);
+  const audit = usePermissionAudit(subjectRef, Boolean(subjectRef));
+  const effectiveRows = rows.filter((row) => row.allowed);
+  const direct = grants.filter((grant) => grant.subject_ref === subjectRef && grant.source === 'custom_role');
+  return (
+    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-subject-sidebar">
+      <div className="border-b border-border-base px-4 py-3">
+        <h2 className="text-sm font-semibold text-text-primary">Permission trace</h2>
+        <p className="mt-1 font-mono text-xs text-text-muted">{subject?.name ?? subjectRef}</p>
+      </div>
+      <div className="space-y-4 p-4">
+        <div data-testid="access-permission-trace">
+          <h3 className="text-xs font-semibold uppercase text-text-muted">Effective source trace</h3>
+          {effectiveRows.length === 0 ? (
+            <p className="mt-2 text-sm text-text-muted">No allowed permissions in the current filter.</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {effectiveRows.slice(0, 8).map((row) => (
+                <div key={`${row.permission}:${row.source}:${row.evidence_ref}`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
+                    <AccessRiskBadge risk={row.risk ?? permissionByKey.get(row.permission)?.risk ?? 'low'} />
+                  </div>
+                  <p className="mt-1 text-text-secondary">
+                    {row.source === 'team_role_ram'
+                      ? `Team membership -> Team Role -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
+                      : row.source === 'custom_role'
+                        ? `direct binding -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
+                        : `${row.source} -> effective permission`}
+                  </p>
+                  <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">{row.evidence_ref}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div data-testid="access-direct-binding-union">
+          <h3 className="text-xs font-semibold uppercase text-text-muted">Direct binding union</h3>
+          {direct.length === 0 ? (
+            <p className="mt-2 text-sm text-text-muted">No direct bindings in the current filter.</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {direct.map((grant) => (
+                <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
+                  <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
+                  <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
+                  <div className="mt-1 font-mono text-text-muted">{grant.role_id || grant.id}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <AuditHistory events={audit.data?.events ?? []} loading={audit.isLoading} error={audit.error as Error | null} />
+      </div>
+    </section>
+  );
+}
+
+function AuditHistory({ events, loading, error }: { events: PermissionAuditEvent[]; loading: boolean; error: Error | null }): React.ReactElement {
+  return (
+    <div data-testid="access-audit-history">
+      <h3 className="text-xs font-semibold uppercase text-text-muted">Audit history</h3>
+      {loading && <p className="mt-2 text-sm text-text-muted">Loading audit…</p>}
+      {error && <p className="mt-2 text-sm text-danger" role="alert">{error.message}</p>}
+      {!loading && !error && events.length === 0 && <p className="mt-2 text-sm text-text-muted">No audit events.</p>}
+      <div className="mt-2 space-y-2">
+        {events.slice(0, 6).map((event) => (
+          <div key={event.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
+            <div className="font-mono font-semibold text-text-primary">{event.event_type}</div>
+            <div className="mt-1 text-text-secondary">{event.actor_ref} · {displayAccessDate(event.created_at)}</div>
+            <div className="mt-1 font-mono text-text-muted">{event.assignment_id || event.role_id || event.request_id || event.id}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1044,7 +1214,7 @@ function RoleManagement({
   );
 }
 
-function GrantRevoke({ grants, canManageAccess }: { grants: AccessGrant[]; canManageAccess: boolean }): React.ReactElement {
+function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant[]; canManageAccess: boolean; onToast: (toast: AccessToast) => void }): React.ReactElement {
   const revoke = useAccessBulkRevoke();
   const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1077,6 +1247,7 @@ function GrantRevoke({ grants, canManageAccess }: { grants: AccessGrant[]; canMa
                 message,
                 idempotency_key: `access-revoke-${data.preview_id}`,
               }),
+              onError: (error) => onToast(accessToastFromError(error, 'Revoke preview failed')),
             });
           }}
           className="inline-flex items-center gap-1 rounded border border-danger/40 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
@@ -1153,6 +1324,9 @@ function GrantRevoke({ grants, canManageAccess }: { grants: AccessGrant[]; canMa
                 preview_id: preview.preview_id,
                 token: preview.token,
                 idempotency_key: preview.idempotency_key,
+              }, {
+                onSuccess: (data) => onToast({ tone: data.summary.partial_failure ? 'warning' : 'success', message: data.summary.partial_failure ? 'Revoke completed with partial failure' : 'Revoke completed' }),
+                onError: (error) => onToast(accessToastFromError(error, 'Revoke failed')),
               })}
             >
               Confirm revoke
@@ -1172,12 +1346,16 @@ function BatchGrantDrawer({
   permissions,
   resources,
   canManageAccess,
+  mode,
+  onToast,
   onClose,
 }: {
   subjects: AccessSubject[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
   canManageAccess: boolean;
+  mode: 'direct' | 'batch';
+  onToast: (toast: AccessToast) => void;
   onClose: () => void;
 }): React.ReactElement {
   const containerRef = useModalA11y({ open: true, onClose });
@@ -1188,6 +1366,7 @@ function BatchGrantDrawer({
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
+  const title = mode === 'direct' ? 'Add direct binding' : 'Batch authorization';
 
   const canPreview =
     canManageAccess &&
@@ -1229,7 +1408,14 @@ function BatchGrantDrawer({
         onSuccess: (data) => {
           setResult(data);
           setStep(3);
+          onToast({
+            tone: data.summary.partial_failure ? 'warning' : 'success',
+            message: mode === 'direct'
+              ? (data.summary.partial_failure ? 'Direct binding completed with partial failure' : 'Direct binding granted')
+              : (data.summary.partial_failure ? 'Batch grant completed with partial failure' : 'Batch grant applied'),
+          });
         },
+        onError: (error) => onToast(accessToastFromError(error, mode === 'direct' ? 'Direct binding failed' : 'Batch grant failed')),
       },
     );
   };
@@ -1240,13 +1426,13 @@ function BatchGrantDrawer({
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Batch authorization"
+        aria-label={title}
         className="fixed inset-y-0 right-0 flex h-full w-full max-w-3xl flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[46rem]"
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Batch authorization</h2>
+            <h2 className="text-lg font-semibold">{title}</h2>
             <div className="mt-2 flex flex-wrap gap-1">
               {['Scope', 'Preview', 'Confirm', 'Result'].map((label, idx) => (
                 <span
@@ -1427,6 +1613,11 @@ function BatchGrantDrawer({
 
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+}
+
+function roleIDFromEvidence(evidenceRef: string): string {
+  const parts = evidenceRef.split('/');
+  return parts.length >= 3 ? parts[2] : '';
 }
 
 function Picker({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {

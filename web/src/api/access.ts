@@ -26,6 +26,7 @@ export type AccessSource =
   | 'worker_owner'
   | 'agent_worker_binding'
   | 'custom_role'
+  | 'team_role_ram'
   | 'system';
 export type AccessStatus = 'allowed' | 'denied' | 'unauthorized' | 'not_applicable';
 export type AccessRisk = 'low' | 'medium' | 'high';
@@ -126,6 +127,7 @@ export interface AccessDecision {
   status?: AccessStatus;
   expires_at?: string | null;
   grant_id?: string;
+  role_id?: string;
   risk?: AccessRisk;
 }
 
@@ -142,6 +144,7 @@ export interface AccessGrant {
   created_by: string;
   created_at: string;
   revoked_at?: string | null;
+  role_id?: string;
   risk: AccessRisk;
 }
 
