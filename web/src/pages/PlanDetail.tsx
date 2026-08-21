@@ -2932,6 +2932,90 @@ function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: Pla
   return { nodes, edges };
 }
 
+function edgeKey(from: string, to: string): string {
+  return `${from}->${to}`;
+}
+
+// Generation snapshots persist task dependencies, while the stage execution graph
+// also contains derived gate/barrier edges. Rebuild those visual edges from the
+// stage read model so historical evolution DAGs stay connected.
+function withStageTopologyEdges(
+  nodes: PlanGraphNode[],
+  edges: PlanGraphEdge[],
+  stages: PlanStage[],
+): PlanGraphEdge[] {
+  if (stages.length === 0 || nodes.length === 0) return edges;
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const nodeIdByTask = new Map<string, string>();
+  for (const node of nodes) {
+    if (node.category === 'business' && node.task_id) nodeIdByTask.set(node.task_id, node.id);
+  }
+
+  const stageById = new Map(stages.map((stage) => [stage.id, stage]));
+  const stageIdByTask = new Map<string, string>();
+  for (const stage of stages) {
+    for (const member of stage.members ?? []) stageIdByTask.set(member.task_id, stage.id);
+  }
+
+  const existing = new Set(edges.map((edge) => edgeKey(edge.from, edge.to)));
+  const out = [...edges];
+  const add = (from: string | undefined, to: string | undefined) => {
+    if (!from || !to || from === to) return;
+    if (!nodeById.has(from) || !nodeById.has(to)) return;
+    const key = edgeKey(from, to);
+    if (existing.has(key)) return;
+    existing.add(key);
+    out.push({ from, to, kind: 'seq' });
+  };
+
+  const incomingWithinStage = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    const fromTask = nodeById.get(edge.from)?.task_id;
+    const toTask = nodeById.get(edge.to)?.task_id;
+    if (!fromTask || !toTask) continue;
+    const fromStage = stageIdByTask.get(fromTask);
+    if (!fromStage || fromStage !== stageIdByTask.get(toTask)) continue;
+    if (!incomingWithinStage.has(fromStage)) incomingWithinStage.set(fromStage, new Set());
+    incomingWithinStage.get(fromStage)!.add(toTask);
+  }
+
+  const gateTargetOf = (stage: PlanStage): string | undefined => {
+    if (stage.gate_node_id && nodeById.has(stage.gate_node_id)) return stage.gate_node_id;
+    return stage.gate_task_id ? nodeIdByTask.get(stage.gate_task_id) : undefined;
+  };
+
+  const nonGateMembers = (stage: PlanStage): string[] =>
+    (stage.members ?? [])
+      .map((member) => member.task_id)
+      .filter((taskId) => taskId && taskId !== stage.gate_task_id && nodeIdByTask.has(taskId));
+
+  const stageEntries = (stage: PlanStage): string[] => {
+    const incoming = incomingWithinStage.get(stage.id) ?? new Set();
+    const entries = nonGateMembers(stage).filter((taskId) => !incoming.has(taskId));
+    return entries.length > 0 ? entries : nonGateMembers(stage);
+  };
+
+  for (const stage of stages) {
+    const gateTaskNode = stage.gate_task_id ? nodeIdByTask.get(stage.gate_task_id) : undefined;
+    const gateTarget = gateTargetOf(stage);
+    if (gateTaskNode) {
+      for (const memberTask of nonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTaskNode);
+      if (stage.gate_node_id && nodeById.has(stage.gate_node_id)) add(gateTaskNode, stage.gate_node_id);
+    } else if (gateTarget) {
+      for (const memberTask of nonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTarget);
+    }
+
+    for (const upstreamStageId of stage.depends_on_stages ?? []) {
+      const upstreamStage = stageById.get(upstreamStageId);
+      const upstreamGate = upstreamStage ? gateTargetOf(upstreamStage) : undefined;
+      for (const entryTask of stageEntries(stage)) add(upstreamGate, nodeIdByTask.get(entryTask));
+    }
+  }
+
+  return out;
+}
+
 function DagEvolutionPanel({
   revisions,
   selectedGeneration,
@@ -3304,6 +3388,10 @@ function PlanGraphDag({
       edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
     };
   }, [currentGeneration, effectiveGeneration, graphEdges, graphNodes, historicalGeneration, stages.length, visibleStages]);
+  const topologyEdges = useMemo(
+    () => withStageTopologyEdges(nodes, edges, visibleStages),
+    [nodes, edges, visibleStages],
+  );
   // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
   // S1/S2 refs, which can be derived from the API's stable stage order without
   // changing the read model. Strip the same prefix from legacy stage names so
@@ -3321,8 +3409,8 @@ function PlanGraphDag({
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
 
   const { positioned, boxes, width, height } = useMemo(
-    () => layoutStagedGraph(nodes, edges, visibleStages),
-    [nodes, edges, visibleStages],
+    () => layoutStagedGraph(nodes, topologyEdges, visibleStages),
+    [nodes, topologyEdges, visibleStages],
   );
   const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
 
@@ -3331,7 +3419,7 @@ function PlanGraphDag({
   // decision back UP to its upstream target). Arrow markers auto-orient to the path.
   const drawnEdges = useMemo(() => {
     const out: { key: string; d: string; kind: PlanGraphEdgeKind }[] = [];
-    for (const e of edges) {
+    for (const e of topologyEdges) {
       const a = posById.get(e.from);
       const b = posById.get(e.to);
       if (!a || !b) continue;
@@ -3352,7 +3440,7 @@ function PlanGraphDag({
       out.push({ key: `${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}` });
     }
     return out;
-  }, [edges, posById]);
+  }, [topologyEdges, posById]);
 
   return (
     <SenderSidebarProvider>

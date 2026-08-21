@@ -2326,6 +2326,119 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(dag.querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]')).toBeInTheDocument();
   });
 
+  it('connects staged orchestration-graph history revisions through gate topology', async () => {
+    const stagedTasks = [
+      { task_id: 'a-work', node_id: 'a-work-node', title: 'A work', assignee_ref: 'agent:dev', status: 'open', stage_id: 'st-a' },
+      { task_id: 'a-gate', node_id: 'a-gate-node', title: 'Gate: A', assignee_ref: 'agent:review', status: 'open', stage_id: 'st-a' },
+      { task_id: 'b-entry', node_id: 'b-entry-node', title: 'B entry', assignee_ref: 'agent:dev', status: 'open', stage_id: 'st-b' },
+      { task_id: 'b-work', node_id: 'b-work-node', title: 'B work', assignee_ref: 'agent:dev', status: 'open', stage_id: 'st-b' },
+      { task_id: 'b-gate', node_id: 'b-gate-node', title: 'Gate: B', assignee_ref: 'agent:review', status: 'open', stage_id: 'st-b' },
+    ];
+    mockPlan({
+      active_generation_id: 'generation-g1',
+      nodes: [
+        { task_id: 'a-work', title: 'A work', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [] },
+        { task_id: 'a-gate', title: 'Gate: A', assignee_ref: 'agent:review', task_status: 'open', node_status: 'ready', depends_on: [] },
+        { task_id: 'b-entry', title: 'B entry', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'blocked', depends_on: [] },
+        { task_id: 'b-work', title: 'B work', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'blocked', depends_on: ['b-entry'] },
+        { task_id: 'b-gate', title: 'Gate: B', assignee_ref: 'agent:review', task_status: 'open', node_status: 'blocked', depends_on: [] },
+      ],
+      generation_read: {
+        plan_id: 'PL-1',
+        active_generation_id: 'generation-g1',
+        plan_version: 8,
+        generations: [
+          {
+            id: 'generation-g0', plan_id: 'PL-1', parent_generation_id: '', revision: 0, active: false,
+            reason: 'initial plan activation', evidence: 'G0 staged topology frozen', creator_ref: 'user:owner',
+            diff: { node_decisions: [], tasks: [], edges: [] },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 7, active_generation_id: 'generation-g0',
+              tasks: stagedTasks,
+              edges: [{ from_task_id: 'b-work', to_task_id: 'b-entry', kind: 'seq' }],
+              dispatch_records: [],
+            },
+            snapshot_progress: { done: 0, total: 5 }, idempotency_key: 'activate-g0', dispatched_task_ids: [], created_at: '2026-06-01T01:00:00Z',
+          },
+          {
+            id: 'generation-g1', plan_id: 'PL-1', parent_generation_id: 'generation-g0', revision: 1, active: true,
+            reason: 'active follow-up', evidence: 'active generation', creator_ref: 'user:owner',
+            diff: { node_decisions: [], tasks: [], edges: [] },
+            snapshot: {
+              plan_id: 'PL-1', plan_version: 8, active_generation_id: 'generation-g1',
+              tasks: stagedTasks,
+              edges: [{ from_task_id: 'b-work', to_task_id: 'b-entry', kind: 'seq' }],
+              dispatch_records: [],
+            },
+            snapshot_progress: { done: 0, total: 5 }, idempotency_key: 'active-g1', dispatched_task_ids: [], created_at: '2026-06-02T01:00:00Z',
+          },
+        ],
+        nodes: [
+          { task_id: 'a-work', node_id: 'a-work-node', stage_id: 'st-a', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'a-gate', node_id: 'a-gate-node', stage_id: 'st-a', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'b-entry', node_id: 'b-entry-node', stage_id: 'st-b', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'b-work', node_id: 'b-work-node', stage_id: 'st-b', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+          { task_id: 'b-gate', node_id: 'b-gate-node', stage_id: 'st-b', generation_id: 'generation-g0', revision: 0, present_in_active: true },
+        ],
+      },
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({
+        has_graph: true,
+        graph_id: 'live-graph',
+        status: 'running',
+        nodes: stagedTasks.map((task) => ({
+          id: task.node_id,
+          category: 'business',
+          title: task.title,
+          status: task.status,
+          task_id: task.task_id,
+          task_status: task.status,
+          assignee_ref: task.assignee_ref,
+        })),
+        edges: [{ from: 'b-entry-node', to: 'b-work-node', kind: 'seq' }],
+      })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({
+        stages: [
+          {
+            id: 'st-a', name: 'Stage A', status: 'open', rounds: 0, max_rounds: 3,
+            depends_on_stages: [], gate_node_id: 'gate-control-a', gate_task_id: 'a-gate',
+            members: [
+              { task_id: 'a-work', title: 'A work', task_status: 'open' },
+              { task_id: 'a-gate', title: 'Gate: A', task_status: 'open' },
+            ],
+          },
+          {
+            id: 'st-b', name: 'Stage B', status: 'open', rounds: 0, max_rounds: 3,
+            depends_on_stages: ['st-a'], gate_node_id: 'gate-control-b', gate_task_id: 'b-gate',
+            members: [
+              { task_id: 'b-entry', title: 'B entry', task_status: 'open' },
+              { task_id: 'b-work', title: 'B work', task_status: 'open' },
+              { task_id: 'b-gate', title: 'Gate: B', task_status: 'open' },
+            ],
+          },
+        ],
+      })),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toHaveAttribute('data-graph', 'true'));
+    const panel = await screen.findByTestId('plan-dag-evolution');
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
+
+    await waitFor(() => {
+      const edgeKeys = Array.from(screen.getByTestId('plan-dag').querySelectorAll('[data-testid="plan-graph-edge"]'))
+        .map((edge) => edge.getAttribute('data-edge'));
+      expect(edgeKeys).toEqual(expect.arrayContaining([
+        'a-work-node->a-gate-node',
+        'a-gate-node->b-entry-node',
+        'b-entry-node->b-gate-node',
+        'b-work-node->b-gate-node',
+      ]));
+    });
+  });
+
   it('running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff', async () => {
     let body: Record<string, unknown> | null = null;
     mockPlan({ status: 'paused', has_failed: false, version: 11, active_generation_id: 'generation-parent' });
