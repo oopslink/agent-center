@@ -63,29 +63,88 @@ describe('TeamDetail', () => {
   });
 
   it('edits and saves role definitions from the overview', async () => {
-    let body: { roles?: Array<{ role: string }> } | undefined;
-    server.use(http.patch('/api/teams/:id', async ({ request }) => {
-      body = await request.json() as typeof body;
-      return HttpResponse.json({
-        id: 'team-7c19b0', org_id: 'org-ooo', name: 'agent-center core', description: '',
-        roles: [], version: 2, glyph: 'AC', status: 'draft', members_count: 0,
-        projects_count: 0, created: '2026-07-12',
-      });
-    }));
+    let body: { roles?: Array<{ role: string }>; expected_version?: number } | undefined;
+    const validTeam = teamDetail({
+      roles: [{
+        role: 'coder',
+        cli: 'claude-code',
+        model: 'sonnet-5',
+        capability_tags: [],
+        ram_role_keys: [],
+        access_requirements: [],
+        max_concurrency: 1,
+        count: 0,
+      }],
+      members_count: 0,
+      projects_count: 0,
+    });
+    server.use(
+      http.get('/api/teams/:id', () => HttpResponse.json(validTeam)),
+      http.patch('/api/teams/:id', async ({ request }) => {
+        body = await request.json() as typeof body;
+        return HttpResponse.json({ ...validTeam, roles: [], version: 4 });
+      }),
+    );
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('team-edit-roles'));
     const modal = await screen.findByTestId('edit-team-roles-modal');
     expect(within(modal).queryByTestId('edit-team-role-0-count')).not.toBeInTheDocument();
     expect(within(modal).getAllByText('Max tasks / agent').length).toBeGreaterThan(0);
     expect(within(modal).getAllByText('Per-agent task concurrency, not role headcount.').length).toBeGreaterThan(0);
-    while (within(modal).queryAllByText('Remove').length > 0) {
-      const before = within(modal).getAllByText('Remove').length;
-      fireEvent.click(within(modal).getAllByText('Remove')[0]);
-      await waitFor(() => expect(within(modal).queryAllByText('Remove')).toHaveLength(before - 1));
-    }
+    fireEvent.click(within(modal).getByTestId('edit-team-role-0-duplicate'));
+    await waitFor(() => expect(within(modal).getByTestId('edit-team-role-1-name')).toHaveValue('coder-copy'));
+    fireEvent.change(within(modal).getByTestId('edit-team-role-1-name'), { target: { value: 'planning-backup' } });
     fireEvent.click(within(modal).getByTestId('team-save-roles'));
-    await waitFor(() => expect(body).toEqual({ roles: [] }));
+    await waitFor(() => expect(body?.roles?.length).toBeGreaterThan(0));
+    expect(body?.roles?.some((role) => role.role === 'planning-backup')).toBe(true);
     await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
+    expect(await screen.findByTestId('team-role-save-success')).toHaveTextContent('Role changes saved.');
+  });
+
+  it('deletes a role only after impact review, member reassignment, and name confirmation', async () => {
+    let deleteBody: { expected_version?: number; reassign_role?: string; confirm_name?: string } | undefined;
+    server.use(http.delete('/api/teams/:id/roles/:role', async ({ request }) => {
+      deleteBody = await request.json() as typeof deleteBody;
+      return HttpResponse.json({
+        team: teamDetail({
+          roles: [{
+            role: 'planner',
+            cli: 'claude-code',
+            model: 'claude-opus-4-8',
+            capability_tags: [],
+            ram_role_keys: ['Team contributor'],
+            access_requirements: ['team.read'],
+            max_concurrency: 1,
+            count: 1,
+          }],
+          version: 4,
+          members_count: 1,
+          projects_count: 2,
+        }),
+        impact: {
+          team_id: 'team-7c19b0',
+          team_role: 'ops',
+          reassign_role: 'planner',
+          affected_members: 1,
+          affected_project_ids: ['project-a', 'project-b'],
+          version: 4,
+          protected: false,
+        },
+      });
+    }));
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('team-edit-roles'));
+    const modal = await screen.findByTestId('edit-team-roles-modal');
+    fireEvent.click(within(modal).getByTestId('edit-team-role-3-remove'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(within(confirm).getByTestId('team-role-delete-confirm')).toHaveTextContent('1 members and 2 linked projects');
+    fireEvent.change(within(confirm).getByTestId('team-role-delete-reassign'), { target: { value: 'planner' } });
+    expect(within(confirm).getByTestId('confirm-modal-confirm')).toBeDisabled();
+    fireEvent.change(within(confirm).getByTestId('team-role-delete-confirm-name'), { target: { value: 'ops' } });
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(deleteBody).toEqual({ expected_version: 3, reassign_role: 'planner', confirm_name: 'ops' }));
+    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
+    expect(await screen.findByTestId('team-role-save-success')).toHaveTextContent('Role ops deleted');
   });
 
   it('selects RAM roles with CAS, saves declaration keys, and reloads server-read sources', async () => {

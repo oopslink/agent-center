@@ -46,8 +46,10 @@ var (
 	ErrRAMRoleKeyAmbiguous = errors.New("team: RAM role key ambiguous")
 	// ErrRAMRoleKeyRevoked is returned when a stable RAM Role name exists only as
 	// revoked roles in the destination-org/system resolver scope.
-	ErrRAMRoleKeyRevoked = errors.New("team: RAM role key revoked")
-	ErrRoleInUse         = errors.New("team: role is assigned to one or more members")
+	ErrRAMRoleKeyRevoked   = errors.New("team: RAM role key revoked")
+	ErrRoleInUse           = errors.New("team: role is assigned to one or more members")
+	ErrRoleProtected       = errors.New("team: role is protected")
+	ErrTeamVersionConflict = errors.New("team: version conflict")
 
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.

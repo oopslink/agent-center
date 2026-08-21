@@ -97,6 +97,64 @@ func TestService_UpdateTeamRoles_RejectsRemovingRoleInUse(t *testing.T) {
 	}
 }
 
+func TestService_DeleteRole_ReassignsMembersAndAudits(t *testing.T) {
+	svc, db := newService(t)
+	ctx := context.Background()
+	tm := createTeam(t, svc, "Alpha", devRole(), reviewRole())
+	if _, err := svc.AddMember(ctx, tm.ID(), "agent:42", "dev"); err != nil {
+		t.Fatalf("AddMember dev: %v", err)
+	}
+	if _, err := svc.AddMember(ctx, tm.ID(), "user:owner", "dev"); err != nil {
+		t.Fatalf("AddMember human: %v", err)
+	}
+	if _, err := svc.AddMember(ctx, tm.ID(), "agent:42", "review"); err != nil {
+		t.Fatalf("AddMember review: %v", err)
+	}
+	if err := svc.AssociateProject(ctx, tm.ID(), "project-1"); err != nil {
+		t.Fatal(err)
+	}
+	impact, err := svc.PreviewDeleteRole(ctx, tm.ID(), "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if impact.MemberCount != 2 || len(impact.ProjectIDs) != 1 || impact.Protected {
+		t.Fatalf("preview impact = %+v", impact)
+	}
+	_, _, err = svc.DeleteRole(ctx, tm.ID(), "dev", DeleteRoleInput{ActorRef: "user:owner", ExpectedVersion: tm.Version() - 1, ReassignRole: "review", ConfirmName: "dev"})
+	if !errors.Is(err, team.ErrTeamVersionConflict) {
+		t.Fatalf("stale delete err=%v", err)
+	}
+	got, impact, err := svc.DeleteRole(ctx, tm.ID(), "dev", DeleteRoleInput{ActorRef: "user:owner", ExpectedVersion: tm.Version(), ReassignRole: "review", ConfirmName: "dev"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HasRole("dev") || !got.HasRole("review") || impact.MemberCount != 2 || impact.ReassignRole != "review" {
+		t.Fatalf("delete result roles=%+v impact=%+v", got.Roles(), impact)
+	}
+	members, err := svc.ListMembers(ctx, tm.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, member := range members {
+		if member.Role == "dev" {
+			t.Fatalf("member still assigned to deleted role: %+v", members)
+		}
+	}
+	var auditCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_audit_events WHERE team_id=? AND team_role='dev' AND event_type='team.role.deleted' AND affected_members=2 AND affected_projects=1`, tm.ID().String()).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("delete audit count=%d err=%v", auditCount, err)
+	}
+}
+
+func TestService_DeleteRole_ProtectsLastRole(t *testing.T) {
+	svc, _ := newService(t)
+	tm := createTeam(t, svc, "Alpha", devRole())
+	_, _, err := svc.DeleteRole(context.Background(), tm.ID(), "dev", DeleteRoleInput{ActorRef: "user:owner", ExpectedVersion: tm.Version(), ReassignRole: "other", ConfirmName: "dev"})
+	if !errors.Is(err, team.ErrRoleProtected) {
+		t.Fatalf("delete last role err=%v, want ErrRoleProtected", err)
+	}
+}
+
 // TestService_AgentExclusivity is the headline requirement: an agent is bound to
 // a single team; joining a second is rejected.
 func TestService_AgentExclusivity(t *testing.T) {
