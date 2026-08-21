@@ -351,10 +351,9 @@ export function useRAMRoleDelete() {
   return useMutation({
     mutationFn: ({ id, expected_latest_version, reason, confirm_unreferenced }: { id: string; expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean }) =>
       accessApi.deleteRAMRole(id, { expected_latest_version, reason, confirm_unreferenced }),
-    onSuccess: (_data, vars) => {
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.ramRoles() });
       void qc.invalidateQueries({ queryKey: qk.accessOverview() });
-      void qc.invalidateQueries({ queryKey: qk.ramRole(vars.id) });
     },
   });
 }

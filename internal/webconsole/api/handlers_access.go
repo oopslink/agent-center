@@ -1832,6 +1832,10 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if body.RoleID != "" {
+		if len(body.Resources) != 1 {
+			writeError(w, http.StatusUnprocessableEntity, "mixed_direct_binding_scope", "direct bindings require exactly one resource; project and team scopes must be applied separately")
+			return
+		}
 		role, found, roleErr := accessRAMRoleDetail(r.Context(), d.DB, orgID, body.RoleID)
 		if roleErr != nil {
 			writeError(w, http.StatusInternalServerError, "ram_role_lookup_failed", roleErr.Error())

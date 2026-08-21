@@ -442,7 +442,9 @@ function RAMRolesView({
   const update = useRAMRoleUpdate();
   const deleteRole = useRAMRoleDelete();
   const replaceMapping = useReplaceTeamRoleRAMMapping();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // undefined means the initial row may be selected; null is an intentional
+  // empty selection after delete/filter so we never refetch a stale detail.
+  const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
   const [roleSearch, setRoleSearch] = useState('');
   const [draftName, setDraftName] = useState('');
   const [draftStableKey, setDraftStableKey] = useState('');
@@ -459,18 +461,21 @@ function RAMRolesView({
   const [showReferences, setShowReferences] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState('');
   const [status, setStatus] = useState<string | null>(null);
-  const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
-  const detail = useRAMRole(selected);
-  const latest = detail.data?.latest;
-  const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
-  const mappedByRAMRole = useRAMRoleReferences(mappingEntries);
-  const mappedReferences = selected ? mappedByRAMRole.get(selected) ?? [] : [];
   const filteredRoles = useMemo(() => {
     const q = roleSearch.trim().toLowerCase();
     const all = roles.data?.roles ?? [];
     if (!q) return all;
     return all.filter((role) => [role.name, role.stable_key, role.id, role.description, role.scope].some((v) => (v ?? '').toLowerCase().includes(q)));
   }, [roleSearch, roles.data?.roles]);
+  const selectedCandidate = selectedId === undefined ? filteredRoles[0]?.id ?? null : selectedId;
+  const selected = selectedCandidate && filteredRoles.some((role) => role.id === selectedCandidate)
+    ? selectedCandidate
+    : null;
+  const detail = useRAMRole(selected);
+  const latest = detail.data?.latest;
+  const versionPermissions = draftPermissions.length > 0 ? draftPermissions : latest?.permissions ?? [];
+  const mappedByRAMRole = useRAMRoleReferences(mappingEntries);
+  const mappedReferences = selected ? mappedByRAMRole.get(selected) ?? [] : [];
 
   const toggleDraftPermission = (permission: string): void => {
     setDraftPermissions((prev) => toggleValue(prev, permission).sort());
@@ -489,13 +494,24 @@ function RAMRolesView({
     setMigrationTarget('');
   };
   useEffect(() => {
+    if (!selected) {
+      setEditName('');
+      setEditStableKey('');
+      setEditDescription('');
+      setEditScope('team');
+      setDraftPermissions([]);
+      setDeleteNameConfirm('');
+      setShowReferences(false);
+      setMigrationTarget('');
+      return;
+    }
     if (!detail.data) return;
     setEditName(detail.data.name);
     setEditStableKey(detail.data.stable_key ?? detail.data.id);
     setEditDescription(detail.data.description);
     setEditScope(detail.data.scope || 'team');
     setDraftPermissions(detail.data.latest.permissions ?? []);
-  }, [detail.data?.id, detail.data?.latest.version]);
+  }, [selected, detail.data?.id, detail.data?.latest.version]);
   const selectedReferences = detail.data?.references ?? [];
   const selectedIsReferenced = selectedReferences.length > 0 || mappedReferences.length > 0;
   const selectedIsCustom = detail.data?.kind === 'custom';
@@ -582,6 +598,17 @@ function RAMRolesView({
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.permissions.join(', ')}</td>
                 </tr>
               ))}
+              {!roles.isLoading && filteredRoles.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8">
+                    <EmptyState
+                      title="No matching RAM Roles"
+                      body="Clear or change the search to see RAM Roles. The previous role detail has been cleared."
+                      testId="access-role-no-results"
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -622,6 +649,13 @@ function RAMRolesView({
         <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-detail">
           <h2 className="text-sm font-semibold text-text-primary">Version history</h2>
           {detail.isLoading && <Skeleton height="8rem" />}
+          {!selected && (
+            <EmptyState
+              title={filteredRoles.length === 0 ? 'No RAM Role selected' : 'Select a RAM Role'}
+              body={filteredRoles.length === 0 ? 'No role matches the current search.' : 'Choose a row to view its history and edit controls.'}
+              testId="access-role-detail-empty"
+            />
+          )}
           {detail.data && (
             <>
               <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
@@ -739,10 +773,22 @@ function RAMRolesView({
         onCancel={() => setDeleteConfirmOpen(false)}
         onConfirm={() => {
           if (!selected || !latest || selectedIsReferenced) return;
+          const deletingID = selected;
+          const deletingName = detail.data?.name ?? selected;
           setDeleteConfirmOpen(false);
+          // Disable the detail query before the DELETE resolves. Query
+          // invalidation on success must never race a GET for the deleted ID.
+          setSelectedId(null);
+          resetDraft();
           deleteRole.mutate(
-            { id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' },
-            { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data?.name ?? selected}.`); setSelectedId(null); } },
+            { id: deletingID, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' },
+            { onSuccess: () => {
+              setStatus(`Deleted RAM Role ${deletingName}.`);
+              setEditName('');
+              setEditStableKey('');
+              setEditDescription('');
+              setEditScope('team');
+            }, onError: () => setSelectedId(deletingID) },
           );
         }}
       />
@@ -816,7 +862,14 @@ function TeamRoleMappingsView({
           <p className="mt-1 text-xs text-text-muted">Preview impact, then replace with optimistic concurrency control.</p>
         </div>
         {teams.length === 0 ? (
-          <p className="p-4 text-sm text-text-muted">No teams.</p>
+          <div className="p-4">
+            <EmptyState
+              title="No teams or Team Roles yet"
+              body="Create a team and define its functional roles before mapping them to RAM Roles."
+              to={{ label: 'Create a team', href: './teams' }}
+              testId="access-team-roles-empty"
+            />
+          </div>
         ) : (
           <div className="divide-y divide-border-base">
             {mappingEntries.map((entry) => (
@@ -1535,6 +1588,9 @@ function BatchGrantDrawer({
               </Picker>
               {mode === 'direct' ? (
                 <Picker title="RAM Role">
+                  <p className="mb-2 text-xs text-text-muted" data-testid="access-direct-scope-guidance">
+                    Direct bindings apply one RAM Role to one resource scope. Project and team scopes cannot be combined.
+                  </p>
                   {ramRoles.map((role) => (
                     <ChoiceRow
                       key={role.id}

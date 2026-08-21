@@ -531,6 +531,26 @@ func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 	if err := db.QueryRow(`SELECT role_id FROM authorization_role_assignments WHERE id=?`, directRoleResult.Items[0].GrantID).Scan(&assignedRole); err != nil || assignedRole != analyticsRole.ID {
 		t.Fatalf("direct binding role_id=%q want=%q err=%v", assignedRole, analyticsRole.ID, err)
 	}
+	var assignmentCountBefore int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id=?`, analyticsRole.ID).Scan(&assignmentCountBefore); err != nil {
+		t.Fatal(err)
+	}
+	mixedScopeBody := `{"subject_refs":["user:` + sess.IdentityID + `"],"role_id":"` + analyticsRole.ID + `","resources":[{"kind":"project","id":"project-one","org_id":"` + sess.OrgID + `"},{"kind":"team","id":"team-one","org_id":"` + sess.OrgID + `"}],"reason":"invalid mixed direct scope"}`
+	for _, endpoint := range []string{"/api/access/batch/preview", "/api/access/batch/apply"} {
+		mixed := orgScopedPost(t, server.URL+endpoint, mixedScopeBody, sess)
+		if mixed.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("mixed direct binding %s status=%d want 422 body=%v", endpoint, mixed.StatusCode, decodeBody(t, mixed))
+		}
+		mixedError := decodeBody(t, mixed)
+		mixed.Body.Close()
+		if mixedError["error"] != "mixed_direct_binding_scope" {
+			t.Fatalf("mixed direct binding %s error=%v", endpoint, mixedError)
+		}
+	}
+	var assignmentCountAfter int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id=?`, analyticsRole.ID).Scan(&assignmentCountAfter); err != nil || assignmentCountAfter != assignmentCountBefore {
+		t.Fatalf("mixed direct binding partially persisted before=%d after=%d err=%v", assignmentCountBefore, assignmentCountAfter, err)
+	}
 
 	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Invalid key","stable_key":"Silently Rewritten","scope":"org","permissions":["org.read"]}`, sess)
 	if resp.StatusCode != http.StatusUnprocessableEntity {

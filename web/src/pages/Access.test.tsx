@@ -499,17 +499,22 @@ describe('Access page', () => {
       risk: 'low',
       created_at: '2026-08-14T08:02:00Z',
     };
+    let listedRoles = [role];
+    let detailRequests = 0;
     let revokeBody: { expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean } | null = null;
     server.use(
-      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
-      http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => HttpResponse.json({
-        id: role.id,
-        name: role.name,
-        kind: role.kind,
-        description: role.description,
-        latest: role,
-        versions: [role],
-      })),
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: listedRoles })),
+      http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => {
+        detailRequests += 1;
+        return HttpResponse.json({
+          id: role.id,
+          name: role.name,
+          kind: role.kind,
+          description: role.description,
+          latest: role,
+          versions: [role],
+        });
+      }),
       http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({
         team_id: 'team-7c19b0',
         team_role: 'planner',
@@ -518,6 +523,7 @@ describe('Access page', () => {
       })),
       http.delete('/api/orgs/:slug/access/ram-roles/role-unused', async ({ request }) => {
         revokeBody = await request.json() as typeof revokeBody;
+        listedRoles = [];
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -527,6 +533,14 @@ describe('Access page', () => {
     fireEvent.click(await within(view).findByTestId('access-role-row-role-unused'));
     const detail = await screen.findByTestId('access-role-detail');
     await waitFor(() => expect(detail).toHaveTextContent('Unused reviewer'));
+    fireEvent.change(screen.getByTestId('access-role-search'), { target: { value: 'definitely-no-match' } });
+    expect(await screen.findByTestId('access-role-no-results')).toHaveTextContent('No matching RAM Roles');
+    expect(screen.getByTestId('access-role-detail-empty')).toHaveTextContent('No role matches the current search');
+    expect(detail).not.toHaveTextContent('Unused reviewer');
+    expect(screen.queryByTestId('access-role-edit-name')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('access-role-search'), { target: { value: '' } });
+    await waitFor(() => expect(detail).toHaveTextContent('Unused reviewer'));
+    const detailRequestsBeforeDelete = detailRequests;
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused' } });
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
@@ -543,6 +557,21 @@ describe('Access page', () => {
       reason: 'RAM role deleted after unreferenced confirmation',
     }));
     expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
+    await waitFor(() => expect(screen.queryByTestId('access-role-row-role-unused')).not.toBeInTheDocument());
+    expect(screen.getByTestId('access-role-detail-empty')).toHaveTextContent('No RAM Role selected');
+    expect(screen.queryByTestId('access-role-edit-name')).not.toBeInTheDocument();
+    expect(detailRequests).toBe(detailRequestsBeforeDelete);
+  });
+
+  it('shows a Team Roles empty state with a creation path when the organization has no teams', async () => {
+    server.use(
+      http.get('*/api/orgs/:slug/teams', () => HttpResponse.json([])),
+    );
+
+    renderPage();
+    const empty = await screen.findByTestId('access-team-roles-empty');
+    expect(empty).toHaveTextContent('No teams or Team Roles yet');
+    expect(within(empty).getByRole('link', { name: /Create a team/ })).toHaveAttribute('href', './teams');
   });
 
   it('keeps RAM role versions pinned and shows an error when publish hits a CAS conflict', async () => {

@@ -10,6 +10,13 @@ test.describe("Access RAM Role CRUD", () => {
 
     await expect(page.getByTestId("access-roles-view")).toBeVisible();
     await expect(page.getByRole("heading", { name: "RAM Roles" })).toBeVisible();
+    await expect(page.getByTestId("access-team-roles-empty")).toContainText("No teams or Team Roles yet");
+    await expect(page.getByTestId("access-team-roles-empty").getByRole("link", { name: /Create a team/ })).toBeVisible();
+
+    await page.getByTestId("access-role-search").fill("no-role-can-match-this");
+    await expect(page.getByTestId("access-role-no-results")).toContainText("No matching RAM Roles");
+    await expect(page.getByTestId("access-role-detail-empty")).toContainText("No role matches the current search");
+    await page.getByTestId("access-role-search").fill("");
 
     const suffix = Date.now().toString(36);
     const name = `Browser CRUD ${suffix}`;
@@ -44,6 +51,8 @@ test.describe("Access RAM Role CRUD", () => {
     await page.getByTestId("confirm-modal-confirm").click();
 
     await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
+    await expect(page.getByTestId("access-role-detail-empty")).toContainText("No RAM Role selected");
+    await expect(page.getByTestId("access-role-edit-name")).toHaveCount(0);
   });
 
   test("fresh deployed SPA exposes distinct RAM Role, Team Role CRUD, and Subject access states", async ({
@@ -98,7 +107,22 @@ test.describe("Access RAM Role CRUD", () => {
         permissions: ["org.analytics.read"],
       },
     });
-    expect(ramRoleResponse.status(), await ramRoleResponse.text()).toBe(201);
+    const ramRole = (await ramRoleResponse.json()) as { id: string };
+    expect(ramRoleResponse.status(), JSON.stringify(ramRole)).toBe(201);
+
+    const mixedPreview = await request.post(`${authSession.orgApiURL}/access/batch/preview`, {
+      data: {
+        subject_refs: [`user:${authSession.identityID}`],
+        role_id: ramRole.id,
+        resources: [
+          { kind: "project", id: "project-mixed", org_id: authSession.organizationID },
+          { kind: "team", id: team.id, org_id: authSession.organizationID },
+        ],
+        reason: "mixed scope must be split before preview",
+      },
+    });
+    expect(mixedPreview.status()).toBe(422);
+    expect((await mixedPreview.json()) as { error: string }).toMatchObject({ error: "mixed_direct_binding_scope" });
 
     await page.goto(`${agentCenter.baseURL}/organizations/${authSession.orgSlug}/teams/${team.id}`);
     await expect(page.getByRole("heading", { name: "S3 product acceptance" })).toBeVisible();
