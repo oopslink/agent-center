@@ -221,9 +221,11 @@ describe('Access page', () => {
   });
 
   it('shows a success toast after the Add direct binding flow applies', async () => {
+    let appliedBody: { role_id?: string; subject_refs?: string[]; permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> } | null = null;
     server.use(
       http.post('*/api/orgs/:slug/access/batch/apply', async ({ request }) => {
-        const body = (await request.json()) as { subject_refs?: string[]; permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> };
+        const body = (await request.json()) as NonNullable<typeof appliedBody>;
+        appliedBody = body;
         return HttpResponse.json({
           operation_id: 'access-op-success',
           applied_at: '2026-08-14T08:01:00Z',
@@ -250,9 +252,8 @@ describe('Access page', () => {
 
     const drawer = await screen.findByTestId('access-batch-drawer');
     fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
-    fireEvent.click(within(drawer).getByRole('button', { name: /project\.write/ }));
+    fireEvent.click(within(drawer).getByRole('button', { name: /Team basic/ }));
     fireEvent.click(within(drawer).getAllByRole('button', { name: /agent-center core/ })[0]);
-    fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), {
       target: { value: 'temporary direct binding' },
     });
@@ -265,6 +266,7 @@ describe('Access page', () => {
 
     expect(await within(drawer).findByTestId('access-result')).toHaveTextContent('Authorization result');
     expect(await screen.findByTestId('access-toast')).toHaveTextContent('Direct binding granted');
+    expect(appliedBody).toMatchObject({ role_id: 'team-basic', subject_refs: ['agent:builder'] });
   });
 
   it('confirms revoke with the original preview token, stable idempotency key, and reason/message', async () => {
@@ -408,6 +410,7 @@ describe('Access page', () => {
     await waitFor(() => {
       expect(publishBody).toEqual({
         name: 'Release operator',
+        stable_key: 'role-created',
         description: 'release work',
         scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],
@@ -496,7 +499,7 @@ describe('Access page', () => {
       risk: 'low',
       created_at: '2026-08-14T08:02:00Z',
     };
-    let revokeBody: { expected_latest_version?: number; reason?: string } | null = null;
+    let revokeBody: { expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
       http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => HttpResponse.json({
@@ -513,7 +516,7 @@ describe('Access page', () => {
         ram_role_ids: ['team-basic'],
         version: 7,
       })),
-      http.post('/api/orgs/:slug/access/ram-roles/role-unused/revoke', async ({ request }) => {
+      http.delete('/api/orgs/:slug/access/ram-roles/role-unused', async ({ request }) => {
         revokeBody = await request.json() as typeof revokeBody;
         return new HttpResponse(null, { status: 204 });
       }),
@@ -529,10 +532,15 @@ describe('Access page', () => {
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused reviewer' } });
     fireEvent.click(within(detail).getByTestId('access-role-disable-submit'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(confirm).toHaveTextContent('second confirmation');
+    expect(revokeBody).toBeNull();
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
 
     await waitFor(() => expect(revokeBody).toEqual({
       expected_latest_version: 2,
-      reason: 'RAM role deleted after reference-impact review',
+      confirm_unreferenced: true,
+      reason: 'RAM role deleted after unreferenced confirmation',
     }));
     expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
   });
@@ -585,6 +593,7 @@ describe('Access page', () => {
     await waitFor(() => {
       expect(publishBody).toEqual({
         name: 'Deploy operator',
+        stable_key: 'role-cas',
         description: 'deploy work',
         scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],

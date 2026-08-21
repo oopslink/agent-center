@@ -28,13 +28,17 @@ test.describe("Access RAM Role CRUD", () => {
     await expect(page.getByTestId("access-role-used-by")).toContainText("None");
 
     const detail = page.getByTestId("access-role-detail");
+    const editedStableKey = `${stableKey}-v2`;
+    await detail.getByTestId("access-role-edit-stable-key").fill(editedStableKey);
     await detail.getByTestId("access-role-edit-description").fill("browser regression role edited");
     await detail.getByRole("button", { name: "team.memory.review High risk" }).click();
     await detail.getByTestId("access-role-new-version-submit").click();
 
     await expect(detail).toContainText("Latest v2");
+    await expect(detail).toContainText(editedStableKey);
     await expect(page.getByTestId("access-role-versions")).toContainText("team.memory.review");
 
+    await detail.getByTestId("access-role-delete-name").fill(name);
     await detail.getByTestId("access-role-disable-submit").click();
     await expect(page.getByTestId("confirm-modal")).toContainText("second confirmation");
     await page.getByTestId("confirm-modal-confirm").click();

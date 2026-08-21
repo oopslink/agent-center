@@ -25,7 +25,6 @@ import {
   useRAMRole,
   useRAMRoleCreate,
   useRAMRoleDelete,
-  useRAMRoleRevoke,
   useRAMRoleUpdate,
   useRAMRoles,
   useAccessRevokePreview,
@@ -91,6 +90,7 @@ function emptyBatchRequest(resources: AccessResourceScope[]): AccessBatchRequest
   return {
     subject_refs: [],
     permission_keys: [],
+    role_id: '',
     resources: resources.slice(0, 1),
     expires_at: '',
     reason: '',
@@ -316,6 +316,7 @@ export default function Access(): React.ReactElement {
         <BatchGrantDrawer
           subjects={data.subjects}
           permissions={data.catalog}
+          ramRoles={ramRoles.data?.roles ?? []}
           resources={resources}
           canManageAccess={canManageAccess}
           mode={drawerMode}
@@ -440,7 +441,6 @@ function RAMRolesView({
   const create = useRAMRoleCreate();
   const update = useRAMRoleUpdate();
   const deleteRole = useRAMRoleDelete();
-  const revokeRole = useRAMRoleRevoke();
   const replaceMapping = useReplaceTeamRoleRAMMapping();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
@@ -449,12 +449,12 @@ function RAMRolesView({
   const [draftDescription, setDraftDescription] = useState('');
   const [draftScope, setDraftScope] = useState('team');
   const [editName, setEditName] = useState('');
+  const [editStableKey, setEditStableKey] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editScope, setEditScope] = useState('team');
   const [createPermissions, setCreatePermissions] = useState<string[]>([]);
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [createdRoleId, setCreatedRoleId] = useState<string | null>(null);
   const [deleteNameConfirm, setDeleteNameConfirm] = useState('');
   const [showReferences, setShowReferences] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState('');
@@ -491,6 +491,7 @@ function RAMRolesView({
   useEffect(() => {
     if (!detail.data) return;
     setEditName(detail.data.name);
+    setEditStableKey(detail.data.stable_key ?? detail.data.id);
     setEditDescription(detail.data.description);
     setEditScope(detail.data.scope || 'team');
     setDraftPermissions(detail.data.latest.permissions ?? []);
@@ -498,7 +499,6 @@ function RAMRolesView({
   const selectedReferences = detail.data?.references ?? [];
   const selectedIsReferenced = selectedReferences.length > 0 || mappedReferences.length > 0;
   const selectedIsCustom = detail.data?.kind === 'custom';
-  const selectedWasCreatedHere = selected === createdRoleId;
   const runReferenceMigration = async (): Promise<void> => {
     if (!selected || !migrationTarget || migrationTarget === selected) return;
     const pending = mappedReferences
@@ -609,7 +609,6 @@ function RAMRolesView({
             }, {
               onSuccess: (created) => {
                 setSelectedId(created.id);
-                setCreatedRoleId(created.id);
                 setCreatePermissions([]);
                 resetDraft(created.latest);
               },
@@ -667,6 +666,7 @@ function RAMRolesView({
               <div className="mt-3 border-t border-border-base pt-3">
                 <h3 className="text-xs font-semibold uppercase text-text-muted">Edit RAM Role</h3>
                 <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
+                <RoleTextField label="Stable key" value={editStableKey} onChange={setEditStableKey} testId="access-role-edit-stable-key" />
                 <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
                 <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
                 <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
@@ -681,6 +681,7 @@ function RAMRolesView({
                       id: selected,
                       payload: {
                         name: editName,
+                        stable_key: editStableKey,
                         description: editDescription,
                         scope: editScope,
                         permissions: versionPermissions,
@@ -694,15 +695,11 @@ function RAMRolesView({
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending || revokeRole.isPending}
+                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || deleteNameConfirm !== detail.data.name || deleteRole.isPending}
                   data-testid="access-role-disable-submit"
                   onClick={() => {
                     if (!selected || !latest) return;
-                    if (selectedWasCreatedHere) {
-                      setDeleteConfirmOpen(true);
-                      return;
-                    }
-                    revokeRole.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role deleted after reference-impact review' }, { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data.name}.`); setSelectedId(null); } });
+                    setDeleteConfirmOpen(true);
                   }}
                 >
                   Delete
@@ -710,7 +707,7 @@ function RAMRolesView({
                 {selectedIsReferenced && (
                   <p className="mt-2 text-xs text-danger">Delete is blocked while Team Role references exist. Use View references or Migrate references first.</p>
                 )}
-                {!selectedIsReferenced && !selectedWasCreatedHere && (
+                {!selectedIsReferenced && (
                   <RoleTextField label={`Type ${detail.data.name} to delete`} value={deleteNameConfirm} onChange={setDeleteNameConfirm} testId="access-role-delete-name" />
                 )}
               </div>
@@ -718,7 +715,6 @@ function RAMRolesView({
           )}
           {update.isError && <p className="mt-2 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
           {deleteRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
-          {revokeRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(revokeRole.error as Error).message}</p>}
           {replaceMapping.isError && <p className="mt-2 text-xs text-danger" role="alert">{(replaceMapping.error as Error).message}</p>}
         </section>
       </aside>
@@ -744,7 +740,10 @@ function RAMRolesView({
         onConfirm={() => {
           if (!selected || !latest || selectedIsReferenced) return;
           setDeleteConfirmOpen(false);
-          deleteRole.mutate({ id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' });
+          deleteRole.mutate(
+            { id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' },
+            { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data?.name ?? selected}.`); setSelectedId(null); } },
+          );
         }}
       />
     </div>
@@ -1403,6 +1402,7 @@ function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant
 function BatchGrantDrawer({
   subjects,
   permissions,
+  ramRoles,
   resources,
   canManageAccess,
   mode,
@@ -1411,6 +1411,7 @@ function BatchGrantDrawer({
 }: {
   subjects: AccessSubject[];
   permissions: AccessPermissionDefinition[];
+  ramRoles: RAMRole[];
   resources: AccessResourceScope[];
   canManageAccess: boolean;
   mode: 'direct' | 'batch';
@@ -1430,19 +1431,20 @@ function BatchGrantDrawer({
   const canPreview =
     canManageAccess &&
     request.subject_refs.length > 0 &&
-    request.permission_keys.length > 0 &&
+    (mode === 'direct' ? Boolean(request.role_id) : request.permission_keys.length > 0) &&
     request.resources.length > 0 &&
     request.reason.trim().length > 0;
   const canConfirm = canManageAccess && !!preview && (preview.summary.high_risk === 0 || highRiskAck);
 
   const toggleSubject = (ref: string): void => {
-    setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
+    setRequest((prev) => ({ ...prev, subject_refs: mode === 'direct' ? [ref] : toggleValue(prev.subject_refs, ref) }));
   };
   const togglePermission = (key: string): void => {
     setRequest((prev) => ({ ...prev, permission_keys: toggleValue(prev.permission_keys, key) }));
   };
   const toggleResource = (resource: AccessResourceScope): void => {
     setRequest((prev) => {
+      if (mode === 'direct') return { ...prev, resources: [resource] };
       const keys = new Set(prev.resources.map(accessResourceKey));
       const next = keys.has(accessResourceKey(resource))
         ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
@@ -1531,19 +1533,36 @@ function BatchGrantDrawer({
                   />
                 ))}
               </Picker>
-              <Picker title="Permissions">
-                {permissions.map((permission) => (
-                  <ChoiceRow
-                    key={permission.key}
-                    checked={request.permission_keys.includes(permission.key)}
-                    disabled={!canManageAccess}
-                    onChange={() => togglePermission(permission.key)}
-                    label={permission.key}
-                    detail={`${permission.label} · ${accessRiskLabel(permission.risk)}`}
-                    badge={<AccessRiskBadge risk={permission.risk} />}
-                  />
-                ))}
-              </Picker>
+              {mode === 'direct' ? (
+                <Picker title="RAM Role">
+                  {ramRoles.map((role) => (
+                    <ChoiceRow
+                      key={role.id}
+                      checked={request.role_id === role.id}
+                      disabled={!canManageAccess}
+                      onChange={() => setRequest((prev) => ({ ...prev, role_id: role.id, permission_keys: role.permissions }))}
+                      label={role.name}
+                      detail={`${role.stable_key ?? role.id} · ${role.permissions.length} permissions · ${role.scope ?? 'org'}`}
+                      badge={<AccessRiskBadge risk={role.risk} />}
+                    />
+                  ))}
+                  {ramRoles.length === 0 && <p className="text-sm text-text-muted">Create a RAM Role before adding a direct binding.</p>}
+                </Picker>
+              ) : (
+                <Picker title="Permissions">
+                  {permissions.map((permission) => (
+                    <ChoiceRow
+                      key={permission.key}
+                      checked={request.permission_keys.includes(permission.key)}
+                      disabled={!canManageAccess}
+                      onChange={() => togglePermission(permission.key)}
+                      label={permission.key}
+                      detail={`${permission.label} · ${accessRiskLabel(permission.risk)}`}
+                      badge={<AccessRiskBadge risk={permission.risk} />}
+                    />
+                  ))}
+                </Picker>
+              )}
               <Picker title="Resources">
                 {resources.map((resource) => (
                   <ChoiceRow

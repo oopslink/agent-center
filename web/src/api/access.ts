@@ -176,6 +176,7 @@ export interface AccessFilters {
 export interface AccessBatchRequest {
   subject_refs: string[];
   permission_keys: string[];
+  role_id?: string;
   resources: AccessResourceScope[];
   expires_at?: string | null;
   reason: string;
@@ -193,6 +194,7 @@ export interface AccessBatchItem {
   reason: string;
   evidence_ref?: string;
   grant_id?: string;
+  role_id?: string;
 }
 
 export interface AccessBatchPreview {
