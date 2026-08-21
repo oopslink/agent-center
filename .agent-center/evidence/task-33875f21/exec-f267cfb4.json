@@ -1,0 +1,131 @@
+{
+  "task_id": "task-33875f21",
+  "execution_id": "exec-f267cfb4",
+  "reviewed_sha": "98099d4f827fe0b0ed460d0694bd9bc4ed7eea7d",
+  "base_sha": "d8cabc8e5db99a673ee4f456dd54e0caef77bf94",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline --decorate -8 \u0026\u0026 git show --stat --oneline 38c2d624 \u0026\u0026 git show --stat --oneline 677f3ec5 \u0026\u0026 git merge-base HEAD d8cabc8e \u0026\u0026 git branch -a --contains d8cabc8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"git log --oneline --decorate --graph --all --ancestry-path d8cabc8e..677f3ec5 \u0026\u0026 git show --format=fuller --no-patch 677f3ec5 \u0026\u0026 git show 677f3ec5:artifacts/evidence/task-33875f21/exec-e9d01316.json | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"git show --name-only --format='' 677f3ec5 \u0026\u0026 git diff --stat d8cabc8e..677f3ec5 \u0026\u0026 git show --stat --oneline 54704f7a 8f5e339e \u0026\u0026 git diff d8cabc8e..677f3ec5 -- ':(exclude)*evidence*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'git merge-base 54704f7a d8cabc8e \u0026\u0026 git rev-parse 54704f7a''^ \u0026\u0026 git cherry-pick 54704f7a 8f5e339e \u0026\u0026 git status --short --branch \u0026\u0026 git log --oneline --decorate -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'AGENTS.md' -g 'go.mod' -g 'package.json' -g 'playwright.config.*' -g 'Makefile' -g 'Taskfile*' | sort \u0026\u0026 git diff d8cabc8e..HEAD --check \u0026\u0026 rg -n 'playwright|lint|build|test' package.json web/package.json Makefile 2\u003e/dev/null | head -160\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"Access|access\\\" tests/e2e/v2 --glob '*.spec.ts' --glob '*.test.ts' | head -120 \u0026\u0026 sed -n '1,140p' tests/e2e/v2/package.json \u0026\u0026 sed -n '1,280p' .agent-center/evidence/task-33875f21/exec-e9d01316.json 2\u003e/dev/null || git show 677f3ec5:.agent-center/evidence/task-33875f21/exec-e9d01316.json | sed -n '1,280p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"go test ./internal/persistence ./internal/webconsole/api -run 'Test(Migration_0142|AccessRAMRole)' -count=1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'make lint'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'make lint'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'make build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'go test ./...'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile \u0026\u0026 pnpm exec playwright test tests/access-ram-role-crud.spec.ts'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git status --short \u0026\u0026 git diff --name-only \u0026\u0026 git diff --check \u0026\u0026 git ls-files internal/webconsole/spa/dist tests/e2e/v2/artifacts | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git restore -- tests/e2e/v2/artifacts/playwright-report \u0026\u0026 git status --short --branch \u0026\u0026 git diff d8cabc8e..HEAD --check \u0026\u0026 git diff --stat d8cabc8e..HEAD \u0026\u0026 git show --format=fuller --stat HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git remote -v \u0026\u0026 git config --get-regexp '\"'^remote'\"\\\\.origin\\\\.' || true \u0026\u0026 git ls-remote --heads origin refs/heads/ac-exec/task-33875f21/exec-f267cfb4 refs/heads/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push --set-upstream origin HEAD:refs/heads/ac-exec/task-33875f21/exec-f267cfb4'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'go test ./... \u0026\u0026 echo FULL_GO_SUITE_PASS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'candidate_sha=$(git rev-parse HEAD)\nremote_sha=$(git ls-remote --heads origin refs/heads/ac-exec/task-33875f21/exec-f267cfb4 | awk '\"'{print \"'$1}'\"')\nmain_remote_sha=\"'$(git ls-remote --heads origin refs/heads/main | awk '\"'{print \"'$1}'\"')\nprintf 'HEAD=%s\\\\nREMOTE=%s\\\\nREMOTE_MAIN=%s\\\\nMERGE_BASE_BASELINE=%s\\\\nMERGE_BASE_REMOTE_MAIN=%s\\\\nUPSTREAM=%s\\\\n' \\\"\"'$candidate_sha\" \"$remote_sha\" \"$main_remote_sha\" \"$(git merge-base HEAD d8cabc8e)\" \"$(git merge-base HEAD \"$main_remote_sha\")\" \"$(git rev-parse '\"'@{u}')\\\"\ntest \\\"\"'$candidate_sha\" = \"$remote_sha\"\ntest \"$(git merge-base HEAD d8cabc8e)\" = \"d8cabc8e5db99a673ee4f456dd54e0caef77bf94\"\ngit merge-base --is-ancestor d8cabc8e HEAD\ngit status --porcelain=v1 --branch\ngit log --oneline d8cabc8e..HEAD'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-f267cfb4/command_events.jsonl",
+  "command_event_digest": "sha256:5a902fe1686c8d67f2dd833c1a8bb87227930b4986c33606c1ca05cb89ec26c0",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "S2 remediation completed and remotely reachable.",
+  "artifact_digest": "sha256:bbcee93131d34859695fcf6e3c63cd9836b6232bbb6160ab88f6670dd02ce4cd",
+  "path": ".agent-center/evidence/task-33875f21/exec-f267cfb4.json",
+  "branch": "ac-exec/task-33875f21/exec-f267cfb4"
+}
