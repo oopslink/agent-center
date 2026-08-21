@@ -466,6 +466,21 @@ func TestAttachFileForwarding(t *testing.T) {
 	}
 }
 
+func TestListFilesForwarding(t *testing.T) {
+	fake := &fakeAdmin{canned: json.RawMessage(`{"files":[]}`)}
+	cs := connect(t, Config{AgentID: "agent-2", Admin: fake})
+	callOK(t, cs, "list_files", map[string]any{"scope": "task", "scope_id": "t-7"})
+	if fake.gotTool != "list_files" {
+		t.Fatalf("forwarded tool=%q want list_files", fake.gotTool)
+	}
+	want := map[string]any{"agent_id": "agent-2", "scope": "task", "scope_id": "t-7"}
+	for k, v := range want {
+		if fake.gotBody[k] != v {
+			t.Errorf("body[%q]=%v want %v", k, fake.gotBody[k], v)
+		}
+	}
+}
+
 func TestGenerateMCPConfig(t *testing.T) {
 	raw, err := GenerateMCPConfig(MCPConfigParams{
 		ServerName:        "agent-center",

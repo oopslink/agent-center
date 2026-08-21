@@ -573,6 +573,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeDownloadFile(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_files",
+		Description: "List files and images attached to a task, issue, or conversation scope in the calling agent's own domain. Use the returned URI with download_file.",
+	}, makeListFiles(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "attach_file",
 		Description: "Attach an existing center file into a scope in the calling agent's own domain.",
 	}, makeAttachFile(cfg))

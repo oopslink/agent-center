@@ -416,6 +416,7 @@ func (s *Server) routes() {
 	// Browse a conversation's chat history (DM/channel/task/issue/plan) the agent
 	// participates in — the read-history complement to get_my_unread's inbox.
 	s.mux.HandleFunc("POST /admin/agent-tools/list_messages", s.listMessagesHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_files", s.listFilesHandler)
 	// v2.7.1 #239 — agent self/org-discovery reads (0 round-trip self-awareness):
 	// own profile (org/projects/capabilities) + find peer org agents by name.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)

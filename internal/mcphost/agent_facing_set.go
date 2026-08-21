@@ -62,6 +62,7 @@ var AgentFacingToolNames = []string{
 	"get_repo_info",
 	"delete_plan",
 	"download_file",
+	"list_files",
 	"find_org_agent",
 	"find_org_channel",
 	"fork_executor",

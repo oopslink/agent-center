@@ -45,7 +45,7 @@ var projectMemberCapabilities = []string{
 // regardless of project membership (self-discovery + own-work reads + replying
 // in conversations it participates in).
 var orgAgentCapabilities = []string{
-	"list_my_tasks", "fork_executor", "get_team_rule_index", "get_team_rule", "get_team_rules", "get_my_profile", "find_org_agent", "post_message", "list_messages",
+	"list_my_tasks", "fork_executor", "get_team_rule_index", "get_team_rule", "get_team_rules", "get_my_profile", "find_org_agent", "post_message", "list_messages", "list_files",
 	"propose_team_memory_change", "list_team_memory_proposals", "get_team_memory_proposal", "review_team_memory_proposal",
 }
 
