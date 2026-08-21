@@ -17,6 +17,7 @@ import {
   type AccessRole,
   type AccessStatus,
   type AccessSubject,
+  type AccessSubjectKind,
   useAccessBatchApply,
   useAccessBatchPreview,
   useAccessBulkRevoke,
