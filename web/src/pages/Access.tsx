@@ -697,6 +697,7 @@ function RAMRolesView({
                   disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending || revokeRole.isPending}
                   data-testid="access-role-disable-submit"
                   onClick={() => {
+                    if (!selected || !latest) return;
                     if (selectedWasCreatedHere) {
                       setDeleteConfirmOpen(true);
                       return;
