@@ -1,9 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
+
+	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/team"
 )
 
 func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
@@ -249,6 +254,111 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("role update status=%d want 409", resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tm := seedTeam(t, deps, sess.OrgID, "Access Union Team", []team.RoleConfig{{Role: "reviewer", CLI: "codex", Model: "gpt-5", MaxConcurrency: 1}})
+	subject := "user:" + sess.IdentityID
+	if _, err := deps.TeamService.AddMember(context.Background(), tm.ID(), team.MemberRef(subject), "reviewer"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		VALUES ('role-access-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		VALUES ('role-access-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-access-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT OR REPLACE INTO team_role_ram_role_versions (team_id, team_role, version, updated_at, updated_by) VALUES (?, 'reviewer', 1, ?, 'system')`, tm.ID().String(), now); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	applyBody := `{
+		"subject_refs":["` + subject + `"],
+		"permission_keys":["team.memory.review"],
+		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
+		"expires_at":"2026-08-21T12:30:00Z",
+		"reason":"temporary direct binding"
+	}`
+	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct binding apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var applied struct {
+		Items []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&applied); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(applied.Items) != 1 || applied.Items[0].Status != "allowed" || applied.Items[0].GrantID == "" {
+		t.Fatalf("direct binding apply items=%+v", applied.Items)
+	}
+
+	resp = orgScopedGet(t, server.URL+"/api/access/overview?q=Access%20Union%20Team", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var overview struct {
+		Decisions []struct {
+			SubjectRef  string `json:"subject_ref"`
+			Permission  string `json:"permission"`
+			Source      string `json:"source"`
+			EvidenceRef string `json:"evidence_ref"`
+			GrantID     string `json:"grant_id"`
+			RoleID      string `json:"role_id"`
+			ExpiresAt   string `json:"expires_at"`
+		} `json:"decisions"`
+		Grants []struct {
+			ID     string `json:"id"`
+			Source string `json:"source"`
+			RoleID string `json:"role_id"`
+		} `json:"grants"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&overview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	seen := map[string]bool{}
+	for _, d := range overview.Decisions {
+		if d.SubjectRef == subject && d.Permission == "team.memory.review" {
+			seen[d.Source] = true
+			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-access-union-reviewer" {
+				t.Fatalf("team RAM role_id=%q evidence=%q", d.RoleID, d.EvidenceRef)
+			}
+			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
+				t.Fatalf("direct decision grant/expiry not read back: %+v", d)
+			}
+		}
+	}
+	for _, source := range []string{string(authz.SourceOrgRole), string(authz.SourceTeamRoleRAM), string(authz.SourceCustomRole)} {
+		if !seen[source] {
+			t.Fatalf("overview missing %s union source; decisions=%+v", source, overview.Decisions)
+		}
+	}
+	var directGrant bool
+	for _, grant := range overview.Grants {
+		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID != "" {
+			directGrant = true
+		}
+	}
+	if !directGrant {
+		t.Fatalf("overview grants missing direct binding grant id=%s grants=%+v", applied.Items[0].GrantID, overview.Grants)
+	}
 }
 
 func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {

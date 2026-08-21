@@ -104,6 +104,7 @@ type accessDecisionDTO struct {
 	Status      string                 `json:"status,omitempty"`
 	ExpiresAt   *string                `json:"expires_at,omitempty"`
 	GrantID     string                 `json:"grant_id,omitempty"`
+	RoleID      string                 `json:"role_id,omitempty"`
 	Risk        string                 `json:"risk,omitempty"`
 }
 
@@ -120,6 +121,7 @@ type accessGrantDTO struct {
 	CreatedBy   string                 `json:"created_by"`
 	CreatedAt   string                 `json:"created_at"`
 	RevokedAt   *string                `json:"revoked_at,omitempty"`
+	RoleID      string                 `json:"role_id,omitempty"`
 	Risk        string                 `json:"risk"`
 }
 
@@ -1242,7 +1244,13 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 			decision.Source = string(explain.Decision.Source)
 		}
 		decision.EvidenceRef = explain.Decision.EvidenceRef
-		decision.ExpiresAt = accessDecisionExpiry(explain.Effective, decision.Permission, decision.EvidenceRef)
+		if eff, ok := accessDecisionEffective(explain.Effective, decision.Permission, decision.EvidenceRef); ok {
+			decision.RoleID = eff.RoleID
+			if eff.ExpiresAt != nil {
+				value := eff.ExpiresAt.UTC().Format(time.RFC3339)
+				decision.ExpiresAt = &value
+			}
+		}
 		if decision.Allowed {
 			decision.Status = "allowed"
 			decision.Reason = fallback(explain.Decision.Reason, "matched unified authorization service")
@@ -1254,7 +1262,7 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 		}
 		out = append(out, decision)
 	}
-	out = s.appendCustomRoleDecisions(ctx, svc, out, seen, resources)
+	out = s.appendAdditionalEffectiveDecisions(ctx, svc, out, seen, resources)
 	return out
 }
 
@@ -1272,7 +1280,11 @@ func (s accessDerivedState) decisionResources() []accessResourceScopeDTO {
 	return resources
 }
 
-func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *authz.Service, decisions []accessDecisionDTO, seen map[string]struct{}, resources []accessResourceScopeDTO) []accessDecisionDTO {
+func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Context, svc *authz.Service, decisions []accessDecisionDTO, seen map[string]struct{}, resources []accessResourceScopeDTO) []accessDecisionDTO {
+	seenEffective := map[string]struct{}{}
+	for _, decision := range decisions {
+		seenEffective[accessEffectiveDecisionKey(decision)] = struct{}{}
+	}
 	for _, subj := range s.subjects {
 		for _, resource := range resources {
 			effective, err := svc.ListEffective(ctx, authz.SubjectRef(subj.Ref), accessAuthzResource(resource))
@@ -1281,14 +1293,13 @@ func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *
 			}
 			resolved := accessResourceFromAuthz(effective.Resource, resource)
 			for _, permission := range effective.Permissions {
-				if permission.Source != authz.SourceCustomRole {
+				if permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
 				key := strings.Join([]string{subj.Ref, string(permission.Key), resourceKey(resolved)}, "|")
-				if _, ok := seen[key]; ok {
+				if _, ok := seen[key]; ok && permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
-				seen[key] = struct{}{}
 				def := s.catalogByKey[string(permission.Key)]
 				decision := accessDecisionDTO{
 					Allowed:     true,
@@ -1299,6 +1310,7 @@ func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *
 					Reason:      "matched unified authorization service",
 					EvidenceRef: permission.EvidenceRef,
 					Status:      "allowed",
+					RoleID:      permission.RoleID,
 					Risk:        fallback(def.Risk, "medium"),
 				}
 				if permission.ExpiresAt != nil {
@@ -1306,6 +1318,11 @@ func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *
 					decision.ExpiresAt = &value
 				}
 				decision.GrantID = accessGrantIDForDecision(decision)
+				if _, ok := seenEffective[accessEffectiveDecisionKey(decision)]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				seenEffective[accessEffectiveDecisionKey(decision)] = struct{}{}
 				decisions = append(decisions, decision)
 			}
 		}
@@ -1313,14 +1330,17 @@ func (s accessDerivedState) appendCustomRoleDecisions(ctx context.Context, svc *
 	return decisions
 }
 
-func accessDecisionExpiry(effective []authz.EffectivePermission, permission, evidenceRef string) *string {
+func accessEffectiveDecisionKey(decision accessDecisionDTO) string {
+	return strings.Join([]string{decision.SubjectRef, decision.Permission, resourceKey(decision.Resource), decision.Source, decision.EvidenceRef}, "|")
+}
+
+func accessDecisionEffective(effective []authz.EffectivePermission, permission, evidenceRef string) (authz.EffectivePermission, bool) {
 	for _, eff := range effective {
-		if string(eff.Key) == permission && eff.EvidenceRef == evidenceRef && eff.ExpiresAt != nil {
-			value := eff.ExpiresAt.UTC().Format(time.RFC3339)
-			return &value
+		if string(eff.Key) == permission && eff.EvidenceRef == evidenceRef {
+			return eff, true
 		}
 	}
-	return nil
+	return authz.EffectivePermission{}, false
 }
 
 func accessGrantIDForDecision(decision accessDecisionDTO) string {
@@ -1490,6 +1510,7 @@ func accessGrantsFromDecisions(now time.Time, decisions []accessDecisionDTO, sub
 			ExpiresAt:   d.ExpiresAt,
 			CreatedBy:   "system",
 			CreatedAt:   now.Format(time.RFC3339),
+			RoleID:      d.RoleID,
 			Risk:        d.Risk,
 		})
 	}

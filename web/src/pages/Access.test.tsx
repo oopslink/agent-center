@@ -68,7 +68,29 @@ describe('Access page', () => {
 
     const effective = screen.getByTestId('access-subject-effective-agent:external');
     fireEvent.click(within(effective).getByText(/effective permissions/));
-    expect(effective).toHaveTextContent('Direct/other bindings');
+    expect(effective).toHaveTextContent('Other bindings');
+
+    fireEvent.change(screen.getByTestId('access-filter-status'), { target: { value: 'all' } });
+    fireEvent.change(screen.getByTestId('access-filter-subject'), { target: { value: 'agent' } });
+    await waitFor(() => {
+      expect(screen.getAllByText('Builder').length).toBeGreaterThan(0);
+      expect(screen.queryByText('Hayang')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows Team RAM and direct binding source chains, then opens the direct binding flow', async () => {
+    renderPage('/organizations/test/access?view=subject-access');
+    const builder = await screen.findByTestId('access-subject-effective-agent:builder');
+    fireEvent.click(within(builder).getByText(/^3 effective permissions/));
+
+    expect(builder).toHaveTextContent('membership:agent-center core');
+    expect(builder).toHaveTextContent('Team Role reviewer');
+    expect(builder).toHaveTextContent('RAM Role team-curator');
+    expect(builder).toHaveTextContent('direct binding');
+    expect(builder).toHaveTextContent('RAM Role role-access-project-write');
+
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+    expect(await screen.findByRole('dialog', { name: 'Add direct binding' })).toBeInTheDocument();
   });
 
   it('previews and saves a Team Role mapping with the fetched CAS version and refreshes immediately', async () => {

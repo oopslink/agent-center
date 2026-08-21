@@ -66,6 +66,7 @@ type AccessView = 'roles' | 'subjects';
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
+const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'worker', 'system'];
 const RESOURCE_OPTIONS: Array<AccessResourceKind | 'all'> = [
   'all',
   'org',
@@ -113,10 +114,12 @@ export default function Access(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseAccessView(searchParams.get('view'));
   const [query, setQuery] = useState('');
+  const [subjectKind, setSubjectKind] = useState<AccessSubjectKind | 'all'>('all');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
   const [status, setStatus] = useState<AccessStatus | 'all'>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'direct' | 'batch'>('direct');
   const setView = (next: AccessView): void => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
@@ -127,6 +130,7 @@ export default function Access(): React.ReactElement {
 
   const overview = useAccessOverview({
     q: query,
+    subject_kind: subjectKind,
     resource_kind: resourceKind,
     risk,
     status,
@@ -158,16 +162,28 @@ export default function Access(): React.ReactElement {
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Access</h1>
         </div>
-        <button
-          type="button"
-          className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-          onClick={() => setDrawerOpen(true)}
-          disabled={!canManageAccess}
-          title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
-          data-testid="access-open-batch"
-        >
-          Batch grant
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
+            onClick={() => { setDrawerMode('direct'); setDrawerOpen(true); }}
+            disabled={!canManageAccess}
+            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
+            data-testid="access-open-direct-binding"
+          >
+            Add direct binding
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+            onClick={() => { setDrawerMode('batch'); setDrawerOpen(true); }}
+            disabled={!canManageAccess}
+            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
+            data-testid="access-open-batch"
+          >
+            Batch grant
+          </button>
+        </div>
       </header>
 
       {currentPermissions.isLoading && <Skeleton height="10rem" />}
@@ -231,6 +247,7 @@ export default function Access(): React.ReactElement {
           />
         </label>
         <Select label="Resource" value={resourceKind} onChange={(v) => setResourceKind(v as AccessResourceKind | 'all')} options={RESOURCE_OPTIONS} />
+        <Select label="Subject" value={subjectKind} onChange={(v) => setSubjectKind(v as AccessSubjectKind | 'all')} options={SUBJECT_OPTIONS} />
         <Select label="Risk" value={risk} onChange={(v) => setRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
         <Select label="Status" value={status} onChange={(v) => setStatus(v as AccessStatus | 'all')} options={STATUS_OPTIONS} />
       </div>
@@ -283,6 +300,7 @@ export default function Access(): React.ReactElement {
           permissions={data.catalog}
           resources={resources}
           canManageAccess={canManageAccess}
+          mode={drawerMode}
           onClose={() => setDrawerOpen(false)}
         />
       )}
@@ -759,10 +777,21 @@ function SubjectDecisionView({
                     const teamRoles = member.roles ?? [member.role];
                     return teamRoles.map((teamRole) => {
                       const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
-                      return <p key={`${team.id}:${teamRole}`} className="mb-1"><span className="font-mono">membership:{team.name}</span> → Team Role <strong>{teamRole}</strong> → RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} → scoped effective permissions</p>;
+                      const sourced = rows.filter((row) => row.source === 'team_role_ram' && row.evidence_ref.includes(`${team.id}/${teamRole}/`));
+                      return (
+                        <p key={`${team.id}:${teamRole}`} className="mb-1">
+                          <span className="font-mono">membership:{team.name}</span> -&gt; Team Role <strong>{teamRole}</strong> -&gt; RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} -&gt; {sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions
+                        </p>
+                      );
                     });
                   }))}
-                {rows.some((row) => row.source !== 'team_member') && <p>Direct/other bindings: {[...new Set(rows.filter((row) => row.source !== 'team_member').map((row) => row.source))].join(', ')}</p>}
+                {rows.filter((row) => row.source === 'custom_role').map((row) => (
+                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1">
+                    <span className="font-mono">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                    {row.expires_at ? ` - expires ${displayAccessDate(row.expires_at)}` : ''}
+                  </p>
+                ))}
+                {rows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && <p>Other bindings: {[...new Set(rows.filter((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)).map((row) => row.source))].join(', ')}</p>}
               </div>
               <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
             </details>
@@ -802,7 +831,7 @@ function DecisionTable({
           {decisions.map((decision) => {
             const subject = subjectByRef.get(decision.subject_ref);
             const permission = permissionByKey.get(decision.permission);
-            const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.status}`;
+            const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.source}-${decision.evidence_ref}-${decision.status}`;
             return (
               <tr key={rowKey} className="border-b border-border-base last:border-0">
                 <td className="px-4 py-3">
@@ -1082,12 +1111,14 @@ function BatchGrantDrawer({
   permissions,
   resources,
   canManageAccess,
+  mode,
   onClose,
 }: {
   subjects: AccessSubject[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
   canManageAccess: boolean;
+  mode: 'direct' | 'batch';
   onClose: () => void;
 }): React.ReactElement {
   const containerRef = useModalA11y({ open: true, onClose });
@@ -1098,6 +1129,7 @@ function BatchGrantDrawer({
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
+  const title = mode === 'direct' ? 'Add direct binding' : 'Batch authorization';
 
   const canPreview =
     canManageAccess &&
@@ -1150,13 +1182,13 @@ function BatchGrantDrawer({
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Batch authorization"
+        aria-label={title}
         className="fixed inset-y-0 right-0 flex h-full w-full max-w-3xl flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[46rem]"
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Batch authorization</h2>
+            <h2 className="text-lg font-semibold">{title}</h2>
             <div className="mt-2 flex flex-wrap gap-1">
               {['Scope', 'Preview', 'Confirm', 'Result'].map((label, idx) => (
                 <span
@@ -1337,6 +1369,11 @@ function BatchGrantDrawer({
 
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+}
+
+function roleIDFromEvidence(evidenceRef: string): string {
+  const parts = evidenceRef.split('/');
+  return parts.length >= 3 ? parts[2] : '';
 }
 
 function Picker({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {

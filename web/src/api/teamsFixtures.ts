@@ -108,6 +108,7 @@ function seed(): TeamsData {
   const members: Record<string, MemberView[]> = {
     'team-7c19b0': [
       { team_id: 'team-7c19b0', member_ref: 'agent:9a70…', name: 'planner-01', kind: 'agent', role: 'planner', exclusive: true, cli: 'claude-code', model: 'opus-4.8', tags: ['design', 'arch'], concurrency: '1/1' },
+      { team_id: 'team-7c19b0', member_ref: 'agent:builder', name: 'Builder', kind: 'agent', role: 'reviewer', roles: ['reviewer'], exclusive: false, cli: 'claude-code', model: 'opus-4.8', tags: ['review'], concurrency: '1/1' },
       { team_id: 'team-7c19b0', member_ref: 'agent:3b21…', name: 'coder-01', kind: 'agent', role: 'coder', exclusive: true, cli: 'claude-code', model: 'sonnet-5', tags: ['go'], concurrency: '2/2' },
       { team_id: 'team-7c19b0', member_ref: 'agent:7f44…', name: 'coder-02', kind: 'agent', role: 'coder', exclusive: true, cli: 'claude-code', model: 'sonnet-5', tags: ['ts', 'react'], concurrency: '1/2' },
       { team_id: 'team-7c19b0', member_ref: 'agent:c012…', name: 'coder-03', kind: 'agent', role: 'coder', exclusive: true, cli: 'claude-code', model: 'sonnet-5', tags: ['go'], concurrency: '2/2' },
