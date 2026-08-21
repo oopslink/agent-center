@@ -657,6 +657,13 @@ func messageMap(m *conversation.Message) map[string]any {
 	if rid := m.ReplyToMessageID(); rid != "" {
 		out["reply_to_message_id"] = string(rid)
 	}
+	// Attachments are part of the Message read model. Omitting them here made
+	// list_messages return only the text even though the repository had already
+	// round-tripped the file URI and metadata, leaving an agent unable to call
+	// download_file after re-reading a task/issue/channel conversation.
+	if atts := m.Attachments(); len(atts) > 0 {
+		out["attachments"] = atts
+	}
 	return out
 }
 

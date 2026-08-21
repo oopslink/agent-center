@@ -71,6 +71,43 @@ func appendMsgQuote(t *testing.T, f *writeToolsFixture, convID, sender, content,
 	return string(res.MessageID)
 }
 
+func appendMsgAttachments(t *testing.T, f *writeToolsFixture, convID, sender, content string, atts []conversation.MessageAttachment) string {
+	t.Helper()
+	res, err := f.deps.MessageWriter.AddMessage(context.Background(), convservice.AddMessageCommand{
+		ConversationID: conversation.ConversationID(convID), SenderIdentityID: conversation.IdentityRef(sender),
+		ContentKind: conversation.MessageContentText, Direction: conversation.DirectionInbound,
+		Content: content, Attachments: atts, Actor: observability.Actor(sender),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(res.MessageID)
+}
+
+func TestListMessages_SurfacesAttachments(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	seedChannelWithMember(t, f, "ch-att", "attachments", atTestOrg, "agent:"+atAgent1)
+	appendMsgAttachments(t, f, "ch-att", "user:alice", "see image", []conversation.MessageAttachment{{
+		URI: "ac://files/01ATTACH", Filename: "mockup.png", MimeType: "image/png", Size: 4321,
+	}})
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_messages", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "conversation_id": "ch-att"})
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	msgs := body["messages"].([]any)
+	atts, ok := msgs[0].(map[string]any)["attachments"].([]any)
+	if !ok || len(atts) != 1 {
+		t.Fatalf("attachments missing from list_messages: %v", msgs[0])
+	}
+	att := atts[0].(map[string]any)
+	if att["uri"] != "ac://files/01ATTACH" || att["filename"] != "mockup.png" || att["mime_type"] != "image/png" || att["size"] != float64(4321) {
+		t.Fatalf("attachment metadata = %v", att)
+	}
+}
+
 // 引用 (quote): list_messages must surface both the raw quoted_message_id AND the
 // resolved preview card (sender + snippet) so a browsing agent sees WHAT was quoted
 // — inbound parity with the UI, which otherwise leaves the agent blind to the quote.

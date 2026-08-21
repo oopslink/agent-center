@@ -162,6 +162,7 @@ var wantTools = []string{
 	"get_my_unread", "mark_seen",
 	// browse a conversation's chat history (DM/channel/task/issue/plan)
 	"list_messages",
+	"list_files",
 	// v2.7 #185; T200 WS4: the single post tool (target = conversation|task|issue)
 	"post_message",
 	// agent-agent coordination: start/reuse a same-org DM and send the opener

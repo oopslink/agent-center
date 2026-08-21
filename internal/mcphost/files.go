@@ -94,6 +94,23 @@ func makeDownloadFile(cfg Config) mcp.ToolHandlerFor[downloadFileArgs, any] {
 
 // --- attach_file -------------------------------------------------------------
 
+type listFilesArgs struct {
+	Scope   string `json:"scope" jsonschema:"placement scope to list (for example task, issue, or conversation)"`
+	ScopeID string `json:"scope_id" jsonschema:"the id for the placement scope"`
+}
+
+func makeListFiles(cfg Config) mcp.ToolHandlerFor[listFilesArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listFilesArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_files", map[string]any{
+			"agent_id": cfg.AgentID,
+			"scope":    args.Scope,
+			"scope_id": args.ScopeID,
+		})
+	}
+}
+
+// --- attach_file -------------------------------------------------------------
+
 type attachFileArgs struct {
 	FileURI string `json:"file_uri" jsonschema:"the ac://files/{ulid} to attach"`
 	Scope   string `json:"scope" jsonschema:"placement scope (must be in the agent's own domain)"`

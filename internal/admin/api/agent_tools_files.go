@@ -592,6 +592,72 @@ type attachFileReq struct {
 	ScopeID string `json:"scope_id"`
 }
 
+type listFilesReq struct {
+	AgentID string `json:"agent_id"`
+	Scope   string `json:"scope"`
+	ScopeID string `json:"scope_id"`
+}
+
+// listFilesHandler enumerates the live files placed in one scope in the
+// operating agent's own domain. This is the read-side pair of attach_file and
+// closes the task/issue Attachments-section gap: download_file is useful only
+// after the agent can discover the file URI.
+func (s *Server) listFilesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listFilesReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.FilesSvc == nil {
+		writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
+		return
+	}
+	scope := files.FileScope(req.Scope)
+	if !scope.IsValid() {
+		writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
+		return
+	}
+	if strings.TrimSpace(req.ScopeID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_scope_id", "")
+		return
+	}
+	inDomain, err := s.agentScopeInDomain(d, r, a, scope, req.ScopeID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return
+	}
+	if !inDomain {
+		writeError(w, http.StatusForbidden, "scope_not_in_agent_domain",
+			"requested scope is not in the agent's own domain")
+		return
+	}
+	refs, err := d.FilesSvc.ListReferencesByScope(r.Context(), scope, req.ScopeID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
+		return
+	}
+	out := make([]map[string]any, 0, len(refs))
+	for _, ref := range refs {
+		name := ref.DisplayName
+		if name == "" {
+			name = ref.Filename
+		}
+		out = append(out, map[string]any{
+			"uri": ref.FileURI, "filename": name, "mime_type": ref.MimeType,
+			"size": ref.SizeBytes, "created_by": ref.CreatedBy,
+			"created_at": ref.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scope": req.Scope, "scope_id": req.ScopeID, "files": out,
+	})
+}
+
 // attachFileHandler adds a placement reference for an existing blob into a scope
 // in the agent's OWN domain. own-domain authz on {scope, scope_id} → 403
 // scope_not_in_agent_domain when not in domain. Returns the new reference id.

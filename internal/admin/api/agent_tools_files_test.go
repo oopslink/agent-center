@@ -157,6 +157,43 @@ func TestAgentFiles_RoundTrip_OwnTask(t *testing.T) {
 	}
 }
 
+func TestAgentFiles_ListFiles_OwnTask(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	f.attachAgentFilesSvc(t)
+	srv := f.filesServer(t)
+	uploadViaAgent(t, srv.URL, "acat_w1", atAgent1, "task", tid, []byte("mockup"))
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_files", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "scope": "task", "scope_id": tid,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("list_files status=%d body=%v", status, body)
+	}
+	rows, ok := body["files"].([]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("files=%v want one", body["files"])
+	}
+	row := rows[0].(map[string]any)
+	if row["uri"] == "" || row["mime_type"] != "text/plain" || row["size"] != float64(6) {
+		t.Fatalf("file metadata=%v", row)
+	}
+}
+
+func TestAgentFiles_ListFiles_RejectsForeignScope(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.attachAgentFilesSvc(t)
+	srv := f.filesServer(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_files", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "scope": "task", "scope_id": "task-foreign",
+	})
+	if status != http.StatusForbidden || body["error"] != "scope_not_in_agent_domain" {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+}
+
 // --- download fail-closed: no live ref --------------------------------------
 
 func TestAgentFiles_Download_NoRef_403(t *testing.T) {
