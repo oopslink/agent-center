@@ -37,21 +37,34 @@ func TestMigration_0142_BackfillsRAMRoleVersionMetadata(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("0142 Up: %v", err)
 	}
-	var name, description, scope string
-	if err := db.QueryRowContext(ctx, `SELECT name, description, scope_kind FROM authorization_role_versions WHERE role_id = 'role-m142' AND version = 1`).Scan(&name, &description, &scope); err != nil {
+	var stableKey, name, description, scope string
+	if err := db.QueryRowContext(ctx, `SELECT stable_key, name, description, scope_kind FROM authorization_role_versions WHERE role_id = 'role-m142' AND version = 1`).Scan(&stableKey, &name, &description, &scope); err != nil {
 		t.Fatal(err)
 	}
-	if name != "Original role" || description != "Original description" || scope != "project" {
-		t.Fatalf("backfilled snapshot=(%q,%q,%q)", name, description, scope)
+	if stableKey != "role-m142" || name != "Original role" || description != "Original description" || scope != "project" {
+		t.Fatalf("backfilled snapshot=(%q,%q,%q,%q)", stableKey, name, description, scope)
 	}
 
-	if _, err := db.ExecContext(ctx, `UPDATE authorization_roles SET name='Renamed role', description='Renamed description', scope_kind='team' WHERE id='role-m142'`); err != nil {
+	if _, err := db.ExecContext(ctx, `UPDATE authorization_roles SET stable_key='renamed-role', name='Renamed role', description='Renamed description', scope_kind='team' WHERE id='role-m142'`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QueryRowContext(ctx, `SELECT name, description, scope_kind FROM authorization_role_versions WHERE role_id = 'role-m142' AND version = 1`).Scan(&name, &description, &scope); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT stable_key, name, description, scope_kind FROM authorization_role_versions WHERE role_id = 'role-m142' AND version = 1`).Scan(&stableKey, &name, &description, &scope); err != nil {
 		t.Fatal(err)
 	}
-	if name != "Original role" || description != "Original description" || scope != "project" {
-		t.Fatalf("snapshot changed with current row=(%q,%q,%q)", name, description, scope)
+	if stableKey != "role-m142" || name != "Original role" || description != "Original description" || scope != "project" {
+		t.Fatalf("snapshot changed with current row=(%q,%q,%q,%q)", stableKey, name, description, scope)
+	}
+
+	if err := mig.Down(ctx, 141); err != nil {
+		t.Fatalf("0142 Down: %v", err)
+	}
+	for _, column := range []string{"stable_key", "name", "description", "scope_kind"} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('authorization_role_versions') WHERE name = ?`, column).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("column %q remains after down migration", column)
+		}
 	}
 }

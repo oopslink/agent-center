@@ -528,10 +528,11 @@ func (s *Server) accessRAMRoleDeleteHandler(w http.ResponseWriter, r *http.Reque
 }
 
 var (
-	errAccessRAMRoleNotFound   = errors.New("RAM role not found")
-	errAccessRAMRoleConflict   = errors.New("RAM role version conflict")
-	errAccessRAMRoleInvalid    = errors.New("invalid RAM role")
-	errAccessRAMRoleReferenced = errors.New("RAM role is still referenced")
+	errAccessRAMRoleNotFound    = errors.New("RAM role not found")
+	errAccessRAMRoleConflict    = errors.New("RAM role version conflict")
+	errAccessRAMRoleKeyConflict = errors.New("RAM role stable key conflict")
+	errAccessRAMRoleInvalid     = errors.New("invalid RAM role")
+	errAccessRAMRoleReferenced  = errors.New("RAM role is still referenced")
 )
 
 func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
@@ -593,7 +594,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 		detail.RevokedAt = &revoked.String
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), v.name, ar.kind, v.description, v.scope_kind, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at,
+		SELECT ar.id, v.stable_key, v.name, ar.kind, v.description, v.scope_kind, ar.revoked_at, v.version, v.permissions_json, v.risk, v.created_at, ar.updated_at,
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
@@ -674,12 +675,15 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO authorization_roles (id, org_id, kind, stable_key, name, description, scope_kind, created_by, created_at, updated_at, version)
 		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, ?, ?, 1)`, id, orgID, stableKey, name, strings.TrimSpace(body.Description), scope, actor, now, now); err != nil {
+		if isRAMRoleStableKeyConflict(err) {
+			return accessRAMRoleDetailDTO{}, errAccessRAMRoleKeyConflict
+		}
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := replaceRAMRolePermissionRows(ctx, tx, id, permissions, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, name, strings.TrimSpace(body.Description), scope, permissions, risk, actor, now); err != nil {
+	if err := insertAccessRAMRoleVersion(ctx, tx, id, 1, stableKey, name, strings.TrimSpace(body.Description), scope, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.created", actor, id, "", map[string]any{"name": name, "stable_key": stableKey, "scope": scope, "permissions": permissions}); err != nil {
@@ -738,12 +742,15 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 		nextScope = currentScope
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET stable_key = ?, name = ?, description = ?, scope_kind = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ? AND revoked_at IS NULL`, nextStableKey, nextName, nextDescription, nextScope, now, roleID, latest); err != nil {
+		if isRAMRoleStableKeyConflict(err) {
+			return accessRAMRoleDetailDTO{}, errAccessRAMRoleKeyConflict
+		}
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := replaceRAMRolePermissionRows(ctx, tx, roleID, permissions, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
-	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, nextName, nextDescription, nextScope, permissions, risk, actor, now); err != nil {
+	if err := insertAccessRAMRoleVersion(ctx, tx, roleID, latest+1, nextStableKey, nextName, nextDescription, nextScope, permissions, risk, actor, now); err != nil {
 		return accessRAMRoleDetailDTO{}, err
 	}
 	if err := insertRAMRoleAudit(ctx, tx, "authorization.ram_role.versioned", actor, roleID, "", map[string]any{"version": latest + 1, "name": nextName, "stable_key": nextStableKey, "scope": nextScope, "permissions": permissions}); err != nil {
@@ -762,14 +769,14 @@ func accessUpdateRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 
 func insertAccessRAMRoleVersion(ctx context.Context, exec interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, roleID string, version int, name, description, scope string, permissions []string, risk, actor, now string) error {
+}, roleID string, version int, stableKey, name, description, scope string, permissions []string, risk, actor, now string) error {
 	raw, err := json.Marshal(permissions)
 	if err != nil {
 		return err
 	}
 	_, err = exec.ExecContext(ctx, `
-		INSERT INTO authorization_role_versions (role_id, version, name, description, scope_kind, permissions_json, risk, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, roleID, version, name, description, scope, string(raw), risk, actor, now)
+		INSERT INTO authorization_role_versions (role_id, version, stable_key, name, description, scope_kind, permissions_json, risk, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, roleID, version, stableKey, name, description, scope, string(raw), risk, actor, now)
 	return err
 }
 
@@ -884,6 +891,8 @@ func writeAccessRAMRoleWriteError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "RAM role not found")
 	case errors.Is(err, errAccessRAMRoleConflict):
 		writeError(w, http.StatusConflict, "version_conflict", "RAM role latest version changed")
+	case errors.Is(err, errAccessRAMRoleKeyConflict):
+		writeError(w, http.StatusConflict, "stable_key_conflict", "RAM role stable key already exists")
 	case errors.Is(err, errAccessRAMRoleReferenced):
 		writeError(w, http.StatusConflict, "ram_role_referenced", err.Error())
 	case errors.Is(err, errAccessRAMRoleInvalid):
@@ -891,6 +900,12 @@ func writeAccessRAMRoleWriteError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "ram_role_failed", err.Error())
 	}
+}
+
+func isRAMRoleStableKeyConflict(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "idx_authorization_roles_system_stable_key") ||
+		strings.Contains(message, "idx_authorization_roles_custom_org_stable_key")
 }
 
 func replaceRAMRolePermissionRows(ctx context.Context, exec interface {
