@@ -68,7 +68,7 @@ build: build-backend build-fakeagent
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
-	cd $(WEB) && pnpm run build
+	cd $(WEB) && VITE_BUILD_SHA=$(shell git rev-parse HEAD 2>/dev/null || echo unknown) pnpm run build
 	# vite's emptyOutDir wipes .gitkeep; restore it so the directory
 	# survives `make clean` + remains tracked for fresh clones (go:embed
 	# needs the dir to exist before the SPA is ever built).
