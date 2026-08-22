@@ -545,6 +545,7 @@ function RAMRolesView({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
+      <span className="sr-only" data-testid="access-runtime-sha">Runtime SHA: {import.meta.env.VITE_BUILD_SHA || 'development'}</span>
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
@@ -896,7 +897,7 @@ function RAMRoleDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-0 right-0 flex h-full w-full max-w-2xl flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[40rem]"
+        className="fixed inset-y-0 left-0 flex h-full w-full max-w-2xl flex-col border-r border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[40rem]"
         data-testid="access-role-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">

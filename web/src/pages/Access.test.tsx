@@ -30,6 +30,7 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     expect(await screen.findByTestId('access-roles-view')).toBeInTheDocument();
+    expect(screen.getByTestId('access-runtime-sha')).toHaveTextContent('Runtime SHA:');
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
     expect(screen.queryByTestId('access-team-role-mappings-view')).not.toBeInTheDocument();
     expect(screen.queryByText('Permission catalog')).not.toBeInTheDocument();
