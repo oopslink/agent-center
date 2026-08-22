@@ -139,6 +139,12 @@ type RuleSnapshot struct {
 	RefreshSemantics string        `json:"refresh_semantics,omitempty"`
 }
 
+type TaskInputPackage struct {
+	Version     string `json:"version"`
+	RelativeDir string `json:"relative_dir"`
+	Manifest    string `json:"manifest"`
+}
+
 // Input is input.json — written by the orchestrator, read by the executor
 // (design §7). It is the executor's complete starting context: it carries no
 // credentials and no center handle, by design.
@@ -153,12 +159,13 @@ type Input struct {
 	// CLI is the executor CLI the orchestrator routed (claude-code|codex), persisted
 	// for observability — the real-time concurrency snapshot reads it back from
 	// input.json (v2.19.0). Empty for pre-v2.19 launches; not required at startup.
-	CLI       string        `json:"cli,omitempty"`
-	Context   string        `json:"context,omitempty"`
-	Source    SourceRefs    `json:"source"`
-	Repo      *RepoRef      `json:"repo_ref,omitempty"`
-	TeamRules *RuleSnapshot `json:"team_rules,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
+	CLI       string            `json:"cli,omitempty"`
+	Context   string            `json:"context,omitempty"`
+	Source    SourceRefs        `json:"source"`
+	Repo      *RepoRef          `json:"repo_ref,omitempty"`
+	TeamRules *RuleSnapshot     `json:"team_rules,omitempty"`
+	TaskInput *TaskInputPackage `json:"task_input,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
 	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
 	// center stamps it at dispatch so the worker-side writeback — which only sees
 	// input.json — can tell an executor-fork Dev node from a supervisor-inline node that

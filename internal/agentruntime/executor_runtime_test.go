@@ -2,10 +2,14 @@ package agentruntime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +20,35 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 )
+
+type fakeFileDownloader struct {
+	bytes map[string][]byte
+	err   error
+	calls int
+}
+
+func (f *fakeFileDownloader) DownloadCenterFile(_ context.Context, _ string, uri string) ([]byte, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	b := f.bytes[uri]
+	return append([]byte(nil), b...), nil
+}
+
+func onePixelPNG(t *testing.T) []byte {
+	t.Helper()
+	raw, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func shaHex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
 
 func TestBuildExecutorEngine_ErrorOnBadRoot(t *testing.T) {
 	rt := newExecRuntime(t, t.TempDir(), "agent-bad", "true")
@@ -234,6 +267,116 @@ func TestBuildWorkItem(t *testing.T) {
 	})
 }
 
+func TestSpawnExecutor_TaskInputDownloadFailureNoExecutionThenRetrySucceeds(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "agent-input")
+	attach(rt, ee)
+	png := onePixelPNG(t)
+	uri := "ac://files/01M0HRMZEV7XS8A3MNGG64ZZW1"
+	listBody := map[string]any{"files": []map[string]any{{
+		"uri": uri, "filename": "T1457-mockup.png", "mime_type": "image/png",
+		"size": len(png), "sha256": shaHex(png),
+	}}}
+	sc := &scriptedToolCaller{
+		getTaskBody:   map[string]any{"id": "task-input", "title": "input", "status": "open", "assignee": "agent:agent-input"},
+		listFilesBody: listBody,
+	}
+	setToolCaller(rt, sc)
+	fd := &fakeFileDownloader{err: errors.New("first download failed")}
+	rt.cfg.FileDownloader = fd
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-input"})
+	if err != nil || res == nil || res.Reason != "task_input_materialization_failed" {
+		t.Fatalf("first SpawnExecutor = (%+v, %v), want task_input_materialization_failed", res, err)
+	}
+	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "list_files" {
+		t.Fatalf("download failure must stop before start_task; calls=%v", seen)
+	}
+	if inputs, _ := filepath.Glob(filepath.Join(home, "executors", "*", "input.json")); len(inputs) != 0 {
+		t.Fatalf("download failure must not launch/write executor input, got %v", inputs)
+	}
+
+	sc = &scriptedToolCaller{getTaskBody: map[string]any{"id": "task-input", "title": "input", "status": "open", "assignee": "agent:agent-input"}, listFilesBody: listBody}
+	setToolCaller(rt, sc)
+	rt.cfg.FileDownloader = &fakeFileDownloader{bytes: map[string][]byte{uri: png}}
+	res, err = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-input"})
+	if err != nil || res == nil || strings.TrimSpace(res.ExecutorID) == "" {
+		t.Fatalf("retry SpawnExecutor = (%+v, %v), want launched executor", res, err)
+	}
+	in, err := ee.fx.ReadInput(res.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.TaskInput == nil || in.TaskInput.RelativeDir != "task-input/v1" {
+		t.Fatalf("input task package = %+v, want task-input/v1", in.TaskInput)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "files", "T1457-mockup.png"))
+	if err != nil {
+		t.Fatalf("isolated executor package file not readable: %v", err)
+	}
+	if got := shaHex(raw); got != shaHex(png) {
+		t.Fatalf("materialized sha=%s want %s", got, shaHex(png))
+	}
+}
+
+func TestTaskInputPackageReuseAndStaleRejection(t *testing.T) {
+	rt := newExecRuntime(t, t.TempDir(), "agent-input-reuse", lookTrue(t))
+	png := onePixelPNG(t)
+	uri := "ac://files/01M0HRMZDX20FF5KQT4SBANGC1"
+	files := []taskInputFile{{URI: uri, Filename: "T1456-mockup.png", MimeType: "image/png", Size: int64(len(png)), SHA256: shaHex(png)}}
+	ws := t.TempDir()
+	rt.cfg.ToolCaller = func() ToolCaller {
+		return &scriptedToolCaller{listFilesBody: map[string]any{"files": []taskInputFile{files[0]}}}
+	}
+	fd := &fakeFileDownloader{bytes: map[string][]byte{uri: png}}
+	rt.cfg.FileDownloader = fd
+	pkg, err := rt.materializeTaskInputPackage(context.Background(), "agent-input-reuse", "task-reuse", ws)
+	if err != nil || pkg == nil {
+		t.Fatalf("materialize = (%+v, %v)", pkg, err)
+	}
+	pkg, err = rt.materializeTaskInputPackage(context.Background(), "agent-input-reuse", "task-reuse", ws)
+	if err != nil || pkg == nil {
+		t.Fatalf("reuse complete package = (%+v, %v)", pkg, err)
+	}
+	if fd.calls != 1 {
+		t.Fatalf("complete package should be reused without a second download; calls=%d", fd.calls)
+	}
+
+	manifestPath := filepath.Join(ws, "task-input", "v1", "manifest.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = []byte(strings.Replace(string(raw), uri, "ac://files/01M0HRMZFD0Q7NA194RQNYYVBW", 1))
+	if err := os.WriteFile(manifestPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.materializeTaskInputPackage(context.Background(), "agent-input-reuse", "task-reuse", ws); err == nil || !strings.Contains(err.Error(), "stale package rejected") {
+		t.Fatalf("stale package err=%v, want rejection", err)
+	}
+
+	if err := os.WriteFile(manifestPath, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.materializeTaskInputPackage(context.Background(), "agent-input-reuse", "task-reuse", ws); err == nil || !strings.Contains(err.Error(), "reject incomplete package") {
+		t.Fatalf("incomplete package err=%v, want rejection", err)
+	}
+}
+
+func TestTaskInputRejectsInvalidMetadata(t *testing.T) {
+	bad := []taskInputFile{
+		{URI: "ac://files/x", Filename: "", MimeType: "image/png", Size: 1, SHA256: strings.Repeat("a", 64)},
+		{URI: "ac://files/x", Filename: "../x.png", MimeType: "image/png", Size: 1, SHA256: strings.Repeat("a", 64)},
+		{URI: "ac://files/x", Filename: "x.png", MimeType: "", Size: 1, SHA256: strings.Repeat("a", 64)},
+		{URI: "ac://files/x", Filename: "x.png", MimeType: "image/png", Size: 0, SHA256: strings.Repeat("a", 64)},
+		{URI: "ac://files/x", Filename: "x.png", MimeType: "image/png", Size: 1, SHA256: ""},
+	}
+	for _, files := range bad {
+		if err := validateListedTaskFiles([]taskInputFile{files}); err == nil {
+			t.Fatalf("validateListedTaskFiles(%+v) = nil, want error", files)
+		}
+	}
+}
+
 // TestBuildExecutorEngine_WiresWriteback covers the W2 branch that builds the center
 // writeback when the runtime has an agent-tool caller.
 func TestBuildExecutorEngine_WiresWriteback(t *testing.T) {
@@ -346,8 +489,8 @@ func TestSpawnExecutor_StartTaskDeclinedSkipsFork(t *testing.T) {
 	}
 	rt, _, home := spawn(t, "agent-cap", "task-2", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v, want get_task then start_task", seen)
+	if seen := sc.toolsSeen(); len(seen) != 3 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" {
+		t.Fatalf("tool calls = %v, want get_task then list_files then start_task", seen)
 	}
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Errorf("declined admission must NOT fork, got problems %+v", probs)
@@ -508,7 +651,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 5 || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -738,8 +881,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rule_index block_task]", seen)
+	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

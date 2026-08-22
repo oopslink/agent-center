@@ -70,6 +70,7 @@ func buildFilesService(a *App) *filesservice.Service {
 		DB:         a.DB,
 		Sessions:   filessql.NewFileTransferSessionRepo(a.DB),
 		References: filessql.NewFileReferenceRepo(a.DB),
+		BlobMeta:   filessql.NewBlobMetadataRepo(a.DB),
 		Resolver:   files.NewLocalResolver(""),
 		BlobStore:  store,
 		IDGen:      a.IDGen,

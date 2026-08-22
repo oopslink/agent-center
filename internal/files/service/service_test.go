@@ -35,6 +35,7 @@ func newService(t *testing.T) (*Service, blobstore.BlobStore) {
 	svc := New(Deps{
 		DB:        db,
 		Sessions:  filessqlite.NewFileTransferSessionRepo(db),
+		BlobMeta:  filessqlite.NewBlobMetadataRepo(db),
 		Resolver:  resolver,
 		BlobStore: store,
 		IDGen:     idgen.NewGenerator(clock.SystemClock{}),

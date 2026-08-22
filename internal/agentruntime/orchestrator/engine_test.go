@@ -144,6 +144,35 @@ func TestEngine_HandleWork_ChainsAndForks(t *testing.T) {
 	}
 }
 
+func TestEngine_TaskInputPackageInPromptAndInput(t *testing.T) {
+	fr := &fakeRunner{}
+	eng, fx, _ := newTestEngine(t, 1, modelrouter.Config{DefaultExecutorModel: "claude-default"}, fr)
+
+	got, err := eng.HandleWork(context.Background(), WorkItem{
+		TaskRef: "task-input",
+		Goal:    executor.Goal{Title: "use package"},
+		TaskInput: &executor.TaskInputPackage{
+			Version:     "v1",
+			RelativeDir: "task-input/v1",
+			Manifest:    "task-input/v1/manifest.json",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleWork: %v", err)
+	}
+	defer reap(t, got.Handle)
+	if !strings.Contains(fr.lastPrompt, "task-input/v1") {
+		t.Fatalf("runner prompt missing task-input/v1:\n%s", fr.lastPrompt)
+	}
+	in, err := fx.ReadInput(got.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.TaskInput == nil || in.TaskInput.RelativeDir != "task-input/v1" || in.TaskInput.Manifest != "task-input/v1/manifest.json" {
+		t.Fatalf("input task package = %+v", in.TaskInput)
+	}
+}
+
 func TestEngine_HandleWork_TaskModelHardOverride(t *testing.T) {
 	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{DefaultExecutorModel: "claude-default"}, nil)
 	got, err := eng.HandleWork(context.Background(), WorkItem{

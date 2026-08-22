@@ -63,6 +63,7 @@ type WorkItem struct {
 	// a new executor fork. It is copied into input.json and rendered into the prompt so
 	// the run is auditable by team memory commit.
 	RuleSnapshot *executor.RuleSnapshot
+	TaskInput    *executor.TaskInputPackage
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -271,6 +272,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		},
 		Repo:      item.Repo,
 		TeamRules: item.RuleSnapshot,
+		TaskInput: item.TaskInput,
 		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
 		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
 		DispatchMode:     item.DispatchMode,
@@ -358,6 +360,12 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
 		b.WriteString("\n\n")
 		b.WriteString(rb)
+	}
+	if item.TaskInput != nil && strings.TrimSpace(item.TaskInput.RelativeDir) != "" {
+		b.WriteString("\n\n## Task Input\n")
+		b.WriteString("The immutable task input package is materialized at `")
+		b.WriteString(strings.TrimSpace(item.TaskInput.RelativeDir))
+		b.WriteString("`. Read `manifest.json` there before using any attached files.")
 	}
 	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
 	return b.String()

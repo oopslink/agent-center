@@ -73,6 +73,9 @@ type LocalRuntimeConfig struct {
 	// nil func / nil result ⇒ the fork path leaves tasks queued and the Monitor
 	// degrades to reap-and-free-slot with no center writeback.
 	ToolCaller func() ToolCaller
+	// FileDownloader streams center file bytes for task-input materialization before
+	// executor fork. The executor itself still receives no center credentials.
+	FileDownloader FileDownloader
 
 	WorkerID          string
 	AdminURL          string

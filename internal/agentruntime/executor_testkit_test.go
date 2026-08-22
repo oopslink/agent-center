@@ -86,6 +86,8 @@ type scriptedToolCaller struct {
 	getTaskBody   map[string]any
 	getTaskRaw    []byte
 	getTaskErr    error
+	listFilesBody map[string]any
+	listFilesErr  error
 	teamRulesBody map[string]any
 	teamRulesErr  error
 	startErr      error
@@ -123,6 +125,15 @@ func (s *scriptedToolCaller) CallAgentTool(_ context.Context, tool string, body 
 			*out = append((*out)[:0], rb...)
 		}
 		return nil
+	case "list_files":
+		if s.listFilesErr != nil {
+			return s.listFilesErr
+		}
+		if out != nil && s.listFilesBody != nil {
+			rb, _ := json.Marshal(s.listFilesBody)
+			*out = append((*out)[:0], rb...)
+		}
+		return nil
 	case "get_team_rule_index":
 		if s.teamRulesErr != nil {
 			return s.teamRulesErr
@@ -149,8 +160,8 @@ func (s *scriptedToolCaller) toolsSeen() []string {
 	return out
 }
 
-// assertAdmissionForked locks the admission handshake of a FORKING spawn: get_task then
-// start_task, in that order, as the first two center calls. A get_team_rule_index
+// assertAdmissionForked locks the admission handshake of a FORKING spawn: get_task,
+// task-scope list_files, then start_task, in that order. A get_team_rule_index
 // call may follow immediately before launch; it is the run's auditable rule index.
 //
 // It deliberately does NOT lock the TOTAL call count. A forked executor is the `true`
@@ -163,17 +174,17 @@ func (s *scriptedToolCaller) toolsSeen() []string {
 // Trailing calls are tolerated but NOT unchecked: only get_task is a legitimate reap
 // call, so anything else after the handshake still fails. That keeps what the exact
 // count used to give for free — notably that no block_task ran, which is what separates
-// a successful fork from a fork failure ([get_task start_task block_task]).
+// a successful fork from a fork failure ([get_task list_files start_task block_task]).
 func assertAdmissionForked(t *testing.T, sc *scriptedToolCaller, msg string) {
 	t.Helper()
 	seen := sc.toolsSeen()
-	if len(seen) < 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("%s: tool calls = %v — want [get_task start_task] as the first two calls", msg, seen)
+	if len(seen) < 3 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" {
+		t.Fatalf("%s: tool calls = %v — want [get_task list_files start_task] as the first three calls", msg, seen)
 	}
-	for i, tool := range seen[2:] {
+	for i, tool := range seen[3:] {
 		if tool != "get_task" && tool != "get_team_rule_index" {
 			t.Fatalf("%s: tool calls = %v — call #%d is %q; after the admission handshake only get_team_rule_index (pre-launch snapshot) or get_task (the async reap's should-continue query) may follow",
-				msg, seen, i+2, tool)
+				msg, seen, i+3, tool)
 		}
 	}
 }

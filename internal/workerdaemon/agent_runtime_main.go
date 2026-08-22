@@ -271,6 +271,7 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		Starter:            startSupervisorSessionAdapter,
 		CodexStarter:       startCodexSessionAdapter,
 		ToolCaller:         func() agentruntime.ToolCaller { return client },
+		FileDownloader:     client,
 		WorkerID:           opts.Run.WorkerID,
 		AdminURL:           targetSpec,
 		WorkerToken:        token,

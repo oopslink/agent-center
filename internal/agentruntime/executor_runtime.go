@@ -873,6 +873,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// Everything below the gate is local-disk or center-RPC, i.e. control-path-safe.
 	var execID string
 	var prepared *executor.PreparedWorkspace
+	var workspacePath string
 	if task.Repo != nil && r.cfg.Materializer != nil {
 		target := resolveRepoTarget(task)
 		repoKey := reporepo.RepoKey(target.URL)
@@ -897,6 +898,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
 			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_resolve_failed", Detail: wsErr.Error()}, nil
 		}
+		workspacePath = wsPath
 		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap
 		// any orphaned worktrees under this source (a prior retryable-crash's kept worktree
 		// whose task was re-dispatched fresh-id — never reused, nothing else cleans it).
@@ -933,6 +935,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			// commits since the first clone, not this executor's ("ahead 5" for 1 real commit).
 			BaseRef: wt.BaseRef,
 		}
+		workspacePath = wt.WorkspacePath
 	} else if task.Repo != nil {
 		target := resolveRepoTarget(task)
 		clone, ready := r.takePreparedClone(taskID)
@@ -943,6 +946,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 				r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
 				return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_resolve_failed", Detail: wsErr.Error()}, nil
 			}
+			workspacePath = wsPath
 			r.deferForClone(agentID, deferredSpawnFromRequest(req, taskID), target, reporepo.CloneRequest{
 				ExecutorID:    execID,
 				TaskID:        taskID,
@@ -958,6 +962,28 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			Branch:  clone.Branch,
 			BaseRef: clone.BaseRef,
 		}
+		workspacePath = clone.WorkspacePath
+	}
+
+	if execID == "" {
+		execID = ee.engine.NewExecutorID()
+	}
+	if workspacePath == "" {
+		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
+		if wsErr != nil {
+			r.log("fork_executor agent=%s task=%s resolve workspace for task-input: %v — left queued", agentID, taskID, wsErr)
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "workspace_resolve_failed", Detail: wsErr.Error()}, nil
+		}
+		workspacePath = wsPath
+	}
+	taskInput, taskInputErr := r.materializeTaskInputPackage(ctx, agentID, taskID, workspacePath)
+	if taskInputErr != nil {
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		if alreadyAdmitted {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, taskInputErr)
+		}
+		r.log("fork_executor agent=%s task=%s task-input materialization failed: %v — executor NOT forked", agentID, taskID, taskInputErr)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_materialization_failed", Detail: taskInputErr.Error()}, nil
 	}
 
 	// 3. Admission gate. Open/reopened tasks transition through start_task here. A
@@ -976,10 +1002,8 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
-	if execID == "" {
-		execID = ee.engine.NewExecutorID()
-	}
 	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
+	item.TaskInput = taskInput
 	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {

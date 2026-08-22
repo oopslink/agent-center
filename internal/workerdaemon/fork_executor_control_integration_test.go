@@ -1,11 +1,18 @@
 package workerdaemon
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,5 +132,84 @@ func TestForkExecutorControl_AlreadyRunningTaskLaunchesThroughUnixSocket(t *test
 	}
 	if input.Source.TaskRef != "task-running" {
 		t.Fatalf("executor task_ref = %q, want task-running", input.Source.TaskRef)
+	}
+}
+
+func TestSpawnExecutor_TaskInputOverAdminGetTaskListFilesDownload(t *testing.T) {
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Skipf("true binary unavailable: %v", err)
+	}
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(png)
+	fileID := "01M0HRMZEV7XS8A3MNGG64ZZW1"
+	var tools []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/agent-tools/get_task", func(w http.ResponseWriter, r *http.Request) {
+		tools = append(tools, "get_task")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "task-real-input", "title": "real input", "status": "open",
+			"assignee": "agent:agent-real-input", "model": "test-model",
+		})
+	})
+	mux.HandleFunc("/admin/agent-tools/list_files", func(w http.ResponseWriter, r *http.Request) {
+		tools = append(tools, "list_files")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{{
+			"uri": "ac://files/" + fileID, "filename": "T1457-mockup.png", "mime_type": "image/png",
+			"size": len(png), "sha256": hex.EncodeToString(sum[:]),
+		}}})
+	})
+	mux.HandleFunc("/admin/agent-tools/start_task", func(w http.ResponseWriter, r *http.Request) {
+		tools = append(tools, "start_task")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	mux.HandleFunc("/admin/agent-tools/get_team_rule_index", func(w http.ResponseWriter, r *http.Request) {
+		tools = append(tools, "get_team_rule_index")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	mux.HandleFunc("/admin/files/"+fileID, func(w http.ResponseWriter, r *http.Request) {
+		tools = append(tools, "download")
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(png)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := &AdminClient{baseURL: srv.URL, httpc: srv.Client()}
+
+	base := t.TempDir()
+	agentID := "agent-real-input"
+	rt := agentruntime.NewLocalRuntime(agentruntime.LocalRuntimeConfig{
+		AgentID: agentID, WorkerID: "worker-control", AgentHomeBase: base,
+		BinaryPath: trueBin, Reporter: forkControlReporter{},
+		ToolCaller:     func() agentruntime.ToolCaller { return client },
+		FileDownloader: client,
+		Log:            func(string, ...any) {},
+	}, &agentruntime.SessionState{})
+	home := filepath.Join(base, "agents", agentID)
+	ee, err := rt.BuildExecutorEngine(home, agentruntime.ExecutorConfig{
+		AgentID: agentID, AgentRef: "agent-real-input", MaxConcurrentTasks: 1, DefaultExecutorModel: "test-model",
+		AllowedExecutors: []agent.ExecutorProfile{{CLI: "claude-code", Model: "test-model"}},
+	})
+	if err != nil {
+		t.Fatalf("BuildExecutorEngine: %v", err)
+	}
+	rt.AttachExecutor(ee)
+
+	res, err := rt.SpawnExecutor(context.Background(), agentruntime.SpawnRequest{TaskID: "task-real-input"})
+	if err != nil || res == nil || res.ExecutorID == "" {
+		t.Fatalf("SpawnExecutor = (%+v, %v)", res, err)
+	}
+	if len(tools) < 4 || strings.Join(tools[:4], ",") != "get_task,list_files,download,start_task" {
+		t.Fatalf("tool/download order = %v, want get_task/list_files/download/start_task before launch", tools)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "files", "T1457-mockup.png"))
+	if err != nil {
+		t.Fatalf("read materialized file: %v", err)
+	}
+	if !bytes.Equal(got, png) {
+		t.Fatalf("materialized bytes differ")
 	}
 }

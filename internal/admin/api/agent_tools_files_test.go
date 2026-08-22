@@ -3,6 +3,8 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -43,6 +45,7 @@ func (f *writeToolsFixture) attachAgentFilesSvc(t *testing.T) *filesservice.Serv
 		DB:         f.db,
 		Sessions:   filessql.NewFileTransferSessionRepo(f.db),
 		References: filessql.NewFileReferenceRepo(f.db),
+		BlobMeta:   filessql.NewBlobMetadataRepo(f.db),
 		Resolver:   files.NewLocalResolver(""),
 		BlobStore:  store,
 		IDGen:      idgen.NewGenerator(clock.SystemClock{}),
@@ -124,8 +127,9 @@ func uploadViaAgent(t *testing.T, base, bearer, agentID, scope, scopeID string, 
 	if putStatus != http.StatusOK {
 		t.Fatalf("PUT status = %d, want 200; body = %v", putStatus, putBody)
 	}
+	sum := sha256.Sum256(content)
 	cStatus, cBody := postBearer(t, base, "/admin/files/transfer/"+transferID+"/complete", bearer, map[string]any{
-		"agent_id": agentID, "size": len(content), "scope": scope, "scope_id": scopeID,
+		"agent_id": agentID, "size": len(content), "sha256": hex.EncodeToString(sum[:]), "scope": scope, "scope_id": scopeID,
 	})
 	if cStatus != http.StatusOK {
 		t.Fatalf("complete status = %d, want 200; body = %v", cStatus, cBody)
@@ -164,6 +168,7 @@ func TestAgentFiles_ListFiles_OwnTask(t *testing.T) {
 	f.attachAgentFilesSvc(t)
 	srv := f.filesServer(t)
 	uploadViaAgent(t, srv.URL, "acat_w1", atAgent1, "task", tid, []byte("mockup"))
+	wantSum := sha256.Sum256([]byte("mockup"))
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_files", "acat_w1", map[string]any{
 		"agent_id": atAgent1, "scope": "task", "scope_id": tid,
@@ -176,7 +181,7 @@ func TestAgentFiles_ListFiles_OwnTask(t *testing.T) {
 		t.Fatalf("files=%v want one", body["files"])
 	}
 	row := rows[0].(map[string]any)
-	if row["uri"] == "" || row["mime_type"] != "text/plain" || row["size"] != float64(6) {
+	if row["uri"] == "" || row["mime_type"] != "text/plain" || row["size"] != float64(6) || row["sha256"] != hex.EncodeToString(wantSum[:]) {
 		t.Fatalf("file metadata=%v", row)
 	}
 }

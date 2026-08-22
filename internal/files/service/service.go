@@ -45,6 +45,7 @@ type Deps struct {
 	DB         *sql.DB
 	Sessions   files.FileTransferSessionRepository
 	References files.FileReferenceRepository
+	BlobMeta   files.BlobStore
 	Resolver   files.Resolver
 	BlobStore  blobstore.BlobStore
 	IDGen      idgen.Generator
@@ -56,6 +57,7 @@ type Service struct {
 	db       *sql.DB
 	sessions files.FileTransferSessionRepository
 	refs     files.FileReferenceRepository
+	blobMeta files.BlobStore
 	resolver files.Resolver
 	blobs    blobstore.BlobStore
 	idgen    idgen.Generator
@@ -73,6 +75,7 @@ func New(d Deps) *Service {
 		db:       d.DB,
 		sessions: d.Sessions,
 		refs:     d.References,
+		blobMeta: d.BlobMeta,
 		resolver: d.Resolver,
 		blobs:    d.BlobStore,
 		idgen:    d.IDGen,
@@ -151,7 +154,20 @@ func (s *Service) CompleteUpload(ctx context.Context, transferURI string, sha256
 	if err := sess.Complete(sha256, size, s.clock.Now()); err != nil {
 		return err
 	}
-	return s.sessions.Update(ctx, sess)
+	if err := s.sessions.Update(ctx, sess); err != nil {
+		return err
+	}
+	if s.blobMeta != nil {
+		if err := s.blobMeta.PutMetadata(ctx, files.BlobMetadata{
+			ULID:          sess.FileURI().ULID(),
+			SizeBytes:     size,
+			ContentSHA256: sha256,
+			CreatedAt:     s.clock.Now(),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateDownloadSession creates an open download session for an existing blob.

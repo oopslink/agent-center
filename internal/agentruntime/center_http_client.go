@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -107,4 +108,28 @@ func (c *CenterHTTPClient) CallAgentTool(ctx context.Context, tool string, body 
 		*out = append((*out)[:0], raw...)
 	}
 	return nil
+}
+
+func (c *CenterHTTPClient) DownloadCenterFile(ctx context.Context, agentID, fileURI string) ([]byte, error) {
+	ulid, err := taskInputFileULID(fileURI)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/admin/files/"+url.PathEscape(ulid)+"?agent_id="+url.QueryEscape(agentID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("agentruntime: center client: build file download: %w", err)
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("agentruntime: center client: file download: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("agentruntime: center client: file download status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	return raw, nil
 }

@@ -50,6 +50,7 @@ func newGCFixture(t *testing.T) *gcFixture {
 		DB:         db,
 		Sessions:   filessqlite.NewFileTransferSessionRepo(db),
 		References: refs,
+		BlobMeta:   blobMeta,
 		Resolver:   resolver,
 		BlobStore:  store,
 		IDGen:      idgen.NewGenerator(clk),

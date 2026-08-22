@@ -114,3 +114,13 @@ func (s *Service) ListReferences(ctx context.Context, fileURI files.FileURI) ([]
 func (s *Service) ListReferencesByScope(ctx context.Context, scope files.FileScope, scopeID string) ([]files.FileReference, error) {
 	return s.refs.FindByScope(ctx, scope, scopeID)
 }
+
+// GetBlobMetadata returns the immutable integrity metadata for a blob. It is used by
+// the authoritative list_files projection so consumers can fail closed before relying
+// on downloaded bytes.
+func (s *Service) GetBlobMetadata(ctx context.Context, fileURI files.FileURI) (files.BlobMetadata, error) {
+	if s.blobMeta == nil {
+		return files.BlobMetadata{}, files.ErrBlobNotFound
+	}
+	return s.blobMeta.GetMetadata(ctx, fileURI.ULID())
+}

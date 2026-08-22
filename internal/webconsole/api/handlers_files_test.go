@@ -65,6 +65,7 @@ func attachFilesSvc(t *testing.T, deps *HandlerDeps, db *sql.DB) *filesservice.S
 		DB:         db,
 		Sessions:   filessql.NewFileTransferSessionRepo(db),
 		References: filessql.NewFileReferenceRepo(db),
+		BlobMeta:   filessql.NewBlobMetadataRepo(db),
 		Resolver:   files.NewLocalResolver(""),
 		BlobStore:  store,
 		IDGen:      idgen.NewGenerator(clock.SystemClock{}),

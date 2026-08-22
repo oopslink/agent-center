@@ -675,11 +675,18 @@ func (s *Server) listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = ref.Filename
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"uri": ref.FileURI, "filename": name, "mime_type": ref.MimeType,
 			"size": ref.SizeBytes, "created_by": ref.CreatedBy,
 			"created_at": ref.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		})
+		}
+		meta, err := d.FilesSvc.GetBlobMetadata(r.Context(), ref.FileURI)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "blob_metadata_unavailable", err.Error())
+			return
+		}
+		row["sha256"] = meta.ContentSHA256
+		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"scope": req.Scope, "scope_id": req.ScopeID, "files": out,

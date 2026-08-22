@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -291,6 +292,35 @@ func (c *AdminClient) CallAgentTool(ctx context.Context, tool string, body any, 
 		*out = append((*out)[:0], raw...)
 	}
 	return nil
+}
+
+func (c *AdminClient) DownloadCenterFile(ctx context.Context, agentID, fileURI string) ([]byte, error) {
+	ulid := strings.TrimSpace(fileURI)
+	ulid = strings.TrimPrefix(ulid, "ac://files/")
+	if ulid == "" || strings.ContainsAny(ulid, `/\`) || strings.Contains(ulid, "..") {
+		return nil, fmt.Errorf("adminclient: invalid file uri %q", fileURI)
+	}
+	base := c.baseURL
+	if base == "" {
+		base = "http://unix"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/admin/files/"+url.PathEscape(ulid)+"?agent_id="+url.QueryEscape(agentID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("adminclient: build file download: %w", err)
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("adminclient: file download: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("adminclient: file download status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	return raw, nil
 }
 
 // doRaw is the sibling of doJSON that surfaces the raw response body +
