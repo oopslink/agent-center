@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
 )
 
@@ -50,7 +52,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		"subject_refs":["user:` + sess.IdentityID + `","agent:missing"],
 		"permission_keys":["org.member.role.manage","file.download"],
 		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
-		"expires_at":"2026-08-20T12:30:00Z",
+		"expires_at":"2027-08-20T12:30:00Z",
 		"reason":"temporary release support"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/preview", body, sess)
@@ -289,7 +291,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
 		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
-		"expires_at":"2026-08-21T12:30:00Z",
+		"expires_at":"2027-08-21T12:30:00Z",
 		"reason":"temporary direct binding"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
@@ -359,6 +361,85 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	if !directGrant {
 		t.Fatalf("overview grants missing direct binding grant id=%s grants=%+v", applied.Items[0].GrantID, overview.Grants)
+	}
+}
+
+func TestAccessBatchApplyDuplicateDirectOrgReadReturnsConflict(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	body := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.read"],
+		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
+		"reason":"temporary direct org read"
+	}`
+	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("first direct org.read status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var first struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"summary"`
+		Items []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&first); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if first.Summary.Succeeded != 1 || first.Summary.Failed != 0 || len(first.Items) != 1 || first.Items[0].Status != "allowed" || first.Items[0].GrantID == "" {
+		t.Fatalf("first direct org.read result=%+v", first)
+	}
+
+	duplicateBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.read"],
+		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
+		"reason":"fresh duplicate direct org read"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", duplicateBody, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("duplicate direct org.read status=%d want 409 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	duplicate := decodeBody(t, resp)
+	if duplicate["error"] != "duplicate_direct_grant" {
+		t.Fatalf("duplicate error=%v body=%v", duplicate["error"], duplicate)
+	}
+	message, _ := duplicate["message"].(string)
+	if !strings.Contains(message, "direct grant already exists") || !strings.Contains(message, "org.read") {
+		t.Fatalf("duplicate message=%q body=%v", message, duplicate)
+	}
+}
+
+func TestAccessBatchPreviewAndApplyRequireManagePermission(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	owner := setupTestSession(t, db, deps)
+	member := addOrgMemberSession(t, db, owner, identity.RoleMember, "access-batch-member")
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	body := `{
+		"subject_refs":["user:` + member.IdentityID + `"],
+		"permission_keys":["org.read"],
+		"resources":[{"kind":"org","id":"` + owner.OrgID + `","org_id":"` + owner.OrgID + `","label":"Test Org"}],
+		"reason":"member cannot manage access"
+	}`
+	for _, endpoint := range []string{"/api/access/batch/preview", "/api/access/batch/apply"} {
+		resp := orgScopedPost(t, server.URL+endpoint, body, member)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s status=%d want 403 body=%v", endpoint, resp.StatusCode, decodeBody(t, resp))
+		}
+		got := decodeBody(t, resp)
+		if got["error"] != "permission_denied" {
+			t.Fatalf("%s error=%v body=%v", endpoint, got["error"], got)
+		}
 	}
 }
 

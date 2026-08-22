@@ -268,8 +268,8 @@ export default function Access(): React.ReactElement {
       )}
 
       {!overview.isLoading && !overview.isError && data && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-4">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
+          <div className="min-w-0 space-y-4">
             {view === 'roles' ? (
               <>
                 <RAMRolesView
@@ -296,7 +296,7 @@ export default function Access(): React.ReactElement {
             )}
             <PermissionCatalog catalog={data.catalog} />
           </div>
-          <aside className="space-y-4">
+          <aside className="min-w-0 space-y-4">
             {view === 'subjects' && (
               <SubjectAccessSidebar
                 decisions={data.decisions}
@@ -521,8 +521,8 @@ function RAMRolesView({
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
-      <section className="rounded border border-border-base bg-bg-elevated">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]" data-testid="access-roles-view">
+      <section className="min-w-0 rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
           <div className="flex items-center gap-2">
@@ -587,7 +587,7 @@ function RAMRolesView({
         </div>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="min-w-0 space-y-4">
         <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-create">
           <h2 className="text-sm font-semibold text-text-primary">Create role</h2>
           <RoleTextField label="Name" value={draftName} onChange={setDraftName} testId="access-role-name" />
@@ -627,7 +627,7 @@ function RAMRolesView({
             <>
               <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
                 <div className="font-semibold text-text-primary">{detail.data.name}</div>
-                <div className="text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
+                <div className="break-all text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
                   {mappedReferences.length > 0
@@ -660,7 +660,7 @@ function RAMRolesView({
                       <span className="font-mono text-xs font-semibold">v{version.version}</span>
                       <AccessRiskBadge risk={version.risk} />
                     </div>
-                    <div className="mt-1 font-mono text-[0.6875rem] text-text-secondary">{version.permissions.join(', ')}</div>
+                    <div className="mt-1 break-all font-mono text-[0.6875rem] text-text-secondary">{version.permissions.join(', ')}</div>
                   </div>
                 ))}
               </div>
@@ -780,7 +780,7 @@ function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessP
           onClick={() => onToggle(permission.key)}
         >
           <span className="font-mono">{permission.key}</span>
-          <AccessRiskBadge risk={permission.risk} />
+          <span className="shrink-0"><AccessRiskBadge risk={permission.risk} /></span>
         </button>
       ))}
     </div>
@@ -952,11 +952,11 @@ function SubjectDecisionView({
       {groups.map(([subjectRef, rows]) => {
         const subject = subjectByRef.get(subjectRef);
         return (
-          <section key={subjectRef} className="rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
+          <section key={subjectRef} className="min-w-0 rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-text-primary">{subject?.name ?? subjectRef}</h2>
-                <p className="text-xs text-text-muted">{subjectRef}</p>
+                <p className="break-all font-mono text-xs text-text-muted">{subjectRef}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {subject?.role && <AccessMetaPill>{subject.role}</AccessMetaPill>}
@@ -976,14 +976,14 @@ function SubjectDecisionView({
                       const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
                       const sourced = rows.filter((row) => row.source === 'team_role_ram' && row.evidence_ref.includes(`${team.id}/${teamRole}/`));
                       return (
-                        <p key={`${team.id}:${teamRole}`} className="mb-1">
+                        <p key={`${team.id}:${teamRole}`} className="mb-1 break-words">
                           <span className="font-mono">membership:{team.name}</span> -&gt; Team Role <strong>{teamRole}</strong> -&gt; RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} -&gt; {sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions
                         </p>
                       );
                     });
                   }))}
                 {rows.filter((row) => row.source === 'custom_role').map((row) => (
-                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1">
+                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1 break-words">
                     <span className="font-mono">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
                     {row.expires_at ? ` - expires ${displayAccessDate(row.expires_at)}` : ''}
                   </p>
@@ -1012,7 +1012,7 @@ function DecisionTable({
 }): React.ReactElement {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[54rem] text-left text-sm" data-testid="access-decision-table">
+      <table className="w-full min-w-[46rem] text-left text-sm" data-testid="access-decision-table">
         <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
           <tr>
             <th className="px-4 py-2 font-semibold">Subject</th>
@@ -1033,10 +1033,10 @@ function DecisionTable({
               <tr key={rowKey} className="border-b border-border-base last:border-0">
                 <td className="px-4 py-3">
                   <div className="font-medium text-text-primary">{subject?.name ?? decision.subject_ref}</div>
-                  <div className="font-mono text-xs text-text-muted">{decision.subject_ref}</div>
+                  <div className="max-w-[12rem] break-all font-mono text-xs text-text-muted">{decision.subject_ref}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-mono text-xs font-semibold text-text-primary">{decision.permission}</div>
+                  <div className="break-all font-mono text-xs font-semibold text-text-primary">{decision.permission}</div>
                   {permission?.label && <div className="text-xs text-text-muted">{permission.label}</div>}
                 </td>
                 <td className="px-4 py-3">
@@ -1045,11 +1045,11 @@ function DecisionTable({
                 </td>
                 <td className="px-4 py-3">
                   <AccessStatusBadge status={decision.status ?? (decision.allowed ? 'allowed' : 'denied')} />
-                  <div className="mt-1 max-w-xs text-xs text-text-muted">{decision.reason}</div>
+                  <div className="mt-1 max-w-[14rem] break-words text-xs text-text-muted">{decision.reason}</div>
                 </td>
                 <td className="px-4 py-3"><AccessRiskBadge risk={decision.risk ?? permission?.risk ?? 'low'} /></td>
                 <td className="px-4 py-3 font-mono text-xs text-text-secondary">{decision.source}</td>
-                {!compact && <td className="px-4 py-3 font-mono text-xs text-text-muted">{decision.evidence_ref}</td>}
+                {!compact && <td className="max-w-[14rem] break-all px-4 py-3 font-mono text-xs text-text-muted">{decision.evidence_ref}</td>}
               </tr>
             );
           })}
@@ -1114,10 +1114,10 @@ function SubjectAccessSidebar({
   const effectiveRows = rows.filter((row) => row.allowed);
   const direct = grants.filter((grant) => grant.subject_ref === subjectRef && grant.source === 'custom_role');
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-subject-sidebar">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-subject-sidebar">
       <div className="border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Permission trace</h2>
-        <p className="mt-1 font-mono text-xs text-text-muted">{subject?.name ?? subjectRef}</p>
+        <p className="mt-1 break-all font-mono text-xs text-text-muted">{subject?.name ?? subjectRef}</p>
       </div>
       <div className="space-y-4 p-4">
         <div data-testid="access-permission-trace">
@@ -1127,19 +1127,19 @@ function SubjectAccessSidebar({
           ) : (
             <div className="mt-2 space-y-2">
               {effectiveRows.slice(0, 8).map((row) => (
-                <div key={`${row.permission}:${row.source}:${row.evidence_ref}`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
-                    <AccessRiskBadge risk={row.risk ?? permissionByKey.get(row.permission)?.risk ?? 'low'} />
+                <div key={`${row.permission}:${row.source}:${row.evidence_ref}`} className="min-w-0 rounded border border-border-base bg-bg-base p-2 text-xs">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 break-all font-mono font-semibold text-text-primary">{row.permission}</span>
+                    <span className="shrink-0"><AccessRiskBadge risk={row.risk ?? permissionByKey.get(row.permission)?.risk ?? 'low'} /></span>
                   </div>
-                  <p className="mt-1 text-text-secondary">
+                  <p className="mt-1 break-words text-text-secondary">
                     {row.source === 'team_role_ram'
                       ? `Team membership -> Team Role -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
                       : row.source === 'custom_role'
                         ? `direct binding -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
                         : `${row.source} -> effective permission`}
                   </p>
-                  <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">{row.evidence_ref}</p>
+                  <p className="mt-1 break-all font-mono text-[0.6875rem] text-text-muted">{row.evidence_ref}</p>
                 </div>
               ))}
             </div>
@@ -1152,10 +1152,10 @@ function SubjectAccessSidebar({
           ) : (
             <div className="mt-2 space-y-2">
               {direct.map((grant) => (
-                <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
-                  <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
-                  <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
-                  <div className="mt-1 font-mono text-text-muted">{grant.role_id || grant.id}</div>
+                <div key={grant.id} className="min-w-0 rounded border border-border-base bg-bg-base p-2 text-xs">
+                  <div className="break-all font-mono font-semibold text-text-primary">{grant.permission}</div>
+                  <div className="mt-1 break-words text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
+                  <div className="mt-1 break-all font-mono text-text-muted">{grant.role_id || grant.id}</div>
                 </div>
               ))}
             </div>
@@ -1176,10 +1176,10 @@ function AuditHistory({ events, loading, error }: { events: PermissionAuditEvent
       {!loading && !error && events.length === 0 && <p className="mt-2 text-sm text-text-muted">No audit events.</p>}
       <div className="mt-2 space-y-2">
         {events.slice(0, 6).map((event) => (
-          <div key={event.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
-            <div className="font-mono font-semibold text-text-primary">{event.event_type}</div>
-            <div className="mt-1 text-text-secondary">{event.actor_ref} · {displayAccessDate(event.created_at)}</div>
-            <div className="mt-1 font-mono text-text-muted">{event.assignment_id || event.role_id || event.request_id || event.id}</div>
+          <div key={event.id} className="min-w-0 rounded border border-border-base bg-bg-base p-2 text-xs">
+            <div className="break-all font-mono font-semibold text-text-primary">{event.event_type}</div>
+            <div className="mt-1 break-all text-text-secondary">{event.actor_ref} · {displayAccessDate(event.created_at)}</div>
+            <div className="mt-1 break-all font-mono text-text-muted">{event.assignment_id || event.role_id || event.request_id || event.id}</div>
           </div>
         ))}
       </div>
@@ -1212,7 +1212,7 @@ function RoleManagement({
     updateRole.mutate({ role_id: role.id, permissions: permissionsFor(role), reason });
   };
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-role-management">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-role-management">
       <div className="border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Role management</h2>
       </div>
@@ -1251,7 +1251,7 @@ function RoleManagement({
                     ].join(' ')}
                   >
                     <span className={checked ? 'h-2 w-2 rounded-full bg-success' : 'h-2 w-2 rounded-full border border-border-strong'} aria-hidden="true" />
-                    <span className="font-mono">{permission.key}</span>
+                    <span className="min-w-0 break-all font-mono">{permission.key}</span>
                   </button>
                 );
               })}
@@ -1289,7 +1289,7 @@ function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant
   };
   const selectedIds = [...selected];
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-grants">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-grants">
       <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Active grants</h2>
         <button
@@ -1347,8 +1347,8 @@ function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant
                     />
                   </td>
                   <td className="min-w-0 px-2 py-3">
-                    <span className="block font-mono text-xs font-semibold text-text-primary">{grant.permission}</span>
-                    <span className="block truncate text-xs text-text-secondary">
+                    <span className="block break-all font-mono text-xs font-semibold text-text-primary">{grant.permission}</span>
+                    <span className="block break-words text-xs text-text-secondary">
                       {grant.subject_name}
                       {' -> '}
                       {accessResourceLabel(grant.resource)}
@@ -1746,7 +1746,7 @@ function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.Rea
 function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactElement {
   return (
     <div className="overflow-x-auto rounded border border-border-base">
-      <table className="w-full min-w-[42rem] text-left text-sm" data-testid="access-batch-items">
+      <table className="w-full min-w-[38rem] text-left text-sm" data-testid="access-batch-items">
         <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
           <tr>
             <th className="px-3 py-2 font-semibold">Subject</th>
@@ -1759,11 +1759,11 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
         <tbody>
           {items.map((item) => (
             <tr key={item.id} className="border-b border-border-base last:border-0">
-              <td className="px-3 py-2">{item.subject_name}</td>
-              <td className="px-3 py-2 font-mono text-xs">{item.permission}</td>
-              <td className="px-3 py-2">{accessResourceLabel(item.resource)}</td>
+              <td className="max-w-[11rem] break-all px-3 py-2">{item.subject_name}</td>
+              <td className="break-all px-3 py-2 font-mono text-xs">{item.permission}</td>
+              <td className="max-w-[10rem] break-words px-3 py-2">{accessResourceLabel(item.resource)}</td>
               <td className="px-3 py-2"><AccessStatusBadge status={item.status} /></td>
-              <td className="px-3 py-2 text-xs text-text-secondary">{item.reason}</td>
+              <td className="max-w-[14rem] break-words px-3 py-2 text-xs text-text-secondary">{item.reason}</td>
             </tr>
           ))}
         </tbody>

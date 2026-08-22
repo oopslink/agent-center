@@ -1027,6 +1027,10 @@ func (s *Server) accessBatchPreviewHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
 		return
 	}
+	d.Authorizer = svc
+	if !requireWebSubjectAuthorization(w, r, d, authz.UserSubject(caller.ID()), authz.PermissionKey("org.member.role.manage"), authz.ResourceScope{Kind: "org", ID: orgID}) {
+		return
+	}
 	var body accessBatchRequestDTO
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -1044,6 +1048,10 @@ func (s *Server) accessBatchApplyHandler(w http.ResponseWriter, r *http.Request)
 	svc := permissionAuthorizer(d)
 	if svc == nil {
 		writeError(w, http.StatusNotImplemented, "authorization_not_wired", "authorization service not wired")
+		return
+	}
+	d.Authorizer = svc
+	if !requireWebSubjectAuthorization(w, r, d, authz.UserSubject(caller.ID()), authz.PermissionKey("org.member.role.manage"), authz.ResourceScope{Kind: "org", ID: orgID}) {
 		return
 	}
 	var body accessBatchRequestDTO
@@ -1808,6 +1816,10 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	if conflict := accessFirstBatchConflict(items); conflict != nil {
+		writeError(w, http.StatusConflict, "duplicate_direct_grant", conflict.Reason)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation_id": fmt.Sprintf("access-apply-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
 		"applied_at":   time.Now().UTC().Format(time.RFC3339),
@@ -1864,6 +1876,10 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		item.Reason = fmt.Sprintf("%s does not apply to %s", permission, resource.Kind)
 		item.EvidenceRef = "permission_registry:" + permission
 		return item
+	case applied && accessHasActiveDirectGrant(state, subjectRef, permission, resource):
+		item.Status = "conflict"
+		item.Reason = fmt.Sprintf("direct grant already exists for %s on %s", item.Permission, resourceKey(item.Resource))
+		return item
 	}
 	req := accessBatchAuthorizationRequest(orgID, actor, body, item, expiresAt)
 	var (
@@ -1881,6 +1897,13 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		return item
 	}
 	for _, op := range res.Operations {
+		if applied && op.Type == "assign_role" && op.Status == "unchanged" {
+			item.Status = "conflict"
+			item.GrantID = op.AssignmentID
+			item.Reason = fmt.Sprintf("direct grant already exists for %s on %s", item.Permission, resourceKey(item.Resource))
+			item.EvidenceRef = "authorization_role_assignments:" + op.AssignmentID
+			return item
+		}
 		if op.Reason != "" || op.Status == "denied" {
 			item.Status = accessBatchStatusForReason(op.Reason)
 			item.Reason = fallback(op.Reason, op.Status)
@@ -1899,6 +1922,29 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		item.EvidenceRef = "authorization_preview:" + item.ID
 	}
 	return item
+}
+
+func accessFirstBatchConflict(items []accessBatchItemDTO) *accessBatchItemDTO {
+	for i := range items {
+		if items[i].Status == "conflict" {
+			return &items[i]
+		}
+	}
+	return nil
+}
+
+func accessHasActiveDirectGrant(state accessDerivedState, subjectRef, permission string, resource accessResourceScopeDTO) bool {
+	key := resourceKey(resource)
+	for _, decision := range state.decisions {
+		if decision.Allowed &&
+			decision.SubjectRef == subjectRef &&
+			decision.Permission == permission &&
+			decision.Source == string(authz.SourceCustomRole) &&
+			resourceKey(decision.Resource) == key {
+			return true
+		}
+	}
+	return false
 }
 
 func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
