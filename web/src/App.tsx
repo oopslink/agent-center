@@ -124,6 +124,9 @@ export function App(): React.ReactElement {
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
           <Route path="access" element={<Access />} />
+          <Route path="access/ram-roles" element={<Access />} />
+          <Route path="access/team-role-mappings" element={<Access />} />
+          <Route path="access/subject-access" element={<Access />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />

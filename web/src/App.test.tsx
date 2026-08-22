@@ -143,9 +143,9 @@ describe('App shell + route tree', () => {
         ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
       [`${ORG_BASE}/access`, [
-        ['RAM Roles', `${ORG_BASE}/access?view=ram-roles`],
-        ['Team Role mappings', `${ORG_BASE}/access?view=team-role-mappings`],
-        ['Subject access', `${ORG_BASE}/access?view=subject-access`],
+        ['RAM Roles', `${ORG_BASE}/access/ram-roles`],
+        ['Team Role mappings', `${ORG_BASE}/access/team-role-mappings`],
+        ['Subject access', `${ORG_BASE}/access/subject-access`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],

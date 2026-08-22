@@ -26,33 +26,34 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('defaults to Roles & mappings and exposes only the two Access tabs', async () => {
+  it('defaults to the standalone RAM Roles page and exposes Access pages separately', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     expect(await screen.findByText('Permission catalog')).toBeInTheDocument();
     expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
-    expect(screen.getByTestId('access-team-role-mappings-view')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('access-team-role-mappings-view')).not.toBeInTheDocument();
+    expect(screen.getByTestId('access-role-stats')).toHaveTextContent('Referenced');
+    expect(screen.getByTestId('access-role-pagination')).toHaveTextContent('Page 1');
+    expect(screen.getByRole('tab', { name: 'RAM Roles' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Team Role mappings' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Subject access' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'RAM Roles' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Team Role mappings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Profiles/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
   });
 
-  it('opens Team Role mappings from secondary navigation inside Roles & mappings, then exposes expandable subject access', async () => {
-    renderPage('/organizations/test/access?view=team-role-mappings');
+  it('opens Team Role mappings as its own page, then exposes expandable subject access', async () => {
+    renderPage('/organizations/test/access/team-role-mappings');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Team Role mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('access-roles-view')).not.toBeInTheDocument();
     expect(await screen.findByTestId('access-team-role-mappings-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Team Role mappings' })).toBeInTheDocument();
     expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
 
     fireEvent.click(screen.getByTestId('access-view-subjects'));
     expect(await screen.findByTestId('access-subject-view')).toBeInTheDocument();
-    expect(window.location.search).toBe('?view=subject-access');
+    expect(window.location.pathname).toBe('/organizations/test/access/subject-access');
     expect(screen.getByTestId('access-subject-view')).toBeInTheDocument();
     expect(screen.getAllByText('High risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No access').length).toBeGreaterThan(0);
@@ -79,7 +80,7 @@ describe('Access page', () => {
   });
 
   it('shows Team RAM and direct binding source chains, then opens the direct binding flow', async () => {
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     const builder = await screen.findByTestId('access-subject-effective-agent:builder');
     fireEvent.click(within(builder).getByText(/^3 effective permissions/));
 
@@ -111,8 +112,7 @@ describe('Access page', () => {
         return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 8 });
       }),
     );
-    renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-roles'));
+    renderPage('/organizations/test/access/team-role-mappings');
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     expect(within(row).queryByRole('checkbox')).toBeNull();
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
@@ -146,8 +146,7 @@ describe('Access page', () => {
         version: 7,
       })),
     );
-    renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-roles'));
+    renderPage('/organizations/test/access/team-role-mappings');
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
     const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
@@ -243,7 +242,7 @@ describe('Access page', () => {
         });
       }),
     );
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
@@ -496,7 +495,7 @@ describe('Access page', () => {
       risk: 'low',
       created_at: '2026-08-14T08:02:00Z',
     };
-    let revokeBody: { expected_latest_version?: number; reason?: string } | null = null;
+    let deleteBody: { expected_latest_version?: number; reason?: string; confirm_unreferenced?: boolean } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
       http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => HttpResponse.json({
@@ -513,8 +512,8 @@ describe('Access page', () => {
         ram_role_ids: ['team-basic'],
         version: 7,
       })),
-      http.post('/api/orgs/:slug/access/ram-roles/role-unused/revoke', async ({ request }) => {
-        revokeBody = await request.json() as typeof revokeBody;
+      http.delete('/api/orgs/:slug/access/ram-roles/role-unused', async ({ request }) => {
+        deleteBody = await request.json() as typeof deleteBody;
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -529,10 +528,14 @@ describe('Access page', () => {
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused reviewer' } });
     fireEvent.click(within(detail).getByTestId('access-role-disable-submit'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(confirm).toHaveTextContent('second confirmation');
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
 
-    await waitFor(() => expect(revokeBody).toEqual({
+    await waitFor(() => expect(deleteBody).toEqual({
       expected_latest_version: 2,
-      reason: 'RAM role deleted after reference-impact review',
+      confirm_unreferenced: true,
+      reason: 'RAM role deleted after unreferenced confirmation',
     }));
     expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
   });

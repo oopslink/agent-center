@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
@@ -25,7 +25,6 @@ import {
   useRAMRole,
   useRAMRoleCreate,
   useRAMRoleDelete,
-  useRAMRoleRevoke,
   useRAMRoleUpdate,
   useRAMRoles,
   useAccessRevokePreview,
@@ -66,7 +65,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-type AccessView = 'roles' | 'subjects';
+type AccessView = 'ram-roles' | 'team-role-mappings' | 'subjects';
 type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
@@ -116,8 +115,10 @@ export default function Access(): React.ReactElement {
     orgResource,
     currentPermissions.isSuccess && !canManageAccess,
   );
-  const [searchParams, setSearchParams] = useSearchParams();
-  const view = parseAccessView(searchParams.get('view'));
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchParams = new URLSearchParams(location.search);
+  const view = parseAccessView(location.pathname, searchParams.get('view'));
   const [query, setQuery] = useState('');
   const [subjectKind, setSubjectKind] = useState<AccessSubjectKind | 'all'>('all');
   const [resourceKind, setResourceKind] = useState<AccessResourceKind | 'all'>('all');
@@ -128,11 +129,9 @@ export default function Access(): React.ReactElement {
   const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
   const [toast, setToast] = useState<AccessToast>(null);
   const setView = (next: AccessView): void => {
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.set('view', next === 'subjects' ? 'subject-access' : 'roles-and-mappings');
-      return params;
-    }, { replace: true });
+    const suffix = next === 'subjects' ? 'subject-access' : next;
+    const accessBase = location.pathname.replace(/\/access(?:\/.*)?$/, '/access');
+    navigate(`${accessBase}/${suffix}`);
   };
 
   const overview = useAccessOverview({
@@ -223,12 +222,22 @@ export default function Access(): React.ReactElement {
           <button
             type="button"
             role="tab"
-            aria-selected={view === 'roles'}
-            className={segmentedClass(view === 'roles')}
-            onClick={() => setView('roles')}
+            aria-selected={view === 'ram-roles'}
+            className={segmentedClass(view === 'ram-roles')}
+            onClick={() => setView('ram-roles')}
             data-testid="access-view-roles"
           >
-            Roles & mappings
+            RAM Roles
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'team-role-mappings'}
+            className={segmentedClass(view === 'team-role-mappings')}
+            onClick={() => setView('team-role-mappings')}
+            data-testid="access-view-team-role-mappings"
+          >
+            Team Role mappings
           </button>
           <button
             type="button"
@@ -270,21 +279,22 @@ export default function Access(): React.ReactElement {
       {!overview.isLoading && !overview.isError && data && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
-            {view === 'roles' ? (
-              <>
+            {view === 'ram-roles' && (
                 <RAMRolesView
                   catalog={data.catalog}
                   mappingEntries={mappingEntries}
                   canManageAccess={canManageAccess}
                 />
+            )}
+            {view === 'team-role-mappings' && (
                 <TeamRoleMappingsView
                   roles={ramRoles.data?.roles ?? []}
                   teams={teams.data ?? []}
                   mappingEntries={mappingEntries}
                   canManageAccess={canManageAccess}
                 />
-              </>
-            ) : (
+            )}
+            {view === 'subjects' && (
               <SubjectDecisionView
                 decisions={data.decisions}
                 subjectByRef={subjectByRef}
@@ -358,9 +368,10 @@ function accessToastFromError(error: unknown, fallbackMessage: string): AccessTo
   return { tone: 'danger', message };
 }
 
-function parseAccessView(value: string | null): AccessView {
-  if (value === 'subject-access') return 'subjects';
-  return 'roles';
+function parseAccessView(pathname: string, value: string | null): AccessView {
+  if (pathname.endsWith('/subject-access') || value === 'subject-access') return 'subjects';
+  if (pathname.endsWith('/team-role-mappings') || value === 'team-role-mappings') return 'team-role-mappings';
+  return 'ram-roles';
 }
 
 function AccessForbidden({ reason, status }: { reason: string; status: number }): React.ReactElement {
@@ -440,10 +451,13 @@ function RAMRolesView({
   const create = useRAMRoleCreate();
   const update = useRAMRoleUpdate();
   const deleteRole = useRAMRoleDelete();
-  const revokeRole = useRAMRoleRevoke();
   const replaceMapping = useReplaceTeamRoleRAMMapping();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
+  const [roleKind, setRoleKind] = useState<'all' | 'system' | 'custom'>('all');
+  const [roleRisk, setRoleRisk] = useState<AccessRisk | 'all'>('all');
+  const [roleScope, setRoleScope] = useState('all');
+  const [page, setPage] = useState(1);
   const [draftName, setDraftName] = useState('');
   const [draftStableKey, setDraftStableKey] = useState('');
   const [draftDescription, setDraftDescription] = useState('');
@@ -459,6 +473,7 @@ function RAMRolesView({
   const [showReferences, setShowReferences] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState('');
   const [status, setStatus] = useState<string | null>(null);
+  const [toast, setToast] = useState<AccessToast>(null);
   const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
   const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
@@ -468,9 +483,25 @@ function RAMRolesView({
   const filteredRoles = useMemo(() => {
     const q = roleSearch.trim().toLowerCase();
     const all = roles.data?.roles ?? [];
-    if (!q) return all;
-    return all.filter((role) => [role.name, role.stable_key, role.id, role.description, role.scope].some((v) => (v ?? '').toLowerCase().includes(q)));
-  }, [roleSearch, roles.data?.roles]);
+    return all.filter((role) => {
+      const matchesQuery = !q || [role.name, role.stable_key, role.id, role.description, role.scope].some((v) => (v ?? '').toLowerCase().includes(q));
+      const matchesKind = roleKind === 'all' || role.kind === roleKind;
+      const matchesRisk = roleRisk === 'all' || role.risk === roleRisk;
+      const matchesScope = roleScope === 'all' || (role.scope || 'mixed') === roleScope;
+      return matchesQuery && matchesKind && matchesRisk && matchesScope;
+    });
+  }, [roleKind, roleRisk, roleScope, roleSearch, roles.data?.roles]);
+  const roleStats = useMemo(() => summarizeRAMRoles(roles.data?.roles ?? [], mappedByRAMRole), [mappedByRAMRole, roles.data?.roles]);
+  const scopeOptions = useMemo(() => ['all', ...Array.from(new Set((roles.data?.roles ?? []).map((role) => role.scope || 'mixed'))).sort()], [roles.data?.roles]);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
+  const visibleRoles = filteredRoles.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => {
+    setPage(1);
+  }, [roleKind, roleRisk, roleScope, roleSearch]);
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const toggleDraftPermission = (permission: string): void => {
     setDraftPermissions((prev) => toggleValue(prev, permission).sort());
@@ -518,10 +549,12 @@ function RAMRolesView({
       });
     }
     setStatus(`Migrated ${pending.length} Team Role references.`);
+    setToast({ tone: 'success', message: `Migrated ${pending.length} Team Role references.` });
   };
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
+      {toast && <AccessToastNotice toast={toast} onDismiss={() => setToast(null)} />}
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
@@ -531,8 +564,16 @@ function RAMRolesView({
           </div>
         </div>
         {status && <div className="border-b border-success/30 bg-success/10 px-4 py-2 text-sm text-success" role="status" data-testid="access-role-success">{status}</div>}
+        <div className="grid gap-2 border-b border-border-base p-3 sm:grid-cols-2 xl:grid-cols-5" data-testid="access-role-stats">
+          <SummaryTile label="Total" value={roleStats.total} tone="muted" />
+          <SummaryTile label="Custom" value={roleStats.custom} tone="muted" />
+          <SummaryTile label="System" value={roleStats.system} tone="muted" />
+          <SummaryTile label="Referenced" value={roleStats.referenced} tone="warning" />
+          <SummaryTile label="High risk" value={roleStats.highRisk} tone="danger" />
+        </div>
         <div className="border-b border-border-base px-4 py-3">
-          <label className="relative block">
+          <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[14rem] flex-1">
             <span className="sr-only">Search RAM Roles</span>
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
               <IconSearch />
@@ -545,6 +586,10 @@ function RAMRolesView({
               data-testid="access-role-search"
             />
           </label>
+          <Select label="Kind" value={roleKind} onChange={(value) => setRoleKind(value as typeof roleKind)} options={['all', 'system', 'custom']} />
+          <Select label="Risk" value={roleRisk} onChange={(value) => setRoleRisk(value as AccessRisk | 'all')} options={RISK_OPTIONS} />
+          <Select label="Scope" value={roleScope} onChange={setRoleScope} options={scopeOptions} />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
@@ -558,7 +603,7 @@ function RAMRolesView({
               </tr>
             </thead>
             <tbody>
-              {filteredRoles.map((role) => (
+              {visibleRoles.map((role) => (
                 <tr
                   key={role.id}
                   className={['cursor-pointer border-b border-border-base last:border-0', selected === role.id ? 'bg-brand/5' : 'hover:bg-bg-subtle'].join(' ')}
@@ -585,6 +630,14 @@ function RAMRolesView({
             </tbody>
           </table>
         </div>
+        <div className="flex items-center justify-between gap-3 border-t border-border-base px-4 py-3 text-xs text-text-muted" data-testid="access-role-pagination">
+          <span>{filteredRoles.length === 0 ? '0 roles' : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, filteredRoles.length)} of ${filteredRoles.length} roles`}</span>
+          <div className="flex gap-2">
+            <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+            <span className="px-2 py-1">Page {page} / {pageCount}</span>
+            <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>Next</button>
+          </div>
+        </div>
       </section>
 
       <aside className="space-y-4">
@@ -595,6 +648,7 @@ function RAMRolesView({
           <RoleTextField label="Description" value={draftDescription} onChange={setDraftDescription} testId="access-role-description" />
           <RoleTextField label="Scope" value={draftScope} onChange={setDraftScope} testId="access-role-scope" />
           <PermissionChecklist catalog={catalog} selected={createPermissions} onToggle={toggleCreatePermission} />
+          <PermissionSummary catalog={catalog} permissions={createPermissions} testId="access-role-create-permission-summary" />
           <button
             type="button"
             className="mt-3 rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg disabled:opacity-50"
@@ -612,6 +666,7 @@ function RAMRolesView({
                 setCreatedRoleId(created.id);
                 setCreatePermissions([]);
                 resetDraft(created.latest);
+                setToast({ tone: 'success', message: `Created RAM Role ${created.name}.` });
               },
             })}
           >
@@ -628,6 +683,7 @@ function RAMRolesView({
               <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
                 <div className="font-semibold text-text-primary">{detail.data.name}</div>
                 <div className="text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
+                <PermissionSummary catalog={catalog} permissions={detail.data.latest.permissions ?? []} testId="access-role-permission-summary" />
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
                   {mappedReferences.length > 0
@@ -670,6 +726,7 @@ function RAMRolesView({
                 <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
                 <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
                 <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
+                <PermissionSummary catalog={catalog} permissions={versionPermissions} testId="access-role-edit-permission-summary" />
                 <button
                   type="button"
                   className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
@@ -686,7 +743,7 @@ function RAMRolesView({
                         permissions: versionPermissions,
                         expected_latest_version: latest.version,
                       },
-                    }, { onSuccess: (updated) => resetDraft(updated.latest) });
+                    }, { onSuccess: (updated) => { resetDraft(updated.latest); setToast({ tone: 'success', message: `Updated RAM Role ${updated.name}.` }); } });
                   }}
                 >
                   Save changes
@@ -694,15 +751,11 @@ function RAMRolesView({
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending || revokeRole.isPending}
+                  disabled={!canManageAccess || !selected || !latest || !selectedIsCustom || selectedIsReferenced || (!selectedWasCreatedHere && deleteNameConfirm !== detail.data.name) || deleteRole.isPending}
                   data-testid="access-role-disable-submit"
                   onClick={() => {
                     if (!selected || !latest) return;
-                    if (selectedWasCreatedHere) {
-                      setDeleteConfirmOpen(true);
-                      return;
-                    }
-                    revokeRole.mutate({ id: selected, expected_latest_version: latest.version, reason: 'RAM role deleted after reference-impact review' }, { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data.name}.`); setSelectedId(null); } });
+                    setDeleteConfirmOpen(true);
                   }}
                 >
                   Delete
@@ -718,7 +771,6 @@ function RAMRolesView({
           )}
           {update.isError && <p className="mt-2 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
           {deleteRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
-          {revokeRole.isError && <p className="mt-2 text-xs text-danger" role="alert">{(revokeRole.error as Error).message}</p>}
           {replaceMapping.isError && <p className="mt-2 text-xs text-danger" role="alert">{(replaceMapping.error as Error).message}</p>}
         </section>
       </aside>
@@ -744,7 +796,10 @@ function RAMRolesView({
         onConfirm={() => {
           if (!selected || !latest || selectedIsReferenced) return;
           setDeleteConfirmOpen(false);
-          deleteRole.mutate({ id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' });
+          deleteRole.mutate(
+            { id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' },
+            { onSuccess: () => { setStatus(`Deleted RAM Role ${detail.data?.name ?? selected}.`); setToast({ tone: 'success', message: `Deleted RAM Role ${detail.data?.name ?? selected}.` }); setSelectedId(null); } },
+          );
         }}
       />
     </div>
@@ -762,6 +817,32 @@ function RoleTextField({ label, value, onChange, testId }: { label: string; valu
         onChange={(e) => onChange(e.target.value)}
       />
     </label>
+  );
+}
+
+function summarizeRAMRoles(roles: RAMRole[], mappedByRAMRole: Map<string, Array<{ team: TeamView; role: string }>>): { total: number; custom: number; system: number; referenced: number; highRisk: number } {
+  return roles.reduce((summary, role) => {
+    summary.total += 1;
+    if (role.kind === 'custom') summary.custom += 1;
+    if (role.kind === 'system') summary.system += 1;
+    if ((role.references ?? 0) > 0 || (mappedByRAMRole.get(role.id)?.length ?? 0) > 0) summary.referenced += 1;
+    if (role.risk === 'high') summary.highRisk += 1;
+    return summary;
+  }, { total: 0, custom: 0, system: 0, referenced: 0, highRisk: 0 });
+}
+
+function PermissionSummary({ catalog, permissions, testId }: { catalog: AccessPermissionDefinition[]; permissions: string[]; testId: string }): React.ReactElement {
+  const defs = permissions.map((key) => catalog.find((permission) => permission.key === key)).filter((permission): permission is AccessPermissionDefinition => Boolean(permission));
+  const high = defs.filter((permission) => permission.risk === 'high').length;
+  const medium = defs.filter((permission) => permission.risk === 'medium').length;
+  const low = defs.filter((permission) => permission.risk === 'low').length;
+  const scopes = Array.from(new Set(defs.flatMap((permission) => permission.resource_kinds))).sort();
+  return (
+    <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2 text-xs text-text-secondary" data-testid={testId}>
+      <div className="font-semibold text-text-primary">Permission summary</div>
+      <div className="mt-1">{permissions.length} permissions · {high} high · {medium} medium · {low} low</div>
+      <div className="mt-1 font-mono text-[0.6875rem]">{scopes.length > 0 ? scopes.join(', ') : 'No resource scopes selected'}</div>
+    </div>
   );
 }
 
