@@ -539,6 +539,7 @@ function RAMRolesView({
         expected_version: item.mapping.version,
       });
     }
+    await Promise.all([roles.refetch(), detail.refetch()]);
     const message = `Migrated ${pending.length} Team Role references.`;
     setStatus(message);
     onToast({ tone: 'success', message });
