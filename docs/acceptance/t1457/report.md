@@ -1,28 +1,28 @@
 # T1457 Team Roles / RAM Role Mapping Evidence
 
 - Git parent at task start: `ddba9b10816b803b0563e97de574ebe7378c8ef2`.
-- Final candidate HEAD at capture time: `17b2c40bd6d60f5064deaeb969d0b6075ebad7a1`.
-- Runtime /api/system/version.commit: `17b2c40bd6d60f5064deaeb969d0b6075ebad7a1`.
+- Final candidate HEAD at capture time: `0288c059006396eb80522d16cb1191fd405f2a19`.
+- Runtime /api/system/version.commit: `0288c059006396eb80522d16cb1191fd405f2a19`.
 - Canonical attachment SHA256: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
 - Canonical file used: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png`.
 - Canonical file verified SHA256: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
-- Fresh browser instance: `http://127.0.0.1:57908` (isolated local server, torn down after capture).
+- Fresh browser instance: `http://127.0.0.1:51095` (isolated local server, torn down after capture).
 - Stable external preview: `BLOCKED: no deploy/Sites/shared-preview credential or mechanism is available in this isolated executor`.
-- 1280 overflow check: clientWidth=`1280`, scrollWidth=`1280`, url=`http://127.0.0.1:57908/organizations/org-089851de/teams/roles`.
+- 1280 overflow check: clientWidth=`1280`, scrollWidth=`1280`, url=`http://127.0.0.1:51095/organizations/org-385066fe/teams/roles`.
 - Console events captured: `1`; network events captured: `31`.
 
 ## State Matrix
 
 | State | Candidate | Overlay | Pixel diff | Changed px | Changed ratio |
 | --- | --- | --- | --- | ---: | ---: |
-| roles-list | docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png | docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png | docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png | 1488163 | 0.945855 |
-| ram-role-detail | docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png | 1488163 | 0.945855 |
+| roles-list | docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png | docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png | docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png | 1488214 | 0.945888 |
+| ram-role-detail | docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png | 1488214 | 0.945888 |
 | mapping-drawer | docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-drawer-canonical-pixel-diff.png | 1519368 | 0.965689 |
 | mapping-preview | docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-preview-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-preview-canonical-pixel-diff.png | 1519579 | 0.965823 |
 | mapping-cas-error | docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-cas-error-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-cas-error-canonical-pixel-diff.png | 1520268 | 0.966261 |
 | ram-role-create-drawer | docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-pixel-diff.png | 1523247 | 0.968154 |
-| ram-role-edit-drawer | docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png | 1520729 | 0.966554 |
-| ram-role-duplicate-drawer | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png | 1520795 | 0.966596 |
+| ram-role-edit-drawer | docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png | 1520726 | 0.966552 |
+| ram-role-duplicate-drawer | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png | 1520792 | 0.966594 |
 | ram-role-delete-safeguard | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-pixel-diff.png | 1565589 | 0.995066 |
 
 ## Browser/API Coverage
@@ -34,7 +34,7 @@
 `.
 - RAM Role CAS raw result: `409` `{"error":"version_conflict","message":"RAM role latest version changed"}
 `.
-- CRUD raw result: created `role-387e3c70e7b8e675`, edited to version `2`, deleted status `204`.
+- CRUD raw result: created `role-773a734c40bee263`, edited to version `2`, deleted status `204`.
 
 ## Raw Evidence Files
 
