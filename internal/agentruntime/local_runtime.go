@@ -73,6 +73,10 @@ type LocalRuntimeConfig struct {
 	// nil func / nil result ⇒ the fork path leaves tasks queued and the Monitor
 	// degrades to reap-and-free-slot with no center writeback.
 	ToolCaller func() ToolCaller
+	// FileMover is the controlled byte-moving seam used by fork-time task-input
+	// materialization. It is the same dependency as mcphost download_file and is
+	// deliberately narrower than raw center/database access.
+	FileMover mcphost.FileMover
 
 	WorkerID          string
 	AdminURL          string

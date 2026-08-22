@@ -63,6 +63,9 @@ type WorkItem struct {
 	// a new executor fork. It is copied into input.json and rendered into the prompt so
 	// the run is auditable by team memory commit.
 	RuleSnapshot *executor.RuleSnapshot
+	// TaskInput is the fork-time self-contained package request. When present the
+	// prompt points the executor at task-input/v1 and Pool.Launch materializes it.
+	TaskInput *executor.TaskInputSpec
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -279,7 +282,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	}
 
 	// 4. F1 fork (≤ max; ErrAtCapacity bubbles up unwrapped for the caller to queue).
-	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd, SessionID: sessionID, Prepared: item.Prepared})
+	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd, SessionID: sessionID, Prepared: item.Prepared, TaskInput: item.TaskInput})
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
 			return nil, err
@@ -358,6 +361,10 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
 		b.WriteString("\n\n")
 		b.WriteString(rb)
+	}
+	if item.TaskInput != nil {
+		b.WriteString("\n\n## Task Input Package\n")
+		b.WriteString("Before this executor was forked, the supervisor/runtime materialized the task contract and required/canonical attachments at `task-input/v1` in this workspace. Read `task-input/v1/README.md`, `task-input/v1/context.json`, and `task-input/v1/manifest.json`; open files under `task-input/v1/attachments/` directly. Do not use conversation/MCP/file-download tools to find these inputs.")
 	}
 	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
 	return b.String()

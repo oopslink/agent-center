@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -110,6 +111,10 @@ type LaunchSpec struct {
 	// recovery Record so Finalize + crash-recovery can tear the worktree down via a
 	// WorktreeCleaner. Nil ⇒ today's provisioning path, byte-for-byte unchanged.
 	Prepared *PreparedWorkspace
+	// TaskInput, when non-nil, is materialized into the executor workspace before
+	// input.json is written and before the process is forked. Any required/canonical
+	// attachment failure aborts Launch, releases the slot, and never starts a child.
+	TaskInput *TaskInputSpec
 }
 
 // PreparedWorkspace is a per-executor git worktree the repo materializer prepared
@@ -357,6 +362,17 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 		if err := os.MkdirAll(wsPath, 0o700); err != nil {
 			return nil, fmt.Errorf("executor: pool workspace dir %s: %w", id, err)
 		}
+	}
+	if spec.TaskInput != nil {
+		dir, err := p.cfg.Exchange.MaterializeTaskInput(ctx, id, wsPath, *spec.TaskInput)
+		if err != nil {
+			return nil, fmt.Errorf("executor: pool materialize task-input %s: %w", id, err)
+		}
+		rel, err := filepath.Rel(wsPath, dir)
+		if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			return nil, fmt.Errorf("executor: task-input path %q is outside workspace %q", dir, wsPath)
+		}
+		spec.Input.TaskInputDir = filepath.ToSlash(rel)
 	}
 	if err := p.cfg.Exchange.WriteInput(spec.Input); err != nil {
 		return nil, fmt.Errorf("executor: pool write input %s: %w", id, err)

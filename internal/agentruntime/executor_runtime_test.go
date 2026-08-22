@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -309,6 +310,14 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 			in.TeamRules.Rules[0].Slug != "prefer-tests" || in.TeamRules.Rules[0].BodyBytes != 26 {
 			t.Fatalf("input team_rules = %+v", in.TeamRules)
 		}
+		if in.TaskInputDir != "task-input/v1" {
+			t.Fatalf("input task_input_dir = %q, want task-input/v1", in.TaskInputDir)
+		}
+		var mf executor.TaskInputManifest
+		readJSONRuntime(t, filepath.Join(home, "executors", in.ExecutorID, "workspace", "task-input", "v1", "manifest.json"), &mf)
+		if mf.TaskID != "task-9" || len(mf.Attachments) != 0 {
+			t.Fatalf("no-attachment task-input manifest = %+v", mf)
+		}
 		if body, ok := sc.callFor("get_team_rule_index"); ok && body["execution_id"] != in.ExecutorID {
 			t.Fatalf("get_team_rule_index execution_id=%v, input executor_id=%s", body["execution_id"], in.ExecutorID)
 		}
@@ -336,6 +345,105 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 	}
 	if got := rt.CurrentTaskID(); got != "task-9" {
 		t.Errorf("currentTaskID = %q, want task-9", got)
+	}
+}
+
+type runtimeFakeFileMover struct {
+	bytes map[string][]byte
+	err   error
+}
+
+func (f runtimeFakeFileMover) UploadFile(context.Context, string, string, string, string, string) (string, error) {
+	return "", errors.New("not used")
+}
+
+func (f runtimeFakeFileMover) DownloadFile(_ context.Context, agentRoot, _ string, uri, destPath string) error {
+	if f.err != nil {
+		return f.err
+	}
+	b, ok := f.bytes[uri]
+	if !ok {
+		return os.ErrNotExist
+	}
+	abs := filepath.Join(agentRoot, filepath.FromSlash(destPath))
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(abs, b, 0o600)
+}
+
+func TestSpawnExecutor_TaskInputAttachmentMaterializedForIsolatedExecutor(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-att", "title": "Use canonical mockups", "description": "compare",
+		"status": "open",
+		"attachments": []map[string]any{{
+			"uri": "ac://files/mockup-a", "filename": "mockup.png", "mime_type": "image/png",
+			"size": float64(len("png-bytes")), "source_scope": "task", "source_id": "task-att",
+		}},
+	}}
+	rt, ee, home := engineForAgent(t, "agent-att")
+	rt.cfg.FileMover = runtimeFakeFileMover{bytes: map[string][]byte{"ac://files/mockup-a": []byte("png-bytes")}}
+	attach(rt, ee)
+	setToolCaller(rt, sc)
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-att"})
+	if err != nil || res == nil || res.ExecutorID == "" {
+		t.Fatalf("SpawnExecutor = (%+v, %v)", res, err)
+	}
+	layout, _ := executor.NewLayout(home)
+	fx, _ := executor.NewFileExchange(layout, nil)
+	in, err := fx.ReadInput(res.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.TaskInputDir != "task-input/v1" {
+		t.Fatalf("input task_input_dir=%q, want task-input/v1", in.TaskInputDir)
+	}
+	var mf executor.TaskInputManifest
+	readJSONRuntime(t, filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "manifest.json"), &mf)
+	if len(mf.Attachments) != 1 || mf.Attachments[0].URI != "ac://files/mockup-a" || mf.Attachments[0].Path != "attachments/mockup.png" {
+		t.Fatalf("manifest = %+v", mf)
+	}
+	b, err := os.ReadFile(filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "attachments", "mockup.png"))
+	if err != nil || string(b) != "png-bytes" {
+		t.Fatalf("attachment bytes = %q, %v", b, err)
+	}
+}
+
+func TestSpawnExecutor_TaskInputDownloadFailureDoesNotFork(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-att-fail", "title": "Use canonical mockups", "status": "open",
+		"attachments": []map[string]any{{
+			"uri": "ac://files/missing", "filename": "mockup.png", "mime_type": "image/png",
+			"size": float64(9), "source_scope": "task", "source_id": "task-att-fail",
+		}},
+	}}
+	rt, ee, home := engineForAgent(t, "agent-att-fail")
+	rt.cfg.FileMover = runtimeFakeFileMover{err: errors.New("download unavailable")}
+	attach(rt, ee)
+	setToolCaller(rt, sc)
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-att-fail"})
+	if err != nil || res == nil || res.CommandStatus != controlCommandStatusFailed {
+		t.Fatalf("SpawnExecutor = (%+v, %v), want failed result", res, err)
+	}
+	if res.Reason != string(CauseForkError) {
+		t.Fatalf("reason=%q detail=%q", res.Reason, res.Detail)
+	}
+	if probs := loadRouting(t, home); len(probs) != 1 || len(probs[0].ExecutorIDs) != 0 {
+		t.Fatalf("failed materialization must not bind/fork executor, got %+v", probs)
+	}
+	if _, ok := sc.callFor("block_task"); !ok {
+		t.Fatalf("admitted task must be blocked after fork-time materialization failure, calls=%v", sc.toolsSeen())
+	}
+}
+
+func readJSONRuntime(t *testing.T, path string, out any) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, out); err != nil {
+		t.Fatal(err)
 	}
 }
 

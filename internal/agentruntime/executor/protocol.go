@@ -158,7 +158,11 @@ type Input struct {
 	Source    SourceRefs    `json:"source"`
 	Repo      *RepoRef      `json:"repo_ref,omitempty"`
 	TeamRules *RuleSnapshot `json:"team_rules,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
+	// TaskInputDir is the workspace-relative entrypoint for the fork-time,
+	// self-contained task-input package materialized before the executor process
+	// starts. Empty means no package was requested (legacy/no-attachment tasks).
+	TaskInputDir string    `json:"task_input_dir,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
 	// center stamps it at dispatch so the worker-side writeback — which only sees
 	// input.json — can tell an executor-fork Dev node from a supervisor-inline node that

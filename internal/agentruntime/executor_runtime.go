@@ -13,9 +13,11 @@ package agentruntime
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -831,6 +833,15 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		r.log("FORK-ADMISSION-REUSED agent_namespace=%s task_id=%s status=running — Supervisor already admitted task; continuing to executor launch", agentID, taskID)
 	}
 
+	taskInputAtts, err := r.collectTaskInputAttachments(ctx, agentID, taskID, task)
+	if err != nil {
+		if alreadyAdmitted {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, err)
+		}
+		r.log("fork_executor agent=%s task=%s task-input preflight failed: %v — executor NOT forked", agentID, taskID, err)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_preflight_failed", Detail: err.Error()}, nil
+	}
+
 	// A forked node is a code task. It must have a center-resolved repository and a
 	// runtime materializer; otherwise fail before any model process starts. Starting
 	// then blocking records the durable non-delivery instead of leaving an open task
@@ -980,6 +991,18 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		execID = ee.engine.NewExecutorID()
 	}
 	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
+	item.TaskInput = &executor.TaskInputSpec{
+		TaskID:      taskID,
+		ExecutorID:  execID,
+		Goal:        item.Goal,
+		Context:     item.Context,
+		Source:      executor.SourceRefs{TaskRef: taskID},
+		CreatedAt:   r.now(),
+		Attachments: taskInputAtts,
+	}
+	if len(taskInputAtts) > 0 {
+		item.TaskInput.Downloader = taskInputDownloader{agentRoot: preparedOrExecutorWorkspaceRoot(ee, execID, prepared), agentID: agentID, mover: r.cfg.FileMover}
+	}
 	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {
@@ -1083,6 +1106,125 @@ func (r *LocalRuntime) startCenterTask(ctx context.Context, agentID, taskID stri
 	return r.toolCaller().CallAgentTool(ctx, "start_task", body, nil)
 }
 
+func (r *LocalRuntime) collectTaskInputAttachments(ctx context.Context, agentID, taskID string, task *centerTaskDetail) ([]executor.TaskInputAttachment, error) {
+	var out []executor.TaskInputAttachment
+	seen := map[string]struct{}{}
+	add := func(att executor.TaskInputAttachment) {
+		key := att.SourceScope + "\x00" + att.SourceID + "\x00" + att.URI + "\x00" + att.Name
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, att)
+	}
+	for _, a := range task.Attachments {
+		if att, ok := normalizeTaskAttachment(a, "task", taskID); ok {
+			add(att)
+		}
+	}
+	caller := r.toolCaller()
+	if caller != nil && len(task.Attachments) > 0 {
+		var raw json.RawMessage
+		if err := caller.CallAgentTool(ctx, "list_files", map[string]any{"agent_id": agentID, "scope": "task", "scope_id": taskID}, &raw); err != nil {
+			return nil, fmt.Errorf("list task files: %w", err)
+		}
+		var listed struct {
+			Files []centerTaskAttachment `json:"files"`
+		}
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &listed); err != nil {
+				return nil, fmt.Errorf("decode task files: %w", err)
+			}
+		}
+		for _, a := range listed.Files {
+			if att, ok := normalizeTaskAttachment(a, "task", taskID); ok {
+				add(att)
+			}
+		}
+	}
+	if len(out) > 0 && r.cfg.FileMover == nil {
+		return nil, errors.New("task has required/canonical attachments but runtime file mover is not configured")
+	}
+	return out, nil
+}
+
+func normalizeTaskAttachment(a centerTaskAttachment, fallbackScope, fallbackID string) (executor.TaskInputAttachment, bool) {
+	uri := firstNonEmpty(a.URI, a.FileURI)
+	name := firstNonEmpty(a.Name, a.Filename, "attachment")
+	mime := firstNonEmpty(a.MIME, a.MimeType, "application/octet-stream")
+	size := a.Size
+	if size == 0 {
+		size = a.SizeBytes
+	}
+	scope := firstNonEmpty(a.SourceScope, fallbackScope)
+	sourceID := firstNonEmpty(a.SourceID, fallbackID)
+	if strings.TrimSpace(uri) == "" {
+		return executor.TaskInputAttachment{}, false
+	}
+	required := true
+	if a.Required != nil {
+		required = *a.Required
+	}
+	canonical := true
+	if a.Canonical != nil {
+		canonical = *a.Canonical
+	}
+	return executor.TaskInputAttachment{
+		SourceScope: scope,
+		SourceID:    sourceID,
+		URI:         uri,
+		Name:        name,
+		MIME:        mime,
+		Size:        size,
+		Required:    required,
+		Canonical:   canonical,
+	}, true
+}
+
+type taskInputDownloader struct {
+	agentRoot string
+	agentID   string
+	mover     interface {
+		DownloadFile(context.Context, string, string, string, string) error
+	}
+}
+
+func (d taskInputDownloader) DownloadTaskInputAttachment(ctx context.Context, att executor.TaskInputAttachment, destPath string) error {
+	if d.mover == nil {
+		return errors.New("task-input downloader has no file mover")
+	}
+	if err := d.mover.DownloadFile(ctx, d.agentRoot, d.agentID, att.URI, destPath); err != nil {
+		return err
+	}
+	abs := filepath.Join(d.agentRoot, filepath.FromSlash(destPath))
+	f, err := os.Open(abs)
+	if err != nil {
+		return fmt.Errorf("open downloaded attachment: %w", err)
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	if err != nil {
+		return fmt.Errorf("hash downloaded attachment: %w", err)
+	}
+	if n != att.Size {
+		return fmt.Errorf("downloaded size %d != expected %d", n, att.Size)
+	}
+	_ = h.Sum(nil) // package manifest records the same digest after staging.
+	return nil
+}
+
+func preparedOrExecutorWorkspaceRoot(ee *ExecutorEngine, execID string, prepared *executor.PreparedWorkspace) string {
+	if prepared != nil && strings.TrimSpace(prepared.Path) != "" {
+		return strings.TrimSpace(prepared.Path)
+	}
+	if ee == nil || ee.fx == nil {
+		return ""
+	}
+	ws, _ := ee.fx.Layout().WorkspaceDir(execID)
+	return ws
+}
+
 // createTaskDir creates the pending task-execution directory (the executor branch of
 // the old work()).
 func (r *LocalRuntime) createTaskDir(agentID, taskID string) {
@@ -1134,11 +1276,27 @@ type centerTaskDetail struct {
 	// "" = executor_fork = today's routing. An older center never sends it (same zero
 	// value); a newer center sending an unknown value also falls through to the fork
 	// (DispatchMode.RoutesInline is a strict equality test).
-	DispatchMode     string `json:"dispatch_mode"`
-	DeliveryContract string `json:"delivery_contract"`
-	StageID          string `json:"stage_id"`
-	FollowsTaskID    string `json:"follows_task_id"`
-	OriginVerdictID  string `json:"origin_verdict_id"`
+	DispatchMode     string                 `json:"dispatch_mode"`
+	DeliveryContract string                 `json:"delivery_contract"`
+	StageID          string                 `json:"stage_id"`
+	FollowsTaskID    string                 `json:"follows_task_id"`
+	OriginVerdictID  string                 `json:"origin_verdict_id"`
+	Attachments      []centerTaskAttachment `json:"attachments,omitempty"`
+}
+
+type centerTaskAttachment struct {
+	URI         string `json:"uri"`
+	FileURI     string `json:"file_uri"`
+	Filename    string `json:"filename"`
+	Name        string `json:"name"`
+	MimeType    string `json:"mime_type"`
+	MIME        string `json:"mime"`
+	Size        int64  `json:"size"`
+	SizeBytes   int64  `json:"size_bytes"`
+	SourceScope string `json:"source_scope"`
+	SourceID    string `json:"source_id"`
+	Required    *bool  `json:"required,omitempty"`
+	Canonical   *bool  `json:"canonical,omitempty"`
 }
 
 // centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a

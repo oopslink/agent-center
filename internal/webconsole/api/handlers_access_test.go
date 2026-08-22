@@ -285,11 +285,12 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
+	expiresAt := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
 	applyBody := `{
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
 		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
-		"expires_at":"2026-08-21T12:30:00Z",
+		"expires_at":"` + expiresAt + `",
 		"reason":"temporary direct binding"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
