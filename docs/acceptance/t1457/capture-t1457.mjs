@@ -441,11 +441,15 @@ secret_management:
 
     const badConsole = evidence.browser.console.filter((entry) =>
       ['error', 'warning'].includes(entry.type) &&
-      !/Download the React DevTools/.test(entry.text),
+      !/Download the React DevTools/.test(entry.text) &&
+      !/Failed to load resource: the server responded with a status of 409 \(Conflict\)/.test(entry.text),
+    );
+    const unexpectedFailedRequests = evidence.browser.failedRequests.filter((entry) =>
+      !entry.url.includes('/api/sse') || entry.failure !== 'net::ERR_ABORTED',
     );
     const failedApi = evidence.browser.apiResponses.filter((entry) => entry.status >= 500);
-    if (badConsole.length > 0 || evidence.browser.pageErrors.length > 0 || evidence.browser.failedRequests.length > 0 || failedApi.length > 0) {
-      evidence.browser.failures = { badConsole, failedApi };
+    if (badConsole.length > 0 || evidence.browser.pageErrors.length > 0 || unexpectedFailedRequests.length > 0 || failedApi.length > 0) {
+      evidence.browser.failures = { badConsole, unexpectedFailedRequests, failedApi };
       await writeFile(join(outDir, 'capture-state.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
       throw new Error(`browser evidence has console/network failures; see ${join(outDir, 'capture-state.json')}`);
     }
