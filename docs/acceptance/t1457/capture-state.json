@@ -1,0 +1,28 @@
+{
+  "baseURL": "http://127.0.0.1:49629",
+  "orgSlug": "org-a7117fc8",
+  "finalURL": "http://127.0.0.1:49629/organizations/org-a7117fc8/teams/roles",
+  "head": "41a2f7e631760d617dc0513af2ee5ba777b75aa7",
+  "clientWidth": 1672,
+  "scrollWidth": 1672,
+  "teamId": "team-991e7f5c",
+  "ramRoleIds": [
+    "role-36613ad3a6e6dde6",
+    "role-fe29f73e0bbb5a2f",
+    "role-dde10cb9f5ca9bdb"
+  ],
+  "checkedStates": [
+    "Team IA route /teams/roles",
+    "role list",
+    "role detail entry",
+    "work config",
+    "RAM mapping table",
+    "mapping edit drawer",
+    "immediate impact/CAS version",
+    "RAM Role create drawer",
+    "versioned write controls",
+    "delete safeguard",
+    "audit copy",
+    "1280/1672 no horizontal overflow guard"
+  ]
+}

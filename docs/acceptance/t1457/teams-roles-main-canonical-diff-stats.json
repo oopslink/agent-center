@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "docs/acceptance/t1457/teams-roles-main-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1488215,
+  "changed_ratio": 0.9458881420050949,
+  "mae_per_channel": 12.733067361912655,
+  "rmse_per_channel": 38.00956134813313,
+  "max_abs_channel_delta": 255,
+  "overlay": "docs/acceptance/t1457/teams-roles-main-canonical-overlay.png",
+  "pixel_diff": "docs/acceptance/t1457/teams-roles-main-canonical-pixel-diff.png"
+}
