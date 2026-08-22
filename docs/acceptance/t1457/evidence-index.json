@@ -1,0 +1,104 @@
+{
+  "task": "T1477 / T1457 Team Roles Gate recovery",
+  "baseline": {
+    "canonical_attachment_sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56",
+    "canonical_source": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+    "viewport": "1672x941"
+  },
+  "candidate_capture": {
+    "report": "docs/acceptance/t1457/report.md",
+    "state_json": "docs/acceptance/t1457/capture-state.json",
+    "script": "docs/acceptance/t1457/capture-t1457.mjs",
+    "diff_tool": "docs/acceptance/t1457/image_diff.py",
+    "fresh_1280_overflow": "docs/acceptance/t1457/t1457-1280-overflow-candidate.png",
+    "console_log": "docs/acceptance/t1457/t1457-console.log",
+    "network_log": "docs/acceptance/t1457/t1457-network.log",
+    "server_stdout": "docs/acceptance/t1457/t1457-server-stdout.log",
+    "server_stderr": "docs/acceptance/t1457/t1457-server-stderr.log"
+  },
+  "browser_api_coverage": [
+    "owner signup through public auth API",
+    "org-scoped AI runtime seed through public Web API",
+    "RAM Role create/edit/delete CRUD",
+    "Team Role RAM mapping preview and save path",
+    "mapping CAS conflict error",
+    "RAM Role CAS conflict error",
+    "referenced RAM Role delete safeguard",
+    "console and network raw event capture",
+    "runtime /api/system/version.commit check"
+  ],
+  "states": [
+    {
+      "name": "roles-list",
+      "candidate": "docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png",
+      "changed_pixels": 1488163,
+      "changed_ratio": 0.9458550915497613
+    },
+    {
+      "name": "ram-role-detail",
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png",
+      "changed_pixels": 1488163,
+      "changed_ratio": 0.9458550915497613
+    },
+    {
+      "name": "mapping-drawer",
+      "candidate": "docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-pixel-diff.png",
+      "changed_pixels": 1519368,
+      "changed_ratio": 0.9656885426783072
+    },
+    {
+      "name": "mapping-preview",
+      "candidate": "docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-mapping-preview-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-mapping-preview-canonical-pixel-diff.png",
+      "changed_pixels": 1519579,
+      "changed_ratio": 0.96582265125668
+    },
+    {
+      "name": "mapping-cas-error",
+      "candidate": "docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-pixel-diff.png",
+      "changed_pixels": 1520268,
+      "changed_ratio": 0.96626056978985
+    },
+    {
+      "name": "ram-role-create-drawer",
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-pixel-diff.png",
+      "changed_pixels": 1523247,
+      "changed_ratio": 0.9681539795290565
+    },
+    {
+      "name": "ram-role-edit-drawer",
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png",
+      "changed_pixels": 1520729,
+      "changed_ratio": 0.9665535747880958
+    },
+    {
+      "name": "ram-role-duplicate-drawer",
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png",
+      "changed_pixels": 1520795,
+      "changed_ratio": 0.9665955234429422
+    },
+    {
+      "name": "ram-role-delete-safeguard",
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png",
+      "overlay": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-overlay.png",
+      "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-pixel-diff.png",
+      "changed_pixels": 1565589,
+      "changed_ratio": 0.9950665795073137
+    }
+  ]
+}
