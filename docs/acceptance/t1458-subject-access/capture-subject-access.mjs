@@ -132,7 +132,7 @@ async function shot(page, name) {
 async function main() {
   await fs.mkdir(outDir, { recursive: true });
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1672, height: 941 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width: 1684, height: 934 }, deviceScaleFactor: 1 });
   page.on('requestfailed', (request) => console.log(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   await routeJSON(page);
 
@@ -179,7 +179,7 @@ async function main() {
   await shot(page, '07-revoke-success');
   await page.getByLabel('Dismiss notification').click().catch(() => {});
 
-  const forbidden = await browser.newPage({ viewport: { width: 1672, height: 941 }, deviceScaleFactor: 1 });
+  const forbidden = await browser.newPage({ viewport: { width: 1684, height: 934 }, deviceScaleFactor: 1 });
   await routeJSON(forbidden);
   await forbidden.route('**/api/orgs/test/permissions/effective**', (route) => route.fulfill({ json: { subject_ref: 'user:ops', resource: resources.org, permissions: [{ key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-ops' }] } }));
   await forbidden.goto(`${baseURL}/organizations/test/access?view=subject-access`);

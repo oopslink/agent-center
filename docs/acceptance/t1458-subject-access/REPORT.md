@@ -10,29 +10,28 @@ Recovery reviewed: `7444e6a9b729d75eab531ba4fa9f35bcb121d4df`.
 - Subject roster supports filtered API results and pagination.
 - Selected subject detail includes metrics, why access, direct binding union, explicit deny/N/A, summary/activity, trace, audit, and the full decision table.
 - Subject view no longer renders the permission catalog; catalog remains in Roles & mappings.
-- Backend `/access/overview` discovers direct-binding resource scopes from `authorization_role_assignments`, then uses the unified authorization resolver for all effective `custom_role` decisions so expiry and fail-closed behavior are shared with production authz.
+- Backend `/access/overview` discovers direct-binding resource scopes from `authorization_role_assignments`, then uses the unified authorization resolver for effective decisions so expiry and fail-closed behavior are shared with production authz.
+- Explicit denied decisions now take precedence over direct/custom allow rows for the same subject/permission/resource, and resolver failures surface as denied `access.resolve` rows instead of being silently dropped.
 
 ## Verification
 
-- `go test ./internal/webconsole/api -run 'TestAccess(EffectiveBatchAndRevokeContract|OverviewShowsTeamRAMAndDirectBindingUnion|OverviewDirectBindingUsesResolverExpiryFailClosed|RAMRolesPersistVersionsCASRevokeAndReferences)'`
-- `go test ./...`
-- `pnpm --dir web typecheck`
-- `pnpm --dir web test -- Access.test.tsx` (Vitest ran the full suite: 191 files / 1791 tests passed)
+- `go test ./internal/webconsole/api -run 'TestAccessOverview(ShowsTeamRAMAndDirectBindingUnion|DirectBindingUsesResolverExpiryFailClosed|ExplicitDenyPrecedesDirectBinding|ResolverErrorsSurfaceFailClosedRows)|TestAccessEffectiveBatchAndRevokeContract|TestAccessRAMRoles'`
+- `pnpm --dir web test -- src/pages/Access.test.tsx` (Vitest expanded to the full suite: 191 files / 1791 tests passed)
 - `node docs/acceptance/t1458-subject-access/capture-subject-access.mjs`
 
 ## Screenshot Evidence
 
-All screenshots were captured fresh from this working tree with a `1672x941` viewport. `sips -g pixelWidth -g pixelHeight docs/acceptance/t1458-subject-access/*.png` confirms every PNG is `1672x941`.
+All screenshots were captured fresh from this working tree with a `1684x934` viewport. `sips -g pixelWidth -g pixelHeight docs/acceptance/t1458-subject-access/*.png` confirms every PNG is `1684x934`.
 
-- `01-subject-workbench.png` sha256 `034ae15e68082244dc4668c8cc459fd7f899710b9198df0c31b9132e33e7aa00`
-- `02-filter-agent-detail.png` sha256 `a4084038ee096efef63b67cdfce207f005a80a1838300a28d4427d7c5bf6c3aa`
-- `03-add-binding-drawer.png` sha256 `0c34d21b89e3895192a9e1f3d0549e2c1f4a36237da9c7ac401fd4153f61a423`
-- `04-impact-preview.png` sha256 `74833d12eaf5f9f077fe8be8eb980a1f16e528971bda8796431b515c1d20a461`
-- `05-grant-success.png` sha256 `5a5558cef270cb5aede4b528fd4b776d568c1a3531cadaa6a78e12b8c5125973`
-- `06-revoke-preview.png` sha256 `3e57342a420f9bd32d5a31075cdcbff0e05f8ba4ec72781cb81edb50b95dfdb4`
-- `07-revoke-success.png` sha256 `9b2f08465f7f451c13c870a1ee8d1f8f533e5e54b2b745166390e8c670a53807`
-- `08-forbidden-403.png` sha256 `428040732cb22d54e9b7de6d77146d8d380dc377a0594f18e3b7a22a7785299b`
-- `09-conflict-409.png` sha256 `8ab0977bbb39d816dd7b67cb25b3fbe412465bd3b2f87d10bfd57de9b91ffe5d`
+- `01-subject-workbench.png` sha256 `6a9e25cd922ec686bd925c03e696c9a4e803556d56838c117a80d0f7f927f7e2`
+- `02-filter-agent-detail.png` sha256 `aa2e919209f18f109d973b0424da59ade8d60195b6557cdb06f49c69fd830192`
+- `03-add-binding-drawer.png` sha256 `a5f7685d47d8a2364e22e780f9501820537a8becf6215ae12d5929be5ec05cd3`
+- `04-impact-preview.png` sha256 `ba020baa6858405847d1b11514c3c3c864716f99708c679eefa4b42de9888654`
+- `05-grant-success.png` sha256 `c7d9b0f051f759c4dc51c3306d6d561f3e494d66074b6a8ec0c565e49435317a`
+- `06-revoke-preview.png` sha256 `00fdeaafa74209dfc0dd54d12145f4f5d3673a544ddcb1a5ebfba99a79008c2d`
+- `07-revoke-success.png` sha256 `3fef29ff7d305d3458eda9a19d4e72e4c4486fc82e9d450793cfbb8ae01293e4`
+- `08-forbidden-403.png` sha256 `2b8396c2737ad1ebdda1db8d4e6ca0b71d31540f5c85c21f281197a227ee972e`
+- `09-conflict-409.png` sha256 `fd0615c45b000692d45267235b531f3b78b5c69c8b6a8d608ee0d0d255834e22`
 
 ## Baseline Limitation
 
