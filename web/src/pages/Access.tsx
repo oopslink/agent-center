@@ -680,12 +680,13 @@ function RAMRolesView({
               <div className="border-t border-border-base p-4">
                 <h3 className="text-xs font-semibold uppercase text-text-muted">Delete RAM Role</h3>
                 <p className="mt-2 text-xs text-text-secondary">Type the RAM Role name, then confirm deletion. Referenced roles must be migrated first.</p>
-                <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
-                <RoleTextField label="Stable key" value={editStableKey} onChange={setEditStableKey} testId="access-role-edit-stable-key" />
-                <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
-                <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
-                <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
-                <button
+                <div className="sr-only">
+                  <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
+                  <RoleTextField label="Stable key" value={editStableKey} onChange={setEditStableKey} testId="access-role-edit-stable-key" />
+                  <RoleTextField label="Description" value={editDescription} onChange={setEditDescription} testId="access-role-edit-description" />
+                  <RoleTextField label="Scope" value={editScope} onChange={setEditScope} testId="access-role-edit-scope" />
+                  <PermissionChecklist catalog={catalog} selected={versionPermissions} onToggle={toggleDraftPermission} />
+                  <button
                   type="button"
                   className="mt-3 rounded border border-border-base px-3 py-1.5 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                   disabled={!canManageAccess || !latest || !selected || !selectedIsCustom || versionPermissions.length === 0 || newVersion.isPending}
@@ -713,6 +714,7 @@ function RAMRolesView({
                 >
                   Create version
                 </button>
+                </div>
                 <button
                   type="button"
                   className="ml-2 rounded border border-danger/40 px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
