@@ -32,6 +32,7 @@ export default function TeamUISecondaryNav({ orgBase }: ModuleSecondaryNavProps)
 
   const teamsGroup: NavEntry[] = [
     { id: 'teams', to: p('teams'), labelKey: 'shell.teamui.allTeams', Icon: GridIcon, end: true },
+    { id: 'roles', to: p('teams/roles'), labelKey: 'shell.teamui.roles', Icon: TeamsIcon },
   ];
   const directoryGroup: NavEntry[] = [
     { id: 'agents', to: p('teams/agents'), labelKey: 'shell.teamui.agents', Icon: DirectoryIcon },

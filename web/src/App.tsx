@@ -51,6 +51,7 @@ const Me = lazy(() => import('./pages/Me'));
 // survives only for its isolated unit tests, so it is no longer lazy-loaded here.
 // Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
 const Teams = lazy(() => import('./pages/Teams'));
+const TeamsRoles = lazy(() => import('./pages/TeamsRoles'));
 const TeamDetail = lazy(() => import('./pages/TeamDetail'));
 const TeamsDirectoryAgents = lazy(() => import('./pages/TeamsDirectoryAgents'));
 const TeamsDirectoryHumans = lazy(() => import('./pages/TeamsDirectoryHumans'));
@@ -145,6 +146,7 @@ export function App(): React.ReactElement {
           <Route path="members/humans" element={<Navigate to="../teams/humans" replace />} />
           {/* Team WebUI (Phase-1). Static children rank above teams/:teamId. */}
           <Route path="teams" element={<Teams />} />
+          <Route path="teams/roles" element={<TeamsRoles />} />
           <Route path="teams/templates" element={<NotFound />} />
           <Route path="teams/templates/:templateId" element={<NotFound />} />
           <Route path="teams/agents" element={<TeamsDirectoryAgents />} />

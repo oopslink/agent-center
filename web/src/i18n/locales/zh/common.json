@@ -299,6 +299,7 @@
     },
     "teamui": {
       "allTeams": "全部 team",
+      "roles": "角色",
       "directory": "人员",
       "agents": "Agents",
       "humans": "Humans"

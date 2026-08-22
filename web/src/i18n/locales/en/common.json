@@ -301,6 +301,7 @@
     },
     "teamui": {
       "allTeams": "All teams",
+      "roles": "Roles",
       "directory": "PEOPLES",
       "agents": "Agents",
       "humans": "Humans"
