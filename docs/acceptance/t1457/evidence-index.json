@@ -1,8 +1,19 @@
 {
   "task": "T1477 / T1457 Team Roles Gate recovery",
+  "delivery": {
+    "evidence_status": "non_empty_structured_evidence_generated",
+    "candidate_head_at_capture": "4d0319f2b672e34a54c1ba9d7855cd1e1565aff0",
+    "runtime_commit_at_capture": "4d0319f2b672e34a54c1ba9d7855cd1e1565aff0",
+    "head_runtime_match_at_capture": true,
+    "stable_reviewer_url": null,
+    "stable_reviewer_url_status": "blocked_in_isolated_executor",
+    "stable_reviewer_url_blocker": "No deploy/Sites/shared-preview credential or mechanism is available in this isolated executor; only a torn-down 127.0.0.1 browser instance could be produced.",
+    "base_url_was_local_ephemeral": "http://127.0.0.1:53566"
+  },
   "baseline": {
     "canonical_attachment_sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56",
     "canonical_source": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+    "canonical_verified_sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56",
     "viewport": "1672x941"
   },
   "candidate_capture": {
@@ -27,78 +38,163 @@
     "console and network raw event capture",
     "runtime /api/system/version.commit check"
   ],
+  "raw_results": {
+    "fresh_1280_overflow": {
+      "url": "http://127.0.0.1:53566/organizations/org-0aadd151/teams/roles",
+      "clientWidth": 1280,
+      "scrollWidth": 1280
+    },
+    "console_events": 1,
+    "network_events": 31,
+    "api": {
+      "createdRoleId": "role-d88f5641c1526ba8",
+      "editedRoleVersion": 2,
+      "deleteStatus": 204,
+      "mappingConflict": {
+        "status": 409,
+        "body": "{\"error\":\"version_conflict\",\"message\":\"team: RAM role mapping version conflict\"}\n"
+      },
+      "ramRoleConflict": {
+        "status": 409,
+        "body": "{\"error\":\"version_conflict\",\"message\":\"RAM role latest version changed\"}\n"
+      }
+    }
+  },
   "states": [
     {
       "name": "roles-list",
+      "description": "Team Role list, detail entry, work config, RAM mapping table",
       "candidate": "docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png",
-      "changed_pixels": 1488214,
-      "changed_ratio": 0.9458875117373638
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
+      "changed_pixels": 1488233,
+      "changed_ratio": 0.9458995825473258,
+      "mae_per_channel": 12.738615177447047,
+      "rmse_per_channel": 38.01850080475263,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "ram-role-detail",
+      "description": "RAM Role versions, duplicate/delete controls, delete safeguard",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png",
-      "changed_pixels": 1488214,
-      "changed_ratio": 0.9458875117373638
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
+      "changed_pixels": 1488233,
+      "changed_ratio": 0.9458995825473258,
+      "mae_per_channel": 12.738615177447047,
+      "rmse_per_channel": 38.01850080475263,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "mapping-drawer",
+      "description": "Team Role RAM mapping edit drawer",
       "candidate": "docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-pixel-diff.png",
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
       "changed_pixels": 1519368,
-      "changed_ratio": 0.9656885426783072
+      "changed_ratio": 0.9656885426783072,
+      "mae_per_channel": 48.590165455664085,
+      "rmse_per_channel": 64.99178685364517,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "mapping-preview",
+      "description": "Mapping preview with affected members/projects and CAS source version",
       "candidate": "docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-mapping-preview-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-mapping-preview-canonical-pixel-diff.png",
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
       "changed_pixels": 1519579,
-      "changed_ratio": 0.96582265125668
+      "changed_ratio": 0.96582265125668,
+      "mae_per_channel": 48.97275434867722,
+      "rmse_per_channel": 65.69132063413863,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "mapping-cas-error",
+      "description": "Mapping CAS conflict and inline refresh error state",
       "candidate": "docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-pixel-diff.png",
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
       "changed_pixels": 1520268,
-      "changed_ratio": 0.96626056978985
+      "changed_ratio": 0.96626056978985,
+      "mae_per_channel": 49.13230563366197,
+      "rmse_per_channel": 65.84491931967034,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "ram-role-create-drawer",
+      "description": "Create RAM Role drawer with permission picker and audit guard",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-pixel-diff.png",
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
       "changed_pixels": 1523247,
-      "changed_ratio": 0.9681539795290565
+      "changed_ratio": 0.9681539795290565,
+      "mae_per_channel": 48.51697395115651,
+      "rmse_per_channel": 64.997529630344,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "ram-role-edit-drawer",
+      "description": "Edit RAM Role drawer with versioned write controls",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png",
-      "changed_pixels": 1520726,
-      "changed_ratio": 0.9665516680313404
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
+      "changed_pixels": 1520730,
+      "changed_ratio": 0.9665542103737752,
+      "mae_per_channel": 48.99255729169315,
+      "rmse_per_channel": 65.47506309317752,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "ram-role-duplicate-drawer",
+      "description": "Duplicate RAM Role drawer",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png",
-      "changed_pixels": 1520792,
-      "changed_ratio": 0.9665936166861868
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
+      "changed_pixels": 1520796,
+      "changed_ratio": 0.9665961590286217,
+      "mae_per_channel": 48.7968784692385,
+      "rmse_per_channel": 65.17062213658555,
+      "max_abs_channel_delta": 255
     },
     {
       "name": "ram-role-delete-safeguard",
+      "description": "Referenced RAM Role delete safeguard confirmation",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-pixel-diff.png",
+      "width": 1672,
+      "height": 941,
+      "pixels": 1573352,
       "changed_pixels": 1565589,
-      "changed_ratio": 0.9950665795073137
+      "changed_ratio": 0.9950659483701041,
+      "mae_per_channel": 117.01576082995625,
+      "rmse_per_channel": 122.49524850452022,
+      "max_abs_channel_delta": 255
     }
   ]
 }

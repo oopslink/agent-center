@@ -1,3 +1,3 @@
-[server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-ibHbyb/bootstrap_token (scope=* owner=system:bootstrap)
-agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-ibHbyb/agent-center.db web=127.0.0.1:51095 admin=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-ibHbyb/admin.sock (escalator running)
+[server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-I7ubHj/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-I7ubHj/agent-center.db web=127.0.0.1:53566 admin=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/agent-center-t1457-I7ubHj/admin.sock (escalator running)
 signal terminated received; shutting down
