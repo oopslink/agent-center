@@ -114,6 +114,7 @@ export interface RAMRoleWriteRequest {
   description?: string;
   permissions: string[];
   scope?: string;
+  risk?: AccessRisk;
   expected_latest_version?: number;
 }
 

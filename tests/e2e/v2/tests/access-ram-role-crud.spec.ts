@@ -6,7 +6,7 @@ test.describe("Access RAM Role CRUD", () => {
     agentCenter,
     authSession,
   }) => {
-    await page.goto(`${agentCenter.baseURL}/organizations/${authSession.orgSlug}/access?view=roles-and-mappings`);
+    await page.goto(`${agentCenter.baseURL}/organizations/${authSession.orgSlug}/access?view=ram-roles`);
 
     await expect(page.getByTestId("access-roles-view")).toBeVisible();
     await expect(page.getByRole("heading", { name: "RAM Roles" })).toBeVisible();
@@ -15,7 +15,8 @@ test.describe("Access RAM Role CRUD", () => {
     const name = `Browser CRUD ${suffix}`;
     const stableKey = `browser-crud-${suffix}`;
 
-    const create = page.getByTestId("access-role-create");
+    await page.getByTestId("access-role-new").click();
+    const create = page.getByTestId("access-role-drawer");
     await create.getByTestId("access-role-name").fill(name);
     await create.getByTestId("access-role-stable-key").fill(stableKey);
     await create.getByTestId("access-role-description").fill("browser regression role");
@@ -35,6 +36,7 @@ test.describe("Access RAM Role CRUD", () => {
     await expect(detail).toContainText("Latest v2");
     await expect(page.getByTestId("access-role-versions")).toContainText("team.memory.review");
 
+    await detail.getByTestId("access-role-delete-name").fill(name);
     await detail.getByTestId("access-role-disable-submit").click();
     await expect(page.getByTestId("confirm-modal")).toContainText("second confirmation");
     await page.getByTestId("confirm-modal-confirm").click();

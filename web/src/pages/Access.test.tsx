@@ -333,22 +333,27 @@ describe('Access page', () => {
   it('browses RAM role versions and publishes a real v2 RAM role version with CAS payload', async () => {
     const roleV1 = {
       id: 'role-created',
+      stable_key: 'release-operator',
       name: 'Release operator',
       kind: 'custom',
       description: 'release work',
+      scope: 'team',
       version: 1,
       permissions: ['org.read', 'project.write'],
       risk: 'medium',
     };
     let roleDetail = {
       id: roleV1.id,
+      stable_key: 'release-operator',
       name: roleV1.name,
       description: roleV1.description,
       kind: roleV1.kind,
+      scope: 'team',
       latest: roleV1,
       versions: [roleV1],
+      references: [],
     };
-    let publishBody: { name?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
+    let publishBody: { name?: string; stable_key?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
         roles: [
@@ -360,19 +365,22 @@ describe('Access page', () => {
       })),
       http.get('/api/orgs/:slug/access/ram-roles/role-created', () => HttpResponse.json(roleDetail)),
       http.post('/api/orgs/:slug/access/ram-roles', async ({ request }) => {
-        const body = (await request.json()) as { name: string; description?: string; permissions: string[] };
+        const body = (await request.json()) as { name: string; stable_key?: string; description?: string; scope?: string; permissions: string[] };
         roleDetail = {
           id: roleV1.id,
+          stable_key: body.stable_key ?? 'release-operator',
           name: body.name,
           kind: roleV1.kind,
           description: body.description ?? '',
-          latest: { ...roleV1, name: body.name, description: body.description ?? '', permissions: body.permissions },
-          versions: [{ ...roleV1, name: body.name, description: body.description ?? '', permissions: body.permissions }],
+          scope: body.scope ?? 'team',
+          latest: { ...roleV1, stable_key: body.stable_key ?? 'release-operator', scope: body.scope ?? 'team', name: body.name, description: body.description ?? '', permissions: body.permissions },
+          versions: [{ ...roleV1, stable_key: body.stable_key ?? 'release-operator', scope: body.scope ?? 'team', name: body.name, description: body.description ?? '', permissions: body.permissions }],
+          references: [],
         };
         return HttpResponse.json(roleDetail, { status: 201 });
       }),
-      http.patch('/api/orgs/:slug/access/ram-roles/role-created', async ({ request }) => {
-        publishBody = (await request.json()) as { name?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
+      http.post('/api/orgs/:slug/access/ram-roles/role-created/versions', async ({ request }) => {
+        publishBody = (await request.json()) as { name?: string; stable_key?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
         const latest = { ...roleDetail.latest, version: 2, permissions: publishBody.permissions ?? [], risk: 'high' };
         roleDetail = { ...roleDetail, latest, versions: [latest, roleDetail.latest] };
         return HttpResponse.json(roleDetail, { status: 201 });
@@ -391,8 +399,9 @@ describe('Access page', () => {
     expect(within(view).getByTestId('access-role-versions')).toHaveTextContent('v2');
 
     fireEvent.click(within(view).getByTestId('access-role-new'));
-    const create = await screen.findByTestId('access-role-create');
+    const create = await screen.findByTestId('access-role-drawer');
     fireEvent.change(within(create).getByTestId('access-role-name'), { target: { value: 'Release operator' } });
+    fireEvent.change(within(create).getByTestId('access-role-stable-key'), { target: { value: 'release-operator' } });
     fireEvent.change(within(create).getByTestId('access-role-description'), { target: { value: 'release work' } });
     fireEvent.click(within(create).getByText('org.read'));
     fireEvent.click(within(create).getByText('project.write'));
@@ -400,7 +409,7 @@ describe('Access page', () => {
 
     await waitFor(() => expect(screen.getByTestId('access-role-detail')).toHaveTextContent('Release operator'));
     const detail = screen.getByTestId('access-role-detail');
-    await waitFor(() => expect(within(detail).getByTestId('access-role-new-version-submit')).toHaveTextContent('Save changes'));
+    await waitFor(() => expect(within(detail).getByTestId('access-role-new-version-submit')).toHaveTextContent('Create version'));
     expect(within(detail).getByTestId('access-role-new-version-submit')).not.toBeDisabled();
     fireEvent.click(within(detail).getByText('team.memory.review'));
     fireEvent.click(within(detail).getByTestId('access-role-new-version-submit'));
@@ -408,6 +417,7 @@ describe('Access page', () => {
     await waitFor(() => {
       expect(publishBody).toEqual({
         name: 'Release operator',
+        stable_key: 'release-operator',
         description: 'release work',
         scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],
@@ -447,11 +457,14 @@ describe('Access page', () => {
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [oldRole, targetRole] })),
       http.get('/api/orgs/:slug/access/ram-roles/role-old', () => HttpResponse.json({
         id: oldRole.id,
+        stable_key: 'old-deployer',
         name: oldRole.name,
         kind: oldRole.kind,
         description: oldRole.description,
+        scope: 'team',
         latest: oldRole,
         versions: [oldRole],
+        references: [],
       })),
       http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({
         team_id: 'team-7c19b0',
@@ -496,16 +509,19 @@ describe('Access page', () => {
       risk: 'low',
       created_at: '2026-08-14T08:02:00Z',
     };
-    let revokeBody: { expected_latest_version?: number; reason?: string } | null = null;
+    let deleteBody: { expected_latest_version?: number; confirm_unreferenced?: boolean; reason?: string } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
       http.get('/api/orgs/:slug/access/ram-roles/role-unused', () => HttpResponse.json({
         id: role.id,
+        stable_key: 'unused-reviewer',
         name: role.name,
         kind: role.kind,
         description: role.description,
+        scope: 'team',
         latest: role,
         versions: [role],
+        references: [],
       })),
       http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({
         team_id: 'team-7c19b0',
@@ -513,8 +529,8 @@ describe('Access page', () => {
         ram_role_ids: ['team-basic'],
         version: 7,
       })),
-      http.post('/api/orgs/:slug/access/ram-roles/role-unused/revoke', async ({ request }) => {
-        revokeBody = await request.json() as typeof revokeBody;
+      http.delete('/api/orgs/:slug/access/ram-roles/role-unused', async ({ request }) => {
+        deleteBody = await request.json() as typeof deleteBody;
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -529,10 +545,13 @@ describe('Access page', () => {
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused reviewer' } });
     fireEvent.click(within(detail).getByTestId('access-role-disable-submit'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
 
-    await waitFor(() => expect(revokeBody).toEqual({
+    await waitFor(() => expect(deleteBody).toEqual({
       expected_latest_version: 2,
-      reason: 'RAM role deleted after reference-impact review',
+      confirm_unreferenced: true,
+      reason: 'RAM role deleted after unreferenced confirmation',
     }));
     expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
   });
@@ -547,21 +566,24 @@ describe('Access page', () => {
       permissions: ['org.read', 'project.write'],
       risk: 'medium',
     };
-    let publishBody: { name?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
+    let publishBody: { name?: string; stable_key?: string; description?: string; scope?: string; permissions?: string[]; expected_latest_version?: number } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({
         roles: [roleV1],
       })),
       http.get('/api/orgs/:slug/access/ram-roles/role-cas', () => HttpResponse.json({
         id: roleV1.id,
+        stable_key: 'deploy-operator',
         name: roleV1.name,
         kind: roleV1.kind,
         description: roleV1.description,
+        scope: 'team',
         latest: roleV1,
         versions: [roleV1],
+        references: [],
       })),
-      http.patch('/api/orgs/:slug/access/ram-roles/role-cas', async ({ request }) => {
-        publishBody = (await request.json()) as { name?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
+      http.post('/api/orgs/:slug/access/ram-roles/role-cas/versions', async ({ request }) => {
+        publishBody = (await request.json()) as { name?: string; stable_key?: string; description?: string; scope?: string; permissions: string[]; expected_latest_version?: number };
         return HttpResponse.json(
           { error: 'version_conflict', message: 'access RAM role latest version changed' },
           { status: 409 },
@@ -585,6 +607,7 @@ describe('Access page', () => {
     await waitFor(() => {
       expect(publishBody).toEqual({
         name: 'Deploy operator',
+        stable_key: 'deploy-operator',
         description: 'deploy work',
         scope: 'team',
         permissions: ['org.read', 'project.write', 'team.memory.review'],
