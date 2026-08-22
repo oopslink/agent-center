@@ -174,14 +174,15 @@ type accessRevokeRequestDTO struct {
 }
 
 type accessDerivedState struct {
-	generatedAt  time.Time
-	subjects     []accessSubjectDTO
-	subjectByRef map[string]accessSubjectDTO
-	roles        []accessRoleDTO
-	catalog      []accessPermissionDefinitionDTO
-	catalogByKey map[string]accessPermissionDefinitionDTO
-	decisions    []accessDecisionDTO
-	grants       []accessGrantDTO
+	generatedAt     time.Time
+	subjects        []accessSubjectDTO
+	subjectByRef    map[string]accessSubjectDTO
+	roles           []accessRoleDTO
+	catalog         []accessPermissionDefinitionDTO
+	catalogByKey    map[string]accessPermissionDefinitionDTO
+	decisions       []accessDecisionDTO
+	grants          []accessGrantDTO
+	directResources []accessResourceScopeDTO
 }
 
 var accessCatalog = []accessPermissionDefinitionDTO{
@@ -1272,6 +1273,7 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 	for _, tm := range teams {
 		state.addTeamDecisions(ctx, d, members, tm)
 	}
+	state.directResources = accessDirectBindingResources(ctx, d, orgID, state)
 	state.decisions = state.authorizedDecisions(ctx, svc)
 	state.decisions = append(state.decisions, accessNotApplicableRows(state)...)
 	state.grants = accessGrantsFromDecisions(state.generatedAt, state.decisions, state.subjectByRef)
@@ -1399,10 +1401,17 @@ func (s *accessDerivedState) addDecision(subjectRef, permission string, resource
 func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.Service) []accessDecisionDTO {
 	out := make([]accessDecisionDTO, 0, len(s.decisions))
 	seen := map[string]struct{}{}
+	outIndex := map[string]int{}
 	resources := s.decisionResources()
 	for _, decision := range s.decisions {
 		key := strings.Join([]string{decision.SubjectRef, decision.Permission, resourceKey(decision.Resource)}, "|")
 		if _, ok := seen[key]; ok {
+			if decision.Status == "denied" {
+				decision = s.explicitDenyDecision(decision)
+				if idx, exists := outIndex[key]; exists {
+					out[idx] = decision
+				}
+			}
 			continue
 		}
 		seen[key] = struct{}{}
@@ -1419,9 +1428,16 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 			decision.EvidenceRef = "permission_registry:" + decision.Permission
 			decision.GrantID = ""
 			out = append(out, decision)
+			outIndex[key] = len(out) - 1
 			continue
 		}
-		explain, err := svc.Explain(ctx, authz.CheckRequest{
+		if decision.Status == "denied" {
+			decision = s.explicitDenyDecision(decision)
+			out = append(out, decision)
+			outIndex[key] = len(out) - 1
+			continue
+		}
+		explain, err := svc.ResolveEffective(ctx, authz.CheckRequest{
 			SubjectRef: authz.SubjectRef(decision.SubjectRef),
 			Transport:  authz.TransportWeb,
 			Permission: authz.PermissionKey(decision.Permission),
@@ -1452,9 +1468,28 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 			decision.GrantID = ""
 		}
 		out = append(out, decision)
+		outIndex[key] = len(out) - 1
 	}
-	out = s.appendAdditionalEffectiveDecisions(ctx, svc, out, seen, resources)
+	deniedKeys := map[string]struct{}{}
+	for _, decision := range out {
+		if decision.Status == "denied" {
+			deniedKeys[strings.Join([]string{decision.SubjectRef, decision.Permission, resourceKey(decision.Resource)}, "|")] = struct{}{}
+		}
+	}
+	out = s.appendAdditionalEffectiveDecisions(ctx, svc, out, seen, deniedKeys, resources)
 	return out
+}
+
+func (s accessDerivedState) explicitDenyDecision(decision accessDecisionDTO) accessDecisionDTO {
+	def := s.catalogByKey[decision.Permission]
+	decision.Allowed = false
+	decision.Status = "denied"
+	decision.GrantID = ""
+	decision.Risk = fallback(decision.Risk, fallback(def.Risk, "high"))
+	if !strings.HasPrefix(decision.Reason, "explicit deny precedence:") {
+		decision.Reason = "explicit deny precedence: " + fallback(decision.Reason, "authorization source denied this permission")
+	}
+	return decision
 }
 
 func (s accessDerivedState) decisionResources() []accessResourceScopeDTO {
@@ -1468,10 +1503,18 @@ func (s accessDerivedState) decisionResources() []accessResourceScopeDTO {
 		seen[key] = struct{}{}
 		resources = append(resources, decision.Resource)
 	}
+	for _, resource := range s.directResources {
+		key := resourceKey(resource)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		resources = append(resources, resource)
+	}
 	return resources
 }
 
-func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Context, svc *authz.Service, decisions []accessDecisionDTO, seen map[string]struct{}, resources []accessResourceScopeDTO) []accessDecisionDTO {
+func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Context, svc *authz.Service, decisions []accessDecisionDTO, seen map[string]struct{}, deniedKeys map[string]struct{}, resources []accessResourceScopeDTO) []accessDecisionDTO {
 	seenEffective := map[string]struct{}{}
 	for _, decision := range decisions {
 		seenEffective[accessEffectiveDecisionKey(decision)] = struct{}{}
@@ -1480,6 +1523,17 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 		for _, resource := range resources {
 			effective, err := svc.ListEffective(ctx, authz.SubjectRef(subj.Ref), accessAuthzResource(resource))
 			if err != nil {
+				decisions = append(decisions, accessDecisionDTO{
+					Allowed:     false,
+					SubjectRef:  subj.Ref,
+					Permission:  "access.resolve",
+					Resource:    resource,
+					Source:      string(authz.SourceSystem),
+					Reason:      "resolver failed closed: " + err.Error(),
+					EvidenceRef: "authorization_resolver:" + resourceKey(resource),
+					Status:      "denied",
+					Risk:        "high",
+				})
 				continue
 			}
 			resolved := accessResourceFromAuthz(effective.Resource, resource)
@@ -1488,6 +1542,9 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 					continue
 				}
 				key := strings.Join([]string{subj.Ref, string(permission.Key), resourceKey(resolved)}, "|")
+				if _, denied := deniedKeys[key]; denied {
+					continue
+				}
 				if _, ok := seen[key]; ok && permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
@@ -1519,6 +1576,61 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 		}
 	}
 	return decisions
+}
+
+func accessDirectBindingResources(ctx context.Context, d HandlerDeps, orgID string, state accessDerivedState) []accessResourceScopeDTO {
+	if d.DB == nil {
+		return nil
+	}
+	resourceByKey := map[string]accessResourceScopeDTO{}
+	for _, decision := range state.decisions {
+		resourceByKey[resourceKey(decision.Resource)] = decision.Resource
+	}
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT DISTINCT a.resource_kind, a.resource_id
+		FROM authorization_role_assignments a
+		JOIN authorization_roles r ON r.id = a.role_id AND r.revoked_at IS NULL
+		WHERE a.org_id = ? AND a.revoked_at IS NULL
+		ORDER BY a.resource_kind, a.resource_id`, orgID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	seen := map[string]struct{}{}
+	var out []accessResourceScopeDTO
+	for rows.Next() {
+		var resourceKind, resourceID string
+		if err := rows.Scan(&resourceKind, &resourceID); err != nil {
+			return out
+		}
+		resource := accessResourceScopeDTO{Kind: resourceKind, ID: resourceID, OrgID: orgID}
+		if known, ok := resourceByKey[resourceKey(resource)]; ok {
+			resource.Label = known.Label
+			resource.OrgID = fallback(resource.OrgID, known.OrgID)
+			resource.ProjectID = fallback(resource.ProjectID, known.ProjectID)
+		}
+		if resource.Label == "" {
+			resource.Label = accessResourceLabelFromDB(ctx, d.DB, orgID, resource)
+		}
+		key := resourceKey(resource)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, resource)
+	}
+	return out
+}
+
+func accessResourceLabelFromDB(ctx context.Context, db *sql.DB, orgID string, resource accessResourceScopeDTO) string {
+	var label string
+	switch resource.Kind {
+	case "team":
+		_ = db.QueryRowContext(ctx, `SELECT name FROM teams WHERE org_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
+	case "project":
+		_ = db.QueryRowContext(ctx, `SELECT name FROM pm_projects WHERE organization_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
+	}
+	return label
 }
 
 func accessEffectiveDecisionKey(decision accessDecisionDTO) string {
@@ -1798,8 +1910,8 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
 	}
-	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
 	if preview {
+		items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, false)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"request_id": fmt.Sprintf("access-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
 			"expires_at": body.ExpiresAt,
@@ -1808,6 +1920,21 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	preflight := accessBatchItems(r.Context(), svc, orgID, actor, body, state, false)
+	if dup, ok, err := accessDuplicateDirectGrant(r.Context(), d, orgID, preflight); err != nil {
+		writeError(w, http.StatusInternalServerError, "access_duplicate_check_failed", err.Error())
+		return
+	} else if ok {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":   "direct_grant_conflict",
+			"code":    "direct_grant_conflict",
+			"reason":  dup.Reason,
+			"message": dup.Reason,
+			"item":    dup,
+		})
+		return
+	}
+	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, true)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation_id": fmt.Sprintf("access-apply-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
 		"applied_at":   time.Now().UTC().Format(time.RFC3339),
@@ -1899,6 +2026,47 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		item.EvidenceRef = "authorization_preview:" + item.ID
 	}
 	return item
+}
+
+func accessDuplicateDirectGrant(ctx context.Context, d HandlerDeps, orgID string, items []accessBatchItemDTO) (accessBatchItemDTO, bool, error) {
+	if d.DB == nil {
+		return accessBatchItemDTO{}, false, nil
+	}
+	for _, item := range items {
+		if item.Status != "allowed" {
+			continue
+		}
+		var existingID string
+		err := d.DB.QueryRowContext(ctx, `
+			SELECT a.id
+			FROM authorization_role_assignments a
+			JOIN authorization_roles r ON r.id = a.role_id
+			JOIN authorization_role_permissions p ON p.role_id = a.role_id
+			WHERE a.org_id = ?
+			  AND a.subject_ref = ?
+			  AND a.resource_kind = ?
+			  AND a.resource_id = ?
+			  AND a.revoked_at IS NULL
+			  AND r.kind = 'custom'
+			  AND p.permission_key = ?
+			  AND p.resource_kind = ?
+			ORDER BY a.created_at DESC
+			LIMIT 1`,
+			orgID, item.SubjectRef, item.Resource.Kind, item.Resource.ID, item.Permission, item.Resource.Kind,
+		).Scan(&existingID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return accessBatchItemDTO{}, false, err
+		}
+		item.Status = "denied"
+		item.GrantID = existingID
+		item.EvidenceRef = "authorization_role_assignments:" + existingID
+		item.Reason = fmt.Sprintf("direct grant already exists for %s %s on %s", item.SubjectRef, item.Permission, resourceKey(item.Resource))
+		return item, true, nil
+	}
+	return accessBatchItemDTO{}, false, nil
 }
 
 func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {

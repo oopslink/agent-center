@@ -1,0 +1,84 @@
+{
+  "viewport_1684": {
+    "width": 1684,
+    "height": 934
+  },
+  "console_errors": [],
+  "request_failed": [],
+  "http_errors": [],
+  "expected_http_conflicts": [
+    {
+      "url": "http://127.0.0.1:5173/api/orgs/test/access/batch/apply",
+      "status": 409
+    }
+  ],
+  "overflow_1280": {
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "document": {
+      "clientWidth": 1280,
+      "scrollWidth": 1280,
+      "overflowX": false
+    },
+    "elements": {
+      "page-Access": {
+        "clientWidth": 935,
+        "scrollWidth": 935,
+        "overflowX": false,
+        "left": 320,
+        "right": 1255,
+        "width": 935
+      },
+      "access-subject-view": {
+        "clientWidth": 933,
+        "scrollWidth": 933,
+        "overflowX": false,
+        "left": 320,
+        "right": 1255,
+        "width": 935
+      },
+      "access-subject-detail": {
+        "clientWidth": 613,
+        "scrollWidth": 613,
+        "overflowX": false,
+        "left": 641,
+        "right": 1254,
+        "width": 613
+      },
+      "access-subject-metrics": {
+        "clientWidth": 613,
+        "scrollWidth": 613,
+        "overflowX": false,
+        "left": 641,
+        "right": 1254,
+        "width": 613
+      },
+      "access-decision-table": {
+        "clientWidth": 864,
+        "scrollWidth": 864,
+        "overflowX": false,
+        "left": 641,
+        "right": 1505,
+        "width": 864
+      },
+      "access-permission-trace": {
+        "clientWidth": 901,
+        "scrollWidth": 901,
+        "overflowX": false,
+        "left": 337,
+        "right": 1238,
+        "width": 901
+      },
+      "access-direct-binding-union": {
+        "clientWidth": 901,
+        "scrollWidth": 901,
+        "overflowX": false,
+        "left": 337,
+        "right": 1238,
+        "width": 901
+      }
+    }
+  }
+}
