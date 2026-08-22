@@ -50,7 +50,7 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		"subject_refs":["user:` + sess.IdentityID + `","agent:missing"],
 		"permission_keys":["org.member.role.manage","file.download"],
 		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
-		"expires_at":"2026-08-20T12:30:00Z",
+		"expires_at":"` + time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano) + `",
 		"reason":"temporary release support"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/preview", body, sess)
@@ -261,6 +261,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	deps, db, sess := setupTeamsAPI(t)
 	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	expiresAt := time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano)
 	tm := seedTeam(t, deps, sess.OrgID, "Access Union Team", []team.RoleConfig{{Role: "reviewer", CLI: "codex", Model: "gpt-5", MaxConcurrency: 1}})
 	subject := "user:" + sess.IdentityID
 	if _, err := deps.TeamService.AddMember(context.Background(), tm.ID(), team.MemberRef(subject), "reviewer"); err != nil {
@@ -289,7 +290,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
 		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
-		"expires_at":"2026-08-21T12:30:00Z",
+		"expires_at":"` + expiresAt + `",
 		"reason":"temporary direct binding"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
@@ -359,6 +360,65 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	if !directGrant {
 		t.Fatalf("overview grants missing direct binding grant id=%s grants=%+v", applied.Items[0].GrantID, overview.Grants)
+	}
+}
+
+func TestAccessOverviewDirectBindingUsesResolverExpiryFailClosed(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
+	subject := "user:" + sess.IdentityID
+	now := time.Now().UTC()
+	expired := now.Add(-time.Hour).Format(time.RFC3339Nano)
+	created := now.Add(-2 * time.Hour).Format(time.RFC3339Nano)
+	if _, err := db.Exec(`
+		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
+		VALUES ('role-expired-overview', ?, 'custom', 'Expired overview role', '', 'system', ?, ?, 1)`, sess.OrgID, created, created); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		VALUES ('role-expired-overview', 'org.settings.manage', 'org', 0, ?)`, created); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, expires_at)
+		VALUES ('asgn-expired-overview', ?, ?, 'role-expired-overview', 'org', ?, 'system', ?, ?)`, sess.OrgID, subject, sess.OrgID, created, expired); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/access/overview?q="+sess.IdentityID, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var overview struct {
+		Decisions []struct {
+			SubjectRef  string `json:"subject_ref"`
+			Permission  string `json:"permission"`
+			Source      string `json:"source"`
+			EvidenceRef string `json:"evidence_ref"`
+			Status      string `json:"status"`
+			GrantID     string `json:"grant_id"`
+		} `json:"decisions"`
+		Grants []struct {
+			ID string `json:"id"`
+		} `json:"grants"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&overview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for _, decision := range overview.Decisions {
+		if decision.EvidenceRef == "authorization_role_assignments:asgn-expired-overview" || decision.GrantID == "asgn-expired-overview" {
+			t.Fatalf("expired direct assignment surfaced outside resolver expiry semantics: %+v", decision)
+		}
+	}
+	for _, grant := range overview.Grants {
+		if grant.ID == "asgn-expired-overview" {
+			t.Fatalf("expired direct assignment surfaced as grant: %+v", overview.Grants)
+		}
 	}
 }
 

@@ -58,12 +58,12 @@ describe('Access page', () => {
     expect(screen.getAllByText('High risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No access').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Not applicable').length).toBeGreaterThan(0);
-    expect(screen.getByText('subject is not a joined organization member')).toBeInTheDocument();
-    expect(screen.getByText('file.download does not apply to team resources')).toBeInTheDocument();
+    expect(screen.getAllByText('subject is not a joined organization member').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('file.download does not apply to team resources').length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByTestId('access-filter-status'), { target: { value: 'unauthorized' } });
     await waitFor(() => {
-      expect(screen.getByText('subject is not a joined organization member')).toBeInTheDocument();
+      expect(screen.getAllByText('subject is not a joined organization member').length).toBeGreaterThan(0);
       expect(screen.queryByText('file.download does not apply to team resources')).not.toBeInTheDocument();
     });
 
@@ -92,7 +92,7 @@ describe('Access page', () => {
     const sidebar = await screen.findByTestId('access-subject-sidebar');
     expect(within(sidebar).getByTestId('access-permission-trace')).toHaveTextContent('Team membership -> Team Role -> RAM Role team-curator');
     expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('role-access-project-write');
-    expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created');
+    await waitFor(() => expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created'));
 
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
     expect(await screen.findByRole('dialog', { name: 'Add direct binding' })).toBeInTheDocument();
