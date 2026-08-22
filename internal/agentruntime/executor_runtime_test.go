@@ -1,11 +1,18 @@
 package agentruntime
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -185,12 +192,169 @@ func TestWorkViaExecutor_AtCapacityRetryable(t *testing.T) {
 	}
 }
 
+func TestSpawnExecutor_MaterializesTaskInputPlan569CanonicalMockups(t *testing.T) {
+	rt, ee, home := spawnRuntime(t, "agent-att")
+	pngBytes := testImageBytes(t, "png", 2, 3)
+	jpegBytes := testImageBytes(t, "jpeg", 4, 5)
+	mobileBytes := testImageBytes(t, "png", 6, 7)
+	txtBytes := []byte("plain contract file")
+	sc := &scriptedToolCaller{
+		getTaskBody: map[string]any{"id": "task-att", "title": "plan-569ab651 canonical mockups", "status": "open"},
+		listFilesBody: map[string]any{"files": []map[string]any{
+			{"uri": "ac://files/png1", "filename": "mockup.png", "mime_type": "image/png", "size": len(pngBytes)},
+			{"uri": "ac://files/jpg1", "filename": "mockup.png", "mime_type": "image/jpeg", "size": len(jpegBytes)},
+			{"uri": "ac://files/png2", "filename": "mobile-mockup.png", "mime_type": "image/png", "size": len(mobileBytes)},
+			{"uri": "ac://files/txt1", "filename": "../notes.txt", "mime_type": "text/plain", "size": len(txtBytes)},
+		}},
+		downloads: map[string][]byte{
+			"ac://files/png1": pngBytes,
+			"ac://files/jpg1": jpegBytes,
+			"ac://files/png2": mobileBytes,
+			"ac://files/txt1": txtBytes,
+		},
+	}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-att"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil || res.ExecutorID == "" {
+		t.Fatalf("executor not launched: %+v", res)
+	}
+	assertAdmissionForked(t, sc, "materialized fork")
+
+	in, err := ee.fx.ReadInput(res.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.TaskInput == nil || in.TaskInput.Dir != "task-input" {
+		t.Fatalf("input task_input not wired: %+v", in.TaskInput)
+	}
+	manifestPath := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "manifest.json")
+	var manifest taskInputManifest
+	readJSONTest(t, manifestPath, &manifest)
+	if len(manifest.Files) != 4 {
+		t.Fatalf("manifest files=%d want 4: %+v", len(manifest.Files), manifest.Files)
+	}
+	byURI := map[string]taskInputManifestFile{}
+	for _, f := range manifest.Files {
+		byURI[f.URI] = f
+		if !f.Canonical || !f.Required || f.SourceScope != "task" || f.SourceID != "task-att" {
+			t.Fatalf("manifest source flags wrong: %+v", f)
+		}
+		if strings.Contains(f.Path, "..") {
+			t.Fatalf("manifest path traverses: %q", f.Path)
+		}
+	}
+	assertManifestFile(t, home, res.ExecutorID, byURI["ac://files/png1"], pngBytes, 2, 3)
+	assertManifestFile(t, home, res.ExecutorID, byURI["ac://files/jpg1"], jpegBytes, 4, 5)
+	assertManifestFile(t, home, res.ExecutorID, byURI["ac://files/png2"], mobileBytes, 6, 7)
+	assertManifestFile(t, home, res.ExecutorID, byURI["ac://files/txt1"], txtBytes, 0, 0)
+	if byURI["ac://files/png1"].Path == byURI["ac://files/jpg1"].Path {
+		t.Fatalf("same-name attachments were not disambiguated: %q", byURI["ac://files/png1"].Path)
+	}
+	_, tracker := seedExchange(t, home)
+	rec, err := tracker.Read(res.ExecutorID)
+	if err != nil {
+		t.Fatalf("tracker read: %v", err)
+	}
+	if got := strings.Join(rec.RunnerCmd, "\n"); !strings.Contains(got, "task-input/README.md") || !strings.Contains(got, "task-input/manifest.json") {
+		t.Fatalf("runner prompt does not point at task-input package: %s", got)
+	}
+}
+
+func TestSpawnExecutor_TaskInputDownloadFailureDoesNotStartOrFork(t *testing.T) {
+	rt, _, home := spawnRuntime(t, "agent-att-fail")
+	sc := &scriptedToolCaller{
+		getTaskBody:   map[string]any{"id": "task-fail", "title": "Use mockups", "status": "open"},
+		listFilesBody: map[string]any{"files": []map[string]any{{"uri": "ac://files/missing", "filename": "mock.png", "mime_type": "image/png", "size": 10}}},
+		downloadErr:   errors.New("403 file_not_reachable"),
+	}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-fail"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "task_input_materialization_failed" {
+		t.Fatalf("result = %+v, want task_input_materialization_failed", res)
+	}
+	if got := sc.toolsSeen(); strings.Join(got, ",") != "get_task,list_files" {
+		t.Fatalf("tool calls = %v, want no start_task/block_task after materialization failure", got)
+	}
+	inputs, _ := filepath.Glob(filepath.Join(home, "executors", "*", "input.json"))
+	if len(inputs) != 0 {
+		t.Fatalf("input files = %v, want none (executor not forked)", inputs)
+	}
+}
+
+func spawnRuntime(t *testing.T, agentID string) (*LocalRuntime, *ExecutorEngine, string) {
+	t.Helper()
+	rt, ee, home := engineForAgent(t, agentID)
+	attach(rt, ee)
+	return rt, ee, home
+}
+
+func testImageBytes(t *testing.T, kind string, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(20 + x), G: uint8(40 + y), B: 90, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	var err error
+	if kind == "png" {
+		err = png.Encode(&buf, img)
+	} else {
+		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
+	}
+	if err != nil {
+		t.Fatalf("encode %s: %v", kind, err)
+	}
+	return buf.Bytes()
+}
+
+func assertManifestFile(t *testing.T, home, execID string, f taskInputManifestFile, want []byte, width, height int) {
+	t.Helper()
+	if f.SizeBytes != int64(len(want)) {
+		t.Fatalf("%s size=%d want %d", f.URI, f.SizeBytes, len(want))
+	}
+	sum := sha256.Sum256(want)
+	if f.SHA256 != fmt.Sprintf("%x", sum[:]) {
+		t.Fatalf("%s sha=%s want %x", f.URI, f.SHA256, sum[:])
+	}
+	if f.Width != width || f.Height != height {
+		t.Fatalf("%s dimensions=%dx%d want %dx%d", f.URI, f.Width, f.Height, width, height)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "executors", execID, "workspace", filepath.FromSlash(f.Path)))
+	if err != nil {
+		t.Fatalf("read materialized %s: %v", f.Path, err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("materialized bytes for %s differ", f.URI)
+	}
+}
+
+func readJSONTest(t *testing.T, path string, out any) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if err := json.Unmarshal(b, out); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+}
+
 func TestBuildWorkItem(t *testing.T) {
 	t.Run("full detail", func(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
 			DeliveryContract: "evidence_only",
-		}, "", nil, "", "")
+		}, "", nil, nil, "", "")
 		want := orchestrator.WorkItem{
 			TaskID: "task-9", TaskRef: "task-9", TaskModel: "claude-haiku",
 			Goal:             executor.Goal{Title: "Fix the bug", Description: "do the fix"},
@@ -201,13 +365,13 @@ func TestBuildWorkItem(t *testing.T) {
 		}
 	})
 	t.Run("title falls back to first description line", func(t *testing.T) {
-		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"}, "", nil, "", "")
+		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"}, "", nil, nil, "", "")
 		if got.Goal.Title != "first line" {
 			t.Errorf("goal title = %q, want 'first line'", got.Goal.Title)
 		}
 	})
 	t.Run("title falls back to task id", func(t *testing.T) {
-		got := buildWorkItem("task-7", &centerTaskDetail{}, "", nil, "", "")
+		got := buildWorkItem("task-7", &centerTaskDetail{}, "", nil, nil, "", "")
 		if got.Goal.Title != "task task-7" {
 			t.Errorf("goal title = %q, want 'task task-7'", got.Goal.Title)
 		}
@@ -215,7 +379,7 @@ func TestBuildWorkItem(t *testing.T) {
 	t.Run("supervisor override supplies model and context", func(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
-		}, "", nil, " claude-opus ", " use this traceback ")
+		}, "", nil, nil, " claude-opus ", " use this traceback ")
 		if got.TaskModel != "claude-opus" {
 			t.Errorf("TaskModel override = %q, want claude-opus", got.TaskModel)
 		}
@@ -227,7 +391,7 @@ func TestBuildWorkItem(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			Title: "Fix", BaseRef: "release/v2",
 			Repo: &centerTaskRepo{URL: "git@example/repo.git", DefaultBranch: "develop"},
-		}, "", nil, "", "")
+		}, "", nil, nil, "", "")
 		if got.Repo == nil || got.Repo.BaseRef != "release/v2" || got.Repo.DefaultBranch != "develop" {
 			t.Fatalf("repo delivery policy context was dropped: %+v", got.Repo)
 		}
@@ -346,8 +510,8 @@ func TestSpawnExecutor_StartTaskDeclinedSkipsFork(t *testing.T) {
 	}
 	rt, _, home := spawn(t, "agent-cap", "task-2", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v, want get_task then start_task", seen)
+	if seen := sc.toolsSeen(); len(seen) != 3 || seen[1] != "list_files" || seen[2] != "start_task" {
+		t.Fatalf("tool calls = %v, want get_task then list_files then start_task", seen)
 	}
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Errorf("declined admission must NOT fork, got problems %+v", probs)
@@ -508,7 +672,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 5 || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -738,8 +902,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rule_index block_task]", seen)
+	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -34,6 +36,44 @@ type CenterHTTPClient struct {
 	httpc   *http.Client
 	baseURL string
 	token   string
+}
+
+func (c *CenterHTTPClient) DownloadFile(ctx context.Context, agentID, fileURI, destPath string) error {
+	ulid := strings.TrimSpace(fileURI)
+	if strings.HasPrefix(ulid, "ac://files/") {
+		ulid = strings.TrimPrefix(ulid, "ac://files/")
+	}
+	if ulid == "" {
+		return fmt.Errorf("agentruntime: center client: empty file uri")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/admin/files/"+url.PathEscape(ulid)+"?agent_id="+url.QueryEscape(agentID), nil)
+	if err != nil {
+		return fmt.Errorf("agentruntime: center client: build download: %w", err)
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return fmt.Errorf("agentruntime: center client: download %s: %w", fileURI, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("agentruntime: center client: download %s: status %d: %s", fileURI, resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("agentruntime: center client: create %s: %w", destPath, err)
+	}
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		_ = out.Close()
+		return fmt.Errorf("agentruntime: center client: write %s: %w", destPath, err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("agentruntime: center client: close %s: %w", destPath, err)
+	}
+	return nil
 }
 
 // compile-time check: the self-built client is a ToolCaller.
