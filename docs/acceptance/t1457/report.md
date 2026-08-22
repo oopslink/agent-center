@@ -1,72 +1,43 @@
 # T1457 Team Roles / RAM Role Mapping Evidence
 
-- Fresh base SHA verified before work: `c9b462d0b2da57896753d8f2dc142d783d138210`.
-- Canonical mockup attachment recorded: `ac://files/01M0HRMZEV7XS8A3MNGG64ZZW1`.
-- Canonical mockup SHA256 recorded: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
-- Canonical mockup file used for this remediation: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png` (`1672 x 941`).
-- Remediation change: the Access module secondary navigation entry `Team Role mappings` now routes to Team IA `/organizations/:slug/teams/roles`, not the Access aggregate query page. Team IA Roles navigation is also unit-locked.
-- Fresh verification instance: an isolated `bin/agent-center` server was launched by `capture-t1457.mjs`, signed up through the public auth API, seeded through public org-scoped Web API endpoints, then captured in Chromium at `1672 x 941`. The instance was intentionally torn down after capture.
-- Stable external preview: blocked in this executor. No repository/environment Sites or shared preview mechanism is available here, and this isolated worker has no deploy credentials. No durable non-`127.0.0.1` URL is claimed.
+- Git parent at task start: `ddba9b10816b803b0563e97de574ebe7378c8ef2`.
+- Final candidate HEAD at capture time: `ddba9b10816b803b0563e97de574ebe7378c8ef2`.
+- Runtime /api/system/version.commit: `ddba9b10816b803b0563e97de574ebe7378c8ef2`.
+- Canonical attachment SHA256: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
+- Canonical file used: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png`.
+- Canonical file verified SHA256: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
+- Fresh browser instance: `http://127.0.0.1:56782` (isolated local server, torn down after capture).
+- Stable external preview: `BLOCKED: no deploy/Sites/shared-preview credential or mechanism is available in this isolated executor`.
+- 1280 overflow check: clientWidth=`1280`, scrollWidth=`1280`, url=`http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles`.
+- Console events captured: `1`; network events captured: `31`.
 
-## Screenshots
+## State Matrix
 
-Fresh exact-size screenshots are `1672 x 941`.
+| State | Candidate | Overlay | Pixel diff | Changed px | Changed ratio |
+| --- | --- | --- | --- | ---: | ---: |
+| roles-list | docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png | docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png | docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png | 1488237 | 0.945902 |
+| ram-role-detail | docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png | 1488237 | 0.945902 |
+| mapping-drawer | docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-drawer-canonical-pixel-diff.png | 1519368 | 0.965689 |
+| mapping-preview | docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-preview-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-preview-canonical-pixel-diff.png | 1519579 | 0.965823 |
+| mapping-cas-error | docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png | docs/acceptance/t1457/t1457-mapping-cas-error-canonical-overlay.png | docs/acceptance/t1457/t1457-mapping-cas-error-canonical-pixel-diff.png | 1520268 | 0.966261 |
+| ram-role-create-drawer | docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-pixel-diff.png | 1523247 | 0.968154 |
+| ram-role-edit-drawer | docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png | 1520732 | 0.966555 |
+| ram-role-duplicate-drawer | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png | 1520798 | 0.966597 |
+| ram-role-delete-safeguard | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-overlay.png | docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-pixel-diff.png | 1565589 | 0.995066 |
 
-- `teams-roles-main-1672x941.png` — Teams / Platform Team / Roles / Developer IA, role list, work config, RAM mapping table, safeguards/audit section.
-- `teams-roles-mapping-drawer-1672x941.png` — Team Role RAM mapping edit drawer with work config, CAS version, immediate impact panel, preview/apply controls.
-- `teams-roles-ram-role-drawer-1672x941.png` — RAM Role create drawer with permission picker, safeguard/audit panel, versioned write controls.
-- `teams-roles-main-canonical-overlay.png` — true same-size overlay between final candidate main state and canonical mockup.
-- `teams-roles-main-canonical-pixel-diff.png` — true same-size pixel diff between final candidate main state and canonical mockup.
-- `teams-roles-main-canonical-diff-stats.json` — machine-readable canonical diff stats.
-- `capture-state.json` — captured URL, width guard, seeded Team/RAM Role ids, and checked state list.
-- Legacy `1280 x 720` screenshots from the prior pass remain in this directory for continuity and were not deleted.
+## Browser/API Coverage
 
-## Canonical Diff
+- Public signup API created a fresh owner session and organization.
+- Public org APIs seeded AI runtime, three custom RAM Roles, Team Roles, and Team Role RAM mappings.
+- Chromium verified role list, detail, create/edit/duplicate drawers, mapping preview/save path, CAS conflict, delete safeguard, version/error surfaces, console/network capture, and exact runtime SHA.
+- Mapping CAS raw result: `409` `{"error":"version_conflict","message":"team: RAM role mapping version conflict"}
+`.
+- RAM Role CAS raw result: `409` `{"error":"version_conflict","message":"RAM role latest version changed"}
+`.
+- CRUD raw result: created `role-077b7139d9a9e226`, edited to version `2`, deleted status `204`.
 
-Candidate: `docs/acceptance/t1457/teams-roles-main-1672x941.png`
+## Raw Evidence Files
 
-Canonical: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png`
-
-- Same-size canvas: `1672 x 941`, `1,573,352` pixels.
-- Changed pixels: `1,488,215`.
-- Changed ratio: `0.9458881420`.
-- MAE per RGB channel: `12.7330673619`.
-- RMSE per RGB channel: `38.0095613481`.
-- Max absolute channel delta: `255`.
-
-The changed-pixel ratio is high; this records a real canonical-vs-candidate delta, not a state-to-state substitute overlay.
-
-## State Coverage
-
-`capture-t1457.mjs` checks these states on the fresh binary instance:
-
-- Team IA route `/teams/roles`.
-- Role list and role detail entry.
-- Work config values.
-- RAM Role mapping table.
-- Mapping edit drawer.
-- Immediate impact / CAS version.
-- RAM Role create drawer.
-- Versioned write controls.
-- Delete safeguard for referenced RAM Roles.
-- Audit copy.
-- Width guard: `clientWidth=1672`, `scrollWidth=1672`.
-
-## Verification
-
-- `pnpm --dir web install --frozen-lockfile`
-- `pnpm --dir tests/e2e/v2 install --frozen-lockfile`
-- `pnpm --dir web test -- App.test.tsx TeamUISecondaryNav.test.tsx Access.test.tsx`
-  - Vitest argument forwarding ran the full frontend suite: `191` test files, `1791` tests passed.
-- `pnpm --dir web typecheck`
-- `pnpm --dir web build`
-- `make build-backend`
-- `node docs/acceptance/t1457/capture-t1457.mjs`
-- Python/Pillow canonical overlay and pixel diff generation.
-
-Build completed with the existing CSS minifier warning at generated CSS line 3031; TypeScript, Vite build, backend build, full frontend tests, and fresh capture completed successfully.
-
-## Repository Constraints
-
-- This executor could not use `get_team_rule` because agent-center/MCP access is unavailable and the task explicitly forbids using center tools, raw center endpoints, database files, sockets, worker tokens, or equivalent fallbacks.
-- The starting branch had `HEAD=41a2f7e631760d617dc0513af2ee5ba777b75aa7` equal to `origin/main`; `bd5a8a0bf34af170e4b896631311a718ce6189ea` was not an ancestor of that HEAD (`git merge-base --is-ancestor` returned 1). History was not rewritten in this isolated executor.
+- `docs/acceptance/t1457/capture-state.json`
+- `docs/acceptance/t1457/t1457-console.log`
+- `docs/acceptance/t1457/t1457-network.log`

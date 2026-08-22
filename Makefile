@@ -59,7 +59,7 @@ WEB := web
 # its source. A tagged release overrides it explicitly:
 # VERSION=v2.8.1 make build. COMMIT/BRANCH/BUILT_AT auto-discover from the
 # working tree (fall back to unknown outside a checkout).
-COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+COMMIT   := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 BRANCH   := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILT_AT := $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 VERSION  ?= $(BRANCH)-$(COMMIT)
