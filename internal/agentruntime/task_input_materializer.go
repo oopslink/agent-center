@@ -22,6 +22,7 @@ import (
 
 const (
 	taskInputDirName          = "task-input"
+	taskInputVersion          = "v1"
 	taskInputAttachmentsDir   = "attachments"
 	taskInputManifestFileName = "manifest.json"
 	taskInputReadmeFileName   = "README.md"
@@ -87,7 +88,9 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 	if err := os.RemoveAll(stage); err != nil {
 		return nil, fmt.Errorf("task-input materialization: clean staging dir: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Join(stage, taskInputAttachmentsDir), 0o700); err != nil {
+	defer func() { _ = os.RemoveAll(stage) }()
+	versionStage := filepath.Join(stage, taskInputVersion)
+	if err := os.MkdirAll(filepath.Join(versionStage, taskInputAttachmentsDir), 0o700); err != nil {
 		return nil, fmt.Errorf("task-input materialization: mkdir staging: %w", err)
 	}
 	manifest := taskInputManifest{
@@ -106,8 +109,8 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 			return nil, fmt.Errorf("task-input materialization: task %s file %s size %d exceeds limit %d", taskID, f.URI, f.SizeBytes, maxTaskInputFileBytes)
 		}
 		name := uniqueSafeFilename(f.Filename, usedNames)
-		rel := filepath.Join(taskInputDirName, taskInputAttachmentsDir, name)
-		stagePath := filepath.Join(stage, taskInputAttachmentsDir, name)
+		rel := filepath.Join(taskInputDirName, taskInputVersion, taskInputAttachmentsDir, name)
+		stagePath := filepath.Join(versionStage, taskInputAttachmentsDir, name)
 		tmpPath := stagePath + ".download"
 		if err := dl.DownloadFile(ctx, agentID, f.URI, tmpPath); err != nil {
 			return nil, fmt.Errorf("task-input materialization: download %s (%s): %w", f.URI, f.Filename, err)
@@ -141,10 +144,10 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 	sort.SliceStable(manifest.Files, func(i, j int) bool {
 		return manifest.Files[i].Path < manifest.Files[j].Path
 	})
-	if err := writeJSONFileAtomic(filepath.Join(stage, taskInputManifestFileName), manifest); err != nil {
+	if err := writeJSONFileAtomic(filepath.Join(versionStage, taskInputManifestFileName), manifest); err != nil {
 		return nil, err
 	}
-	if err := writeJSONFileAtomic(filepath.Join(stage, taskInputMetadataFileName), map[string]any{
+	if err := writeJSONFileAtomic(filepath.Join(versionStage, taskInputMetadataFileName), map[string]any{
 		"task_id":      taskID,
 		"executor_id":  execID,
 		"title":        task.goalTitle(taskID),
@@ -155,7 +158,7 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 	}); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(stage, taskInputReadmeFileName), []byte(taskInputReadme(taskID, task, len(manifest.Files))), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(versionStage, taskInputReadmeFileName), []byte(taskInputReadme(taskID, task, len(manifest.Files))), 0o600); err != nil {
 		return nil, fmt.Errorf("task-input materialization: write README: %w", err)
 	}
 	if err := os.RemoveAll(root); err != nil {
@@ -165,8 +168,8 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 		return nil, fmt.Errorf("task-input materialization: publish package: %w", err)
 	}
 	return &executor.TaskInputRef{
-		Dir:          taskInputDirName,
-		ManifestPath: filepath.ToSlash(filepath.Join(taskInputDirName, taskInputManifestFileName)),
+		Dir:          filepath.ToSlash(filepath.Join(taskInputDirName, taskInputVersion)),
+		ManifestPath: filepath.ToSlash(filepath.Join(taskInputDirName, taskInputVersion, taskInputManifestFileName)),
 	}, nil
 }
 
