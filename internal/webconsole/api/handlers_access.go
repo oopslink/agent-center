@@ -174,14 +174,15 @@ type accessRevokeRequestDTO struct {
 }
 
 type accessDerivedState struct {
-	generatedAt  time.Time
-	subjects     []accessSubjectDTO
-	subjectByRef map[string]accessSubjectDTO
-	roles        []accessRoleDTO
-	catalog      []accessPermissionDefinitionDTO
-	catalogByKey map[string]accessPermissionDefinitionDTO
-	decisions    []accessDecisionDTO
-	grants       []accessGrantDTO
+	generatedAt     time.Time
+	subjects        []accessSubjectDTO
+	subjectByRef    map[string]accessSubjectDTO
+	roles           []accessRoleDTO
+	catalog         []accessPermissionDefinitionDTO
+	catalogByKey    map[string]accessPermissionDefinitionDTO
+	decisions       []accessDecisionDTO
+	grants          []accessGrantDTO
+	directResources []accessResourceScopeDTO
 }
 
 var accessCatalog = []accessPermissionDefinitionDTO{
@@ -1272,6 +1273,7 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 	for _, tm := range teams {
 		state.addTeamDecisions(ctx, d, members, tm)
 	}
+	state.directResources = accessDirectBindingResources(ctx, d, orgID, state)
 	state.decisions = state.authorizedDecisions(ctx, svc)
 	state.decisions = append(state.decisions, accessNotApplicableRows(state)...)
 	state.grants = accessGrantsFromDecisions(state.generatedAt, state.decisions, state.subjectByRef)
@@ -1468,6 +1470,14 @@ func (s accessDerivedState) decisionResources() []accessResourceScopeDTO {
 		seen[key] = struct{}{}
 		resources = append(resources, decision.Resource)
 	}
+	for _, resource := range s.directResources {
+		key := resourceKey(resource)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		resources = append(resources, resource)
+	}
 	return resources
 }
 
@@ -1519,6 +1529,61 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 		}
 	}
 	return decisions
+}
+
+func accessDirectBindingResources(ctx context.Context, d HandlerDeps, orgID string, state accessDerivedState) []accessResourceScopeDTO {
+	if d.DB == nil {
+		return nil
+	}
+	resourceByKey := map[string]accessResourceScopeDTO{}
+	for _, decision := range state.decisions {
+		resourceByKey[resourceKey(decision.Resource)] = decision.Resource
+	}
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT DISTINCT a.resource_kind, a.resource_id
+		FROM authorization_role_assignments a
+		JOIN authorization_roles r ON r.id = a.role_id AND r.revoked_at IS NULL
+		WHERE a.org_id = ? AND a.revoked_at IS NULL
+		ORDER BY a.resource_kind, a.resource_id`, orgID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	seen := map[string]struct{}{}
+	var out []accessResourceScopeDTO
+	for rows.Next() {
+		var resourceKind, resourceID string
+		if err := rows.Scan(&resourceKind, &resourceID); err != nil {
+			return out
+		}
+		resource := accessResourceScopeDTO{Kind: resourceKind, ID: resourceID, OrgID: orgID}
+		if known, ok := resourceByKey[resourceKey(resource)]; ok {
+			resource.Label = known.Label
+			resource.OrgID = fallback(resource.OrgID, known.OrgID)
+			resource.ProjectID = fallback(resource.ProjectID, known.ProjectID)
+		}
+		if resource.Label == "" {
+			resource.Label = accessResourceLabelFromDB(ctx, d.DB, orgID, resource)
+		}
+		key := resourceKey(resource)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, resource)
+	}
+	return out
+}
+
+func accessResourceLabelFromDB(ctx context.Context, db *sql.DB, orgID string, resource accessResourceScopeDTO) string {
+	var label string
+	switch resource.Kind {
+	case "team":
+		_ = db.QueryRowContext(ctx, `SELECT name FROM teams WHERE org_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
+	case "project":
+		_ = db.QueryRowContext(ctx, `SELECT name FROM pm_projects WHERE organization_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
+	}
+	return label
 }
 
 func accessEffectiveDecisionKey(decision accessDecisionDTO) string {

@@ -283,10 +283,13 @@ export default function Access(): React.ReactElement {
                   mappingEntries={mappingEntries}
                   canManageAccess={canManageAccess}
                 />
+                <PermissionCatalog catalog={data.catalog} />
               </>
             ) : (
               <SubjectDecisionView
                 decisions={data.decisions}
+                grants={data.grants}
+                subjects={data.subjects}
                 subjectByRef={subjectByRef}
                 permissionByKey={permissionByKey}
                 memberEntries={memberEntries}
@@ -294,7 +297,6 @@ export default function Access(): React.ReactElement {
                 onSelectSubject={setSelectedSubjectRef}
               />
             )}
-            <PermissionCatalog catalog={data.catalog} />
           </div>
           <aside className="space-y-4">
             {view === 'subjects' && (
@@ -922,6 +924,8 @@ function TeamRoleMappingRow({ entry, roles, canManageAccess }: { entry: MappingE
 
 function SubjectDecisionView({
   decisions,
+  grants,
+  subjects,
   subjectByRef,
   permissionByKey,
   memberEntries,
@@ -929,12 +933,17 @@ function SubjectDecisionView({
   onSelectSubject,
 }: {
   decisions: AccessDecision[];
+  grants: AccessGrant[];
+  subjects: AccessSubject[];
   subjectByRef: Map<string, AccessSubject>;
   permissionByKey: Map<string, AccessPermissionDefinition>;
   memberEntries: MemberEntry[];
   mappingEntries: MappingEntry[];
   onSelectSubject: (subjectRef: string) => void;
 }): React.ReactElement {
+  const pageSize = 5;
+  const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
+  const [page, setPage] = useState(0);
   const groups = useMemo(() => {
     const bySubject = new Map<string, AccessDecision[]>();
     for (const decision of decisions) {
@@ -942,61 +951,234 @@ function SubjectDecisionView({
       rows.push(decision);
       bySubject.set(decision.subject_ref, rows);
     }
-    return [...bySubject.entries()];
-  }, [decisions]);
+    return [...bySubject.entries()].sort(([aRef, aRows], [bRef, bRows]) => {
+      const aSubject = subjectByRef.get(aRef);
+      const bSubject = subjectByRef.get(bRef);
+      const aDenied = aRows.filter((row) => !row.allowed).length;
+      const bDenied = bRows.filter((row) => !row.allowed).length;
+      if (aDenied !== bDenied) return bDenied - aDenied;
+      return (aSubject?.name ?? aRef).localeCompare(bSubject?.name ?? bRef);
+    });
+  }, [decisions, grants, subjects, subjectByRef]);
+  const selectedRef = selectedSubjectRef && groups.some(([ref]) => ref === selectedSubjectRef)
+    ? selectedSubjectRef
+    : groups[0]?.[0] ?? '';
+  const selectedRows = groups.find(([ref]) => ref === selectedRef)?.[1] ?? [];
+  const selectedSubject = subjectByRef.get(selectedRef) ?? subjects.find((subject) => subject.ref === selectedRef);
+  const selectedGrants = grants.filter((grant) => grant.subject_ref === selectedRef);
+  const subjectTeams = useMemo(() => subjectTeamBindings(selectedRef, memberEntries, mappingEntries), [selectedRef, memberEntries, mappingEntries]);
+  const pageCount = Math.max(1, Math.ceil(groups.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStart = safePage * pageSize;
+  const visibleGroups = groups.slice(pageStart, pageStart + pageSize);
+  const stats = decisionStats(selectedRows, selectedGrants);
+  useEffect(() => {
+    setPage(0);
+  }, [groups.length]);
+  useEffect(() => {
+    if (selectedRef) onSelectSubject(selectedRef);
+  }, [selectedRef, onSelectSubject]);
   if (groups.length === 0) {
     return <EmptyState title="No matching access decisions" body="Change the filters to widen the API query." testId="access-empty" />;
   }
   return (
-    <div className="space-y-3" data-testid="access-subject-view">
-      {groups.map(([subjectRef, rows]) => {
-        const subject = subjectByRef.get(subjectRef);
-        return (
-          <section key={subjectRef} className="rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-              <div>
-                <h2 className="text-sm font-semibold text-text-primary">{subject?.name ?? subjectRef}</h2>
-                <p className="text-xs text-text-muted">{subjectRef}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {subject?.role && <AccessMetaPill>{subject.role}</AccessMetaPill>}
-                {subject?.status && <AccessMetaPill>{subject.status}</AccessMetaPill>}
-              </div>
+    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-subject-view">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-base px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary">Subject access workbench</h2>
+          <p className="mt-1 text-xs text-text-muted">{groups.length} subjects from the filtered authorization read model.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <AccessMetaPill>{stats.allowed} effective</AccessMetaPill>
+          <AccessMetaPill>{stats.denied} explicit deny</AccessMetaPill>
+          <AccessMetaPill>{stats.direct} direct</AccessMetaPill>
+        </div>
+      </div>
+      <div className="grid min-h-[32rem] lg:grid-cols-[20rem_minmax(0,1fr)]">
+        <div className="border-b border-border-base lg:border-b-0 lg:border-r">
+          <div className="divide-y divide-border-base" data-testid="access-subject-list">
+            {visibleGroups.map(([subjectRef, rows]) => {
+              const subject = subjectByRef.get(subjectRef);
+              const rowStats = decisionStats(rows, grants.filter((grant) => grant.subject_ref === subjectRef));
+              const active = subjectRef === selectedRef;
+              return (
+                <button
+                  key={subjectRef}
+                  type="button"
+                  className={[
+                    'block w-full px-4 py-3 text-left hover:bg-bg-subtle',
+                    active ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                  ].join(' ')}
+                  onClick={() => {
+                    setSelectedSubjectRef(subjectRef);
+                    onSelectSubject(subjectRef);
+                  }}
+                  data-testid={`access-subject-row-${subjectRef}`}
+                >
+                  <span className="block truncate text-sm font-semibold text-text-primary">{subject?.name ?? subjectRef}</span>
+                  <span className="mt-0.5 block truncate font-mono text-xs text-text-muted">{subjectRef}</span>
+                  <span className="mt-2 flex flex-wrap gap-1">
+                    <AccessMetaPill>{subject?.kind ?? 'subject'}</AccessMetaPill>
+                    {subject?.status && <AccessMetaPill>{subject.status}</AccessMetaPill>}
+                    <AccessMetaPill>{rowStats.allowed} allow</AccessMetaPill>
+                    {rowStats.denied > 0 && <AccessMetaPill>{rowStats.denied} deny</AccessMetaPill>}
+                  </span>
+                  {rows.find((row) => !row.allowed)?.reason && (
+                    <span className="mt-2 block text-xs text-text-secondary">{rows.find((row) => !row.allowed)?.reason}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-border-base px-4 py-3 text-xs text-text-muted" data-testid="access-subject-pagination">
+            <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={pageStart === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</button>
+            <span>Page {safePage + 1} of {pageCount}</span>
+            <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={pageStart + pageSize >= groups.length} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Next</button>
+          </div>
+        </div>
+
+        <div className="min-w-0" data-testid="access-subject-detail">
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border-base px-4 py-3">
+            <div>
+              <h3 className="text-base font-semibold text-text-primary">{selectedSubject?.name ?? selectedRef}</h3>
+              <p className="font-mono text-xs text-text-muted">{selectedRef}</p>
+              {selectedSubject?.team_names && selectedSubject.team_names.length > 0 && (
+                <p className="mt-1 text-xs text-text-secondary">{selectedSubject.team_names.join(', ')}</p>
+              )}
             </div>
-            <details className="group" data-testid={`access-subject-effective-${subjectRef}`}>
-              <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-text-secondary">
-                {rows.filter((row) => row.allowed).length} effective permissions · show source chain
-              </summary>
-              <div className="border-t border-border-base px-4 py-3 text-xs text-text-secondary">
-                {memberEntries.flatMap(({ team, query }) => (query.data ?? [])
-                  .filter((member) => member.member_ref === subjectRef)
-                  .map((member) => {
-                    const teamRoles = member.roles ?? [member.role];
-                    return teamRoles.map((teamRole) => {
-                      const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
-                      const sourced = rows.filter((row) => row.source === 'team_role_ram' && row.evidence_ref.includes(`${team.id}/${teamRole}/`));
-                      return (
-                        <p key={`${team.id}:${teamRole}`} className="mb-1">
-                          <span className="font-mono">membership:{team.name}</span> -&gt; Team Role <strong>{teamRole}</strong> -&gt; RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} -&gt; {sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions
-                        </p>
-                      );
-                    });
-                  }))}
-                {rows.filter((row) => row.source === 'custom_role').map((row) => (
-                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1">
-                    <span className="font-mono">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
-                    {row.expires_at ? ` - expires ${displayAccessDate(row.expires_at)}` : ''}
+            <div className="flex flex-wrap gap-2">
+              {selectedSubject?.role && <AccessMetaPill>{selectedSubject.role}</AccessMetaPill>}
+              {selectedSubject?.status && <AccessMetaPill>{selectedSubject.status}</AccessMetaPill>}
+              {selectedSubject?.kind && <AccessMetaPill>{selectedSubject.kind}</AccessMetaPill>}
+            </div>
+          </div>
+          <div className="grid gap-3 border-b border-border-base p-4 sm:grid-cols-5" data-testid="access-subject-metrics">
+            <SummaryTile label="Effective" value={stats.allowed} tone="success" />
+            <SummaryTile label="Explicit deny" value={stats.denied} tone="danger" />
+            <SummaryTile label="Direct union" value={stats.direct} tone="muted" />
+            <SummaryTile label="High risk" value={stats.highRisk} tone="warning" />
+            <SummaryTile label="Expiring" value={stats.expiring} tone="warning" />
+          </div>
+          <div className="grid gap-4 p-4 xl:grid-cols-2">
+            <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-subject-why">
+              <h4 className="text-xs font-semibold uppercase text-text-muted">Why access</h4>
+              <div className="mt-2 space-y-2">
+                {selectedRows.filter((row) => row.allowed).slice(0, 6).map((row) => (
+                  <div key={`${row.permission}:${row.evidence_ref}`} className="text-xs">
+                    <div className="font-mono font-semibold text-text-primary">{row.permission}</div>
+                    <div className="text-text-secondary">{row.reason}</div>
+                    <div className="font-mono text-text-muted">{sourceChain(row)}</div>
+                  </div>
+                ))}
+                {selectedRows.every((row) => !row.allowed) && <p className="text-sm text-text-muted">No allowed decisions in the current filter.</p>}
+              </div>
+            </section>
+            <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-explicit-deny">
+              <h4 className="text-xs font-semibold uppercase text-text-muted">Explicit deny and N/A</h4>
+              <div className="mt-2 space-y-2">
+                {selectedRows.filter((row) => !row.allowed).map((row) => (
+                  <div key={`${row.permission}:${row.status}:${row.evidence_ref}`} className="text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
+                      <AccessStatusBadge status={row.status ?? 'denied'} />
+                    </div>
+                    <div className="mt-1 text-text-secondary">{row.reason}</div>
+                    <div className="font-mono text-text-muted">{row.evidence_ref}</div>
+                  </div>
+                ))}
+                {selectedRows.every((row) => row.allowed) && <p className="text-sm text-text-muted">No denied, unauthorized, or not-applicable decisions.</p>}
+              </div>
+            </section>
+            <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-direct-binding-union-inline">
+              <h4 className="text-xs font-semibold uppercase text-text-muted">Direct union</h4>
+              <div className="mt-2 space-y-2">
+                {selectedGrants.filter((grant) => grant.source === 'custom_role').map((grant) => (
+                  <div key={grant.id} className="text-xs">
+                    <div className="font-mono font-semibold text-text-primary">{grant.role_id || grant.id}</div>
+                    <div className="text-text-secondary">{grant.permission} on {accessResourceLabel(grant.resource)}</div>
+                    <div className="text-text-muted">{grant.status} · expires {displayAccessDate(grant.expires_at)}</div>
+                  </div>
+                ))}
+                {selectedGrants.filter((grant) => grant.source === 'custom_role').length === 0 && <p className="text-sm text-text-muted">No direct bindings in this subject slice.</p>}
+              </div>
+            </section>
+            <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-subject-activity">
+              <h4 className="text-xs font-semibold uppercase text-text-muted">Summary and activity</h4>
+              <div className="mt-2 space-y-2 text-xs text-text-secondary">
+                <p>{stats.allowed} effective permissions across {new Set(selectedRows.map((row) => accessResourceKey(row.resource))).size} resources.</p>
+                <p>{selectedGrants.length} active or expiring grants are present for this subject.</p>
+                <p>{subjectTeams.length} team-role bindings contribute to the current union.</p>
+              </div>
+            </section>
+            <section className="rounded border border-border-base bg-bg-base p-3 xl:col-span-2" data-testid="access-subject-trace">
+              <h4 className="text-xs font-semibold uppercase text-text-muted">Trace</h4>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {subjectTeams.map((binding) => (
+                  <p key={`${binding.team.id}:${binding.role}`} className="rounded border border-border-base p-2 text-xs text-text-secondary">
+                    <span className="font-mono text-text-primary">membership:{binding.team.name}</span> -&gt; Team Role <strong>{binding.role}</strong> -&gt; RAM Role {binding.ramRoleIDs.join(', ') || 'none'}
                   </p>
                 ))}
-                {rows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && <p>Other bindings: {[...new Set(rows.filter((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)).map((row) => row.source))].join(', ')}</p>}
+                {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
+                  <p key={`${row.permission}:${row.evidence_ref}`} className="rounded border border-border-base p-2 text-xs text-text-secondary">
+                    <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission}
+                  </p>
+                ))}
+                {subjectTeams.length === 0 && selectedRows.every((row) => row.source !== 'custom_role') && <p className="text-sm text-text-muted">No team RAM or direct trace is visible in the current filter.</p>}
               </div>
-              <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
-            </details>
-          </section>
-        );
-      })}
-    </div>
+            </section>
+          </div>
+          <details className="border-t border-border-base" data-testid={`access-subject-effective-${selectedRef}`} open>
+            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-text-secondary">
+              {stats.allowed} effective permissions · full decision table
+            </summary>
+            <div className="grid gap-2 border-t border-border-base px-4 py-3 text-xs text-text-secondary md:grid-cols-2">
+              {subjectTeams.map((binding) => (
+                <p key={`${binding.team.id}:${binding.role}:detail`} className="rounded border border-border-base p-2">
+                  <span className="font-mono text-text-primary">membership:{binding.team.name}</span> -&gt; Team Role <strong>{binding.role}</strong> -&gt; RAM Role {binding.ramRoleIDs.join(', ') || 'none'}
+                </p>
+              ))}
+              {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
+                <p key={`${row.permission}:${row.evidence_ref}:detail`} className="rounded border border-border-base p-2">
+                  <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                </p>
+              ))}
+              {selectedRows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && (
+                <p className="rounded border border-border-base p-2">
+                  Other bindings: {[...new Set(selectedRows.filter((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)).map((row) => row.source))].join(', ')}
+                </p>
+              )}
+            </div>
+            <DecisionTable decisions={selectedRows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
+          </details>
+        </div>
+      </div>
+    </section>
   );
+}
+
+function decisionStats(rows: AccessDecision[], grants: AccessGrant[]): { allowed: number; denied: number; direct: number; highRisk: number; expiring: number } {
+  return {
+    allowed: rows.filter((row) => row.allowed).length,
+    denied: rows.filter((row) => !row.allowed).length,
+    direct: grants.filter((grant) => grant.source === 'custom_role').length,
+    highRisk: rows.filter((row) => row.risk === 'high').length,
+    expiring: grants.filter((grant) => grant.status === 'expires_soon').length,
+  };
+}
+
+function sourceChain(row: AccessDecision): string {
+  if (row.source === 'team_role_ram') return `Team membership -> Team Role -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
+  if (row.source === 'custom_role') return `direct binding -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
+  return `${row.source} -> ${row.evidence_ref}`;
+}
+
+function subjectTeamBindings(subjectRef: string, memberEntries: MemberEntry[], mappingEntries: MappingEntry[]): Array<{ team: TeamView; role: string; ramRoleIDs: string[] }> {
+  return memberEntries.flatMap(({ team, query }) => (query.data ?? [])
+    .filter((member) => member.member_ref === subjectRef)
+    .flatMap((member) => (member.roles ?? [member.role]).map((role) => {
+      const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === role)?.query.data;
+      return { team, role, ramRoleIDs: mapping?.ram_role_ids ?? [] };
+    })));
 }
 
 function DecisionTable({
