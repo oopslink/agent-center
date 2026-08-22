@@ -54,6 +54,7 @@ export default function TeamsRoles(): React.ReactElement {
   const [query, setQuery] = useState('');
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [selectedRoleKey, setSelectedRoleKey] = useState<string | null>(null);
 
   const mappings = useMemo<MappingEntry[]>(() => rawMappings.map((entry) => ({
     ...entry,
@@ -75,6 +76,11 @@ export default function TeamsRoles(): React.ReactElement {
       return teamMatch && (!q || text.includes(q));
     });
   }, [mappings, query, teamFilter]);
+  const selectedEntry = useMemo(() => {
+    if (mappings.length === 0) return null;
+    const selected = selectedRoleKey ? mappings.find((entry) => roleKey(entry.team.id, entry.role) === selectedRoleKey) : null;
+    return selected ?? filteredMappings[0] ?? mappings[0];
+  }, [filteredMappings, mappings, selectedRoleKey]);
 
   const customRoleCount = ramRoles.data?.roles.filter((role) => role.kind === 'custom').length ?? 0;
   const mappedCount = mappings.filter((entry) => (entry.query.data?.ram_role_ids ?? []).length > 0).length;
@@ -130,12 +136,10 @@ export default function TeamsRoles(): React.ReactElement {
                 <button
                   key={`${team.id}:${role.role}`}
                   type="button"
-                  className="block w-full px-4 py-3 text-left hover:bg-bg-subtle"
+                  aria-pressed={selectedEntry?.team.id === team.id && selectedEntry.role === role.role}
+                  className={`block w-full px-4 py-3 text-left hover:bg-bg-subtle ${selectedEntry?.team.id === team.id && selectedEntry.role === role.role ? 'bg-bg-subtle' : ''}`}
                   data-testid={`team-role-detail-${team.id}-${role.role}`}
-                  onClick={() => {
-                    const entry = mappings.find((item) => item.team.id === team.id && item.role === role.role);
-                    if (entry) setDrawer({ kind: 'mapping', entry });
-                  }}
+                  onClick={() => setSelectedRoleKey(roleKey(team.id, role.role))}
                 >
                   <div className="flex items-start gap-3">
                     <Glyph text={team.glyph} size="sm" />
@@ -160,6 +164,15 @@ export default function TeamsRoles(): React.ReactElement {
           )}
         </section>
 
+        <div className="space-y-4">
+        {selectedEntry && (
+          <RoleDetailPanel
+            entry={selectedEntry}
+            roles={ramRoles.data?.roles ?? []}
+            members={roleRows.find((row) => row.team.id === selectedEntry.team.id && row.role.role === selectedEntry.role)?.members ?? 0}
+            onEditMapping={() => setDrawer({ kind: 'mapping', entry: selectedEntry })}
+          />
+        )}
         <section className="rounded border border-border-base bg-bg-elevated" data-testid="team-role-ram-mappings">
           <div className="border-b border-border-base px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -215,6 +228,7 @@ export default function TeamsRoles(): React.ReactElement {
             </table>
           </div>
         </section>
+        </div>
       </div>
 
       <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="team-role-ram-role-detail">
@@ -297,6 +311,43 @@ function RAMRoleChips({ ids, roles }: { ids: string[]; roles: RAMRole[] }): Reac
         return <span key={id} className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] text-text-secondary">{role?.name ?? id}</span>;
       })}
     </div>
+  );
+}
+
+function RoleDetailPanel({ entry, roles, members, onEditMapping }: { entry: MappingEntry; roles: RAMRole[]; members: number; onEditMapping: () => void }): React.ReactElement {
+  const mappedIds = entry.query.data?.ram_role_ids ?? [];
+  return (
+    <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="team-role-selected-detail">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.6875rem] font-semibold uppercase text-text-muted">Selected Team Role</p>
+          <h2 className="mt-1 text-lg font-semibold text-text-primary">{entry.team.name} / {entry.role}</h2>
+          <p className="mt-1 text-sm text-text-secondary">{entry.team.description}</p>
+        </div>
+        <button type="button" className="rounded border border-border-base px-3 py-1.5 text-sm font-semibold hover:bg-bg-subtle" onClick={onEditMapping} data-testid="team-role-selected-edit-mapping">
+          Edit mapping
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-4" data-testid="team-role-selected-work-config">
+        <Spec label="CLI" value={entry.roleView.cli} />
+        <Spec label="Model" value={entry.roleView.model} />
+        <Spec label="Max concurrency" value={entry.roleView.max_concurrency} />
+        <Spec label="Members" value={members} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1">
+        {entry.roleView.capability_tags.map((tag) => <span key={tag} className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-[0.65rem] text-text-secondary">{tag}</span>)}
+      </div>
+      <div className="mt-3 rounded border border-border-base bg-bg-subtle p-3" data-testid="team-role-selected-ram-mapping">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-text-primary">Effective RAM mapping</h3>
+          <AccessMetaPill>CAS v{entry.query.data?.version ?? 'unread'}</AccessMetaPill>
+        </div>
+        <div className="mt-2">
+          {entry.query.isLoading ? <span className="text-xs text-text-muted">Loading</span> : entry.query.isError ? <span className="text-xs text-danger">Unavailable</span> : <RAMRoleChips ids={mappedIds} roles={roles} />}
+        </div>
+        <p className="mt-2 text-xs text-text-muted">Work config changes remain separate from authorization; mapping writes require the latest server version.</p>
+      </div>
+    </section>
   );
 }
 
@@ -569,4 +620,8 @@ function ramRoleReferences(entries: MappingEntry[]): Map<string, Array<{ team: T
 
 function sorted(values: string[]): string[] {
   return [...values].sort();
+}
+
+function roleKey(teamId: string, role: string): string {
+  return `${teamId}:${role}`;
 }
