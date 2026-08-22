@@ -1,4 +1,3 @@
-import playwright from '../../../tests/e2e/v2/node_modules/@playwright/test/index.js';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -8,7 +7,6 @@ import { join, resolve } from 'node:path';
 const repoRoot = resolve(new URL('../../..', import.meta.url).pathname);
 const outDir = resolve(repoRoot, 'docs/acceptance/t1457');
 const binary = resolve(repoRoot, 'bin/agent-center');
-const { chromium, request: playwrightRequest, expect } = playwright;
 
 async function freePort() {
   const net = await import('node:net');
@@ -30,6 +28,11 @@ async function api(ctx, method, url, data) {
 }
 
 async function main() {
+  if (process.env.T1457_REQUIRE_SHARED_INSTANCE === '1') {
+    throw new Error('T1457_REQUIRE_SHARED_INSTANCE is set, but capture-t1457.mjs only creates a disposable 127.0.0.1 instance. Use an owner/reviewer-accessible stable base URL whose /api/system/version.commit equals the candidate SHA.');
+  }
+  const playwright = await import('../../../tests/e2e/v2/node_modules/@playwright/test/index.js');
+  const { chromium, request: playwrightRequest, expect } = playwright.default ?? playwright;
   const tempDir = await mkdtemp(join(tmpdir(), 'agent-center-t1457-'));
   const grpcPort = await freePort();
   const webPort = await freePort();

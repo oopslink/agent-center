@@ -1,5 +1,21 @@
 # T1457 Team Roles / RAM Role Mapping Evidence
 
+## T1477 Gate Reject Follow-up Status
+
+Status: blocked for final acceptance in this isolated executor.
+
+The T1477 rejection requires a fresh owner/reviewer-accessible stable instance
+whose running `/api/system/version.commit` is exactly the final candidate SHA,
+followed by a full fresh recapture from that exact instance. This workspace has
+no `.openai/hosting.json`, no repository hosting metadata, and no shared preview
+deployment credentials. The available capture harness starts only a disposable
+`127.0.0.1` process, which is intentionally not owner/reviewer accessible and
+therefore cannot satisfy the gate.
+
+No stable shared deployment URL is claimed by this report. Any evidence below
+that references `127.0.0.1` is historical local evidence only and must not be
+used as the T1477 acceptance verdict.
+
 - Fresh base SHA verified before work: `c9b462d0b2da57896753d8f2dc142d783d138210`.
 - Canonical mockup attachment recorded: `ac://files/01M0HRMZEV7XS8A3MNGG64ZZW1`.
 - Canonical mockup SHA256 recorded: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
