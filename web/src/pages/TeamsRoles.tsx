@@ -2,15 +2,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { ApiError } from '@/api/client';
 import {
-  type AccessPermissionDefinition,
   type RAMRole,
-  useAccessOverview,
-  useRAMRole,
-  useRAMRoleCreate,
-  useRAMRoleDelete,
-  useRAMRoleNewVersion,
-  useRAMRoleRevoke,
-  useRAMRoleUpdate,
   useRAMRoles,
 } from '@/api/access';
 import {
@@ -23,7 +15,7 @@ import {
   useReplaceTeamRoleRAMMapping,
   useTeams,
 } from '@/api/teams';
-import { AccessMetaPill, AccessRiskBadge } from '@/components/access/kit';
+import { AccessMetaPill } from '@/components/access/kit';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
@@ -39,27 +31,22 @@ type MappingEntry = {
 };
 
 type Notice = { tone: 'success' | 'warning' | 'danger'; message: string } | null;
-type DrawerState =
-  | { kind: 'mapping'; entry: MappingEntry }
-  | { kind: 'role'; mode: 'create' | 'edit' | 'duplicate'; roleId?: string }
-  | null;
+type DrawerState = { kind: 'mapping'; entry: MappingEntry } | null;
 
 export default function TeamsRoles(): React.ReactElement {
   const teams = useTeams();
   const ramRoles = useRAMRoles();
-  const overview = useAccessOverview();
   const memberEntries = useAllTeamMembers(teams.data ?? []);
   const rawMappings = useAllTeamRoleRAMMappings(teams.data ?? []);
   const [teamFilter, setTeamFilter] = useState('all');
   const [query, setQuery] = useState('');
-  const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [drawer, setDrawer] = useState<Extract<DrawerState, { kind: 'mapping' }> | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
 
   const mappings = useMemo<MappingEntry[]>(() => rawMappings.map((entry) => ({
     ...entry,
     roleView: entry.team.roles.find((role) => role.role === entry.role) ?? entry.team.roles[0],
   })).filter((entry) => entry.roleView), [rawMappings]);
-  const roleRefs = useMemo(() => ramRoleReferences(mappings), [mappings]);
   const roleRows = useMemo(() => teams.data?.flatMap((team) => team.roles.map((role) => ({
     team,
     role,
@@ -99,9 +86,6 @@ export default function TeamsRoles(): React.ReactElement {
             setNotice({ tone: 'success', message: 'Refreshed Team Roles and RAM mappings from the server.' });
           }}>
             Refresh
-          </button>
-          <button type="button" className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg" data-testid="team-roles-create-ram-role" onClick={() => setDrawer({ kind: 'role', mode: 'create' })}>
-            New RAM Role
           </button>
         </div>
       </header>
@@ -198,7 +182,7 @@ export default function TeamsRoles(): React.ReactElement {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-text-secondary">{entry.roleView.cli} · {entry.roleView.model} · {entry.roleView.max_concurrency}</td>
                     <td className="px-4 py-3">
-                      {entry.query.isLoading ? <span className="text-xs text-text-muted">Loading</span> : entry.query.isError ? <span className="text-xs text-danger">Unavailable</span> : (
+                      {entry.query.isLoading ? <span className="text-xs text-text-muted">Loading</span> : entry.query.isError ? <span className="text-xs text-danger">Load failed</span> : (
                         <RAMRoleChips ids={entry.query.data?.ram_role_ids ?? []} roles={ramRoles.data?.roles ?? []} />
                       )}
                     </td>
@@ -217,46 +201,10 @@ export default function TeamsRoles(): React.ReactElement {
         </section>
       </div>
 
-      <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="team-role-ram-role-detail">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-text-primary">RAM Roles, versions, safeguards</h2>
-            <p className="mt-1 text-xs text-text-muted">Delete is blocked while Team Role references exist; duplicate creates a new editable RAM Role.</p>
-          </div>
-          <AccessMetaPill>{overview.data?.generated_at ? `audit ${overview.data.generated_at}` : 'audit ready'}</AccessMetaPill>
-        </div>
-        {ramRoles.isLoading && <Skeleton height="12rem" />}
-        {ramRoles.isSuccess && (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {ramRoles.data.roles.map((role) => (
-              <RAMRoleCard
-                key={role.id}
-                role={role}
-                refs={roleRefs.get(role.id) ?? []}
-                onEdit={() => setDrawer({ kind: 'role', mode: 'edit', roleId: role.id })}
-                onDuplicate={() => setDrawer({ kind: 'role', mode: 'duplicate', roleId: role.id })}
-                onNotice={setNotice}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
       {drawer?.kind === 'mapping' && (
         <MappingDrawer
           entry={drawer.entry}
           roles={ramRoles.data?.roles ?? []}
-          onClose={() => setDrawer(null)}
-          onNotice={setNotice}
-        />
-      )}
-      {drawer?.kind === 'role' && (
-        <RAMRoleDrawer
-          mode={drawer.mode}
-          roleId={drawer.roleId}
-          catalog={overview.data?.catalog ?? []}
-          sourceRole={ramRoles.data?.roles.find((role) => role.id === drawer.roleId)}
-          refs={drawer.roleId ? roleRefs.get(drawer.roleId) ?? [] : []}
           onClose={() => setDrawer(null)}
           onNotice={setNotice}
         />
@@ -391,123 +339,6 @@ function MappingDrawer({ entry, roles, onClose, onNotice }: { entry: MappingEntr
   );
 }
 
-function RAMRoleCard({ role, refs, onEdit, onDuplicate, onNotice }: { role: RAMRole; refs: Array<{ team: TeamView; role: string }>; onEdit: () => void; onDuplicate: () => void; onNotice: (notice: Notice) => void }): React.ReactElement {
-  const revoke = useRAMRoleRevoke();
-  const deleteRole = useRAMRoleDelete();
-  const [confirming, setConfirming] = useState(false);
-  const blocked = refs.length > 0;
-  const remove = () => {
-    if (blocked) {
-      onNotice({ tone: 'warning', message: `${role.name} is still referenced by ${refs.length} Team Roles. Remove or migrate mappings first.` });
-      return;
-    }
-    if (role.kind === 'custom') {
-      deleteRole.mutate({ id: role.id, expected_latest_version: role.version, confirm_unreferenced: true, reason: 'Team Roles RAM Role delete safeguard' }, {
-        onSuccess: () => onNotice({ tone: 'success', message: `Deleted RAM Role ${role.name}.` }),
-      });
-    } else {
-      revoke.mutate({ id: role.id, expected_latest_version: role.version, reason: 'Team Roles RAM Role revoke safeguard' }, {
-        onSuccess: () => onNotice({ tone: 'success', message: `Revoked RAM Role ${role.name}.` }),
-      });
-    }
-  };
-  return (
-    <article className="rounded border border-border-base bg-bg-base p-3" data-testid={`team-ram-role-${role.id}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-text-primary">{role.name}</h3>
-          <p className="mt-0.5 font-mono text-[0.6875rem] text-text-muted">{role.stable_key || role.id} · v{role.version}</p>
-        </div>
-        <AccessRiskBadge risk={role.risk} />
-      </div>
-      <p className="mt-2 line-clamp-2 text-xs text-text-secondary">{role.description}</p>
-      <div className="mt-2 flex flex-wrap gap-1">
-        <AccessMetaPill>{role.kind}</AccessMetaPill>
-        <AccessMetaPill>{role.scope}</AccessMetaPill>
-        <AccessMetaPill>{refs.length} refs</AccessMetaPill>
-      </div>
-      <div className="mt-2 font-mono text-[0.6875rem] text-text-muted">{role.permissions.slice(0, 4).join(', ')}{role.permissions.length > 4 ? ` +${role.permissions.length - 4}` : ''}</div>
-      {blocked && <p className="mt-2 text-xs text-warning" data-testid={`team-ram-role-delete-blocked-${role.id}`}>Safeguard: referenced by {refs.map((ref) => `${ref.team.name}/${ref.role}`).join(', ')}</p>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" onClick={onEdit}>Edit</button>
-        <button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" onClick={onDuplicate}>Duplicate</button>
-        <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-50" onClick={() => setConfirming(true)} disabled={deleteRole.isPending || revoke.isPending}>Delete</button>
-      </div>
-      {(deleteRole.isError || revoke.isError) && <p className="mt-2 text-xs text-danger">{((deleteRole.error ?? revoke.error) as Error).message}</p>}
-      <ConfirmModal
-        open={confirming}
-        title="Delete RAM Role"
-        message={blocked ? 'This RAM Role is referenced. Delete is blocked until mappings are removed or migrated.' : `Delete ${role.name}? This writes an audit event and cannot be applied without the latest version.`}
-        confirmLabel={blocked ? 'Blocked' : 'Delete'}
-        danger
-        busy={deleteRole.isPending || revoke.isPending}
-        onCancel={() => setConfirming(false)}
-        onConfirm={() => { setConfirming(false); remove(); }}
-      />
-    </article>
-  );
-}
-
-function RAMRoleDrawer({ mode, roleId, sourceRole, catalog, refs, onClose, onNotice }: { mode: 'create' | 'edit' | 'duplicate'; roleId?: string; sourceRole?: RAMRole; catalog: AccessPermissionDefinition[]; refs: Array<{ team: TeamView; role: string }>; onClose: () => void; onNotice: (notice: Notice) => void }): React.ReactElement {
-  const detail = useRAMRole(roleId ?? null);
-  const create = useRAMRoleCreate();
-  const update = useRAMRoleUpdate();
-  const newVersion = useRAMRoleNewVersion();
-  const base = detail.data?.latest ?? sourceRole;
-  const [name, setName] = useState(mode === 'duplicate' && base ? `${base.name} copy` : base?.name ?? '');
-  const [stableKey, setStableKey] = useState(mode === 'duplicate' && base ? `${base.stable_key || base.id}.copy` : base?.stable_key ?? '');
-  const [description, setDescription] = useState(base?.description ?? '');
-  const [scope, setScope] = useState(base?.scope ?? 'team');
-  const [permissions, setPermissions] = useState<string[]>(base?.permissions ?? []);
-  const conflict = (update.error instanceof ApiError && update.error.status === 409) || (newVersion.error instanceof ApiError && newVersion.error.status === 409);
-
-  if (mode !== 'create' && !base && detail.isLoading) {
-    return <Drawer title="RAM Role" subtitle="Loading role detail" onClose={onClose} testId="team-ram-role-drawer"><Skeleton height="12rem" /></Drawer>;
-  }
-
-  const payload = { name, stable_key: stableKey, description, scope, permissions, expected_latest_version: base?.version };
-  const save = () => {
-    if (mode === 'create' || mode === 'duplicate') {
-      create.mutate(payload, { onSuccess: (created) => { onNotice({ tone: 'success', message: `Created RAM Role ${created.name}.` }); onClose(); } });
-      return;
-    }
-    if (!roleId) return;
-    update.mutate({ id: roleId, payload }, { onSuccess: (saved) => { onNotice({ tone: 'success', message: `Saved RAM Role ${saved.name} metadata.` }); onClose(); } });
-  };
-  const createVersion = () => {
-    if (!roleId || mode !== 'edit') return;
-    newVersion.mutate({ id: roleId, payload }, { onSuccess: (saved) => { onNotice({ tone: 'success', message: `Created v${saved.latest.version} for ${saved.name}.` }); onClose(); } });
-  };
-
-  return (
-    <Drawer title={mode === 'create' ? 'Create RAM Role' : mode === 'duplicate' ? 'Duplicate RAM Role' : 'Edit RAM Role'} subtitle={base ? `${base.stable_key || base.id} · latest v${base.version}` : 'New role'} onClose={onClose} testId="team-ram-role-drawer">
-      <div className="space-y-4">
-        <TextField label="Name" value={name} onChange={setName} testId="team-ram-role-name" />
-        <TextField label="Stable key" value={stableKey} onChange={setStableKey} testId="team-ram-role-stable-key" />
-        <TextField label="Description" value={description} onChange={setDescription} testId="team-ram-role-description" />
-        <TextField label="Scope" value={scope} onChange={setScope} testId="team-ram-role-scope" />
-        <PermissionPicker catalog={catalog} selected={permissions} onChange={setPermissions} />
-        <section className="rounded border border-border-base bg-bg-subtle p-3" data-testid="team-ram-role-audit">
-          <h3 className="text-sm font-semibold text-text-primary">Safeguard and audit</h3>
-          <p className="mt-1 text-xs text-text-muted">Versioned writes include expected latest version. Referenced roles cannot be deleted until mappings are changed.</p>
-          <p className="mt-2 text-xs text-text-secondary">{refs.length > 0 ? `Referenced by ${refs.map((ref) => `${ref.team.name}/${ref.role}`).join(', ')}` : 'No Team Role references.'}</p>
-        </section>
-        {(create.isError || update.isError || newVersion.isError) && (
-          <div className="rounded border border-danger/40 bg-danger/10 p-3 text-sm text-danger" role="alert" data-testid="team-ram-role-error">
-            {((create.error ?? update.error ?? newVersion.error) as Error).message}
-            {conflict && <button type="button" className="ml-2 rounded border border-danger/40 px-2 py-1 text-xs font-semibold" onClick={() => { void detail.refetch(); update.reset(); newVersion.reset(); onNotice({ tone: 'warning', message: 'RAM Role CAS conflict detected. Refreshed latest version; review before saving.' }); }}>Refresh latest</button>}
-          </div>
-        )}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="rounded border border-border-base px-3 py-1.5 text-sm" onClick={onClose}>Cancel</button>
-          {mode === 'edit' && <button type="button" className="rounded border border-border-base px-3 py-1.5 text-sm font-semibold disabled:opacity-50" disabled={!roleId || permissions.length === 0 || newVersion.isPending} onClick={createVersion}>Create version</button>}
-          <button type="button" className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-semibold text-btn-primary-fg disabled:opacity-50" disabled={!name.trim() || permissions.length === 0 || create.isPending || update.isPending} onClick={save}>{mode === 'edit' ? 'Save metadata' : 'Create'}</button>
-        </div>
-      </div>
-    </Drawer>
-  );
-}
-
 function Drawer({ title, subtitle, children, onClose, testId }: { title: string; subtitle: string; children: React.ReactNode; onClose: () => void; testId: string }): React.ReactElement {
   return (
     <div className="fixed inset-0 z-50 bg-black/30" data-testid={`${testId}-backdrop`}>
@@ -525,46 +356,8 @@ function Drawer({ title, subtitle, children, onClose, testId }: { title: string;
   );
 }
 
-function TextField({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId: string }): React.ReactElement {
-  return (
-    <label className="block">
-      <span className="text-xs font-semibold uppercase text-text-muted">{label}</span>
-      <input className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary" value={value} onChange={(event) => onChange(event.target.value)} data-testid={testId} />
-    </label>
-  );
-}
-
-function PermissionPicker({ catalog, selected, onChange }: { catalog: AccessPermissionDefinition[]; selected: string[]; onChange: (values: string[]) => void }): React.ReactElement {
-  return (
-    <div className="rounded border border-border-base p-3" data-testid="team-ram-role-permissions">
-      <h3 className="text-xs font-semibold uppercase text-text-muted">Permissions</h3>
-      <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-        {catalog.map((permission) => {
-          const checked = selected.includes(permission.key);
-          return (
-            <button key={permission.key} type="button" aria-pressed={checked} className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs ${checked ? 'bg-success/10 text-success' : 'hover:bg-bg-subtle text-text-secondary'}`} onClick={() => onChange(checked ? selected.filter((key) => key !== permission.key) : [...selected, permission.key].sort())}>
-              <span className="font-mono">{permission.key}</span>
-              <AccessRiskBadge risk={permission.risk} />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function Spec({ label, value }: { label: string; value: React.ReactNode }): React.ReactElement {
   return <div><div className="text-[0.6875rem] font-semibold uppercase text-text-muted">{label}</div><div className="mt-0.5 font-mono text-sm text-text-primary">{value}</div></div>;
-}
-
-function ramRoleReferences(entries: MappingEntry[]): Map<string, Array<{ team: TeamView; role: string }>> {
-  const refs = new Map<string, Array<{ team: TeamView; role: string }>>();
-  for (const entry of entries) {
-    for (const id of entry.query.data?.ram_role_ids ?? []) {
-      refs.set(id, [...(refs.get(id) ?? []), { team: entry.team, role: entry.role }]);
-    }
-  }
-  return refs;
 }
 
 function sorted(values: string[]): string[] {

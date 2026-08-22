@@ -208,7 +208,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       ] }];
     case 'access':
       return [{ label: 'Access', items: [
-        { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
+        { to: p('access/ram-roles'), label: 'RAM Roles', Icon: AccessIcon },
         { to: p('teams/roles'), label: 'Team Role mappings', Icon: AccessIcon },
         { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: AccessIcon },
       ] }];
