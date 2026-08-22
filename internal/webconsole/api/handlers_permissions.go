@@ -326,6 +326,9 @@ func writeAuthorizationError(w http.ResponseWriter, decision authz.AccessDecisio
 	case errors.Is(err, authz.ErrInvalid), errors.Is(err, authz.ErrPermissionUndefined):
 		status = http.StatusUnprocessableEntity
 		code = "invalid_permission_request"
+	case errors.Is(err, authz.ErrDuplicateAssignment):
+		status = http.StatusConflict
+		code = "duplicate_direct_grant"
 	case errors.Is(err, authz.ErrConflict), errors.Is(err, authz.ErrIdempotencyConflict):
 		status = http.StatusConflict
 		code = "authorization_conflict"

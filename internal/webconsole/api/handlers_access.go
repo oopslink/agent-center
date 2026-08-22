@@ -1798,8 +1798,8 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
 	}
-	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
 	if preview {
+		items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, false)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"request_id": fmt.Sprintf("access-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
 			"expires_at": body.ExpiresAt,
@@ -1808,6 +1808,13 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	for _, item := range accessBatchItems(r.Context(), svc, orgID, actor, body, state, false) {
+		if strings.Contains(strings.ToLower(item.Reason), "duplicate direct grant") {
+			writeError(w, http.StatusConflict, "duplicate_direct_grant", item.Reason)
+			return
+		}
+	}
+	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, true)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"operation_id": fmt.Sprintf("access-apply-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
 		"applied_at":   time.Now().UTC().Format(time.RFC3339),

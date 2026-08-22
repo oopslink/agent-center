@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,9 +142,9 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 
 	directBody := `{
 		"subject_refs":["user:` + sess.IdentityID + `"],
-		"permission_keys":["org.analytics.read"],
+		"permission_keys":["org.read"],
 		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
-		"reason":"temporary analytics audit"
+		"reason":"temporary organization audit"
 	}`
 	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", directBody, sess)
 	if resp.StatusCode != http.StatusOK {
@@ -163,6 +164,40 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("direct grant apply = %+v", direct.Items)
 	}
 	directGrantID := direct.Items[0].GrantID
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", directBody, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("duplicate direct grant status=%d body=%v, want 409", resp.StatusCode, decodeBody(t, resp))
+	}
+	var duplicateErr struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&duplicateErr); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if duplicateErr.Error != "duplicate_direct_grant" || !strings.Contains(duplicateErr.Message, "duplicate direct grant") {
+		t.Fatalf("duplicate direct grant error = %+v", duplicateErr)
+	}
+
+	directBody = `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.analytics.read"],
+		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
+		"reason":"temporary analytics audit"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", directBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct revocable access apply status=%d", resp.StatusCode)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&direct); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(direct.Items) != 1 || direct.Items[0].Status != "allowed" || direct.Items[0].GrantID == "" {
+		t.Fatalf("direct revocable grant apply = %+v", direct.Items)
+	}
+	directGrantID = direct.Items[0].GrantID
 	revokeReason := "quarterly least privilege review"
 	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`"}`, sess)
 	if resp.StatusCode != http.StatusOK {
@@ -289,7 +324,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
 		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
-		"expires_at":"2026-08-21T12:30:00Z",
+		"expires_at":"2026-09-21T12:30:00Z",
 		"reason":"temporary direct binding"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
@@ -308,6 +343,31 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	resp.Body.Close()
 	if len(applied.Items) != 1 || applied.Items[0].Status != "allowed" || applied.Items[0].GrantID == "" {
 		t.Fatalf("direct binding apply items=%+v", applied.Items)
+	}
+	var activeDirect int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE id=? AND org_id=? AND subject_ref=? AND resource_kind='team' AND resource_id=? AND revoked_at IS NULL`, applied.Items[0].GrantID, sess.OrgID, subject, tm.ID().String()).Scan(&activeDirect); err != nil || activeDirect != 1 {
+		t.Fatalf("direct binding active assignment count=%d err=%v grant_id=%s", activeDirect, err, applied.Items[0].GrantID)
+	}
+	var directRoleID string
+	if err := db.QueryRow(`SELECT role_id FROM authorization_role_assignments WHERE id=?`, applied.Items[0].GrantID).Scan(&directRoleID); err != nil {
+		t.Fatal(err)
+	}
+	var directRolePerms int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_permissions WHERE role_id=? AND permission_key='team.memory.review' AND resource_kind='team'`, directRoleID).Scan(&directRolePerms); err != nil || directRolePerms != 1 {
+		t.Fatalf("direct role permissions count=%d err=%v role_id=%s", directRolePerms, err, directRoleID)
+	}
+	effective, err := deps.Authorizer.ListEffective(context.Background(), authz.SubjectRef(subject), authz.ResourceScope{Kind: "team", ID: tm.ID().String(), OrgID: sess.OrgID})
+	if err != nil {
+		t.Fatalf("ListEffective after direct binding: %v", err)
+	}
+	var customEffective bool
+	for _, p := range effective.Permissions {
+		if p.Key == "team.memory.review" && p.Source == authz.SourceCustomRole && p.AssignmentID == applied.Items[0].GrantID {
+			customEffective = true
+		}
+	}
+	if !customEffective {
+		t.Fatalf("ListEffective missing custom direct binding grant_id=%s permissions=%+v", applied.Items[0].GrantID, effective.Permissions)
 	}
 
 	resp = orgScopedGet(t, server.URL+"/api/access/overview?q=Access%20Union%20Team", sess)

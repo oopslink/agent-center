@@ -102,6 +102,18 @@ func TestService_ProjectMembershipCustomRolesAndRevoke(t *testing.T) {
 	if err != nil || !replay.Replayed {
 		t.Fatalf("idempotent replay = %#v err=%v", replay, err)
 	}
+	duplicate := req
+	duplicate.IdempotencyKey = "idem-project-reader-duplicate"
+	if _, err := svc.ApplyBatch(ctx, duplicate); !errors.Is(err, ErrDuplicateAssignment) {
+		t.Fatalf("duplicate direct assignment err=%v, want ErrDuplicateAssignment", err)
+	}
+	var assignmentAuditCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_audit_events WHERE event_type='authorization.assignment.created' AND assignment_id='asgn-reader'`).Scan(&assignmentAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if assignmentAuditCount != 1 {
+		t.Fatalf("duplicate assignment audit count=%d want 1", assignmentAuditCount)
+	}
 	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "project.read", Resource: ResourceScope{Kind: "project", ID: "project-1"}}); err != nil {
 		t.Fatalf("custom role project.read should allow: %v", err)
 	}

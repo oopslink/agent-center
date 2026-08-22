@@ -268,8 +268,8 @@ export default function Access(): React.ReactElement {
       )}
 
       {!overview.isLoading && !overview.isError && data && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-4">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0 space-y-4">
             {view === 'roles' ? (
               <>
                 <RAMRolesView
@@ -296,7 +296,7 @@ export default function Access(): React.ReactElement {
             )}
             <PermissionCatalog catalog={data.catalog} />
           </div>
-          <aside className="space-y-4">
+          <aside className="min-w-0 space-y-4">
             {view === 'subjects' && (
               <SubjectAccessSidebar
                 decisions={data.decisions}
@@ -383,8 +383,8 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
     muted: 'text-text-secondary',
   }[tone];
   return (
-    <div className="rounded border border-border-base bg-bg-elevated px-3 py-2">
-      <div className="text-[0.6875rem] font-semibold uppercase text-text-muted">{label}</div>
+    <div className="min-w-0 rounded border border-border-base bg-bg-elevated px-3 py-2">
+      <div className="text-[0.6875rem] font-semibold uppercase leading-snug text-text-muted">{label}</div>
       <div className={`mt-1 text-xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
     </div>
   );
@@ -521,8 +521,8 @@ function RAMRolesView({
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
-      <section className="rounded border border-border-base bg-bg-elevated">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
+      <section className="min-w-0 rounded border border-border-base bg-bg-elevated">
         <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
           <div className="flex items-center gap-2">
@@ -546,7 +546,7 @@ function RAMRolesView({
             />
           </label>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-w-full overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
               <tr>
@@ -587,8 +587,8 @@ function RAMRolesView({
         </div>
       </section>
 
-      <aside className="space-y-4">
-        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-create">
+      <aside className="min-w-0 space-y-4">
+        <section className="min-w-0 rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-create">
           <h2 className="text-sm font-semibold text-text-primary">Create role</h2>
           <RoleTextField label="Name" value={draftName} onChange={setDraftName} testId="access-role-name" />
           <RoleTextField label="Stable key" value={draftStableKey} onChange={setDraftStableKey} testId="access-role-stable-key" />
@@ -620,7 +620,7 @@ function RAMRolesView({
           {create.isError && <p className="mt-2 text-xs text-danger" role="alert">{(create.error as Error).message}</p>}
         </section>
 
-        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-detail">
+        <section className="min-w-0 rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-detail">
           <h2 className="text-sm font-semibold text-text-primary">Version history</h2>
           {detail.isLoading && <Skeleton height="8rem" />}
           {detail.data && (
@@ -811,7 +811,7 @@ function TeamRoleMappingsView({
 }): React.ReactElement {
   return (
     <div className="space-y-4" data-testid="access-team-role-mappings-view">
-      <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-team-role-mappings">
+      <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-team-role-mappings">
         <div className="border-b border-border-base px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">Team Role mappings</h2>
           <p className="mt-1 text-xs text-text-muted">Preview impact, then replace with optimistic concurrency control.</p>
@@ -952,7 +952,7 @@ function SubjectDecisionView({
       {groups.map(([subjectRef, rows]) => {
         const subject = subjectByRef.get(subjectRef);
         return (
-          <section key={subjectRef} className="rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
+          <section key={subjectRef} className="min-w-0 rounded border border-border-base bg-bg-elevated" onClick={() => onSelectSubject(subjectRef)}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base px-4 py-3">
               <div>
                 <h2 className="text-sm font-semibold text-text-primary">{subject?.name ?? subjectRef}</h2>
@@ -963,11 +963,12 @@ function SubjectDecisionView({
                 {subject?.status && <AccessMetaPill>{subject.status}</AccessMetaPill>}
               </div>
             </div>
-            <details className="group" data-testid={`access-subject-effective-${subjectRef}`}>
+            <details className="group min-w-0" data-testid={`access-subject-effective-${subjectRef}`}>
               <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-text-secondary">
                 {rows.filter((row) => row.allowed).length} effective permissions · show source chain
               </summary>
-              <div className="border-t border-border-base px-4 py-3 text-xs text-text-secondary">
+              <div className="border-t border-border-base px-4 py-3 text-xs text-text-secondary" data-testid={`access-subject-chain-${subjectRef}`}>
+                <div className="grid gap-2">
                 {memberEntries.flatMap(({ team, query }) => (query.data ?? [])
                   .filter((member) => member.member_ref === subjectRef)
                   .map((member) => {
@@ -976,19 +977,34 @@ function SubjectDecisionView({
                       const mapping = mappingEntries.find((entry) => entry.team.id === team.id && entry.role === teamRole)?.query.data;
                       const sourced = rows.filter((row) => row.source === 'team_role_ram' && row.evidence_ref.includes(`${team.id}/${teamRole}/`));
                       return (
-                        <p key={`${team.id}:${teamRole}`} className="mb-1">
-                          <span className="font-mono">membership:{team.name}</span> -&gt; Team Role <strong>{teamRole}</strong> -&gt; RAM Role {(mapping?.ram_role_ids ?? []).join(', ') || 'none'} -&gt; {sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions
-                        </p>
+                        <div key={`${team.id}:${teamRole}`} className="rounded border border-border-base bg-bg-base px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-text-primary">membership:{team.name}</span>
+                            <span aria-hidden="true">-&gt;</span>
+                            <span>Team Role <strong>{teamRole}</strong></span>
+                            <span aria-hidden="true">-&gt;</span>
+                            <span>RAM Role <span className="font-mono">{(mapping?.ram_role_ids ?? []).join(', ') || 'none'}</span></span>
+                            <span aria-hidden="true">-&gt;</span>
+                            <span>{sourced.length || rows.filter((row) => row.source === 'team_member').length} scoped effective permissions</span>
+                          </div>
+                        </div>
                       );
                     });
                   }))}
                 {rows.filter((row) => row.source === 'custom_role').map((row) => (
-                  <p key={`${row.evidence_ref}:${row.permission}`} className="mb-1">
-                    <span className="font-mono">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
-                    {row.expires_at ? ` - expires ${displayAccessDate(row.expires_at)}` : ''}
-                  </p>
+                  <div key={`${row.evidence_ref}:${row.permission}`} className="rounded border border-border-base bg-bg-base px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-text-primary">direct binding</span>
+                      <span aria-hidden="true">-&gt;</span>
+                      <span>RAM Role <span className="font-mono">{row.role_id || roleIDFromEvidence(row.evidence_ref) || row.source}</span></span>
+                      <span aria-hidden="true">-&gt;</span>
+                      <span><span className="font-mono">{row.permission}</span> on {accessResourceLabel(row.resource)}</span>
+                      {row.expires_at && <span>expires {displayAccessDate(row.expires_at)}</span>}
+                    </div>
+                  </div>
                 ))}
                 {rows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && <p>Other bindings: {[...new Set(rows.filter((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)).map((row) => row.source))].join(', ')}</p>}
+                </div>
               </div>
               <DecisionTable decisions={rows} subjectByRef={subjectByRef} permissionByKey={permissionByKey} compact />
             </details>
@@ -1011,8 +1027,8 @@ function DecisionTable({
   compact?: boolean;
 }): React.ReactElement {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[54rem] text-left text-sm" data-testid="access-decision-table">
+    <div className="max-w-full overflow-x-auto">
+      <table className={`${compact ? 'min-w-[46rem]' : 'min-w-[54rem]'} w-full text-left text-sm`} data-testid="access-decision-table">
         <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
           <tr>
             <th className="px-4 py-2 font-semibold">Subject</th>
@@ -1061,11 +1077,11 @@ function DecisionTable({
 
 function PermissionCatalog({ catalog }: { catalog: AccessPermissionDefinition[] }): React.ReactElement {
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-catalog">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-catalog">
       <div className="border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Permission catalog</h2>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-w-full overflow-x-auto">
         <table className="w-full min-w-[44rem] text-left text-sm">
           <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
             <tr>
@@ -1114,7 +1130,7 @@ function SubjectAccessSidebar({
   const effectiveRows = rows.filter((row) => row.allowed);
   const direct = grants.filter((grant) => grant.subject_ref === subjectRef && grant.source === 'custom_role');
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-subject-sidebar">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-subject-sidebar">
       <div className="border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Permission trace</h2>
         <p className="mt-1 font-mono text-xs text-text-muted">{subject?.name ?? subjectRef}</p>
@@ -1212,7 +1228,7 @@ function RoleManagement({
     updateRole.mutate({ role_id: role.id, permissions: permissionsFor(role), reason });
   };
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-role-management">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-role-management">
       <div className="border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Role management</h2>
       </div>
@@ -1289,7 +1305,7 @@ function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant
   };
   const selectedIds = [...selected];
   return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-grants">
+    <section className="min-w-0 rounded border border-border-base bg-bg-elevated" data-testid="access-grants">
       <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
         <h2 className="text-sm font-semibold text-text-primary">Active grants</h2>
         <button
@@ -1325,7 +1341,7 @@ function GrantRevoke({ grants, canManageAccess, onToast }: { grants: AccessGrant
             onChange={(e) => setReason(e.target.value)}
           />
         </label>
-        <div className="overflow-x-auto rounded border border-border-base">
+        <div className="max-w-full overflow-x-auto rounded border border-border-base">
           <table className="w-full min-w-[22rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
               <tr>
@@ -1681,7 +1697,7 @@ function roleIDFromEvidence(evidenceRef: string): string {
 
 function Picker({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <section className="rounded border border-border-base bg-bg-base">
+    <section className="min-w-0 rounded border border-border-base bg-bg-base">
       <h3 className="border-b border-border-base px-3 py-2 text-xs font-semibold uppercase text-text-muted">{title}</h3>
       <div className="grid gap-1 p-2 md:grid-cols-2">{children}</div>
     </section>
@@ -1745,7 +1761,7 @@ function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.Rea
 
 function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactElement {
   return (
-    <div className="overflow-x-auto rounded border border-border-base">
+    <div className="max-w-full overflow-x-auto rounded border border-border-base">
       <table className="w-full min-w-[42rem] text-left text-sm" data-testid="access-batch-items">
         <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
           <tr>

@@ -1,0 +1,2 @@
+docs/acceptance/t1478/subject-access-1684x934-viewport.png PNG 1684x934 1684x934+0+0 8-bit sRGB 287564B 0.000u 0:00.001
+docs/acceptance/t1478/subject-access-1280x720-viewport.png PNG 1280x720 1280x720+0+0 8-bit sRGB 205477B 0.000u 0:00.000

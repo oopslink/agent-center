@@ -880,6 +880,9 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err != nil {
 			return OperationResult{}, err
 		}
+		if status == "unchanged" {
+			return OperationResult{}, fmt.Errorf("%w: duplicate direct grant already active for subject %s, role %s, resource %s:%s", ErrDuplicateAssignment, op.Assignment.SubjectRef, roleID, kind, resourceID)
+		}
 		if err := s.audit(ctx, auditEvent{EventType: "authorization.assignment.created", ActorRef: actor, SubjectRef: a.SubjectRef, RoleID: roleID, AssignmentID: a.ID, ResourceKind: kind, ResourceID: resourceID, Payload: map[string]any{"status": status}}); err != nil {
 			return OperationResult{}, err
 		}

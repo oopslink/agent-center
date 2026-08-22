@@ -59,6 +59,7 @@ var (
 	ErrNotFound            = errors.New("authorization: resource not found")
 	ErrInvalid             = errors.New("authorization: invalid request")
 	ErrConflict            = errors.New("authorization: conflict")
+	ErrDuplicateAssignment = errors.New("authorization: duplicate role assignment")
 	ErrNotDelegatable      = errors.New("authorization: permission is not delegatable by actor")
 	ErrPermissionUndefined = errors.New("authorization: permission is not defined")
 	ErrRoleNotFound        = errors.New("authorization: role not found")

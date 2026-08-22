@@ -1,0 +1,6 @@
+=== RUN   TestAccessEffectiveBatchAndRevokeContract
+--- PASS: TestAccessEffectiveBatchAndRevokeContract (0.17s)
+=== RUN   TestAccessOverviewShowsTeamRAMAndDirectBindingUnion
+--- PASS: TestAccessOverviewShowsTeamRAMAndDirectBindingUnion (0.11s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	0.677s

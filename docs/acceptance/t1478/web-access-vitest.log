@@ -1,0 +1,26 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b84d5e30/web
+
+(node:45298) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Access.test.tsx (14 tests) 12463ms
+   ✓ Access page > defaults to Roles & mappings and exposes only the two Access tabs 973ms
+   ✓ Access page > opens Team Role mappings from secondary navigation inside Roles & mappings, then exposes expandable subject access 1263ms
+   ✓ Access page > shows Team RAM and direct binding source chains, then opens the direct binding flow 985ms
+   ✓ Access page > previews and saves a Team Role mapping with the fetched CAS version and refreshes immediately 786ms
+   ✓ Access page > renders Team Role mapping preview when nullable impact arrays are returned 956ms
+   ✓ Access page > previews and applies a four-step batch grant without deriving final permissions in the UI 2056ms
+   ✓ Access page > previews, confirms, and reports selected grant revokes 1160ms
+   ✓ Access page > shows a success toast after the Add direct binding flow applies 951ms
+   ✓ Access page > confirms revoke with the original preview token, stable idempotency key, and reason/message 719ms
+   ✓ Access page > browses RAM role versions and publishes a real v2 RAM role version with CAS payload 705ms
+   ✓ Access page > blocks referenced RAM role delete, shows references, and migrates them through real Team mapping saves 543ms
+   ✓ Access page > requires the full RAM role name before deleting an unreferenced custom role 469ms
+   ✓ Access page > keeps RAM role versions pinned and shows an error when publish hits a CAS conflict 493ms
+   ✓ Access page > gates the Access route with current subject effective permissions and shows the 403 reason 403ms
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  16:07:03
+   Duration  14.26s (transform 301ms, setup 650ms, collect 238ms, tests 12.46s, environment 504ms, prepare 70ms)
+

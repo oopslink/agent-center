@@ -1,0 +1,50 @@
+=== RUN   TestServiceEffectiveAcrossResourceKinds
+--- PASS: TestServiceEffectiveAcrossResourceKinds (0.11s)
+=== RUN   TestServiceValidationAndResourceConcealment
+=== RUN   TestServiceValidationAndResourceConcealment/invalid_subject
+=== RUN   TestServiceValidationAndResourceConcealment/missing_permission
+=== RUN   TestServiceValidationAndResourceConcealment/missing_kind
+=== RUN   TestServiceValidationAndResourceConcealment/missing_org
+=== RUN   TestServiceValidationAndResourceConcealment/unknown_org
+=== RUN   TestServiceValidationAndResourceConcealment/unknown_project
+=== RUN   TestServiceValidationAndResourceConcealment/cross_org_team
+=== RUN   TestServiceValidationAndResourceConcealment/unknown_kind
+=== RUN   TestServiceValidationAndResourceConcealment/inapplicable
+--- PASS: TestServiceValidationAndResourceConcealment (0.09s)
+    --- PASS: TestServiceValidationAndResourceConcealment/invalid_subject (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/missing_permission (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/missing_kind (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/missing_org (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/unknown_org (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/unknown_project (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/cross_org_team (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/unknown_kind (0.00s)
+    --- PASS: TestServiceValidationAndResourceConcealment/inapplicable (0.00s)
+=== RUN   TestService_LegacyOrgRolesAndDisabledOrgOwnerException
+--- PASS: TestService_LegacyOrgRolesAndDisabledOrgOwnerException (0.10s)
+=== RUN   TestService_ProjectMembershipCustomRolesAndRevoke
+--- PASS: TestService_ProjectMembershipCustomRolesAndRevoke (0.10s)
+=== RUN   TestService_RevokeAssignmentSameOrgValidAndIdempotent
+--- PASS: TestService_RevokeAssignmentSameOrgValidAndIdempotent (0.10s)
+=== RUN   TestService_RevokePreviewConfirmStrongCAS
+--- PASS: TestService_RevokePreviewConfirmStrongCAS (0.10s)
+=== RUN   TestService_RevokePreviewRejectsExpiredAndRevisionDrift
+--- PASS: TestService_RevokePreviewRejectsExpiredAndRevisionDrift (0.10s)
+=== RUN   TestService_RevokeAssignmentConcurrentRaceIdempotent
+--- PASS: TestService_RevokeAssignmentConcurrentRaceIdempotent (0.16s)
+=== RUN   TestService_TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess
+--- PASS: TestService_TeamMemoryCuratorAndRuntimeTagsDoNotGrantAccess (0.10s)
+=== RUN   TestService_AdminBearerScopeMapping
+=== RUN   TestService_AdminBearerScopeMapping/exact
+=== RUN   TestService_AdminBearerScopeMapping/wildcard
+=== RUN   TestService_AdminBearerScopeMapping/task_wildcard
+--- PASS: TestService_AdminBearerScopeMapping (0.10s)
+    --- PASS: TestService_AdminBearerScopeMapping/exact (0.00s)
+    --- PASS: TestService_AdminBearerScopeMapping/wildcard (0.00s)
+    --- PASS: TestService_AdminBearerScopeMapping/task_wildcard (0.00s)
+=== RUN   TestService_ApplyBatchConcurrentIdempotency
+--- PASS: TestService_ApplyBatchConcurrentIdempotency (0.11s)
+=== RUN   TestService_CustomRoleNegativeAuthorization
+--- PASS: TestService_CustomRoleNegativeAuthorization (0.10s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/authorization	1.487s
