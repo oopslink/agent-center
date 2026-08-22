@@ -56,7 +56,7 @@ async function api(ctx, method, url, data, ok = [200, 201, 204]) {
 
 async function screenshot(page, name, description, evidence, width = 1672, height = 941) {
   await page.setViewportSize({ width, height });
-  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(250);
   const metrics = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
@@ -429,7 +429,7 @@ secret_management:
     await page.getByLabel('Close drawer').click();
 
     await page.setViewportSize({ width: 1280, height: 941 });
-    await page.goto(`${baseURL}/organizations/${orgSlug}/teams/roles`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseURL}/organizations/${orgSlug}/teams/roles`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('page-TeamsRoles')).toBeVisible();
     const overflow1280 = await screenshot(page, '11-overflow-1280', stateDefs[10][1], evidence, 1280, 941);
     evidence.overflow1280 = overflow1280.metrics;
