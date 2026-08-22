@@ -1,0 +1,12 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/canonical-t1457-sha80e51bb4.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/01-roles-list-detail-work-config-ram-mapping.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1488170,
+  "mae": "3272.1 (0.0499291)",
+  "rmse": "9770.45 (0.149087)",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/01-roles-list-detail-work-config-ram-mapping-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/01-roles-list-detail-work-config-ram-mapping-canonical-pixel-diff.png"
+}

@@ -1,0 +1,12 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/canonical-t1457-sha80e51bb4.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/08-ram-role-edit-drawer-version-controls.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1523500,
+  "mae": "12639.7 (0.19287)",
+  "rmse": "16852.8 (0.257157)",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/08-ram-role-edit-drawer-version-controls-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/08-ram-role-edit-drawer-version-controls-canonical-pixel-diff.png"
+}

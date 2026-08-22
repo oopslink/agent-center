@@ -1,0 +1,12 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/canonical-t1457-sha80e51bb4.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/12-ram-role-cas-error.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1523290,
+  "mae": "12477.7 (0.190397)",
+  "rmse": "16612.3 (0.253487)",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/12-ram-role-cas-error-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/12-ram-role-cas-error-canonical-pixel-diff.png"
+}

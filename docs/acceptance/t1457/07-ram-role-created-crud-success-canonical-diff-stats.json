@@ -1,0 +1,12 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/canonical-t1457-sha80e51bb4.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/07-ram-role-created-crud-success.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1489070,
+  "mae": "3270.44 (0.0499037)",
+  "rmse": "9719.59 (0.148311)",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/07-ram-role-created-crud-success-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fc507740/docs/acceptance/t1457/07-ram-role-created-crud-success-canonical-pixel-diff.png"
+}
