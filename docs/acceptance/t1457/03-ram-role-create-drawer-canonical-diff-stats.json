@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-candidate-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1523247,
+  "changed_ratio": 0.9681539795290565,
+  "mae_per_channel": 48.531807885330174,
+  "rmse_per_channel": 64.99395484443839,
+  "max_abs_channel_delta": 255,
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-pixel-diff.png"
+}

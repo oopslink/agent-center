@@ -1,28 +1,233 @@
 {
-  "baseURL": "http://127.0.0.1:49629",
-  "orgSlug": "org-a7117fc8",
-  "finalURL": "http://127.0.0.1:49629/organizations/org-a7117fc8/teams/roles",
-  "head": "41a2f7e631760d617dc0513af2ee5ba777b75aa7",
-  "clientWidth": 1672,
-  "scrollWidth": 1672,
-  "teamId": "team-991e7f5c",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
+  "canonical_sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56",
+  "baseURL": "http://127.0.0.1:54196",
+  "viewport": {
+    "width": 1672,
+    "height": 941
+  },
+  "states": [
+    {
+      "id": "01-role-list",
+      "note": "Team IA role list, detail entries, work config and mapping table",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-diff-stats.json"
+    },
+    {
+      "id": "02-role-detail-drawer",
+      "note": "Role detail entry opens mapping drawer with CAS work config",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-diff-stats.json"
+    },
+    {
+      "id": "03-ram-role-create-drawer",
+      "note": "RAM Role create drawer with permission checklist",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-diff-stats.json"
+    },
+    {
+      "id": "04-ram-role-edit-drawer",
+      "note": "RAM Role edit drawer with versioned write controls",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-diff-stats.json"
+    },
+    {
+      "id": "05-ram-role-duplicate-drawer",
+      "note": "RAM Role duplicate drawer",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-diff-stats.json"
+    },
+    {
+      "id": "06-mapping-preview",
+      "note": "Mapping preview impact state before apply",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-diff-stats.json"
+    },
+    {
+      "id": "07-version-duplicate-delete-safeguard",
+      "note": "Version cards, duplicate affordance, referenced delete safeguard",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-diff-stats.json"
+    },
+    {
+      "id": "08-cas-conflict-error",
+      "note": "Mapping CAS conflict error state",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-diff-stats.json"
+    },
+    {
+      "id": "09-create-error",
+      "note": "RAM Role create duplicate/error state",
+      "metrics": {
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941,
+        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+      },
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-diff-stats.json"
+    }
+  ],
+  "browserAssertions": [
+    "mapping preview and apply succeeded through browser UI",
+    "expected console 409 from CAS/error state: Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "stale browser mapping write produced visible CAS error",
+    "expected console 409 from CAS/error state: Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "duplicate RAM Role create produced visible error"
+  ],
+  "apiChecks": [
+    {
+      "action": "ram_role_create",
+      "id": "role-62d7a245a9b14150",
+      "status": "ok"
+    },
+    {
+      "action": "ram_role_new_version",
+      "id": "role-62d7a245a9b14150",
+      "latest_version": 2,
+      "status": "ok"
+    },
+    {
+      "action": "ram_role_cas_stale",
+      "status": 409,
+      "ok": true
+    }
+  ],
+  "networkFailures": [],
+  "consoleErrors": [],
+  "version": {
+    "branch": "ac-exec/task-8019b5a9/exec-b8010c91",
+    "built_at": "2026-08-22T07:47:09Z",
+    "commit": "ddba9b10",
+    "install_path": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/bin/agent-center",
+    "parent_pid": 97645,
+    "pid": 97667,
+    "started_at": "2026-08-22T07:51:32.826878Z",
+    "version": "ac-exec/task-8019b5a9/exec-b8010c91-ddba9b10"
+  },
+  "overflow1280": {
+    "clientWidth": 1280,
+    "scrollWidth": 1280,
+    "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+  },
+  "orgSlug": "org-894ccec6",
+  "teamId": "team-20a621d0",
   "ramRoleIds": [
-    "role-36613ad3a6e6dde6",
-    "role-fe29f73e0bbb5a2f",
-    "role-dde10cb9f5ca9bdb"
+    "role-68a6c5a64282fbac",
+    "role-152eb5c3591298c7",
+    "role-1cbf017bfbf6365c"
   ],
   "checkedStates": [
-    "Team IA route /teams/roles",
-    "role list",
-    "role detail entry",
-    "work config",
-    "RAM mapping table",
-    "mapping edit drawer",
-    "immediate impact/CAS version",
-    "RAM Role create drawer",
-    "versioned write controls",
-    "delete safeguard",
-    "audit copy",
-    "1280/1672 no horizontal overflow guard"
+    {
+      "id": "01-role-list",
+      "note": "Team IA role list, detail entries, work config and mapping table"
+    },
+    {
+      "id": "02-role-detail-drawer",
+      "note": "Role detail entry opens mapping drawer with CAS work config"
+    },
+    {
+      "id": "03-ram-role-create-drawer",
+      "note": "RAM Role create drawer with permission checklist"
+    },
+    {
+      "id": "04-ram-role-edit-drawer",
+      "note": "RAM Role edit drawer with versioned write controls"
+    },
+    {
+      "id": "05-ram-role-duplicate-drawer",
+      "note": "RAM Role duplicate drawer"
+    },
+    {
+      "id": "06-mapping-preview",
+      "note": "Mapping preview impact state before apply"
+    },
+    {
+      "id": "07-version-duplicate-delete-safeguard",
+      "note": "Version cards, duplicate affordance, referenced delete safeguard"
+    },
+    {
+      "id": "08-cas-conflict-error",
+      "note": "Mapping CAS conflict error state"
+    },
+    {
+      "id": "09-create-error",
+      "note": "RAM Role create duplicate/error state"
+    }
   ]
 }

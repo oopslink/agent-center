@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-candidate-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1488211,
+  "changed_ratio": 0.9458855996623768,
+  "mae_per_channel": 12.75715542357972,
+  "rmse_per_channel": 37.71411221740595,
+  "max_abs_channel_delta": 255,
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-pixel-diff.png"
+}

@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-candidate-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1565589,
+  "changed_ratio": 0.9950659483701041,
+  "mae_per_channel": 117.04202492512802,
+  "rmse_per_channel": 122.52879764485708,
+  "max_abs_channel_delta": 255,
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-pixel-diff.png"
+}
