@@ -26,26 +26,26 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('defaults to Roles & mappings and exposes only the two Access tabs', async () => {
+  it('defaults to the independent RAM Roles page and exposes separate Access views', async () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByText('Permission catalog')).toBeInTheDocument();
-    expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
+    expect(await screen.findByTestId('access-roles-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
-    expect(screen.getByTestId('access-team-role-mappings-view')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('access-team-role-mappings-view')).not.toBeInTheDocument();
+    expect(screen.queryByText('Permission catalog')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'RAM Roles' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Team Role mappings' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Subject access' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'RAM Roles' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Team Role mappings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Roles & mappings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Profiles/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
   });
 
-  it('opens Team Role mappings from secondary navigation inside Roles & mappings, then exposes expandable subject access', async () => {
+  it('opens Team Role mappings as its own page, then exposes expandable subject access', async () => {
     renderPage('/organizations/test/access?view=team-role-mappings');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByRole('tab', { name: 'Roles & mappings' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('access-roles-view')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Team Role mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('access-roles-view')).not.toBeInTheDocument();
     expect(await screen.findByTestId('access-team-role-mappings-view')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Team Role mappings' })).toBeInTheDocument();
     expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
@@ -112,7 +112,7 @@ describe('Access page', () => {
       }),
     );
     renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-roles'));
+    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     expect(within(row).queryByRole('checkbox')).toBeNull();
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
@@ -147,7 +147,7 @@ describe('Access page', () => {
       })),
     );
     renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-roles'));
+    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
     const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
     fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
     const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
@@ -202,7 +202,7 @@ describe('Access page', () => {
   });
 
   it('previews, confirms, and reports selected grant revokes', async () => {
-    renderPage();
+    renderPage('/organizations/test/access?view=subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     const grants = await screen.findByTestId('access-grants');
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
@@ -303,7 +303,7 @@ describe('Access page', () => {
       }),
     );
 
-    renderPage();
+    renderPage('/organizations/test/access?view=subject-access');
     const grants = await screen.findByTestId('access-grants');
     fireEvent.change(within(grants).getByLabelText('Reason'), { target: { value: 'original audit reason' } });
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
