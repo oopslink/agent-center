@@ -1,14 +1,14 @@
 {
   "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
-  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-candidate-1672x941.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-candidate-1672x941.png",
   "width": 1672,
   "height": 941,
   "pixels": 1573352,
   "changed_pixels": 1520133,
   "changed_ratio": 0.9661747657231186,
-  "mae_per_channel": 49.103886903036745,
-  "rmse_per_channel": 65.78845093042248,
+  "mae_per_channel": 49.102469123247694,
+  "rmse_per_channel": 65.78660125268966,
   "max_abs_channel_delta": 255,
-  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-overlay.png",
-  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-pixel-diff.png"
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-canonical-pixel-diff.png"
 }

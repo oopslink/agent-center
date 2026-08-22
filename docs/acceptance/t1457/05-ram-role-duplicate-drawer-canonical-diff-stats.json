@@ -1,14 +1,14 @@
 {
   "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
-  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-candidate-1672x941.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-candidate-1672x941.png",
   "width": 1672,
   "height": 941,
   "pixels": 1573352,
-  "changed_pixels": 1520838,
-  "changed_ratio": 0.9666228536271604,
-  "mae_per_channel": 48.86377725179532,
-  "rmse_per_channel": 65.22417609166281,
+  "changed_pixels": 1520830,
+  "changed_ratio": 0.9666177689417245,
+  "mae_per_channel": 48.858732396395304,
+  "rmse_per_channel": 65.21925171937768,
   "max_abs_channel_delta": 255,
-  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-overlay.png",
-  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-pixel-diff.png"
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-overlay.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-pixel-diff.png"
 }

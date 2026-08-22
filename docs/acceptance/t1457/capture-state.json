@@ -1,7 +1,7 @@
 {
   "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBJCXN6XV8MXK3B9S5VS2S/tasks/team-roles-ddba-gate/t1457-canonical.png",
   "canonical_sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56",
-  "baseURL": "http://127.0.0.1:54196",
+  "baseURL": "http://127.0.0.1:52130",
   "viewport": {
     "width": 1672,
     "height": 941
@@ -15,12 +15,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/01-role-list-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/01-role-list-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/01-role-list-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/01-role-list-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/01-role-list-canonical-diff-stats.json"
     },
     {
       "id": "02-role-detail-drawer",
@@ -30,12 +30,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/02-role-detail-drawer-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/02-role-detail-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/02-role-detail-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/02-role-detail-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/02-role-detail-drawer-canonical-diff-stats.json"
     },
     {
       "id": "03-ram-role-create-drawer",
@@ -45,12 +45,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/03-ram-role-create-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/03-ram-role-create-drawer-canonical-diff-stats.json"
     },
     {
       "id": "04-ram-role-edit-drawer",
@@ -60,12 +60,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/04-ram-role-edit-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/04-ram-role-edit-drawer-canonical-diff-stats.json"
     },
     {
       "id": "05-ram-role-duplicate-drawer",
@@ -75,12 +75,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/05-ram-role-duplicate-drawer-canonical-diff-stats.json"
     },
     {
       "id": "06-mapping-preview",
@@ -90,12 +90,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/06-mapping-preview-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/06-mapping-preview-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/06-mapping-preview-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/06-mapping-preview-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/06-mapping-preview-canonical-diff-stats.json"
     },
     {
       "id": "07-version-duplicate-delete-safeguard",
@@ -105,12 +105,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/07-version-duplicate-delete-safeguard-canonical-diff-stats.json"
     },
     {
       "id": "08-cas-conflict-error",
@@ -120,12 +120,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/08-cas-conflict-error-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/08-cas-conflict-error-canonical-diff-stats.json"
     },
     {
       "id": "09-create-error",
@@ -135,12 +135,12 @@
         "scrollWidth": 1672,
         "clientHeight": 941,
         "scrollHeight": 941,
-        "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+        "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
       },
-      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-candidate-1672x941.png",
-      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-overlay.png",
-      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-pixel-diff.png",
-      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/docs/acceptance/t1457/09-create-error-canonical-diff-stats.json"
+      "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/09-create-error-candidate-1672x941.png",
+      "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/09-create-error-canonical-overlay.png",
+      "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/09-create-error-canonical-pixel-diff.png",
+      "stats": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/docs/acceptance/t1457/09-create-error-canonical-diff-stats.json"
     }
   ],
   "browserAssertions": [
@@ -153,12 +153,12 @@
   "apiChecks": [
     {
       "action": "ram_role_create",
-      "id": "role-62d7a245a9b14150",
+      "id": "role-25d23ac324f2ec0e",
       "status": "ok"
     },
     {
       "action": "ram_role_new_version",
-      "id": "role-62d7a245a9b14150",
+      "id": "role-25d23ac324f2ec0e",
       "latest_version": 2,
       "status": "ok"
     },
@@ -171,26 +171,26 @@
   "networkFailures": [],
   "consoleErrors": [],
   "version": {
-    "branch": "ac-exec/task-8019b5a9/exec-b8010c91",
-    "built_at": "2026-08-22T07:47:09Z",
-    "commit": "ddba9b10",
-    "install_path": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b8010c91/bin/agent-center",
-    "parent_pid": 97645,
-    "pid": 97667,
-    "started_at": "2026-08-22T07:51:32.826878Z",
-    "version": "ac-exec/task-8019b5a9/exec-b8010c91-ddba9b10"
+    "branch": "ac-exec/task-8019b5a9/exec-fb9f2dff",
+    "built_at": "2026-08-22T08:27:06Z",
+    "commit": "ac788c6359bd8a4d63dc9ee7dfdd180c1b667c5c",
+    "install_path": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fb9f2dff/bin/agent-center",
+    "parent_pid": 2651,
+    "pid": 2653,
+    "started_at": "2026-08-22T08:27:26.496136Z",
+    "version": "ac-exec/task-8019b5a9/exec-fb9f2dff-ac788c6359bd8a4d63dc9ee7dfdd180c1b667c5c"
   },
   "overflow1280": {
     "clientWidth": 1280,
     "scrollWidth": 1280,
-    "url": "http://127.0.0.1:54196/organizations/org-894ccec6/teams/roles"
+    "url": "http://127.0.0.1:52130/organizations/org-2eaebb79/teams/roles"
   },
-  "orgSlug": "org-894ccec6",
-  "teamId": "team-20a621d0",
+  "orgSlug": "org-2eaebb79",
+  "teamId": "team-3795d213",
   "ramRoleIds": [
-    "role-68a6c5a64282fbac",
-    "role-152eb5c3591298c7",
-    "role-1cbf017bfbf6365c"
+    "role-a6b332b138cd14b6",
+    "role-e75835cf2d2b6905",
+    "role-19b0f672e645d2ad"
   ],
   "checkedStates": [
     {
