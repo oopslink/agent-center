@@ -858,13 +858,13 @@ function RAMRoleDrawer({
     });
   };
   return (
-    <div className="fixed inset-0 z-50 bg-black/30" data-testid="access-role-drawer-backdrop">
+    <div className="fixed inset-0 z-50" data-testid="access-role-drawer-backdrop">
       <aside
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-0 left-0 flex h-full w-full max-w-[21rem] flex-col border-r border-border-base bg-bg-elevated text-text-primary shadow-2"
+        className="fixed inset-y-0 left-14 flex h-full w-full max-w-[16rem] flex-col border-r border-border-base bg-bg-elevated text-text-primary shadow-2"
         data-testid="access-role-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
