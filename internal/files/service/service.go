@@ -148,10 +148,24 @@ func (s *Service) CompleteUpload(ctx context.Context, transferURI string, sha256
 	if err != nil {
 		return err
 	}
-	if err := sess.Complete(sha256, size, s.clock.Now()); err != nil {
+	completedAt := s.clock.Now()
+	if err := sess.Complete(sha256, size, completedAt); err != nil {
 		return err
 	}
-	return s.sessions.Update(ctx, sess)
+	if err := s.sessions.Update(ctx, sess); err != nil {
+		return err
+	}
+	if repo, ok := s.gcRepo.(blobMetadataWriter); ok && repo != nil {
+		if err := repo.PutMetadata(ctx, files.BlobMetadata{
+			ULID:          sess.FileURI().ULID(),
+			SizeBytes:     size,
+			ContentSHA256: sha256,
+			CreatedAt:     completedAt,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateDownloadSession creates an open download session for an existing blob.

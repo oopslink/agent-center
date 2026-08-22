@@ -1,10 +1,12 @@
 package executor
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -155,6 +157,82 @@ func TestFullChain(t *testing.T) {
 	}
 	if !out.FinishedAt.Equal(testNow) {
 		t.Errorf("output FinishedAt=%v want %v", out.FinishedAt, testNow)
+	}
+}
+
+func TestReadInput_TaskInputCompletePackageReusable(t *testing.T) {
+	fx, root := newFx(t)
+	in := validInput()
+	in.ExecutorID = "exec-task-input-ok"
+	in.TaskInput = &TaskInputRef{Dir: "task-input/v1", ManifestPath: "task-input/v1/manifest.json"}
+	mustWriteTaskInputPackage(t, root, in.ExecutorID, "mockup.png", []byte("image bytes"))
+	mustWriteInput(t, fx, in)
+
+	first, err := fx.ReadInput(in.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput first: %v", err)
+	}
+	second, err := fx.ReadInput(in.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput second: %v", err)
+	}
+	if first.TaskInput == nil || second.TaskInput == nil || second.TaskInput.ManifestPath != "task-input/v1/manifest.json" {
+		t.Fatalf("task_input ref not preserved across reads: first=%+v second=%+v", first.TaskInput, second.TaskInput)
+	}
+	if got, err := os.ReadFile(filepath.Join(root, "executors", in.ExecutorID, "workspace", "task-input", "v1", "attachments", "mockup.png")); err != nil || string(got) != "image bytes" {
+		t.Fatalf("complete package bytes not reusable: got=%q err=%v", got, err)
+	}
+}
+
+func TestReadInput_TaskInputRejectsStaleAndIncompletePackages(t *testing.T) {
+	tests := []struct {
+		name       string
+		ref        *TaskInputRef
+		packageFn  func(t *testing.T, root, execID string)
+		wantErrSub string
+	}{
+		{
+			name:       "stale unversioned ref",
+			ref:        &TaskInputRef{Dir: "task-input", ManifestPath: "task-input/manifest.json"},
+			packageFn:  func(t *testing.T, root, execID string) { mustWriteLegacyTaskInputPackage(t, root, execID) },
+			wantErrSub: "task_input.dir must be task-input/v1",
+		},
+		{
+			name:       "missing manifest",
+			ref:        &TaskInputRef{Dir: "task-input/v1", ManifestPath: "task-input/v1/manifest.json"},
+			packageFn:  func(t *testing.T, root, execID string) { mustMkdirWorkspace(t, root, execID) },
+			wantErrSub: "manifest unreadable",
+		},
+		{
+			name: "missing attachment",
+			ref:  &TaskInputRef{Dir: "task-input/v1", ManifestPath: "task-input/v1/manifest.json"},
+			packageFn: func(t *testing.T, root, execID string) {
+				mustWriteTaskInputManifest(t, root, execID, "attachments/missing.png")
+			},
+			wantErrSub: "attachments/missing.png",
+		},
+		{
+			name: "manifest path escapes workspace",
+			ref:  &TaskInputRef{Dir: "task-input/v1", ManifestPath: "task-input/v1/manifest.json"},
+			packageFn: func(t *testing.T, root, execID string) {
+				mustWriteTaskInputManifest(t, root, execID, "../escape.png")
+			},
+			wantErrSub: "must stay under task-input/v1",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fx, root := newFx(t)
+			in := validInput()
+			in.ExecutorID = "exec-task-input-bad"
+			in.TaskInput = tc.ref
+			tc.packageFn(t, root, in.ExecutorID)
+			mustWriteInput(t, fx, in)
+			_, err := fx.ReadInput(in.ExecutorID)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+				t.Fatalf("ReadInput err=%v want substring %q", err, tc.wantErrSub)
+			}
+		})
 	}
 }
 
@@ -454,6 +532,65 @@ func mustWriteInput(t *testing.T, fx *FileExchange, in Input) {
 		t.Fatal(err)
 	}
 	must(t, fx.WriteInput(in))
+}
+
+func mustMkdirWorkspace(t *testing.T, root, execID string) string {
+	t.Helper()
+	workspace := filepath.Join(root, "executors", execID, "workspace")
+	if err := os.MkdirAll(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return workspace
+}
+
+func mustWriteTaskInputPackage(t *testing.T, root, execID, name string, body []byte) {
+	t.Helper()
+	workspace := mustMkdirWorkspace(t, root, execID)
+	attDir := filepath.Join(workspace, "task-input", "v1", "attachments")
+	if err := os.MkdirAll(attDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(attDir, name), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteTaskInputManifest(t, root, execID, "attachments/"+name)
+}
+
+func mustWriteTaskInputManifest(t *testing.T, root, execID, attachmentRel string) {
+	t.Helper()
+	workspace := mustMkdirWorkspace(t, root, execID)
+	versionDir := filepath.Join(workspace, "task-input", "v1")
+	if err := os.MkdirAll(versionDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := "task-input/v1/" + attachmentRel
+	doc := map[string]any{
+		"version": 1,
+		"task_id": "task-1",
+		"files": []map[string]any{{
+			"uri": "ac://files/1", "name": filepath.Base(attachmentRel), "path": path,
+			"source_scope": "task", "source_id": "task-1", "canonical": true, "required": true,
+		}},
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(versionDir, "manifest.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustWriteLegacyTaskInputPackage(t *testing.T, root, execID string) {
+	t.Helper()
+	workspace := mustMkdirWorkspace(t, root, execID)
+	legacyDir := filepath.Join(workspace, "task-input")
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacyDir, "manifest.json"), []byte(`{"version":1,"files":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func must(t *testing.T, err error) {

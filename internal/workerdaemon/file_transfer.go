@@ -230,6 +230,7 @@ func (c *FileTransferClient) UploadFile(ctx context.Context, agentRoot, agentID,
 		"size":     size,
 		"scope":    scope,
 		"scope_id": scopeID,
+		"filename": filepath.Base(contained),
 	}
 	completePath := "/admin/files/transfer/" + url.PathEscape(created.TransferID) + "/complete"
 	if err := c.ac.doJSON(ctx, http.MethodPost, completePath, completeBody, nil); err != nil {

@@ -63,6 +63,9 @@ type WorkItem struct {
 	// a new executor fork. It is copied into input.json and rendered into the prompt so
 	// the run is auditable by team memory commit.
 	RuleSnapshot *executor.RuleSnapshot
+	// TaskInput is a workspace-relative pointer to the self-contained task-input
+	// package materialized before fork. Empty preserves legacy/no-attachment tasks.
+	TaskInput *executor.TaskInputRef
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -271,6 +274,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		},
 		Repo:      item.Repo,
 		TeamRules: item.RuleSnapshot,
+		TaskInput: item.TaskInput,
 		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
 		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
 		DispatchMode:     item.DispatchMode,
@@ -358,6 +362,22 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
 		b.WriteString("\n\n")
 		b.WriteString(rb)
+	}
+	if item.TaskInput != nil && strings.TrimSpace(item.TaskInput.Dir) != "" {
+		b.WriteString("\n\n## Task Input Package\n")
+		b.WriteString("Before this executor was forked, the Supervisor materialized a self-contained task-input package in your workspace.\n")
+		b.WriteString("Read `")
+		b.WriteString(strings.TrimSpace(item.TaskInput.Dir))
+		b.WriteString("/README.md` and `")
+		if mp := strings.TrimSpace(item.TaskInput.ManifestPath); mp != "" {
+			b.WriteString(mp)
+		} else {
+			b.WriteString(strings.TrimSpace(item.TaskInput.Dir))
+			b.WriteString("/manifest.json")
+		}
+		b.WriteString("` for the task contract, metadata, attachment paths, sizes, MIME types, and SHA256 hashes. Use files under `")
+		b.WriteString(strings.TrimSpace(item.TaskInput.Dir))
+		b.WriteString("/attachments/`; do not try to retrieve attachments from agent-center.")
 	}
 	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
 	return b.String()

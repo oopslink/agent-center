@@ -963,11 +963,38 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// 3. Admission gate. Open/reopened tasks transition through start_task here. A
 	// Supervisor may already have admitted the task before calling fork_executor; in
 	// that valid running state a second start would be rejected and must be skipped.
+	if execID == "" {
+		execID = ee.engine.NewExecutorID()
+	}
+	wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
+	if wsErr != nil {
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		r.log("fork_executor agent=%s task=%s resolve task-input workspace: %v — executor NOT forked", agentID, taskID, wsErr)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_workspace_failed", Detail: wsErr.Error()}, nil
+	}
+	if prepared == nil {
+		if err := os.MkdirAll(wsPath, 0o700); err != nil {
+			r.log("fork_executor agent=%s task=%s create task-input workspace: %v — executor NOT forked", agentID, taskID, err)
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_workspace_failed", Detail: err.Error()}, nil
+		}
+	}
+	taskInput, tiErr := r.materializeTaskInputPackage(ctx, agentID, taskID, execID, wsPath, task)
+	if tiErr != nil {
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		r.removeUnlaunchedExecutorDir(ee, execID)
+		if alreadyAdmitted {
+			r.blockTaskOnForkFailure(ctx, agentID, taskID, tiErr)
+		}
+		r.log("fork_executor agent=%s task=%s task-input materialization failed: %v — executor NOT forked", agentID, taskID, tiErr)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_materialization_failed", Detail: tiErr.Error()}, nil
+	}
+
 	if !alreadyAdmitted {
 		if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
 			// start_task declined AFTER the worktree was prepared → tear it down (red line B:
 			// no worktree leak). The task was never admitted, so nothing else to roll back.
 			r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+			r.removeUnlaunchedExecutorDir(ee, execID)
 			r.log("fork_executor agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
 				agentID, taskID, err)
 			return &SpawnResult{CommandStatus: controlCommandStatusRejected, Reason: "start_task_declined", Detail: err.Error()}, nil
@@ -976,15 +1003,13 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
-	if execID == "" {
-		execID = ee.engine.NewExecutorID()
-	}
-	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
+	item := buildWorkItem(taskID, task, execID, prepared, taskInput, req.Model, req.Context)
 	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {
 		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
 		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		r.removeUnlaunchedExecutorDir(ee, execID)
 		if errors.Is(err, executor.ErrAtCapacity) {
 			// The task is already running and the explicit command will be acked; there is
 			// no queued-task wake that can safely redrive it. Surface the center/local cap
@@ -1003,6 +1028,15 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: string(classifyForkFailure(err)), Detail: err.Error()}, nil
 	}
 	return &SpawnResult{ExecutorID: launched.ExecutorID, Model: launched.Model, CLI: launched.CLI}, nil
+}
+
+func (r *LocalRuntime) removeUnlaunchedExecutorDir(ee *ExecutorEngine, execID string) {
+	if ee == nil || ee.fx == nil || strings.TrimSpace(execID) == "" {
+		return
+	}
+	if dir, err := ee.fx.Layout().Dir(execID); err == nil {
+		_ = os.RemoveAll(dir)
+	}
 }
 
 // removePreparedWorkspace tears down a repo workspace materialized in SpawnExecutor
@@ -1171,7 +1205,7 @@ func (d *centerTaskDetail) goalTitle(taskID string) string {
 // so the §5 model chain can hard-override. execID (P3) is the pre-minted executor id
 // whose worktree was materialized before the launch (empty ⇒ HandleWork mints one);
 // prepared (P4) is the worktree threaded to the pool (nil ⇒ today's provisioning path).
-func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace, modelOverride, contextOverride string) orchestrator.WorkItem {
+func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace, taskInput *executor.TaskInputRef, modelOverride, contextOverride string) orchestrator.WorkItem {
 	var repo *executor.RepoRef
 	if task.Repo != nil {
 		repo = &executor.RepoRef{
@@ -1199,6 +1233,7 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 		ExecutorID: execID,
 		Prepared:   prepared,
 		Repo:       repo,
+		TaskInput:  taskInput,
 		// I105 N2: stamp the center's routing decision onto input.json. On this path it
 		// is normally "" / executor_fork (the gate in SpawnExecutor already diverted a
 		// supervisor_inline node); a supervisor_inline value arriving here means the gate

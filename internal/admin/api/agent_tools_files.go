@@ -475,6 +475,9 @@ type completeAgentUploadReq struct {
 	Size    int64  `json:"size"`
 	Scope   string `json:"scope"`    // optional
 	ScopeID string `json:"scope_id"` // optional
+	// Filename is optional for backwards compatibility, but scoped references that
+	// omit it remain incomplete for strict task-input materialization.
+	Filename string `json:"filename,omitempty"`
 }
 
 // completeFileHandler finalizes the upload session (CompleteUpload) and, when a
@@ -535,6 +538,7 @@ func (s *Server) completeFileHandler(w http.ResponseWriter, r *http.Request) {
 			FileURI:   sess.FileURI(),
 			Scope:     scope,
 			ScopeID:   req.ScopeID,
+			Filename:  strings.TrimSpace(req.Filename),
 			MimeType:  sess.ContentType(),
 			SizeBytes: req.Size,
 			CreatedBy: agentActor(a),
@@ -675,11 +679,18 @@ func (s *Server) listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = ref.Filename
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"uri": ref.FileURI, "filename": name, "mime_type": ref.MimeType,
 			"size": ref.SizeBytes, "created_by": ref.CreatedBy,
 			"created_at": ref.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		})
+		}
+		if meta, merr := d.FilesSvc.GetBlobMetadata(r.Context(), ref.FileURI); merr == nil && strings.TrimSpace(meta.ContentSHA256) != "" {
+			row["sha256"] = strings.TrimSpace(meta.ContentSHA256)
+			if meta.SizeBytes > 0 {
+				row["blob_size"] = meta.SizeBytes
+			}
+		}
+		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"scope": req.Scope, "scope_id": req.ScopeID, "files": out,

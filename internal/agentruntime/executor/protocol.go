@@ -158,6 +158,10 @@ type Input struct {
 	Source    SourceRefs    `json:"source"`
 	Repo      *RepoRef      `json:"repo_ref,omitempty"`
 	TeamRules *RuleSnapshot `json:"team_rules,omitempty"`
+	// TaskInput points at the self-contained task-input package materialized inside
+	// the executor workspace before the process is forked. Empty is valid for legacy
+	// and no-attachment tasks.
+	TaskInput *TaskInputRef `json:"task_input,omitempty"`
 	CreatedAt time.Time     `json:"created_at"`
 	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
 	// center stamps it at dispatch so the worker-side writeback — which only sees
@@ -168,6 +172,11 @@ type Input struct {
 	// DeliveryContract is frozen from task creation through materialization. Empty is
 	// legacy code_change; unknown values fail closed in Validate.
 	DeliveryContract string `json:"delivery_contract,omitempty"`
+}
+
+type TaskInputRef struct {
+	Dir          string `json:"dir"`
+	ManifestPath string `json:"manifest_path"`
 }
 
 const (

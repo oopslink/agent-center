@@ -57,11 +57,30 @@ type BlobGCRepo interface {
 	DeleteMetadata(ctx context.Context, blobULID string) error
 }
 
+type blobMetadataReader interface {
+	GetMetadata(ctx context.Context, blobULID string) (files.BlobMetadata, error)
+}
+
+type blobMetadataWriter interface {
+	PutMetadata(ctx context.Context, m files.BlobMetadata) error
+}
+
 // SetGCRepo wires the GC metadata repo onto the Service. Kept separate from the
 // New() Deps so D3-c stays additive — existing constructions need not change.
 func (s *Service) SetGCRepo(repo BlobGCRepo) *Service {
 	s.gcRepo = repo
 	return s
+}
+
+// GetBlobMetadata returns the integrity metadata recorded at upload completion.
+// It is used by read-side projections that need a byte-authoritative SHA/size
+// without opening the blob.
+func (s *Service) GetBlobMetadata(ctx context.Context, fileURI files.FileURI) (files.BlobMetadata, error) {
+	repo, ok := s.gcRepo.(blobMetadataReader)
+	if !ok || repo == nil {
+		return files.BlobMetadata{}, errors.New("files: blob metadata repo not wired")
+	}
+	return repo.GetMetadata(ctx, fileURI.ULID())
 }
 
 // RunGCOnce performs one garbage-collection pass and returns the number of
