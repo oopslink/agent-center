@@ -33,16 +33,16 @@
       "candidate": "docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png",
-      "changed_pixels": 1488163,
-      "changed_ratio": 0.9458550915497613
+      "changed_pixels": 1488214,
+      "changed_ratio": 0.9458875117373638
     },
     {
       "name": "ram-role-detail",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png",
-      "changed_pixels": 1488163,
-      "changed_ratio": 0.9458550915497613
+      "changed_pixels": 1488214,
+      "changed_ratio": 0.9458875117373638
     },
     {
       "name": "mapping-drawer",
@@ -81,16 +81,16 @@
       "candidate": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png",
-      "changed_pixels": 1520729,
-      "changed_ratio": 0.9665535747880958
+      "changed_pixels": 1520726,
+      "changed_ratio": 0.9665516680313404
     },
     {
       "name": "ram-role-duplicate-drawer",
       "candidate": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png",
       "overlay": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png",
       "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png",
-      "changed_pixels": 1520795,
-      "changed_ratio": 0.9665955234429422
+      "changed_pixels": 1520792,
+      "changed_ratio": 0.9665936166861868
     },
     {
       "name": "ram-role-delete-safeguard",
