@@ -265,12 +265,14 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		disableUsage = true
 	}
 	homeBase := agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID)
+	fileTransfer := NewFileTransferClient(client)
 	rc := agentruntime.LocalRuntimeConfig{
 		AgentID:            opts.AgentID,
 		Reporter:           client,
 		Starter:            startSupervisorSessionAdapter,
 		CodexStarter:       startCodexSessionAdapter,
 		ToolCaller:         func() agentruntime.ToolCaller { return client },
+		FileDownloader:     func() agentruntime.FileDownloader { return fileTransfer },
 		WorkerID:           opts.Run.WorkerID,
 		AdminURL:           targetSpec,
 		WorkerToken:        token,

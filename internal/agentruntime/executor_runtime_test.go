@@ -346,8 +346,8 @@ func TestSpawnExecutor_StartTaskDeclinedSkipsFork(t *testing.T) {
 	}
 	rt, _, home := spawn(t, "agent-cap", "task-2", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v, want get_task then start_task", seen)
+	if seen := sc.toolsSeen(); len(seen) != 3 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" {
+		t.Fatalf("tool calls = %v, want get_task then list_files then start_task", seen)
 	}
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Errorf("declined admission must NOT fork, got problems %+v", probs)
@@ -508,7 +508,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 4 || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 5 || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -738,8 +738,8 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 4 || seen[0] != "get_task" || seen[1] != "start_task" || seen[2] != "get_team_rule_index" || seen[3] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task start_task get_team_rule_index block_task]", seen)
+	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
+		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index block_task]", seen)
 	}
 	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
 		t.Errorf("block_task body = %v", body)

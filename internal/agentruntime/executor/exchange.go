@@ -79,6 +79,9 @@ func (l *Layout) ExecutorsDir() string {
 	return filepath.Join(l.agentRoot, executorsDirName)
 }
 
+// AgentRoot returns the root this layout is anchored at.
+func (l *Layout) AgentRoot() string { return l.agentRoot }
+
 // Dir is <agent_root>/executors/<executor_id>.
 func (l *Layout) Dir(executorID string) (string, error) {
 	if err := validateExecutorID(executorID); err != nil {

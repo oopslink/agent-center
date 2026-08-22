@@ -63,6 +63,9 @@ type WorkItem struct {
 	// a new executor fork. It is copied into input.json and rendered into the prompt so
 	// the run is auditable by team memory commit.
 	RuleSnapshot *executor.RuleSnapshot
+	// TaskInputDir is the versioned immutable package directory materialized by the
+	// runtime before fork, e.g. <executor-dir>/task-input/v1.
+	TaskInputDir string
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -358,6 +361,12 @@ func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	if rb := renderRuleSnapshot(item.RuleSnapshot); rb != "" {
 		b.WriteString("\n\n")
 		b.WriteString(rb)
+	}
+	if dir := strings.TrimSpace(item.TaskInputDir); dir != "" {
+		b.WriteString("\n\n## Task Input Package\n")
+		b.WriteString("The task's authoritative files were materialized before executor start at:\n")
+		b.WriteString(dir)
+		b.WriteString("\nRead manifest.json in that versioned directory and use only files under it for task attachments.")
 	}
 	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
 	return b.String()

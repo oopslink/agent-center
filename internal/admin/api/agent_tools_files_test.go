@@ -3,7 +3,12 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -181,6 +186,55 @@ func TestAgentFiles_ListFiles_OwnTask(t *testing.T) {
 	}
 }
 
+func TestAgentFiles_TaskInputProductionChain_GetTaskListFilesDownload(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	f.attachAgentFilesSvc(t)
+	srv := f.filesServer(t)
+
+	content := testPNG(t, 13, 9)
+	sum := shaHex(content)
+	ulid := uploadViaAgent(t, srv.URL, "acat_w1", atAgent1, "task", tid, content)
+
+	status, taskBody := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "task_id": tid,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("get_task status=%d body=%v", status, taskBody)
+	}
+	if _, hasAttachments := taskBody["attachments"]; hasAttachments {
+		t.Fatalf("get_task must not be the attachment authority; got attachments=%v", taskBody["attachments"])
+	}
+
+	status, listBody := postBearer(t, srv.URL, "/admin/agent-tools/list_files", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "scope": "task", "scope_id": tid,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("list_files status=%d body=%v", status, listBody)
+	}
+	rows, ok := listBody["files"].([]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("files=%v want one", listBody["files"])
+	}
+	row := rows[0].(map[string]any)
+	if row["uri"] != "ac://files/"+ulid || row["sha256"] != sum ||
+		row["size"] != float64(len(content)) || row["width"] != float64(13) || row["height"] != float64(9) {
+		t.Fatalf("authoritative metadata row=%v", row)
+	}
+
+	status, ct, body := getRawBearer(t, srv.URL, "/admin/files/"+ulid+"?agent_id="+atAgent1, "acat_w1")
+	if status != http.StatusOK {
+		t.Fatalf("download status=%d content-type=%q body=%q", status, ct, body)
+	}
+	if !bytes.Equal(body, content) {
+		t.Fatalf("downloaded bytes do not match uploaded bytes")
+	}
+	if shaHex(body) != sum {
+		t.Fatalf("download sha mismatch")
+	}
+}
+
 func TestAgentFiles_ListFiles_RejectsForeignScope(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
@@ -192,6 +246,26 @@ func TestAgentFiles_ListFiles_RejectsForeignScope(t *testing.T) {
 	if status != http.StatusForbidden || body["error"] != "scope_not_in_agent_domain" {
 		t.Fatalf("status=%d body=%v", status, body)
 	}
+}
+
+func testPNG(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: 0x77, A: 0xff})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png encode: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func shaHex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // --- download fail-closed: no live ref --------------------------------------

@@ -73,6 +73,11 @@ type LocalRuntimeConfig struct {
 	// nil func / nil result ⇒ the fork path leaves tasks queued and the Monitor
 	// degrades to reap-and-free-slot with no center writeback.
 	ToolCaller func() ToolCaller
+	// FileDownloader streams center file bytes into an executor-visible task-input
+	// package. It is separate from ToolCaller because /admin/files/{ulid} is a raw
+	// byte endpoint, not an agent-tool JSON endpoint. nil is acceptable only when the
+	// authoritative task list_files response is empty.
+	FileDownloader func() FileDownloader
 
 	WorkerID          string
 	AdminURL          string

@@ -29,8 +29,16 @@ package api
 // NOT built here.
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -675,15 +683,47 @@ func (s *Server) listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = ref.Filename
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"uri": ref.FileURI, "filename": name, "mime_type": ref.MimeType,
 			"size": ref.SizeBytes, "created_by": ref.CreatedBy,
 			"created_at": ref.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		})
+		}
+		sha, width, height, ierr := s.fileIntegrityMetadata(r.Context(), d, ref.FileURI)
+		if ierr != nil {
+			writeError(w, http.StatusInternalServerError, "list_failed", ierr.Error())
+			return
+		}
+		row["sha256"] = sha
+		if width > 0 && height > 0 {
+			row["width"] = width
+			row["height"] = height
+		}
+		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"scope": req.Scope, "scope_id": req.ScopeID, "files": out,
 	})
+}
+
+func (s *Server) fileIntegrityMetadata(ctx context.Context, d HandlerDeps, uri files.FileURI) (string, int, int, error) {
+	if d.FilesSvc == nil {
+		return "", 0, 0, errors.New("files service not wired")
+	}
+	rc, err := d.FilesSvc.OpenBlob(ctx, uri)
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("open blob %s: %w", uri, err)
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(rc)
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("read blob %s: %w", uri, err)
+	}
+	sum := sha256.Sum256(b)
+	width, height := 0, 0
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(b)); err == nil {
+		width, height = cfg.Width, cfg.Height
+	}
+	return hex.EncodeToString(sum[:]), width, height, nil
 }
 
 // attachFileHandler adds a placement reference for an existing blob into an

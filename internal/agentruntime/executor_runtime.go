@@ -873,6 +873,7 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// Everything below the gate is local-disk or center-RPC, i.e. control-path-safe.
 	var execID string
 	var prepared *executor.PreparedWorkspace
+	execID = ee.engine.NewExecutorID()
 	if task.Repo != nil && r.cfg.Materializer != nil {
 		target := resolveRepoTarget(task)
 		repoKey := reporepo.RepoKey(target.URL)
@@ -889,7 +890,6 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			r.deferForSource(agentID, deferredSpawnFromRequest(req, taskID), repoKey, target)
 			return nil, nil
 		}
-		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
 		releasePreparing := r.trackPreparingExecutor(execID)
 		defer releasePreparing()
 		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
@@ -937,7 +937,6 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		target := resolveRepoTarget(task)
 		clone, ready := r.takePreparedClone(taskID)
 		if !ready {
-			execID = ee.engine.NewExecutorID()
 			wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 			if wsErr != nil {
 				r.log("fork_executor agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
@@ -959,6 +958,16 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			BaseRef: clone.BaseRef,
 		}
 	}
+	pkg, pkgErr := r.materializeTaskInputPackage(ctx, agentID, taskID, execID, &executorFileLayout{
+		agentRoot: ee.fx.Layout().AgentRoot(),
+		execDir:   ee.fx.Layout().Dir,
+	})
+	if pkgErr != nil {
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		r.log("fork_executor agent=%s task=%s task-input materialization failed: %v — executor NOT forked (start_task NOT called)",
+			agentID, taskID, pkgErr)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "task_input_materialization_failed", Detail: pkgErr.Error()}, nil
+	}
 
 	// 3. Admission gate. Open/reopened tasks transition through start_task here. A
 	// Supervisor may already have admitted the task before calling fork_executor; in
@@ -976,10 +985,10 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
-	if execID == "" {
-		execID = ee.engine.NewExecutorID()
-	}
 	item := buildWorkItem(taskID, task, execID, prepared, req.Model, req.Context)
+	if pkg != nil {
+		item.TaskInputDir = pkg.PackageDir
+	}
 	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
 	if err != nil {
