@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/canonical-t1457-1672x941.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/09-api-error-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/09-api-error-canonical-overlay-1672x941.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/09-api-error-canonical-diff-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "total_pixels": 1573352,
+  "changed_pixels": 1523444,
+  "changed_ratio": 0.9682791899079164,
+  "mae_rgb": 48.742331658776926,
+  "rmse_rgb": 65.26638163374017,
+  "max_abs_channel_delta": 255
+}

@@ -1,0 +1,14 @@
+{
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/canonical-t1457-1672x941.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/01-role-list-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/01-role-list-canonical-overlay-1672x941.png",
+  "pixel_diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d86a7738/docs/acceptance/t1457/01-role-list-canonical-diff-1672x941.png",
+  "width": 1672,
+  "height": 941,
+  "total_pixels": 1573352,
+  "changed_pixels": 1488244,
+  "changed_ratio": 0.9459065739898002,
+  "mae_rgb": 12.770671364916009,
+  "rmse_rgb": 38.05509749851959,
+  "max_abs_channel_delta": 255
+}

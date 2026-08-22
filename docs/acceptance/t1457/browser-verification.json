@@ -1,0 +1,45 @@
+{
+  "actions": [
+    "Verified role list, RAM mapping table, delete safeguard, and 1672 overflow guard.",
+    "Browser CRUD create completed through the Team Roles drawer.",
+    "Browser CRUD edit completed through the Team Roles drawer.",
+    "Browser duplicate drawer and referenced delete safeguard verified.",
+    "Browser mapping CAS stale write produced a real 409 error state.",
+    "Browser API error state verified with a duplicate stable key create attempt.",
+    "Browser CRUD delete completed for an unreferenced RAM Role."
+  ],
+  "consoleEvents": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    }
+  ],
+  "networkEvents": [
+    {
+      "kind": "response",
+      "status": 409,
+      "url": "http://127.0.0.1:56280/api/orgs/org-7f07f08b/teams/team-535d0472/roles/reviewer/ram-roles"
+    },
+    {
+      "kind": "response",
+      "status": 409,
+      "url": "http://127.0.0.1:56280/api/orgs/org-7f07f08b/access/ram-roles"
+    },
+    {
+      "kind": "requestfailed",
+      "method": "DELETE",
+      "url": "http://127.0.0.1:56280/api/orgs/org-7f07f08b/access/ram-roles/role-0b9a1abec92a53bb",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "kind": "requestfailed",
+      "method": "GET",
+      "url": "http://127.0.0.1:56280/api/sse?user_id=user%3Auser-38699d1d",
+      "failure": "net::ERR_ABORTED"
+    }
+  ]
+}

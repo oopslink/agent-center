@@ -1487,10 +1487,6 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 				if permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
-				key := strings.Join([]string{subj.Ref, string(permission.Key), resourceKey(resolved)}, "|")
-				if _, ok := seen[key]; ok && permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
-					continue
-				}
 				def := s.catalogByKey[string(permission.Key)]
 				decision := accessDecisionDTO{
 					Allowed:     true,
@@ -1512,7 +1508,7 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 				if _, ok := seenEffective[accessEffectiveDecisionKey(decision)]; ok {
 					continue
 				}
-				seen[key] = struct{}{}
+				seen[accessEffectiveDecisionKey(decision)] = struct{}{}
 				seenEffective[accessEffectiveDecisionKey(decision)] = struct{}{}
 				decisions = append(decisions, decision)
 			}

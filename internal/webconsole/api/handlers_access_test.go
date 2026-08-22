@@ -289,7 +289,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
 		"resources":[{"kind":"team","id":"` + tm.ID().String() + `","org_id":"` + sess.OrgID + `","label":"Access Union Team"}],
-		"expires_at":"2026-08-21T12:30:00Z",
+		"expires_at":"2026-08-23T12:30:00Z",
 		"reason":"temporary direct binding"
 	}`
 	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)

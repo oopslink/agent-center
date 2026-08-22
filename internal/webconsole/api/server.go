@@ -128,6 +128,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 	// v2.8.1: full build identity for the Settings version panel.
 	s.mux.HandleFunc("GET /api/system/version", s.systemVersionHandler)
+	// Plain-text exact commit probe for release gates and external uptime checks.
+	s.mux.HandleFunc("GET /version.commit", s.versionCommitHandler)
 	// I7-D1 (T216): wake-guardrail config — read effective thresholds, write
 	// overrides (validated > 0); consumed by the I7-D3 Settings panel.
 	s.mux.HandleFunc("GET /api/system/wake-guardrail", s.getWakeGuardrailHandler)
@@ -596,6 +598,16 @@ func (s *Server) systemVersionHandler(w http.ResponseWriter, r *http.Request) {
 			return "unknown"
 		}(),
 	})
+}
+
+func (s *Server) versionCommitHandler(w http.ResponseWriter, r *http.Request) {
+	commit := s.deps.Commit
+	if commit == "" {
+		commit = "unknown"
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(commit + "\n"))
 }
 
 // notImplementedHandler is the stub used by endpoints not yet wired.
