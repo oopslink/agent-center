@@ -359,6 +359,7 @@ function accessToastFromError(error: unknown, fallbackMessage: string): AccessTo
 }
 
 function parseAccessView(value: string | null): AccessView {
+  if (window.location.pathname.endsWith('/subject-access')) return 'subjects';
   if (value === 'subject-access') return 'subjects';
   return 'roles';
 }

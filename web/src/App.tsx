@@ -38,6 +38,7 @@ const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Access = lazy(() => import('./pages/Access'));
+const RAMRoles = lazy(() => import('./pages/RAMRoles'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const AiRuntime = lazy(() => import('./pages/AiRuntime'));
@@ -124,7 +125,9 @@ export function App(): React.ReactElement {
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
-          <Route path="access" element={<Access />} />
+          <Route path="access" element={<Navigate to="ram-roles" replace />} />
+          <Route path="access/ram-roles" element={<RAMRoles />} />
+          <Route path="access/subject-access" element={<Access />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />

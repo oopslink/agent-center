@@ -1,0 +1,8 @@
+{
+  "viewport": "1672x941",
+  "baseURL": "http://127.0.0.1:5177",
+  "mockup_attachment": "ac://files/01M0HRMZDX20FF5KQT4SBANGC1",
+  "mockup_sha256": "5e085034e927054a59c103aeac30b6217c6a8a1c5f44f20ad9212589381cf43e",
+  "mockup_available_in_workspace": false,
+  "note": "Overlay/diff PNGs are marked unavailable because the canonical ac:// attachment is not accessible in this isolated executor; screenshots are fresh captures of the implemented page, not self-baselines."
+}

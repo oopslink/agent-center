@@ -80,7 +80,9 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/settings`, 'page-Settings'],
       [`${ORG_BASE}/ai-runtime`, 'page-AiRuntime'],
       [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
-      [`${ORG_BASE}/access`, 'page-Access'],
+      [`${ORG_BASE}/access`, 'page-RAMRoles'],
+      [`${ORG_BASE}/access/ram-roles`, 'page-RAMRoles'],
+      [`${ORG_BASE}/access/subject-access`, 'page-Access'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
@@ -143,9 +145,9 @@ describe('App shell + route tree', () => {
         ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
       [`${ORG_BASE}/access`, [
-        ['RAM Roles', `${ORG_BASE}/access?view=ram-roles`],
+        ['RAM Roles', `${ORG_BASE}/access/ram-roles`],
         ['Team Role mappings', `${ORG_BASE}/teams/roles`],
-        ['Subject access', `${ORG_BASE}/access?view=subject-access`],
+        ['Subject access', `${ORG_BASE}/access/subject-access`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
