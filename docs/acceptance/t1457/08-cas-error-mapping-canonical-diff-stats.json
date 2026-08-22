@@ -1,0 +1,15 @@
+{
+  "state": "08-cas-error-mapping",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/08-cas-error-mapping-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/08-cas-error-mapping-canonical-overlay.png",
+  "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/08-cas-error-mapping-canonical-pixel-diff.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1520057,
+  "changed_ratio": 0.9661264612114772,
+  "mae_rgb": 49.03109369888832,
+  "rmse_rgb": 65.70562807580275,
+  "max_channel_delta": 255
+}

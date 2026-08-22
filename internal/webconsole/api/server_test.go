@@ -788,6 +788,27 @@ func TestAPI_SystemVersion(t *testing.T) {
 	}
 }
 
+func TestAPI_VersionCommit(t *testing.T) {
+	srv := NewServer("127.0.0.1:0", Deps{Commit: "9908825"})
+	s := httptest.NewServer(srv.Handler())
+	defer s.Close()
+	resp, err := http.Get(s.URL + "/version.commit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "9908825\n" {
+		t.Fatalf("body = %q, want commit newline", string(body))
+	}
+}
+
 func TestAPI_SystemVersion_Fallbacks(t *testing.T) {
 	srv := NewServer("127.0.0.1:0", Deps{}) // unversioned go-run path
 	s := httptest.NewServer(srv.Handler())

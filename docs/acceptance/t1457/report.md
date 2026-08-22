@@ -1,72 +1,103 @@
-# T1457 Team Roles / RAM Role Mapping Evidence
+# T1457 Team Roles / RAM Mapping Gate-Reject Repair Evidence
 
-- Fresh base SHA verified before work: `c9b462d0b2da57896753d8f2dc142d783d138210`.
-- Canonical mockup attachment recorded: `ac://files/01M0HRMZEV7XS8A3MNGG64ZZW1`.
-- Canonical mockup SHA256 recorded: `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
-- Canonical mockup file used for this remediation: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png` (`1672 x 941`).
-- Remediation change: the Access module secondary navigation entry `Team Role mappings` now routes to Team IA `/organizations/:slug/teams/roles`, not the Access aggregate query page. Team IA Roles navigation is also unit-locked.
-- Fresh verification instance: an isolated `bin/agent-center` server was launched by `capture-t1457.mjs`, signed up through the public auth API, seeded through public org-scoped Web API endpoints, then captured in Chromium at `1672 x 941`. The instance was intentionally torn down after capture.
-- Stable external preview: blocked in this executor. No repository/environment Sites or shared preview mechanism is available here, and this isolated worker has no deploy credentials. No durable non-`127.0.0.1` URL is claimed.
+This evidence set is generated from a fresh branch based on the fetched
+`origin/main` baseline. The prior rejected baseline/head
+`ddba9b10816b803b0563e97de574ebe7378c8ef2` is not a deliverable candidate SHA.
 
-## Screenshots
+## Baseline And Canonical
 
-Fresh exact-size screenshots are `1672 x 941`.
+- First command for this repair: `git fetch origin main`.
+- `CURRENT_MAIN=$(git rev-parse origin/main)` at repair start:
+  `ddba9b10816b803b0563e97de574ebe7378c8ef2`.
+- Required canonical attachment SHA256:
+  `80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56`.
+- Canonical file used by the capture script:
+  `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png`.
+- The capture script verifies that canonical SHA before any screenshot or diff work.
 
-- `teams-roles-main-1672x941.png` — Teams / Platform Team / Roles / Developer IA, role list, work config, RAM mapping table, safeguards/audit section.
-- `teams-roles-mapping-drawer-1672x941.png` — Team Role RAM mapping edit drawer with work config, CAS version, immediate impact panel, preview/apply controls.
-- `teams-roles-ram-role-drawer-1672x941.png` — RAM Role create drawer with permission picker, safeguard/audit panel, versioned write controls.
-- `teams-roles-main-canonical-overlay.png` — true same-size overlay between final candidate main state and canonical mockup.
-- `teams-roles-main-canonical-pixel-diff.png` — true same-size pixel diff between final candidate main state and canonical mockup.
-- `teams-roles-main-canonical-diff-stats.json` — machine-readable canonical diff stats.
-- `capture-state.json` — captured URL, width guard, seeded Team/RAM Role ids, and checked state list.
-- Legacy `1280 x 720` screenshots from the prior pass remain in this directory for continuity and were not deleted.
+## Production Change
 
-## Canonical Diff
+- Added `GET /version.commit`, a public plain-text build commit probe for exact
+  stable-instance HEAD verification.
+- Existing `GET /api/system/version` remains the structured build identity
+  endpoint and is captured as a cross-check.
 
-Candidate: `docs/acceptance/t1457/teams-roles-main-1672x941.png`
+## Evidence Index
 
-Canonical: `/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png`
+`capture-t1457.mjs` launches a real isolated `bin/agent-center` server, signs up
+through the public Web auth API, seeds org-scoped Teams/RAM Roles through public
+Web API endpoints, and drives Chromium at `1672 x 941`.
 
-- Same-size canvas: `1672 x 941`, `1,573,352` pixels.
-- Changed pixels: `1,488,215`.
-- Changed ratio: `0.9458881420`.
-- MAE per RGB channel: `12.7330673619`.
-- RMSE per RGB channel: `38.0095613481`.
-- Max absolute channel delta: `255`.
+For each critical state, it writes:
 
-The changed-pixel ratio is high; this records a real canonical-vs-candidate delta, not a state-to-state substitute overlay.
+- `*-candidate-1672x941.png`
+- `*-canonical-overlay.png`
+- `*-canonical-pixel-diff.png`
+- `*-canonical-diff-stats.json`
 
-## State Coverage
+State list:
 
-`capture-t1457.mjs` checks these states on the fresh binary instance:
+- `01-role-list-detail-work-config-ram-mapping`
+- `02-mapping-edit-drawer-cas`
+- `03-create-ram-role-drawer`
+- `04-edit-ram-role-drawer-versioned`
+- `05-duplicate-ram-role-drawer`
+- `06-delete-safeguard-modal`
+- `07-delete-safeguard-notice`
+- `08-cas-error-mapping`
+- `09-error-state-after-real-api-409`
 
-- Team IA route `/teams/roles`.
-- Role list and role detail entry.
+Additional raw evidence:
+
+- `capture-state.json` - baseline, HEAD, merge-base values, version probes,
+  canonical SHA, seeded ids, state stats, console/network evidence.
+- `console-network.json` - browser console entries, request failures, and >=400
+  responses. The 409 response is intentional CAS/error evidence.
+- `fresh-1280-overflow-candidate.png` - independent 1280px overflow proof.
+
+## Browser Coverage
+
+The real-browser flow covers:
+
+- Team Role list and detail entry.
 - Work config values.
 - RAM Role mapping table.
 - Mapping edit drawer.
-- Immediate impact / CAS version.
 - RAM Role create drawer.
-- Versioned write controls.
-- Delete safeguard for referenced RAM Roles.
-- Audit copy.
-- Width guard: `clientWidth=1672`, `scrollWidth=1672`.
+- RAM Role edit drawer and versioned controls.
+- Duplicate RAM Role drawer.
+- Referenced-role delete safeguard modal and notice.
+- CAS conflict caused by a real backend version race.
+- Stale delete API error state.
+- `1672 x 941` no-horizontal-overflow guard for every captured state.
+- Fresh `1280 x 941` no-horizontal-overflow guard.
 
-## Verification
+## Commands
 
-- `pnpm --dir web install --frozen-lockfile`
-- `pnpm --dir tests/e2e/v2 install --frozen-lockfile`
-- `pnpm --dir web test -- App.test.tsx TeamUISecondaryNav.test.tsx Access.test.tsx`
-  - Vitest argument forwarding ran the full frontend suite: `191` test files, `1791` tests passed.
-- `pnpm --dir web typecheck`
-- `pnpm --dir web build`
-- `make build-backend`
-- `node docs/acceptance/t1457/capture-t1457.mjs`
-- Python/Pillow canonical overlay and pixel diff generation.
+```sh
+git fetch origin main
+CURRENT_MAIN=$(git rev-parse origin/main)
+go test ./internal/webconsole/api -run 'TestAPI_(SystemVersion|VersionCommit)'
+node --check docs/acceptance/t1457/capture-t1457.mjs
+make build-backend
+node docs/acceptance/t1457/capture-t1457.mjs
+git merge-base HEAD "$CURRENT_MAIN"
+git merge-base HEAD ddba9b10816b803b0563e97de574ebe7378c8ef2
+```
 
-Build completed with the existing CSS minifier warning at generated CSS line 3031; TypeScript, Vite build, backend build, full frontend tests, and fresh capture completed successfully.
+For a stable review instance:
 
-## Repository Constraints
+```sh
+make build-backend
+T1457_KEEPALIVE=1 node docs/acceptance/t1457/capture-t1457.mjs
+cloudflared tunnel --url "$(node -e 'console.log(require("./docs/acceptance/t1457/stable-instance.json").baseURL)')"
+curl "$STABLE_URL/version.commit"
+curl "$STABLE_URL/api/system/version"
+```
 
-- This executor could not use `get_team_rule` because agent-center/MCP access is unavailable and the task explicitly forbids using center tools, raw center endpoints, database files, sockets, worker tokens, or equivalent fallbacks.
-- The starting branch had `HEAD=41a2f7e631760d617dc0513af2ee5ba777b75aa7` equal to `origin/main`; `bd5a8a0bf34af170e4b896631311a718ce6189ea` was not an ancestor of that HEAD (`git merge-base --is-ancestor` returned 1). History was not rewritten in this isolated executor.
+Use `T1457_OUTDIR=/tmp/t1457-final` for post-commit stable verification that
+must not modify the committed evidence tree.
+
+The final candidate SHA and stable URL are intentionally verified after the
+delivery commit, because writing the final SHA into committed files is
+self-referential and would change the SHA being reported.

@@ -1,0 +1,15 @@
+{
+  "state": "01-role-list-detail-work-config-ram-mapping",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/01-role-list-detail-work-config-ram-mapping-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/01-role-list-detail-work-config-ram-mapping-canonical-overlay.png",
+  "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/01-role-list-detail-work-config-ram-mapping-canonical-pixel-diff.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1488266,
+  "changed_ratio": 0.945920556874749,
+  "mae_rgb": 12.740537824127511,
+  "rmse_rgb": 38.020073178815096,
+  "max_channel_delta": 255
+}

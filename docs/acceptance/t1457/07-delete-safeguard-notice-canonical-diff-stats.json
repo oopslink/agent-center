@@ -1,0 +1,15 @@
+{
+  "state": "07-delete-safeguard-notice",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/07-delete-safeguard-notice-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/07-delete-safeguard-notice-canonical-overlay.png",
+  "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/07-delete-safeguard-notice-canonical-pixel-diff.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1528527,
+  "changed_ratio": 0.9715098719167738,
+  "mae_rgb": 12.716113113912208,
+  "rmse_rgb": 37.070973270717886,
+  "max_channel_delta": 255
+}

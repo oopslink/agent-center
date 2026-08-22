@@ -1,0 +1,15 @@
+{
+  "state": "04-edit-ram-role-drawer-versioned",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/04-edit-ram-role-drawer-versioned-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/04-edit-ram-role-drawer-versioned-canonical-overlay.png",
+  "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/04-edit-ram-role-drawer-versioned-canonical-pixel-diff.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1520740,
+  "changed_ratio": 0.9665605662305702,
+  "mae_rgb": 49.01610129201857,
+  "rmse_rgb": 65.5008429154204,
+  "max_channel_delta": 255
+}

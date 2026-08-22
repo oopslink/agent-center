@@ -1,0 +1,15 @@
+{
+  "state": "06-delete-safeguard-modal",
+  "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+  "candidate": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/06-delete-safeguard-modal-candidate-1672x941.png",
+  "overlay": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/06-delete-safeguard-modal-canonical-overlay.png",
+  "diff": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-48819430/docs/acceptance/t1457/06-delete-safeguard-modal-canonical-pixel-diff.png",
+  "width": 1672,
+  "height": 941,
+  "pixels": 1573352,
+  "changed_pixels": 1565589,
+  "changed_ratio": 0.9950659483701041,
+  "mae_rgb": 117.01543265588374,
+  "rmse_rgb": 122.49502950240596,
+  "max_channel_delta": 255
+}

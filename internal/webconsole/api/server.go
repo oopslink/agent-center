@@ -128,6 +128,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 	// v2.8.1: full build identity for the Settings version panel.
 	s.mux.HandleFunc("GET /api/system/version", s.systemVersionHandler)
+	// Plain-text build commit for external preview gates that need a
+	// login-free exact-HEAD probe.
+	s.mux.HandleFunc("GET /version.commit", s.versionCommitHandler)
 	// I7-D1 (T216): wake-guardrail config — read effective thresholds, write
 	// overrides (validated > 0); consumed by the I7-D3 Settings panel.
 	s.mux.HandleFunc("GET /api/system/wake-guardrail", s.getWakeGuardrailHandler)
@@ -569,6 +572,15 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"version": v,
 	})
+}
+
+func (s *Server) versionCommitHandler(w http.ResponseWriter, r *http.Request) {
+	commit := s.deps.Commit
+	if commit == "" {
+		commit = "unknown"
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(commit + "\n"))
 }
 
 // systemVersionHandler returns the full build identity for the Settings version
