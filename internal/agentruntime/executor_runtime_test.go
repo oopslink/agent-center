@@ -228,10 +228,10 @@ func TestSpawnExecutor_MaterializesTaskInputPlan569CanonicalMockups(t *testing.T
 	if err != nil {
 		t.Fatalf("ReadInput: %v", err)
 	}
-	if in.TaskInput == nil || in.TaskInput.Dir != "task-input" {
+	if in.TaskInput == nil || in.TaskInput.Dir != "task-input/v1" {
 		t.Fatalf("input task_input not wired: %+v", in.TaskInput)
 	}
-	manifestPath := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "manifest.json")
+	manifestPath := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "manifest.json")
 	var manifest taskInputManifest
 	readJSONTest(t, manifestPath, &manifest)
 	if len(manifest.Files) != 4 {
@@ -259,7 +259,7 @@ func TestSpawnExecutor_MaterializesTaskInputPlan569CanonicalMockups(t *testing.T
 	if err != nil {
 		t.Fatalf("tracker read: %v", err)
 	}
-	if got := strings.Join(rec.RunnerCmd, "\n"); !strings.Contains(got, "task-input/README.md") || !strings.Contains(got, "task-input/manifest.json") {
+	if got := strings.Join(rec.RunnerCmd, "\n"); !strings.Contains(got, "task-input/v1/README.md") || !strings.Contains(got, "task-input/v1/manifest.json") {
 		t.Fatalf("runner prompt does not point at task-input package: %s", got)
 	}
 }
@@ -286,6 +286,63 @@ func TestSpawnExecutor_TaskInputDownloadFailureDoesNotStartOrFork(t *testing.T) 
 	inputs, _ := filepath.Glob(filepath.Join(home, "executors", "*", "input.json"))
 	if len(inputs) != 0 {
 		t.Fatalf("input files = %v, want none (executor not forked)", inputs)
+	}
+}
+
+func TestTaskInput_RetryReplacesLegacyAndPartialPackage(t *testing.T) {
+	rt := newExecRuntime(t, t.TempDir(), "agent-retry", lookTrue(t))
+	pngBytes := testImageBytes(t, "png", 3, 4)
+	sc := &scriptedToolCaller{
+		listFilesBody: map[string]any{"files": []map[string]any{{
+			"uri": "ac://files/retry", "filename": "retry.png", "mime_type": "image/png", "size": len(pngBytes),
+		}}},
+		downloads:   map[string][]byte{"ac://files/retry": pngBytes},
+		downloadErr: errors.New("transient download failure"),
+	}
+	setToolCaller(rt, sc)
+	workspace := t.TempDir()
+	task := &centerTaskDetail{ID: "task-retry", Title: "retry package"}
+	if _, err := rt.materializeTaskInputPackage(context.Background(), "agent-retry", task.ID, "exec-first", workspace, task); err == nil {
+		t.Fatal("first materialization must fail")
+	}
+	if _, err := os.Stat(filepath.Join(workspace, taskInputDirName)); !os.IsNotExist(err) {
+		t.Fatalf("failed attempt published task-input: err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "."+taskInputDirName+".tmp")); !os.IsNotExist(err) {
+		t.Fatalf("failed attempt leaked staging package: err=%v", err)
+	}
+
+	legacy := filepath.Join(workspace, taskInputDirName)
+	if err := os.MkdirAll(filepath.Join(legacy, "attachments"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "manifest.json"), []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	partial := filepath.Join(workspace, "."+taskInputDirName+".tmp", taskInputVersion)
+	if err := os.MkdirAll(partial, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(partial, "half.download"), []byte("half"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sc.downloadErr = nil
+	ref, err := rt.materializeTaskInputPackage(context.Background(), "agent-retry", task.ID, "exec-second", workspace, task)
+	if err != nil {
+		t.Fatalf("retry materialization: %v", err)
+	}
+	if ref.Dir != "task-input/v1" || ref.ManifestPath != "task-input/v1/manifest.json" {
+		t.Fatalf("versioned ref = %+v", ref)
+	}
+	if _, err := os.Stat(filepath.Join(legacy, "manifest.json")); !os.IsNotExist(err) {
+		t.Fatalf("legacy package survived retry: err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "."+taskInputDirName+".tmp")); !os.IsNotExist(err) {
+		t.Fatalf("partial staging package survived retry: err=%v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(ref.Dir), "attachments", "retry.png"))
+	if err != nil || !bytes.Equal(got, pngBytes) {
+		t.Fatalf("retry attachment mismatch: err=%v", err)
 	}
 }
 
@@ -997,6 +1054,7 @@ func TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex(t *testing.T) {
 			Commit: "old-commit",
 			Rules:  []executor.RuleContext{{Slug: "old-rule", Description: "old description"}},
 		},
+		TaskInput: &executor.TaskInputRef{Dir: "task-input/v1", ManifestPath: "task-input/v1/manifest.json"},
 		CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("WriteInput: %v", err)
@@ -1020,6 +1078,9 @@ func TestRecover_PreservesRuleSnapshotWithoutRefreshingIndex(t *testing.T) {
 	}
 	if in.TeamRules == nil || in.TeamRules.Commit != "old-commit" || in.TeamRules.Rules[0].Slug != "old-rule" {
 		t.Fatalf("recovery changed team rule snapshot: %+v", in.TeamRules)
+	}
+	if in.TaskInput == nil || in.TaskInput.Dir != "task-input/v1" || in.TaskInput.ManifestPath != "task-input/v1/manifest.json" {
+		t.Fatalf("recovery changed task-input package ref: %+v", in.TaskInput)
 	}
 }
 
