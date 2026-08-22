@@ -546,13 +546,11 @@ describe('Access page', () => {
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     fireEvent.change(within(detail).getByTestId('access-role-delete-name'), { target: { value: 'Unused reviewer' } });
     fireEvent.click(within(detail).getByTestId('access-role-disable-submit'));
-    const confirm = await screen.findByTestId('confirm-modal');
-    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
 
     await waitFor(() => expect(deleteBody).toEqual({
       expected_latest_version: 2,
       confirm_unreferenced: true,
-      reason: 'RAM role deleted after unreferenced confirmation',
+      reason: 'RAM role deleted after typed-name confirmation',
     }));
     expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Deleted RAM Role Unused reviewer.');
   });

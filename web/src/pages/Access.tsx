@@ -171,7 +171,7 @@ export default function Access(): React.ReactElement {
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Access</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className={view === 'ram-roles' ? 'sr-only' : 'flex flex-wrap gap-2'}>
           <button
             type="button"
             className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
@@ -219,7 +219,7 @@ export default function Access(): React.ReactElement {
         <SummaryTile label="Not applicable" value={data?.summary.not_applicable ?? 0} tone="muted" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={view === 'ram-roles' ? 'sr-only' : 'flex flex-wrap items-center gap-2'}>
         <div className="inline-flex rounded border border-border-base bg-bg-elevated p-0.5" role="tablist" aria-label="Access view">
           <button
             type="button"
@@ -252,7 +252,7 @@ export default function Access(): React.ReactElement {
             Subject access
           </button>
         </div>
-        <label className="relative min-w-[14rem] flex-1 md:max-w-xs">
+        {view !== 'ram-roles' && <label className="relative min-w-[14rem] flex-1 md:max-w-xs">
           <span className="sr-only">Search access</span>
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
             <IconSearch />
@@ -264,11 +264,13 @@ export default function Access(): React.ReactElement {
             onChange={(e) => setQuery(e.target.value)}
             data-testid="access-search"
           />
-        </label>
-        <Select label="Resource" value={resourceKind} onChange={(v) => setResourceKind(v as AccessResourceKind | 'all')} options={RESOURCE_OPTIONS} />
-        <Select label="Subject" value={subjectKind} onChange={(v) => setSubjectKind(v as AccessSubjectKind | 'all')} options={SUBJECT_OPTIONS} />
-        <Select label="Risk" value={risk} onChange={(v) => setRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
-        <Select label="Status" value={status} onChange={(v) => setStatus(v as AccessStatus | 'all')} options={STATUS_OPTIONS} />
+        </label>}
+        {view !== 'ram-roles' && <>
+          <Select label="Resource" value={resourceKind} onChange={(v) => setResourceKind(v as AccessResourceKind | 'all')} options={RESOURCE_OPTIONS} />
+          <Select label="Subject" value={subjectKind} onChange={(v) => setSubjectKind(v as AccessSubjectKind | 'all')} options={SUBJECT_OPTIONS} />
+          <Select label="Risk" value={risk} onChange={(v) => setRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
+          <Select label="Status" value={status} onChange={(v) => setStatus(v as AccessStatus | 'all')} options={STATUS_OPTIONS} />
+        </>}
       </div>
 
       {overview.isLoading && <Skeleton height="18rem" />}
@@ -464,7 +466,6 @@ function RAMRolesView({
   const [editScope, setEditScope] = useState('team');
   const [draftPermissions, setDraftPermissions] = useState<string[]>([]);
   const [roleDrawer, setRoleDrawer] = useState<{ mode: 'create' | 'edit'; roleId?: string } | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteNameConfirm, setDeleteNameConfirm] = useState('');
   const [showReferences, setShowReferences] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState('');
@@ -472,7 +473,7 @@ function RAMRolesView({
   const [roleRisk, setRoleRisk] = useState<AccessRisk | 'all'>('all');
   const [roleScope, setRoleScope] = useState('all');
   const [page, setPage] = useState(1);
-  const pageSize = 6;
+  const pageSize = 10;
   const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
   const detail = useRAMRole(selected);
   const latest = detail.data?.latest;
@@ -544,50 +545,38 @@ function RAMRolesView({
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]" data-testid="access-roles-view">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(30rem,1fr)]" data-testid="access-roles-view">
+      <h2 className="sr-only">RAM Roles</h2>
       <span className="sr-only" data-testid="access-runtime-sha">Runtime SHA: {import.meta.env.VITE_BUILD_SHA || 'development'}</span>
       <section className="rounded border border-border-base bg-bg-elevated">
-        <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
-          <h2 className="text-sm font-semibold text-text-primary">RAM Roles</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <AccessMetaPill>{roles.data?.roles.length ?? 0} current versions</AccessMetaPill>
-            <button type="button" data-testid="access-role-new" className="rounded bg-btn-primary-bg px-3 py-1.5 text-xs font-semibold text-btn-primary-fg" onClick={() => setRoleDrawer({ mode: 'create' })}>New RAM Role</button>
+            <button type="button" data-testid="access-role-new" className="rounded bg-btn-primary-bg px-3 py-2 text-xs font-semibold text-btn-primary-fg shadow-sm" onClick={() => setRoleDrawer({ mode: 'create' })}>＋ New RAM Role</button>
+            <AccessMetaPill>{roles.data?.roles.length ?? 0} roles</AccessMetaPill>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="relative block w-52">
+              <span className="sr-only">Search RAM Roles</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"><IconSearch /></span>
+              <input className="w-full rounded border border-border-base bg-bg-base py-2 pl-9 pr-3 text-xs text-text-primary placeholder:text-text-muted" placeholder="Search RAM roles" value={roleSearch} onChange={(e) => setRoleSearch(e.target.value)} data-testid="access-role-search" />
+            </label>
+            <Select label="RAM role risk" value={roleRisk} onChange={(v) => setRoleRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
           </div>
         </div>
-        <div className="grid gap-2 border-b border-border-base px-4 py-3 md:grid-cols-4" data-testid="access-role-stats">
-          <SummaryTile label="RAM Roles" value={allRoles.length} tone="muted" />
-          <SummaryTile label="Custom" value={customCount} tone="success" />
-          <SummaryTile label="High risk" value={highRiskCount} tone="danger" />
-          <SummaryTile label="Permissions" value={permissionCount} tone="warning" />
-        </div>
         {status && <div className="border-b border-success/30 bg-success/10 px-4 py-2 text-sm text-success" role="status" data-testid="access-role-success">{status}</div>}
-        <div className="flex flex-wrap gap-2 border-b border-border-base px-4 py-3">
-          <label className="relative block">
-            <span className="sr-only">Search RAM Roles</span>
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-              <IconSearch />
-            </span>
-            <input
-              className="w-full rounded border border-border-base bg-bg-base py-2 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent focus-visible:outline-none"
-              placeholder="Search name, stable key, scope"
-              value={roleSearch}
-              onChange={(e) => setRoleSearch(e.target.value)}
-              data-testid="access-role-search"
-            />
-          </label>
-          <Select label="RAM role risk" value={roleRisk} onChange={(v) => setRoleRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
+        <div className="sr-only" data-testid="access-role-stats">
+          {customCount} custom · {highRiskCount} high risk · {permissionCount} permissions · {referencedCount} referenced
           <Select label="RAM role scope" value={roleScope} onChange={setRoleScope} options={scopeOptions} />
-          <AccessMetaPill>{filteredRoles.length} filtered · {referencedCount} referenced</AccessMetaPill>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
               <tr>
                 <th className="px-4 py-2 font-semibold">Role</th>
-                <th className="px-4 py-2 font-semibold">Scope</th>
-                <th className="px-4 py-2 font-semibold">Version</th>
                 <th className="px-4 py-2 font-semibold">Risk</th>
                 <th className="px-4 py-2 font-semibold">Permissions</th>
+                <th className="px-4 py-2 font-semibold">Referenced by Team Roles</th>
+                <th className="px-4 py-2 font-semibold">Updated ↓</th>
               </tr>
             </thead>
             <tbody>
@@ -601,18 +590,14 @@ function RAMRolesView({
                   }}
                   data-testid={`access-role-row-${role.id}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <div className="font-semibold text-text-primary">{role.name}</div>
-                    <div className="text-xs text-text-muted">{role.description}</div>
                     <div className="font-mono text-[0.6875rem] text-text-muted">{role.stable_key || role.id}</div>
-                    <div className="mt-1 text-[0.6875rem] text-text-muted">
-                      Referenced by {role.references ?? (mappedByRAMRole.get(role.id) ?? []).length} Team Roles
-                    </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.scope}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">v{role.version}</td>
-                  <td className="px-4 py-3"><AccessRiskBadge risk={role.risk} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{role.permissions.join(', ')}</td>
+                  <td className="px-4 py-2.5"><AccessRiskBadge risk={role.risk} /></td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{role.permissions.length}</td>
+                  <td className="px-4 py-2.5 text-xs text-text-secondary">{role.references ?? (mappedByRAMRole.get(role.id) ?? []).length}</td>
+                  <td className="px-4 py-2.5 text-xs text-text-secondary">Latest<br /><span className="font-mono text-text-muted">v{role.version}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -620,30 +605,33 @@ function RAMRolesView({
         </div>
         {filteredRoles.length === 0 && <EmptyState title="No matching RAM Roles" body="Change search, risk, or scope filters to widen the list." testId="access-role-empty" />}
         <div className="flex items-center justify-between gap-2 border-t border-border-base px-4 py-3 text-xs text-text-secondary" data-testid="access-role-pagination">
-          <span>Page {page} of {totalPages}</span>
-          <div className="flex gap-2">
+          <span>Showing {filteredRoles.length === 0 ? 0 : (page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredRoles.length)} of {filteredRoles.length} RAM roles</span>
+          <div className="flex items-center gap-1">
             <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <button key={number} type="button" aria-label={`Page ${number}`} className={`min-w-7 rounded border px-2 py-1 ${number === page ? 'border-accent text-accent' : 'border-border-base'}`} onClick={() => setPage(number)}>{number}</button>)}
             <button type="button" className="rounded border border-border-base px-2 py-1 disabled:opacity-50" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+            <span className="ml-2 rounded border border-border-base px-2 py-1">10 / page</span>
           </div>
         </div>
       </section>
 
       <aside className="space-y-4">
-        <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="access-role-detail">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-text-primary">RAM Role detail</h2>
+        <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-role-detail">
+          <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
+            <div>
+              <h2 className="text-base font-semibold text-text-primary">{detail.data?.name ?? 'RAM Role detail'}</h2>
+              {detail.data && <p className="mt-0.5 font-mono text-xs text-text-muted">{detail.data.stable_key}</p>}
+            </div>
             {detail.data && (
-              <button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" data-testid="access-role-edit-open" onClick={() => setRoleDrawer({ mode: 'edit', roleId: detail.data.id })}>
-                Edit
-              </button>
+              <div className="flex gap-2"><button type="button" className="rounded border border-border-base px-3 py-1.5 text-xs font-semibold" data-testid="access-role-edit-open" onClick={() => setRoleDrawer({ mode: 'edit', roleId: detail.data.id })}>Edit</button>
+              <button type="button" className="rounded border border-danger/30 bg-danger/5 px-3 py-1.5 text-xs font-semibold text-danger" onClick={() => document.querySelector<HTMLInputElement>('[data-testid=access-role-delete-name]')?.focus()}>Delete</button></div>
             )}
           </div>
           {detail.isLoading && <Skeleton height="8rem" />}
           {detail.data && (
             <>
-              <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2">
-                <div className="font-semibold text-text-primary">{detail.data.name}</div>
-                <div className="text-xs text-text-muted">Latest v{detail.data.latest.version} · {detail.data.scope} · {detail.data.stable_key}</div>
+              <div className="p-4">
+                <div className="flex items-center gap-2 text-xs text-text-muted"><AccessRiskBadge risk={detail.data.latest.risk} /><span>Latest v{detail.data.latest.version} · {detail.data.scope}</span></div>
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
                   {mappedReferences.length > 0
@@ -652,7 +640,7 @@ function RAMRolesView({
                       ? selectedReferences.map((ref) => `${ref.team_name} / ${ref.team_role}`).join(', ')
                       : 'None'}
                 </div>
-                <PermissionSummary role={detail.data.latest} catalog={catalog} />
+                <div className="mt-4 border-t border-border-base pt-4"><PermissionSummary role={detail.data.latest} catalog={catalog} /></div>
                 {selectedIsReferenced && (
                   <div className="mt-2 space-y-2" data-testid="access-role-delete-blocked">
                     <p className="text-xs text-danger">This RAM Role cannot be deleted until references are migrated.</p>
@@ -677,7 +665,8 @@ function RAMRolesView({
                   </div>
                 )}
               </div>
-              <div className="mt-3 space-y-2" data-testid="access-role-versions">
+              <div className="mx-4 mb-4 space-y-2 rounded border border-border-base p-3" data-testid="access-role-versions">
+                <h3 className="text-sm font-semibold text-text-primary">Version history</h3>
                 {detail.data.versions.map((version) => (
                   <div key={version.version} className="rounded border border-border-base p-2">
                     <div className="flex items-center justify-between">
@@ -688,7 +677,7 @@ function RAMRolesView({
                   </div>
                 ))}
               </div>
-              <div className="mt-3 border-t border-border-base pt-3">
+              <div className="border-t border-border-base p-4">
                 <h3 className="text-xs font-semibold uppercase text-text-muted">Delete RAM Role</h3>
                 <p className="mt-2 text-xs text-text-secondary">Type the RAM Role name, then confirm deletion. Referenced roles must be migrated first.</p>
                 <RoleTextField label="Name" value={editName} onChange={setEditName} testId="access-role-edit-name" />
@@ -731,7 +720,19 @@ function RAMRolesView({
                   data-testid="access-role-disable-submit"
                   onClick={() => {
                     if (!selected || !latest) return;
-                    setDeleteConfirmOpen(true);
+                    deleteRole.mutate(
+                      { id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after typed-name confirmation' },
+                      {
+                        onSuccess: () => {
+                          const name = detail.data?.name ?? selected;
+                          const message = `Deleted RAM Role ${name}.`;
+                          setStatus(message);
+                          setSelectedId(null);
+                          onToast({ tone: 'success', message });
+                        },
+                        onError: (error) => onToast(accessToastFromError(error, 'Delete RAM Role failed')),
+                      },
+                    );
                   }}
                 >
                   Delete
@@ -750,43 +751,6 @@ function RAMRolesView({
           {replaceMapping.isError && <p className="mt-2 text-xs text-danger" role="alert">{(replaceMapping.error as Error).message}</p>}
         </section>
       </aside>
-      <ConfirmModal
-        open={deleteConfirmOpen}
-        title="Delete RAM Role"
-        message={
-          <div className="space-y-2">
-            {selectedIsReferenced ? (
-              <p>This RAM Role is referenced by Team Roles. Remove or migrate references before deleting.</p>
-            ) : (
-              <>
-                <p>This unreferenced RAM Role will be deleted after this second confirmation.</p>
-                <p className="font-mono text-xs">{detail.data?.stable_key}</p>
-              </>
-            )}
-          </div>
-        }
-        confirmLabel={selectedIsReferenced ? 'Blocked' : 'Delete'}
-        danger
-        busy={deleteRole.isPending}
-        onCancel={() => setDeleteConfirmOpen(false)}
-        onConfirm={() => {
-          if (!selected || !latest || selectedIsReferenced) return;
-          setDeleteConfirmOpen(false);
-          deleteRole.mutate(
-            { id: selected, expected_latest_version: latest.version, confirm_unreferenced: true, reason: 'RAM role deleted after unreferenced confirmation' },
-            {
-              onSuccess: () => {
-                const name = detail.data?.name ?? selected;
-                const message = `Deleted RAM Role ${name}.`;
-                setStatus(message);
-                setSelectedId(null);
-                onToast({ tone: 'success', message });
-              },
-              onError: (error) => onToast(accessToastFromError(error, 'Delete RAM Role failed')),
-            },
-          );
-        }}
-      />
       {roleDrawer && (
         <RAMRoleDrawer
           mode={roleDrawer.mode}
@@ -897,7 +861,7 @@ function RAMRoleDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-0 left-0 flex h-full w-full max-w-2xl flex-col border-r border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[40rem]"
+        className="fixed inset-y-0 left-0 flex h-full w-full max-w-[21rem] flex-col border-r border-border-base bg-bg-elevated text-text-primary shadow-2"
         data-testid="access-role-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
@@ -912,10 +876,15 @@ function RAMRoleDrawer({
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-3">
             <RoleTextField label="Name" value={name} onChange={setName} testId="access-role-name" />
             <RoleTextField label="Stable key" value={stableKey} onChange={setStableKey} testId="access-role-stable-key" />
-            <RoleTextField label="Scope" value={scope} onChange={setScope} testId="access-role-scope" />
+            <label className="mt-3 block">
+              <span className="text-xs font-semibold text-text-muted">Scope support</span>
+              <select className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary" value={scope} data-testid="access-role-scope" onChange={(event) => setScope(event.target.value)}>
+                <option value="org">Organization</option><option value="project">Project</option><option value="team">Team</option>
+              </select>
+            </label>
             <label className="mt-3 block">
               <span className="text-xs font-semibold uppercase text-text-muted">Risk</span>
               <select className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary" value={risk} data-testid="access-role-risk" onChange={(event) => setRisk(event.target.value as AccessRisk)}>
@@ -934,7 +903,7 @@ function RAMRoleDrawer({
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <PermissionSummary role={{
+          <div className="sr-only"><PermissionSummary role={{
             id: role?.id ?? 'draft',
             stable_key: stableKey,
             name,
@@ -944,7 +913,7 @@ function RAMRoleDrawer({
             permissions,
             risk,
             scope,
-          }} catalog={catalog} />
+          }} catalog={catalog} /></div>
           <PermissionChecklist catalog={catalog} selected={permissions} onToggle={togglePermission} />
           {hasHighRisk && (
             <label className="flex items-start gap-2 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-text-secondary">
@@ -987,7 +956,9 @@ function RoleTextField({ label, value, onChange, testId }: { label: string; valu
 
 function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessPermissionDefinition[]; selected: string[]; onToggle: (permission: string) => void }): React.ReactElement {
   return (
-    <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded border border-border-base p-2" data-testid="access-role-permissions">
+    <div className="mt-3" data-testid="access-role-permissions">
+      <div className="mb-1 flex items-center justify-between"><span className="text-xs font-semibold text-text-muted">Permissions</span><AccessMetaPill>{selected.length} selected</AccessMetaPill></div>
+      <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border-base p-2">
       {catalog.map((permission) => (
         <button
           key={permission.key}
@@ -1003,6 +974,7 @@ function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessP
           <AccessRiskBadge risk={permission.risk} />
         </button>
       ))}
+      </div>
     </div>
   );
 }
