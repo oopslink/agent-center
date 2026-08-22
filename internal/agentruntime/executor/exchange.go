@@ -439,7 +439,69 @@ func (fx *FileExchange) ReadInput(executorID string) (Input, error) {
 	if err != nil {
 		return Input{}, mapReadErr("input.json", executorID, err)
 	}
+	if err := fx.validateTaskInputPackage(in); err != nil {
+		return Input{}, fmt.Errorf("executor: input.json for %s invalid: %w", executorID, err)
+	}
 	return in, nil
+}
+
+func (fx *FileExchange) validateTaskInputPackage(in Input) error {
+	if in.TaskInput == nil {
+		return nil
+	}
+	dir := strings.TrimSpace(filepath.ToSlash(in.TaskInput.Dir))
+	if dir != "task-input/v1" {
+		return fmt.Errorf("task_input.dir must be task-input/v1, got %q", in.TaskInput.Dir)
+	}
+	manifestPath := strings.TrimSpace(filepath.ToSlash(in.TaskInput.ManifestPath))
+	if manifestPath == "" {
+		manifestPath = dir + "/manifest.json"
+	}
+	if manifestPath != dir+"/manifest.json" {
+		return fmt.Errorf("task_input.manifest_path must be %s/manifest.json, got %q", dir, in.TaskInput.ManifestPath)
+	}
+	workspace, err := fx.layout.WorkspaceDir(in.ExecutorID)
+	if err != nil {
+		return err
+	}
+	manifestAbs, err := containedWorkspacePath(workspace, manifestPath)
+	if err != nil {
+		return fmt.Errorf("task_input manifest: %w", err)
+	}
+	raw, err := os.ReadFile(manifestAbs)
+	if err != nil {
+		return fmt.Errorf("task_input manifest unreadable: %w", err)
+	}
+	var manifest struct {
+		Version int `json:"version"`
+		Files   []struct {
+			Path string `json:"path"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return fmt.Errorf("task_input manifest corrupt: %w", err)
+	}
+	if manifest.Version != 1 {
+		return fmt.Errorf("task_input manifest version=%d want 1", manifest.Version)
+	}
+	for _, f := range manifest.Files {
+		rel := strings.TrimSpace(f.Path)
+		if rel == "" {
+			return errors.New("task_input manifest contains empty file path")
+		}
+		cleanRel := filepath.ToSlash(filepath.Clean(filepath.FromSlash(rel)))
+		if cleanRel == "." || cleanRel == dir || !strings.HasPrefix(cleanRel, dir+"/") {
+			return fmt.Errorf("task_input file %q must stay under %s", rel, dir)
+		}
+		abs, err := containedWorkspacePath(workspace, rel)
+		if err != nil {
+			return fmt.Errorf("task_input file %q: %w", rel, err)
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return fmt.Errorf("task_input file %q unreadable: %w", rel, err)
+		}
+	}
+	return nil
 }
 
 // AppendProgress appends one entry to progress.jsonl (append-only, design §7). If
@@ -476,6 +538,40 @@ func (fx *FileExchange) AppendProgress(executorID string, e ProgressEntry) error
 		return fmt.Errorf("executor: close progress %q: %w", path, err)
 	}
 	return nil
+}
+
+func containedWorkspacePath(workspace, rel string) (string, error) {
+	if filepath.IsAbs(rel) {
+		return "", ErrPathEscapesWorkspace
+	}
+	cleanRel := filepath.Clean(filepath.FromSlash(rel))
+	if cleanRel == "." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) || cleanRel == ".." {
+		return "", ErrPathEscapesWorkspace
+	}
+	root, err := filepath.Abs(workspace)
+	if err != nil {
+		return "", err
+	}
+	candidate, err := filepath.Abs(filepath.Join(root, cleanRel))
+	if err != nil {
+		return "", err
+	}
+	evalRoot, rootErr := filepath.EvalSymlinks(root)
+	if rootErr == nil {
+		root = evalRoot
+		candidate = filepath.Join(root, cleanRel)
+	}
+	if evalCandidate, err := filepath.EvalSymlinks(candidate); err == nil {
+		candidate = evalCandidate
+	}
+	relToRoot, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return "", err
+	}
+	if relToRoot == ".." || strings.HasPrefix(relToRoot, ".."+string(filepath.Separator)) {
+		return "", ErrPathEscapesWorkspace
+	}
+	return candidate, nil
 }
 
 // WriteStatus validates and atomically writes the status file. If StartedAt is
