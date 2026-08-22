@@ -1,28 +1,460 @@
 {
-  "baseURL": "http://127.0.0.1:49629",
-  "orgSlug": "org-a7117fc8",
-  "finalURL": "http://127.0.0.1:49629/organizations/org-a7117fc8/teams/roles",
-  "head": "41a2f7e631760d617dc0513af2ee5ba777b75aa7",
-  "clientWidth": 1672,
-  "scrollWidth": 1672,
-  "teamId": "team-991e7f5c",
+  "git": {
+    "parent": "ddba9b10816b803b0563e97de574ebe7378c8ef2",
+    "head": "ddba9b10816b803b0563e97de574ebe7378c8ef2",
+    "branch": "ac-exec/task-8019b5a9/exec-4085bf1f"
+  },
+  "baseURL": "http://127.0.0.1:56782",
+  "stableURL": null,
+  "canonical": {
+    "path": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+    "sha256": "80e51bb4aa74d5a437b6c35b84b5fda1906c7bb7e08bd0e2335c14bb4d1a7d56"
+  },
+  "version": {
+    "branch": "ac-exec/task-8019b5a9/exec-4085bf1f",
+    "built_at": "2026-08-22T15:16:38Z",
+    "commit": "ddba9b10816b803b0563e97de574ebe7378c8ef2",
+    "install_path": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-4085bf1f/bin/agent-center",
+    "parent_pid": 12306,
+    "pid": 12307,
+    "started_at": "2026-08-22T15:25:02.750973Z",
+    "version": "ac-exec/task-8019b5a9/exec-4085bf1f-ddba9b10816b803b0563e97de574ebe7378c8ef2"
+  },
+  "orgSlug": "org-1e74e3f1",
+  "teamId": "team-531c390b",
   "ramRoleIds": [
-    "role-36613ad3a6e6dde6",
-    "role-fe29f73e0bbb5a2f",
-    "role-dde10cb9f5ca9bdb"
+    "role-b451b5aece8a9b44",
+    "role-30d89e9a64ba0235",
+    "role-5f0226dc23b2b4bd"
   ],
-  "checkedStates": [
-    "Team IA route /teams/roles",
-    "role list",
-    "role detail entry",
-    "work config",
-    "RAM mapping table",
-    "mapping edit drawer",
-    "immediate impact/CAS version",
-    "RAM Role create drawer",
-    "versioned write controls",
-    "delete safeguard",
-    "audit copy",
-    "1280/1672 no horizontal overflow guard"
-  ]
+  "states": [
+    {
+      "state": "roles-list",
+      "description": "Team Role list, detail entry, work config, RAM mapping table",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-roles-list-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1488237,
+        "changed_ratio": 0.9459021248900437,
+        "mae_per_channel": 12.731549795171922,
+        "rmse_per_channel": 38.01140210143846,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-roles-list-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-roles-list-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "ram-role-detail",
+      "description": "RAM Role versions, duplicate/delete controls, delete safeguard",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-ram-role-detail-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1488237,
+        "changed_ratio": 0.9459021248900437,
+        "mae_per_channel": 12.731549795171922,
+        "rmse_per_channel": 38.01140210143846,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-detail-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "mapping-drawer",
+      "description": "Team Role RAM mapping edit drawer",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-mapping-drawer-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1519368,
+        "changed_ratio": 0.9656885426783072,
+        "mae_per_channel": 48.59074553352757,
+        "rmse_per_channel": 64.99314933564708,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-mapping-drawer-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "mapping-preview",
+      "description": "Mapping preview with affected members/projects and CAS source version",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-mapping-preview-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1519579,
+        "changed_ratio": 0.96582265125668,
+        "mae_per_channel": 48.9733344265407,
+        "rmse_per_channel": 65.69266860764057,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-mapping-preview-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-mapping-preview-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "mapping-cas-error",
+      "description": "Mapping CAS conflict and inline refresh error state",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-mapping-cas-error-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1520268,
+        "changed_ratio": 0.96626056978985,
+        "mae_per_channel": 49.132885711525454,
+        "rmse_per_channel": 65.84626414877287,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-mapping-cas-error-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "ram-role-create-drawer",
+      "description": "Create RAM Role drawer with permission picker and audit guard",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-ram-role-create-drawer-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1523247,
+        "changed_ratio": 0.9681539795290565,
+        "mae_per_channel": 48.51755402902,
+        "rmse_per_channel": 64.99889199196801,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-create-drawer-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "ram-role-edit-drawer",
+      "description": "Edit RAM Role drawer with versioned write controls",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1520732,
+        "changed_ratio": 0.9665554815451343,
+        "mae_per_channel": 48.99310770889159,
+        "rmse_per_channel": 65.47590145824643,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-edit-drawer-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "ram-role-duplicate-drawer",
+      "description": "Duplicate RAM Role drawer",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1520798,
+        "changed_ratio": 0.9665974301999807,
+        "mae_per_channel": 48.79742888643694,
+        "rmse_per_channel": 65.17146441797999,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-duplicate-drawer-canonical-pixel-diff.png"
+      }
+    },
+    {
+      "state": "ram-role-delete-safeguard",
+      "description": "Referenced RAM Role delete safeguard confirmation",
+      "metrics": {
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "clientWidth": 1672,
+        "scrollWidth": 1672,
+        "clientHeight": 941,
+        "scrollHeight": 941
+      },
+      "candidate": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png",
+      "diff": {
+        "canonical": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KV01ZG5T332EYTFCVTNAZB9B/tasks/t1457-canonical.png",
+        "candidate": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-candidate-1672x941.png",
+        "width": 1672,
+        "height": 941,
+        "pixels": 1573352,
+        "changed_pixels": 1565589,
+        "changed_ratio": 0.9950659483701041,
+        "mae_per_channel": 117.01372250668213,
+        "rmse_per_channel": 122.49289076615476,
+        "max_abs_channel_delta": 255,
+        "overlay": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-overlay.png",
+        "pixel_diff": "docs/acceptance/t1457/t1457-ram-role-delete-safeguard-canonical-pixel-diff.png"
+      }
+    }
+  ],
+  "overflow1280": {
+    "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+    "clientWidth": 1280,
+    "scrollWidth": 1280
+  },
+  "console": {
+    "count": 1,
+    "events": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "location": {
+          "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/developer/ram-roles",
+          "line": 0,
+          "column": 0,
+          "lineNumber": 0,
+          "columnNumber": 0
+        }
+      }
+    ]
+  },
+  "network": {
+    "count": 31,
+    "events": [
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/index-D8LZcSwl.css",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/organizations/org-1e74e3f1/teams/roles",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/index-CXD4UxQX.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/fonts/plus-jakarta-sans-latin.woff2",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/access-CTplP4gi.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/EntityMultiSelect-DWooU3Tj.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/icons-CjF88_j5.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/kit-CjS4b83T.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/EmptyState-BAJfFTR7.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/assets/TeamsRoles-Cg50ZGd8.js",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/fonts/ibm-plex-mono-400-latin.woff2",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/unread-conversations",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/conversations?kind=dm",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/auth/me",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/conversations?kind=channel",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/attention",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/members",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/access/ram-roles",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/permissions/effective?subject_ref=user%3Auser-2e158f2c&resource_kind=org&resource_id=organization-c193ee5c",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/members",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/developer/ram-roles",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/reviewer/ram-roles",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/ops/ram-roles",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/access/overview?view=access",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/developer/ram-roles/preview",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/teams/team-531c390b/roles/developer/ram-roles",
+        "status": 409
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/access/ram-roles/role-5f0226dc23b2b4bd",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/orgs/org-1e74e3f1/access/ram-roles/role-5f0226dc23b2b4bd",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:56782/api/sse?user_id=user%3Auser-2e158f2c",
+        "status": 200
+      }
+    ]
+  },
+  "api": {
+    "createdRoleId": "role-077b7139d9a9e226",
+    "editedRoleVersion": 2,
+    "deleteStatus": 204,
+    "mappingConflict": {
+      "status": 409,
+      "body": "{\"error\":\"version_conflict\",\"message\":\"team: RAM role mapping version conflict\"}\n"
+    },
+    "ramRoleConflict": {
+      "status": 409,
+      "body": "{\"error\":\"version_conflict\",\"message\":\"RAM role latest version changed\"}\n"
+    }
+  }
 }
