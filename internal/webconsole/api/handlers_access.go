@@ -160,6 +160,7 @@ type accessBatchItemDTO struct {
 	Risk        string                 `json:"risk"`
 	HighRisk    bool                   `json:"high_risk"`
 	Reason      string                 `json:"reason"`
+	Code        string                 `json:"code,omitempty"`
 	EvidenceRef string                 `json:"evidence_ref,omitempty"`
 	GrantID     string                 `json:"grant_id,omitempty"`
 }
@@ -1794,7 +1795,7 @@ func accessGrantsFromDecisions(now time.Time, decisions []accessDecisionDTO, sub
 	grants := []accessGrantDTO{}
 	seen := map[string]struct{}{}
 	for _, d := range decisions {
-		if !d.Allowed || d.GrantID == "" || d.Permission == "org.read" || d.Permission == "org.member.list" {
+		if !d.Allowed || d.GrantID == "" {
 			continue
 		}
 		if _, ok := seen[d.GrantID]; ok {
@@ -1989,12 +1990,18 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 	}
 	if err != nil {
 		item.Status = accessBatchStatusForError(err)
+		item.Code = accessBatchCodeForError(err)
 		item.Reason = err.Error()
 		return item
 	}
 	for _, op := range res.Operations {
 		if op.Reason != "" || op.Status == "denied" {
 			item.Status = accessBatchStatusForReason(op.Reason)
+			if strings.Contains(strings.ToLower(op.Reason), "conflict") || strings.Contains(strings.ToLower(op.Reason), "already") {
+				item.Code = "409 conflict"
+			} else {
+				item.Code = "403 forbidden"
+			}
 			item.Reason = fallback(op.Reason, op.Status)
 			return item
 		}
@@ -2011,6 +2018,21 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		item.EvidenceRef = "authorization_preview:" + item.ID
 	}
 	return item
+}
+
+func accessBatchCodeForError(err error) string {
+	switch {
+	case errors.Is(err, authz.ErrConflict), errors.Is(err, authz.ErrIdempotencyConflict):
+		return "409 conflict"
+	case errors.Is(err, authz.ErrDenied), errors.Is(err, authz.ErrNotDelegatable), errors.Is(err, authz.ErrUnauthenticated):
+		return "403 forbidden"
+	case errors.Is(err, authz.ErrNotFound):
+		return "404 not_found"
+	case errors.Is(err, authz.ErrInvalid), errors.Is(err, authz.ErrPermissionUndefined):
+		return "422 invalid_request"
+	default:
+		return "500 authorization_error"
+	}
 }
 
 func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {

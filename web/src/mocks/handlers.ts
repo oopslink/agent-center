@@ -381,6 +381,7 @@ function accessHandlers() {
     risk: 'low' | 'medium' | 'high';
     high_risk: boolean;
     reason: string;
+    code?: string;
     evidence_ref?: string;
     grant_id?: string;
     role_id?: string;
@@ -792,7 +793,7 @@ function accessHandlers() {
       const body = (await request.json()) as BatchRequest;
       const items: BatchItem[] = makeItems(body).map((item, idx) =>
         idx === 0 && item.status === 'allowed'
-          ? { ...item, status: 'denied', reason: 'write conflict: grant already changed' }
+          ? { ...item, status: 'denied', code: '409 conflict', reason: 'write conflict: grant already changed' }
           : item,
       );
       const failed = items.filter((i) => i.status !== 'allowed').length;

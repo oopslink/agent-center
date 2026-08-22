@@ -60,6 +60,8 @@ describe('Access page', () => {
     expect(screen.getAllByText('Not applicable').length).toBeGreaterThan(0);
     expect(screen.getAllByText('subject is not a joined organization member').length).toBeGreaterThan(0);
     expect(screen.getAllByText('file.download does not apply to team resources').length).toBeGreaterThan(0);
+    // Builder has one real denied decision plus one N/A decision; N/A must not inflate explicit deny to two.
+    expect(screen.getByTestId('access-subject-metrics')).toHaveTextContent('Explicit deny1');
 
     fireEvent.change(screen.getByTestId('access-filter-status'), { target: { value: 'unauthorized' } });
     await waitFor(() => {
@@ -198,6 +200,8 @@ describe('Access page', () => {
     fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
     const result = await within(drawer).findByTestId('access-result');
     expect(result).toHaveTextContent('Partial failure');
+    expect(result).toHaveTextContent('409 conflict');
+    expect(result).toHaveTextContent('reported a failed operation without item detail');
     expect(result).toHaveTextContent('no access');
     expect(result).toHaveTextContent('not applicable');
   });

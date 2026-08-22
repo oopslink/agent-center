@@ -192,6 +192,7 @@ export interface AccessBatchItem {
   risk: AccessRisk;
   high_risk: boolean;
   reason: string;
+  code?: string;
   evidence_ref?: string;
   grant_id?: string;
 }

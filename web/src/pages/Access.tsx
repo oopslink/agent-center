@@ -1149,8 +1149,8 @@ function SubjectDecisionView({
     return [...bySubject.entries()].sort(([aRef, aRows], [bRef, bRows]) => {
       const aSubject = subjectByRef.get(aRef);
       const bSubject = subjectByRef.get(bRef);
-      const aDenied = aRows.filter((row) => !row.allowed).length;
-      const bDenied = bRows.filter((row) => !row.allowed).length;
+      const aDenied = aRows.filter((row) => row.status === 'denied').length;
+      const bDenied = bRows.filter((row) => row.status === 'denied').length;
       if (aDenied !== bDenied) return bDenied - aDenied;
       return (aSubject?.name ?? aRef).localeCompare(bSubject?.name ?? bRef);
     });
@@ -1354,7 +1354,7 @@ function SubjectDecisionView({
 function decisionStats(rows: AccessDecision[], grants: AccessGrant[]): { allowed: number; denied: number; direct: number; highRisk: number; expiring: number } {
   return {
     allowed: rows.filter((row) => row.allowed).length,
-    denied: rows.filter((row) => !row.allowed).length,
+    denied: rows.filter((row) => row.status === 'denied').length,
     direct: grants.filter((grant) => grant.source === 'custom_role').length,
     highRisk: rows.filter((row) => row.risk === 'high').length,
     expiring: grants.filter((grant) => grant.status === 'expires_soon').length,
@@ -2120,7 +2120,24 @@ function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.Rea
   );
 }
 
-function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactElement {
+function BatchItemsTable({ items, expectedFailed = 0 }: { items: AccessBatchItem[]; expectedFailed?: number }): React.ReactElement {
+  const visibleFailed = items.filter((item) => item.status !== 'allowed' && item.status !== 'not_applicable').length;
+  const missingFailed = Math.max(0, expectedFailed - visibleFailed);
+  const rows: AccessBatchItem[] = [
+    ...items,
+    ...Array.from({ length: missingFailed }, (_, index) => ({
+      id: `missing-failed-${index + 1}`,
+      subject_ref: 'unknown',
+      subject_name: 'Failed operation',
+      permission: 'unknown',
+      resource: { kind: 'org' as const, id: 'unknown', label: 'Unknown resource' },
+      status: 'denied' as const,
+      risk: 'medium' as const,
+      high_risk: false,
+      code: '409 conflict',
+      reason: 'The authorization API reported a failed operation without item detail. Refresh and retry to resolve the conflict.',
+    })),
+  ];
   return (
     <div className="overflow-x-auto rounded border border-border-base">
       <table className="w-full min-w-[42rem] text-left text-sm" data-testid="access-batch-items">
@@ -2130,16 +2147,18 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
             <th className="px-3 py-2 font-semibold">Permission</th>
             <th className="px-3 py-2 font-semibold">Resource</th>
             <th className="px-3 py-2 font-semibold">Status</th>
+            <th className="px-3 py-2 font-semibold">Code</th>
             <th className="px-3 py-2 font-semibold">Reason</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
+          {rows.map((item) => (
             <tr key={item.id} className="border-b border-border-base last:border-0">
               <td className="px-3 py-2">{item.subject_name}</td>
               <td className="px-3 py-2 font-mono text-xs">{item.permission}</td>
               <td className="px-3 py-2">{accessResourceLabel(item.resource)}</td>
               <td className="px-3 py-2"><AccessStatusBadge status={item.status} /></td>
+              <td className="px-3 py-2 font-mono text-xs" data-testid="access-batch-item-code">{item.code || (item.status === 'denied' ? '403 denied' : '—')}</td>
               <td className="px-3 py-2 text-xs text-text-secondary">{item.reason}</td>
             </tr>
           ))}
@@ -2169,7 +2188,7 @@ function ResultPanel({ result, title }: { result: AccessBatchResult | AccessBatc
           {succeeded} succeeded, {failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
         </p>
       </div>
-      <BatchItemsTable items={result.items} />
+      <BatchItemsTable items={result.items} expectedFailed={failed} />
     </div>
   );
 }

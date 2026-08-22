@@ -362,6 +362,92 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	if !directGrant {
 		t.Fatalf("overview grants missing direct binding grant id=%s grants=%+v", applied.Items[0].GrantID, overview.Grants)
 	}
+
+	revokeBody := `{"grant_ids":["` + applied.Items[0].GrantID + `"],"reason":"union test cleanup","message":"union test cleanup"}`
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", revokeBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview-selected direct revoke preview status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var preview struct {
+		PreviewID string `json:"preview_id"`
+		Token     string `json:"token"`
+		Items     []struct {
+			Status  string `json:"status"`
+			GrantID string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if preview.PreviewID == "" || preview.Token == "" || len(preview.Items) != 1 || preview.Items[0].Status != "allowed" || preview.Items[0].GrantID != applied.Items[0].GrantID {
+		t.Fatalf("overview-selected direct revoke preview=%+v", preview)
+	}
+	confirmBody := `{"grant_ids":["` + applied.Items[0].GrantID + `"],"reason":"union test cleanup","message":"union test cleanup","preview_id":"` + preview.PreviewID + `","token":"` + preview.Token + `","idempotency_key":"overview-union-revoke-` + preview.PreviewID + `"}`
+	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/confirm", confirmBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview-selected direct revoke confirm status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var confirmed struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"summary"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&confirmed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if confirmed.Summary.Succeeded != 1 || confirmed.Summary.Failed != 0 {
+		t.Fatalf("overview-selected direct revoke confirm=%+v", confirmed)
+	}
+
+	resp = orgScopedGet(t, server.URL+"/api/access/overview?q=Access%20Union%20Team", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview after direct revoke status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var afterRevoke struct {
+		Grants []struct {
+			ID string `json:"id"`
+		} `json:"grants"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&afterRevoke); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for _, grant := range afterRevoke.Grants {
+		if grant.ID == applied.Items[0].GrantID {
+			t.Fatalf("revoked direct binding still selectable in overview: %+v", afterRevoke.Grants)
+		}
+	}
+}
+
+func TestAccessGrantsFromDecisionsIncludesDirectOrgRead(t *testing.T) {
+	now := time.Now().UTC()
+	decisions := []accessDecisionDTO{{
+		Allowed: true, SubjectRef: "user:reader", Permission: "org.read",
+		Resource: accessResourceScopeDTO{Kind: "org", ID: "org-1", OrgID: "org-1", Label: "Organization"},
+		Source:   string(authz.SourceCustomRole), Status: "allowed", GrantID: "asgn-direct-org-read", RoleID: "role-org-read", Risk: "low",
+	}}
+	grants := accessGrantsFromDecisions(now, decisions, map[string]accessSubjectDTO{"user:reader": {Ref: "user:reader", Name: "Reader"}})
+	if len(grants) != 1 || grants[0].ID != "asgn-direct-org-read" || grants[0].Permission != "org.read" {
+		t.Fatalf("direct org.read must be revocable from overview grants: %+v", grants)
+	}
+}
+
+func TestAccessBatchCodeForErrorExposesHTTPMeaning(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("duplicate assignment: %w", authz.ErrConflict), "409 conflict"},
+		{fmt.Errorf("actor rejected: %w", authz.ErrDenied), "403 forbidden"},
+		{fmt.Errorf("bad request: %w", authz.ErrInvalid), "422 invalid_request"},
+	} {
+		if got := accessBatchCodeForError(tc.err); got != tc.want {
+			t.Fatalf("code(%v)=%q want %q", tc.err, got, tc.want)
+		}
+	}
 }
 
 func TestAccessOverviewDirectBindingUsesResolverExpiryFailClosed(t *testing.T) {
