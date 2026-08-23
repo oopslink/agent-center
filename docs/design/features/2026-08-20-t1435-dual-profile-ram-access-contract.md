@@ -4,7 +4,7 @@
 |---|---|
 | 状态 | Frozen executable contract（S1 remediation） |
 | 日期 | 2026-08-20 |
-| 审计基线 | 候选提交 `9da26a8e`；执行前必须回读并记录实际 `origin/main` |
+| 审计基线 | `origin/main@7232c04df2bc902353107404d18b4bc3f5bd5712`（ADR-0059 canonical remediation 起点） |
 | 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role 的 RAM Roles 属性、Access IA、迁移/回滚、A1-A16 截图验收 |
 | 配套矩阵 | `docs/design/features/2026-08-20-t1435-residual-matrix.md` |
 
@@ -163,6 +163,13 @@ Access 内容区重复渲染页内 tab。RAM Role 的创建、编辑、历史与
 `RAM Roles` 页面完成。Team Role 的 RAM Roles 列表只在 Team Role 页面编辑。
 
 截图必须来自真实导航路径，保存到 `docs/releases/<version>-screenshots/access/` 并在报告内联引用。
+
+三张产品 canonical、尺寸/交互注释与确定性 PNG 生成方式位于
+`docs/design/assets/adr-0059/README.md`。下表是历史 A1-A16 场景索引；逐状态的
+前置、动作、可见结果、权威回读与 FAIL 条件统一冻结在
+`docs/acceptance/adr-0059/canonical-state-matrix.md`，后者覆盖 default/loading/
+forbidden/empty/search/filter/pagination/detail/create/edit/conflict/delete，以及
+Team Role member impact 与 Subject access source precedence。
 
 | ID | 页面/状态 | 必须可见 | 导航路径 | 建议文件名 |
 |---|---|---|---|---|
