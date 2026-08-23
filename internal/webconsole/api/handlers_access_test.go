@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,22 @@ import (
 	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/team"
 )
+
+func TestAccessFilterDecisionsSupportsCanonicalSubjectProjectPermissionFilters(t *testing.T) {
+	decisions := []accessDecisionDTO{
+		{SubjectRef: "user:alice", Permission: "project.write", Resource: accessResourceScopeDTO{Kind: "project", ID: "project-atlas", ProjectID: "project-atlas"}, Risk: "medium", Status: "allowed"},
+		{SubjectRef: "user:bob", Permission: "org.read", Resource: accessResourceScopeDTO{Kind: "org", ID: "org-1"}, Risk: "low", Status: "allowed"},
+	}
+	subjects := map[string]accessSubjectDTO{
+		"user:alice": {Ref: "user:alice", Kind: "human", Name: "Alice", Email: "alice@example.com"},
+		"user:bob":   {Ref: "user:bob", Kind: "human", Name: "Bob"},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/access/overview?q=alice%40example.com&subject_kind=human&project_id=project-atlas&permission=project.write&risk=medium&status=allowed", nil)
+	filtered := accessFilterDecisions(decisions, subjects, map[string]accessPermissionDefinitionDTO{}, request)
+	if len(filtered) != 1 || filtered[0].SubjectRef != "user:alice" || filtered[0].Permission != "project.write" {
+		t.Fatalf("canonical filters returned %+v", filtered)
+	}
+}
 
 func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
