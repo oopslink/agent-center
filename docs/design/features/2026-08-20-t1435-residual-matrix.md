@@ -4,7 +4,7 @@
 |---|---|
 | 状态 | Audit matrix / deletion readiness（S1 remediation） |
 | 日期 | 2026-08-20 |
-| 审计基线 | 候选提交 `9da26a8e`；执行时以回读的 `origin/main` 为准 |
+| 审计基线 | `origin/main@7232c04df2bc902353107404d18b4bc3f5bd5712`（ADR-0059 canonical remediation 起点） |
 | 配套合同 | `docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md` |
 
 > **2026-08-23 产品口径修正（ADR-0059）**：Access 只有 `RAM Roles` 和
@@ -96,6 +96,11 @@ AI Runtime Profile 删除不为 Access Profile 提供保留例外；二者分别
 
 不存在 Profiles、Roles & mappings 或 Team Role mappings surface。A12-A14
 验证 RAM Roles 页面；Team Role 的 RAM Roles 属性在 Team Role 页面验证。
+
+权威视觉源与 PNG 索引见 `docs/design/assets/adr-0059/README.md`；全状态验收、
+mutation 后权威回读与 FAIL 条件见
+`docs/acceptance/adr-0059/canonical-state-matrix.md`。旧 T1456/T1457/T1458 图像仅是
+整改前历史证据，不得覆盖新的 canonical verdict。
 
 | Surface | States | 权威数据 | Screenshot IDs |
 |---|---|---|---|
