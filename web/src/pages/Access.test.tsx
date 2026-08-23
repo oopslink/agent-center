@@ -7,14 +7,14 @@ import { server } from '@/test/mswServer';
 import { useAppStore } from '@/store/app';
 import Access from './Access';
 
-function renderPage(path = '/organizations/test/access', currentUserId = 'user:hayang') {
+function renderPage(path = '/organizations/test/access/ram-roles', currentUserId = 'user:hayang') {
   window.history.pushState({}, '', path);
   useAppStore.setState({ currentUserId });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <BrowserRouter>
-        <Access />
+        <Access page={path.includes('/subject-access') ? 'subject-access' : 'ram-roles'} />
       </BrowserRouter>
     </QueryClientProvider>,
   );
@@ -26,18 +26,22 @@ afterEach(() => {
 });
 
 describe('Access page', () => {
-  it('defaults to the independent RAM Roles page and exposes separate Access views', async () => {
+  it('renders the independent RAM Roles page without subject controls or duplicate tabs', async () => {
     renderPage();
-    expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByTestId('access-roles-view')).toBeInTheDocument();
+    const page = await screen.findByTestId('page-Access');
+    expect(page).toHaveAttribute('aria-labelledby', 'access-ram-roles-title');
+    expect(page).toHaveClass('min-w-0');
+    const roles = await screen.findByTestId('access-roles-view');
+    expect(roles).toHaveClass('min-w-0');
+    expect(roles.querySelector('table')?.parentElement).toHaveClass('overflow-x-auto');
+    expect(roles.className).not.toContain('minmax(30rem');
     expect(screen.getByTestId('access-runtime-sha')).toHaveTextContent('Runtime SHA:');
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
-    expect(screen.queryByTestId('access-team-role-mappings-view')).not.toBeInTheDocument();
     expect(screen.queryByText('Permission catalog')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'RAM Roles' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Team Role mappings' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Subject access' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Roles & mappings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('access-open-direct-binding')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('access-open-batch')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subject-access-filters')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Profiles/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
   });
@@ -111,18 +115,16 @@ describe('Access page', () => {
     expect(await screen.findByTestId('access-role-detail-error')).toHaveTextContent('detail unavailable');
   });
 
-  it('opens Team Role mappings as its own page, then exposes expandable subject access', async () => {
-    renderPage('/organizations/test/access?view=team-role-mappings');
+  it('renders Subject access as a distinct titled page with its own actions and filters', async () => {
+    renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    expect(await screen.findByRole('tab', { name: 'Team Role mappings' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Subject access' })).toBeInTheDocument();
     expect(screen.queryByTestId('access-roles-view')).not.toBeInTheDocument();
-    expect(await screen.findByTestId('access-team-role-mappings-view')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Team Role mappings' })).toBeInTheDocument();
-    expect(await screen.findByTestId('access-mapping-team-7c19b0-planner')).toHaveTextContent('agent-center core');
-
-    fireEvent.click(screen.getByTestId('access-view-subjects'));
     expect(await screen.findByTestId('access-subject-view')).toBeInTheDocument();
-    expect(window.location.search).toBe('?view=subject-access');
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByTestId('access-open-direct-binding')).toBeInTheDocument();
+    expect(screen.getByTestId('access-open-batch')).toBeInTheDocument();
+    expect(screen.getByTestId('subject-access-filters')).toBeInTheDocument();
     expect(screen.getByTestId('access-subject-view')).toBeInTheDocument();
     expect(screen.getAllByText('High risk').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No access').length).toBeGreaterThan(0);
@@ -150,8 +152,31 @@ describe('Access page', () => {
     });
   });
 
+  it.each([
+    ['ram-roles', '/organizations/test/access/ram-roles', 'RAM Roles'],
+    ['subject-access', '/organizations/test/access/subject-access', 'Subject access'],
+  ])('renders a page-specific loading skeleton for %s', async (page, path, title) => {
+    server.use(
+      http.get('/api/orgs/:slug/permissions/effective', () => new Promise(() => undefined)),
+    );
+    renderPage(path);
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+    expect(screen.getByTestId(`access-${page}-loading`)).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it.each([
+    ['ram-roles', '/organizations/test/access/ram-roles'],
+    ['subject-access', '/organizations/test/access/subject-access'],
+  ])('renders a page-specific data error for %s', async (page, path) => {
+    server.use(
+      http.get('*/api/orgs/:slug/access/overview', () => HttpResponse.json({ message: 'Access data unavailable' }, { status: 500 })),
+    );
+    renderPage(path);
+    expect(await screen.findByTestId(`access-${page}-error`)).toHaveTextContent('Access data unavailable');
+  });
+
   it('shows Team RAM and direct binding source chains, then opens the direct binding flow', async () => {
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     const builder = await screen.findByTestId('access-subject-effective-agent:builder');
     fireEvent.click(within(builder).getByText(/^3 effective permissions/));
 
@@ -169,70 +194,10 @@ describe('Access page', () => {
     expect(await screen.findByRole('dialog', { name: 'Add direct binding' })).toBeInTheDocument();
   });
 
-  it('previews and saves a Team Role mapping with the fetched CAS version and refreshes immediately', async () => {
-    let previewBody: { ram_role_ids?: string[] } | null = null;
-    let putBody: { ram_role_ids?: string[]; expected_version?: number } | null = null;
-    server.use(
-      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
-      http.post('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles/preview', async ({ request }) => {
-        previewBody = await request.json() as typeof previewBody;
-        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', current_ram_role_ids: ['team-basic'], next_ram_role_ids: previewBody?.ram_role_ids ?? [], added_ram_role_ids: ['team-curator'], removed_ram_role_ids: [], affected_members: 1, affected_project_ids: ['project-c7073e48'], version: 7 });
-      }),
-      http.put('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', async ({ request }) => {
-        putBody = await request.json() as typeof putBody;
-        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 8 });
-      }),
-    );
-    renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
-    const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
-    expect(within(row).queryByRole('checkbox')).toBeNull();
-    fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
-    const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
-    fireEvent.click(within(options).getByRole('option', { name: /Team curator/ }));
-    expect(within(row).getAllByTestId('access-mapping-roles-team-7c19b0-planner-chip').map((chip) => chip.textContent)).toContain('Team curator×');
-    fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
-    expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members');
-    fireEvent.click(within(row).getByRole('button', { name: 'Save mapping' }));
-    const confirm = await screen.findByTestId('confirm-modal');
-    expect(within(confirm).getByTestId('access-mapping-confirm-diff')).toHaveTextContent('team-basic');
-    expect(putBody).toBeNull();
-    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
-    await waitFor(() => expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 7 }));
-    await waitFor(() => expect(row).toHaveTextContent('v8'));
-    expect(previewBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'] });
-  });
-
-  it('renders Team Role mapping preview when nullable impact arrays are returned', async () => {
-    server.use(
-      http.get('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', () => HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: ['team-basic'], version: 7 })),
-      http.post('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles/preview', () => HttpResponse.json({
-        team_id: 'team-7c19b0',
-        team_role: 'planner',
-        current_ram_role_ids: ['team-basic'],
-        next_ram_role_ids: ['team-basic', 'team-curator'],
-        added_ram_role_ids: ['team-curator'],
-        removed_ram_role_ids: null,
-        affected_members: 1,
-        affected_project_ids: null,
-        version: 7,
-      })),
-    );
-    renderPage();
-    fireEvent.click(await screen.findByTestId('access-view-team-role-mappings'));
-    const row = await screen.findByTestId('access-mapping-team-7c19b0-planner');
-    fireEvent.click(within(row).getByTestId('access-mapping-roles-team-7c19b0-planner-trigger'));
-    const options = await screen.findByTestId('access-mapping-roles-team-7c19b0-planner-options');
-    fireEvent.click(within(options).getByRole('option', { name: /Team curator/ }));
-    fireEvent.click(within(row).getByRole('button', { name: 'Preview impact' }));
-
-    expect(await within(row).findByTestId('access-mapping-preview')).toHaveTextContent('1 members · +1 / −0 roles · 0 projects');
-  });
-
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
-    renderPage();
+    renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-roles-view');
+    await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
@@ -276,7 +241,7 @@ describe('Access page', () => {
   });
 
   it('previews, confirms, and reports selected grant revokes', async () => {
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     const grants = await screen.findByTestId('access-grants');
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
@@ -317,7 +282,7 @@ describe('Access page', () => {
         });
       }),
     );
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
@@ -377,7 +342,7 @@ describe('Access page', () => {
       }),
     );
 
-    renderPage('/organizations/test/access?view=subject-access');
+    renderPage('/organizations/test/access/subject-access');
     const grants = await screen.findByTestId('access-grants');
     fireEvent.change(within(grants).getByLabelText('Reason'), { target: { value: 'original audit reason' } });
     fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
@@ -464,8 +429,6 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-roles'));
-
     const view = await screen.findByTestId('access-roles-view');
     expect(await within(view).findByTestId('access-role-row-team-curator')).toHaveTextContent('v2');
     fireEvent.click(within(view).getByTestId('access-role-row-team-curator'));
@@ -505,7 +468,7 @@ describe('Access page', () => {
     expect(versions).toHaveTextContent('v1');
   });
 
-  it('blocks referenced RAM role delete, shows references, and migrates them through real Team mapping saves', async () => {
+  it('keeps Used by Team Roles read-only and sends changes to the Team Role editor', async () => {
     const oldRole = {
       id: 'role-old',
       name: 'Old deployer',
@@ -526,7 +489,6 @@ describe('Access page', () => {
       risk: 'medium',
       created_at: '2026-08-14T08:03:00Z',
     };
-    let putBody: { ram_role_ids?: string[]; expected_version?: number } | null = null;
     server.use(
       http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [oldRole, targetRole] })),
       http.get('/api/orgs/:slug/access/ram-roles/role-old', () => HttpResponse.json({
@@ -546,10 +508,6 @@ describe('Access page', () => {
         ram_role_ids: ['role-old', 'team-basic'],
         version: 9,
       })),
-      http.put('*/api/orgs/:slug/teams/team-7c19b0/roles/planner/ram-roles', async ({ request }) => {
-        putBody = await request.json() as typeof putBody;
-        return HttpResponse.json({ team_id: 'team-7c19b0', team_role: 'planner', ram_role_ids: putBody?.ram_role_ids ?? [], version: 10 });
-      }),
     );
 
     renderPage();
@@ -557,19 +515,17 @@ describe('Access page', () => {
     fireEvent.click(await within(view).findByTestId('access-role-row-role-old'));
 
     const detail = await screen.findByTestId('access-role-detail');
-    await waitFor(() => expect(detail).toHaveTextContent('Referenced by: agent-center core / planner'));
+    await waitFor(() => expect(detail).toHaveTextContent('Used by Team Roles (read-only)'));
+    expect(detail).toHaveTextContent('agent-center core / planner');
+    expect(detail).toHaveTextContent('Open the Team Role to change its RAM Roles.');
     expect(within(detail).getByTestId('access-role-disable-submit')).toBeDisabled();
     expect(within(detail).getByTestId('access-role-delete-blocked')).toHaveTextContent('cannot be deleted');
     fireEvent.click(within(detail).getByTestId('access-role-view-references'));
-    expect(within(detail).getByTestId('access-role-references')).toHaveTextContent('agent-center core / planner');
-    fireEvent.change(within(detail).getByTestId('access-role-migrate-target'), { target: { value: 'role-target' } });
-    fireEvent.click(within(detail).getByTestId('access-role-migrate-references'));
-
-    await waitFor(() => expect(putBody).toEqual({
-      ram_role_ids: ['role-target', 'team-basic'],
-      expected_version: 9,
-    }));
-    expect(await screen.findByTestId('access-role-success')).toHaveTextContent('Migrated 1 Team Role references.');
+    const references = within(detail).getByTestId('access-role-references');
+    expect(references).toHaveTextContent('agent-center core / planner');
+    expect(within(references).getByRole('link', { name: 'Open Team Role' })).toHaveAttribute('href', '/teams/team-7c19b0');
+    expect(within(references).queryByRole('button', { name: /migrate|remove|save/i })).not.toBeInTheDocument();
+    expect(within(references).queryByRole('combobox')).not.toBeInTheDocument();
   });
 
   it('requires the full RAM role name before deleting an unreferenced custom role', async () => {
@@ -666,8 +622,6 @@ describe('Access page', () => {
     renderPage();
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
     await screen.findByTestId('access-roles-view');
-    fireEvent.click(screen.getByTestId('access-view-roles'));
-
     const view = await screen.findByTestId('access-roles-view');
     fireEvent.click(await within(view).findByTestId('access-role-row-role-cas'));
     const detail = await screen.findByTestId('access-role-detail');
@@ -693,7 +647,10 @@ describe('Access page', () => {
     expect(versions).not.toHaveTextContent('v2');
   });
 
-  it('gates the Access route with current subject effective permissions and shows the 403 reason', async () => {
+  it.each([
+    ['ram-roles', '/organizations/test/access/ram-roles', 'RAM Roles'],
+    ['subject-access', '/organizations/test/access/subject-access', 'Subject access'],
+  ])('gates the %s route with a page-specific forbidden state', async (page, path, title) => {
     server.use(
       http.get('/api/orgs/:slug/permissions/effective', () =>
         HttpResponse.json({
@@ -710,21 +667,20 @@ describe('Access page', () => {
             permission: 'org.member.role.manage',
             resource: { kind: 'org', id: 'org-test', org_id: 'org-test' },
             source: 'org_role',
-            reason: 'admin role cannot manage owner-only permission mapping',
+            reason: 'admin role cannot manage this owner-only permission',
             evidence_ref: 'members:mem-ops',
           },
           effective: [],
-          denied_by: ['admin role cannot manage owner-only permission mapping'],
+          denied_by: ['admin role cannot manage this owner-only permission'],
         }),
       ),
     );
 
-    renderPage('/organizations/test/access', 'user:ops');
+    renderPage(path, 'user:ops');
 
-    const forbidden = await screen.findByTestId('access-forbidden');
-    expect(forbidden).toHaveTextContent('Access unavailable (403)');
-    await waitFor(() => expect(forbidden).toHaveTextContent('admin role cannot manage owner-only permission mapping'));
-    expect(screen.getByTestId('access-open-batch')).toBeDisabled();
+    const forbidden = await screen.findByTestId(`access-${page}-forbidden`);
+    expect(forbidden).toHaveTextContent(`${title} unavailable (403)`);
+    await waitFor(() => expect(forbidden).toHaveTextContent('admin role cannot manage this owner-only permission'));
     expect(screen.queryByTestId('access-subject-view')).not.toBeInTheDocument();
   });
 });
