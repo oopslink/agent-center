@@ -15,7 +15,6 @@ import {
   usePreviewDeleteTeamRole,
   usePreviewTeamRoleRAMMapping,
   useReadTeam,
-  useReplaceTeamRoleRAMMapping,
   useTeam,
   useTeamRoleRAMMappings,
   useTeamMemoryIndex,
@@ -210,7 +209,6 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
   const update = useUpdateTeamRoles();
   const readTeam = useReadTeam();
   const previewRAMRoles = usePreviewTeamRoleRAMMapping();
-  const replaceRAMRoles = useReplaceTeamRoleRAMMapping();
   const previewDeleteRole = usePreviewDeleteTeamRole();
   const deleteRole = useDeleteTeamRole();
   const runtimeCatalog = useRuntimeSelectorCatalog();
@@ -324,17 +322,6 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
       roles: buildPatchRoles(pendingAccess.roles, 'access'),
       expected_version: team.version,
     });
-    for (const role of pendingAccess.roles) {
-      const impact = pendingAccess.impacts.find((item) => item.team_role === role.role);
-      if (!impact) continue;
-      const nextIds = uniqueSorted(role.ram_role_ids ?? []);
-      await replaceRAMRoles.mutateAsync({
-        team_id: team.id,
-        role: role.role,
-        ram_role_ids: nextIds,
-        expected_version: impact.version,
-      });
-    }
     await readTeam(team.id);
     setPendingAccess(null);
     onSaved?.(t('teamDetail.roles.saveSuccess'));
@@ -384,7 +371,7 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
       {panel === 'runtime' ? (
         <button type="button" className={btnSmPrimary} disabled={invalid || runtimeInvalid || mappingLoading || update.isPending} data-testid="team-save-roles" onClick={() => void saveRuntime()}>{t('teamDetail.roles.saveRuntime')}</button>
       ) : (
-        <button type="button" className={btnSmPrimary} disabled={invalid || mappingLoading || update.isPending || previewRAMRoles.isPending || replaceRAMRoles.isPending} data-testid="team-preview-access" onClick={() => void previewAccess()}>{t('teamDetail.roles.previewAccess')}</button>
+        <button type="button" className={btnSmPrimary} disabled={invalid || mappingLoading || update.isPending || previewRAMRoles.isPending} data-testid="team-preview-access" onClick={() => void previewAccess()}>{t('teamDetail.roles.previewAccess')}</button>
       )}
     </div>}>
     <div className="mb-3 inline-flex rounded border border-border-base bg-bg-elevated p-0.5" role="tablist" aria-label="Team Role editor sections">
@@ -453,7 +440,6 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
     {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
     {mappingError && <p className="mt-3 text-xs text-danger" role="alert">{mappingError.message}</p>}
     {previewRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewRAMRoles.error as Error).message}</p>}
-    {replaceRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(replaceRAMRoles.error as Error).message}</p>}
     {previewDeleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewDeleteRole.error as Error).message}</p>}
     {deleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}
     <ConfirmModal
@@ -473,7 +459,7 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
       }
       confirmLabel={t('teamDetail.roles.confirmAccessApply')}
       danger
-      busy={update.isPending || replaceRAMRoles.isPending}
+      busy={update.isPending}
       onCancel={() => setPendingAccess(null)}
       onConfirm={() => void applyAccess()}
     />
