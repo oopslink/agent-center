@@ -150,7 +150,7 @@ describe('TeamDetail', () => {
   it('selects RAM roles with CAS, saves declaration keys, and reloads server-read sources', async () => {
     let body: { roles?: Array<{ role: string; ram_role_keys?: string[]; access_requirements?: string[] }> } | undefined;
     let previewBody: { ram_role_ids?: string[] } | undefined;
-    let putBody: { ram_role_ids?: string[]; expected_version?: number } | undefined;
+    let putCalled = false;
     let getCount = 0;
     let serverTeam = teamDetail({
         roles: [{
@@ -204,7 +204,8 @@ describe('TeamDetail', () => {
         });
       }),
       http.put('/api/teams/:id/roles/:role/ram-roles', async ({ request }) => {
-        putBody = await request.json() as typeof putBody;
+        putCalled = true;
+        const putBody = await request.json() as { ram_role_ids?: string[]; expected_version?: number };
         mapping = {
           team_id: 'team-7c19b0',
           team_role: 'planner',
@@ -234,12 +235,11 @@ describe('TeamDetail', () => {
     fireEvent.click(within(modal).getByTestId('team-preview-access'));
     const confirm = await screen.findByTestId('confirm-modal');
     expect(within(confirm).getByTestId('team-access-confirm-diff')).toHaveTextContent('planner');
-    expect(putBody).toBeUndefined();
     fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toEqual(['Team basic', 'Team curator']));
     expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
     await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
-    expect(putBody).toEqual({ ram_role_ids: ['team-basic', 'team-curator'], expected_version: 1 });
+    expect(putCalled).toBe(false);
     await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
     await waitFor(() => expect(getCount).toBeGreaterThanOrEqual(2));
     expect(await screen.findByTestId('team-role-used-by-planner')).toHaveTextContent('Team curator');

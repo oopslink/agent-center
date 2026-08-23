@@ -168,3 +168,70 @@ func TestTeamBasicRAMRoleHTTP_CreatePreviewReplaceAndImmediateAuthz(t *testing.T
 		t.Fatalf("revoked mapping must fail closed immediately, decision=%#v err=%v", got, err)
 	}
 }
+
+func TestTeamRAMRoleMappingHTTP_CreateEditAndRefreshTwoRoleReadback(t *testing.T) {
+	deps, _, sess := setupTeamsAPI(t)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	create := orgScopedPost(t, ts.URL+"/api/teams", `{"name":"acceptance-squad","description":"ram","visibility":"org-private","roles":[{"role":"planner","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team basic"],"access_requirements":["team.read","team.memory.read"]},{"role":"coder","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team contributor"],"access_requirements":["team.read","team.write","team.memory.read","team.memory.propose"]}]}`, sess)
+	if create.StatusCode != http.StatusCreated {
+		t.Fatalf("create=%d body=%v", create.StatusCode, decodeBody(t, create))
+	}
+	created := decodeBody(t, create)
+	teamID := created["id"].(string)
+	assertRoleKeys := func(label string, body map[string]any, want map[string]string) {
+		t.Helper()
+		got := map[string]string{}
+		for _, raw := range body["roles"].([]any) {
+			role := raw.(map[string]any)
+			keys := role["ram_role_keys"].([]any)
+			if len(keys) == 1 {
+				got[role["role"].(string)] = keys[0].(string)
+			}
+		}
+		for role, key := range want {
+			if got[role] != key {
+				t.Fatalf("%s %s key=%q want %q body=%#v", label, role, got[role], key, body)
+			}
+		}
+	}
+	assertRoleKeys("created", created, map[string]string{"planner": "Team basic", "coder": "Team contributor"})
+
+	for role, wantID := range map[string]string{"planner": "team-basic", "coder": "team-contributor"} {
+		resp := orgScopedGet(t, ts.URL+"/api/teams/"+teamID+"/roles/"+role+"/ram-roles", sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("mapping %s=%d body=%v", role, resp.StatusCode, decodeBody(t, resp))
+		}
+		mapping := decodeBody(t, resp)
+		ids := mapping["ram_role_ids"].([]any)
+		if len(ids) != 1 || ids[0] != wantID {
+			t.Fatalf("mapping %s ids=%#v want %s", role, ids, wantID)
+		}
+	}
+
+	patch := orgScopedPatch(t, ts.URL+"/api/teams/"+teamID, `{"roles":[{"role":"planner","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team contributor"],"access_requirements":["team.read","team.write","team.memory.read","team.memory.propose"]},{"role":"coder","cli":"claude-code","model":"claude-sonnet-5","max_concurrency":1,"count":1,"tags":"","ram_role_keys":["Team basic"],"access_requirements":["team.read","team.memory.read"]}]}`, sess)
+	if patch.StatusCode != http.StatusOK {
+		t.Fatalf("patch=%d body=%v", patch.StatusCode, decodeBody(t, patch))
+	}
+	patched := decodeBody(t, patch)
+	assertRoleKeys("patched", patched, map[string]string{"planner": "Team contributor", "coder": "Team basic"})
+
+	refresh := orgScopedGet(t, ts.URL+"/api/teams/"+teamID, sess)
+	if refresh.StatusCode != http.StatusOK {
+		t.Fatalf("refresh=%d body=%v", refresh.StatusCode, decodeBody(t, refresh))
+	}
+	refreshed := decodeBody(t, refresh)
+	assertRoleKeys("refreshed", refreshed, map[string]string{"planner": "Team contributor", "coder": "Team basic"})
+	for role, wantID := range map[string]string{"planner": "team-contributor", "coder": "team-basic"} {
+		resp := orgScopedGet(t, ts.URL+"/api/teams/"+teamID+"/roles/"+role+"/ram-roles", sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("refreshed mapping %s=%d body=%v", role, resp.StatusCode, decodeBody(t, resp))
+		}
+		mapping := decodeBody(t, resp)
+		ids := mapping["ram_role_ids"].([]any)
+		if len(ids) != 1 || ids[0] != wantID {
+			t.Fatalf("refreshed mapping %s ids=%#v want %s", role, ids, wantID)
+		}
+	}
+}

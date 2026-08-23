@@ -106,24 +106,58 @@ func TestRAMRoleMapping_PreviewReportsMembersProjectsAndDiff(t *testing.T) {
 
 func TestCreateAndUpdateTeam_PersistRAMRoleKeysAtomically(t *testing.T) {
 	svc, db := newService(t)
+	ctx := context.Background()
+	seedRAMRole(t, svc, "role-basic", "org-1", "Team basic")
 	seedRAMRole(t, svc, "role-contributor", "org-1", "Project contributor")
-	tm, err := svc.CreateTeam(context.Background(), CreateTeamInput{OrgID: "org-1", Name: "Mapped", Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Project contributor"}}}})
+	tm, err := svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Mapped", Roles: []team.RoleConfig{
+		{Role: "coder", RAMRoleKeys: []string{"Project contributor"}},
+		{Role: "planner", RAMRoleKeys: []string{"Team basic"}},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := svc.GetTeam(context.Background(), tm.ID())
-	if err != nil || len(got.Roles()[0].RAMRoleKeys) != 1 || got.Roles()[0].RAMRoleKeys[0] != "Project contributor" {
+	got, err := svc.GetTeam(ctx, tm.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotKeys := map[string][]string{}
+	for _, rc := range got.Roles() {
+		gotKeys[rc.Role] = rc.RAMRoleKeys
+	}
+	if len(gotKeys["coder"]) != 1 || gotKeys["coder"][0] != "Project contributor" || len(gotKeys["planner"]) != 1 || gotKeys["planner"][0] != "Team basic" {
 		t.Fatalf("loaded roles=%+v err=%v", got.Roles(), err)
 	}
 	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE team_id=? AND ram_role_id='role-contributor'`, tm.ID().String()).Scan(&n); err != nil || n != 1 {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE team_id=? AND ram_role_id IN ('role-basic','role-contributor')`, tm.ID().String()).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("mapping rows=%d err=%v", n, err)
 	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_audit_events WHERE team_id=? AND actor_ref='system'`, tm.ID().String()).Scan(&n); err != nil || n != 1 {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_audit_events WHERE team_id=? AND actor_ref='system'`, tm.ID().String()).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("create-path mapping audit rows=%d err=%v", n, err)
 	}
 
-	_, err = svc.CreateTeam(context.Background(), CreateTeamInput{OrgID: "org-1", Name: "Broken", Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Missing role"}}}})
+	nextRoles := []team.RoleConfig{
+		{Role: "coder", RAMRoleKeys: []string{"Team basic"}},
+		{Role: "planner", RAMRoleKeys: []string{"Project contributor"}},
+	}
+	if _, err := svc.UpdateTeam(ctx, tm.ID(), UpdateTeamInput{Roles: &nextRoles}); err != nil {
+		t.Fatalf("update role RAM keys: %v", err)
+	}
+	got, err = svc.GetTeam(ctx, tm.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotKeys = map[string][]string{}
+	for _, rc := range got.Roles() {
+		gotKeys[rc.Role] = rc.RAMRoleKeys
+	}
+	if len(gotKeys["coder"]) != 1 || gotKeys["coder"][0] != "Team basic" || len(gotKeys["planner"]) != 1 || gotKeys["planner"][0] != "Project contributor" {
+		t.Fatalf("updated loaded roles=%+v", got.Roles())
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE team_id=? AND ram_role_id IN ('role-basic','role-contributor')`, tm.ID().String()).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("updated mapping rows=%d err=%v", n, err)
+	}
+
+	_, err = svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Broken", Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{"Missing role"}}}})
 	if !errors.Is(err, team.ErrRAMRoleKeyNotFound) {
 		t.Fatalf("missing stable key: %v", err)
 	}

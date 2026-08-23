@@ -52,6 +52,64 @@ describe('TeamsRoles page', () => {
     expect(within(drawer).getByTestId('team-role-immediate-impact')).toHaveTextContent('CAS v1');
   });
 
+  it('keeps refreshed create/edit RAM key readback visible as 2/2 when mapping reads are stale-empty', async () => {
+    const acceptanceTeam = {
+      id: 'team-acceptance',
+      org_id: 'org-ooo',
+      name: 'acceptance-squad',
+      description: '',
+      roles: [
+        {
+          role: 'planner',
+          cli: 'claude-code',
+          model: 'sonnet-5',
+          capability_tags: [],
+          ram_role_keys: ['Team basic'],
+          access_requirements: ['team.read', 'team.memory.read'],
+          max_concurrency: 1,
+          count: 0,
+        },
+        {
+          role: 'coder',
+          cli: 'claude-code',
+          model: 'sonnet-5',
+          capability_tags: [],
+          ram_role_keys: ['Team contributor'],
+          access_requirements: ['team.read', 'team.write', 'team.memory.read', 'team.memory.propose'],
+          max_concurrency: 1,
+          count: 0,
+        },
+      ],
+      version: 3,
+      glyph: 'AS',
+      status: 'draft',
+      members_count: 0,
+      projects_count: 0,
+      created: '2026/8/23',
+    };
+    const staleEmptyMapping = ({ params }: { params: { role?: string | readonly string[] } }) => HttpResponse.json({
+      team_id: 'team-acceptance',
+      team_role: String(params.role),
+      ram_role_ids: [],
+      version: 1,
+    });
+    server.use(
+      http.get('/api/teams', () => HttpResponse.json([acceptanceTeam])),
+      http.get('*/api/orgs/:slug/teams', () => HttpResponse.json([acceptanceTeam])),
+      http.get('/api/teams/team-acceptance/members', () => HttpResponse.json([])),
+      http.get('*/api/orgs/:slug/teams/team-acceptance/members', () => HttpResponse.json([])),
+      http.get('/api/teams/team-acceptance/roles/:role/ram-roles', staleEmptyMapping),
+      http.get('*/api/orgs/:slug/teams/team-acceptance/roles/:role/ram-roles', staleEmptyMapping),
+    );
+
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('page-TeamsRoles')).toHaveTextContent('2/2'));
+    const mappings = await screen.findByTestId('team-role-ram-mappings');
+    expect(mappings).toHaveTextContent('Team basic');
+    expect(mappings).toHaveTextContent('Team contributor');
+    expect(mappings).not.toHaveTextContent('No RAM Roles');
+  });
+
   it('previews mapping impact, surfaces CAS errors, refreshes server version, and applies the fresh version', async () => {
     let version = 7;
     let ids = ['team-basic'];

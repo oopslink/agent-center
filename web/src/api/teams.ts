@@ -343,6 +343,7 @@ export const teamKeys = {
   memoryIndex: (id: string) => key('memory', id),
   memoryDoc: (id: string, slug: string, kind?: string) => key('memory', id, kind ?? 'auto', slug),
   memorySettings: (id: string) => key('memory', id, 'settings'),
+  ramRoleMappings: (id: string) => key('ram-roles', id),
   ramRoleMapping: (id: string, role: string) => key('ram-roles', id, role),
   templates: () => key('templates'),
   template: (id: string) => key('template', id),
@@ -411,6 +412,7 @@ export function useUpdateTeamRoles() {
     },
     onSuccess: (team) => {
       qc.setQueryData(teamKeys.detail(team.id), team);
+      qc.invalidateQueries({ queryKey: teamKeys.ramRoleMappings(team.id) });
       qc.invalidateQueries({ queryKey: teamKeys.list() });
     },
   });

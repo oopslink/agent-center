@@ -55,10 +55,17 @@ export default function TeamsRoles(): React.ReactElement {
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [notice, setNotice] = useState<Notice>(null);
 
-  const mappings = useMemo<MappingEntry[]>(() => rawMappings.map((entry) => ({
-    ...entry,
-    roleView: entry.team.roles.find((role) => role.role === entry.role) ?? entry.team.roles[0],
-  })).filter((entry) => entry.roleView), [rawMappings]);
+  const mappings = useMemo<MappingEntry[]>(() => rawMappings.map((entry) => {
+    const roleView = entry.team.roles.find((role) => role.role === entry.role) ?? entry.team.roles[0];
+    return {
+      ...entry,
+      roleView,
+      query: {
+        ...entry.query,
+        data: effectiveMappingData(entry.query.data, roleView, ramRoles.data?.roles ?? [], entry.team.id, entry.role),
+      },
+    };
+  }).filter((entry) => entry.roleView), [rawMappings, ramRoles.data?.roles]);
   const roleRefs = useMemo(() => ramRoleReferences(mappings), [mappings]);
   const roleRows = useMemo(() => teams.data?.flatMap((team) => team.roles.map((role) => ({
     team,
@@ -575,6 +582,27 @@ function ramRoleReferences(entries: MappingEntry[]): Map<string, Array<{ team: T
     }
   }
   return refs;
+}
+
+function effectiveMappingData(
+  mapping: TeamRAMRoleMapping | undefined,
+  roleView: RoleView | undefined,
+  roles: RAMRole[],
+  teamID: string,
+  teamRole: string,
+): TeamRAMRoleMapping | undefined {
+  if (!mapping || (mapping.ram_role_ids ?? []).length > 0 || !roleView?.ram_role_keys?.length) return mapping;
+  const ids = roleView.ram_role_keys.flatMap((key) => {
+    const role = roles.find((item) => item.name === key || item.stable_key === key || item.id === key);
+    return role ? [role.id] : [];
+  });
+  if (ids.length === 0) return mapping;
+  return {
+    ...mapping,
+    team_id: mapping.team_id || teamID,
+    team_role: mapping.team_role || teamRole,
+    ram_role_ids: sorted(Array.from(new Set(ids))),
+  };
 }
 
 function sorted(values: string[]): string[] {
