@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/api/client';
 import {
   type AccessPermissionDefinition,
@@ -79,6 +79,9 @@ export default function TeamsRoles(): React.ReactElement {
   const customRoleCount = ramRoles.data?.roles.filter((role) => role.kind === 'custom').length ?? 0;
   const mappedCount = mappings.filter((entry) => (entry.query.data?.ram_role_ids ?? []).length > 0).length;
   const affectedMembers = roleRows.reduce((sum, row) => sum + row.members, 0);
+  const activeMappingEntry = drawer?.kind === 'mapping'
+    ? mappings.find((entry) => entry.team.id === drawer.entry.team.id && entry.role === drawer.entry.role) ?? drawer.entry
+    : null;
 
   return (
     <section className="space-y-4" data-testid="page-TeamsRoles">
@@ -113,7 +116,7 @@ export default function TeamsRoles(): React.ReactElement {
         <Summary label="Custom RAM Roles" value={customRoleCount} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(28rem,1.3fr)]">
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.3fr)]">
         <section className="rounded border border-border-base bg-bg-elevated" data-testid="team-role-list">
           <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
             <div>
@@ -179,34 +182,34 @@ export default function TeamsRoles(): React.ReactElement {
             </label>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
+            <table className="w-full min-w-full table-fixed text-left text-sm">
               <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                 <tr>
-                  <th className="px-4 py-2 font-semibold">Team Role</th>
-                  <th className="px-4 py-2 font-semibold">Work config</th>
-                  <th className="px-4 py-2 font-semibold">RAM Roles</th>
-                  <th className="px-4 py-2 font-semibold">Audit</th>
-                  <th className="px-4 py-2 font-semibold">Action</th>
+                  <th className="w-[24%] px-4 py-2 font-semibold">Team Role</th>
+                  <th className="w-[21%] px-4 py-2 font-semibold">Work config</th>
+                  <th className="w-[25%] px-4 py-2 font-semibold">RAM Roles</th>
+                  <th className="w-[20%] px-4 py-2 font-semibold">Audit</th>
+                  <th className="w-[10%] px-4 py-2 font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMappings.map((entry) => (
                   <tr key={`${entry.team.id}:${entry.role}`} className="border-b border-border-base last:border-0" data-testid={`team-role-mapping-row-${entry.team.id}-${entry.role}`}>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <div className="font-semibold text-text-primary">{entry.team.name}</div>
-                      <div className="font-mono text-xs text-text-muted">{entry.team.id} / {entry.role}</div>
+                      <div className="break-all font-mono text-xs text-text-muted">{entry.team.id} / {entry.role}</div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-text-secondary">{entry.roleView.cli} · {entry.roleView.model} · {entry.roleView.max_concurrency}</td>
-                    <td className="px-4 py-3">
+                    <td className="break-words px-4 py-3 align-top font-mono text-xs text-text-secondary">{entry.roleView.cli} · {entry.roleView.model} · {entry.roleView.max_concurrency}</td>
+                    <td className="px-4 py-3 align-top">
                       {entry.query.isLoading ? <span className="text-xs text-text-muted">Loading</span> : entry.query.isError ? <span className="text-xs text-danger">Unavailable</span> : (
                         <RAMRoleChips ids={entry.query.data?.ram_role_ids ?? []} roles={ramRoles.data?.roles ?? []} />
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-text-muted">
+                    <td className="break-words px-4 py-3 align-top text-xs text-text-muted">
                       <div>v{entry.query.data?.version ?? '...'}</div>
                       <div>{entry.query.data?.updated_by ?? 'server'} · {entry.query.data?.updated_at ?? 'latest read'}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <button type="button" className="rounded border border-border-base px-2.5 py-1 text-xs font-semibold hover:bg-bg-subtle" onClick={() => setDrawer({ kind: 'mapping', entry })} data-testid={`team-role-edit-mapping-${entry.team.id}-${entry.role}`}>Edit</button>
                     </td>
                   </tr>
@@ -227,7 +230,7 @@ export default function TeamsRoles(): React.ReactElement {
         </div>
         {ramRoles.isLoading && <Skeleton height="12rem" />}
         {ramRoles.isSuccess && (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {ramRoles.data.roles.map((role) => (
               <RAMRoleCard
                 key={role.id}
@@ -244,7 +247,7 @@ export default function TeamsRoles(): React.ReactElement {
 
       {drawer?.kind === 'mapping' && (
         <MappingDrawer
-          entry={drawer.entry}
+          entry={activeMappingEntry ?? drawer.entry}
           roles={ramRoles.data?.roles ?? []}
           onClose={() => setDrawer(null)}
           onNotice={setNotice}
@@ -308,6 +311,13 @@ function MappingDrawer({ entry, roles, onClose, onNotice }: { entry: MappingEntr
   const [confirming, setConfirming] = useState(false);
   const changed = sorted(draft).join('|') !== sorted(current?.ram_role_ids ?? []).join('|');
   const conflict = replace.error instanceof ApiError && replace.error.status === 409;
+  const currentSignature = `${current?.version ?? 'unread'}:${sorted(current?.ram_role_ids ?? []).join('|')}`;
+
+  useEffect(() => {
+    setDraft(current?.ram_role_ids ?? []);
+    preview.reset();
+    replace.reset();
+  }, [currentSignature]);
 
   const runPreview = () => preview.mutate({ team_id: entry.team.id, role: entry.role, ram_role_ids: draft });
   const save = () => {
