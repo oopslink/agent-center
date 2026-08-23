@@ -42,6 +42,75 @@ describe('Access page', () => {
     expect(screen.queryByText('Access roles')).not.toBeInTheDocument();
   });
 
+  it('filters by search, risk, and scope, switches density, paginates, and explains every permission from the registry', async () => {
+    const roles = Array.from({ length: 12 }, (_, index) => ({
+      id: `role-${index + 1}`,
+      stable_key: `role-${index + 1}`,
+      name: index === 10 ? 'Critical reviewer' : `Registry role ${index + 1}`,
+      kind: 'custom' as const,
+      description: 'Registry-backed role',
+      scope: index === 10 ? 'project' : 'team',
+      version: 1,
+      permissions: index === 10 ? ['team.memory.review'] : ['team.read'],
+      risk: index === 10 ? 'high' as const : 'low' as const,
+      references: 0,
+    }));
+    server.use(
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles })),
+      http.get('/api/orgs/:slug/access/ram-roles/:id', ({ params }) => {
+        const role = roles.find((item) => item.id === params.id) ?? roles[0];
+        return HttpResponse.json({ ...role, latest: role, versions: [role], references: [] });
+      }),
+    );
+
+    renderPage();
+    const view = await screen.findByTestId('access-roles-view');
+    expect(within(view).getByTestId('access-role-pagination')).toHaveTextContent('Showing 1 to 10 of 12');
+    fireEvent.click(within(view).getByRole('button', { name: 'Next' }));
+    expect(within(view).getByTestId('access-role-pagination')).toHaveTextContent('Showing 11 to 12 of 12');
+
+    fireEvent.change(within(view).getByTestId('access-role-density'), { target: { value: 'compact' } });
+    expect(within(view).getByTestId('access-role-row-role-11').querySelector('td')).toHaveClass('py-1.5');
+    fireEvent.change(within(view).getByTestId('access-filter-ram role risk'), { target: { value: 'high' } });
+    fireEvent.change(within(view).getByTestId('access-filter-ram role scope'), { target: { value: 'project' } });
+    expect(await within(view).findByTestId('access-role-row-role-11')).toHaveTextContent('Critical reviewer');
+    expect(within(view).queryByTestId('access-role-row-role-1')).not.toBeInTheDocument();
+    fireEvent.change(within(view).getByTestId('access-role-search'), { target: { value: 'critical' } });
+    fireEvent.click(within(view).getByTestId('access-role-row-role-11'));
+
+    const summary = await screen.findByTestId('access-role-permission-summary');
+    const permission = within(summary).getByTestId('access-role-permission-team.memory.review');
+    expect(permission).toHaveTextContent('team.memory.review');
+    expect(permission).toHaveTextContent('High risk');
+    expect(permission).not.toHaveTextContent('Unregistered permission');
+
+    fireEvent.click(within(view).getByTestId('access-role-new'));
+    const drawer = await screen.findByTestId('access-role-drawer');
+    expect(within(drawer).getByText('team.memory.review')).toBeInTheDocument();
+    expect(within(drawer).queryByText('made.up.permission')).not.toBeInTheDocument();
+  });
+
+  it('renders explicit empty, list error, and detail error states with recovery actions', async () => {
+    server.use(http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [] })));
+    const first = renderPage();
+    expect(await screen.findByTestId('access-role-empty')).toHaveTextContent('No RAM Roles yet');
+    expect(screen.getByTestId('access-role-detail-empty')).toHaveTextContent('Select a RAM Role');
+    first.unmount();
+
+    server.use(http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ message: 'registry unavailable' }, { status: 503 })));
+    const second = renderPage();
+    expect(await screen.findByTestId('access-role-list-error')).toHaveTextContent('registry unavailable');
+    second.unmount();
+
+    const role = { id: 'role-detail-error', stable_key: 'role-detail-error', name: 'Detail error role', kind: 'custom', description: '', scope: 'team', version: 1, permissions: ['team.read'], risk: 'low' };
+    server.use(
+      http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ roles: [role] })),
+      http.get('/api/orgs/:slug/access/ram-roles/role-detail-error', () => HttpResponse.json({ message: 'detail unavailable' }, { status: 500 })),
+    );
+    renderPage();
+    expect(await screen.findByTestId('access-role-detail-error')).toHaveTextContent('detail unavailable');
+  });
+
   it('opens Team Role mappings as its own page, then exposes expandable subject access', async () => {
     renderPage('/organizations/test/access?view=team-role-mappings');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();

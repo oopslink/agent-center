@@ -474,6 +474,7 @@ function RAMRolesView({
   const [status, setStatus] = useState<string | null>(null);
   const [roleRisk, setRoleRisk] = useState<AccessRisk | 'all'>('all');
   const [roleScope, setRoleScope] = useState('all');
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const selected = selectedId ?? roles.data?.roles[0]?.id ?? null;
@@ -533,18 +534,22 @@ function RAMRolesView({
         return { mapping, next };
       })
       .filter((item): item is { mapping: TeamRAMRoleMapping; next: string[] } => item !== null);
-    for (const item of pending) {
-      await replaceMapping.mutateAsync({
-        team_id: item.mapping.team_id,
-        role: item.mapping.team_role,
-        ram_role_ids: item.next,
-        expected_version: item.mapping.version,
-      });
+    try {
+      for (const item of pending) {
+        await replaceMapping.mutateAsync({
+          team_id: item.mapping.team_id,
+          role: item.mapping.team_role,
+          ram_role_ids: item.next,
+          expected_version: item.mapping.version,
+        });
+      }
+      await Promise.all([roles.refetch(), detail.refetch()]);
+      const message = `Migrated ${pending.length} Team Role references.`;
+      setStatus(message);
+      onToast({ tone: 'success', message });
+    } catch (error) {
+      onToast(accessToastFromError(error, 'Reference migration failed'));
     }
-    await Promise.all([roles.refetch(), detail.refetch()]);
-    const message = `Migrated ${pending.length} Team Role references.`;
-    setStatus(message);
-    onToast({ tone: 'success', message });
   };
 
   return (
@@ -553,7 +558,7 @@ function RAMRolesView({
       <span className="sr-only" data-testid="access-runtime-sha">Runtime SHA: {import.meta.env.VITE_BUILD_SHA || 'development'}</span>
       <section className="rounded border border-border-base bg-bg-elevated">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base px-3 py-2.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" data-testid="access-role-new" className="rounded bg-btn-primary-bg px-3 py-2 text-xs font-semibold text-btn-primary-fg shadow-sm" onClick={() => setRoleDrawer({ mode: 'create' })}>＋ New RAM Role</button>
             <AccessMetaPill>{roles.data?.roles.length ?? 0} roles</AccessMetaPill>
           </div>
@@ -564,13 +569,35 @@ function RAMRolesView({
               <input className="w-full rounded border border-border-base bg-bg-base py-2 pl-9 pr-3 text-xs text-text-primary placeholder:text-text-muted" placeholder="Search RAM roles" value={roleSearch} onChange={(e) => setRoleSearch(e.target.value)} data-testid="access-role-search" />
             </label>
             <Select label="RAM role risk" value={roleRisk} onChange={(v) => setRoleRisk(v as AccessRisk | 'all')} options={RISK_OPTIONS} />
+            <Select label="RAM role scope" value={roleScope} onChange={setRoleScope} options={scopeOptions} />
+            <label className="text-xs font-semibold uppercase text-text-muted">
+              <span className="sr-only">Density</span>
+              <select
+                className="rounded border border-border-base bg-bg-elevated px-2.5 py-2 text-sm font-medium normal-case text-text-secondary focus-visible:border-accent focus-visible:outline-none"
+                value={density}
+                onChange={(event) => setDensity(event.target.value as 'comfortable' | 'compact')}
+                data-testid="access-role-density"
+              >
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </label>
           </div>
         </div>
         {status && <div className="border-b border-success/30 bg-success/10 px-4 py-2 text-sm text-success" role="status" data-testid="access-role-success">{status}</div>}
-        <div className="sr-only" data-testid="access-role-stats">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-border-base bg-bg-subtle/40 px-4 py-2 text-xs text-text-secondary" data-testid="access-role-stats">
           {customCount} custom · {highRiskCount} high risk · {permissionCount} permissions · {referencedCount} referenced
-          <Select label="RAM role scope" value={roleScope} onChange={setRoleScope} options={scopeOptions} />
         </div>
+        {roles.isLoading && <div className="p-4" data-testid="access-role-list-loading"><Skeleton height="14rem" /></div>}
+        {roles.isError && (
+          <div className="m-4 rounded border border-danger/30 bg-danger/10 p-4 text-sm text-danger" role="alert" data-testid="access-role-list-error">
+            <p className="font-semibold">RAM Roles could not be loaded.</p>
+            <p className="mt-1">{(roles.error as Error).message}</p>
+            <button type="button" className="mt-3 rounded border border-danger/40 px-3 py-1.5 text-xs font-semibold" onClick={() => void roles.refetch()}>Retry</button>
+          </div>
+        )}
+        {roles.isSuccess && roles.data.roles.length === 0 && <EmptyState title="No RAM Roles yet" body="Create the first RAM Role from the toolbar." testId="access-role-empty" />}
+        {roles.isSuccess && roles.data.roles.length > 0 && <>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
             <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
@@ -593,20 +620,20 @@ function RAMRolesView({
                   }}
                   data-testid={`access-role-row-${role.id}`}
                 >
-                  <td className="px-4 py-2.5">
+                  <td className={`px-4 ${density === 'compact' ? 'py-1.5' : 'py-2.5'}`}>
                     <div className="font-semibold text-text-primary">{role.name}</div>
                     <div className="font-mono text-[0.6875rem] text-text-muted">{role.stable_key || role.id}</div>
                   </td>
-                  <td className="px-4 py-2.5"><AccessRiskBadge risk={role.risk} /></td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{role.permissions.length}</td>
-                  <td className="px-4 py-2.5 text-xs text-text-secondary">{role.references ?? (mappedByRAMRole.get(role.id) ?? []).length}</td>
-                  <td className="px-4 py-2.5 text-xs text-text-secondary">Latest<br /><span className="font-mono text-text-muted">v{role.version}</span></td>
+                  <td className={`px-4 ${density === 'compact' ? 'py-1.5' : 'py-2.5'}`}><AccessRiskBadge risk={role.risk} /></td>
+                  <td className={`px-4 font-mono text-xs text-text-secondary ${density === 'compact' ? 'py-1.5' : 'py-2.5'}`}>{role.permissions.length}</td>
+                  <td className={`px-4 text-xs text-text-secondary ${density === 'compact' ? 'py-1.5' : 'py-2.5'}`}>{role.references ?? (mappedByRAMRole.get(role.id) ?? []).length}</td>
+                  <td className={`px-4 text-xs text-text-secondary ${density === 'compact' ? 'py-1.5' : 'py-2.5'}`}>Latest<br /><span className="font-mono text-text-muted">v{role.version}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {filteredRoles.length === 0 && <EmptyState title="No matching RAM Roles" body="Change search, risk, or scope filters to widen the list." testId="access-role-empty" />}
+        {filteredRoles.length === 0 && <EmptyState title="No matching RAM Roles" body="Change search, risk, or scope filters to widen the list." testId="access-role-no-results" />}
         <div className="flex items-center justify-between gap-2 border-t border-border-base px-4 py-3 text-xs text-text-secondary" data-testid="access-role-pagination">
           <span>Showing {filteredRoles.length === 0 ? 0 : (page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredRoles.length)} of {filteredRoles.length} RAM roles</span>
           <div className="flex items-center gap-1">
@@ -616,6 +643,7 @@ function RAMRolesView({
             <span className="ml-2 rounded border border-border-base px-2 py-1">10 / page</span>
           </div>
         </div>
+        </>}
       </section>
 
       <aside className="space-y-4">
@@ -631,6 +659,15 @@ function RAMRolesView({
             )}
           </div>
           {detail.isLoading && <Skeleton height="8rem" />}
+          {detail.isError && (
+            <div className="m-4 rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger" role="alert" data-testid="access-role-detail-error">
+              <p>{(detail.error as Error).message}</p>
+              <button type="button" className="mt-2 rounded border border-danger/40 px-2 py-1 text-xs font-semibold" onClick={() => void detail.refetch()}>Retry detail</button>
+            </div>
+          )}
+          {!selected && roles.isSuccess && roles.data.roles.length === 0 && (
+            <EmptyState title="Select a RAM Role" body="Role details, permission summary, references, and version history appear here." testId="access-role-detail-empty" />
+          )}
           {detail.data && (
             <>
               <div className="p-4">
@@ -773,6 +810,7 @@ function RAMRolesView({
 
 function PermissionSummary({ role, catalog }: { role: RAMRole; catalog: AccessPermissionDefinition[] }): React.ReactElement {
   const selected = new Set(role.permissions);
+  const definitions = role.permissions.map((key) => ({ key, definition: catalog.find((permission) => permission.key === key) }));
   const byRisk = {
     high: catalog.filter((permission) => selected.has(permission.key) && permission.risk === 'high').length,
     medium: catalog.filter((permission) => selected.has(permission.key) && permission.risk === 'medium').length,
@@ -790,8 +828,24 @@ function PermissionSummary({ role, catalog }: { role: RAMRole; catalog: AccessPe
         <AccessMetaPill>{byRisk.medium} medium</AccessMetaPill>
         <AccessMetaPill>{byRisk.low} low</AccessMetaPill>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1 font-mono text-[0.6875rem] text-text-secondary">
-        {role.permissions.map((permission) => <span key={permission} className="rounded bg-bg-subtle px-1.5 py-0.5">{permission}</span>)}
+      <div className="mt-3 space-y-2" aria-label="Permissions in this RAM Role">
+        {definitions.map(({ key, definition }) => (
+          <article key={key} className="rounded border border-border-base bg-bg-elevated p-2" data-testid={`access-role-permission-${key}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="font-mono text-xs font-semibold text-text-primary">{key}</div>
+                <div className="mt-0.5 text-xs text-text-secondary">{definition?.label ?? 'Unregistered permission'}</div>
+              </div>
+              {definition ? <AccessRiskBadge risk={definition.risk} /> : <span className="rounded border border-danger/30 bg-danger/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-danger">Invalid registry key</span>}
+            </div>
+            <p className="mt-1 text-xs text-text-muted">{definition?.description ?? 'This key is not present in the authoritative permission registry and cannot be selected for new writes.'}</p>
+            {definition && (
+              <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">
+                {definition.resource_kinds.join(', ')} · {definition.actions.join(', ')}
+              </p>
+            )}
+          </article>
+        ))}
       </div>
     </div>
   );
@@ -921,10 +975,20 @@ function RAMRoleDrawer({
           }} catalog={catalog} /></div>
           <PermissionChecklist catalog={catalog} selected={permissions} onToggle={togglePermission} />
           {hasHighRisk && (
-            <label className="flex items-start gap-2 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-text-secondary">
-              <input type="checkbox" className="mt-0.5" checked={ack} data-testid="access-role-risk-ack" onChange={(event) => setAck(event.target.checked)} />
+            <div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-text-secondary">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ack}
+                aria-label="Approve high-risk RAM Role permissions"
+                className={`mt-0.5 h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors ${ack ? 'bg-warning' : 'bg-border-strong'}`}
+                data-testid="access-role-risk-ack"
+                onClick={() => setAck((value) => !value)}
+              >
+                <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${ack ? 'translate-x-4' : ''}`} />
+              </button>
               <span>Approve high-risk RAM Role permissions before saving.</span>
-            </label>
+            </div>
           )}
           {(create.isError || update.isError) && <p className="text-sm text-danger" role="alert">{((create.error ?? update.error) as Error).message}</p>}
         </div>
