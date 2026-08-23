@@ -670,11 +670,15 @@ function accessHandlers() {
       const status = url.searchParams.get('status');
       const subjectKind = url.searchParams.get('subject_kind');
       const resourceKind = url.searchParams.get('resource_kind');
+      const projectID = url.searchParams.get('project_id');
+      const permission = url.searchParams.get('permission');
       const filtered = baseDecisions.filter((d) => {
         const subject = findSubject(d.subject_ref);
         if (q && !`${subject?.name ?? ''} ${d.subject_ref} ${d.permission} ${d.reason}`.toLowerCase().includes(q)) return false;
         if (subjectKind && subjectKind !== 'all' && subject?.kind !== subjectKind) return false;
         if (resourceKind && resourceKind !== 'all' && d.resource.kind !== resourceKind) return false;
+        if (projectID && projectID !== 'all' && d.resource.id !== projectID && d.resource.project_id !== projectID) return false;
+        if (permission && permission !== 'all' && d.permission !== permission) return false;
         if (risk && risk !== 'all' && d.risk !== risk) return false;
         if (status && status !== 'all' && d.status !== status) return false;
         return true;
@@ -821,10 +825,10 @@ function accessHandlers() {
         resource: idx === 0
           ? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }
           : { kind: 'org', id: 'org-test', label: 'Test Org' },
-        status: 'not_applicable',
+        status: 'allowed',
         risk: idx === 0 ? 'medium' : 'low',
         high_risk: false,
-        reason: `${id} is a derived permission and must be revoked at its source`,
+        reason: `${id} is a direct binding and can be revoked`,
         grant_id: id,
       }));
       return ok({
@@ -854,10 +858,10 @@ function accessHandlers() {
         resource: idx === 0
           ? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }
           : { kind: 'org', id: 'org-test', label: 'Test Org' },
-        status: 'not_applicable',
+        status: 'allowed',
         risk: idx === 0 ? 'medium' : 'low',
         high_risk: false,
-        reason: `${id} is a derived permission and must be revoked at its source`,
+        reason: `${id} direct binding revoked`,
         grant_id: id,
       }));
       const failed = items.filter((i) => i.status !== 'allowed').length;

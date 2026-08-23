@@ -31,6 +31,7 @@ type accessSubjectDTO struct {
 	Ref       string   `json:"ref"`
 	Kind      string   `json:"kind"`
 	Name      string   `json:"name"`
+	Email     string   `json:"email,omitempty"`
 	Role      string   `json:"role,omitempty"`
 	Status    string   `json:"status,omitempty"`
 	TeamNames []string `json:"team_names,omitempty"`
@@ -1741,13 +1742,17 @@ func accessSubjectForMember(m *identity.Member, ident *identity.Identity) access
 			prefix = "agent"
 		}
 	}
-	return accessSubjectDTO{
+	subject := accessSubjectDTO{
 		Ref:    prefix + ":" + m.IdentityID(),
 		Kind:   kind,
 		Name:   name,
 		Role:   string(m.Role()),
 		Status: string(m.Status()),
 	}
+	if ident != nil && ident.Email() != nil {
+		subject.Email = *ident.Email()
+	}
+	return subject
 }
 
 func accessKindFromRef(ref string) string {
@@ -1833,12 +1838,14 @@ func accessFilterDecisions(decisions []accessDecisionDTO, subjects map[string]ac
 	status := r.URL.Query().Get("status")
 	resourceKind := r.URL.Query().Get("resource_kind")
 	subjectKind := r.URL.Query().Get("subject_kind")
+	projectID := r.URL.Query().Get("project_id")
+	permission := r.URL.Query().Get("permission")
 	out := make([]accessDecisionDTO, 0, len(decisions))
 	for _, d := range decisions {
 		subj := subjects[d.SubjectRef]
 		def := catalog[d.Permission]
 		if q != "" {
-			haystack := strings.ToLower(strings.Join([]string{subj.Name, d.SubjectRef, d.Permission, d.Resource.Label, d.Reason, d.Source}, " "))
+			haystack := strings.ToLower(strings.Join([]string{subj.Name, subj.Email, d.SubjectRef, d.Permission, d.Resource.ID, d.Resource.Label, d.Reason, d.Source}, " "))
 			if !strings.Contains(haystack, q) {
 				continue
 			}
@@ -1853,6 +1860,12 @@ func accessFilterDecisions(decisions []accessDecisionDTO, subjects map[string]ac
 			continue
 		}
 		if subjectKind != "" && subjectKind != "all" && subj.Kind != subjectKind {
+			continue
+		}
+		if projectID != "" && projectID != "all" && d.Resource.ID != projectID && d.Resource.ProjectID != projectID {
+			continue
+		}
+		if permission != "" && permission != "all" && d.Permission != permission {
 			continue
 		}
 		if d.Risk == "" {
