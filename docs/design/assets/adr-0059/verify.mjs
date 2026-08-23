@@ -48,6 +48,12 @@ for (const spec of specs) {
     check((side.match(/class="nav-item/g) || []).length === 2, `${spec.source} has exactly two Access nav items`);
     check(side.includes("RAM Roles") && side.includes("Subject access"), `${spec.source} has the two canonical Access labels`);
   }
+  if (spec.source === "access-ram-roles.html") {
+    check(html.includes('<select class="form-input" id="ram-role-risk" name="risk">'), "RAM Role create/edit drawer exposes Risk selector");
+    check(html.includes('data-delete-confirm data-stable-key="admin-token-manager" value=""'), "delete confirmation input starts empty with exact stable key contract");
+    check(html.includes('data-delete-action disabled'), "delete action starts disabled");
+    check(html.includes("deleteButton.disabled = confirmInput.value !== confirmInput.dataset.stableKey"), "delete action enables only for the exact stable key");
+  }
 }
 
 if (failures) process.exit(1);
