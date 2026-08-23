@@ -7,6 +7,10 @@
 | 审计基线 | 候选提交 `9da26a8e`；执行时以回读的 `origin/main` 为准 |
 | 配套合同 | `docs/design/features/2026-08-20-t1435-dual-profile-ram-access-contract.md` |
 
+> **2026-08-23 产品口径修正（ADR-0059）**：Access 只有 `RAM Roles` 和
+> `Subject access`。Team Role 在自身页面直接维护 `RAM Roles` 列表；
+> `mapping` 只允许作为后端实现术语，不是导航、页面或用户任务名称。
+
 ## 1. 分域判定
 
 | 术语 | 是否删除 | 允许残留位置 | 禁止混入 |
@@ -28,7 +32,7 @@
 | `0136_access_profile_ram_role_contract` bridge | 把 profile 镜像成 auth role | 被 RAM-only consolidation migration 取代；已发布 migration 文件保留历史，不再作为生产同步器 | fresh/upgrade migration tests 通过 | 无双向/重复 seed |
 | `/access/profiles*` routes/handlers | Web profile CRUD/version/disable | 新 RAM Role API；旧 API W2 只 410，W3 删除 | 新客户端零旧调用、服务访问日志零调用 | server route 表无旧 route |
 | `AccessProfile*` DTO/types/hooks | handler + React Query | `RAMRole*` DTO/types/hooks，字段语义以 RAM current/history 为准 | 类型与 contract tests 更新 | 生产 bundle/source 无命中 |
-| Access `Profiles` tab/view | human admin | Roles & mappings 内的 RAM Role detail/create/history/revoke | A12-A14 新证据通过 | tab 只有 Roles & mappings / Subject access |
+| Access `Profiles` tab/view | human admin | RAM Roles 内的 detail/create/history/revoke | A12-A14 新证据通过 | 二级侧栏只有 RAM Roles / Subject access |
 | RoleBuilder `useAccessProfiles` | Team template/create/edit | `useRAMRoles`; selection 保存 `ram_role_keys` 或 mapping IDs | resolver RAM-only 且 cross-org/revoked 测试通过 | RoleBuilder 不读 profile API |
 | fixtures/i18n/MSW mocks | tests/dev | RAM Role fixture/文案/routes | 前端定向测试更新 | 非历史源无旧词 |
 | `access_profile_*` template/import fields | 外部模板（若存在） | 拒绝并提示使用 `ram_role_keys`；不得自动猜测 | compatibility release notes/guard tests | import contract 明确拒绝 |
@@ -66,7 +70,7 @@
 
 AI Runtime Profile 删除不为 Access Profile 提供保留例外；二者分别执行各自删除线。
 
-## 4. RAM Role / Team Mapping 保留矩阵
+## 4. RAM Role / Team Role 的 RAM Roles 属性保留矩阵
 
 | 残留 | 分类 | 生产者 | 消费者 | 不变量/验证 |
 |---|---|---|---|---|
@@ -74,7 +78,7 @@ AI Runtime Profile 删除不为 Access Profile 提供保留例外；二者分别
 | `authorization_role_permissions` | RAM current permissions | RAM version transaction | auth effective/explain | registry-valid；集合与 latest history 相等 |
 | `authorization_role_versions` | RAM history | create/version/migration | detail/audit/rollback | append-only CAS；完整承接每个旧 version |
 | `team_roles.ram_role_keys` | portable template declaration | team template/create/update | RAM-only resolver | 不得读 profile 表；unknown/ambiguous/revoked 失败 |
-| mapping/version/audit 三表 | production mapping | CAS replace/team persist | auth effective、Access/Team UI | full replace；version +1；previous/next/actor 完整 |
+| mapping/version/audit 三表 | 后端实现 | CAS replace/team persist | auth effective、Team Role UI | full replace；version +1；previous/next/actor 完整；不得暴露为独立 mapping 产品 |
 | Team RAM handlers/service/repo | application chain | Access/Team/tools | authoritative tables | invalid/cross-org 422；stale 409；删除立即 fail closed |
 | authorization effective/cache | production consumer | mapping/direct/legacy | Check/Explain/ListEffective | multi-project scope；direct union；version/invalidation 完整 |
 
@@ -88,21 +92,25 @@ AI Runtime Profile 删除不为 Access Profile 提供保留例外；二者分别
 | audit | authorization、mapping、RAM Role audit | actor、subject/resource、previous/next、request ID 可追溯 |
 | rollback | W0/W3 snapshots + incremental audit replay | mapping/direct/role 必须同一恢复点；从 DB 权威源回读 |
 
-## 6. Access IA / A1-A16 证据索引
+## 6. Access / Team Role IA 与 A1-A16 证据索引
 
-不存在 Profiles surface。A12-A14 验证 Roles & mappings 内的 RAM Role 工作流。
+不存在 Profiles、Roles & mappings 或 Team Role mappings surface。A12-A14
+验证 RAM Roles 页面；Team Role 的 RAM Roles 属性在 Team Role 页面验证。
 
 | Surface | States | 权威数据 | Screenshot IDs |
 |---|---|---|---|
 | permission gate/loading | forbidden/loading | effective/explain/overview | A1, A2 |
-| RAM Roles + Team mapping | catalog/preview/saved/conflict | RAM APIs + Team RAM APIs | A3-A6 |
+| RAM Roles | catalog/detail/version/used-by（只读） | RAM APIs | A3, A12-A14 |
+| Team Role 的 RAM Roles | preview/saved/conflict/server readback | Team RAM APIs/resolver | A4-A6, A15 |
 | Subject access | source chain/direct coexist | overview/effective/explain | A7, A8 |
 | Batch grant/revoke | preview/derived blocked/direct confirmed | batch + revoke preview/confirm | A9-A11 |
-| RAM Role in Roles & mappings | detail/history/create/version conflict | `/access/ram-roles*` | A12-A14 |
-| Team RoleBuilder | RAM selection/server readback | Team RAM APIs/resolver | A15 |
+| RAM Role detail/editor | detail/history/create/version conflict | `/access/ram-roles*` | A12-A14 |
+| Team Role editor | RAM Roles selection/server readback；无 mapping 产品文案 | Team RAM APIs/resolver | A15 |
 | AI Runtime retired guard | import reject/export omission | AI Runtime import/export | A16 |
 
-截图文件名与逐项可见内容以配套合同第 6 节为唯一清单；任何含 `Profiles` tab、Access Profile 文案或旧 API 数据的 A12-A14 均判失败。
+截图文件名与逐项可见内容以配套合同第 6 节为唯一清单。任何出现
+`Profiles`、`Roles & mappings`、`Team Role mappings` 导航/页内 tab，或把
+mapping 当作用户任务名称的证据均判失败。
 
 ## 7. 全仓审计与定向验证
 

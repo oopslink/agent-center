@@ -45,6 +45,7 @@
 | 0056 | [Executor Slot 与 Execution Run identity 分离](0056-stable-executor-slots.md) | Accepted |
 | 0057 | [Team Memory 通过 Proposal/Promotion 受控写入](0057-controlled-team-memory-writes.md) | Accepted |
 | 0058 | [统一权限契约](0058-unified-permission-contract.md) | Accepted |
+| 0059 | [Team Role 直接拥有 RAM Roles](0059-team-role-owns-ram-roles.md) | Accepted |
 
 ## 规则提示
 
