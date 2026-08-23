@@ -454,7 +454,7 @@ describe('Access page', () => {
     fireEvent.click(within(detail).getByTestId('access-role-view-references'));
     const references = within(detail).getByTestId('access-role-references');
     expect(references).toHaveTextContent('agent-center core / planner');
-    expect(within(references).getByRole('link', { name: 'Open Team Role' })).toHaveAttribute('href', '/teams/team-7c19b0');
+    expect(within(references).getByRole('link', { name: 'Open Team Role' })).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
     expect(within(references).queryByRole('button', { name: /migrate|remove|save/i })).not.toBeInTheDocument();
     expect(within(references).queryByRole('combobox')).not.toBeInTheDocument();
   });

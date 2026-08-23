@@ -579,7 +579,7 @@ function RAMRolesView({
                       {mappedReferences.map((ref) => (
                         <p key={`${ref.team.id}:${ref.role}`} className="text-xs">
                           {ref.team.name} / {ref.role}{' '}
-                          <OrgLink className="font-semibold text-accent hover:underline" to={`/teams/${ref.team.id}`} data-testid={`access-role-open-team-role-${ref.team.id}-${ref.role}`}>
+                          <OrgLink className="font-semibold text-accent hover:underline" to={`/teams/${ref.team.id}/roles/${encodeURIComponent(ref.role)}`} data-testid={`access-role-open-team-role-${ref.team.id}-${ref.role}`}>
                             Open Team Role
                           </OrgLink>
                         </p>
