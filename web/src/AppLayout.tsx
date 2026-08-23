@@ -209,7 +209,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'access':
       return [{ label: 'Access', items: [
         { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
-        { to: p('teams/roles'), label: 'Team Role mappings', Icon: AccessIcon },
+        { to: `${p('access')}?view=team-role-mappings`, label: 'Team Role mappings', Icon: AccessIcon },
         { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: AccessIcon },
       ] }];
     case 'system':
@@ -861,6 +861,18 @@ function DefaultModuleNav({
   const location = useLocation();
   const navigate = useNavigate();
 
+  const isNavItemActive = (item: NavItem): boolean => {
+    const [targetPath, targetSearch = ''] = item.to.split('?');
+    const targetParams = new URLSearchParams(targetSearch);
+    const targetView = targetParams.get('view');
+    if (targetView) {
+      const currentView = new URLSearchParams(location.search).get('view') ?? 'ram-roles';
+      return location.pathname === targetPath && currentView === targetView;
+    }
+    if (item.end) return location.pathname === targetPath;
+    return location.pathname === targetPath || location.pathname.startsWith(`${targetPath}/`);
+  };
+
   // Group + subitem expand state.
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(
     () => readJSONMap(GROUP_STATE_KEY),
@@ -944,12 +956,12 @@ function DefaultModuleNav({
                     return (
                       <li key={item.to}>
                         <div className="flex items-center gap-1">
-                          <NavLink
+                          <Link
                             to={item.to}
-                            end={item.end}
-                            className={({ isActive }) => [
+                            aria-current={isNavItemActive(item) ? 'page' : undefined}
+                            className={[
                               'flex flex-1 items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-                              isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
+                              isNavItemActive(item) ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
                             ].join(' ')}
                           >
                             <span className="flex items-center gap-2">
@@ -967,7 +979,7 @@ function DefaultModuleNav({
                                 )}
                               </span>
                             </span>
-                          </NavLink>
+                          </Link>
                           {subChildren && (
                             <button
                               type="button"

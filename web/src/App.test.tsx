@@ -144,7 +144,7 @@ describe('App shell + route tree', () => {
       ]],
       [`${ORG_BASE}/access`, [
         ['RAM Roles', `${ORG_BASE}/access?view=ram-roles`],
-        ['Team Role mappings', `${ORG_BASE}/teams/roles`],
+        ['Team Role mappings', `${ORG_BASE}/access?view=team-role-mappings`],
         ['Subject access', `${ORG_BASE}/access?view=subject-access`],
       ]],
       [`${ORG_BASE}/environment`, [
@@ -176,6 +176,29 @@ describe('App shell + route tree', () => {
       unmount();
     }
   }, 20000);
+
+  it('keeps exactly one Access secondary nav item active for each query view', async () => {
+    const cases: Array<[string, string]> = [
+      [`${ORG_BASE}/access?view=ram-roles`, 'RAM Roles'],
+      [`${ORG_BASE}/access?view=team-role-mappings`, 'Team Role mappings'],
+      [`${ORG_BASE}/access?view=subject-access`, 'Subject access'],
+    ];
+    for (const [route, activeLabel] of cases) {
+      const { unmount } = renderAppAt(route);
+      await waitFor(() => expect(screen.getByTestId('page-Access')).toBeInTheDocument(), ROUTE_WAIT);
+      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+      const accessLinks = ['RAM Roles', 'Team Role mappings', 'Subject access'].map((label) => {
+        const link = within(nav)
+          .getAllByRole('link')
+          .find((a) => a.textContent?.trim().startsWith(label));
+        expect(link, `Access secondary nav link for ${label} on ${route}`).toBeDefined();
+        return [label, link] as const;
+      });
+      const activeLinks = accessLinks.filter(([, link]) => link?.getAttribute('aria-current') === 'page');
+      expect(activeLinks.map(([label]) => label)).toEqual([activeLabel]);
+      unmount();
+    }
+  }, 30000);
 
   // §4.2 reachability: ProjectDetail is reached from the Projects list row.
   it('reaches ProjectDetail via a Projects-list row link', async () => {
