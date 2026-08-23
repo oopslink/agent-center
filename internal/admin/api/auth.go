@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -157,17 +158,20 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			if verifier == nil {
 				// No verifier wired — fail closed. This protects against
 				// accidentally booting the admin endpoint without auth.
+				logAuthConfigFailure(r)
 				writeError(w, http.StatusServiceUnavailable, "auth_not_wired",
 					"admin endpoint started without a token verifier")
 				return
 			}
 			plaintext, err := admintoken.ParseBearer(r.Header.Get("Authorization"))
 			if err != nil {
+				logAuthFailure(r, "parse_bearer", err, nil)
 				writeAuthError(w, err)
 				return
 			}
 			tok, err := verifier.VerifyPlaintext(r.Context(), plaintext)
 			if err != nil {
+				logAuthFailure(r, "verify_plaintext", err, nil)
 				writeAuthError(w, err)
 				return
 			}
@@ -183,6 +187,7 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			// Long-term tokens go through MarkUsedAsync as before.
 			if tok.IsEnroll() {
 				if err := verifier.ConsumeEnrollToken(r.Context(), tok.ID()); err != nil {
+					logAuthFailure(r, "consume_enroll", err, tok)
 					writeAuthError(w, err)
 					return
 				}
@@ -193,6 +198,40 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func logAuthConfigFailure(r *http.Request) {
+	slog.ErrorContext(r.Context(), "admin auth verifier not wired",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"client_ip", clientIPFromRequest(r),
+	)
+}
+
+func logAuthFailure(r *http.Request, stage string, err error, tok *admintoken.AdminToken) {
+	attrs := []any{
+		"stage", stage,
+		"code", authErrorCode(err),
+		"method", r.Method,
+		"path", r.URL.Path,
+		"client_ip", clientIPFromRequest(r),
+		"err", err,
+	}
+	if ua := strings.TrimSpace(r.UserAgent()); ua != "" {
+		attrs = append(attrs, "user_agent", ua)
+	}
+	if tok != nil {
+		tokenKind := "long_term"
+		if tok.IsEnroll() {
+			tokenKind = "enroll"
+		}
+		attrs = append(attrs,
+			"token_id", string(tok.ID()),
+			"token_owner", string(tok.Owner()),
+			"token_kind", tokenKind,
+		)
+	}
+	slog.WarnContext(r.Context(), "admin auth failed", attrs...)
 }
 
 // isPublicPath enumerates routes the middleware lets through. Keep this
@@ -212,31 +251,34 @@ func isPublicPath(r *http.Request) bool {
 // code in the JSON envelope. The body is intentionally terse — auth
 // failures should not leak diagnostic context to the client.
 func writeAuthError(w http.ResponseWriter, err error) {
+	_, code, message := authErrorResponse(err)
+	writeError(w, http.StatusUnauthorized, code, message)
+}
+
+func authErrorCode(err error) string {
+	_, code, _ := authErrorResponse(err)
+	return code
+}
+
+func authErrorResponse(err error) (int, string, string) {
 	switch {
 	case errors.Is(err, admintoken.ErrTokenMissingBearer):
-		writeError(w, http.StatusUnauthorized, "auth_missing",
-			"missing Authorization bearer")
+		return http.StatusUnauthorized, "auth_missing", "missing Authorization bearer"
 	case errors.Is(err, admintoken.ErrTokenInvalidFormat):
-		writeError(w, http.StatusUnauthorized, "auth_invalid_format",
-			"bearer must start with "+admintoken.PlaintextPrefix)
+		return http.StatusUnauthorized, "auth_invalid_format", "bearer must start with " + admintoken.PlaintextPrefix
 	case errors.Is(err, admintoken.ErrTokenNotFound):
-		writeError(w, http.StatusUnauthorized, "auth_unknown",
-			"token unknown")
+		return http.StatusUnauthorized, "auth_unknown", "token unknown"
 	case errors.Is(err, admintoken.ErrTokenRevoked):
-		writeError(w, http.StatusUnauthorized, "auth_revoked",
-			"token has been revoked")
+		return http.StatusUnauthorized, "auth_revoked", "token has been revoked"
 	case errors.Is(err, admintoken.ErrTokenExpired):
-		writeError(w, http.StatusUnauthorized, "auth_expired",
-			"enroll token expired (30-min cap)")
+		return http.StatusUnauthorized, "auth_expired", "enroll token expired (30-min cap)"
 	case errors.Is(err, admintoken.ErrTokenConsumed):
-		writeError(w, http.StatusUnauthorized, "auth_consumed",
-			"enroll token already used (one-time-use)")
+		return http.StatusUnauthorized, "auth_consumed", "enroll token already used (one-time-use)"
 	default:
 		// Don't expose unexpected errors verbatim — could leak DB
 		// internals on a misconfigured deploy.
 		_ = err
-		writeError(w, http.StatusUnauthorized, "auth_failed",
-			"authentication failed")
+		return http.StatusUnauthorized, "auth_failed", "authentication failed"
 	}
 }
 

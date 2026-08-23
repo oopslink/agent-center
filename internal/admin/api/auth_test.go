@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -174,6 +176,11 @@ func TestAuthMiddleware_NilVerifierFailsClosed(t *testing.T) {
 }
 
 func TestAuthMiddleware_UnexpectedErrorReturnsGeneric401(t *testing.T) {
+	var logs bytes.Buffer
+	prevLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prevLogger)
+
 	v := &fakeVerifier{
 		errors: map[string]error{"acat_x": errors.New("boom")},
 	}
@@ -187,6 +194,21 @@ func TestAuthMiddleware_UnexpectedErrorReturnsGeneric401(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "auth_failed") {
 		t.Fatalf("body=%s", rec.Body.String())
+	}
+	logBody := logs.String()
+	for _, want := range []string{
+		"msg=\"admin auth failed\"",
+		"stage=verify_plaintext",
+		"code=auth_failed",
+		"path=/admin/x",
+		"err=boom",
+	} {
+		if !strings.Contains(logBody, want) {
+			t.Fatalf("auth failure log missing %q in %s", want, logBody)
+		}
+	}
+	if strings.Contains(logBody, "acat_x") {
+		t.Fatalf("auth failure log leaked bearer plaintext: %s", logBody)
 	}
 }
 
