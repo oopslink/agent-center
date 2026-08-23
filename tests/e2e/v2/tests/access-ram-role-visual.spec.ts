@@ -139,7 +139,7 @@ test.describe("RAM Roles visual state evidence", () => {
     mode = "forbidden";
     await page.route("**/api/orgs/*/permissions/effective**", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ subject_ref: authSession.identityID, resource: { kind: "org", id: authSession.organizationID }, permissions: [{ key: "org.read", source: "org_role", evidence_ref: "members:visual" }] }) }));
     await page.reload();
-    await expect(page.getByTestId("access-forbidden")).toBeVisible();
+    await expect(page.getByTestId("access-ram-roles-forbidden")).toBeVisible();
     await page.screenshot({ path: resolve(evidenceDir, "14-forbidden-1672-light.png"), fullPage: true });
   });
 });
