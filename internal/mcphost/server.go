@@ -453,7 +453,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "evolve_plan_generation",
-		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges. New root tasks must have explicit dependency edges to prior execution unless detached=true; follows_task_id is lineage only and does not create an execution edge. Create new downstream tasks/edges instead of reusing already-dispatched old nodes. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch.",
+		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges. New root tasks must have explicit dependency edges to prior execution unless detached=true; follows_task_id is lineage only and does not create an execution edge. Create new downstream tasks/edges instead of reusing already-dispatched old nodes. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch. If a plan is already done, call reopen_plan first; it reopens to paused so you can evolve, then resume_plan to dispatch.",
 	}, makeEvolvePlanGeneration(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -472,8 +472,13 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makePlanID(cfg, "resume_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "reopen_plan",
+		Description: "Reopen a done plan to paused so you can append a follow-up immutable generation with evolve_plan_generation. Completed task history stays immutable; after evolving, call resume_plan to dispatch newly-ready nodes. Archived or discarded plans cannot be reopened.",
+	}, makePlanID(cfg, "reopen_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_plan",
-		Description: "Complete a running or paused plan when its effective nodes are settled. For an explicit audited override, set force=true and provide a non-empty reason; automatic completion never forces. Idempotent if already done.",
+		Description: "Complete a running or paused plan when its effective nodes are settled. For an explicit audited override, set force=true and provide a non-empty reason; automatic completion never forces. Idempotent if already done. To add follow-up work to a done plan, use reopen_plan then evolve_plan_generation.",
 	}, makeCompletePlan(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

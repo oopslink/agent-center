@@ -13,6 +13,7 @@ import {
   useStartPlan,
   usePausePlan,
   useResumePlan,
+  useReopenPlan,
   useDiscardPlan,
   useAddDependency,
   useRemoveDependency,
@@ -372,6 +373,7 @@ function PlanDetailHeader({
   const start = useStartPlan(projectId, plan.id);
   const pause = usePausePlan(projectId, plan.id);
   const resume = useResumePlan(projectId, plan.id);
+  const reopen = useReopenPlan(projectId, plan.id);
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [evolving, setEvolving] = useState(false);
@@ -396,6 +398,7 @@ function PlanDetailHeader({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canReopen = plan.status === 'done' && !plan.archived_at && !!plan.active_generation_id;
   const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at && !!plan.active_generation_id;
 
   return (
@@ -436,6 +439,9 @@ function PlanDetailHeader({
                   )}
                   {plan.status === 'paused' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); resume.mutate(); }} disabled={resume.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.lifecycle.resume')}</button>
+                  )}
+                  {canReopen && (
+                    <button type="button" role="menuitem" data-testid="plan-reopen-btn" onClick={() => { setActionsOpen(false); reopen.mutate(); }} disabled={reopen.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.reopen')}</button>
                   )}
                   {canEvolve && (
                     <button type="button" role="menuitem" data-testid="plan-evolution-btn" onClick={() => { setActionsOpen(false); setEvolving(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle">{t('plan.detail.actions.evolution')}</button>
@@ -527,6 +533,17 @@ function PlanDetailHeader({
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white"
           >
             {t('plan.detail.lifecycle.resume')}
+          </button>
+        )}
+        {canReopen && (
+          <button
+            type="button"
+            data-testid="plan-reopen-btn"
+            disabled={reopen.isPending}
+            onClick={() => { setActionsOpen(false); reopen.mutate(); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-accent md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:hover:bg-bg-base"
+          >
+            {t('plan.detail.actions.reopen')}
           </button>
         )}
         {canEvolve && (
@@ -642,11 +659,11 @@ function PlanDetailHeader({
           )}
         </div>
       )}
-      {(start.isError || pause.isError || resume.isError || discard.isError) && (
-        <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
-          {((start.error ?? pause.error ?? resume.error ?? discard.error) as Error).message}
-        </p>
-      )}
+	      {(start.isError || pause.isError || resume.isError || reopen.isError || discard.isError) && (
+	        <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
+	          {((start.error ?? pause.error ?? resume.error ?? reopen.error ?? discard.error) as Error).message}
+	        </p>
+	      )}
       {editing && (
         <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />
       )}
@@ -770,6 +787,7 @@ function PlanInfoRail({
   const start = useStartPlan(projectId, plan.id);
   const pause = usePausePlan(projectId, plan.id);
   const resume = useResumePlan(projectId, plan.id);
+  const reopen = useReopenPlan(projectId, plan.id);
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [evolving, setEvolving] = useState(false);
@@ -787,6 +805,7 @@ function PlanInfoRail({
   const canDelete = plan.status === 'pending' && !plan.archived_at;
   const canArchive = (plan.status === 'done' || plan.status === 'discarded') && !plan.archived_at;
   const canDiscard = (plan.status === 'pending' || plan.status === 'running' || plan.status === 'paused') && !plan.archived_at;
+  const canReopen = plan.status === 'done' && !plan.archived_at && !!plan.active_generation_id;
   const canEvolve = (plan.status === 'running' || plan.status === 'paused') && !plan.archived_at && !!plan.active_generation_id;
 
   const creatorName = resolveName(plan.creator_ref);
@@ -867,6 +886,17 @@ function PlanInfoRail({
               {t('plan.detail.lifecycle.start')}
             </button>
           )}
+          {canReopen && (
+            <button
+              type="button"
+              data-testid="plan-reopen-btn"
+              disabled={reopen.isPending}
+              onClick={() => reopen.mutate()}
+              className={`${railBtn} border-accent text-accent hover:text-accent`}
+            >
+              {t('plan.detail.actions.reopen')}
+            </button>
+          )}
           {canEvolve && (
             <button
               type="button"
@@ -903,11 +933,11 @@ function PlanInfoRail({
               </button>
           )}
         </div>
-        {(start.isError || pause.isError || resume.isError || discard.isError) && (
-          <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
-            {((start.error ?? pause.error ?? resume.error ?? discard.error) as Error).message}
-          </p>
-        )}
+	        {(start.isError || pause.isError || resume.isError || reopen.isError || discard.isError) && (
+	          <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
+	            {((start.error ?? pause.error ?? resume.error ?? reopen.error ?? discard.error) as Error).message}
+	          </p>
+	        )}
       </div>
 
       {/* Goal + creator tag. The section ALWAYS renders (the @creator tag — which

@@ -18,9 +18,10 @@ import type { Issue, Task, TaskStatus } from './types';
 // Contract types
 // ---------------------------------------------------------------------------
 
-// Plan lifecycle (ADR-0055): pending → running ↔ paused → done/discarded.
-// Completed/discarded history is immutable. Archive is an orthogonal retention
-// marker on a terminal plan; it never replaces the lifecycle status.
+// Plan lifecycle (ADR-0055): pending → running ↔ paused → done; done may reopen
+// to paused for follow-up generation evolution. Discarded history is permanent.
+// Archive is an orthogonal retention marker on a terminal plan; it never replaces
+// the lifecycle status.
 export type PlanStatus = 'pending' | 'running' | 'paused' | 'done' | 'discarded';
 
 // Plan-node status (§9.2) — DERIVED by the orchestrator, never stored as a
@@ -800,14 +801,15 @@ export interface PlanEvolutionCommitResponse {
   generation: PlanGeneration;
 }
 
-// POST /{id}/evolution — EvolvePlanGeneration for running/paused plans.
+// POST /{id}/evolution — EvolvePlanGeneration for running/paused plans; done
+// plans must reopen to paused first.
 export function useCommitPlanEvolution(projectId: string, planId: string) {
   return usePlanWrite<CommitPlanEvolutionInput, PlanEvolutionCommitResponse>(projectId, planId, (vars) =>
     api.post<PlanEvolutionCommitResponse>(`${plansBase(projectId)}/${planId}/evolution`, vars),
   );
 }
 
-// ADR-0055 lifecycle: pending→running↔paused; done/discarded are terminal.
+// ADR-0055 lifecycle: pending→running↔paused; done can reopen to paused.
 export function useStartPlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/start`),
@@ -826,6 +828,12 @@ export const useStopPlan = usePausePlan;
 export function useResumePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/resume`),
+  );
+}
+
+export function useReopenPlan(projectId: string, planId: string) {
+  return usePlanWrite<void, Plan>(projectId, planId, () =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/reopen`),
   );
 }
 

@@ -62,7 +62,7 @@ var secondaryTools = []struct{ name, summary string }{
 	// plan authoring / lifecycle
 	{"create_plan", "create a pending plan (a DAG of tasks)"},
 	{"edit_plan_topology", "atomically edit a pending plan's DAG (add/remove nodes+edges)"},
-	{"evolve_plan_generation", "commit an immutable generation diff for a running or paused plan"},
+	{"evolve_plan_generation", "commit an immutable generation diff for a running or paused plan; reopen a done plan first"},
 	{"add_task_to_plan", "add a backlog task as a node in a pending plan"},
 	{"remove_task_from_plan", "remove a task node from a pending plan"},
 	{"add_plan_dependency", "wire a plan edge: seq depends_on, or a conditional/loopback control-flow edge (Decision/cycle authoring)"},
@@ -70,6 +70,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"start_plan", "start a pending plan (the center dispatches ready nodes)"},
 	{"pause_plan", "pause new dispatch without rewriting history"},
 	{"resume_plan", "resume a paused plan from the same frontier"},
+	{"reopen_plan", "reopen a done plan to paused so a follow-up generation can be evolved"},
 	{"complete_plan", "complete a plan whose current effective nodes are all settled"},
 	{"discard_plan", "permanently abandon an active plan while preserving terminal history"},
 	{"get_plan", "read a plan and its nodes"},

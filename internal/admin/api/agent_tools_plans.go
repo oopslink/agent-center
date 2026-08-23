@@ -62,6 +62,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
+		errors.Is(err, pm.ErrPlanNotDone),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
 		errors.Is(err, pm.ErrPlanGenerationConflict), errors.Is(err, pm.ErrIdempotencyConflict),
@@ -438,7 +439,7 @@ func (s *Server) evolvePlanGenerationHandler(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// --- start_plan / pause_plan / resume_plan / complete_plan / discard_plan ----
+// --- start_plan / pause_plan / resume_plan / reopen_plan / complete_plan / discard_plan ----
 
 type planIDReq struct {
 	AgentID string `json:"agent_id"`
@@ -494,6 +495,19 @@ func (s *Server) resumePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
+func (s *Server) reopenPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.ReopenPlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "paused"})
 }
 
 func (s *Server) completePlanHandler(w http.ResponseWriter, r *http.Request) {

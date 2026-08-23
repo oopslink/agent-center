@@ -260,6 +260,7 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
+		errors.Is(err, pm.ErrPlanNotDone),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
 		errors.Is(err, pm.ErrPlanGenerationConflict), errors.Is(err, pm.ErrIdempotencyConflict),
@@ -953,6 +954,20 @@ func (s *Server) pmResumePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := d.PM.ResumePlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmReopenPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.ReopenPlan(r.Context(), pl.ID(), caller); err != nil {
 		mapPlanError(w, err)
 		return
 	}

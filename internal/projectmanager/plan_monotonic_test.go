@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestPlanMonotonicLifecycle(t *testing.T) {
+func TestPlanDoneCanReopenWhileDiscardedStaysTerminal(t *testing.T) {
 	t0 := time.Unix(1000, 0).UTC()
 	p, err := NewPlan(NewPlanInput{ID: "plan-1", ProjectID: "project-1", Name: "ship", CreatorRef: "user:a", CreatedAt: t0})
 	if err != nil {
@@ -37,7 +37,27 @@ func TestPlanMonotonicLifecycle(t *testing.T) {
 		func() error { return p.Discard(t0) },
 	} {
 		if err := mutate(); !errors.Is(err, ErrIllegalPlanTransition) {
-			t.Fatalf("terminal mutation = %v, want illegal transition", err)
+			t.Fatalf("non-reopen done mutation = %v, want illegal transition", err)
+		}
+	}
+	if err := p.Reopen(t0.Add(5 * time.Second)); err != nil {
+		t.Fatalf("Reopen done: %v", err)
+	}
+	if p.Status() != PlanPaused {
+		t.Fatalf("reopened status = %q, want paused", p.Status())
+	}
+
+	if err := p.Discard(t0.Add(6 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func() error{
+		func() error { return p.Start(t0) },
+		func() error { return p.Pause(t0) },
+		func() error { return p.Resume(t0) },
+		func() error { return p.Reopen(t0) },
+	} {
+		if err := mutate(); !errors.Is(err, ErrIllegalPlanTransition) {
+			t.Fatalf("discarded mutation = %v, want illegal transition", err)
 		}
 	}
 }

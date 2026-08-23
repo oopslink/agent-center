@@ -427,6 +427,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/pause", s.pmPausePlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/resume", s.pmResumePlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/reopen", s.pmReopenPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/complete", s.pmCompletePlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/discard", s.pmDiscardPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)

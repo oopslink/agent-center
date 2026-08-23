@@ -113,6 +113,15 @@ func TestPlan_Lifecycle(t *testing.T) {
 	if err := p.Stop(at); err != ErrIllegalPlanTransition {
 		t.Fatalf("Stop from done = %v, want ErrIllegalPlanTransition", err)
 	}
+	if err := p.Reopen(at); err != nil {
+		t.Fatalf("Reopen from done: %v", err)
+	}
+	if p.Status() != PlanPaused {
+		t.Fatalf("after Reopen status = %q, want paused", p.Status())
+	}
+	if err := p.Resume(at); err != nil {
+		t.Fatalf("Resume after Reopen: %v", err)
+	}
 }
 
 func TestPlanStatus_TransitionMap(t *testing.T) {
@@ -132,7 +141,7 @@ func TestPlanStatus_TransitionMap(t *testing.T) {
 		t.Fatal("active states must allow discarded")
 	}
 	if len(planTransitions[PlanDone]) != 0 || len(planTransitions[PlanDiscarded]) != 0 {
-		t.Fatal("done/discarded must be terminal")
+		t.Fatal("done/discarded must have no generic transitions; Reopen is action-specific")
 	}
 	for _, s := range []PlanStatus{PlanPending, PlanRunning, PlanPaused, PlanDone, PlanDiscarded} {
 		if !s.IsValid() {

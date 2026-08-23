@@ -561,3 +561,74 @@ func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing
 		t.Fatalf("paused evolution task %s got a dispatch record", cSnap.TaskID)
 	}
 }
+
+func TestReopenPlan_AllowsFollowUpEvolutionAfterDone(t *testing.T) {
+	oh := orchestratorSetup(t)
+	h := oh.planAdvanceHarness
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.drain(t)
+	h.setTaskStatus(t, a, pm.TaskCompleted)
+	h.drain(t)
+	if err := h.svc.CompletePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("CompletePlan: %v", err)
+	}
+	donePlan, parent := activePlanGeneration(t, h, planID)
+	if donePlan.Status() != pm.PlanDone {
+		t.Fatalf("status after complete = %s, want done", donePlan.Status())
+	}
+	doneVersion := donePlan.Version()
+
+	if err := h.svc.ReopenPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("ReopenPlan: %v", err)
+	}
+	reopened, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Status() != pm.PlanPaused {
+		t.Fatalf("reopened status = %s, want paused", reopened.Status())
+	}
+	if reopened.ActiveGenerationID() != parent.ID || reopened.Version() != doneVersion+1 {
+		t.Fatalf("reopened active/version = %s/%d, want %s/%d", reopened.ActiveGenerationID(), reopened.Version(), parent.ID, doneVersion+1)
+	}
+	h.drain(t)
+	stillPaused, _ := h.plans.FindByID(h.ctx, planID)
+	if stillPaused.Status() != pm.PlanPaused {
+		t.Fatalf("reopened plan should not auto-complete before evolution; status=%s", stillPaused.Status())
+	}
+
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: reopened.ActiveGenerationID(), BaseVersion: reopened.Version(), IdempotencyKey: "evo-after-reopen",
+		Reason: "follow-up work after completed plan", Evidence: "owner reopened plan", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-after-reopen", AssigneeRef: "user:c1", Detached: true}}},
+	})
+	if err != nil {
+		t.Fatalf("EvolvePlanGeneration after reopen: %v", err)
+	}
+	cSnap := generationTaskByTitle(t, res.Generation, "C-after-reopen")
+	if len(res.Dispatched) != 0 {
+		t.Fatalf("paused reopened evolution dispatched %v, want none before resume", res.Dispatched)
+	}
+	evolved, _ := h.plans.FindByID(h.ctx, planID)
+	if evolved.Status() != pm.PlanPaused || evolved.ActiveGenerationID() != res.Generation.ID {
+		t.Fatalf("evolved plan status/active = %s/%s, want paused/%s", evolved.Status(), evolved.ActiveGenerationID(), res.Generation.ID)
+	}
+
+	if err := h.svc.ResumePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("ResumePlan after evolution: %v", err)
+	}
+	h.drain(t)
+	if !dispatchedSet(t, h, planID)[cSnap.TaskID] {
+		t.Fatalf("resumed reopened plan did not dispatch new task %s", cSnap.TaskID)
+	}
+	running, _ := h.plans.FindByID(h.ctx, planID)
+	if running.Status() != pm.PlanRunning {
+		t.Fatalf("status after resume dispatch = %s, want running", running.Status())
+	}
+}

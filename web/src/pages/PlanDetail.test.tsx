@@ -290,6 +290,22 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(started).toBe(true));
   });
 
+  it('shows Reopen when done with an active generation and calls useReopenPlan', async () => {
+    let reopened = false;
+    mockPlan({ status: 'done', has_failed: false, active_generation_id: 'generation-1' });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/reopen', () => {
+        reopened = true;
+        return HttpResponse.json(planWith({ status: 'paused', active_generation_id: 'generation-1' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-reopen-btn')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-evolution-btn')).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByTestId('plan-reopen-btn')));
+    await waitFor(() => expect(reopened).toBe(true));
+  });
+
   it('three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count', async () => {
     mockPlan();
     wrap();

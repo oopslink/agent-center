@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-// PlanStatus is the ADR-0055 monotonic Plan lifecycle. Pause is an execution
-// latch, not a return to authoring; done/discarded are permanent terminal facts.
+// PlanStatus is the ADR-0055 Plan lifecycle. Pause is an execution latch, not a
+// return to pending authoring. Discarded is permanent; done may reopen to paused
+// only to append a follow-up immutable generation.
 type PlanStatus string
 
 const (
@@ -295,6 +296,24 @@ func (p *Plan) Resume(at time.Time) error {
 		return ErrBuiltinPlanImmutable
 	}
 	return p.transition(PlanRunning, at)
+}
+
+// Reopen moves a completed Plan back to paused so a follow-up immutable
+// generation can be appended without the auto-advance sweep immediately closing it
+// again. Completed task history remains immutable.
+func (p *Plan) Reopen(at time.Time) error {
+	if p.builtin {
+		return ErrBuiltinPlanImmutable
+	}
+	if p.IsArchived() {
+		return ErrPlanArchived
+	}
+	if p.status != PlanDone {
+		return ErrIllegalPlanTransition
+	}
+	p.status = PlanPaused
+	p.touch(at)
+	return nil
 }
 
 // Stop is the compatibility name for Pause; it never returns a Plan to pending.

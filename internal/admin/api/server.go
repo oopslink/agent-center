@@ -497,6 +497,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/start_plan", s.startPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/pause_plan", s.pausePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/resume_plan", s.resumePlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reopen_plan", s.reopenPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_plan", s.completePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/discard_plan", s.discardPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/stop_plan", s.stopPlanHandler)

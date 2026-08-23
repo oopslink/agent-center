@@ -41,6 +41,7 @@ const (
 	AuditPlanNodeRemoved     AuditChangeType = "node_removed"
 	AuditPlanDecisionOutcome AuditChangeType = "decision_outcome"
 	AuditPlanLoopback        AuditChangeType = "loopback"
+	AuditPlanReopened        AuditChangeType = "reopened"
 	AuditPlanForceCompleted  AuditChangeType = "force_completed"
 	// AuditPlanTopologyCommit is one whole edit_plan_topology batch (2026-07-05
 	// live-topology design §5 layer 2): the from_version→to_version commit plus the

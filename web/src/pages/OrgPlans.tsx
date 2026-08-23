@@ -22,9 +22,9 @@ import { useCreatorLabel } from '@/api/members';
 // Board (T5), so this global list is read+navigate (status filtering + search).
 
 // Status chips offered by the filter bar, in lifecycle order. The chips drive
-// the explicit status filter (`?status=`). done/discarded are terminal and
-// excluded from the backend default; explicit chips surface them. Archive is an
-// orthogonal marker rather than a lifecycle status.
+// the explicit status filter (`?status=`). done/discarded are excluded from the
+// backend active default; explicit chips surface them. Archive is an orthogonal
+// marker rather than a lifecycle status.
 const PLAN_STATUS_OPTIONS = ['pending', 'running', 'paused', 'done', 'discarded'] as const;
 
 // A small done/total progress bar (mockup `.pgmini`). Tokens only.

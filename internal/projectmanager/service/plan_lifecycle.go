@@ -606,6 +606,52 @@ func (s *Service) ResumePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 	})
 }
 
+// ReopenPlan moves a completed Plan back to paused so the owner can append a
+// follow-up immutable generation. It does not emit pm.plan.started: a done plan
+// usually has no ready work yet, and the auto-advance sweep would immediately
+// close it again before the evolution diff is committed.
+func (s *Service) ReopenPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
+			return err
+		}
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
+		if p.IsBuiltin() {
+			return pm.ErrBuiltinPlanImmutable
+		}
+		if p.IsArchived() {
+			return pm.ErrPlanArchived
+		}
+		if p.Status() != pm.PlanDone {
+			return pm.ErrPlanNotDone
+		}
+		if p.ActiveGenerationID() == "" {
+			return fmt.Errorf("%w: plan %s has no active generation baseline", pm.ErrPlanGenerationConflict, p.ID())
+		}
+		if err := p.Reopen(now); err != nil {
+			return err
+		}
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanReopened, actor, map[string]any{
+			"status":               string(p.Status()),
+			"active_generation_id": string(p.ActiveGenerationID()),
+		})
+		return nil
+	})
+}
+
 // ReconcileRunningPlans is the v2.9 P2-3 reconciliation sweep: the background
 // safety net for missed events / crash recovery. It lists EVERY running Plan
 // (global) and re-runs the idempotent dispatch core (dispatchReadyNodes) for

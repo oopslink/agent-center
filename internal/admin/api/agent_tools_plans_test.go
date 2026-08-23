@@ -706,6 +706,36 @@ func TestPauseResumeDiscardPlan_AsMember_OK(t *testing.T) {
 	}
 }
 
+func TestReopenPlan_DoneAsMember_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	tid := f.seedPlanTask(t, pid, planID)
+	actor := pm.IdentityRef("agent:" + atAgent1)
+	if err := f.pmSvc.StartPlan(context.Background(), pm.PlanID(planID), actor); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.SetTaskStatus(context.Background(), pm.TaskID(tid), pm.TaskCompleted, actor); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.CompletePlan(context.Background(), pm.PlanID(planID), actor); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/reopen_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusOK || body["ok"] != true || body["status"] != "paused" {
+		t.Fatalf("reopen status = %d body=%v", status, body)
+	}
+	p, _ := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if p.Status() != pm.PlanPaused {
+		t.Fatalf("status = %s, want paused", p.Status())
+	}
+}
+
 func TestStartPlan_CrossWorker_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)

@@ -204,6 +204,7 @@ var (
 	ErrInvalidPlanStatus          = errors.New("projectmanager: invalid plan status")
 	ErrPlanNotPending             = errors.New("projectmanager: plan dependencies/tasks editable only while pending")
 	ErrPlanNotPaused              = errors.New("projectmanager: plan is not paused")
+	ErrPlanNotDone                = errors.New("projectmanager: plan must be done to reopen")
 	ErrPlanNotTerminal            = errors.New("projectmanager: plan must be done or discarded")
 	ErrPlanNotFound               = errors.New("projectmanager: plan not found")
 	ErrPlanExists                 = errors.New("projectmanager: plan already exists")

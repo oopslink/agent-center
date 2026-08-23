@@ -20,7 +20,7 @@ var AgentFacingToolNames = []string{
 	"add_plan_dependency",
 	"add_task_to_plan",
 	"edit_plan_topology",     // pending-only batch DAG edit
-	"evolve_plan_generation", // immutable generation evolution for running/paused plans
+	"evolve_plan_generation", // immutable generation evolution for running/paused plans; reopen done plans first
 	"archive_plan",
 	"assign_task",
 	"attach_file",
@@ -100,6 +100,7 @@ var AgentFacingToolNames = []string{
 	"start_plan",
 	"start_task",
 	"pause_plan",
+	"reopen_plan",
 	"resume_plan",
 	"discard_plan",
 	"subscribe",
