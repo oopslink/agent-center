@@ -27,6 +27,10 @@ RAM Roles。所属 Team 和具体 Team Role 是完成该操作不可缺少的上
    使用 `RAM Roles`、`Add RAM Role`、`Remove`、`Save changes`。
 6. 保存 Team Role 的 RAM Roles 仍采用带 version 与 audit history 的完整列表
    CAS replace；并发不变量不升级为产品名词。
+7. 产品验收以 `docs/design/assets/adr-0059/` 下三份 repo-native HTML 与其确定性
+   PNG 为 canonical；全状态行为以
+   `docs/acceptance/adr-0059/canonical-state-matrix.md` 为冻结合同。旧 T1456/T1457/
+   T1458 合成截图只保留历史证据身份，不再作为 ADR-0059 产品基线。
 
 ## Consequences
 
@@ -38,6 +42,8 @@ RAM Roles。所属 Team 和具体 Team Role 是完成该操作不可缺少的上
   effective-access 行为。
 - 既有后端表和 endpoint 可继续使用 `mapping`，直到另有独立实现迁移；这些
   名称不得成为 UI 文案。
+- Canonical mock 必须由可编辑源重新生成；禁止只改 PNG。默认 viewport 固定为
+  `1672 × 941`，状态切换与交互注释随源文件版本化。
 
 ## Alternatives Considered
 
