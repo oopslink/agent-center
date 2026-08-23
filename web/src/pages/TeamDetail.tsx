@@ -438,7 +438,7 @@ function EditRolesModal({ team, onClose, onSaved, initialPanel = 'runtime' }: { 
       </p>
     )}
     {update.isError && <p className="mt-3 text-xs text-danger" role="alert">{(update.error as Error).message}</p>}
-    {mappingError && <p className="mt-3 text-xs text-danger" role="alert">{mappingError.message}</p>}
+    {mappingError && <p className="mt-3 text-xs text-danger" role="alert">RAM Roles could not be loaded. Try again.</p>}
     {previewRAMRoles.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewRAMRoles.error as Error).message}</p>}
     {previewDeleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(previewDeleteRole.error as Error).message}</p>}
     {deleteRole.isError && <p className="mt-3 text-xs text-danger" role="alert">{(deleteRole.error as Error).message}</p>}

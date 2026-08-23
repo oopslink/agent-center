@@ -80,7 +80,8 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/settings`, 'page-Settings'],
       [`${ORG_BASE}/ai-runtime`, 'page-AiRuntime'],
       [`${ORG_BASE}/organization-settings/ai-runtime`, 'page-AiRuntime'],
-      [`${ORG_BASE}/access`, 'page-Access'],
+      [`${ORG_BASE}/access/ram-roles`, 'page-Access'],
+      [`${ORG_BASE}/access/subject-access`, 'page-Access'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
@@ -120,6 +121,36 @@ describe('App shell + route tree', () => {
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', `${ORG_BASE}/environment`);
   });
 
+  it('redirects legacy Access and standalone Team Roles URLs to canonical pages', async () => {
+    const access = renderAppAt(`${ORG_BASE}/access?view=subject-access`);
+    await waitFor(() => expect(window.location.pathname).toBe(`${ORG_BASE}/access/ram-roles`));
+    expect(await screen.findByTestId('page-Access')).toHaveAttribute('data-access-page', 'ram-roles');
+    access.unmount();
+
+    const roles = renderAppAt(`${ORG_BASE}/teams/roles`);
+    await waitFor(() => expect(window.location.pathname).toBe(`${ORG_BASE}/teams`));
+    expect(await screen.findByTestId('page-Teams')).toBeInTheDocument();
+    roles.unmount();
+  });
+
+  it('shows exactly two Access links with one active page at a time', async () => {
+    for (const [path, activeLabel] of [
+      [`${ORG_BASE}/access/ram-roles`, 'RAM Roles'],
+      [`${ORG_BASE}/access/subject-access`, 'Subject access'],
+    ] as const) {
+      const view = renderAppAt(path);
+      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+      const links = within(nav).getAllByRole('link').filter((link) =>
+        ['RAM Roles', 'Subject access'].includes(link.textContent?.trim() ?? ''),
+      );
+      expect(links).toHaveLength(2);
+      expect(links.filter((link) => link.getAttribute('aria-current') === 'page')).toHaveLength(1);
+      expect(within(nav).getByRole('link', { name: activeLabel })).toHaveAttribute('aria-current', 'page');
+      expect(within(nav).queryByText(/mapping/i)).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
   // v2.10.0 [T1] reachability: each module's col② shows ITS second-level nav,
   // pointing at the canonical org-scoped routes. Rendered per module route.
   it('each module col② links point at the canonical org-scoped routes', async () => {
@@ -142,10 +173,9 @@ describe('App shell + route tree', () => {
         ['Agents', `${ORG_BASE}/teams/agents`],
         ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
-      [`${ORG_BASE}/access`, [
-        ['RAM Roles', `${ORG_BASE}/access?view=ram-roles`],
-        ['Team Role mappings', `${ORG_BASE}/access?view=team-role-mappings`],
-        ['Subject access', `${ORG_BASE}/access?view=subject-access`],
+      [`${ORG_BASE}/access/ram-roles`, [
+        ['RAM Roles', `${ORG_BASE}/access/ram-roles`],
+        ['Subject access', `${ORG_BASE}/access/subject-access`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
@@ -176,29 +206,6 @@ describe('App shell + route tree', () => {
       unmount();
     }
   }, 20000);
-
-  it('keeps exactly one Access secondary nav item active for each query view', async () => {
-    const cases: Array<[string, string]> = [
-      [`${ORG_BASE}/access?view=ram-roles`, 'RAM Roles'],
-      [`${ORG_BASE}/access?view=team-role-mappings`, 'Team Role mappings'],
-      [`${ORG_BASE}/access?view=subject-access`, 'Subject access'],
-    ];
-    for (const [route, activeLabel] of cases) {
-      const { unmount } = renderAppAt(route);
-      await waitFor(() => expect(screen.getByTestId('page-Access')).toBeInTheDocument(), ROUTE_WAIT);
-      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
-      const accessLinks = ['RAM Roles', 'Team Role mappings', 'Subject access'].map((label) => {
-        const link = within(nav)
-          .getAllByRole('link')
-          .find((a) => a.textContent?.trim().startsWith(label));
-        expect(link, `Access secondary nav link for ${label} on ${route}`).toBeDefined();
-        return [label, link] as const;
-      });
-      const activeLinks = accessLinks.filter(([, link]) => link?.getAttribute('aria-current') === 'page');
-      expect(activeLinks.map(([label]) => label)).toEqual([activeLabel]);
-      unmount();
-    }
-  }, 30000);
 
   // §4.2 reachability: ProjectDetail is reached from the Projects list row.
   it('reaches ProjectDetail via a Projects-list row link', async () => {

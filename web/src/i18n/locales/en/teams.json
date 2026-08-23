@@ -108,7 +108,7 @@
       "deleteConfirm": "Delete role",
       "previewTitle": "Save preview",
       "affectedSummary": "{{roles}} changed roles · {{members}} affected members",
-      "effectiveHint": "Role config and RAM permission mapping take effect immediately for new permission checks; running work keeps any already-snapshotted runtime context until it restarts.",
+      "effectiveHint": "Role config and RAM Role changes take effect immediately for new permission checks; running work keeps any already-snapshotted runtime context until it restarts.",
       "diffEmpty": "No role changes.",
       "noAffectedMembers": "No currently enrolled members are affected."
     },

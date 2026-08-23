@@ -51,7 +51,6 @@ const Me = lazy(() => import('./pages/Me'));
 // survives only for its isolated unit tests, so it is no longer lazy-loaded here.
 // Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
 const Teams = lazy(() => import('./pages/Teams'));
-const TeamsRoles = lazy(() => import('./pages/TeamsRoles'));
 const TeamDetail = lazy(() => import('./pages/TeamDetail'));
 const TeamsDirectoryAgents = lazy(() => import('./pages/TeamsDirectoryAgents'));
 const TeamsDirectoryHumans = lazy(() => import('./pages/TeamsDirectoryHumans'));
@@ -124,7 +123,9 @@ export function App(): React.ReactElement {
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
-          <Route path="access" element={<Access />} />
+          <Route path="access" element={<Navigate to="ram-roles" replace />} />
+          <Route path="access/ram-roles" element={<Access page="ram-roles" />} />
+          <Route path="access/subject-access" element={<Access page="subject-access" />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />
@@ -146,7 +147,10 @@ export function App(): React.ReactElement {
           <Route path="members/humans" element={<Navigate to="../teams/humans" replace />} />
           {/* Team WebUI (Phase-1). Static children rank above teams/:teamId. */}
           <Route path="teams" element={<Teams />} />
-          <Route path="teams/roles" element={<TeamsRoles />} />
+          {/* ADR-0059: RAM Roles are edited on each Team Role, not on a
+              standalone relationship-management page. Keep stale bookmarks
+              recoverable without retaining a second product surface. */}
+          <Route path="teams/roles" element={<Navigate to="../teams" replace />} />
           <Route path="teams/templates" element={<NotFound />} />
           <Route path="teams/templates/:templateId" element={<NotFound />} />
           <Route path="teams/agents" element={<TeamsDirectoryAgents />} />
