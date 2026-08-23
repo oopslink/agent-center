@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import TeamDetail from './TeamDetail';
 import { OrgContext } from '@/OrgContext';
@@ -62,192 +62,14 @@ describe('TeamDetail', () => {
     expect(screen.getByText('Team overview')).toBeInTheDocument();
   });
 
-  it('edits and saves role definitions from the overview', async () => {
-    let body: { roles?: Array<{ role: string }>; expected_version?: number } | undefined;
-    const validTeam = teamDetail({
-      roles: [{
-        role: 'coder',
-        cli: 'claude-code',
-        model: 'sonnet-5',
-        capability_tags: [],
-        ram_role_keys: [],
-        access_requirements: [],
-        max_concurrency: 1,
-        count: 0,
-      }],
-      members_count: 0,
-      projects_count: 0,
-    });
-    server.use(
-      http.get('/api/teams/:id', () => HttpResponse.json(validTeam)),
-      http.patch('/api/teams/:id', async ({ request }) => {
-        body = await request.json() as typeof body;
-        return HttpResponse.json({ ...validTeam, roles: [], version: 4 });
-      }),
-    );
+  it('uses the canonical Team Role page as the only role configuration entry', async () => {
     renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-edit-roles'));
-    const modal = await screen.findByTestId('edit-team-roles-modal');
-    expect(within(modal).queryByTestId('edit-team-role-0-count')).not.toBeInTheDocument();
-    expect(within(modal).getAllByText('Max tasks / agent').length).toBeGreaterThan(0);
-    expect(within(modal).getAllByText('Per-agent task concurrency, not role headcount.').length).toBeGreaterThan(0);
-    fireEvent.click(within(modal).getByTestId('edit-team-role-0-duplicate'));
-    await waitFor(() => expect(within(modal).getByTestId('edit-team-role-1-name')).toHaveValue('coder-copy'));
-    fireEvent.change(within(modal).getByTestId('edit-team-role-1-name'), { target: { value: 'planning-backup' } });
-    fireEvent.click(within(modal).getByTestId('team-save-roles'));
-    await waitFor(() => expect(body?.roles?.length).toBeGreaterThan(0));
-    expect(body?.roles?.some((role) => role.role === 'planning-backup')).toBe(true);
-    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
-    expect(await screen.findByTestId('team-role-save-success')).toHaveTextContent('Role changes saved.');
-  });
+    const overviewEntry = await screen.findByTestId('team-open-roles');
+    expect(overviewEntry).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
+    expect(screen.queryByTestId('team-edit-roles')).not.toBeInTheDocument();
 
-  it('deletes a role only after impact review, member reassignment, and name confirmation', async () => {
-    let deleteBody: { expected_version?: number; reassign_role?: string; confirm_name?: string } | undefined;
-    server.use(http.delete('/api/teams/:id/roles/:role', async ({ request }) => {
-      deleteBody = await request.json() as typeof deleteBody;
-      return HttpResponse.json({
-        team: teamDetail({
-          roles: [{
-            role: 'planner',
-            cli: 'claude-code',
-            model: 'claude-opus-4-8',
-            capability_tags: [],
-            ram_role_keys: ['Team contributor'],
-            access_requirements: ['team.read'],
-            max_concurrency: 1,
-            count: 1,
-          }],
-          version: 4,
-          members_count: 1,
-          projects_count: 2,
-        }),
-        impact: {
-          team_id: 'team-7c19b0',
-          team_role: 'ops',
-          reassign_role: 'planner',
-          affected_members: 1,
-          affected_project_ids: ['project-a', 'project-b'],
-          version: 4,
-          protected: false,
-        },
-      });
-    }));
-    renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-edit-roles'));
-    const modal = await screen.findByTestId('edit-team-roles-modal');
-    fireEvent.click(within(modal).getByTestId('edit-team-role-3-remove'));
-    const confirm = await screen.findByTestId('confirm-modal');
-    expect(within(confirm).getByTestId('team-role-delete-confirm')).toHaveTextContent('1 members and 2 linked projects');
-    fireEvent.change(within(confirm).getByTestId('team-role-delete-reassign'), { target: { value: 'planner' } });
-    expect(within(confirm).getByTestId('confirm-modal-confirm')).toBeDisabled();
-    fireEvent.change(within(confirm).getByTestId('team-role-delete-confirm-name'), { target: { value: 'ops' } });
-    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
-    await waitFor(() => expect(deleteBody).toEqual({ expected_version: 3, reassign_role: 'planner', confirm_name: 'ops' }));
-    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
-    expect(await screen.findByTestId('team-role-save-success')).toHaveTextContent('Role ops deleted');
-  });
-
-  it('selects RAM roles with CAS, saves declaration keys, and reloads server-read sources', async () => {
-    let body: { roles?: Array<{ role: string; ram_role_keys?: string[]; access_requirements?: string[] }> } | undefined;
-    let previewBody: { ram_role_ids?: string[] } | undefined;
-    let putCalled = false;
-    let getCount = 0;
-    let serverTeam = teamDetail({
-        roles: [{
-          role: 'planner',
-          cli: 'claude-code',
-          model: 'claude-opus-4-8',
-          capability_tags: [],
-          ram_role_keys: ['Team basic'],
-          access_requirements: ['team.read', 'team.memory.read'],
-          max_concurrency: 1,
-          count: 0,
-        }],
-      });
-    let mapping = {
-      team_id: 'team-7c19b0',
-      team_role: 'planner',
-      ram_role_ids: ['team-basic'],
-      version: 1,
-    };
-    server.use(
-      http.get('/api/teams/:id', () => {
-        getCount += 1;
-        return HttpResponse.json(serverTeam);
-      }),
-      http.patch('/api/teams/:id', async ({ request }) => {
-        body = await request.json() as typeof body;
-        serverTeam = teamDetail({
-          ...serverTeam,
-          roles: (body?.roles ?? []).map((role) => ({
-            ...role,
-            capability_tags: [],
-            max_concurrency: 1,
-            count: 0,
-          })),
-        });
-        return HttpResponse.json(serverTeam);
-      }),
-      http.get('/api/teams/:id/roles/:role/ram-roles', () => HttpResponse.json(mapping)),
-      http.post('/api/teams/:id/roles/:role/ram-roles/preview', async ({ request }) => {
-        previewBody = await request.json() as typeof previewBody;
-        return HttpResponse.json({
-          team_id: 'team-7c19b0',
-          team_role: 'planner',
-          current_ram_role_ids: ['team-basic'],
-          next_ram_role_ids: previewBody?.ram_role_ids ?? [],
-          added_ram_role_ids: ['team-curator'],
-          removed_ram_role_ids: [],
-          affected_members: 0,
-          affected_project_ids: [],
-          version: 1,
-        });
-      }),
-      http.put('/api/teams/:id/roles/:role/ram-roles', async ({ request }) => {
-        putCalled = true;
-        const putBody = await request.json() as { ram_role_ids?: string[]; expected_version?: number };
-        mapping = {
-          team_id: 'team-7c19b0',
-          team_role: 'planner',
-          ram_role_ids: putBody?.ram_role_ids ?? [],
-          version: 2,
-        };
-        return HttpResponse.json(mapping);
-      }),
-    );
-    renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-edit-roles'));
-    const modal = await screen.findByTestId('edit-team-roles-modal');
-    expect(within(modal).getByTestId('edit-team-role-0-runtime-config')).toBeInTheDocument();
-    expect(within(modal).queryByTestId('edit-team-role-0-access-editor')).not.toBeInTheDocument();
-    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
-    const role = await within(modal).findByTestId('edit-team-access-role-0-access-role');
-    await waitFor(() => expect(within(modal).getAllByRole('option', { name: 'Team basic v1' }).length).toBeGreaterThan(0));
-    fireEvent.change(role, { target: { value: 'team-basic@1' } });
-    expect(within(modal).getByTestId('edit-team-access-role-0-access-permissions')).toHaveTextContent('team.memory.read');
-    expect(within(modal).getByTestId('edit-team-access-role-0-ram-role-summary')).toHaveTextContent('1 roles · 2 permissions');
-    fireEvent.click(within(modal).getByTestId('edit-team-access-role-0-ram-role-trigger'));
-    const options = await screen.findAllByTestId('edit-team-access-role-0-ram-role-option');
-    fireEvent.click(options.find((option) => option.getAttribute('data-value') === 'team-curator') as HTMLElement);
-    expect(within(modal).getByTestId('edit-team-access-role-0-ram-role-summary')).toHaveTextContent('2 roles · 5 permissions');
-    expect(within(modal).getByTestId('team-role-save-preview')).toHaveTextContent('1 changed roles');
-    expect(within(modal).getByTestId('team-role-effective-hint')).toHaveTextContent('take effect immediately');
-    fireEvent.click(within(modal).getByTestId('team-preview-access'));
-    const confirm = await screen.findByTestId('confirm-modal');
-    expect(within(confirm).getByTestId('team-access-confirm-diff')).toHaveTextContent('planner');
-    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
-    await waitFor(() => expect(body?.roles?.[0]?.ram_role_keys).toEqual(['Team basic', 'Team curator']));
-    expect(body?.roles?.[0]?.access_requirements).toEqual(['team.memory.propose', 'team.memory.read', 'team.memory.review', 'team.read', 'team.write']);
-    await waitFor(() => expect(previewBody?.ram_role_ids).toEqual(['team-basic', 'team-curator']));
-    expect(putCalled).toBe(false);
-    await waitFor(() => expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument());
-    await waitFor(() => expect(getCount).toBeGreaterThanOrEqual(2));
-    expect(await screen.findByTestId('team-role-used-by-planner')).toHaveTextContent('Team curator');
-
-    cleanup();
-    renderAt('team-7c19b0');
-    expect(await screen.findByTestId('team-role-used-by-planner')).toHaveTextContent('Team basic');
-    expect(screen.getByTestId('team-role-used-by-planner')).toHaveTextContent('Team curator');
+    fireEvent.click(screen.getByTestId('tab-rl'));
+    expect(await screen.findByTestId('team-role-open-planner')).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
   });
 
   it('shows RAM role usage and member permission source scope', async () => {
@@ -261,55 +83,6 @@ describe('TeamDetail', () => {
     expect(source).toHaveTextContent('team_member → Team Role');
     expect(source).toHaveTextContent('scope team:team-7c19b0');
     expect(source).toHaveTextContent('Team contributor');
-  });
-
-  it('preserves and refreshes server access_lint in the edit role model', async () => {
-    let patched = false;
-    const invalidTeam = teamDetail({
-      roles: [{
-        role: 'planner',
-        cli: 'claude-code',
-        model: 'claude-opus-4-8',
-        capability_tags: [],
-        access_requirements: ['team.read', 'team.unknown'],
-        access_lint: [{ severity: 'error', permission: 'team.unknown', message: 'server says unknown permission' }],
-        max_concurrency: 1,
-        count: 0,
-      }],
-    });
-    const fixedTeam = teamDetail({
-      roles: [{
-        role: 'planner',
-        cli: 'claude-code',
-        model: 'claude-opus-4-8',
-        capability_tags: [],
-        access_requirements: ['team.read'],
-        access_lint: [{ severity: 'warning', permission: 'team.read', message: 'server refreshed lint' }],
-        max_concurrency: 1,
-        count: 0,
-      }],
-    });
-    server.use(
-      http.get('/api/teams/:id', () => HttpResponse.json(patched ? fixedTeam : invalidTeam)),
-      http.patch('/api/teams/:id', async () => {
-        patched = true;
-        return HttpResponse.json(fixedTeam);
-      }),
-    );
-    renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-edit-roles'));
-    let modal = await screen.findByTestId('edit-team-roles-modal');
-    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
-    expect(within(modal).getByTestId('edit-team-access-role-0-access-lint')).toHaveTextContent('team.unknown: server says unknown permission');
-    expect(within(modal).queryByText('Unknown permission: team.unknown')).not.toBeInTheDocument();
-
-    patched = true;
-    cleanup();
-    renderAt('team-7c19b0');
-    fireEvent.click(await screen.findByTestId('team-edit-roles'));
-    modal = await screen.findByTestId('edit-team-roles-modal');
-    fireEvent.click(within(modal).getByTestId('team-role-access-panel'));
-    expect(within(modal).getByTestId('edit-team-access-role-0-access-lint')).toHaveTextContent('team.read: server refreshed lint');
   });
 
   it('renders an error for an unknown team', async () => {
@@ -328,14 +101,11 @@ describe('TeamDetail', () => {
     expect(screen.getByTestId('members-exclusivity-note')).toBeInTheDocument();
   });
 
-  it('opens the independent permission configuration entry from Members', async () => {
+  it('links Members access configuration to the canonical Team Role page', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-mm'));
-    fireEvent.click(await screen.findByTestId('members-configure-access'));
-    const modal = await screen.findByTestId('edit-team-roles-modal');
-    expect(within(modal).getByTestId('team-role-access-panel')).toHaveAttribute('aria-selected', 'true');
-    expect(within(modal).getByTestId('edit-team-access-role-0-access-editor')).toBeInTheDocument();
-    expect(within(modal).queryByTestId('edit-team-access-role-0-runtime-config')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('members-configure-access')).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
+    expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument();
   });
 
   it('keeps long role capabilities compact in the members table', async () => {

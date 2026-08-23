@@ -52,6 +52,7 @@ const Me = lazy(() => import('./pages/Me'));
 // Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
 const Teams = lazy(() => import('./pages/Teams'));
 const TeamDetail = lazy(() => import('./pages/TeamDetail'));
+const TeamRoleDetail = lazy(() => import('./pages/TeamRoleDetail'));
 const TeamsDirectoryAgents = lazy(() => import('./pages/TeamsDirectoryAgents'));
 const TeamsDirectoryHumans = lazy(() => import('./pages/TeamsDirectoryHumans'));
 // dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
@@ -155,6 +156,7 @@ export function App(): React.ReactElement {
           <Route path="teams/templates/:templateId" element={<NotFound />} />
           <Route path="teams/agents" element={<TeamsDirectoryAgents />} />
           <Route path="teams/humans" element={<TeamsDirectoryHumans />} />
+          <Route path="teams/:teamId/roles/:role" element={<TeamRoleDetail />} />
           <Route path="teams/:teamId" element={<TeamDetail />} />
           {/* dev2/v281: the enhanced /agents page is the single canonical
               agents surface. The old /members/agents page is retired — it
