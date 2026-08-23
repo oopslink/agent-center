@@ -109,6 +109,25 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(within(nav2).getByRole('link', { name: /tasks/i })).toHaveAttribute('href', '/tasks');
   });
 
+  it.each([
+    ['/access?view=ram-roles', 'RAM Roles'],
+    ['/access?view=team-role-mappings', 'Team Role mappings'],
+    ['/access?view=subject-access', 'Subject access'],
+  ])('marks only the matching Access query nav item active for %s', (route, activeLabel) => {
+    renderShell(route);
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    const labels = ['RAM Roles', 'Team Role mappings', 'Subject access'];
+
+    const activeLinks = labels.filter((label) => {
+      const link = within(nav).getByRole('link', { name: label });
+      const isActive = link.className.includes('bg-brand-hover') && link.className.includes('text-white');
+      expect(isActive, label).toBe(label === activeLabel);
+      return isActive;
+    });
+
+    expect(activeLinks).toEqual([activeLabel]);
+  });
+
   it('content shell uses the full remaining width (no centering / max-width)', () => {
     renderShell();
     const shell = screen.getByTestId('app-content-shell');

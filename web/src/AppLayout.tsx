@@ -209,7 +209,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'access':
       return [{ label: 'Access', items: [
         { to: `${p('access')}?view=ram-roles`, label: 'RAM Roles', Icon: AccessIcon },
-        { to: p('teams/roles'), label: 'Team Role mappings', Icon: AccessIcon },
+        { to: `${p('access')}?view=team-role-mappings`, label: 'Team Role mappings', Icon: AccessIcon },
         { to: `${p('access')}?view=subject-access`, label: 'Subject access', Icon: AccessIcon },
       ] }];
     case 'system':
@@ -222,6 +222,21 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     default:
       return [];
   }
+}
+
+function isQueryAwareNavActive(
+  location: ReturnType<typeof useLocation>,
+  to: string,
+  isActive: boolean,
+): boolean {
+  if (!to.includes('?')) return isActive;
+  const target = new URL(to, 'https://app.local');
+  if (location.pathname !== target.pathname) return false;
+  const targetView = target.searchParams.get('view');
+  if (targetView !== null) {
+    return new URLSearchParams(location.search).get('view') === targetView;
+  }
+  return location.search === target.search;
 }
 
 // ============================================================================
@@ -949,7 +964,7 @@ function DefaultModuleNav({
                             end={item.end}
                             className={({ isActive }) => [
                               'flex flex-1 items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-                              isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
+                              isQueryAwareNavActive(location, item.to, isActive) ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
                             ].join(' ')}
                           >
                             <span className="flex items-center gap-2">
