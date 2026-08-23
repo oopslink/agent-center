@@ -677,7 +677,7 @@ function accessHandlers() {
         if (q && !`${subject?.name ?? ''} ${d.subject_ref} ${d.permission} ${d.reason}`.toLowerCase().includes(q)) return false;
         if (subjectKind && subjectKind !== 'all' && subject?.kind !== subjectKind) return false;
         if (resourceKind && resourceKind !== 'all' && d.resource.kind !== resourceKind) return false;
-        if (projectID && projectID !== 'all' && d.resource.id !== projectID && d.resource.project_id !== projectID) return false;
+        if (projectID && projectID !== 'all' && d.resource.id !== projectID && (!('project_id' in d.resource) || d.resource.project_id !== projectID)) return false;
         if (permission && permission !== 'all' && d.permission !== permission) return false;
         if (risk && risk !== 'all' && d.risk !== risk) return false;
         if (status && status !== 'all' && d.status !== status) return false;

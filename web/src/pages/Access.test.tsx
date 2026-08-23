@@ -33,7 +33,7 @@ describe('Access page', () => {
     expect(page).toHaveClass('min-w-0');
     const roles = await screen.findByTestId('access-roles-view');
     expect(roles).toHaveClass('min-w-0');
-    expect(roles.querySelector('table')?.parentElement).toHaveClass('overflow-x-auto');
+    expect((await within(roles).findByRole('table')).parentElement).toHaveClass('overflow-x-auto');
     expect(roles.className).not.toContain('minmax(30rem');
     expect(screen.getByTestId('access-runtime-sha')).toHaveTextContent('Runtime SHA:');
     expect(screen.getByRole('heading', { name: 'RAM Roles' })).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('Access page', () => {
 
     renderPage();
     const view = await screen.findByTestId('access-roles-view');
-    expect(within(view).getByTestId('access-role-pagination')).toHaveTextContent('Showing 1 to 10 of 12');
+    expect(await within(view).findByTestId('access-role-pagination')).toHaveTextContent('Showing 1 to 10 of 12');
     fireEvent.click(within(view).getByRole('button', { name: 'Next' }));
     expect(within(view).getByTestId('access-role-pagination')).toHaveTextContent('Showing 11 to 12 of 12');
 
@@ -103,7 +103,7 @@ describe('Access page', () => {
 
     server.use(http.get('/api/orgs/:slug/access/ram-roles', () => HttpResponse.json({ message: 'registry unavailable' }, { status: 503 })));
     const second = renderPage();
-    expect(await screen.findByTestId('access-role-list-error')).toHaveTextContent('registry unavailable');
+    expect(await screen.findByTestId('access-ram-roles-error')).toHaveTextContent('registry unavailable');
     second.unmount();
 
     const role = { id: 'role-detail-error', stable_key: 'role-detail-error', name: 'Detail error role', kind: 'custom', description: '', scope: 'team', version: 1, permissions: ['team.read'], risk: 'low' };

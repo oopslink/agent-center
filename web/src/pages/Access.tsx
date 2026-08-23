@@ -11,10 +11,8 @@ import {
   type RAMRole,
   type RAMRoleDetail,
   type AccessPermissionDefinition,
-  type AccessResourceKind,
   type AccessResourceScope,
   type AccessRisk,
-  type AccessRole,
   type AccessStatus,
   type AccessSubject,
   type AccessSubjectKind,
@@ -29,7 +27,6 @@ import {
   useRAMRoleUpdate,
   useRAMRoles,
   useAccessRevokePreview,
-  useAccessRoleUpdate,
 } from '@/api/access';
 import {
   hasEffectivePermission,
@@ -460,39 +457,6 @@ function RAMRolesView({
   const selectedReferences = detail.data?.references ?? [];
   const selectedIsReferenced = selectedReferences.length > 0 || mappedReferences.length > 0;
   const selectedIsCustom = detail.data?.kind === 'custom';
-  const runReferenceMigration = async (): Promise<void> => {
-    if (!selected || !migrationTarget || migrationTarget === selected) return;
-    const pending = mappedReferences
-      .map((ref) => {
-        const mapping = mappingEntries.find((entry) => entry.team.id === ref.team.id && entry.role === ref.role)?.query.data;
-        if (!mapping) return null;
-        const next = Array.from(new Set(mapping.ram_role_ids.map((id) => (id === selected ? migrationTarget : id))));
-        return { mapping, next };
-      })
-      .filter((item): item is { mapping: TeamRAMRoleMapping; next: string[] } => item !== null);
-    try {
-      for (const item of pending) {
-        await replaceMapping.mutateAsync({
-          team_id: item.mapping.team_id,
-          role: item.mapping.team_role,
-          ram_role_ids: item.next,
-          expected_version: item.mapping.version,
-        });
-      }
-      await Promise.all([roles.refetch(), detail.refetch()]);
-      const message = `Migrated ${pending.length} Team Role references.`;
-      setStatus(message);
-      onToast({ tone: 'success', message });
-    } catch (error) {
-      onToast(accessToastFromError(error, 'Reference migration failed'));
-    }
-  };
-
-  if (roles.isLoading) return <AccessPageSkeleton page="ram-roles" />;
-  if (roles.isError) {
-    return <p className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert" data-testid="access-ram-roles-error">{(roles.error as Error).message}</p>;
-  }
-
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(24rem,1fr)]" data-testid="access-roles-view">
       <span className="sr-only" data-testid="access-runtime-sha">Runtime SHA: {import.meta.env.VITE_BUILD_SHA || 'development'}</span>
@@ -528,12 +492,14 @@ function RAMRolesView({
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-border-base bg-bg-subtle/40 px-4 py-2 text-xs text-text-secondary" data-testid="access-role-stats">
           {customCount} custom · {highRiskCount} high risk · {permissionCount} permissions · {referencedCount} referenced
         </div>
-        {roles.isLoading && <div className="p-4" data-testid="access-role-list-loading"><Skeleton height="14rem" /></div>}
+        {roles.isLoading && <div data-testid="access-ram-roles-loading" aria-busy="true"><div className="p-4" data-testid="access-role-list-loading"><Skeleton height="14rem" /></div></div>}
         {roles.isError && (
-          <div className="m-4 rounded border border-danger/30 bg-danger/10 p-4 text-sm text-danger" role="alert" data-testid="access-role-list-error">
-            <p className="font-semibold">RAM Roles could not be loaded.</p>
-            <p className="mt-1">{(roles.error as Error).message}</p>
-            <button type="button" className="mt-3 rounded border border-danger/40 px-3 py-1.5 text-xs font-semibold" onClick={() => void roles.refetch()}>Retry</button>
+          <div data-testid="access-ram-roles-error">
+            <div className="m-4 rounded border border-danger/30 bg-danger/10 p-4 text-sm text-danger" role="alert" data-testid="access-role-list-error">
+              <p className="font-semibold">RAM Roles could not be loaded.</p>
+              <p className="mt-1">{(roles.error as Error).message}</p>
+              <button type="button" className="mt-3 rounded border border-danger/40 px-3 py-1.5 text-xs font-semibold" onClick={() => void roles.refetch()}>Retry</button>
+            </div>
           </div>
         )}
         {roles.isSuccess && roles.data.roles.length === 0 && <EmptyState title="No RAM Roles yet" body="Create the first RAM Role from the toolbar." testId="access-role-empty" />}
@@ -1320,41 +1286,6 @@ function DecisionTable({
   );
 }
 
-function PermissionCatalog({ catalog }: { catalog: AccessPermissionDefinition[] }): React.ReactElement {
-  return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-catalog">
-      <div className="border-b border-border-base px-4 py-3">
-        <h2 className="text-sm font-semibold text-text-primary">Permission catalog</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[44rem] text-left text-sm">
-          <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
-            <tr>
-              <th className="px-4 py-2 font-semibold">Key</th>
-              <th className="px-4 py-2 font-semibold">Scope</th>
-              <th className="px-4 py-2 font-semibold">Risk</th>
-              <th className="px-4 py-2 font-semibold">Sources</th>
-            </tr>
-          </thead>
-          <tbody>
-            {catalog.map((permission) => (
-              <tr key={permission.key} className="border-b border-border-base last:border-0">
-                <td className="px-4 py-3">
-                  <div className="font-mono text-xs font-semibold text-text-primary">{permission.key}</div>
-                  <div className="mt-1 text-xs text-text-muted">{permission.description}</div>
-                </td>
-                <td className="px-4 py-3 text-xs text-text-secondary">{permission.resource_kinds.join(', ')}</td>
-                <td className="px-4 py-3"><AccessRiskBadge risk={permission.risk} /></td>
-                <td className="px-4 py-3 font-mono text-xs text-text-secondary">{permission.legacy_sources.join(', ')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 function SubjectAccessSidebar({
   decisions,
   grants,
@@ -1478,92 +1409,6 @@ function AuditHistory({ events, loading, error }: { events: PermissionAuditEvent
         ))}
       </div>
     </div>
-  );
-}
-
-function RoleManagement({
-  roles,
-  catalog,
-  canManageAccess,
-}: {
-  roles: AccessRole[];
-  catalog: AccessPermissionDefinition[];
-  canManageAccess: boolean;
-}): React.ReactElement {
-  const updateRole = useAccessRoleUpdate();
-  const [drafts, setDrafts] = useState<Record<string, string[]>>({});
-  const [reason, setReason] = useState('access role review');
-  const permissionsFor = (role: AccessRole): string[] => drafts[role.id] ?? role.permissions;
-  const togglePermission = (role: AccessRole, permission: string): void => {
-    setDrafts((prev) => {
-      const current = new Set(prev[role.id] ?? role.permissions);
-      if (current.has(permission)) current.delete(permission);
-      else current.add(permission);
-      return { ...prev, [role.id]: [...current].sort() };
-    });
-  };
-  const save = (role: AccessRole): void => {
-    updateRole.mutate({ role_id: role.id, permissions: permissionsFor(role), reason });
-  };
-  return (
-    <section className="rounded border border-border-base bg-bg-elevated" data-testid="access-role-management">
-      <div className="border-b border-border-base px-4 py-3">
-        <h2 className="text-sm font-semibold text-text-primary">Role management</h2>
-      </div>
-      <div className="space-y-3 p-4">
-        <label className="block">
-          <span className="text-xs font-semibold uppercase text-text-muted">Reason</span>
-          <input
-            className="mt-1 w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm text-text-primary"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </label>
-        {roles.map((role) => (
-          <div key={role.id} className="rounded border border-border-base p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-text-primary">{role.name}</h3>
-                <p className="text-xs text-text-muted">{role.description}</p>
-              </div>
-              {role.high_risk && <AccessRiskBadge risk="high" />}
-            </div>
-            <div className="mt-3 space-y-1">
-              {catalog.map((permission) => {
-                const checked = permissionsFor(role).includes(permission.key);
-                return (
-                  <button
-                    key={`${role.id}-${permission.key}`}
-                    type="button"
-                    aria-pressed={checked}
-                    disabled={!canManageAccess || !role.editable || updateRole.isPending}
-                    onClick={() => togglePermission(role, permission.key)}
-                    className={[
-                      'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-secondary',
-                      checked ? 'bg-status-emerald-bg text-status-emerald-fg' : 'hover:bg-bg-subtle',
-                      !role.editable ? 'opacity-60' : '',
-                    ].join(' ')}
-                  >
-                    <span className={checked ? 'h-2 w-2 rounded-full bg-success' : 'h-2 w-2 rounded-full border border-border-strong'} aria-hidden="true" />
-                    <span className="font-mono">{permission.key}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              disabled={!canManageAccess || !role.editable || updateRole.isPending || !reason.trim()}
-              onClick={() => save(role)}
-              className="mt-3 rounded border border-border-base px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-              data-testid={`access-save-role-${role.id}`}
-            >
-              Save role
-            </button>
-          </div>
-        ))}
-        {updateRole.isError && <p className="text-xs text-danger" role="alert">{(updateRole.error as Error).message}</p>}
-      </div>
-    </section>
   );
 }
 
