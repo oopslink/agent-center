@@ -817,7 +817,10 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err != nil {
 			return OperationResult{}, err
 		}
-		if role.Kind == "custom" && role.OrgID != orgID {
+		if role.Kind != "custom" {
+			return OperationResult{}, ErrSystemRoleImmutable
+		}
+		if role.OrgID != orgID {
 			return OperationResult{}, fmt.Errorf("%w: role belongs to another org", ErrNotFound)
 		}
 		for _, p := range op.Permissions {
@@ -907,6 +910,56 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 			return OperationResult{}, err
 		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: a.RoleID, AssignmentID: a.ID}, nil
+
+	case "grant_direct_permission":
+		kind, resourceID := op.DirectGrant.Resource.Key()
+		if kind == "" || resourceID == "" {
+			return OperationResult{}, fmt.Errorf("%w: direct grant resource required", ErrInvalid)
+		}
+		if err := op.DirectGrant.SubjectRef.Validate(); err != nil {
+			return OperationResult{}, err
+		}
+		if !PermissionDefinedForResource(op.DirectGrant.PermissionKey, kind) {
+			return OperationResult{}, fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, op.DirectGrant.PermissionKey, kind)
+		}
+		resolved, _, err := s.resolveResource(ctx, op.DirectGrant.Resource)
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if resolved.OrgID == "" || resolved.OrgID != orgID {
+			return OperationResult{}, fmt.Errorf("%w: direct grant resource belongs to another org", ErrNotFound)
+		}
+		if err := s.requireDelegatablePermission(ctx, actor, op.DirectGrant.PermissionKey, resolved); err != nil {
+			return OperationResult{}, err
+		}
+		role, roleStatus, err := s.store.upsertManagedInternalRole(ctx, orgID, op.DirectGrant.PermissionKey, kind, s.clock.Now())
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if err := s.requireAssignmentSubjectApplicable(ctx, op.DirectGrant.SubjectRef, role.ID, resolved); err != nil {
+			return OperationResult{}, err
+		}
+		assignID := strings.TrimSpace(op.DirectGrant.ID)
+		if assignID == "" {
+			assignID = "asgn-" + shortHash(orgID+"|"+string(op.DirectGrant.SubjectRef)+"|"+role.ID+"|"+kind+"|"+resourceID)
+		}
+		a, status, err := s.store.assignRole(ctx, RoleAssignment{
+			ID:           assignID,
+			OrgID:        orgID,
+			SubjectRef:   op.DirectGrant.SubjectRef,
+			RoleID:       role.ID,
+			ResourceKind: kind,
+			ResourceID:   resourceID,
+			CreatedBy:    string(actor),
+			ExpiresAt:    op.DirectGrant.ExpiresAt,
+		}, s.clock.Now())
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if err := s.audit(ctx, auditEvent{EventType: "authorization.direct_grant.created", ActorRef: actor, SubjectRef: a.SubjectRef, PermissionKey: op.DirectGrant.PermissionKey, RoleID: role.ID, AssignmentID: a.ID, ResourceKind: kind, ResourceID: resourceID, Payload: map[string]any{"status": status, "role_status": roleStatus}}); err != nil {
+			return OperationResult{}, err
+		}
+		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: role.ID, AssignmentID: a.ID}, nil
 	default:
 		return OperationResult{}, fmt.Errorf("%w: unknown operation type %q", ErrInvalid, op.Type)
 	}
@@ -969,6 +1022,30 @@ func (s *Service) requireDelegatableRole(ctx context.Context, actor SubjectRef, 
 		}
 	}
 	return nil
+}
+
+func (s *Service) requireDelegatablePermission(ctx context.Context, actor SubjectRef, permission PermissionKey, resource ResourceScope) error {
+	if actor == "system" {
+		return nil
+	}
+	exp, err := s.Explain(ctx, CheckRequest{
+		SubjectRef: actor,
+		Transport:  TransportSystem,
+		Permission: permission,
+		Resource:   resource,
+	})
+	if err != nil && !errors.Is(err, ErrDenied) {
+		return err
+	}
+	if !exp.Decision.Allowed {
+		return fmt.Errorf("%w: %s", ErrNotDelegatable, permission)
+	}
+	for _, eff := range exp.Effective {
+		if eff.Key == permission && eff.Delegatable {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrNotDelegatable, permission)
 }
 
 var agentForbiddenPermissions = map[PermissionKey]struct{}{
@@ -1194,7 +1271,7 @@ func (s *Service) effectiveVersion(ctx context.Context) (string, error) {
 	parts := make([]string, 0, 8)
 	queries := []string{
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || subject_ref || ':' || role_id || ':' || resource_kind || ':' || resource_id || ':' || version || ':' || COALESCE(revoked_at, '') || ':' || COALESCE(expires_at, '') AS v FROM authorization_role_assignments ORDER BY id)`,
-		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
+		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT id || ':' || org_id || ':' || kind || ':' || COALESCE(managed, 0) || ':' || COALESCE(visibility, 'visible') || ':' || name || ':' || version || ':' || COALESCE(revoked_at, '') AS v FROM authorization_roles ORDER BY id)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT role_id || ':' || permission_key || ':' || resource_kind || ':' || delegatable AS v FROM authorization_role_permissions ORDER BY role_id, permission_key, resource_kind)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || member_ref || ':' || role || ':' || created_at AS v FROM team_members ORDER BY team_id, member_ref)`,
 		`SELECT COALESCE(GROUP_CONCAT(v, '|'), '') FROM (SELECT team_id || ':' || project_id || ':' || created_at AS v FROM team_projects ORDER BY team_id, project_id)`,
