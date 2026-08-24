@@ -886,6 +886,80 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: roleID, AssignmentID: a.ID}, nil
 
+	case "direct_grant":
+		grant := op.DirectGrant
+		grant.SubjectRef = SubjectRef(strings.TrimSpace(string(grant.SubjectRef)))
+		grant.PermissionKey = PermissionKey(strings.TrimSpace(string(grant.PermissionKey)))
+		if err := grant.SubjectRef.Validate(); err != nil {
+			return OperationResult{}, err
+		}
+		kind, resourceID := grant.Resource.Key()
+		if kind == "" || resourceID == "" {
+			return OperationResult{}, fmt.Errorf("%w: direct grant resource required", ErrInvalid)
+		}
+		if !PermissionDefinedForResource(grant.PermissionKey, kind) {
+			return OperationResult{}, fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, grant.PermissionKey, kind)
+		}
+		resolved, _, err := s.resolveResource(ctx, grant.Resource)
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if resolved.OrgID == "" || resolved.OrgID != orgID {
+			return OperationResult{}, fmt.Errorf("%w: direct grant resource belongs to another org", ErrNotFound)
+		}
+		if err := s.requireAssignmentSubjectApplicableForPermission(ctx, grant.SubjectRef, grant.PermissionKey, resolved); err != nil {
+			return OperationResult{}, err
+		}
+		if actor != "system" {
+			exp, err := s.Explain(ctx, CheckRequest{
+				SubjectRef: actor,
+				Transport:  TransportSystem,
+				Permission: grant.PermissionKey,
+				Resource:   resolved,
+			})
+			if err != nil && !errors.Is(err, ErrDenied) {
+				return OperationResult{}, err
+			}
+			if !exp.Decision.Allowed {
+				return OperationResult{}, fmt.Errorf("%w: %s", ErrNotDelegatable, grant.PermissionKey)
+			}
+			var delegatable bool
+			for _, eff := range exp.Effective {
+				if eff.Key == grant.PermissionKey && eff.Delegatable {
+					delegatable = true
+					break
+				}
+			}
+			if !delegatable {
+				return OperationResult{}, fmt.Errorf("%w: %s", ErrNotDelegatable, grant.PermissionKey)
+			}
+		}
+		role, roleStatus, err := s.store.upsertManagedInternalRole(ctx, orgID, grant.PermissionKey, kind, s.clock.Now())
+		if err != nil {
+			return OperationResult{}, err
+		}
+		assignID := strings.TrimSpace(grant.ID)
+		if assignID == "" {
+			assignID = "asgn-" + shortHash(orgID+"|"+string(grant.SubjectRef)+"|"+role.ID+"|"+kind+"|"+resourceID)
+		}
+		a, status, err := s.store.assignRole(ctx, RoleAssignment{
+			ID:           assignID,
+			OrgID:        orgID,
+			SubjectRef:   grant.SubjectRef,
+			RoleID:       role.ID,
+			ResourceKind: kind,
+			ResourceID:   resourceID,
+			CreatedBy:    string(actor),
+			ExpiresAt:    grant.ExpiresAt,
+		}, s.clock.Now())
+		if err != nil {
+			return OperationResult{}, err
+		}
+		if err := s.audit(ctx, auditEvent{EventType: "authorization.direct_grant.created", ActorRef: actor, SubjectRef: a.SubjectRef, PermissionKey: grant.PermissionKey, RoleID: role.ID, AssignmentID: a.ID, ResourceKind: kind, ResourceID: resourceID, RequestID: requestID, Payload: map[string]any{"status": status, "carrier_status": roleStatus}}); err != nil {
+			return OperationResult{}, err
+		}
+		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: role.ID, AssignmentID: a.ID}, nil
+
 	case "revoke_assignment":
 		if err := s.requireRevokeAllowed(ctx, actor, orgID, op.Revoke); err != nil {
 			return OperationResult{}, err
@@ -1000,6 +1074,23 @@ func (s *Service) requireAssignmentSubjectApplicable(ctx context.Context, subjec
 	for _, p := range perms {
 		if _, forbidden := agentForbiddenPermissions[p.PermissionKey]; forbidden {
 			return fmt.Errorf("%w: agents cannot receive high-risk permission %s", ErrInvalid, p.PermissionKey)
+		}
+	}
+	return nil
+}
+
+func (s *Service) requireAssignmentSubjectApplicableForPermission(ctx context.Context, subject SubjectRef, permission PermissionKey, resource ResourceScope) error {
+	if !(subject.IsUser() || subject.IsAgent()) {
+		return fmt.Errorf("%w: direct grants require a human or agent subject", ErrInvalid)
+	}
+	if _, ok, err := s.orgMember(ctx, resource.OrgID, subject); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("%w: assignment subject is not a joined org member", ErrNotFound)
+	}
+	if subject.IsAgent() {
+		if _, forbidden := agentForbiddenPermissions[permission]; forbidden {
+			return fmt.Errorf("%w: agents cannot receive high-risk permission %s", ErrInvalid, permission)
 		}
 	}
 	return nil
@@ -2132,6 +2223,13 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 	kind, id := req.Resource.Key()
 	if kind == "" || id == "" || req.Resource.OrgID == "" {
 		return nil
+	}
+	if kind != "worker" && (req.SubjectRef.IsUser() || req.SubjectRef.IsAgent()) {
+		if _, ok, err := s.orgMember(ctx, req.Resource.OrgID, req.SubjectRef); err != nil {
+			return err
+		} else if !ok {
+			return nil
+		}
 	}
 	assignments, err := s.store.activeAssignmentsFor(ctx, req.Resource.OrgID, req.SubjectRef, kind, id)
 	if err != nil {
