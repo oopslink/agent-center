@@ -200,14 +200,14 @@ describe('Access page', () => {
     expect(builder).toHaveTextContent('Team Role reviewer');
     expect(builder).toHaveTextContent('RAM Role team-curator');
     expect(builder).toHaveTextContent('direct binding');
-    expect(builder).toHaveTextContent('RAM Role role-access-project-write');
+    expect(builder).toHaveTextContent('grant grant-custom-1');
     const sidebar = await screen.findByTestId('access-subject-sidebar');
     const trace = within(sidebar).getByTestId('access-permission-trace');
     expect(trace).toHaveTextContent('Membership → Team Role → RAM Role');
     expect(trace).toHaveTextContent('agent-center core → reviewer → team-curator');
     expect(trace).toHaveTextContent('Explicit deny');
     expect(trace).toHaveTextContent('Final → denied');
-    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('role-access-project-write');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('grant-custom-1');
     await waitFor(() => expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created'));
 
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));

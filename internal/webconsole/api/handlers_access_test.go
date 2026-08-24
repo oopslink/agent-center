@@ -300,15 +300,15 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES ('role-access-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
+		VALUES ('role-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
-		VALUES ('role-access-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
+		VALUES ('role-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-access-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
+	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`INSERT OR REPLACE INTO team_role_ram_role_versions (team_id, team_role, version, updated_at, updated_by) VALUES (?, 'reviewer', 1, ?, 'system')`, tm.ID().String(), now); err != nil {
@@ -370,10 +370,10 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	for _, d := range overview.Decisions {
 		if d.SubjectRef == subject && d.Permission == "team.memory.review" {
 			seen[d.Source] = true
-			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-access-union-reviewer" {
+			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-union-reviewer" {
 				t.Fatalf("team RAM role_id=%q evidence=%q", d.RoleID, d.EvidenceRef)
 			}
-			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
+			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "" || d.RoleID != "") {
 				t.Fatalf("direct decision grant/expiry not read back: %+v", d)
 			}
 		}
@@ -385,7 +385,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	var directGrant bool
 	for _, grant := range overview.Grants {
-		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID != "" {
+		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID == "" {
 			directGrant = true
 		}
 	}

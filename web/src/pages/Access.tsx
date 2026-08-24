@@ -1155,7 +1155,7 @@ function SubjectDecisionView({
               <div className="mt-2 space-y-2">
                 {selectedGrants.filter((grant) => grant.source === 'custom_role').map((grant) => (
                   <div key={grant.id} className="text-xs">
-                    <div className="font-mono font-semibold text-text-primary">{grant.role_id || grant.id}</div>
+                    <div className="font-mono font-semibold text-text-primary">{grant.id}</div>
                     <div className="text-text-secondary">{grant.permission} on {accessResourceLabel(grant.resource)}</div>
                     <div className="text-text-muted">{grant.status} · expires {displayAccessDate(grant.expires_at)}</div>
                   </div>
@@ -1184,7 +1184,7 @@ function SubjectDecisionView({
               ))}
               {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
                 <p key={`${row.permission}:${row.evidence_ref}:detail`} className="rounded border border-border-base p-2">
-                  <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                  <span className="font-mono text-text-primary">direct binding</span> -&gt; grant {row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
                 </p>
               ))}
               {selectedRows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && (
@@ -1213,7 +1213,7 @@ function decisionStats(rows: AccessDecision[], grants: AccessGrant[]): { allowed
 
 function sourceChain(row: AccessDecision): string {
   if (row.source === 'team_role_ram') return `membership → Team Role → RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
-  if (row.source === 'custom_role') return `direct binding → RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
+  if (row.source === 'custom_role') return `direct binding → grant ${row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
   return `${row.source} → ${row.evidence_ref}`;
 }
 
@@ -1334,7 +1334,7 @@ function SubjectAccessSidebar({
               {direct.map((grant) => (
                 <div key={`${grant.id}:trace`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="font-semibold text-text-primary">Direct union</div>
-                  <p className="mt-1 text-text-secondary">direct binding → RAM Role {grant.role_id || grant.id} → {grant.permission}</p>
+                  <p className="mt-1 text-text-secondary">direct binding → grant {grant.id} → {grant.permission}</p>
                 </div>
               ))}
               {deniedRows.map((row) => (
@@ -1380,7 +1380,7 @@ function SubjectAccessSidebar({
                 <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
                   <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
-                  <div className="mt-1 font-mono text-text-muted">{grant.role_id || grant.id}</div>
+                  <div className="mt-1 font-mono text-text-muted">{grant.id}</div>
                 </div>
               ))}
             </div>
