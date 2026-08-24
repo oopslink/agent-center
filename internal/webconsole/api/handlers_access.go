@@ -1539,14 +1539,14 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 			}
 			resolved := accessResourceFromAuthz(effective.Resource, resource)
 			for _, permission := range effective.Permissions {
-				if permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
+				if permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceDirectBinding && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
 				key := strings.Join([]string{subj.Ref, string(permission.Key), resourceKey(resolved)}, "|")
 				if _, denied := deniedKeys[key]; denied {
 					continue
 				}
-				if _, ok := seen[key]; ok && permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceTeamRoleRAM {
+				if _, ok := seen[key]; ok && permission.Source != authz.SourceCustomRole && permission.Source != authz.SourceDirectBinding && permission.Source != authz.SourceTeamRoleRAM {
 					continue
 				}
 				def := s.catalogByKey[string(permission.Key)]
@@ -1648,7 +1648,7 @@ func accessDecisionEffective(effective []authz.EffectivePermission, permission, 
 }
 
 func accessGrantIDForDecision(decision accessDecisionDTO) string {
-	if decision.Source == string(authz.SourceCustomRole) && strings.HasPrefix(decision.EvidenceRef, "authorization_role_assignments:") {
+	if (decision.Source == string(authz.SourceCustomRole) || decision.Source == string(authz.SourceDirectBinding)) && strings.HasPrefix(decision.EvidenceRef, "authorization_role_assignments:") {
 		return strings.TrimPrefix(decision.EvidenceRef, "authorization_role_assignments:")
 	}
 	return accessGrantID(decision.SubjectRef, decision.Permission, decision.Resource, decision.Source)
@@ -2226,7 +2226,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 	item.Risk = grant.Risk
 	item.HighRisk = grant.Risk == "high"
 	item.Reason = fmt.Sprintf("%s is a derived permission and must be revoked at its source", id)
-	if grant.Source != string(authz.SourceCustomRole) {
+	if grant.Source != string(authz.SourceCustomRole) && grant.Source != string(authz.SourceDirectBinding) {
 		return item, authz.BatchOperation{}
 	}
 	op := authz.BatchOperation{

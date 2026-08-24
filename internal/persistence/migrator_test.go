@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -143,7 +144,7 @@ func TestMigration0143FailsClosedWhenRoleAccessReferencedByTeamRole(t *testing.T
 		}
 	}
 	err = m.Up(ctx)
-	if err == nil || !strings.Contains(err.Error(), "blocker_count = 0") {
+	if err == nil || !strings.Contains(err.Error(), "migration 0143 blocked") || !strings.Contains(err.Error(), "role=role-access-blocked") || !strings.Contains(err.Error(), "team_role_refs=\"team-t1499:reviewer\"") {
 		t.Fatalf("Up with Team Role role-access reference err=%v, want fail-closed guard", err)
 	}
 	var version int
@@ -153,6 +154,198 @@ func TestMigration0143FailsClosedWhenRoleAccessReferencedByTeamRole(t *testing.T
 	if version != 142 {
 		t.Fatalf("version after failed 0143 = %d want 142", version)
 	}
+}
+
+func TestMigration0143FailsClosedForNonSinglePermissionRoleAccess(t *testing.T) {
+	db, err := Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	m := NewMigrator(db)
+	if err := m.Up(ctx); err != nil {
+		t.Fatalf("initial Up: %v", err)
+	}
+	if err := m.Down(ctx, 142); err != nil {
+		t.Fatalf("Down(142): %v", err)
+	}
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	for _, stmt := range []string{
+		`INSERT INTO authorization_roles (id, org_id, kind, stable_key, scope_kind, name, description, created_by, created_at, updated_at, version) VALUES ('role-access-multiperm', 'org-t1499', 'custom', 'role-access-multiperm', 'org', 'ambiguous role access', '', 'system', '` + now + `', '` + now + `', 1)`,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at) VALUES ('role-access-multiperm', 'org.read', 'org', 0, '` + now + `')`,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at) VALUES ('role-access-multiperm', 'org.analytics.read', 'org', 0, '` + now + `')`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	err = m.Up(ctx)
+	if err == nil || !strings.Contains(err.Error(), "role=role-access-multiperm") || !strings.Contains(err.Error(), "permission_count=2") {
+		t.Fatalf("Up with multi-permission role-access err=%v, want actionable blocker", err)
+	}
+	version, err := m.Version(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != 142 {
+		t.Fatalf("version after failed 0143 = %d want 142", version)
+	}
+}
+
+func TestMigration0143DirectCarrierEquivalenceIdempotentAndRollback(t *testing.T) {
+	db, err := Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	m := NewMigrator(db)
+	if err := m.Up(ctx); err != nil {
+		t.Fatalf("initial Up: %v", err)
+	}
+	if err := m.Down(ctx, 142); err != nil {
+		t.Fatalf("Down(142): %v", err)
+	}
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	expires := time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	for _, stmt := range []string{
+		`INSERT INTO identities (id, kind, display_name, passcode_hash, created_at, updated_at) VALUES ('mig-user', 'user', 'Migration User', 'x', '` + now + `', '` + now + `')`,
+		`INSERT INTO identities (id, kind, display_name, passcode_hash, created_at, updated_at) VALUES ('mig-expired-user', 'user', 'Migration Expired User', 'x', '` + now + `', '` + now + `')`,
+		`INSERT INTO organizations (id, slug, name, created_by_identity_id, created_at, updated_at) VALUES ('org-mig', 'org-mig', 'Migration Org', 'mig-user', '` + now + `', '` + now + `')`,
+		`INSERT INTO members (id, organization_id, identity_id, role, status, joined_at) VALUES ('mem-mig', 'org-mig', 'mig-user', 'member', 'disabled', '` + now + `')`,
+		`INSERT INTO members (id, organization_id, identity_id, role, status, joined_at) VALUES ('mem-mig-expired', 'org-mig', 'mig-expired-user', 'member', 'joined', '` + now + `')`,
+		`INSERT INTO authorization_roles (id, org_id, kind, stable_key, scope_kind, name, description, created_by, created_at, updated_at, version) VALUES ('role-access-single', 'org-mig', 'custom', 'role-access-single', 'org', 'legacy direct carrier', '', 'system', '` + now + `', '` + now + `', 1)`,
+		`INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at) VALUES ('role-access-single', 'org.analytics.read', 'org', 0, '` + now + `')`,
+		`INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, expires_at, version) VALUES ('asgn-mig-live', 'org-mig', 'user:mig-user', 'role-access-single', 'org', 'org-mig', 'system', '` + now + `', '` + expires + `', 1)`,
+		`INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, expires_at, version) VALUES ('asgn-mig-expired', 'org-mig', 'user:mig-expired-user', 'role-access-single', 'org', 'org-mig', 'system', '` + now + `', '` + now + `', 1)`,
+		`INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, version) VALUES ('asgn-mig-wrong-scope', 'org-mig', 'user:mig-user', 'role-access-single', 'org', 'org-other', 'system', '` + now + `', 1)`,
+		`INSERT INTO authorization_role_assignments (id, org_id, subject_ref, role_id, resource_kind, resource_id, created_by, created_at, revoked_at, revoked_by, revoked_reason, version) VALUES ('asgn-mig-revoked', 'org-mig', 'user:mig-user', 'role-access-single', 'org', 'org-mig', 'system', '` + now + `', '` + now + `', 'system', 'cleanup', 2)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	before := snapshot0143Carrier(t, db)
+	if before.Kind != "custom" || before.Managed != "" || before.Visibility != "" || before.LiveAssignments != 3 || before.RevokedAssignments != 1 || before.EffectiveAllows != 0 || before.EligibleDirectGrants != 1 || before.ExpiredActive != 1 || before.WrongScopeActive != 1 || !before.DenyPrecedence {
+		t.Fatalf("before snapshot=%+v", before)
+	}
+	if err := m.Up(ctx); err != nil {
+		t.Fatalf("Up 0143: %v", err)
+	}
+	after := snapshot0143Carrier(t, db)
+	if after.Kind != "managed" || after.Managed != "1" || after.Visibility != "internal" || after.LiveAssignments != before.LiveAssignments || after.RevokedAssignments != before.RevokedAssignments || after.PermissionCount != before.PermissionCount || after.ExpiresAt != before.ExpiresAt || after.EffectiveAllows != before.EffectiveAllows || after.EligibleDirectGrants != before.EligibleDirectGrants || after.ExpiredActive != before.ExpiredActive || after.WrongScopeActive != before.WrongScopeActive || after.DenyPrecedence != before.DenyPrecedence {
+		t.Fatalf("after snapshot=%+v before=%+v", after, before)
+	}
+	if err := m.Up(ctx); err != nil {
+		t.Fatalf("second Up: %v", err)
+	}
+	replayed := snapshot0143Carrier(t, db)
+	if replayed.Version != after.Version || replayed.LiveAssignments != after.LiveAssignments || replayed.RevokedAssignments != after.RevokedAssignments {
+		t.Fatalf("idempotent replay mutated snapshot=%+v after=%+v", replayed, after)
+	}
+	if err := m.Down(ctx, 142); err != nil {
+		t.Fatalf("Down 142: %v", err)
+	}
+	rolledBack := snapshot0143Carrier(t, db)
+	if rolledBack.Kind != "custom" || rolledBack.LiveAssignments != before.LiveAssignments || rolledBack.RevokedAssignments != before.RevokedAssignments || rolledBack.PermissionCount != before.PermissionCount || rolledBack.ExpiresAt != before.ExpiresAt || rolledBack.EffectiveAllows != before.EffectiveAllows || rolledBack.EligibleDirectGrants != before.EligibleDirectGrants || rolledBack.ExpiredActive != before.ExpiredActive || rolledBack.WrongScopeActive != before.WrongScopeActive || rolledBack.DenyPrecedence != before.DenyPrecedence {
+		t.Fatalf("rollback snapshot=%+v before=%+v", rolledBack, before)
+	}
+}
+
+type migration0143Snapshot struct {
+	Kind                 string
+	Managed              string
+	Visibility           string
+	Version              int
+	PermissionCount      int
+	LiveAssignments      int
+	RevokedAssignments   int
+	ExpiresAt            string
+	EligibleDirectGrants int
+	ExpiredActive        int
+	WrongScopeActive     int
+	EffectiveAllows      int
+	DenyPrecedence       bool
+}
+
+func snapshot0143Carrier(t *testing.T, db *sql.DB) migration0143Snapshot {
+	t.Helper()
+	var out migration0143Snapshot
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('authorization_roles') WHERE name IN ('managed', 'visibility')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasManaged := false
+	hasVisibility := false
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		if name == "managed" {
+			hasManaged = true
+		}
+		if name == "visibility" {
+			hasVisibility = true
+		}
+	}
+	rows.Close()
+	query := `SELECT kind, version`
+	if hasManaged {
+		query += `, CAST(managed AS TEXT)`
+	} else {
+		query += `, ''`
+	}
+	if hasVisibility {
+		query += `, visibility`
+	} else {
+		query += `, ''`
+	}
+	query += ` FROM authorization_roles WHERE id = 'role-access-single'`
+	if err := db.QueryRow(query).Scan(&out.Kind, &out.Version, &out.Managed, &out.Visibility); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_permissions WHERE role_id = 'role-access-single'`).Scan(&out.PermissionCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id = 'role-access-single' AND revoked_at IS NULL`).Scan(&out.LiveAssignments); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE role_id = 'role-access-single' AND revoked_at IS NOT NULL`).Scan(&out.RevokedAssignments); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COALESCE(expires_at, '') FROM authorization_role_assignments WHERE id = 'asgn-mig-live'`).Scan(&out.ExpiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*)
+		FROM authorization_role_assignments a
+		JOIN authorization_role_permissions p ON p.role_id = a.role_id
+		WHERE a.role_id = 'role-access-single'
+		  AND a.subject_ref = 'user:mig-user'
+		  AND a.resource_kind = 'org'
+		  AND a.resource_id = 'org-mig'
+		  AND a.revoked_at IS NULL
+		  AND (a.expires_at IS NULL OR a.expires_at > '2026-08-24T12:00:00Z')
+		  AND p.permission_key = 'org.analytics.read'
+		  AND p.resource_kind = 'org'`).Scan(&out.EligibleDirectGrants); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE id = 'asgn-mig-expired' AND revoked_at IS NULL AND expires_at <= '2026-08-24T12:00:00Z'`).Scan(&out.ExpiredActive); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_role_assignments WHERE id = 'asgn-mig-wrong-scope' AND revoked_at IS NULL AND resource_id <> 'org-mig'`).Scan(&out.WrongScopeActive); err != nil {
+		t.Fatal(err)
+	}
+	var memberStatus string
+	if err := db.QueryRow(`SELECT status FROM members WHERE id = 'mem-mig'`).Scan(&memberStatus); err != nil {
+		t.Fatal(err)
+	}
+	out.DenyPrecedence = memberStatus == "disabled"
+	if !out.DenyPrecedence {
+		out.EffectiveAllows = out.EligibleDirectGrants
+	}
+	return out
 }
 
 func TestMigrator_DownReverts(t *testing.T) {

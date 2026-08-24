@@ -406,7 +406,7 @@ func TestDirectGrantManagedInternalCarrierEffectiveExpiryAndRevoke(t *testing.T)
 	}
 	var matched bool
 	for _, p := range eff.Permissions {
-		if p.Key == "org.analytics.read" && p.Source == SourceCustomRole && p.AssignmentID == applied.Operations[0].AssignmentID && p.ExpiresAt != nil {
+		if p.Key == "org.analytics.read" && p.Source == SourceDirectBinding && p.AssignmentID == applied.Operations[0].AssignmentID && p.ExpiresAt != nil {
 			matched = true
 		}
 	}
@@ -448,6 +448,67 @@ func TestDirectGrantManagedInternalCarrierEffectiveExpiryAndRevoke(t *testing.T)
 	expiredDecision, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}})
 	if !errors.Is(err, ErrDenied) || expiredDecision.Allowed {
 		t.Fatalf("expired direct grant decision=%#v err=%v", expiredDecision, err)
+	}
+}
+
+func TestDirectGrantManagedInternalCarrierIDsAreOrgIsolated(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	now := svc.clock.Now().UTC().Format(time.RFC3339Nano)
+	execMany(t, db,
+		`INSERT INTO members (id, organization_id, identity_id, role, status, joined_at) VALUES ('mem-owner-org2', 'org-2', 'user-owner', 'owner', 'joined', ?)`,
+		now,
+	)
+	execMany(t, db,
+		`INSERT INTO members (id, organization_id, identity_id, role, status, joined_at) VALUES ('mem-member-org2', 'org-2', 'user-member', 'member', 'joined', ?)`,
+		now,
+	)
+
+	grant := func(orgID string) OperationResult {
+		t.Helper()
+		res, err := svc.ApplyBatch(ctx, BatchRequest{
+			IdempotencyKey: "direct-cross-org-" + orgID,
+			ActorRef:       "user:user-owner",
+			OrgID:          orgID,
+			Operations: []BatchOperation{{ID: "grant", Type: "grant_direct_permission", DirectGrant: DirectGrantInput{
+				SubjectRef:    "user:user-member",
+				PermissionKey: "org.analytics.read",
+				Resource:      ResourceScope{Kind: "org", ID: orgID},
+			}}},
+		})
+		if err != nil {
+			t.Fatalf("direct grant %s: %v", orgID, err)
+		}
+		if len(res.Operations) != 1 || res.Operations[0].RoleID == "" || res.Operations[0].AssignmentID == "" {
+			t.Fatalf("direct grant %s result=%#v", orgID, res)
+		}
+		return res.Operations[0]
+	}
+
+	org1 := grant("org-1")
+	org2 := grant("org-2")
+	if org1.RoleID == org2.RoleID {
+		t.Fatalf("direct carriers must be org-isolated, both grants used %s", org1.RoleID)
+	}
+	for _, c := range []struct {
+		orgID string
+		op    OperationResult
+	}{
+		{"org-1", org1},
+		{"org-2", org2},
+	} {
+		var owner string
+		if err := db.QueryRowContext(ctx, `SELECT org_id FROM authorization_roles WHERE id = ? AND kind = 'managed' AND managed = 1 AND visibility = 'internal'`, c.op.RoleID).Scan(&owner); err != nil {
+			t.Fatalf("carrier %s: %v", c.op.RoleID, err)
+		}
+		if owner != c.orgID {
+			t.Fatalf("carrier %s org=%s want %s", c.op.RoleID, owner, c.orgID)
+		}
+		decision, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: c.orgID}})
+		if err != nil || !decision.Allowed || decision.Source != SourceDirectBinding {
+			t.Fatalf("direct decision %s=%#v err=%v", c.orgID, decision, err)
+		}
 	}
 }
 

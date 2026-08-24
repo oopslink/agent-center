@@ -2217,6 +2217,14 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 		if a.ExpiresAt != nil && !a.ExpiresAt.After(s.clock.Now()) {
 			continue
 		}
+		role, err := s.store.getRole(ctx, a.RoleID)
+		if err != nil {
+			return err
+		}
+		source := SourceCustomRole
+		if role.Kind == "managed" && role.Managed && role.Visibility == "internal" {
+			source = SourceDirectBinding
+		}
 		perms, err := s.store.rolePermissions(ctx, a.RoleID)
 		if err != nil {
 			return err
@@ -2227,7 +2235,7 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 			}
 			*out = append(*out, EffectivePermission{
 				Key:          p.PermissionKey,
-				Source:       SourceCustomRole,
+				Source:       source,
 				EvidenceRef:  "authorization_role_assignments:" + a.ID,
 				Delegatable:  p.Delegatable,
 				RoleID:       a.RoleID,

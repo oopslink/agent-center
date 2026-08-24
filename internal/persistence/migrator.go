@@ -321,6 +321,11 @@ func (m *Migrator) applyOne(ctx context.Context, mig migration, up bool) error {
 	if !up {
 		sqlText = mig.down
 	}
+	if up && mig.version == 143 {
+		if err := m.preflightDirectBindingInternalRoles(ctx); err != nil {
+			return err
+		}
+	}
 	return RunInTx(ctx, m.db, func(txCtx context.Context) error {
 		exec, err := ExecutorFromCtx(txCtx, m.db)
 		if err != nil {
@@ -339,6 +344,61 @@ func (m *Migrator) applyOne(ctx context.Context, mig migration, up bool) error {
 		}
 		return err
 	})
+}
+
+func (m *Migrator) preflightDirectBindingInternalRoles(ctx context.Context) error {
+	const query = `
+WITH permission_counts AS (
+	SELECT role_id,
+	       COUNT(*) AS permission_count,
+	       COALESCE(GROUP_CONCAT(permission_key || '/' || resource_kind), '') AS permissions
+	FROM authorization_role_permissions
+	GROUP BY role_id
+),
+team_refs AS (
+	SELECT ram_role_id,
+	       COUNT(*) AS ref_count,
+	       COALESCE(GROUP_CONCAT(team_id || ':' || team_role), '') AS refs
+	FROM team_role_ram_role_mappings
+	GROUP BY ram_role_id
+)
+SELECT r.id, r.org_id, COALESCE(pc.permission_count, 0), COALESCE(pc.permissions, ''), COALESCE(tr.ref_count, 0), COALESCE(tr.refs, '')
+FROM authorization_roles r
+LEFT JOIN permission_counts pc ON pc.role_id = r.id
+LEFT JOIN team_refs tr ON tr.ram_role_id = r.id
+WHERE r.id LIKE 'role-access-%'
+  AND r.kind = 'custom'
+  AND r.revoked_at IS NULL
+  AND (COALESCE(pc.permission_count, 0) <> 1 OR COALESCE(tr.ref_count, 0) > 0)
+ORDER BY r.org_id, r.id`
+	rows, err := m.db.QueryContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var blockers []string
+	for rows.Next() {
+		var roleID, orgID, permissions, teamRefs string
+		var permissionCount, teamRefCount int
+		if err := rows.Scan(&roleID, &orgID, &permissionCount, &permissions, &teamRefCount, &teamRefs); err != nil {
+			return err
+		}
+		reasons := []string{}
+		if permissionCount != 1 {
+			reasons = append(reasons, fmt.Sprintf("permission_count=%d permissions=%q", permissionCount, permissions))
+		}
+		if teamRefCount > 0 {
+			reasons = append(reasons, fmt.Sprintf("team_role_refs=%q", teamRefs))
+		}
+		blockers = append(blockers, fmt.Sprintf("role=%s org=%s %s", roleID, orgID, strings.Join(reasons, " ")))
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(blockers) > 0 {
+		return fmt.Errorf("migration 0143 blocked: ambiguous role-access roles must be resolved before internalizing direct binding carriers: %s", strings.Join(blockers, "; "))
+	}
+	return nil
 }
 
 func parseMigrationName(filename string) (version int, name, direction string, err error) {

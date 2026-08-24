@@ -343,19 +343,19 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-access-union-reviewer" {
 				t.Fatalf("team RAM role_id=%q evidence=%q", d.RoleID, d.EvidenceRef)
 			}
-			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
+			if d.Source == string(authz.SourceDirectBinding) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
 				t.Fatalf("direct decision grant/expiry not read back: %+v", d)
 			}
 		}
 	}
-	for _, source := range []string{string(authz.SourceOrgRole), string(authz.SourceTeamRoleRAM), string(authz.SourceCustomRole)} {
+	for _, source := range []string{string(authz.SourceOrgRole), string(authz.SourceTeamRoleRAM), string(authz.SourceDirectBinding)} {
 		if !seen[source] {
 			t.Fatalf("overview missing %s union source; decisions=%+v", source, overview.Decisions)
 		}
 	}
 	var directGrant bool
 	for _, grant := range overview.Grants {
-		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID != "" {
+		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceDirectBinding) && grant.RoleID != "" {
 			directGrant = true
 		}
 	}

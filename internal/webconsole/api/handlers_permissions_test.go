@@ -276,7 +276,7 @@ func assertAccessApplyRoundTrip(t *testing.T, db *sql.DB, endpoint, permission s
 		t.Fatal(err)
 	}
 	if !hasDirectEffectivePermission(effective.Permissions, permission, grantID) {
-		t.Fatalf("effective permissions missing direct custom_role %s/%s: %+v", permission, grantID, effective.Permissions)
+		t.Fatalf("effective permissions missing direct binding %s/%s: %+v", permission, grantID, effective.Permissions)
 	}
 
 	overviewResp := orgScopedGet(t, strings.Split(endpoint, "/api/")[0]+"/api/permissions/effective?view=access&status=allowed&q="+permission, sess)
@@ -302,16 +302,16 @@ func assertAccessApplyRoundTrip(t *testing.T, db *sql.DB, endpoint, permission s
 		t.Fatal(err)
 	}
 	if !hasDirectAccessDecision(overview.Decisions, permission, grantID) {
-		t.Fatalf("access overview missing direct custom_role %s/%s: %+v", permission, grantID, overview.Decisions)
+		t.Fatalf("access overview missing direct binding %s/%s: %+v", permission, grantID, overview.Decisions)
 	}
 	if !hasDirectAccessGrant(overview.Grants, permission, grantID) {
-		t.Fatalf("access overview grants missing direct custom_role %s/%s: %+v", permission, grantID, overview.Grants)
+		t.Fatalf("access overview grants missing direct binding %s/%s: %+v", permission, grantID, overview.Grants)
 	}
 }
 
 func hasDirectEffectivePermission(perms []authz.EffectivePermission, permission, assignmentID string) bool {
 	for _, p := range perms {
-		if string(p.Key) == permission && p.Source == authz.SourceCustomRole && p.AssignmentID == assignmentID {
+		if string(p.Key) == permission && p.Source == authz.SourceDirectBinding && p.AssignmentID == assignmentID {
 			return true
 		}
 	}
@@ -326,7 +326,7 @@ func hasDirectAccessDecision(decisions []struct {
 	Status      string `json:"status"`
 }, permission, grantID string) bool {
 	for _, d := range decisions {
-		if d.Permission == permission && d.Source == string(authz.SourceCustomRole) && d.GrantID == grantID && d.Status == "allowed" && d.EvidenceRef == "authorization_role_assignments:"+grantID {
+		if d.Permission == permission && d.Source == string(authz.SourceDirectBinding) && d.GrantID == grantID && d.Status == "allowed" && d.EvidenceRef == "authorization_role_assignments:"+grantID {
 			return true
 		}
 	}
@@ -339,7 +339,7 @@ func hasDirectAccessGrant(grants []struct {
 	Source     string `json:"source"`
 }, permission, grantID string) bool {
 	for _, g := range grants {
-		if g.ID == grantID && g.Permission == permission && g.Source == string(authz.SourceCustomRole) {
+		if g.ID == grantID && g.Permission == permission && g.Source == string(authz.SourceDirectBinding) {
 			return true
 		}
 	}

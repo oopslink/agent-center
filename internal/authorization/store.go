@@ -296,7 +296,10 @@ func (s *Store) upsertManagedInternalRole(ctx context.Context, orgID string, per
 	if !PermissionDefinedForResource(permission, resourceKind) {
 		return Role{}, "", fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, permission, resourceKind)
 	}
-	id := managedDirectRoleID(permission, resourceKind)
+	id, err := s.managedDirectRoleID(ctx, orgID, permission, resourceKind)
+	if err != nil {
+		return Role{}, "", err
+	}
 	ts := now.UTC().Format(time.RFC3339Nano)
 	status := "created"
 	if existing, err := s.getRole(ctx, id); err == nil {
@@ -341,8 +344,28 @@ func (s *Store) upsertManagedInternalRole(ctx context.Context, orgID string, per
 	return role, status, err
 }
 
-func managedDirectRoleID(permission PermissionKey, resourceKind string) string {
+func (s *Store) managedDirectRoleID(ctx context.Context, orgID string, permission PermissionKey, resourceKind string) (string, error) {
+	legacyID := legacyManagedDirectRoleID(permission, resourceKind)
+	existing, err := s.getRole(ctx, legacyID)
+	if err == nil {
+		if existing.OrgID == orgID {
+			return legacyID, nil
+		}
+		return orgScopedManagedDirectRoleID(orgID, permission, resourceKind), nil
+	}
+	if !errors.Is(err, ErrRoleNotFound) {
+		return "", err
+	}
+	return orgScopedManagedDirectRoleID(orgID, permission, resourceKind), nil
+}
+
+func legacyManagedDirectRoleID(permission PermissionKey, resourceKind string) string {
 	sum := sha256.Sum256([]byte(string(permission) + "|" + resourceKind))
+	return "role-access-" + hex.EncodeToString(sum[:])[:16]
+}
+
+func orgScopedManagedDirectRoleID(orgID string, permission PermissionKey, resourceKind string) string {
+	sum := sha256.Sum256([]byte(orgID + "|" + string(permission) + "|" + resourceKind))
 	return "role-access-" + hex.EncodeToString(sum[:])[:16]
 }
 

@@ -1,24 +1,9 @@
 -- 0143_direct_binding_internal_roles.up.sql -- direct grants use internal managed carriers.
 --
 -- Legacy Access batch grants created visible custom roles with ids like
--- role-access-*. Those rows are implementation carriers for one-permission
--- direct assignments, not user-managed RAM Roles. If a Team Role references one
--- of those rows, stop immediately so an operator can resolve the ambiguous
--- Team Role mapping explicitly instead of silently hiding it.
-
-CREATE TEMP TABLE IF NOT EXISTS _t1499_role_access_guard (
-    blocker_count INTEGER NOT NULL CHECK (blocker_count = 0)
-);
-
-DELETE FROM _t1499_role_access_guard;
-
-INSERT INTO _t1499_role_access_guard(blocker_count)
-SELECT COUNT(*)
-FROM team_role_ram_role_mappings m
-JOIN authorization_roles r ON r.id = m.ram_role_id
-WHERE r.id LIKE 'role-access-%'
-  AND r.kind = 'custom'
-  AND r.revoked_at IS NULL;
+-- role-access-*. Only genuine one-permission direct carriers may be hidden.
+-- The Go migrator preflight fails closed before this SQL when a role-access row
+-- is ambiguous, including Team Role references and non-single-permission rows.
 
 ALTER TABLE authorization_roles ADD COLUMN managed INTEGER NOT NULL DEFAULT 0 CHECK (managed IN (0, 1));
 ALTER TABLE authorization_roles ADD COLUMN visibility TEXT NOT NULL DEFAULT 'visible' CHECK (visibility IN ('visible', 'internal'));
@@ -34,14 +19,28 @@ WHERE type = 'table'
 PRAGMA writable_schema = OFF;
 PRAGMA schema_version = 143;
 
+WITH direct_carriers AS (
+    SELECT r.id
+    FROM authorization_roles r
+    JOIN authorization_role_permissions arp ON arp.role_id = r.id
+    LEFT JOIN team_role_ram_role_mappings trm ON trm.ram_role_id = r.id
+    WHERE r.id LIKE 'role-access-%'
+      AND r.kind = 'custom'
+      AND r.visibility = 'visible'
+      AND r.revoked_at IS NULL
+    GROUP BY r.id
+    HAVING COUNT(arp.permission_key) = 1
+       AND COUNT(trm.ram_role_id) = 0
+)
 UPDATE authorization_roles
 SET kind = 'managed',
     managed = 1,
     visibility = 'internal',
     updated_at = datetime('now'),
     version = version + 1
-WHERE id LIKE 'role-access-%'
+WHERE id IN (SELECT id FROM direct_carriers)
   AND kind = 'custom'
+  AND visibility = 'visible'
   AND revoked_at IS NULL;
 
 DROP INDEX IF EXISTS idx_authorization_roles_custom_org_name;
