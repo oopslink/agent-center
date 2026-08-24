@@ -734,6 +734,112 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestAccessRAMRolesListAndDetailOnlyExposeReusableSystemCustom(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := db.Exec(`
+		INSERT INTO authorization_roles (id, org_id, kind, stable_key, name, description, scope_kind, created_by, created_at, updated_at, version)
+		VALUES
+			('role-list-custom', ?, 'custom', 'list-custom', 'List custom', '', 'team', 'system', ?, ?, 1)`,
+		sess.OrgID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	resp := orgScopedGet(t, server.URL+"/api/access/ram-roles", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var listed struct {
+		Total    int `json:"total"`
+		Filtered int `json:"filtered"`
+		Reusable int `json:"reusable"`
+		System   int `json:"system"`
+		Custom   int `json:"custom"`
+		Roles    []struct {
+			ID   string `json:"id"`
+			Kind string `json:"kind"`
+			Name string `json:"name"`
+		} `json:"roles"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if listed.Total != listed.Reusable || listed.Filtered != len(listed.Roles) || listed.System == 0 {
+		t.Fatalf("list reusable counts wrong: %+v", listed)
+	}
+	for _, role := range listed.Roles {
+		if role.Kind != "system" && role.Kind != "custom" {
+			t.Fatalf("non-reusable role leaked into list: %+v", role)
+		}
+	}
+	resp = orgScopedGet(t, server.URL+"/api/access/ram-roles?kind=system&page=1&page_size=1", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("filtered list status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var filtered struct {
+		Total      int    `json:"total"`
+		Filtered   int    `json:"filtered"`
+		Reusable   int    `json:"reusable"`
+		Page       int    `json:"page"`
+		PageSize   int    `json:"page_size"`
+		KindFilter string `json:"kind_filter"`
+		Roles      []struct {
+			Kind string `json:"kind"`
+		} `json:"roles"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&filtered); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if filtered.Total != listed.Total || filtered.Reusable != listed.Reusable || filtered.Filtered != listed.System || filtered.Page != 1 || filtered.PageSize != 1 || filtered.KindFilter != "system" || len(filtered.Roles) != 1 || filtered.Roles[0].Kind != "system" {
+		t.Fatalf("filtered/paged reusable list wrong: %+v listed=%+v", filtered, listed)
+	}
+	for _, id := range []string{"role-missing-hidden", "role-internal-hidden"} {
+		resp = orgScopedGet(t, server.URL+"/api/access/ram-roles/"+id, sess)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("detail for %s status=%d want 404 body=%v", id, resp.StatusCode, decodeBody(t, resp))
+		}
+		resp.Body.Close()
+	}
+	filteredRoles := filterAccessRAMRoles([]accessRAMRoleDTO{
+		{ID: "role-managed-hidden", Kind: "managed", Name: "Managed hidden"},
+		{ID: "role-internal-hidden", Kind: "internal", Name: "Internal hidden"},
+		{ID: "role-custom-visible", Kind: "custom", Name: "Custom visible"},
+	}, accessRAMRoleListOptions{})
+	if len(filteredRoles) != 1 || filteredRoles[0].ID != "role-custom-visible" {
+		t.Fatalf("filter must defensively reject managed/internal roles: %+v", filteredRoles)
+	}
+}
+
+func TestAccessRAMRoleCreateRequiresHumanReadableName(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	server := newTestServer(t, deps)
+	defer server.Close()
+
+	for _, body := range []string{
+		`{"name":"role-access-project-write","permissions":["team.read"]}`,
+		`{"name":"ram-internal-admin","permissions":["team.read"]}`,
+		`{"name":"12","permissions":["team.read"]}`,
+	} {
+		resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", body, sess)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("create with non-human name status=%d want 422 body=%v", resp.StatusCode, decodeBody(t, resp))
+		}
+		resp.Body.Close()
+	}
+
+	resp := orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Release operator","stable_key":"release-operator-readable","permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create readable status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	resp.Body.Close()
+}
+
 func TestAccessRAMRoleV4EditDeleteAndReferenceBlocking(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)

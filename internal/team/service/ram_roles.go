@@ -148,7 +148,7 @@ func (s *Service) validateRAMRoles(ctx context.Context, q queryer, teamID team.T
 	}
 	for _, id := range ids {
 		var n int
-		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id=? AND revoked_at IS NULL AND org_id IN ('',?)`, id, orgID).Scan(&n); err != nil {
+		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id=? AND revoked_at IS NULL AND kind IN ('system','custom') AND org_id IN ('',?)`, id, orgID).Scan(&n); err != nil {
 			return err
 		}
 		if n != 1 {

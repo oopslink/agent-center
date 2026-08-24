@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,28 @@ type accessRAMRoleDTO struct {
 	CreatedAt   string   `json:"created_at,omitempty"`
 	UpdatedAt   string   `json:"updated_at,omitempty"`
 	References  int      `json:"references,omitempty"`
+}
+
+type accessRAMRoleListDTO struct {
+	Roles      []accessRAMRoleDTO `json:"roles"`
+	Total      int                `json:"total"`
+	Filtered   int                `json:"filtered"`
+	Page       int                `json:"page"`
+	PageSize   int                `json:"page_size"`
+	Reusable   int                `json:"reusable"`
+	System     int                `json:"system"`
+	Custom     int                `json:"custom"`
+	KindFilter string             `json:"kind_filter,omitempty"`
+	Query      string             `json:"query,omitempty"`
+}
+
+type accessRAMRoleListOptions struct {
+	Query    string
+	Kind     string
+	Risk     string
+	Scope    string
+	Page     int
+	PageSize int
 }
 
 type accessRAMRoleDetailDTO struct {
@@ -387,12 +410,12 @@ func (s *Server) accessRAMRolesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "ram_roles_not_wired", "RAM role store not wired")
 		return
 	}
-	roles, err := accessListRAMRoles(r.Context(), d.DB, orgID)
+	roles, err := accessListRAMRoles(r.Context(), d.DB, orgID, accessRAMRoleListOptionsFromRequest(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "ram_roles_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"roles": roles})
+	writeJSON(w, http.StatusOK, roles)
 }
 
 func (s *Server) accessRAMRoleDetailHandler(w http.ResponseWriter, r *http.Request) {
@@ -537,16 +560,16 @@ var (
 	errAccessRAMRoleReferenced  = errors.New("RAM role is still referenced")
 )
 
-func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]accessRAMRoleDTO, error) {
+func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string, opts accessRAMRoleListOptions) (accessRAMRoleListDTO, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT ar.id, COALESCE(NULLIF(ar.stable_key, ''), ar.id), ar.name, ar.kind, ar.description, COALESCE(NULLIF(ar.scope_kind, ''), 'org'), ar.revoked_at, ar.version, COALESCE(v.permissions_json, '[]'), COALESCE(v.risk, 'low'), ar.created_at, ar.updated_at,
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
-		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL
+		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL AND ar.kind IN ('system', 'custom')
 		ORDER BY ar.name, ar.id`, orgID)
 	if err != nil {
-		return nil, err
+		return accessRAMRoleListDTO{}, err
 	}
 	defer rows.Close()
 	var out []accessRAMRoleDTO
@@ -554,7 +577,7 @@ func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]access
 	for rows.Next() {
 		role, err := scanAccessRAMRoleVersion(rows)
 		if err != nil {
-			return nil, err
+			return accessRAMRoleListDTO{}, err
 		}
 		if len(role.Permissions) == 0 {
 			missingPermissions = append(missingPermissions, len(out))
@@ -562,17 +585,117 @@ func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]access
 		out = append(out, role)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return accessRAMRoleListDTO{}, err
 	}
 	if err := rows.Close(); err != nil {
-		return nil, err
+		return accessRAMRoleListDTO{}, err
 	}
 	for _, idx := range missingPermissions {
 		out[idx].Permissions = accessRAMRoleCurrentPermissions(ctx, db, out[idx].ID)
 		out[idx].Risk = accessPermissionsRisk(out[idx].Permissions)
 		out[idx].Scope = accessRAMRoleScope(out[idx].Permissions)
 	}
-	return out, nil
+	system, custom := 0, 0
+	for _, role := range out {
+		switch role.Kind {
+		case "system":
+			system++
+		case "custom":
+			custom++
+		}
+	}
+	total := len(out)
+	out = filterAccessRAMRoles(out, opts)
+	filtered := len(out)
+	page, pageSize := normalizeAccessRAMRolePage(opts.Page, opts.PageSize, filtered)
+	start := (page - 1) * pageSize
+	if start > filtered {
+		start = filtered
+	}
+	end := start + pageSize
+	if end > filtered {
+		end = filtered
+	}
+	out = out[start:end]
+	return accessRAMRoleListDTO{
+		Roles:      out,
+		Total:      total,
+		Filtered:   filtered,
+		Page:       page,
+		PageSize:   pageSize,
+		Reusable:   total,
+		System:     system,
+		Custom:     custom,
+		KindFilter: opts.Kind,
+		Query:      opts.Query,
+	}, nil
+}
+
+func accessRAMRoleListOptionsFromRequest(r *http.Request) accessRAMRoleListOptions {
+	q := r.URL.Query()
+	return accessRAMRoleListOptions{
+		Query:    strings.TrimSpace(q.Get("q")),
+		Kind:     strings.TrimSpace(q.Get("kind")),
+		Risk:     strings.TrimSpace(q.Get("risk")),
+		Scope:    strings.TrimSpace(q.Get("scope")),
+		Page:     parsePositiveInt(q.Get("page")),
+		PageSize: parsePositiveInt(q.Get("page_size")),
+	}
+}
+
+func filterAccessRAMRoles(roles []accessRAMRoleDTO, opts accessRAMRoleListOptions) []accessRAMRoleDTO {
+	q := strings.ToLower(strings.TrimSpace(opts.Query))
+	kind := strings.TrimSpace(opts.Kind)
+	risk := strings.TrimSpace(opts.Risk)
+	scope := strings.TrimSpace(opts.Scope)
+	out := make([]accessRAMRoleDTO, 0, len(roles))
+	for _, role := range roles {
+		if role.Kind != "system" && role.Kind != "custom" {
+			continue
+		}
+		if kind != "" && kind != "all" && role.Kind != kind {
+			continue
+		}
+		if risk != "" && risk != "all" && role.Risk != risk {
+			continue
+		}
+		if scope != "" && scope != "all" && role.Scope != scope {
+			continue
+		}
+		if q != "" {
+			haystack := strings.ToLower(strings.Join([]string{role.ID, role.StableKey, role.Name, role.Description, role.Kind, role.Scope}, " "))
+			if !strings.Contains(haystack, q) {
+				continue
+			}
+		}
+		out = append(out, role)
+	}
+	return out
+}
+
+func normalizeAccessRAMRolePage(page, pageSize, filtered int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		if filtered > 0 {
+			pageSize = filtered
+		} else {
+			pageSize = 1
+		}
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+func parsePositiveInt(value string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || n < 1 {
+		return 0
+	}
+	return n
 }
 
 func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) (accessRAMRoleDetailDTO, bool, error) {
@@ -584,7 +707,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 	err := db.QueryRowContext(ctx, `
 		SELECT id, COALESCE(NULLIF(stable_key, ''), id), name, kind, description, COALESCE(NULLIF(scope_kind, ''), 'org'), revoked_at
 		FROM authorization_roles
-		WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).
+		WHERE id = ? AND org_id IN ('', ?) AND kind IN ('system', 'custom')`, roleID, orgID).
 		Scan(&detail.ID, &detail.StableKey, &detail.Name, &detail.Kind, &detail.Description, &detail.Scope, &revoked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -652,7 +775,7 @@ func scanAccessRAMRoleVersion(row accessRAMRoleScanner) (accessRAMRoleDTO, error
 
 func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, body accessRAMRoleWriteDTO) (accessRAMRoleDetailDTO, error) {
 	name := strings.TrimSpace(body.Name)
-	if name == "" {
+	if !isHumanReadableRAMRoleName(name) {
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
 	}
 	stableKey := normalizeRAMRoleStableKey(body.StableKey)
@@ -1005,6 +1128,36 @@ func normalizeRAMRoleStableKey(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+func isHumanReadableRAMRoleName(name string) bool {
+	if len(name) < 3 {
+		return false
+	}
+	hasLetter := false
+	for _, r := range name {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+			hasLetter = true
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		switch r {
+		case ' ', '-', '_', '/', '&', '(', ')':
+			continue
+		default:
+			return false
+		}
+	}
+	if !hasLetter {
+		return false
+	}
+	lower := strings.ToLower(name)
+	if strings.HasPrefix(lower, "role-") || strings.HasPrefix(lower, "ram-") {
+		return false
+	}
+	return !strings.ContainsAny(name, "-_/") || normalizeRAMRoleStableKey(name) != lower
 }
 
 func insertRAMRoleAudit(ctx context.Context, exec interface {

@@ -45,6 +45,7 @@ import { EntityMultiSelect } from '@/components/EntityMultiSelect';
 import { EmptyState } from '@/components/EmptyState';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { Skeleton } from '@/components/Skeleton';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { useModalA11y } from '@/components/useModalA11y';
 import { useAppStore } from '@/store/app';
 import { useOptionalOrgContext } from '@/OrgContext';
@@ -596,6 +597,7 @@ function RAMRolesView({
                   <td className="px-4 py-2.5">
                     <div className="font-semibold text-text-primary">{role.name}</div>
                     <div className="font-mono text-[0.6875rem] text-text-muted">{role.stable_key || role.id}</div>
+                    <div className="mt-1"><AccessMetaPill>{role.kind}</AccessMetaPill></div>
                   </td>
                   <td className="px-4 py-2.5"><AccessRiskBadge risk={role.risk} /></td>
                   <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{role.permissions.length}</td>
@@ -623,7 +625,7 @@ function RAMRolesView({
           <div className="flex items-center justify-between gap-2 border-b border-border-base px-4 py-3">
             <div>
               <h2 className="text-base font-semibold text-text-primary">{detail.data?.name ?? 'RAM Role detail'}</h2>
-              {detail.data && <p className="mt-0.5 font-mono text-xs text-text-muted">{detail.data.stable_key}</p>}
+              {detail.data && <p className="mt-0.5 font-mono text-xs text-text-muted">ID {detail.data.id} · stable key {detail.data.stable_key}</p>}
             </div>
             {detail.data && (
               <div className="flex gap-2"><button type="button" className="rounded border border-border-base px-3 py-1.5 text-xs font-semibold" data-testid="access-role-edit-open" onClick={() => setRoleDrawer({ mode: 'edit', roleId: detail.data.id })}>Edit</button>
@@ -634,7 +636,7 @@ function RAMRolesView({
           {detail.data && (
             <>
               <div className="p-4">
-                <div className="flex items-center gap-2 text-xs text-text-muted"><AccessRiskBadge risk={detail.data.latest.risk} /><span>Latest v{detail.data.latest.version} · {detail.data.scope}</span></div>
+                <div className="flex items-center gap-2 text-xs text-text-muted"><AccessRiskBadge risk={detail.data.latest.risk} /><AccessMetaPill>{detail.data.kind}</AccessMetaPill><span>Latest v{detail.data.latest.version} · {detail.data.scope}</span></div>
                 <div className="mt-1 text-xs text-text-secondary" data-testid="access-role-used-by">
                   Referenced by:{' '}
                   {mappedReferences.length > 0
@@ -827,7 +829,8 @@ function RAMRoleDrawer({
   const [ack, setAck] = useState(false);
   const hasHighRisk = risk === 'high' || catalog.some((permission) => permissions.includes(permission.key) && permission.risk === 'high');
   const title = mode === 'create' ? 'Create RAM Role' : 'Edit RAM Role';
-  const canSubmit = Boolean(canManageAccess && name.trim() && stableKey.trim() && permissions.length > 0 && (!hasHighRisk || ack));
+  const nameIsReadable = isHumanReadableRAMRoleName(name);
+  const canSubmit = Boolean(canManageAccess && nameIsReadable && stableKey.trim() && permissions.length > 0 && (!hasHighRisk || ack));
   const togglePermission = (permission: string): void => setPermissions((prev) => toggleValue(prev, permission).sort());
   const submit = (): void => {
     const payload = {
@@ -872,9 +875,7 @@ function RAMRoleDrawer({
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-text-muted">
-              Approval fields mirror the RAM Role detail contract: stable key, scope, risk, permissions, and latest version.
-            </p>
+            <p className="mt-1 text-xs text-text-muted">{mode === 'create' ? 'Creates a custom RAM Role with a human-readable name.' : `${role?.kind ?? 'custom'} RAM Role`}</p>
           </div>
           <button type="button" aria-label="Close" title="Close" className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle" onClick={onClose}>
             <IconClose />
@@ -883,6 +884,7 @@ function RAMRoleDrawer({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <div className="space-y-3">
             <RoleTextField label="Name" value={name} onChange={setName} testId="access-role-name" />
+            {!nameIsReadable && name.trim() && <p className="text-xs text-danger" role="alert">Use a human-readable RAM Role name.</p>}
             <RoleTextField label="Stable key" value={stableKey} onChange={setStableKey} testId="access-role-stable-key" />
             <label className="mt-3 block">
               <span className="text-xs font-semibold text-text-muted">Scope support</span>
@@ -921,10 +923,10 @@ function RAMRoleDrawer({
           }} catalog={catalog} /></div>
           <PermissionChecklist catalog={catalog} selected={permissions} onToggle={togglePermission} />
           {hasHighRisk && (
-            <label className="flex items-start gap-2 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-text-secondary">
-              <input type="checkbox" className="mt-0.5" checked={ack} data-testid="access-role-risk-ack" onChange={(event) => setAck(event.target.checked)} />
+            <div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/10 p-3 text-xs text-text-secondary">
+              <ToggleSwitch checked={ack} onChange={setAck} ariaLabel="Approve high-risk RAM Role permissions before saving" testId="access-role-risk-ack" />
               <span>Approve high-risk RAM Role permissions before saving.</span>
-            </label>
+            </div>
           )}
           {(create.isError || update.isError) && <p className="text-sm text-danger" role="alert">{((create.error ?? update.error) as Error).message}</p>}
         </div>
@@ -957,6 +959,18 @@ function RoleTextField({ label, value, onChange, testId }: { label: string; valu
       />
     </label>
   );
+}
+
+function isHumanReadableRAMRoleName(value: string): boolean {
+  const name = value.trim();
+  if (name.length < 3 || !/[A-Za-z]/.test(name)) return false;
+  const lower = name.toLowerCase();
+  if (lower.startsWith('role-') || lower.startsWith('ram-')) return false;
+  return !/[-_/]/.test(name) || normalizeRAMRoleKey(name) !== lower;
+}
+
+function normalizeRAMRoleKey(value: string): string {
+  return value.trim().toLowerCase().replace(/_/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessPermissionDefinition[]; selected: string[]; onToggle: (permission: string) => void }): React.ReactElement {
@@ -1289,9 +1303,9 @@ function SubjectDecisionView({
               <div className="mt-2 space-y-2">
                 {selectedGrants.filter((grant) => grant.source === 'custom_role').map((grant) => (
                   <div key={grant.id} className="text-xs">
-                    <div className="font-mono font-semibold text-text-primary">{grant.role_id || grant.id}</div>
-                    <div className="text-text-secondary">{grant.permission} on {accessResourceLabel(grant.resource)}</div>
-                    <div className="text-text-muted">{grant.status} · expires {displayAccessDate(grant.expires_at)}</div>
+                    <div className="font-mono font-semibold text-text-primary">Direct binding -&gt; {grant.permission}</div>
+                    <div className="text-text-secondary">{accessResourceLabel(grant.resource)}</div>
+                    <div className="text-text-muted">scope {grant.resource.kind} · expires {displayAccessDate(grant.expires_at)}</div>
                   </div>
                 ))}
                 {selectedGrants.filter((grant) => grant.source === 'custom_role').length === 0 && <p className="text-sm text-text-muted">No direct bindings in this subject slice.</p>}
@@ -1315,7 +1329,9 @@ function SubjectDecisionView({
                 ))}
                 {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
                   <p key={`${row.permission}:${row.evidence_ref}`} className="rounded border border-border-base p-2 text-xs text-text-secondary">
-                    <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission}
+                    <span className="font-mono text-text-primary">Direct binding</span> -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                    {row.expires_at && <> · expires {displayAccessDate(row.expires_at)}</>}
+                    {row.reason && <> · {row.reason}</>}
                   </p>
                 ))}
                 {subjectTeams.length === 0 && selectedRows.every((row) => row.source !== 'custom_role') && <p className="text-sm text-text-muted">No team RAM or direct trace is visible in the current filter.</p>}
@@ -1334,7 +1350,9 @@ function SubjectDecisionView({
               ))}
               {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
                 <p key={`${row.permission}:${row.evidence_ref}:detail`} className="rounded border border-border-base p-2">
-                  <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                  <span className="font-mono text-text-primary">Direct binding</span> -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                  {row.expires_at && <> · expires {displayAccessDate(row.expires_at)}</>}
+                  {row.reason && <> · {row.reason}</>}
                 </p>
               ))}
               {selectedRows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && (
@@ -1363,7 +1381,7 @@ function decisionStats(rows: AccessDecision[], grants: AccessGrant[]): { allowed
 
 function sourceChain(row: AccessDecision): string {
   if (row.source === 'team_role_ram') return `Team membership -> Team Role -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
-  if (row.source === 'custom_role') return `direct binding -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
+  if (row.source === 'custom_role') return `Direct binding -> ${row.permission} on ${accessResourceLabel(row.resource)}`;
   return `${row.source} -> ${row.evidence_ref}`;
 }
 
@@ -1513,7 +1531,7 @@ function SubjectAccessSidebar({
                     {row.source === 'team_role_ram'
                       ? `Team membership -> Team Role -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
                       : row.source === 'custom_role'
-                        ? `direct binding -> RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`
+                        ? `Direct binding -> ${row.permission} on ${accessResourceLabel(row.resource)}`
                         : `${row.source} -> effective permission`}
                   </p>
                   <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">{row.evidence_ref}</p>
@@ -1530,9 +1548,9 @@ function SubjectAccessSidebar({
             <div className="mt-2 space-y-2">
               {direct.map((grant) => (
                 <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
-                  <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
-                  <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
-                  <div className="mt-1 font-mono text-text-muted">{grant.role_id || grant.id}</div>
+                  <div className="font-mono font-semibold text-text-primary">Direct binding -&gt; {grant.permission}</div>
+                  <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · scope {grant.resource.kind}</div>
+                  <div className="mt-1 text-text-muted">expires {displayAccessDate(grant.expires_at)} · {grant.status}</div>
                 </div>
               ))}
             </div>

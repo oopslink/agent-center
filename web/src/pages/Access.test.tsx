@@ -89,11 +89,14 @@ describe('Access page', () => {
     expect(builder).toHaveTextContent('membership:agent-center core');
     expect(builder).toHaveTextContent('Team Role reviewer');
     expect(builder).toHaveTextContent('RAM Role team-curator');
-    expect(builder).toHaveTextContent('direct binding');
-    expect(builder).toHaveTextContent('RAM Role role-access-project-write');
+    expect(builder).toHaveTextContent('Direct binding');
+    expect(builder).toHaveTextContent('Direct binding -> project.write');
+    expect(builder).not.toHaveTextContent('role-access-project-write');
     const sidebar = await screen.findByTestId('access-subject-sidebar');
     expect(within(sidebar).getByTestId('access-permission-trace')).toHaveTextContent('Team membership -> Team Role -> RAM Role team-curator');
-    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('role-access-project-write');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('Direct binding -> project.write');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('Project Alpha');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).not.toHaveTextContent('role-access-project-write');
     await waitFor(() => expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created'));
 
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
@@ -405,10 +408,14 @@ describe('Access page', () => {
 
     fireEvent.click(within(view).getByTestId('access-role-new'));
     const create = await screen.findByTestId('access-role-drawer');
+    fireEvent.change(within(create).getByTestId('access-role-name'), { target: { value: 'role-access-project-write' } });
+    fireEvent.change(within(create).getByTestId('access-role-stable-key'), { target: { value: 'release-operator' } });
+    fireEvent.click(within(create).getByText('org.read'));
+    expect(within(create).getByRole('alert')).toHaveTextContent('Use a human-readable RAM Role name.');
+    expect(within(create).getByTestId('access-role-create-submit')).toBeDisabled();
     fireEvent.change(within(create).getByTestId('access-role-name'), { target: { value: 'Release operator' } });
     fireEvent.change(within(create).getByTestId('access-role-stable-key'), { target: { value: 'release-operator' } });
     fireEvent.change(within(create).getByTestId('access-role-description'), { target: { value: 'release work' } });
-    fireEvent.click(within(create).getByText('org.read'));
     fireEvent.click(within(create).getByText('project.write'));
     fireEvent.click(within(create).getByTestId('access-role-create-submit'));
 
