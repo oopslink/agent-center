@@ -38,8 +38,38 @@ type shadowAuditCoverage struct {
 	CoveragePairs map[string]bool
 }
 
+const reservedAccessGrantRoleNamePrefix = "Access grant"
+
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
+}
+
+func normalizeRoleKindVisibility(kind, visibility string) (string, string, error) {
+	kind = strings.TrimSpace(kind)
+	visibility = strings.TrimSpace(visibility)
+	if kind == "" {
+		kind = "custom"
+	}
+	if visibility == "" {
+		if kind == "managed" {
+			visibility = "internal"
+		} else {
+			visibility = "reusable"
+		}
+	}
+	switch kind {
+	case "system", "custom":
+		if visibility != "reusable" {
+			return "", "", fmt.Errorf("%w: reusable roles must use system/custom kind", ErrInvalid)
+		}
+	case "managed":
+		if visibility != "internal" {
+			return "", "", fmt.Errorf("%w: managed roles must be internal", ErrInvalid)
+		}
+	default:
+		return "", "", fmt.Errorf("%w: role kind must be system, custom, or managed", ErrInvalid)
+	}
+	return kind, visibility, nil
 }
 
 func (s *Store) exec(ctx context.Context) (persistence.SQLExecutor, error) {
@@ -210,7 +240,7 @@ func (s *Store) getRole(ctx context.Context, id string) (Role, error) {
 	if err != nil {
 		return Role{}, err
 	}
-	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, name, description, created_by, created_at, updated_at, version
+	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, COALESCE(NULLIF(visibility, ''), 'reusable'), name, description, created_by, created_at, updated_at, version
 		FROM authorization_roles WHERE id = ? AND revoked_at IS NULL`, strings.TrimSpace(id))
 	return scanRole(row.Scan)
 }
@@ -220,9 +250,9 @@ func (s *Store) findCustomRoleByName(ctx context.Context, orgID, name string) (R
 	if err != nil {
 		return Role{}, err
 	}
-	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, name, description, created_by, created_at, updated_at, version
+	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, COALESCE(NULLIF(visibility, ''), 'reusable'), name, description, created_by, created_at, updated_at, version
 		FROM authorization_roles
-		WHERE org_id = ? AND name = ? AND kind = 'custom' AND revoked_at IS NULL`,
+		WHERE org_id = ? AND name = ? AND kind = 'custom' AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable' AND revoked_at IS NULL`,
 		strings.TrimSpace(orgID), strings.TrimSpace(name))
 	return scanRole(row.Scan)
 }
@@ -237,6 +267,18 @@ func (s *Store) upsertCustomRole(ctx context.Context, role Role, now time.Time) 
 	if role.OrgID == "" || role.Name == "" || strings.TrimSpace(role.CreatedBy) == "" {
 		return Role{}, "", fmt.Errorf("%w: custom role requires org_id, name and created_by", ErrInvalid)
 	}
+	kind, visibility, err := normalizeRoleKindVisibility(role.Kind, role.Visibility)
+	if err != nil {
+		return Role{}, "", err
+	}
+	if kind == "system" {
+		return Role{}, "", ErrSystemRoleImmutable
+	}
+	if kind == "custom" && visibility == "reusable" && strings.HasPrefix(role.Name, reservedAccessGrantRoleNamePrefix) {
+		return Role{}, "", fmt.Errorf("%w: %q prefix is reserved for managed internal roles", ErrInvalid, reservedAccessGrantRoleNamePrefix)
+	}
+	role.Kind = kind
+	role.Visibility = visibility
 	if role.ID == "" {
 		existing, err := s.findCustomRoleByName(ctx, role.OrgID, role.Name)
 		if err == nil {
@@ -249,16 +291,19 @@ func (s *Store) upsertCustomRole(ctx context.Context, role Role, now time.Time) 
 	if role.ID != "" {
 		existing, err := s.getRole(ctx, role.ID)
 		if err == nil {
-			if existing.Kind != "custom" {
+			if existing.Kind == "system" {
 				return Role{}, "", ErrSystemRoleImmutable
 			}
 			if existing.OrgID != role.OrgID {
 				return Role{}, "", fmt.Errorf("%w: role org mismatch", ErrInvalid)
 			}
+			if existing.Kind != role.Kind || existing.Visibility != role.Visibility {
+				return Role{}, "", fmt.Errorf("%w: role kind/visibility mismatch", ErrInvalid)
+			}
 			if _, err := exec.ExecContext(ctx, `UPDATE authorization_roles
 				SET name = ?, description = ?, updated_at = ?, version = version + 1
-				WHERE id = ? AND kind = 'custom' AND revoked_at IS NULL`,
-				role.Name, role.Description, ts, role.ID); err != nil {
+				WHERE id = ? AND kind = ? AND visibility = ? AND revoked_at IS NULL`,
+				role.Name, role.Description, ts, role.ID, role.Kind, role.Visibility); err != nil {
 				return Role{}, "", err
 			}
 			updated, err := s.getRole(ctx, role.ID)
@@ -272,9 +317,9 @@ func (s *Store) upsertCustomRole(ctx context.Context, role Role, now time.Time) 
 		role.ID = "role-" + shortHash(role.OrgID+"|"+role.Name+"|"+ts)
 	}
 	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_roles
-		(id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, 1)`,
-		role.ID, role.OrgID, role.Name, role.Description, role.CreatedBy, ts, ts)
+		(id, org_id, kind, visibility, name, description, created_by, created_at, updated_at, version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+		role.ID, role.OrgID, role.Kind, role.Visibility, role.Name, role.Description, role.CreatedBy, ts, ts)
 	if err != nil {
 		return Role{}, "", err
 	}
@@ -291,7 +336,7 @@ func (s *Store) replaceRolePermissions(ctx context.Context, roleID string, perms
 	if err != nil {
 		return err
 	}
-	if role.Kind != "custom" {
+	if role.Kind == "system" {
 		return ErrSystemRoleImmutable
 	}
 	if _, err := exec.ExecContext(ctx, `DELETE FROM authorization_role_permissions WHERE role_id = ?`, roleID); err != nil {
@@ -703,7 +748,7 @@ type auditEvent struct {
 func scanRole(scan func(dest ...any) error) (Role, error) {
 	var r Role
 	var created, updated string
-	if err := scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.CreatedBy, &created, &updated, &r.Version); err != nil {
+	if err := scan(&r.ID, &r.OrgID, &r.Kind, &r.Visibility, &r.Name, &r.Description, &r.CreatedBy, &created, &updated, &r.Version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Role{}, ErrRoleNotFound
 		}
