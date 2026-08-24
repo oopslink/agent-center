@@ -104,18 +104,80 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 	var applied struct {
 		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
 			PartialFailure bool `json:"partial_failure"`
 			Failed         int  `json:"failed"`
 			Unauthorized   int  `json:"unauthorized"`
 			NotApplicable  int  `json:"not_applicable"`
 		} `json:"summary"`
+		Items []struct {
+			ID         string `json:"id"`
+			SubjectRef string `json:"subject_ref"`
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+				ID   string `json:"id"`
+			} `json:"resource"`
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&applied); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 {
-		t.Fatalf("apply did not expose partial failure details: %+v", applied.Summary)
+	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 || applied.Summary.Total != len(applied.Items) {
+		t.Fatalf("apply did not expose partial failure details/items: summary=%+v items=%+v", applied.Summary, applied.Items)
+	}
+	for _, item := range applied.Items {
+		if item.SubjectRef == "unknown" || item.Permission == "unknown" || item.Resource.ID == "unknown" {
+			t.Fatalf("apply returned phantom unknown item: %+v", item)
+		}
+	}
+
+	mixedBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.analytics.read"],
+		"resources":[
+			{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"},
+			{"kind":"project","id":"proj-alpha","org_id":"` + sess.OrgID + `","label":"Project Alpha"}
+		],
+		"reason":"temporary analytics audit"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", mixedBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mixed org/project apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var mixed struct {
+		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
+			Failed         int  `json:"failed"`
+			NotApplicable  int  `json:"not_applicable"`
+			PartialFailure bool `json:"partial_failure"`
+		} `json:"summary"`
+		Items []struct {
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+			} `json:"resource"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&mixed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(mixed.Items) != 2 || mixed.Summary.Total != 2 || mixed.Summary.Succeeded != 1 || mixed.Summary.Failed != 1 || mixed.Summary.NotApplicable != 1 || !mixed.Summary.PartialFailure {
+		t.Fatalf("mixed org/project apply summary/items mismatch: summary=%+v items=%+v", mixed.Summary, mixed.Items)
+	}
+	statusByKind := map[string]string{}
+	for _, item := range mixed.Items {
+		statusByKind[item.Resource.Kind] = item.Status
+	}
+	if statusByKind["org"] != "allowed" || statusByKind["project"] != "not_applicable" {
+		t.Fatalf("mixed org/project item mapping mismatch: %+v", mixed.Items)
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
