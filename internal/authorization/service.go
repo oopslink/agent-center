@@ -789,7 +789,8 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		role, status, err := s.store.upsertCustomRole(ctx, Role{
 			ID:          id,
 			OrgID:       orgID,
-			Kind:        "custom",
+			Kind:        op.Role.Kind,
+			Visibility:  op.Role.Visibility,
 			Name:        op.Role.Name,
 			Description: op.Role.Description,
 			CreatedBy:   string(actor),
@@ -817,7 +818,7 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err != nil {
 			return OperationResult{}, err
 		}
-		if role.Kind == "custom" && role.OrgID != orgID {
+		if role.Kind != "system" && role.OrgID != orgID {
 			return OperationResult{}, fmt.Errorf("%w: role belongs to another org", ErrNotFound)
 		}
 		for _, p := range op.Permissions {

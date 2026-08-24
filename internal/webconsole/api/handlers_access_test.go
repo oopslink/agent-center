@@ -163,6 +163,19 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	if len(direct.Items) != 1 || direct.Items[0].Status != "allowed" || direct.Items[0].GrantID == "" {
 		t.Fatalf("direct grant apply = %+v", direct.Items)
 	}
+	var directKind, directVisibility, directName string
+	directRoleID := accessRoleIDForPermission("org.analytics.read", "org")
+	if err := db.QueryRow(`SELECT kind, visibility, name FROM authorization_roles WHERE id = ?`, directRoleID).Scan(&directKind, &directVisibility, &directName); err != nil {
+		t.Fatalf("direct grant managed role missing: %v", err)
+	}
+	if directKind != "managed" || directVisibility != "internal" || strings.HasPrefix(directName, "Access grant") {
+		t.Fatalf("direct grant role classification=(%q,%q,%q), want managed/internal without reserved prefix", directKind, directVisibility, directName)
+	}
+	resp = orgScopedGet(t, server.URL+"/api/access/ram-roles/"+directRoleID, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("managed internal role detail status=%d want 404", resp.StatusCode)
+	}
+	resp.Body.Close()
 	directGrantID := direct.Items[0].GrantID
 	revokeReason := "quarterly least privilege review"
 	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`"}`, sess)
@@ -677,6 +690,11 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	if created.ID == "" || created.Latest.Version != 1 || len(created.Versions) != 1 {
 		t.Fatalf("created RAM role shape wrong: %+v", created)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Access grant org.read on org","permissions":["org.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("reserved Access grant create status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
 
 	stale := orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
 	if stale.StatusCode != http.StatusConflict {
@@ -709,6 +727,16 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	if len(updated.Versions[1].Perms) != 2 {
 		t.Fatalf("v1 mutated; versions must be immutable: %+v", updated.Versions)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"name":"Access grant team.read on team","expected_latest_version":2,"permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("reserved Access grant update status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/team-basic/versions", `{"expected_latest_version":1,"permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("system role update status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
 	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/revoke", `{"expected_latest_version":1,"reason":"stale"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale revoke status=%d want 409", resp.StatusCode)
