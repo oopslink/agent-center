@@ -553,6 +553,16 @@ func TestStoreInvariantErrorsAndReplayPendingState(t *testing.T) {
 	if _, _, err := s.upsertCustomRole(ctx, Role{ID: "sys-org-owner", OrgID: "org-1", Name: "overwrite", CreatedBy: "system"}, now); !errors.Is(err, ErrSystemRoleImmutable) {
 		t.Fatalf("system role overwrite err=%v", err)
 	}
+	if _, _, err := s.upsertCustomRole(ctx, Role{ID: "role-reserved", OrgID: "org-1", Kind: "custom", Visibility: "reusable", Name: "Access grant org.read on org", CreatedBy: "system"}, now); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("reserved reusable role name err=%v", err)
+	}
+	managed, _, err := s.upsertCustomRole(ctx, Role{ID: "role-managed", OrgID: "org-1", Kind: "managed", Visibility: "internal", Name: "Managed direct grant org.read on org", CreatedBy: "system"}, now)
+	if err != nil {
+		t.Fatalf("managed internal role create: %v", err)
+	}
+	if managed.Kind != "managed" || managed.Visibility != "internal" {
+		t.Fatalf("managed role classification=%+v", managed)
+	}
 	role, _, err := s.upsertCustomRole(ctx, Role{ID: "role-org-one", OrgID: "org-1", Name: "one", CreatedBy: "system"}, now)
 	if err != nil {
 		t.Fatal(err)

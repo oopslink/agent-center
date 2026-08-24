@@ -174,6 +174,7 @@ type Role struct {
 	ID          string    `json:"id"`
 	OrgID       string    `json:"org_id,omitempty"`
 	Kind        string    `json:"kind"`
+	Visibility  string    `json:"visibility"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
 	CreatedBy   string    `json:"created_by"`
@@ -223,6 +224,8 @@ type BatchOperation struct {
 
 type RoleInput struct {
 	ID          string `json:"id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Visibility  string `json:"visibility,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }

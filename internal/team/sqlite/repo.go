@@ -178,7 +178,7 @@ func ResolveRAMRoleKey(ctx context.Context, exec persistence.SQLExecutor, orgID,
 		return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
 	}
 	for _, scopeOrg := range []string{strings.TrimSpace(orgID), ""} {
-		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE name=? AND org_id=? AND revoked_at IS NULL ORDER BY id`, key, scopeOrg)
+		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE name=? AND org_id=? AND kind IN ('system','custom') AND COALESCE(NULLIF(visibility, ''), 'reusable')='reusable' AND revoked_at IS NULL ORDER BY id`, key, scopeOrg)
 		if err != nil {
 			return "", err
 		}
