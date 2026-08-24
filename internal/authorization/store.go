@@ -210,7 +210,7 @@ func (s *Store) getRole(ctx context.Context, id string) (Role, error) {
 	if err != nil {
 		return Role{}, err
 	}
-	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, name, description, created_by, created_at, updated_at, version
+	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, COALESCE(managed, 0), COALESCE(visibility, 'visible'), name, description, created_by, created_at, updated_at, version
 		FROM authorization_roles WHERE id = ? AND revoked_at IS NULL`, strings.TrimSpace(id))
 	return scanRole(row.Scan)
 }
@@ -220,9 +220,9 @@ func (s *Store) findCustomRoleByName(ctx context.Context, orgID, name string) (R
 	if err != nil {
 		return Role{}, err
 	}
-	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, name, description, created_by, created_at, updated_at, version
+	row := exec.QueryRowContext(ctx, `SELECT id, org_id, kind, COALESCE(managed, 0), COALESCE(visibility, 'visible'), name, description, created_by, created_at, updated_at, version
 		FROM authorization_roles
-		WHERE org_id = ? AND name = ? AND kind = 'custom' AND revoked_at IS NULL`,
+		WHERE org_id = ? AND name = ? AND kind = 'custom' AND visibility = 'visible' AND revoked_at IS NULL`,
 		strings.TrimSpace(orgID), strings.TrimSpace(name))
 	return scanRole(row.Scan)
 }
@@ -272,14 +272,78 @@ func (s *Store) upsertCustomRole(ctx context.Context, role Role, now time.Time) 
 		role.ID = "role-" + shortHash(role.OrgID+"|"+role.Name+"|"+ts)
 	}
 	_, err = exec.ExecContext(ctx, `INSERT INTO authorization_roles
-		(id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, 1)`,
+		(id, org_id, kind, managed, visibility, name, description, created_by, created_at, updated_at, version)
+		VALUES (?, ?, 'custom', 0, 'visible', ?, ?, ?, ?, ?, 1)`,
 		role.ID, role.OrgID, role.Name, role.Description, role.CreatedBy, ts, ts)
 	if err != nil {
 		return Role{}, "", err
 	}
 	created, err := s.getRole(ctx, role.ID)
 	return created, "created", err
+}
+
+func (s *Store) upsertManagedInternalRole(ctx context.Context, orgID string, permission PermissionKey, resourceKind string, now time.Time) (Role, string, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return Role{}, "", err
+	}
+	orgID = strings.TrimSpace(orgID)
+	permission = PermissionKey(strings.TrimSpace(string(permission)))
+	resourceKind = strings.TrimSpace(resourceKind)
+	if orgID == "" || permission == "" || resourceKind == "" {
+		return Role{}, "", fmt.Errorf("%w: managed role requires org, permission and resource kind", ErrInvalid)
+	}
+	if !PermissionDefinedForResource(permission, resourceKind) {
+		return Role{}, "", fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, permission, resourceKind)
+	}
+	id := managedDirectRoleID(permission, resourceKind)
+	ts := now.UTC().Format(time.RFC3339Nano)
+	status := "created"
+	if existing, err := s.getRole(ctx, id); err == nil {
+		if existing.OrgID != orgID {
+			return Role{}, "", fmt.Errorf("%w: managed role org mismatch", ErrInvalid)
+		}
+		if existing.Kind != "managed" || !existing.Managed || existing.Visibility != "internal" {
+			var mapped int
+			if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE ram_role_id = ?`, id).Scan(&mapped); err != nil {
+				return Role{}, "", err
+			}
+			if mapped > 0 {
+				return Role{}, "", fmt.Errorf("%w: role-access backing role is referenced by team roles", ErrConflict)
+			}
+			if _, err := exec.ExecContext(ctx, `UPDATE authorization_roles
+				SET kind = 'managed', managed = 1, visibility = 'internal', updated_at = ?, version = version + 1
+				WHERE id = ? AND org_id = ? AND revoked_at IS NULL`,
+				ts, id, orgID); err != nil {
+				return Role{}, "", err
+			}
+			status = "updated"
+		} else {
+			status = "unchanged"
+		}
+	} else if errors.Is(err, ErrRoleNotFound) {
+		if _, err := exec.ExecContext(ctx, `INSERT INTO authorization_roles
+			(id, org_id, kind, managed, visibility, stable_key, scope_kind, name, description, created_by, created_at, updated_at, version)
+			VALUES (?, ?, 'managed', 1, 'internal', ?, ?, ?, ?, 'system', ?, ?, 1)`,
+			id, orgID, id, resourceKind, "Direct binding "+string(permission)+" on "+resourceKind, "Internal carrier for direct permission grants.", ts, ts); err != nil {
+			return Role{}, "", err
+		}
+	} else {
+		return Role{}, "", err
+	}
+	if err := s.replaceRolePermissions(ctx, id, []RolePermissionInput{{PermissionKey: permission, ResourceKind: resourceKind}}, now); err != nil {
+		return Role{}, "", err
+	}
+	role, err := s.getRole(ctx, id)
+	if status == "unchanged" {
+		status = "set"
+	}
+	return role, status, err
+}
+
+func managedDirectRoleID(permission PermissionKey, resourceKind string) string {
+	sum := sha256.Sum256([]byte(string(permission) + "|" + resourceKind))
+	return "role-access-" + hex.EncodeToString(sum[:])[:16]
 }
 
 func (s *Store) replaceRolePermissions(ctx context.Context, roleID string, perms []RolePermissionInput, now time.Time) error {
@@ -291,7 +355,7 @@ func (s *Store) replaceRolePermissions(ctx context.Context, roleID string, perms
 	if err != nil {
 		return err
 	}
-	if role.Kind != "custom" {
+	if role.Kind != "custom" && role.Kind != "managed" {
 		return ErrSystemRoleImmutable
 	}
 	if _, err := exec.ExecContext(ctx, `DELETE FROM authorization_role_permissions WHERE role_id = ?`, roleID); err != nil {
@@ -703,12 +767,14 @@ type auditEvent struct {
 func scanRole(scan func(dest ...any) error) (Role, error) {
 	var r Role
 	var created, updated string
-	if err := scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.CreatedBy, &created, &updated, &r.Version); err != nil {
+	var managed int
+	if err := scan(&r.ID, &r.OrgID, &r.Kind, &managed, &r.Visibility, &r.Name, &r.Description, &r.CreatedBy, &created, &updated, &r.Version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Role{}, ErrRoleNotFound
 		}
 		return Role{}, err
 	}
+	r.Managed = managed == 1
 	r.CreatedAt = parseDBTime(created)
 	r.UpdatedAt = parseDBTime(updated)
 	return r, nil

@@ -355,6 +355,102 @@ func TestStoreRoleAssignmentLifecycleAndScopedRevoke(t *testing.T) {
 	}
 }
 
+func TestDirectGrantManagedInternalCarrierEffectiveExpiryAndRevoke(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	expires := svc.clock.Now().UTC().Add(time.Hour)
+	req := BatchRequest{
+		IdempotencyKey: "direct-managed-internal",
+		ActorRef:       "user:user-owner",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{
+			ID:   "grant",
+			Type: "grant_direct_permission",
+			DirectGrant: DirectGrantInput{
+				SubjectRef:    "user:user-member",
+				PermissionKey: "org.analytics.read",
+				Resource:      ResourceScope{Kind: "org", ID: "org-1"},
+				ExpiresAt:     &expires,
+			},
+		}},
+	}
+	applied, err := svc.ApplyBatch(ctx, req)
+	if err != nil {
+		t.Fatalf("ApplyBatch direct grant: %v", err)
+	}
+	if len(applied.Operations) != 1 || applied.Operations[0].AssignmentID == "" || applied.Operations[0].RoleID == "" {
+		t.Fatalf("direct grant result=%#v", applied)
+	}
+	replayed, err := svc.ApplyBatch(ctx, req)
+	if err != nil || !replayed.Replayed || replayed.Operations[0].AssignmentID != applied.Operations[0].AssignmentID {
+		t.Fatalf("idempotent direct grant replay=%#v err=%v", replayed, err)
+	}
+	var kind, visibility string
+	var managed, visibleCustom int
+	if err := db.QueryRowContext(ctx, `SELECT kind, managed, visibility FROM authorization_roles WHERE id = ?`, applied.Operations[0].RoleID).Scan(&kind, &managed, &visibility); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "managed" || managed != 1 || visibility != "internal" {
+		t.Fatalf("carrier kind=%q managed=%d visibility=%q", kind, managed, visibility)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE id = ? AND kind = 'custom' AND visibility = 'visible'`, applied.Operations[0].RoleID).Scan(&visibleCustom); err != nil {
+		t.Fatal(err)
+	}
+	if visibleCustom != 0 {
+		t.Fatalf("direct carrier visible custom count=%d", visibleCustom)
+	}
+	eff, err := svc.ListEffective(ctx, "user:user-member", ResourceScope{Kind: "org", ID: "org-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matched bool
+	for _, p := range eff.Permissions {
+		if p.Key == "org.analytics.read" && p.Source == SourceCustomRole && p.AssignmentID == applied.Operations[0].AssignmentID && p.ExpiresAt != nil {
+			matched = true
+		}
+	}
+	if !matched {
+		t.Fatalf("effective permissions missing direct grant: %+v", eff.Permissions)
+	}
+	if _, err := svc.RevokeBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-managed-revoke",
+		ActorRef:       "user:user-owner",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{Type: "revoke_assignment", Revoke: RevokeInput{
+			AssignmentID: applied.Operations[0].AssignmentID,
+			Reason:       "test",
+		}}},
+	}); err != nil {
+		t.Fatalf("revoke direct grant: %v", err)
+	}
+	after, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}})
+	if !errors.Is(err, ErrDenied) || after.Allowed {
+		t.Fatalf("revoked direct grant decision=%#v err=%v", after, err)
+	}
+
+	past := svc.clock.Now().UTC().Add(-time.Hour)
+	_, err = svc.ApplyBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-managed-expired",
+		ActorRef:       "user:user-owner",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{Type: "grant_direct_permission", DirectGrant: DirectGrantInput{
+			ID:            "asgn-direct-expired",
+			SubjectRef:    "user:user-member",
+			PermissionKey: "org.analytics.read",
+			Resource:      ResourceScope{Kind: "org", ID: "org-1"},
+			ExpiresAt:     &past,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("expired direct grant apply: %v", err)
+	}
+	expiredDecision, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}})
+	if !errors.Is(err, ErrDenied) || expiredDecision.Allowed {
+		t.Fatalf("expired direct grant decision=%#v err=%v", expiredDecision, err)
+	}
+}
+
 func TestBatchOperationValidationAndPreviewApplyConsistency(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)

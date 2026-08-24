@@ -208,11 +208,11 @@ func TestAccessApplyCompatibilityMutatesUnifiedAuthorizationAndOverview(t *testi
 	ts := httptest.NewServer(WithDeps(deps)(srv.Handler()))
 	defer ts.Close()
 
-	assertAccessApplyRoundTrip(t, ts.URL+"/api/access/apply", "org.analytics.read", sess)
-	assertAccessApplyRoundTrip(t, ts.URL+"/api/permissions/batch/apply", "ai_runtime.catalog.export", sess)
+	assertAccessApplyRoundTrip(t, db, ts.URL+"/api/access/apply", "org.analytics.read", sess)
+	assertAccessApplyRoundTrip(t, db, ts.URL+"/api/permissions/batch/apply", "ai_runtime.catalog.export", sess)
 }
 
-func assertAccessApplyRoundTrip(t *testing.T, endpoint, permission string, sess testSession) {
+func assertAccessApplyRoundTrip(t *testing.T, db *sql.DB, endpoint, permission string, sess testSession) {
 	t.Helper()
 	body := `{
 		"subject_refs":["user:` + sess.IdentityID + `"],
@@ -248,6 +248,23 @@ func assertAccessApplyRoundTrip(t *testing.T, endpoint, permission string, sess 
 		t.Fatalf("access apply item=%+v", applied.Items)
 	}
 	grantID := applied.Items[0].GrantID
+	var roleID, kind, visibility string
+	var managed, visibleCustomCount int
+	if err := db.QueryRow(`SELECT a.role_id, r.kind, r.managed, r.visibility
+		FROM authorization_role_assignments a
+		JOIN authorization_roles r ON r.id = a.role_id
+		WHERE a.id = ?`, grantID).Scan(&roleID, &kind, &managed, &visibility); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(roleID, "role-access-") || kind != "managed" || managed != 1 || visibility != "internal" {
+		t.Fatalf("direct grant carrier role_id=%q kind=%q managed=%d visibility=%q", roleID, kind, managed, visibility)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE org_id = ? AND id LIKE 'role-access-%' AND kind = 'custom' AND visibility = 'visible' AND revoked_at IS NULL`, sess.OrgID).Scan(&visibleCustomCount); err != nil {
+		t.Fatal(err)
+	}
+	if visibleCustomCount != 0 {
+		t.Fatalf("direct grant created visible custom role-access carrier count=%d", visibleCustomCount)
+	}
 
 	effResp := orgScopedGet(t, strings.Split(endpoint, "/api/")[0]+"/api/permissions/effective?subject_ref=user:"+sess.IdentityID+"&resource_kind=org&resource_id="+sess.OrgID, sess)
 	defer effResp.Body.Close()

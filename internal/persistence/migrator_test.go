@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func TestMigrator_UpCreatesAllPhase1Tables(t *testing.T) {
@@ -113,6 +114,44 @@ func TestMigrator_UpIdempotent(t *testing.T) {
 	}
 	if err := m.Up(context.Background()); err != nil {
 		t.Fatalf("second Up: %v", err)
+	}
+}
+
+func TestMigration0143FailsClosedWhenRoleAccessReferencedByTeamRole(t *testing.T) {
+	db, err := Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	m := NewMigrator(db)
+	if err := m.Up(ctx); err != nil {
+		t.Fatalf("initial Up: %v", err)
+	}
+	if err := m.Down(ctx, 142); err != nil {
+		t.Fatalf("Down(142): %v", err)
+	}
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	for _, stmt := range []string{
+		`INSERT INTO teams (id, org_id, name, description, created_at, updated_at, version) VALUES ('team-t1499', 'org-t1499', 'T1499', '', '` + now + `', '` + now + `', 1)`,
+		`INSERT INTO team_roles (team_id, role, cli, model, created_at) VALUES ('team-t1499', 'reviewer', 'codex', 'gpt-5', '` + now + `')`,
+		`INSERT INTO authorization_roles (id, org_id, kind, stable_key, scope_kind, name, description, created_by, created_at, updated_at, version) VALUES ('role-access-blocked', 'org-t1499', 'custom', 'role-access-blocked', 'team', 'legacy direct carrier', '', 'system', '` + now + `', '` + now + `', 1)`,
+		`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES ('team-t1499', 'reviewer', 'role-access-blocked', '` + now + `', 'system')`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	err = m.Up(ctx)
+	if err == nil || !strings.Contains(err.Error(), "blocker_count = 0") {
+		t.Fatalf("Up with Team Role role-access reference err=%v, want fail-closed guard", err)
+	}
+	var version int
+	if version, err = m.Version(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if version != 142 {
+		t.Fatalf("version after failed 0143 = %d want 142", version)
 	}
 }
 
