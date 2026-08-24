@@ -2055,7 +2055,6 @@ func accessBatchCodeForError(err error) string {
 }
 
 func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
-	roleID := accessRoleIDForPermission(item.Permission, item.Resource.Kind)
 	resource := accessAuthzResource(item.Resource)
 	return authz.BatchRequest{
 		IdempotencyKey: accessBatchIdempotencyKey("apply", orgID, actor, body.PreviewRequestID, item),
@@ -2063,34 +2062,13 @@ func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body 
 		OrgID:          orgID,
 		Operations: []authz.BatchOperation{
 			{
-				ID:   item.ID + "-role",
-				Type: "upsert_role",
-				Role: authz.RoleInput{
-					ID:          roleID,
-					Kind:        "managed",
-					Visibility:  "internal",
-					Name:        "Managed direct grant " + item.Permission + " on " + item.Resource.Kind,
-					Description: "Managed by the Access batch authorization flow.",
-				},
-			},
-			{
-				ID:   item.ID + "-permissions",
-				Type: "set_role_permissions",
-				Role: authz.RoleInput{ID: roleID},
-				Permissions: []authz.RolePermissionInput{{
-					PermissionKey: authz.PermissionKey(item.Permission),
-					ResourceKind:  item.Resource.Kind,
-					Delegatable:   false,
-				}},
-			},
-			{
 				ID:   item.ID,
-				Type: "assign_role",
-				Assignment: authz.AssignmentInput{
-					SubjectRef: authz.SubjectRef(item.SubjectRef),
-					RoleID:     roleID,
-					Resource:   resource,
-					ExpiresAt:  expiresAt,
+				Type: "direct_grant",
+				DirectGrant: authz.DirectGrantInput{
+					SubjectRef:    authz.SubjectRef(item.SubjectRef),
+					PermissionKey: authz.PermissionKey(item.Permission),
+					Resource:      resource,
+					ExpiresAt:     expiresAt,
 				},
 			},
 		},

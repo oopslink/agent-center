@@ -327,6 +327,93 @@ func (s *Store) upsertCustomRole(ctx context.Context, role Role, now time.Time) 
 	return created, "created", err
 }
 
+func (s *Store) upsertManagedInternalRole(ctx context.Context, orgID string, permission PermissionKey, resourceKind string, now time.Time) (Role, string, error) {
+	exec, err := s.exec(ctx)
+	if err != nil {
+		return Role{}, "", err
+	}
+	orgID = strings.TrimSpace(orgID)
+	permission = PermissionKey(strings.TrimSpace(string(permission)))
+	resourceKind = strings.TrimSpace(resourceKind)
+	if orgID == "" || permission == "" || resourceKind == "" {
+		return Role{}, "", fmt.Errorf("%w: managed role requires org, permission and resource kind", ErrInvalid)
+	}
+	if !PermissionDefinedForResource(permission, resourceKind) {
+		return Role{}, "", fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, permission, resourceKind)
+	}
+	id, err := s.managedDirectRoleID(ctx, orgID, permission, resourceKind)
+	if err != nil {
+		return Role{}, "", err
+	}
+	ts := now.UTC().Format(time.RFC3339Nano)
+	status := "created"
+	if existing, err := s.getRole(ctx, id); err == nil {
+		if existing.OrgID != orgID {
+			return Role{}, "", fmt.Errorf("%w: managed role org mismatch", ErrInvalid)
+		}
+		if existing.Kind != "managed" || existing.Visibility != "internal" {
+			var mapped int
+			if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE ram_role_id = ?`, id).Scan(&mapped); err != nil {
+				return Role{}, "", err
+			}
+			if mapped > 0 {
+				return Role{}, "", fmt.Errorf("%w: role-access backing role is referenced by team roles", ErrConflict)
+			}
+			if _, err := exec.ExecContext(ctx, `UPDATE authorization_roles
+				SET kind = 'managed', visibility = 'internal', name = ?, updated_at = ?, version = version + 1
+				WHERE id = ? AND org_id = ? AND revoked_at IS NULL`,
+				"Managed direct grant "+string(permission)+" on "+resourceKind, ts, id, orgID); err != nil {
+				return Role{}, "", err
+			}
+			status = "updated"
+		} else {
+			status = "unchanged"
+		}
+	} else if errors.Is(err, ErrRoleNotFound) {
+		if _, err := exec.ExecContext(ctx, `INSERT INTO authorization_roles
+			(id, org_id, kind, visibility, stable_key, scope_kind, name, description, created_by, created_at, updated_at, version)
+			VALUES (?, ?, 'managed', 'internal', ?, ?, ?, ?, 'system', ?, ?, 1)`,
+			id, orgID, id, resourceKind, "Managed direct grant "+string(permission)+" on "+resourceKind, "Internal carrier for direct permission grants.", ts, ts); err != nil {
+			return Role{}, "", err
+		}
+	} else {
+		return Role{}, "", err
+	}
+	if err := s.replaceRolePermissions(ctx, id, []RolePermissionInput{{PermissionKey: permission, ResourceKind: resourceKind}}, now); err != nil {
+		return Role{}, "", err
+	}
+	role, err := s.getRole(ctx, id)
+	if status == "unchanged" {
+		status = "set"
+	}
+	return role, status, err
+}
+
+func (s *Store) managedDirectRoleID(ctx context.Context, orgID string, permission PermissionKey, resourceKind string) (string, error) {
+	legacyID := legacyManagedDirectRoleID(permission, resourceKind)
+	existing, err := s.getRole(ctx, legacyID)
+	if err == nil {
+		if existing.OrgID == orgID {
+			return legacyID, nil
+		}
+		return orgScopedManagedDirectRoleID(orgID, permission, resourceKind), nil
+	}
+	if !errors.Is(err, ErrRoleNotFound) {
+		return "", err
+	}
+	return legacyID, nil
+}
+
+func legacyManagedDirectRoleID(permission PermissionKey, resourceKind string) string {
+	sum := sha256.Sum256([]byte(string(permission) + "|" + resourceKind))
+	return "role-access-" + hex.EncodeToString(sum[:])[:16]
+}
+
+func orgScopedManagedDirectRoleID(orgID string, permission PermissionKey, resourceKind string) string {
+	sum := sha256.Sum256([]byte(orgID + "|" + string(permission) + "|" + resourceKind))
+	return "role-access-" + hex.EncodeToString(sum[:])[:16]
+}
+
 func (s *Store) replaceRolePermissions(ctx context.Context, roleID string, perms []RolePermissionInput, now time.Time) error {
 	exec, err := s.exec(ctx)
 	if err != nil {
