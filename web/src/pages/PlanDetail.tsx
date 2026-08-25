@@ -3058,12 +3058,19 @@ function DagEvolutionPanel({
   const { t } = useTranslation('work');
   const [collapsed, setCollapsed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [revisionPage, setRevisionPage] = useState(0);
   const panelBodyId = React.useId();
+  const revisionsPerPage = 6;
 
   const selectedIndex = Math.max(0, revisions.findIndex((revision) => revision.generation === selectedGeneration));
   const selected = revisions[selectedIndex] ?? revisions[revisions.length - 1] ?? null;
   const latest = revisions[revisions.length - 1] ?? null;
   const progressPct = revisions.length <= 1 ? 100 : Math.round((selectedIndex / (revisions.length - 1)) * 100);
+  const revisionPageCount = Math.max(1, Math.ceil(revisions.length / revisionsPerPage));
+  const visibleRevisions = revisions.slice(
+    revisionPage * revisionsPerPage,
+    (revisionPage + 1) * revisionsPerPage,
+  );
   const collapseLabel = collapsed
     ? t('plan.detail.dag.evolution.expand')
     : t('plan.detail.dag.evolution.collapse');
@@ -3079,6 +3086,10 @@ function DagEvolutionPanel({
     }, 900);
     return () => window.clearTimeout(timer);
   }, [playing, revisions, selectedIndex, onSelectGeneration]);
+
+  useEffect(() => {
+    setRevisionPage(Math.floor(selectedIndex / revisionsPerPage));
+  }, [selectedIndex]);
 
   if (selected == null || latest == null) return null;
 
@@ -3175,14 +3186,14 @@ function DagEvolutionPanel({
 
       {!collapsed && (
         <div id={panelBodyId} className="grid gap-2 p-3" data-testid="plan-dag-evolution-body">
-          <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]" data-testid="plan-dag-evolution-revisions">
-            {revisions.map((revision) => {
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="plan-dag-evolution-revisions">
+            {visibleRevisions.map((revision) => {
               const active = revision.generation === selected.generation;
               return (
                 <button
                   key={revision.generation}
                   type="button"
-                  className={`flex min-h-[8.75rem] min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`flex min-h-[7.5rem] min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                     active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
                   }`}
                   aria-pressed={active}
@@ -3253,6 +3264,33 @@ function DagEvolutionPanel({
               );
             })}
           </div>
+          {revisionPageCount > 1 && (
+            <nav className="flex items-center justify-between gap-3" aria-label={t('plan.detail.dag.evolution.pagination')}>
+              <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-page-label">
+                {t('plan.detail.dag.evolution.page', { current: revisionPage + 1, total: revisionPageCount })}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="rounded border border-border-base bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+                  data-testid="plan-dag-evolution-page-previous"
+                  disabled={revisionPage === 0}
+                  onClick={() => setRevisionPage((page) => Math.max(0, page - 1))}
+                >
+                  {t('plan.detail.dag.evolution.previous')}
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-border-base bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+                  data-testid="plan-dag-evolution-page-next"
+                  disabled={revisionPage >= revisionPageCount - 1}
+                  onClick={() => setRevisionPage((page) => Math.min(revisionPageCount - 1, page + 1))}
+                >
+                  {t('plan.detail.dag.evolution.next')}
+                </button>
+              </div>
+            </nav>
+          )}
           <div
             className="rounded-lg border border-border-base bg-bg-subtle/60 p-3"
             data-testid="plan-dag-evolution-selected-detail"

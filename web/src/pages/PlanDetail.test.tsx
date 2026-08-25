@@ -2263,6 +2263,54 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(within(row).getByTestId('plan-row-generation')).toHaveTextContent('R2');
   });
 
+  it('paginates long PlanGeneration history without clipping older revisions', async () => {
+    const generations = Array.from({ length: 8 }, (_, revision) => ({
+      id: `generation-g${revision}`,
+      plan_id: 'PL-1',
+      parent_generation_id: revision === 0 ? '' : `generation-g${revision - 1}`,
+      revision,
+      active: revision === 7,
+      reason: `generation reason ${revision}`,
+      evidence: `generation evidence ${revision}`,
+      creator_ref: 'user:owner',
+      diff: { node_decisions: [], tasks: [], edges: [] },
+      snapshot: {
+        plan_id: 'PL-1', plan_version: revision + 1, active_generation_id: `generation-g${revision}`,
+        tasks: [{ task_id: 'n1', node_id: 'node-1', title: 'stable task', assignee_ref: 'agent:dev', status: 'open' }],
+        edges: [], dispatch_records: [],
+      },
+      snapshot_progress: { done: 0, total: 0 },
+      idempotency_key: `generation-${revision}`,
+      dispatched_task_ids: [],
+      created_at: `2026-06-${String(revision + 1).padStart(2, '0')}T01:00:00Z`,
+    }));
+    mockPlan({
+      active_generation_id: 'generation-g7',
+      nodes: [{ task_id: 'n1', title: 'stable task', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [] }],
+      generation_read: {
+        plan_id: 'PL-1', active_generation_id: 'generation-g7', plan_version: 8, generations,
+        nodes: [{ task_id: 'n1', node_id: 'node-1', generation_id: 'generation-g0', revision: 0, present_in_active: true }],
+      },
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({ stages: [] })),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+
+    const panel = await screen.findByTestId('plan-dag-evolution');
+    await waitFor(() => expect(within(panel).getByTestId('plan-dag-evolution-page-label')).toHaveTextContent('Page 2 of 2'));
+    expect(within(panel).getByTestId('plan-dag-evolution-revision-8')).toBeInTheDocument();
+    expect(within(panel).queryByTestId('plan-dag-evolution-revision-1')).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-page-previous'));
+    expect(within(panel).getByTestId('plan-dag-evolution-page-label')).toHaveTextContent('Page 1 of 2');
+    expect(within(panel).getByTestId('plan-dag-evolution-revision-1')).toBeInTheDocument();
+    expect(within(panel).queryByTestId('plan-dag-evolution-revision-8')).not.toBeInTheDocument();
+  });
+
   it('renders an orchestration-graph history revision from its immutable snapshot', async () => {
     mockPlan({
       active_generation_id: 'generation-g1',
