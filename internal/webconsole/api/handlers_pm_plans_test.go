@@ -128,7 +128,7 @@ func TestPlanAPI_CreateGetStartAdvance(t *testing.T) {
 	}
 
 	// POST /plans (create).
-	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"v3.0","description":"goal"}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"v3.0","description":"goal","owner_ref":"user:`+sess.IdentityID+`"}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("create plan status=%d", resp.StatusCode)
 	}
@@ -227,7 +227,7 @@ func TestPlanAPI_CreateGetStartAdvance(t *testing.T) {
 // plan id.
 func (f *planAPIFixture) createPlan(t *testing.T, s *httptest.Server, sess testSession, pid pm.ProjectID, name string) pm.PlanID {
 	t.Helper()
-	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"`+name+`"}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"`+name+`","owner_ref":"user:`+sess.IdentityID+`"}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("create plan %q status=%d", name, resp.StatusCode)
 	}
@@ -706,7 +706,7 @@ func TestPMResumePausedNode_ErrorMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"v3"}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"v3","owner_ref":"user:`+sess.IdentityID+`"}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("create plan status=%d", resp.StatusCode)
 	}

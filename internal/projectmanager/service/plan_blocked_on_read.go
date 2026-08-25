@@ -36,6 +36,11 @@ func (s *Service) fillBlockedOn(ctx context.Context, detail *PlanDetail) error {
 		return err
 	}
 	detail.BlockedOn = list
+	events, err := s.plans.ListPlanBlockEvents(ctx, detail.Plan.ID(), true)
+	if err != nil {
+		return err
+	}
+	detail.BlockEvents = events
 	return nil
 }
 

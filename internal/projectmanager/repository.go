@@ -270,6 +270,11 @@ type PlanRepository interface {
 	GetBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) (BlockedOn, bool, error)
 	ListBlockedOn(ctx context.Context, planID PlanID) ([]BlockedOn, error)
 
+	UpsertPlanBlockEvent(ctx context.Context, e *PlanBlockEvent) (created bool, err error)
+	FindPlanBlockEventByKey(ctx context.Context, key string) (*PlanBlockEvent, bool, error)
+	ListPlanBlockEvents(ctx context.Context, planID PlanID, activeOnly bool) ([]PlanBlockEvent, error)
+	UpdatePlanBlockEventNotification(ctx context.Context, eventID PlanBlockEventID, state PlanBlockNotificationState, at time.Time) error
+
 	// Generations are immutable topology snapshots produced by Evolution commits.
 	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.
 	// ActivateGeneration CAS-updates the Plan aggregate pointer + version in the same

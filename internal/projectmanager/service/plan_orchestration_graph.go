@@ -1106,6 +1106,9 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 	case pm.NodeDone, pm.NodeFailed, pm.NodeSkipped:
 		return blockedOnClass{}, true, nil // settled — clear any snapshot.
 	case pm.NodeRunning, pm.NodePaused:
+		if t.Status().IsParked() {
+			return blockedOnClass{pm.WaitHumanDecision, []string{string(t.ID())}, "the plan owner resolves the blocked task"}, false, nil
+		}
 		// In motion holding an execution lease → a marker so the downstream executor-
 		// liveness detector/takeover has a record to probe. Detection is NOT this task.
 		var keys []string

@@ -395,7 +395,7 @@ func TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts(t *testing
 		t.Fatalf("G0 snapshot=%v", g0["snapshot"])
 	}
 
-	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"add focused verification","evidence":"review found an uncovered path","idempotency_key":"web-evolve-1","diff":{"node_decisions":[{"task_id":%q,"action":"preserve","reason":"already dispatched"}],"tasks":[{"ref":"c","title":"C","assignee_ref":"user:c1"}],"edges":[{"from":"c","to":%q,"kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.a, fixture.a)
+	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"add focused verification","evidence":"review found an uncovered path","idempotency_key":"web-evolve-1","diff":{"node_decisions":[{"task_id":%q,"action":"preserve","reason":"already dispatched"}],"tasks":[{"ref":"c","title":"C","assignee_ref":"user:c1","delivery_contract":"code_change"}],"edges":[{"from":"c","to":%q,"kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.a, fixture.a)
 	first := orgScopedPost(t, url+"/evolution", body, sess)
 	if first.StatusCode != 200 {
 		t.Fatalf("evolution status=%d body=%v", first.StatusCode, decodeBody(t, first))

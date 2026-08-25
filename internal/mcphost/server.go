@@ -410,7 +410,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// it (the center dispatches ready nodes as their dependencies complete).
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_plan",
-		Description: "Create a new pending plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
+		Description: "Create a new pending plan in a project you belong to. owner_ref is required and must name the unique Plan Owner responsible for blocked recovery; backup_owner_ref is optional. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{

@@ -836,20 +836,24 @@ func makeUpdateReminder(cfg Config) mcp.ToolHandlerFor[updateReminderArgs, any] 
 // --- create_plan -------------------------------------------------------------
 
 type createPlanArgs struct {
-	ProjectID   string `json:"project_id" jsonschema:"the project to create the plan in (you must be a member)"`
-	Name        string `json:"name" jsonschema:"the plan name"`
-	Description string `json:"description,omitempty" jsonschema:"optional plan description"`
-	TargetDate  string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
+	ProjectID      string `json:"project_id" jsonschema:"the project to create the plan in (you must be a member)"`
+	Name           string `json:"name" jsonschema:"the plan name"`
+	Description    string `json:"description,omitempty" jsonschema:"optional plan description"`
+	TargetDate     string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
+	OwnerRef       string `json:"owner_ref" jsonschema:"required explicit Plan Owner identity ref (user:<id> or agent:<id>); must be a project member"`
+	BackupOwnerRef string `json:"backup_owner_ref,omitempty" jsonschema:"optional backup/escalation owner identity ref; must be a project member when set"`
 }
 
 func makeCreatePlan(cfg Config, planRules *planningRuleCache) mcp.ToolHandlerFor[createPlanArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args createPlanArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":    cfg.AgentID,
-			"project_id":  args.ProjectID,
-			"name":        args.Name,
-			"description": args.Description,
-			"target_date": args.TargetDate,
+			"agent_id":         cfg.AgentID,
+			"project_id":       args.ProjectID,
+			"name":             args.Name,
+			"description":      args.Description,
+			"target_date":      args.TargetDate,
+			"owner_ref":        args.OwnerRef,
+			"backup_owner_ref": args.BackupOwnerRef,
 		}
 		if planRules != nil {
 			body["planning_rules"] = planRules.Snapshot(ctx)

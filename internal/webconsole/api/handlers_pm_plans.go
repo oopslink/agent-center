@@ -24,11 +24,17 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 	m := map[string]any{
 		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
 		"description": p.Description(), "status": string(p.Status()),
-		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
-		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
-		"version":    p.Version(),
-		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"creator_ref": string(p.CreatorRef()), "owner_ref": string(p.OwnerRef()), "backup_owner_ref": string(p.BackupOwnerRef()), "conversation_id": p.ConversationID(),
+		"created_at":              p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":              p.UpdatedAt().Format(time.RFC3339Nano),
+		"version":                 p.Version(),
+		"is_builtin":              p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"attention_status":        string(p.AttentionStatus()),
+		"last_attention_event_id": string(p.LastAttentionEventID()),
+		"recovery_policy":         planRecoveryPolicyMap(p.RecoveryPolicy()),
+	}
+	if !p.AttentionSince().IsZero() {
+		m["attention_since"] = p.AttentionSince().Format(time.RFC3339Nano)
 	}
 	// v2.10.1 [T99]: the human Plan id (org_ref "P123"); omitted when org_number
 	// is 0 (builtin pool / pre-allocator rows) — the UI falls back to the hash handle.
@@ -44,6 +50,36 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 	if at := p.ArchivedAt(); at != nil {
 		m["archived_at"] = at.Format(time.RFC3339Nano)
 		m["archived_by"] = string(p.ArchivedBy())
+	}
+	return m
+}
+
+func planRecoveryPolicyMap(p pm.PlanRecoveryPolicy) map[string]any {
+	return map[string]any{
+		"notify_after_seconds":   p.NotifyAfterSeconds,
+		"remind_after_seconds":   p.RemindAfterSeconds,
+		"escalate_after_seconds": p.EscalateAfterSeconds,
+	}
+}
+
+func planBlockEventMap(e pm.PlanBlockEvent) map[string]any {
+	m := map[string]any{
+		"event_id": string(e.EventID), "idempotency_key": e.IdempotencyKey,
+		"plan_id": string(e.PlanID), "generation_id": string(e.GenerationID), "task_id": string(e.TaskID),
+		"node_id": e.NodeID, "block_version": e.BlockVersion,
+		"blocked_reason": e.BlockedReason, "reason_type": string(e.ReasonType), "blocked_by": string(e.BlockedBy),
+		"blocked_at": e.BlockedAt.Format(time.RFC3339Nano), "active": e.Active, "effective": e.Effective,
+		"owner_ref": string(e.OwnerRef), "notification_state": string(e.NotificationState),
+	}
+	if e.AcknowledgedBy != "" {
+		m["acknowledged_by"] = string(e.AcknowledgedBy)
+		m["acknowledged_at"] = e.AcknowledgedAt.Format(time.RFC3339Nano)
+	}
+	if e.ResolvedBy != "" {
+		m["resolved_by"] = string(e.ResolvedBy)
+		m["resolved_at"] = e.ResolvedAt.Format(time.RFC3339Nano)
+		m["resolution_kind"] = e.ResolutionKind
+		m["resolution_note"] = e.ResolutionNote
 	}
 	return m
 }
@@ -203,6 +239,13 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if len(detail.BlockEvents) > 0 {
+		events := make([]map[string]any, 0, len(detail.BlockEvents))
+		for _, e := range detail.BlockEvents {
+			events = append(events, planBlockEventMap(e))
+		}
+		m["block_events"] = events
+	}
 	return m
 }
 
@@ -292,7 +335,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
 		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
-		errors.Is(err, pm.ErrPlanGenerationDisconnected):
+		errors.Is(err, pm.ErrPlanGenerationDisconnected),
+		errors.Is(err, pm.ErrPlanOwnerRequired), errors.Is(err, pm.ErrPlanOwnerInvalid):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	default:
 		mapPMError(w, err)
@@ -349,9 +393,11 @@ func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		TargetDate  string `json:"target_date"`
+		Name           string `json:"name"`
+		Description    string `json:"description"`
+		TargetDate     string `json:"target_date"`
+		OwnerRef       string `json:"owner_ref"`
+		BackupOwnerRef string `json:"backup_owner_ref"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -366,8 +412,13 @@ func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		td = &t
 	}
+	if strings.TrimSpace(req.OwnerRef) == "" {
+		writeError(w, http.StatusBadRequest, "missing_owner_ref", "owner_ref is required")
+		return
+	}
 	id, err := d.PM.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
 		ProjectID: p.ID(), Name: req.Name, Description: req.Description, TargetDate: td, CreatedBy: caller,
+		OwnerRef: pm.IdentityRef(req.OwnerRef), BackupOwnerRef: pm.IdentityRef(req.BackupOwnerRef),
 	})
 	if err != nil {
 		mapPlanError(w, err)

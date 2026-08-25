@@ -27,6 +27,7 @@ type (
 	MemberID              string
 	PlanID                string
 	PlanGenerationID      string
+	PlanBlockEventID      string
 	AssignmentPoolID      string
 	GateVerdictID         string
 	ContinuationID        string
@@ -46,6 +47,7 @@ func (id TaskID) String() string                { return string(id) }
 func (id MemberID) String() string              { return string(id) }
 func (id PlanID) String() string                { return string(id) }
 func (id PlanGenerationID) String() string      { return string(id) }
+func (id PlanBlockEventID) String() string      { return string(id) }
 func (id AssignmentPoolID) String() string      { return string(id) }
 func (id GateVerdictID) String() string         { return string(id) }
 func (id ContinuationID) String() string        { return string(id) }
@@ -208,6 +210,9 @@ var (
 	ErrPlanNotTerminal            = errors.New("projectmanager: plan must be done or discarded")
 	ErrPlanNotFound               = errors.New("projectmanager: plan not found")
 	ErrPlanExists                 = errors.New("projectmanager: plan already exists")
+	ErrPlanOwnerRequired          = errors.New("projectmanager: plan owner_ref required")
+	ErrPlanOwnerInvalid           = errors.New("projectmanager: plan owner_ref is not a project member")
+	ErrPlanBlockEventNotFound     = errors.New("projectmanager: plan block event not found")
 	ErrPlanGenerationNotFound     = errors.New("projectmanager: plan generation not found")
 	ErrPlanGenerationExists       = errors.New("projectmanager: plan generation already exists")
 	ErrPlanGenerationConflict     = errors.New("projectmanager: plan generation conflict: parent or in-flight boundary is stale")

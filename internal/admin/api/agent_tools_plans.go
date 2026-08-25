@@ -91,6 +91,7 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
 		errors.Is(err, pm.ErrPlanGenerationDisconnected),
 		errors.Is(err, pm.ErrPlanGenerationExists),
+		errors.Is(err, pm.ErrPlanOwnerRequired), errors.Is(err, pm.ErrPlanOwnerInvalid),
 		// Plan Stage authoring/build guards (2026-07-03 design §5/§6) — validation class.
 		errors.Is(err, pm.ErrEmptyStageName), errors.Is(err, pm.ErrStageExists),
 		errors.Is(err, pm.ErrStageCycle), errors.Is(err, pm.ErrStageSelfDependency),
@@ -107,12 +108,14 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 // --- create_plan -------------------------------------------------------------
 
 type createPlanReq struct {
-	AgentID       string                  `json:"agent_id"`
-	ProjectID     string                  `json:"project_id"`
-	Name          string                  `json:"name"`
-	Description   string                  `json:"description"`
-	TargetDate    string                  `json:"target_date"`
-	PlanningRules *pmservice.RuleSnapshot `json:"planning_rules"`
+	AgentID        string                  `json:"agent_id"`
+	ProjectID      string                  `json:"project_id"`
+	Name           string                  `json:"name"`
+	Description    string                  `json:"description"`
+	TargetDate     string                  `json:"target_date"`
+	OwnerRef       string                  `json:"owner_ref"`
+	BackupOwnerRef string                  `json:"backup_owner_ref"`
+	PlanningRules  *pmservice.RuleSnapshot `json:"planning_rules"`
 }
 
 // createPlanHandler creates a draft Plan via pm.CreatePlan with actor=agent. The
@@ -140,6 +143,9 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgentProjectWrite(w, r, d, a, req.ProjectID) {
 		return
 	}
+	if strings.TrimSpace(req.OwnerRef) == "" {
+		req.OwnerRef = agentActor(a)
+	}
 	var td *time.Time
 	if strings.TrimSpace(req.TargetDate) != "" {
 		t, perr := time.Parse(time.RFC3339Nano, req.TargetDate)
@@ -156,12 +162,14 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		planningRules = pmservice.NormalizePlanRuleSnapshot(planningRules, pmservice.PlanRuleSourceMCP)
 	}
 	planID, err := d.PMService.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
-		ProjectID:     pm.ProjectID(req.ProjectID),
-		Name:          req.Name,
-		Description:   req.Description,
-		TargetDate:    td,
-		CreatedBy:     pm.IdentityRef(agentActor(a)),
-		PlanningRules: planningRules,
+		ProjectID:      pm.ProjectID(req.ProjectID),
+		Name:           req.Name,
+		Description:    req.Description,
+		TargetDate:     td,
+		CreatedBy:      pm.IdentityRef(agentActor(a)),
+		OwnerRef:       pm.IdentityRef(req.OwnerRef),
+		BackupOwnerRef: pm.IdentityRef(req.BackupOwnerRef),
+		PlanningRules:  planningRules,
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
@@ -1025,11 +1033,17 @@ func planMap(p *pm.Plan) map[string]any {
 	m := map[string]any{
 		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
 		"description": p.Description(), "status": string(p.Status()),
-		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
-		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
-		"version":    p.Version(),
-		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"creator_ref": string(p.CreatorRef()), "owner_ref": string(p.OwnerRef()), "backup_owner_ref": string(p.BackupOwnerRef()), "conversation_id": p.ConversationID(),
+		"created_at":              p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":              p.UpdatedAt().Format(time.RFC3339Nano),
+		"version":                 p.Version(),
+		"is_builtin":              p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"attention_status":        string(p.AttentionStatus()),
+		"last_attention_event_id": string(p.LastAttentionEventID()),
+		"recovery_policy":         planRecoveryPolicyMap(p.RecoveryPolicy()),
+	}
+	if !p.AttentionSince().IsZero() {
+		m["attention_since"] = p.AttentionSince().Format(time.RFC3339Nano)
 	}
 	if p.ActiveGenerationID() != "" {
 		m["active_generation_id"] = string(p.ActiveGenerationID())
@@ -1040,6 +1054,36 @@ func planMap(p *pm.Plan) map[string]any {
 	if at := p.ArchivedAt(); at != nil {
 		m["archived_at"] = at.Format(time.RFC3339Nano)
 		m["archived_by"] = string(p.ArchivedBy())
+	}
+	return m
+}
+
+func planRecoveryPolicyMap(p pm.PlanRecoveryPolicy) map[string]any {
+	return map[string]any{
+		"notify_after_seconds":   p.NotifyAfterSeconds,
+		"remind_after_seconds":   p.RemindAfterSeconds,
+		"escalate_after_seconds": p.EscalateAfterSeconds,
+	}
+}
+
+func planBlockEventMap(e pm.PlanBlockEvent) map[string]any {
+	m := map[string]any{
+		"event_id": string(e.EventID), "idempotency_key": e.IdempotencyKey,
+		"plan_id": string(e.PlanID), "generation_id": string(e.GenerationID), "task_id": string(e.TaskID),
+		"node_id": e.NodeID, "block_version": e.BlockVersion,
+		"blocked_reason": e.BlockedReason, "reason_type": string(e.ReasonType), "blocked_by": string(e.BlockedBy),
+		"blocked_at": e.BlockedAt.Format(time.RFC3339Nano), "active": e.Active, "effective": e.Effective,
+		"owner_ref": string(e.OwnerRef), "notification_state": string(e.NotificationState),
+	}
+	if e.AcknowledgedBy != "" {
+		m["acknowledged_by"] = string(e.AcknowledgedBy)
+		m["acknowledged_at"] = e.AcknowledgedAt.Format(time.RFC3339Nano)
+	}
+	if e.ResolvedBy != "" {
+		m["resolved_by"] = string(e.ResolvedBy)
+		m["resolved_at"] = e.ResolvedAt.Format(time.RFC3339Nano)
+		m["resolution_kind"] = e.ResolutionKind
+		m["resolution_note"] = e.ResolutionNote
 	}
 	return m
 }
@@ -1217,6 +1261,13 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	}
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
+	}
+	if len(detail.BlockEvents) > 0 {
+		events := make([]map[string]any, 0, len(detail.BlockEvents))
+		for _, e := range detail.BlockEvents {
+			events = append(events, planBlockEventMap(e))
+		}
+		m["block_events"] = events
 	}
 	// issue-77d9beff ②: surface the stage GATE condition nodes so the plan owner/PD
 	// sees which gate to resolve (get_plan otherwise exposes only business task nodes).

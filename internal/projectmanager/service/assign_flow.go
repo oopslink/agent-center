@@ -575,6 +575,9 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		}
 		// audit §5: record the block as a human-facing <prev>→blocked status change.
 		s.auditTaskBlocked(txCtx, t, prevStatus, reasonType, reason, actor)
+		if err := s.projectPlanBlockEvent(txCtx, t, reason, reasonType, actor); err != nil {
+			return err
+		}
 		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
 		// THIS tx so the TaskInputConversationProjector surfaces an interactive
 		// input_request message in the task's bound Conversation (sender=assignee).
