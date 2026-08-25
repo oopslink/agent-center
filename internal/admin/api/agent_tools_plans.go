@@ -1032,6 +1032,7 @@ func planMap(p *pm.Plan) map[string]any {
 		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
 		"description": p.Description(), "status": string(p.Status()),
 		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
+		"owner_ref":  "pm://plans/" + string(p.ID()),
 		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
 		"version":    p.Version(),

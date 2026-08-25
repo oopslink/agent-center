@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -86,6 +87,33 @@ func blockedOnByTask(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) map[
 	return out
 }
 
+func planOwnerBlockWakeEvents(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) []planOwnerBlockWakePayload {
+	t.Helper()
+	rows, err := h.svc.db.QueryContext(h.ctx, `SELECT payload FROM outbox_events WHERE event_type = ? ORDER BY id`, EvtPlanOwnerBlockWake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []planOwnerBlockWakePayload
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var pl planOwnerBlockWakePayload
+		if err := json.Unmarshal([]byte(raw), &pl); err != nil {
+			t.Fatal(err)
+		}
+		if pl.PlanID == string(planID) {
+			out = append(out, pl)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 func wantWaitKeys(t *testing.T, got []string, want ...string) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -163,6 +191,95 @@ func TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle(t *testing.T) {
 	if bo := blockedOnByTask(t, h, planID); len(bo) != 0 {
 		t.Fatalf("after A done + B dispatched, want NO snapshots, got %+v", bo)
 	}
+}
+
+func TestBlockedPlanNode_EmitsDurableOwnerWakeOnceAndAvoidsExecutorLiveness(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:owner", Role: pm.RoleOwner, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "blocked-wake", CreatedBy: "agent:owner"})
+	if err != nil {
+		t.Fatalf("CreatePlan(agent owner): %v", err)
+	}
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "agent:worker")
+	if err := h.svc.StartPlan(h.ctx, planID, "agent:owner"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.drain(t)
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	if err := h.svc.BlockTask(h.ctx, a, "waiting for owner", pm.BlockReasonObstacle, "agent:owner"); err != nil {
+		t.Fatalf("BlockTask: %v", err)
+	}
+	bo := blockedOnByTask(t, h, planID)
+	if bo[a].WaitType != pm.WaitHumanDecision {
+		t.Fatalf("blocked task wait_type=%q, want human_decision (not executor_liveness)", bo[a].WaitType)
+	}
+	evs := planOwnerBlockWakeEvents(t, h, planID)
+	if len(evs) != 1 {
+		t.Fatalf("owner block wake events=%d, want 1", len(evs))
+	}
+	if evs[0].OwnerRef != "agent:owner" || evs[0].TaskID != string(a) || evs[0].MessageID == "" {
+		t.Fatalf("bad owner block wake payload: %+v", evs[0])
+	}
+	if err := h.svc.materializeBlockedOn(h.ctx, mustPlan(t, h, planID)); err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	if got := len(planOwnerBlockWakeEvents(t, h, planID)); got != 1 {
+		t.Fatalf("idempotent materialize emitted %d block wakes, want 1", got)
+	}
+}
+
+func TestBlockedOnClearedWhenTaskTerminalAndPlanDiscarded(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "frontier-clear", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.drain(t)
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	if err := h.svc.materializeBlockedOn(h.ctx, mustPlan(t, h, planID)); err != nil {
+		t.Fatal(err)
+	}
+	if bo := blockedOnByTask(t, h, planID); bo[a].WaitType != pm.WaitExecutorLiveness {
+		t.Fatalf("running task wait=%q want executor_liveness", bo[a].WaitType)
+	}
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, a); err != nil || ok {
+		t.Fatalf("terminal task kept blocked_on ok=%v err=%v", ok, err)
+	}
+
+	plan2, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "discard-clear", CreatedBy: "user:a"})
+	h.drain(t)
+	b := h.seedAssignedTask(t, pid, plan2, "B", "user:x")
+	if err := h.svc.StartPlan(h.ctx, plan2, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	h.setTaskStatus(t, b, pm.TaskRunning)
+	if err := h.svc.materializeBlockedOn(h.ctx, mustPlan(t, h, plan2)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.DiscardPlan(h.ctx, plan2, "user:a"); err != nil {
+		t.Fatalf("DiscardPlan: %v", err)
+	}
+	if list, err := h.plans.ListBlockedOn(h.ctx, plan2); err != nil || len(list) != 0 {
+		t.Fatalf("discarded plan blocked_on=%+v err=%v, want empty", list, err)
+	}
+}
+
+func mustPlan(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) *pm.Plan {
+	t.Helper()
+	p, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
 
 // TestBlockedOn_Idempotent asserts a re-run of the sweep produces NO churn: the

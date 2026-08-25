@@ -113,6 +113,9 @@ func (s *Service) markPlanDone(ctx context.Context, p *pm.Plan, now time.Time) e
 	if err := s.plans.Update(ctx, p); err != nil {
 		return err
 	}
+	if err := s.clearPlanBlockedOn(ctx, p.ID()); err != nil {
+		return err
+	}
 	return s.emitPlanLifecycle(ctx, p, EvtPlanCompleted)
 }
 

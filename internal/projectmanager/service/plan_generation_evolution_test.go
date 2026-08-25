@@ -468,6 +468,114 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	})
 }
 
+func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-supersede", CreatedBy: "user:a"})
+	h.drain(t)
+	a, b := h.startRunningPlanAB(t, pid, planID)
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	h.setTaskStatus(t, a, pm.TaskCompleted)
+	if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("dispatch B: %v", err)
+	}
+	h.setTaskStatus(t, b, pm.TaskRunning)
+	if err := h.svc.BlockTask(h.ctx, b, "blocked by external vendor", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatalf("BlockTask(B): %v", err)
+	}
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+
+	if _, err := h.svc.db.ExecContext(h.ctx, `CREATE TRIGGER reject_owner_supersede_generation
+		BEFORE INSERT ON pm_plan_generations BEGIN SELECT RAISE(ABORT, 'reject owner supersede generation'); END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-owner-supersede-blocked-reject",
+		Reason: "replace blocked node", Evidence: "owner accepted replacement", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: b, Action: pm.EvolutionSupersede}},
+			Tasks:         []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "rolled back replacement", AssigneeRef: "user:c1", Detached: true}},
+		},
+	})
+	if err == nil {
+		t.Fatal("owner supersede succeeded while generation insert was forced to fail")
+	}
+	rolledBackB, err := h.tasks.FindByID(h.ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rolledBackB.PlanID() != planID || !dispatchedSet(t, h, planID)[b] {
+		t.Fatalf("failed generation left partial supersede: plan=%s dispatched=%v", rolledBackB.PlanID(), dispatchedSet(t, h, planID)[b])
+	}
+	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, b); err != nil || !ok {
+		t.Fatalf("failed generation lost blocked_on ok=%v err=%v", ok, err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("failed generation changed version=%d want %d", got, base)
+	}
+	if _, err := h.svc.db.ExecContext(h.ctx, `DROP TRIGGER reject_owner_supersede_generation`); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-owner-supersede-blocked",
+		Reason: "replace blocked node", Evidence: "owner accepted replacement", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: b, Action: pm.EvolutionSupersede}},
+			Tasks:         []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "replacement", AssigneeRef: "user:c1", Detached: true}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("owner supersede blocked dispatched node: %v", err)
+	}
+	if res.Generation == nil || res.Generation.ID == parent.ID {
+		t.Fatalf("generation not advanced: %+v", res.Generation)
+	}
+	oldB, err := h.tasks.FindByID(h.ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldB.PlanID() != "" {
+		t.Fatalf("superseded blocked task still in plan: %s", oldB.PlanID())
+	}
+	if dispatchedSet(t, h, planID)[b] {
+		t.Fatalf("superseded task %s kept a stale dispatch record", b)
+	}
+	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, b); err != nil || ok {
+		t.Fatalf("superseded task kept blocked_on ok=%v err=%v", ok, err)
+	}
+	p, _ := h.plans.FindByID(h.ctx, planID)
+	if p.ActiveGenerationID() != res.Generation.ID || p.Version() != base+1 {
+		t.Fatalf("active/version=%s/%d want %s/%d", p.ActiveGenerationID(), p.Version(), res.Generation.ID, base+1)
+	}
+}
+
+func TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "non-owner-supersede", CreatedBy: "user:a"})
+	h.drain(t)
+	a, _ := h.startRunningPlanAB(t, pid, planID)
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+	_, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-non-owner-supersede-terminal",
+		Reason: "replace failed node", Evidence: "member should not own recovery", Creator: "user:b",
+		Diff: pm.PlanGenerationDiff{NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: a, Action: pm.EvolutionSupersede}}},
+	})
+	if !errors.Is(err, ErrStageGateReopenForbidden) {
+		t.Fatalf("non-owner supersede err=%v, want ErrStageGateReopenForbidden", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d after rejected non-owner supersede", got, base)
+	}
+}
+
 func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

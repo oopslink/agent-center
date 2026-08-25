@@ -178,6 +178,9 @@ func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err := s.plans.Update(txCtx, p); err != nil {
 			return err
 		}
+		if err := s.clearPlanBlockedOn(txCtx, p.ID()); err != nil {
+			return err
+		}
 		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status()), "discarded": true})
 		return s.emitPlanLifecycle(txCtx, p, EvtPlanStopped)
 	})

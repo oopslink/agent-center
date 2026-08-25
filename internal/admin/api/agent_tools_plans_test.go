@@ -890,6 +890,12 @@ func TestGetPlan_OK(t *testing.T) {
 	if body["id"] != planID {
 		t.Fatalf("id = %v, want %s", body["id"], planID)
 	}
+	if body["owner_ref"] != "pm://plans/"+planID {
+		t.Fatalf("owner_ref = %v, want pm://plans/%s", body["owner_ref"], planID)
+	}
+	if body["creator_ref"] == "" {
+		t.Fatalf("creator_ref missing from compatibility audit field: %v", body)
+	}
 	// Spot-check the DERIVED Plan DTO shape (nodes + ready_set + has_failed + progress).
 	for _, k := range []string{"project_id", "name", "status", "nodes", "ready_set", "has_failed", "progress"} {
 		if _, ok := body[k]; !ok {
