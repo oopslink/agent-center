@@ -137,6 +137,7 @@ const (
 	EvtPlanFindingRecorded  = "pm.plan_finding.recorded"
 	EvtPlanFindingRetracted = "pm.plan_finding.retracted"
 	EvtPlanBlockOwnerWake   = "pm.plan.block_owner_wake"
+	EvtPlanOwnerAccessLost  = "pm.plan.owner_access_lost"
 	// v2.14.0 I14/F6 (HTTP + Conversation 接线). When a running task is blocked
 	// with reasonType=input_required (the agent needs a USER reply) BlockTask emits
 	// EvtTaskInputRequested IN THE SAME TX; when the task is later unblocked from an

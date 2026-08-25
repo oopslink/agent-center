@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -361,6 +363,217 @@ func TestRemoveProjectMember_ImmediatelyFallbacksPlanOwner(t *testing.T) {
 	}
 	if plan.OwnerRef() != "user:backup" {
 		t.Fatalf("owner after removal = %s, want backup", plan.OwnerRef())
+	}
+}
+
+func TestPlanOwnerAccessLossProductionPathsFallbackAndFailClosed(t *testing.T) {
+	cases := []struct {
+		name     string
+		path     string
+		fallback bool
+	}{
+		{name: "removed fallback", path: "removed", fallback: true},
+		{name: "removed fail closed", path: "removed", fallback: false},
+		{name: "disabled fallback", path: "disabled", fallback: true},
+		{name: "disabled fail closed", path: "disabled", fallback: false},
+		{name: "permission loss fallback", path: "permission", fallback: true},
+		{name: "permission loss fail closed", path: "permission", fallback: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := planAdvanceSetup(t)
+			h.svc.authorizer = authz.New(authz.Deps{DB: h.svc.db, Mode: authz.EnforcementEnforce, IDGen: h.svc.idgen, Clock: h.clk})
+			seedIdentityMember(t, h, "org-1", "a", "owner", "joined")
+			seedIdentityMember(t, h, "org-1", "owner", "member", "joined")
+			if tc.fallback {
+				seedIdentityMember(t, h, "org-1", "backup", "member", "joined")
+			}
+			pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+			if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:owner", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+				t.Fatal(err)
+			}
+			if tc.fallback {
+				if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:backup", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			backup := pm.IdentityRef("")
+			if tc.fallback {
+				backup = "user:backup"
+			}
+			planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-loss", CreatedBy: "user:a", OwnerRef: "user:owner", BackupOwnerRef: backup})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.fallback {
+				if _, err := h.svc.db.ExecContext(h.ctx, `UPDATE pm_project_members SET role='member' WHERE project_id=? AND identity_id='user:a'`, string(pid)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.drain(t)
+
+			switch tc.path {
+			case "removed":
+				memberSvc := identity.NewMemberRemoveService(h.svc.db, identity.NewSQLiteMemberRepo(h.svc.db), identity.NewOrganizationLockManager()).WithAccessLossHandler(h.svc)
+				if err := memberSvc.Remove(h.ctx, "mem-owner", "a"); err != nil {
+					t.Fatal(err)
+				}
+			case "disabled":
+				memberSvc := identity.NewMemberDisableService(h.svc.db, identity.NewSQLiteMemberRepo(h.svc.db), identity.NewOrganizationLockManager()).WithAccessLossHandler(h.svc)
+				if err := memberSvc.Disable(h.ctx, "mem-owner", "test"); err != nil {
+					t.Fatal(err)
+				}
+			case "permission":
+				grantProjectWrite(t, h, "org-1", "user:owner", string(pid), "asgn-owner-project-write")
+				if _, err := h.svc.db.ExecContext(h.ctx, `DELETE FROM pm_project_members WHERE project_id=? AND identity_id='user:owner'`, string(pid)); err != nil {
+					t.Fatal(err)
+				}
+				authSvc := authz.New(authz.Deps{DB: h.svc.db, Mode: authz.EnforcementEnforce, IDGen: h.svc.idgen, Clock: h.clk}).WithAccessLossHandler(h.svc)
+				if _, err := authSvc.RevokeBatch(h.ctx, authz.BatchRequest{
+					IdempotencyKey: "revoke-owner-project-write-" + tc.name,
+					ActorRef:       "system",
+					OrgID:          "org-1",
+					Operations:     []authz.BatchOperation{{ID: "revoke", Revoke: authz.RevokeInput{AssignmentID: "asgn-owner-project-write", Reason: "test"}}},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			plan, err := h.plans.FindByID(h.ctx, planID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.fallback && plan.OwnerRef() != "user:backup" {
+				t.Fatalf("owner=%s want fallback backup", plan.OwnerRef())
+			}
+			if !tc.fallback && plan.OwnerRef() != "user:owner" {
+				t.Fatalf("owner=%s want original fail-closed owner", plan.OwnerRef())
+			}
+			if plan.AttentionStatus() != pm.PlanAttentionRequired {
+				t.Fatalf("attention=%s want attention_required", plan.AttentionStatus())
+			}
+			assertPlanOwnerLossEvent(t, h, planID, tc.path, !tc.fallback)
+			assertPlanOwnerLossAudit(t, h, planID, !tc.fallback)
+		})
+	}
+}
+
+func TestPlanOwnerAccessLossHookFailureRollsBackUpstreamMutation(t *testing.T) {
+	h := planAdvanceSetup(t)
+	seedIdentityMember(t, h, "org-1", "a", "owner", "joined")
+	seedIdentityMember(t, h, "org-1", "owner", "member", "joined")
+	memberSvc := identity.NewMemberDisableService(h.svc.db, identity.NewSQLiteMemberRepo(h.svc.db), identity.NewOrganizationLockManager()).
+		WithAccessLossHandler(failingAccessLossHandler{})
+	if err := memberSvc.Disable(h.ctx, "mem-owner", "test"); err == nil {
+		t.Fatal("Disable succeeded despite failing access-loss hook")
+	}
+	var status string
+	if err := h.svc.db.QueryRowContext(h.ctx, `SELECT status FROM members WHERE id='mem-owner'`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "joined" {
+		t.Fatalf("member status=%s want joined after rollback", status)
+	}
+
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	grantProjectWrite(t, h, "org-1", "user:owner", string(pid), "asgn-owner-project-write")
+	authSvc := authz.New(authz.Deps{DB: h.svc.db, Mode: authz.EnforcementEnforce, IDGen: h.svc.idgen, Clock: h.clk}).
+		WithAccessLossHandler(failingAccessLossHandler{})
+	if _, err := authSvc.RevokeBatch(h.ctx, authz.BatchRequest{
+		IdempotencyKey: "revoke-failing-hook",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations:     []authz.BatchOperation{{ID: "revoke", Revoke: authz.RevokeInput{AssignmentID: "asgn-owner-project-write", Reason: "test"}}},
+	}); err == nil {
+		t.Fatal("RevokeBatch succeeded despite failing access-loss hook")
+	}
+	var revokedAt any
+	if err := h.svc.db.QueryRowContext(h.ctx, `SELECT revoked_at FROM authorization_role_assignments WHERE id='asgn-owner-project-write'`).Scan(&revokedAt); err != nil {
+		t.Fatal(err)
+	}
+	if revokedAt != nil {
+		t.Fatalf("assignment revoked_at=%v want nil after rollback", revokedAt)
+	}
+}
+
+type failingAccessLossHandler struct{}
+
+func (failingAccessLossHandler) ReconcilePlanOwnerAccessLoss(context.Context, string, string, string, string) error {
+	return errors.New("hook failed")
+}
+
+func (failingAccessLossHandler) ReconcilePlanOwnersAccessLoss(context.Context, string, string, string) error {
+	return errors.New("hook failed")
+}
+
+func seedIdentityMember(t *testing.T, h *planAdvanceHarness, orgID, identityID, role, status string) {
+	t.Helper()
+	joined := h.clk.Now().Format(time.RFC3339Nano)
+	disabledAt := ""
+	if status == "disabled" {
+		disabledAt = joined
+	}
+	if _, err := h.svc.db.ExecContext(h.ctx, `INSERT OR IGNORE INTO organizations
+		(id, slug, name, created_by_identity_id, created_at, updated_at)
+		VALUES (?, ?, ?, 'a', ?, ?)`, orgID, orgID, orgID, joined, joined); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.db.ExecContext(h.ctx, `INSERT INTO members
+		(id, organization_id, identity_id, role, status, joined_at, disabled_at, disabled_reason)
+		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), '')`,
+		"mem-"+identityID, orgID, identityID, role, status, joined, disabledAt); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func grantProjectWrite(t *testing.T, h *planAdvanceHarness, orgID, subjectRef, projectID, assignmentID string) {
+	t.Helper()
+	authSvc := authz.New(authz.Deps{DB: h.svc.db, Mode: authz.EnforcementEnforce, IDGen: h.svc.idgen, Clock: h.clk})
+	if _, err := authSvc.ApplyBatch(h.ctx, authz.BatchRequest{
+		IdempotencyKey: "grant-" + assignmentID,
+		ActorRef:       "system",
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{{
+			ID:   "grant",
+			Type: "direct_grant",
+			DirectGrant: authz.DirectGrantInput{
+				ID: assignmentID, SubjectRef: authz.SubjectRef(subjectRef), PermissionKey: "project.write",
+				Resource: authz.ResourceScope{Kind: "project", ID: projectID, OrgID: orgID},
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertPlanOwnerLossEvent(t *testing.T, h *planAdvanceHarness, planID pm.PlanID, reasonFragment string, failClosed bool) {
+	t.Helper()
+	var refs, payload string
+	if err := h.svc.db.QueryRowContext(h.ctx, `SELECT refs, payload FROM outbox_events WHERE event_type = ? ORDER BY created_at DESC, id DESC LIMIT 1`, EvtPlanOwnerAccessLost).Scan(&refs, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(refs, string(planID)) || !strings.Contains(payload, reasonFragment) {
+		t.Fatalf("owner-loss event refs=%s payload=%s", refs, payload)
+	}
+	if failClosed && !strings.Contains(payload, `"fail_closed":true`) {
+		t.Fatalf("owner-loss event must record fail_closed=true: %s", payload)
+	}
+	if !failClosed && !strings.Contains(payload, `"owner_ref":"user:backup"`) {
+		t.Fatalf("owner-loss event must record fallback owner: %s", payload)
+	}
+}
+
+func assertPlanOwnerLossAudit(t *testing.T, h *planAdvanceHarness, planID pm.PlanID, failClosed bool) {
+	t.Helper()
+	entry := hasChange(auditOf(t, h.svc, h.ctx, pm.AuditObjectPlan, string(planID)), pm.AuditPlanOwnerTransferred)
+	if entry == nil {
+		t.Fatal("missing owner_transferred audit entry")
+	}
+	if !strings.Contains(entry.Detail, `"attention_status":"attention_required"`) {
+		t.Fatalf("audit must record attention_required: %s", entry.Detail)
+	}
+	if failClosed && !strings.Contains(entry.Detail, `"fail_closed":true`) {
+		t.Fatalf("audit must record fail_closed=true: %s", entry.Detail)
 	}
 }
 

@@ -10,6 +10,10 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
+type MemberAccessLossHandler interface {
+	ReconcilePlanOwnerAccessLoss(ctx context.Context, orgID, subjectRef, reason, actorRef string) error
+}
+
 // ============================================================
 // MemberRoleChangeService — DS-2 (last-owner guard)
 // ============================================================
@@ -84,10 +88,11 @@ var ErrLastOwnerCannotDisable = errors.New("member: cannot disable last owner of
 
 // MemberDisableService disables or re-enables member access.
 type MemberDisableService struct {
-	db      *sql.DB
-	members MemberRepository
-	lock    *OrganizationLockManager
-	sink    *observability.EventSink
+	db                *sql.DB
+	members           MemberRepository
+	lock              *OrganizationLockManager
+	sink              *observability.EventSink
+	accessLossHandler MemberAccessLossHandler
 }
 
 // NewMemberDisableService constructs the service.
@@ -98,6 +103,11 @@ func NewMemberDisableService(db *sql.DB, members MemberRepository, lock *Organiz
 // NewMemberDisableServiceWithSink constructs the service with an event sink.
 func NewMemberDisableServiceWithSink(db *sql.DB, members MemberRepository, lock *OrganizationLockManager, sink *observability.EventSink) *MemberDisableService {
 	return &MemberDisableService{db: db, members: members, lock: lock, sink: sink}
+}
+
+func (s *MemberDisableService) WithAccessLossHandler(h MemberAccessLossHandler) *MemberDisableService {
+	s.accessLossHandler = h
+	return s
 }
 
 // Disable disables a member (idempotent if already disabled).
@@ -129,6 +139,11 @@ func (s *MemberDisableService) Disable(ctx context.Context, memberID, reason str
 			member.Disable(reason)
 			if err := s.members.Save(txCtx, member); err != nil {
 				return err
+			}
+			if s.accessLossHandler != nil {
+				if err := s.accessLossHandler.ReconcilePlanOwnerAccessLoss(txCtx, member.OrganizationID(), "user:"+member.IdentityID(), "owner_disabled", "system"); err != nil {
+					return err
+				}
 			}
 			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
 			return emitEvent(txCtx, s.sink, EvtMemberDisabled, refs, observability.Actor("system"), map[string]any{"reason": reason, "message": "member disabled"})
@@ -442,10 +457,11 @@ var ErrCannotRemoveLastOwner = errors.New("member: cannot remove last owner of o
 
 // MemberRemoveService removes a member from an organization.
 type MemberRemoveService struct {
-	db      *sql.DB
-	members MemberRepository
-	lock    *OrganizationLockManager
-	sink    *observability.EventSink
+	db                *sql.DB
+	members           MemberRepository
+	lock              *OrganizationLockManager
+	sink              *observability.EventSink
+	accessLossHandler MemberAccessLossHandler
 }
 
 // NewMemberRemoveService constructs the service.
@@ -456,6 +472,11 @@ func NewMemberRemoveService(db *sql.DB, members MemberRepository, lock *Organiza
 // NewMemberRemoveServiceWithSink constructs the service with an event sink.
 func NewMemberRemoveServiceWithSink(db *sql.DB, members MemberRepository, lock *OrganizationLockManager, sink *observability.EventSink) *MemberRemoveService {
 	return &MemberRemoveService{db: db, members: members, lock: lock, sink: sink}
+}
+
+func (s *MemberRemoveService) WithAccessLossHandler(h MemberAccessLossHandler) *MemberRemoveService {
+	s.accessLossHandler = h
+	return s
 }
 
 // Remove removes a member from an organization. Guards last-owner invariant.
@@ -491,6 +512,11 @@ func (s *MemberRemoveService) Remove(ctx context.Context, memberID, removedByIde
 			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
 			if err := s.members.Delete(txCtx, memberID); err != nil {
 				return err
+			}
+			if s.accessLossHandler != nil {
+				if err := s.accessLossHandler.ReconcilePlanOwnerAccessLoss(txCtx, member.OrganizationID(), "user:"+member.IdentityID(), "owner_removed", "user:"+removedByIdentityID); err != nil {
+					return err
+				}
 			}
 			actor := observability.Actor("user:" + removedByIdentityID)
 			return emitEvent(txCtx, s.sink, EvtMemberRemoved, refs, actor, nil)

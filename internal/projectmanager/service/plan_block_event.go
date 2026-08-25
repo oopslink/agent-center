@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
+	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -273,18 +275,18 @@ func (s *Service) reconcilePlanOwner(ctx context.Context, p *pm.Plan, actor pm.I
 	if p == nil {
 		return nil
 	}
-	if err := s.requireProjectMember(ctx, p.ProjectID(), p.OwnerRef()); err == nil {
-		return nil
-	} else if !errors.Is(err, ErrNotMember) && !errors.Is(err, pm.ErrMemberNotFound) {
+	if ok, err := s.validPlanOwner(ctx, p.ProjectID(), p.OwnerRef()); err != nil {
 		return err
+	} else if ok {
+		return nil
 	}
 	prevOwner, prevBackup := p.OwnerRef(), p.BackupOwnerRef()
 	var target pm.IdentityRef
 	if prevBackup != "" {
-		if err := s.requireProjectMember(ctx, p.ProjectID(), prevBackup); err == nil {
-			target = prevBackup
-		} else if !errors.Is(err, ErrNotMember) && !errors.Is(err, pm.ErrMemberNotFound) {
+		if ok, err := s.validPlanOwner(ctx, p.ProjectID(), prevBackup); err != nil {
 			return err
+		} else if ok {
+			target = prevBackup
 		}
 	}
 	if target == "" {
@@ -293,7 +295,11 @@ func (s *Service) reconcilePlanOwner(ctx context.Context, p *pm.Plan, actor pm.I
 			return err
 		}
 		for _, m := range members {
-			if m.Role() == pm.RoleOwner {
+			ok, err := s.validPlanOwner(ctx, p.ProjectID(), m.IdentityID())
+			if err != nil {
+				return err
+			}
+			if m.Role() == pm.RoleOwner && ok {
 				target = m.IdentityID()
 				break
 			}
@@ -303,17 +309,179 @@ func (s *Service) reconcilePlanOwner(ctx context.Context, p *pm.Plan, actor pm.I
 		if err := p.SetOwner(target, "", now); err != nil {
 			return err
 		}
-	} else {
-		p.RequireAttention(p.LastAttentionEventID(), now)
 	}
+	p.RequireAttention(p.LastAttentionEventID(), now)
 	if err := s.plans.Update(ctx, p); err != nil {
 		return err
 	}
 	s.auditPlan(ctx, p, pm.AuditPlanOwnerTransferred, actor, map[string]any{
 		"field": "owner_ref", "from": string(prevOwner), "to": string(target),
 		"backup_from": string(prevBackup), "backup_to": "", "reason": reason,
+		"attention_status": string(p.AttentionStatus()), "fail_closed": target == "",
 	})
+	if s.outbox != nil {
+		if err := s.emit(ctx, EvtPlanOwnerAccessLost,
+			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
+			map[string]any{
+				"plan_id": string(p.ID()), "project_id": string(p.ProjectID()),
+				"previous_owner_ref": string(prevOwner), "owner_ref": string(target),
+				"backup_owner_ref": string(prevBackup), "reason": reason,
+				"attention_status": string(p.AttentionStatus()), "fail_closed": target == "",
+			}); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (s *Service) validPlanOwner(ctx context.Context, projectID pm.ProjectID, ref pm.IdentityRef) (bool, error) {
+	if ref == "" {
+		return false, nil
+	}
+	p, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if s.authorizer == nil {
+		if _, err := s.members.FindByProjectAndIdentity(ctx, projectID, ref); err != nil {
+			if errors.Is(err, pm.ErrMemberNotFound) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	}
+	ok, err := s.joinedOrgMember(ctx, p.OrganizationID(), ref)
+	if err != nil || !ok {
+		return ok, err
+	}
+	exp, err := s.authorizer.ResolveEffective(ctx, authz.CheckRequest{
+		SubjectRef: authz.SubjectRef(ref),
+		Transport:  authz.TransportSystem,
+		Permission: "project.write",
+		Resource: authz.ResourceScope{
+			Kind:  "project",
+			ID:    string(projectID),
+			OrgID: p.OrganizationID(),
+		},
+		RequestID: "pm.plan.owner.reconcile",
+	})
+	if err != nil && !errors.Is(err, authz.ErrDenied) {
+		return false, err
+	}
+	return exp.Decision.Allowed, nil
+}
+
+func (s *Service) joinedOrgMember(ctx context.Context, orgID string, ref pm.IdentityRef) (bool, error) {
+	if s.db == nil {
+		return true, nil
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, s.db)
+	if err != nil {
+		return false, err
+	}
+	subject := authz.SubjectRef(ref)
+	if !(subject.IsUser() || subject.IsAgent()) {
+		return ref == "system", nil
+	}
+	id := subject.BareID()
+	var count int
+	var q string
+	if subject.IsUser() {
+		q = `SELECT COUNT(*) FROM members WHERE organization_id = ? AND identity_id = ? AND status = 'joined'`
+	} else {
+		q = `SELECT COUNT(*) FROM members WHERE organization_id = ? AND id = ? AND status = 'joined'`
+	}
+	if err := exec.QueryRowContext(ctx, q, orgID, id).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Service) ReconcilePlanOwnerAccessLoss(ctx context.Context, orgID, subjectRef, reason, actorRef string) error {
+	if s == nil || s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	subject := pm.IdentityRef(strings.TrimSpace(subjectRef))
+	if err := subject.Validate(); err != nil {
+		return err
+	}
+	actor := pm.IdentityRef(strings.TrimSpace(actorRef))
+	if actor == "" {
+		actor = pm.SystemActor("owner-access-loss")
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "owner_access_lost"
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		projects, err := s.projects.ListByOrg(txCtx, strings.TrimSpace(orgID))
+		if err != nil {
+			return err
+		}
+		for _, project := range projects {
+			plans, err := s.plans.ListByProject(txCtx, project.ID())
+			if err != nil {
+				return err
+			}
+			for _, p := range plans {
+				if p.OwnerRef() != subject {
+					continue
+				}
+				if err := s.reconcilePlanOwner(txCtx, p, actor, reason, now); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Service) ReconcilePlanOwnersAccessLoss(ctx context.Context, orgID, reason, actorRef string) error {
+	if s == nil || s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	actor := pm.IdentityRef(strings.TrimSpace(actorRef))
+	if actor == "" {
+		actor = pm.SystemActor("owner-access-loss")
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "owner_permission_loss"
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		projects, err := s.projects.ListByOrg(txCtx, strings.TrimSpace(orgID))
+		if err != nil {
+			return err
+		}
+		for _, project := range projects {
+			plans, err := s.plans.ListByProject(txCtx, project.ID())
+			if err != nil {
+				return err
+			}
+			for _, p := range plans {
+				ok, err := s.validPlanOwner(txCtx, p.ProjectID(), p.OwnerRef())
+				if err != nil {
+					return err
+				}
+				if ok {
+					continue
+				}
+				if err := s.reconcilePlanOwner(txCtx, p, actor, reason, now); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func (s *Service) resolvePlanBlockForTask(txCtx context.Context, t *pm.Task, actor pm.IdentityRef, kind, note string, at time.Time) error {

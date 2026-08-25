@@ -528,6 +528,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 			return idn.DisplayName(), true
 		}),
 	})
+	authorizationSvc.WithAccessLossHandler(pmSvc)
+	identityMemberDisableSvc.WithAccessLossHandler(pmSvc)
+	identityMemberRemoveSvc.WithAccessLossHandler(pmSvc)
 
 	// v2.14.0 F7 (issue I14): the shared AgentWorkItem repo (+ its transition sink)
 	// and the WorkItem-backed paused-task provider were removed — AgentWorkItem

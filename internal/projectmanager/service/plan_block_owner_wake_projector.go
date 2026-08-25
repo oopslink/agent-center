@@ -233,7 +233,7 @@ func (p *PlanBlockOwnerWakeProjector) target(ctx context.Context, plan *pm.Plan,
 			return "", false, err
 		} else if ok {
 			plan.SetOwner(b, "", now)
-			plan.SetVersion(plan.Version()+1, now)
+			plan.RequireAttention(plan.LastAttentionEventID(), now)
 			return b, true, p.plans.Update(ctx, plan)
 		}
 	}
@@ -241,7 +241,7 @@ func (p *PlanBlockOwnerWakeProjector) target(ctx context.Context, plan *pm.Plan,
 		return "", false, err
 	} else {
 		plan.SetOwner(owner, "", now)
-		plan.SetVersion(plan.Version()+1, now)
+		plan.RequireAttention(plan.LastAttentionEventID(), now)
 		return owner, true, p.plans.Update(ctx, plan)
 	}
 }

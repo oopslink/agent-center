@@ -33,6 +33,7 @@ type Service struct {
 	requiredShadowTransports []Transport
 	minShadowChecks          int64
 	minShadowWindow          time.Duration
+	accessLossHandler        AccessLossHandler
 }
 
 type Deps struct {
@@ -45,6 +46,12 @@ type Deps struct {
 	RequiredShadowTransports []Transport
 	MinShadowChecks          int64
 	MinShadowWindow          time.Duration
+	AccessLossHandler        AccessLossHandler
+}
+
+type AccessLossHandler interface {
+	ReconcilePlanOwnerAccessLoss(ctx context.Context, orgID, subjectRef, reason, actorRef string) error
+	ReconcilePlanOwnersAccessLoss(ctx context.Context, orgID, reason, actorRef string) error
 }
 
 const (
@@ -75,7 +82,13 @@ func New(deps Deps) *Service {
 	s := &Service{
 		db: deps.DB, store: store, gen: gen, clock: clk, sink: deps.EventSink, mode: mode,
 		requiredShadowTransports: deps.RequiredShadowTransports, minShadowChecks: deps.MinShadowChecks, minShadowWindow: deps.MinShadowWindow,
+		accessLossHandler: deps.AccessLossHandler,
 	}
+	return s
+}
+
+func (s *Service) WithAccessLossHandler(h AccessLossHandler) *Service {
+	s.accessLossHandler = h
 	return s
 }
 
@@ -821,6 +834,14 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if role.Kind != "system" && role.OrgID != orgID {
 			return OperationResult{}, fmt.Errorf("%w: role belongs to another org", ErrNotFound)
 		}
+		hadProjectWrite := false
+		if s.accessLossHandler != nil && role.Kind == "system" {
+			var herr error
+			hadProjectWrite, herr = s.assignmentCarriedPermission(ctx, roleID, "project.write", "project")
+			if herr != nil {
+				return OperationResult{}, herr
+			}
+		}
 		for _, p := range op.Permissions {
 			if !PermissionDefinedForResource(p.PermissionKey, p.ResourceKind) {
 				return OperationResult{}, fmt.Errorf("%w: %s for %s", ErrPermissionUndefined, p.PermissionKey, p.ResourceKind)
@@ -831,6 +852,11 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		}
 		if err := s.audit(ctx, auditEvent{EventType: "authorization.role_permissions.set", ActorRef: actor, RoleID: roleID, ResourceKind: "org", ResourceID: orgID, Payload: map[string]any{"count": len(op.Permissions)}}); err != nil {
 			return OperationResult{}, err
+		}
+		if s.accessLossHandler != nil && role.Kind == "system" && hadProjectWrite && !rolePermissionsContain(op.Permissions, "project.write", "project") {
+			if err := s.accessLossHandler.ReconcilePlanOwnersAccessLoss(ctx, orgID, "owner_permission_loss", string(actor)); err != nil {
+				return OperationResult{}, err
+			}
 		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: "set", RoleID: roleID}, nil
 
@@ -981,10 +1007,45 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err := s.audit(ctx, auditEvent{EventType: "authorization.assignment.revoked", ActorRef: actor, SubjectRef: a.SubjectRef, RoleID: a.RoleID, AssignmentID: a.ID, ResourceKind: a.ResourceKind, ResourceID: a.ResourceID, RequestID: requestID, Payload: payload}); err != nil {
 			return OperationResult{}, err
 		}
+		if status == "revoked" && s.accessLossHandler != nil && a.ResourceKind == "project" {
+			if lost, err := s.assignmentCarriedPermission(ctx, a.RoleID, "project.write", "project"); err != nil {
+				return OperationResult{}, err
+			} else if lost {
+				if err := s.accessLossHandler.ReconcilePlanOwnerAccessLoss(ctx, a.OrgID, string(a.SubjectRef), "owner_permission_loss", string(actor)); err != nil {
+					return OperationResult{}, err
+				}
+			}
+		}
 		return OperationResult{ID: op.ID, Type: op.Type, Status: status, RoleID: a.RoleID, AssignmentID: a.ID}, nil
 	default:
 		return OperationResult{}, fmt.Errorf("%w: unknown operation type %q", ErrInvalid, op.Type)
 	}
+}
+
+func rolePermissionsContain(perms []RolePermissionInput, permission PermissionKey, resourceKind string) bool {
+	for _, p := range perms {
+		if p.PermissionKey == permission && p.ResourceKind == resourceKind {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) assignmentCarriedPermission(ctx context.Context, roleID string, permission PermissionKey, resourceKind string) (bool, error) {
+	perms, err := s.store.rolePermissions(ctx, roleID)
+	if errors.Is(err, ErrRoleNotFound) {
+		perms = builtinRolePermissionsFallback(roleID)
+		err = nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, p := range perms {
+		if p.PermissionKey == permission && p.ResourceKind == resourceKind {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Service) requireManageRBAC(ctx context.Context, actor SubjectRef, orgID string) error {
