@@ -27,7 +27,7 @@ func planSetup(t *testing.T) (context.Context, *PlanRepo, *TaskRepo) {
 func newPlanFixture(id pm.PlanID, project pm.ProjectID) *pm.Plan {
 	p, _ := pm.NewPlan(pm.NewPlanInput{
 		ID: id, ProjectID: project, Name: "v3.0", Description: "goal",
-		CreatorRef: "user:alice", CreatedAt: t0,
+		CreatorRef: "user:alice", OwnerRef: "user:alice", CreatedAt: t0,
 	})
 	return p
 }

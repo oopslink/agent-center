@@ -30,7 +30,7 @@ func TestBuildPlanGraph_AutoStampsShipNode_AndHardGates(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "autostamp", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "autostamp", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	dev := h.seedAssignedTask(t, pid, planID, "Dev", "user:dev")
@@ -83,7 +83,7 @@ func TestBuildPlanGraph_AutoStampedShipNode_ReleasedOnPass(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated-autostamp", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated-autostamp", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	dev := h.seedAssignedTask(t, pid, planID, "Dev", "user:dev")

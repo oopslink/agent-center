@@ -23,12 +23,12 @@ func TestProjectArchived_PlanLifecycle_Asymmetry(t *testing.T) {
 	t2, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "T2", CreatedBy: "user:a"})
 
 	// a DRAFT plan (for the StartPlan-guarded check) ...
-	draftPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Draft", CreatedBy: "user:a"})
+	draftPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Draft", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, draftPlan, t1, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	// ... and a RUNNING plan (for the StopPlan-not-guarded check), started while active.
-	runPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Running", CreatedBy: "user:a"})
+	runPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Running", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, runPlan, t2, "user:a"); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ func newPlan(t *testing.T) *Plan {
 	t.Helper()
 	p, err := NewPlan(NewPlanInput{
 		ID: "PL-1", ProjectID: "P-1", Name: "v3.0", Description: "the v3.0 plan",
-		CreatorRef: "user:alice", CreatedAt: t0,
+		CreatorRef: "user:alice", OwnerRef: "user:alice", CreatedAt: t0,
 	})
 	if err != nil {
 		t.Fatalf("NewPlan: %v", err)
@@ -18,7 +18,7 @@ func newPlan(t *testing.T) *Plan {
 }
 
 func TestNewPlan_Validation(t *testing.T) {
-	base := NewPlanInput{ID: "PL-1", ProjectID: "P-1", Name: "v3.0", CreatorRef: "user:a", CreatedAt: t0}
+	base := NewPlanInput{ID: "PL-1", ProjectID: "P-1", Name: "v3.0", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: t0}
 	cases := []struct {
 		name string
 		mut  func(in *NewPlanInput)
@@ -29,6 +29,7 @@ func TestNewPlan_Validation(t *testing.T) {
 		{"empty project", func(in *NewPlanInput) { in.ProjectID = "" }, ErrEmptyProjectScope},
 		{"empty name", func(in *NewPlanInput) { in.Name = "" }, ErrEmptyPlanName},
 		{"bad creator", func(in *NewPlanInput) { in.CreatorRef = "nope" }, nil /* non-nil err */},
+		{"missing owner", func(in *NewPlanInput) { in.OwnerRef = "" }, ErrPlanOwnerRequired},
 		{"zero created", func(in *NewPlanInput) { in.CreatedAt = time.Time{} }, nil /* non-nil err */},
 	}
 	for _, c := range cases {

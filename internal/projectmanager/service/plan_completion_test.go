@@ -35,7 +35,7 @@ func TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shap
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "plan-5a432139 shape", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "plan-5a432139 shape", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	oldT1286 := h.seedAssignedTask(t, pid, planID, "T1286 early failed implementation", "user:dev1")
@@ -149,7 +149,7 @@ func TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill(t *tes
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	const planID pm.PlanID = "plan-5a432139"
 	p, err := pm.NewPlan(pm.NewPlanInput{
-		ID: planID, ProjectID: pid, Name: "legacy remediation Plan", CreatorRef: "user:a", CreatedAt: h.clk.Now(),
+		ID: planID, ProjectID: pid, Name: "legacy remediation Plan", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: h.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -276,7 +276,7 @@ func TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes(t *testing.T) {
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	const planID pm.PlanID = "plan-5a432139"
-	p, err := pm.NewPlan(pm.NewPlanInput{ID: planID, ProjectID: pid, Name: "Team Memory controlled writes", CreatorRef: "user:a", CreatedAt: h.clk.Now()})
+	p, err := pm.NewPlan(pm.NewPlanInput{ID: planID, ProjectID: pid, Name: "Team Memory controlled writes", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: h.clk.Now()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure(t *tes
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "mixed legacy recovery", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "mixed legacy recovery", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	aBase := h.seedAssignedTask(t, pid, planID, "A base", "user:dev")
 	aFailed := h.seedAssignedTask(t, pid, planID, "A failed", "user:dev")
@@ -367,7 +367,7 @@ func TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure(t *test
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual remediation completion", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual remediation completion", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	old := h.seedAssignedTask(t, pid, planID, "old failed node", "user:dev1")
 	fix := h.seedAssignedTaskFollowing(t, pid, planID, "replacement node", "user:dev2", old)
@@ -392,7 +392,7 @@ func TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage(t *tes
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy continuation lineage", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy continuation lineage", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	old := h.seedAssignedTask(t, pid, planID, "old failed stage task", "user:dev1")
 	replacement := h.seedAssignedTask(t, pid, planID, "replacement without follows_task_id", "user:dev2")
@@ -489,7 +489,7 @@ func TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion(t *test
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "unrecovered failure", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "unrecovered failure", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	failed := h.seedAssignedTask(t, pid, planID, "failed leaf", "user:dev")
 	accept := h.seedAssignedTask(t, pid, planID, "acceptance", "user:pd")
@@ -524,7 +524,7 @@ func TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks(t *testi
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy failed leaf without remediation", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy failed leaf without remediation", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	failed := h.seedAssignedTask(t, pid, planID, "T1286 failed implementation", "user:dev")
 	finalAcceptance := h.seedAssignedTask(t, pid, planID, "final acceptance", "user:pd")
@@ -558,7 +558,7 @@ func TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility(t *testing.T) 
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual override", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual override", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	failed := h.seedAssignedTask(t, pid, planID, "unrecovered failure", "user:dev")
 	h.setTaskStatus(t, failed, pm.TaskDiscarded)
@@ -608,7 +608,7 @@ func TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion(t *te
 			h := planAdvanceSetup(t)
 			ctx := h.ctx
 			pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-			planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "active " + tc.name, CreatedBy: "user:a"})
+			planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "active " + tc.name, CreatedBy: "user:a", OwnerRef: "user:a"})
 			h.drain(t)
 			taskID := h.seedAssignedTask(t, pid, planID, "current work", "user:dev")
 			if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {

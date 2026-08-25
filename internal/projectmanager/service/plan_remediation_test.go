@@ -12,7 +12,7 @@ func TestStageReject_AppendsIncrementalStageWithoutReopeningHistory(t *testing.T
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	projectID, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "monotonic", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "monotonic", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, stageA, _ := seedTwoStagePlan(t, h, projectID, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -136,7 +136,7 @@ func TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume(t *testin
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	projectID, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "paused remediation", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "paused remediation", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, _, stageA, _ := seedTwoStagePlan(t, h, projectID, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {

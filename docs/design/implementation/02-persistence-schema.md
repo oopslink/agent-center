@@ -242,6 +242,8 @@ var migrationsFS embed.FS
 | **ProjectManager** | `pm_plan_dispatch_records` | 0055 | active |
 | **ProjectManager** | `pm_plan_decision_outcomes` | 0069 | active |
 | **ProjectManager** | `pm_plan_loop_rounds` | 0069 | active |
+| **ProjectManager** | `pm_plan_blocked_on` | 0108 | active — observational frontier snapshots; I145 supersedes current blocker notifications with `pm_plan_block_events` contract |
+| **ProjectManager** | `pm_plan_generations` | 0127 | active — immutable generation snapshots and `pm_plans.active_generation_id` |
 | **Agent** | `agents` | 0042 | active |
 | **Agent** | `agent_work_items` | 0043 | active |
 | **Agent** | `agent_activity_events` | 0043 | active |
@@ -259,6 +261,12 @@ var migrationsFS embed.FS
 | **System** | `center_settings` | 0064 | active |
 | **Bridge** (RETIRED) | `feishu_delivery_ledger` | 0005 | RETIRED — v2 dropped (0025) per ADR-0031 |
 | **Bridge** (RETIRED) | `bridge_subscription_cursors` | 0005 | RETIRED — v2 dropped (0025) per ADR-0031 |
+
+### 8.0.1 I145 Plan Owner / Block Event / Delivery Contract Schema Freeze
+
+The executable contract for Plan owner, backup/recovery policy, Block Event idempotency, active generation/effective frontier, Owner actions, atomic evolution and explicit delivery contracts is frozen in [2026-08-25-i145-plan-owner-block-evolution-delivery-contract.md](../features/2026-08-25-i145-plan-owner-block-evolution-delivery-contract.md).
+
+Implementation migrations must be expand-compatible: add `owner_ref`, `backup_owner_ref`, `attention_status`, `attention_since`, `last_attention_event_id` and recovery policy columns to `pm_plans`; add the `pm_plan_block_events` projection; preserve `pm_plan_generations`; keep legacy empty `pm_tasks.delivery_contract` readable as `code_change`; reject new Plan/evolution writes that omit `delivery_contract` unless running an explicit migration/backfill. Rollback drops only the new projections/columns and never rewrites historical Task or generation facts.
 
 ### 8.1 TaskRuntime (RETIRED — v2.7)
 

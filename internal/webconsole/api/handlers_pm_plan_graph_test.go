@@ -84,7 +84,7 @@ func TestPlanGraphAPI_StartedPlan_ServesEngineGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "graphed", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "graphed", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestPlanGraphAPI_NoGraph_FallbackShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "staged", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "staged", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestPlanStagesAPI_NoStage_EmptyShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "nostage", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "nostage", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func setupGenerationAPIPlan(t *testing.T, fx *planAPIFixture, sess testSession) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts(t *testing
 		t.Fatalf("G0 snapshot=%v", g0["snapshot"])
 	}
 
-	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"add focused verification","evidence":"review found an uncovered path","idempotency_key":"web-evolve-1","diff":{"node_decisions":[{"task_id":%q,"action":"preserve","reason":"already dispatched"}],"tasks":[{"ref":"c","title":"C","assignee_ref":"user:c1"}],"edges":[{"from":"c","to":%q,"kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.a, fixture.a)
+	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"add focused verification","evidence":"review found an uncovered path","idempotency_key":"web-evolve-1","diff":{"node_decisions":[{"task_id":%q,"action":"preserve","reason":"already dispatched"}],"tasks":[{"ref":"c","title":"C","assignee_ref":"user:c1","delivery_contract":"code_change"}],"edges":[{"from":"c","to":%q,"kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.a, fixture.a)
 	first := orgScopedPost(t, url+"/evolution", body, sess)
 	if first.StatusCode != 200 {
 		t.Fatalf("evolution status=%d body=%v", first.StatusCode, decodeBody(t, first))

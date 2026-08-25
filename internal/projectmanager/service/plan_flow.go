@@ -25,11 +25,14 @@ var ErrBuiltinPoolMissing = errors.New("projectmanager: project has no built-in 
 // is project-scoped; the creator must be a project member and becomes the first
 // participant of the Plan's 1:1 Conversation (§9.5).
 type CreatePlanCommand struct {
-	ProjectID   pm.ProjectID
-	Name        string
-	Description string
-	TargetDate  *time.Time
-	CreatedBy   pm.IdentityRef
+	ProjectID      pm.ProjectID
+	Name           string
+	Description    string
+	TargetDate     *time.Time
+	CreatedBy      pm.IdentityRef
+	OwnerRef       pm.IdentityRef
+	BackupOwnerRef pm.IdentityRef
+	RecoveryPolicy pm.PlanRecoveryPolicy
 	// PlanningRules is the phase=plan Team Memory snapshot consumed by the
 	// plan-authoring tool chain for this create operation.
 	PlanningRules *RuleSnapshot
@@ -51,11 +54,30 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 	if err := cmd.CreatedBy.Validate(); err != nil {
 		return "", err
 	}
+	if cmd.OwnerRef == "" {
+		return "", pm.ErrPlanOwnerRequired
+	}
+	if err := cmd.OwnerRef.Validate(); err != nil {
+		return "", err
+	}
+	if cmd.BackupOwnerRef != "" {
+		if err := cmd.BackupOwnerRef.Validate(); err != nil {
+			return "", err
+		}
+	}
 	now := s.clock.Now()
 	planID := pm.PlanID(s.idgen.NewEntityID("plan"))
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
+		}
+		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.OwnerRef); err != nil {
+			return pm.ErrPlanOwnerInvalid
+		}
+		if cmd.BackupOwnerRef != "" {
+			if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.BackupOwnerRef); err != nil {
+				return pm.ErrPlanOwnerInvalid
+			}
 		}
 		// #297: reject plan-create on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
@@ -78,7 +100,8 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		p, nerr := pm.NewPlan(pm.NewPlanInput{
 			ID: planID, ProjectID: cmd.ProjectID, Name: cmd.Name,
 			Description: cmd.Description, CreatorRef: cmd.CreatedBy,
-			TargetDate: cmd.TargetDate, OrgNumber: orgNumber, CreatedAt: now,
+			OwnerRef: cmd.OwnerRef, BackupOwnerRef: cmd.BackupOwnerRef,
+			RecoveryPolicy: cmd.RecoveryPolicy, TargetDate: cmd.TargetDate, OrgNumber: orgNumber, CreatedAt: now,
 		})
 		if nerr != nil {
 			return nerr
@@ -100,7 +123,7 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		}
 		// audit §5: record the plan's creation and the frozen phase=plan Team
 		// Memory snapshot the tool chain consumed for this planning session.
-		detail := map[string]any{"name": p.Name()}
+		detail := map[string]any{"name": p.Name(), "owner_ref": string(p.OwnerRef()), "backup_owner_ref": string(p.BackupOwnerRef()), "recovery_policy": p.RecoveryPolicy()}
 		if rules := PlanRuleSnapshotAudit(cmd.PlanningRules); rules != nil {
 			detail["team_rules"] = rules
 		}
@@ -111,6 +134,58 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		return "", err
 	}
 	return planID, nil
+}
+
+type TransferPlanOwnerCommand struct {
+	PlanID          pm.PlanID
+	NewOwnerRef     pm.IdentityRef
+	BackupOwnerRef  pm.IdentityRef
+	Reason          string
+	ExpectedVersion int
+	Actor           pm.IdentityRef
+}
+
+func (s *Service) TransferPlanOwner(ctx context.Context, cmd TransferPlanOwnerCommand) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if cmd.NewOwnerRef == "" {
+		return pm.ErrPlanOwnerRequired
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, cmd.PlanID)
+		if err != nil {
+			return err
+		}
+		if cmd.ExpectedVersion > 0 && p.Version() != cmd.ExpectedVersion {
+			return pm.ErrVersionConflict
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.NewOwnerRef); err != nil {
+			return pm.ErrPlanOwnerInvalid
+		}
+		if cmd.BackupOwnerRef != "" {
+			if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.BackupOwnerRef); err != nil {
+				return pm.ErrPlanOwnerInvalid
+			}
+		}
+		prevOwner, prevBackup := p.OwnerRef(), p.BackupOwnerRef()
+		if err := p.SetOwner(cmd.NewOwnerRef, cmd.BackupOwnerRef, now); err != nil {
+			return err
+		}
+		p.SetVersion(p.Version()+1, now)
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanOwnerTransferred, cmd.Actor, map[string]any{
+			"field": "owner_ref", "from": string(prevOwner), "to": string(cmd.NewOwnerRef),
+			"backup_from": string(prevBackup), "backup_to": string(cmd.BackupOwnerRef), "reason": cmd.Reason,
+		})
+		return nil
+	})
 }
 
 // SelectTaskIntoPlan selects a backlog task into a draft Plan (design §2/§9.6d).

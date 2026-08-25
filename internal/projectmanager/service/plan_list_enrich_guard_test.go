@@ -103,7 +103,7 @@ func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
 	const N = 5
 	for i := 0; i < N; i++ {
 		name := "p" + string(rune('a'+i))
-		planID, cerr := svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+		planID, cerr := svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 		if cerr != nil {
 			t.Fatal(cerr)
 		}

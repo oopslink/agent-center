@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -394,6 +396,121 @@ func TestPlanBlockOwnerWake_ReplayAfterClaimDoesNotDuplicateSend(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := h.planConvMsgCount(t, planID); got != before {
-		t.Fatalf("claimed notification replay sent duplicate: got %d want %d", got, before)
+		t.Fatalf("unexpired claimed notification replay sent duplicate: got %d want %d", got, before)
+	}
+	h.clk.Advance(planBlockNotificationClaimLease + time.Second)
+	if err := proj.Tick(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.planConvMsgCount(t, planID); got != before+1 {
+		t.Fatalf("expired claimed notification was not retried once: got %d want %d", got, before+1)
+	}
+}
+
+func TestPlanBlockOwnerWake_ConcurrentTickDoesNotDuplicateSend(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "concurrent", CreatedBy: "user:a", OwnerRef: "user:a",
+		RecoveryPolicy: pm.PlanRecoveryPolicy{NotifyAfterSeconds: 0, RemindAfterSeconds: 15 * 60, EscalateAfterSeconds: 60 * 60},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "blocked work", "user:a")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.StartTask(h.ctx, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.BlockTask(h.ctx, taskID, "waiting", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	h.clk.Advance(15 * time.Minute)
+	before := h.planConvMsgCount(t, planID)
+	projA := NewPlanBlockOwnerWakeProjector(h.svc.db, h.plans, h.svc.members, h.svc.planDispatcher, nil, h.clk)
+	projB := NewPlanBlockOwnerWakeProjector(h.svc.db, h.plans, h.svc.members, h.svc.planDispatcher, nil, h.clk)
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	for _, proj := range []*PlanBlockOwnerWakeProjector{projA, projB} {
+		wg.Add(1)
+		go func(p *PlanBlockOwnerWakeProjector) {
+			defer wg.Done()
+			errs <- p.Tick(h.ctx)
+		}(proj)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := h.planConvMsgCount(t, planID); got != before+1 {
+		t.Fatalf("concurrent tick sends=%d want exactly one new message over %d", got, before)
+	}
+}
+
+type flakyPlanDispatcher struct {
+	mu      sync.Mutex
+	fail    bool
+	sends   int
+	targets []string
+}
+
+func (d *flakyPlanDispatcher) PostMention(_ context.Context, _, assigneeRef, _ string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.sends++
+	d.targets = append(d.targets, assigneeRef)
+	if d.fail {
+		d.fail = false
+		return "", errors.New("send failed")
+	}
+	return "msg-ok", nil
+}
+
+func TestPlanBlockOwnerWake_SendFailureRetries(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "retry", CreatedBy: "user:a", OwnerRef: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "blocked work", "user:a")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.StartTask(h.ctx, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.BlockTask(h.ctx, taskID, "waiting", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := h.svc.ListPlanBlockEvents(h.ctx, planID, true)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	dispatcher := &flakyPlanDispatcher{fail: true}
+	proj := NewPlanBlockOwnerWakeProjector(h.svc.db, h.plans, h.svc.members, dispatcher, nil, h.clk)
+	if err := proj.Tick(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	events, _ = h.svc.ListPlanBlockEvents(h.ctx, planID, true)
+	if events[0].NotificationState != pm.PlanBlockNotifyFailed {
+		t.Fatalf("state after failure=%s want failed", events[0].NotificationState)
+	}
+	if err := proj.Tick(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	events, _ = h.svc.ListPlanBlockEvents(h.ctx, planID, true)
+	if events[0].NotificationState != pm.PlanBlockNotifySent || dispatcher.sends != 2 {
+		t.Fatalf("retry state=%s sends=%d want sent/2", events[0].NotificationState, dispatcher.sends)
 	}
 }

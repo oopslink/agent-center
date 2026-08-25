@@ -11,7 +11,7 @@ import (
 func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
 	p, g0 := activePlanGeneration(t, h, planID)
@@ -24,7 +24,7 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 				{TaskID: a, Action: pm.EvolutionPreserve, Reason: "already dispatched"},
 				{TaskID: b, Action: pm.EvolutionSupersede, Reason: "obsolete before dispatch"},
 			},
-			Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1"}},
+			Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange}},
 			Edges: []pm.PlanGenerationEdgeDraft{{From: "c", To: string(a), Kind: pm.EdgeSeq}},
 		},
 	})

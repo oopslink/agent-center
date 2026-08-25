@@ -14,6 +14,7 @@ func TestTaskRepoDeliveryContractRoundTripAndLegacyDefault(t *testing.T) {
 	}{
 		{"TDC1", pm.DeliveryEvidenceOnly, pm.DeliveryEvidenceOnly},
 		{"TDC2", "", pm.DeliveryCodeChange},
+		{"TDC3", pm.DeliverySupervisorInline, pm.DeliverySupervisorInline},
 	} {
 		tk, err := pm.NewTask(pm.NewTaskInput{ID: pm.TaskID(tc.id), ProjectID: "P1", Title: "t", CreatedBy: "user:a", CreatedAt: t0, DeliveryContract: tc.contract})
 		if err != nil {

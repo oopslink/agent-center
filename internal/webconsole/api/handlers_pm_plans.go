@@ -24,11 +24,17 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 	m := map[string]any{
 		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
 		"description": p.Description(), "status": string(p.Status()),
-		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
-		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
-		"version":    p.Version(),
-		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"creator_ref": string(p.CreatorRef()), "owner_ref": string(p.OwnerRef()), "backup_owner_ref": string(p.BackupOwnerRef()), "conversation_id": p.ConversationID(),
+		"created_at":              p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":              p.UpdatedAt().Format(time.RFC3339Nano),
+		"version":                 p.Version(),
+		"is_builtin":              p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
+		"attention_status":        string(p.AttentionStatus()),
+		"last_attention_event_id": string(p.LastAttentionEventID()),
+		"recovery_policy":         planRecoveryPolicyMap(p.RecoveryPolicy()),
+	}
+	if !p.AttentionSince().IsZero() {
+		m["attention_since"] = p.AttentionSince().Format(time.RFC3339Nano)
 	}
 	// v2.10.1 [T99]: the human Plan id (org_ref "P123"); omitted when org_number
 	// is 0 (builtin pool / pre-allocator rows) — the UI falls back to the hash handle.
@@ -46,6 +52,76 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 		m["archived_by"] = string(p.ArchivedBy())
 	}
 	return m
+}
+
+func planRecoveryPolicyMap(p pm.PlanRecoveryPolicy) map[string]any {
+	return map[string]any{
+		"notify_after_seconds":   p.NotifyAfterSeconds,
+		"remind_after_seconds":   p.RemindAfterSeconds,
+		"escalate_after_seconds": p.EscalateAfterSeconds,
+	}
+}
+
+type pmPlanRecoveryPolicyReq struct {
+	NotifyAfterSeconds   int `json:"notify_after_seconds"`
+	RemindAfterSeconds   int `json:"remind_after_seconds"`
+	EscalateAfterSeconds int `json:"escalate_after_seconds"`
+}
+
+func planBlockEventMap(e pm.PlanBlockEvent) map[string]any {
+	m := map[string]any{
+		"event_id": string(e.EventID), "idempotency_key": e.IdempotencyKey,
+		"plan_id": string(e.PlanID), "generation_id": string(e.GenerationID), "task_id": string(e.TaskID),
+		"node_id": e.NodeID, "block_version": e.BlockVersion,
+		"blocked_reason": e.BlockedReason, "reason_type": string(e.ReasonType), "blocked_by": string(e.BlockedBy),
+		"blocked_at": e.BlockedAt.Format(time.RFC3339Nano), "active": e.Active, "effective": e.Effective,
+		"owner_ref": string(e.OwnerRef), "notification_state": string(e.NotificationState),
+	}
+	if e.AcknowledgedBy != "" {
+		m["acknowledged_by"] = string(e.AcknowledgedBy)
+		m["acknowledged_at"] = e.AcknowledgedAt.Format(time.RFC3339Nano)
+	}
+	if e.ResolvedBy != "" {
+		m["resolved_by"] = string(e.ResolvedBy)
+		m["resolved_at"] = e.ResolvedAt.Format(time.RFC3339Nano)
+		m["resolution_kind"] = e.ResolutionKind
+		m["resolution_note"] = e.ResolutionNote
+	}
+	return m
+}
+
+func activeFrontierMap(detail *pmservice.PlanDetail) map[string]any {
+	effectiveNodes := make([]string, 0, len(detail.View.Nodes))
+	running := make([]string, 0)
+	completedHistory := make([]string, 0)
+	for _, n := range detail.View.Nodes {
+		if !n.Effective {
+			continue
+		}
+		effectiveNodes = append(effectiveNodes, string(n.TaskID))
+		switch n.NodeStatus {
+		case pm.NodeRunning, pm.NodeDispatched:
+			running = append(running, string(n.TaskID))
+		case pm.NodeDone:
+			completedHistory = append(completedHistory, string(n.TaskID))
+		}
+	}
+	readySet := make([]string, 0, len(detail.View.ReadySet))
+	for _, id := range detail.View.ReadySet {
+		readySet = append(readySet, string(id))
+	}
+	blocked := make([]map[string]any, 0, len(detail.BlockEvents))
+	for _, e := range detail.BlockEvents {
+		blocked = append(blocked, map[string]any{"task_id": string(e.TaskID), "event_id": string(e.EventID)})
+	}
+	return map[string]any{
+		"active_generation_id": string(detail.Plan.ActiveGenerationID()),
+		"effective_nodes":      effectiveNodes,
+		"ready_set":            readySet,
+		"blocked":              blocked,
+		"running":              running,
+		"completed_history":    completedHistory,
+	}
 }
 
 // pmPlanNodeMap renders ONE PlanNodeView to the canonical Plan-node JSON shape
@@ -203,6 +279,16 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if len(detail.BlockEvents) > 0 {
+		events := make([]map[string]any, 0, len(detail.BlockEvents))
+		for _, e := range detail.BlockEvents {
+			events = append(events, planBlockEventMap(e))
+		}
+		m["block_events"] = events
+	}
+	if detail.Plan.ActiveGenerationID() != "" {
+		m["active_frontier"] = activeFrontierMap(detail)
+	}
 	return m
 }
 
@@ -255,7 +341,7 @@ func taskIDsToStrings(ids []pm.TaskID) []string {
 // mapPlanError extends mapPMError with the Plan-specific status mappings.
 func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, pm.ErrPlanNotFound):
+	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrPlanBlockEventNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
@@ -292,7 +378,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
 		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
-		errors.Is(err, pm.ErrPlanGenerationDisconnected):
+		errors.Is(err, pm.ErrPlanGenerationDisconnected),
+		errors.Is(err, pm.ErrPlanOwnerRequired), errors.Is(err, pm.ErrPlanOwnerInvalid):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	default:
 		mapPMError(w, err)
@@ -349,9 +436,12 @@ func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		TargetDate  string `json:"target_date"`
+		Name           string                  `json:"name"`
+		Description    string                  `json:"description"`
+		TargetDate     string                  `json:"target_date"`
+		OwnerRef       string                  `json:"owner_ref"`
+		BackupOwnerRef string                  `json:"backup_owner_ref"`
+		RecoveryPolicy pmPlanRecoveryPolicyReq `json:"recovery_policy"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -366,8 +456,17 @@ func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		td = &t
 	}
+	if strings.TrimSpace(req.OwnerRef) == "" {
+		writeError(w, http.StatusBadRequest, "missing_owner_ref", "owner_ref is required")
+		return
+	}
 	id, err := d.PM.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
 		ProjectID: p.ID(), Name: req.Name, Description: req.Description, TargetDate: td, CreatedBy: caller,
+		OwnerRef: pm.IdentityRef(req.OwnerRef), BackupOwnerRef: pm.IdentityRef(req.BackupOwnerRef),
+		RecoveryPolicy: pm.PlanRecoveryPolicy{
+			NotifyAfterSeconds: req.RecoveryPolicy.NotifyAfterSeconds, RemindAfterSeconds: req.RecoveryPolicy.RemindAfterSeconds,
+			EscalateAfterSeconds: req.RecoveryPolicy.EscalateAfterSeconds,
+		},
 	})
 	if err != nil {
 		mapPlanError(w, err)
@@ -401,6 +500,108 @@ func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
 	if !ok {
+		return
+	}
+	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmTransferPlanOwnerHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		NewOwnerRef     string `json:"new_owner_ref"`
+		BackupOwnerRef  string `json:"backup_owner_ref"`
+		Reason          string `json:"reason"`
+		ExpectedVersion int    `json:"expected_version"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.NewOwnerRef) == "" {
+		writeError(w, http.StatusBadRequest, "missing_owner_ref", "new_owner_ref is required")
+		return
+	}
+	if err := d.PM.TransferPlanOwner(r.Context(), pmservice.TransferPlanOwnerCommand{
+		PlanID: pl.ID(), NewOwnerRef: pm.IdentityRef(req.NewOwnerRef), BackupOwnerRef: pm.IdentityRef(req.BackupOwnerRef),
+		Reason: req.Reason, ExpectedVersion: req.ExpectedVersion, Actor: caller,
+	}); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmListPlanBlockEventsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	activeOnly := r.URL.Query().Get("active_only") != "false"
+	events, err := d.PM.ListPlanBlockEvents(r.Context(), pl.ID(), activeOnly)
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(events))
+	for _, ev := range events {
+		out = append(out, planBlockEventMap(ev))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"block_events": out})
+}
+
+func (s *Server) pmAcknowledgePlanBlockHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.AcknowledgePlanBlock(r.Context(), pmservice.AcknowledgePlanBlockCommand{
+		EventID: pm.PlanBlockEventID(r.PathValue("event_id")), Actor: caller,
+	}); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmResolvePlanBlockHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		ResolutionKind string `json:"resolution_kind"`
+		Note           string `json:"note"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.ResolvePlanBlock(r.Context(), pmservice.ResolvePlanBlockCommand{
+		EventID: pm.PlanBlockEventID(r.PathValue("event_id")), ResolutionKind: req.ResolutionKind, Note: req.Note, Actor: caller,
+	}); err != nil {
+		mapPlanError(w, err)
 		return
 	}
 	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())

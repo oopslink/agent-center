@@ -22,7 +22,7 @@ func TestBlockedOnRead_UpstreamCompletion_SurfacedOnBothReadPaths(t *testing.T) 
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "up", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "up", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -122,7 +122,7 @@ func TestBlockedOnRead_PropagatesListError(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "err", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "err", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_ = h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -146,7 +146,7 @@ func TestBlockedOnRead_PendingDecisionQueue(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dec", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dec", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 	h.drain(t)
@@ -212,7 +212,7 @@ func TestBlockedOnRead_EmptyBoundaries(t *testing.T) {
 
 	// (a) A started single-node plan whose node completes → the node is terminal, the
 	// sweep clears any snapshot → empty frontier.
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "term", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "term", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "solo", "user:x")
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -239,7 +239,7 @@ func TestBlockedOnRead_EmptyBoundaries(t *testing.T) {
 	}
 
 	// (b) A brand-new draft plan with no tasks and never started → nil BlockedOn.
-	empty, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "empty", CreatedBy: "user:a"})
+	empty, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "empty", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	ed, err := h.svc.GetPlanDetail(ctx, empty)
 	if err != nil {

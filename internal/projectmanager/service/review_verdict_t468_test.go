@@ -23,7 +23,7 @@ func (f *autoFixture) reviewCycle(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskID
 	if err := f.svc.codeRepoRefs.Save(f.ctx, ref); err != nil {
 		t.Fatal(err)
 	}
-	planID, err := f.svc.CreatePlan(f.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:pd"})
+	planID, err := f.svc.CreatePlan(f.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:pd", OwnerRef: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}

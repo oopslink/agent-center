@@ -13,7 +13,7 @@ import (
 // returns the plan id.
 func mkIssuePlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, name string, issueID pm.IssueID) pm.PlanID {
 	t.Helper()
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatalf("CreatePlan %s: %v", name, err)
 	}
@@ -69,7 +69,7 @@ func TestListRelatedPlans_NoSourceIssue_Empty(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	// A plan whose task carries no derived_from_issue → no "issue" → no related plans.
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, tid, "user:a"); err != nil {
 		t.Fatalf("select: %v", err)

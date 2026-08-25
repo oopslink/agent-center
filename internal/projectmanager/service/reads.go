@@ -668,7 +668,8 @@ type PlanDetail struct {
 	// the pending-decision queue (human_decision waits). Populated ONLY by the READ-
 	// facing GetPlanDetail / GetPlanDetailForMember; nil on the internal planDetail path
 	// and for a builtin/ungraphed plan (nothing is materialized — §8 zero-regression).
-	BlockedOn []pm.BlockedOn
+	BlockedOn   []pm.BlockedOn
+	BlockEvents []pm.PlanBlockEvent
 }
 
 // StageGateView is one stage GATE (a condition control node) surfaced to the plan

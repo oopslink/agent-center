@@ -216,7 +216,7 @@ func TestBuiltinPool_DispatchIsPullNoWake(t *testing.T) {
 func TestStructuredPlan_DispatchPostsMention(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	plan, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a"})
+	plan, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, plan, "root", "agent:bot")
 
@@ -398,7 +398,7 @@ func TestADR47_TaskClaimableByID_StoppedPlanFalse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

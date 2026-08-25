@@ -89,6 +89,7 @@ type PlanBlockEvent struct {
 	ResolutionKind         string
 	ResolutionNote         string
 	NotificationState      PlanBlockNotificationState
+	NotificationClaimedAt  time.Time
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 }

@@ -57,7 +57,7 @@ func TestAssignmentPool_IsNotPlanAndCanBeClaimedAnytime(t *testing.T) {
 
 	// A structured Plan may exist and be running; explicit pool claim is still
 	// allowed because background priority affects auto scheduling, not pull access.
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "delivery", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: projectID, Name: "delivery", CreatedBy: "user:a", OwnerRef: "user:a"})
 	planTask, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: projectID, Title: "foreground", CreatedBy: "user:a", Assignee: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, planID, planTask, "user:a"); err != nil {
 		t.Fatal(err)

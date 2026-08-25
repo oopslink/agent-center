@@ -113,7 +113,7 @@ func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// planA: 3 tasks — one completed (done), one discarded (failed), one open.
-	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	tDone := h.seedAssignedTask(t, pid, planA, "done", "user:x")
 	tFail := h.seedAssignedTask(t, pid, planA, "fail", "user:y")
@@ -122,7 +122,7 @@ func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
 	h.setTaskStatus(t, tFail, pm.TaskDiscarded)
 
 	// planB: empty (no tasks).
-	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a"})
+	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	summaries, err := h.svc.ListPlanSummaries(h.ctx, pid)
@@ -188,9 +188,9 @@ func TestListPlanSummaries_ExcludesArchived(t *testing.T) {
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// kept: a normal draft plan. gone: a plan we archive.
-	kept, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "kept", CreatedBy: "user:a"})
+	kept, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "kept", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
-	gone, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "gone", CreatedBy: "user:a"})
+	gone, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "gone", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	if err := h.svc.DiscardPlan(h.ctx, gone, "user:a"); err != nil {
 		t.Fatalf("DiscardPlan: %v", err)
@@ -241,7 +241,7 @@ func TestListPlanSummaries_BatchedNoNPlus1(t *testing.T) {
 	shapes := make([]planShape, 0, 3)
 	for i := 0; i < 3; i++ {
 		name := string(rune('a' + i))
-		planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+		planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -313,7 +313,7 @@ func TestPlanRepo_BatchReads_GroupAndIsolate(t *testing.T) {
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// Two plans with DISTINCT edge + dispatch counts so a leak is observable.
-	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a0 := h.seedAssignedTask(t, pid, planA, "a0", "user:x")
 	a1 := h.seedAssignedTask(t, pid, planA, "a1", "user:y")
@@ -324,7 +324,7 @@ func TestPlanRepo_BatchReads_GroupAndIsolate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a"})
+	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	b0 := h.seedAssignedTask(t, pid, planB, "b0", "user:x")
 	b1 := h.seedAssignedTask(t, pid, planB, "b1", "user:y")
@@ -417,7 +417,7 @@ func TestStartPlan_Validation(t *testing.T) {
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	t.Run("0-task rejected", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "empty", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "empty", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		if err := h.svc.StartPlan(h.ctx, planID, "user:a"); !errors.Is(err, pm.ErrPlanNoTasks) {
 			t.Fatalf("start 0-task = %v, want ErrPlanNoTasks", err)
@@ -425,7 +425,7 @@ func TestStartPlan_Validation(t *testing.T) {
 	})
 
 	t.Run("unassigned task rejected", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "unassigned", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "unassigned", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		tid, _ := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "noone", CreatedBy: "user:a"})
 		if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, tid, "user:a"); err != nil {
@@ -438,7 +438,7 @@ func TestStartPlan_Validation(t *testing.T) {
 	})
 
 	t.Run("cyclic DAG rejected", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclic", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclic", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 		b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -461,7 +461,7 @@ func TestStartPlan_Validation(t *testing.T) {
 	})
 
 	t.Run("valid start succeeds + pre-done allowed", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "valid", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "valid", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		done := h.seedAssignedTask(t, pid, planID, "pre-done", "agent:42")
 		h.setTaskStatus(t, done, pm.TaskCompleted) // pre-done allowed (§9.6)
@@ -481,7 +481,7 @@ func TestStartPlan_Validation(t *testing.T) {
 func TestAdvancePlan_AllReady_Idempotent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fanout", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fanout", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -551,7 +551,7 @@ func TestAdvancePlan_AllReady_Idempotent(t *testing.T) {
 func TestAdvancePlan_FailureIsolation(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "iso", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "iso", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
@@ -586,7 +586,7 @@ func TestAdvancePlan_DoneSemantics(t *testing.T) {
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	t.Run("failed node keeps plan running", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "failkeep", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "failkeep", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 		b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
@@ -605,7 +605,7 @@ func TestAdvancePlan_DoneSemantics(t *testing.T) {
 	})
 
 	t.Run("all done marks plan done", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alldone", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alldone", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 		b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
@@ -628,7 +628,7 @@ func TestAdvancePlan_DoneSemantics(t *testing.T) {
 func TestStopPlan_AndAdvanceGuards(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_ = h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 
@@ -653,7 +653,7 @@ func TestStopPlan_AndAdvanceGuards(t *testing.T) {
 func TestRerunFailedNode_ReDispatches(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "rerun", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "rerun", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -719,7 +719,7 @@ func (h *planAdvanceHarness) latestPlanMsgText(t *testing.T, planID pm.PlanID) s
 func TestDispatch_PostsAtMention_WakeWouldFire(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	const assignee = "agent:agent-bot-1"
 	a := h.seedAssignedTask(t, pid, planID, "build the thing", assignee)
@@ -755,7 +755,7 @@ func TestDispatch_PostsAtMention_WakeWouldFire(t *testing.T) {
 func TestDispatch_NamesTaskByID(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "build the thing", "agent:agent-bot-1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {

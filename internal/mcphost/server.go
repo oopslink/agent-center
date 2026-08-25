@@ -410,7 +410,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// it (the center dispatches ready nodes as their dependencies complete).
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_plan",
-		Description: "Create a new pending plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
+		Description: "Create a new pending plan in a project you belong to. owner_ref is required and must name the unique Plan Owner responsible for blocked recovery; backup_owner_ref is optional. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -455,6 +455,26 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "evolve_plan_generation",
 		Description: "Commit an immutable Plan Generation snapshot derived from the active generation. Requires parent_generation_id, base_version, idempotency_key, reason, evidence, and a diff with node_decisions plus new tasks/edges. New root tasks must have explicit dependency edges to prior execution unless detached=true; follows_task_id is lineage only and does not create an execution edge. Create new downstream tasks/edges instead of reusing already-dispatched old nodes. Optimistic concurrency rejects stale parent/version; idempotency returns the prior generation for the same key+payload. Running plans switch active generation and dispatch newly-ready nodes in the same transaction; paused plans switch without dispatch. If a plan is already done, call reopen_plan first; it reopens to paused so you can evolve, then resume_plan to dispatch.",
 	}, makeEvolvePlanGeneration(cfg, planningRules))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "transfer_plan_owner",
+		Description: "Atomically transfer Plan Owner with expected_version CAS. new_owner_ref is required and must be a project member; backup_owner_ref is the optional escalation target. Writes audit and never leaves the plan ownerless.",
+	}, makeTransferPlanOwner(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_plan_block_events",
+		Description: "List Plan Block Events. active_only defaults true and returns unresolved active effective events only; false includes acknowledged, resolved, ineffective, discarded, or superseded history.",
+	}, makeListPlanBlockEvents(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "acknowledge_plan_block",
+		Description: "Acknowledge an active Plan Block Event without resolving it. The plan remains attention_required until every active block event is resolved.",
+	}, makeAcknowledgePlanBlock(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resolve_plan_block",
+		Description: "Resolve an active Plan Block Event with resolution_kind and note. Use after owner action such as resume_original, replace_with_continuation, bypass_remove_node, or pause_or_discard_plan.",
+	}, makeResolvePlanBlock(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",

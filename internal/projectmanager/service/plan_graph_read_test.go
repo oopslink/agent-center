@@ -16,7 +16,7 @@ func TestGetPlanGraph_ReflectsEngineGraph(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "graphread", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "graphread", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, _, _, integ := buildGraphCycle(t, h, pid, planID)
 
@@ -114,7 +114,7 @@ func TestGetPlanGraph_StartEndAnchorsWired(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "anchors", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "anchors", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, _, _, integ := buildGraphCycle(t, h, pid, planID)
 
@@ -179,7 +179,7 @@ func TestGetPlanGraph_NoGraph_FallbackSignal(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nograph", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nograph", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1") // selected but plan not started → no graph
 

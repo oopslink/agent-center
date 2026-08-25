@@ -37,7 +37,7 @@ func activePlanGeneration(t *testing.T, h *planAdvanceHarness, planID pm.PlanID)
 func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -64,7 +64,7 @@ func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 	withoutG0 := EvolvePlanGenerationCommand{
 		PlanID: planID, ParentGenerationID: "", BaseVersion: base,
 		IdempotencyKey: "first-with-empty-parent", Reason: "extend plan", Evidence: "review",
-		Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", Detached: true}}},
+		Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, Detached: true}}},
 	}
 	if _, err := h.svc.EvolvePlanGeneration(h.ctx, withoutG0); !errors.Is(err, pm.ErrPlanGenerationConflict) {
 		t.Fatalf("first evolution with empty parent err=%v, want ErrPlanGenerationConflict", err)
@@ -122,7 +122,7 @@ func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0-atomic", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0-atomic", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	before := h.planVersion(t, planID)
@@ -162,7 +162,7 @@ func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "start-race", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "start-race", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	base := h.planVersion(t, planID)
@@ -179,7 +179,7 @@ func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testin
 		_, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 			PlanID: planID, ParentGenerationID: "", BaseVersion: base,
 			IdempotencyKey: "start-race-empty-parent", Reason: "race start", Evidence: "race",
-			Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", Detached: true}}},
+			Creator: "user:a", Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, Detached: true}}},
 		})
 		evolveErr <- err
 	}()
@@ -203,7 +203,7 @@ func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testin
 func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve-race", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve-race", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -224,7 +224,7 @@ func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 			res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 				PlanID: planID, ParentGenerationID: g0.ID, BaseVersion: p.Version(),
 				IdempotencyKey: key, Reason: "concurrent sibling", Evidence: key, Creator: "user:a",
-				Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: key, Title: key, AssigneeRef: "user:c1", Detached: true}}},
+				Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: key, Title: key, AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, Detached: true}}},
 			})
 			outcomes <- outcome{key: key, res: res, err: err}
 		}()
@@ -262,7 +262,7 @@ func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 func TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
 	h.setTaskStatus(t, a, pm.TaskRunning)
@@ -290,7 +290,8 @@ func TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot(t *tes
 			},
 			Tasks: []pm.PlanGenerationTaskDraft{{
 				Ref: "c", Title: "C", Description: "new root", AssigneeRef: "user:c1",
-				Detached: true,
+				DeliveryContract: pm.DeliveryCodeChange,
+				Detached:         true,
 			}},
 		},
 	}
@@ -383,7 +384,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("supersede running node rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
 		h.setTaskStatus(t, a, pm.TaskRunning)
@@ -405,7 +406,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("edge rewrite of dispatched dependent rejects whole request", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
 		base := h.planVersion(t, planID)
@@ -418,7 +419,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 			PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-edge-running",
 			Reason: "rewrite dispatched dependency", Evidence: "A already dispatched", Creator: "user:a",
 			Diff: pm.PlanGenerationDiff{
-				Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "must roll back", AssigneeRef: "user:c1"}},
+				Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "must roll back", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange}},
 				Edges: []pm.PlanGenerationEdgeDraft{{From: string(a), To: "c", Kind: pm.EdgeSeq}},
 			},
 		})
@@ -443,7 +444,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("hold at gate with in flight downstream rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "hold", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "hold", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, b := h.startRunningPlanAB(t, pid, planID)
 		h.setTaskStatus(t, a, pm.TaskRunning)
@@ -471,7 +472,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
 	base := h.planVersion(t, planID)
@@ -485,7 +486,7 @@ func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base,
 		IdempotencyKey: "evo-disconnected-root", Reason: "add follow-up without bridge", Evidence: "review", Creator: "user:a",
 		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{
-			Ref: "c", Title: "C disconnected", AssigneeRef: "user:c1", FollowsTaskID: a,
+			Ref: "c", Title: "C disconnected", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, FollowsTaskID: a,
 		}}},
 	})
 	if !errors.Is(err, pm.ErrPlanGenerationDisconnected) {
@@ -507,7 +508,7 @@ func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 		IdempotencyKey: "evo-bridged-root", Reason: "add bridged follow-up", Evidence: "review", Creator: "user:a",
 		Diff: pm.PlanGenerationDiff{
 			Tasks: []pm.PlanGenerationTaskDraft{{
-				Ref: "c", Title: "C bridged", AssigneeRef: "user:c1", FollowsTaskID: a,
+				Ref: "c", Title: "C bridged", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, FollowsTaskID: a,
 			}},
 			Edges: []pm.PlanGenerationEdgeDraft{{From: "c", To: string(a), Kind: pm.EdgeSeq}},
 		},
@@ -527,10 +528,51 @@ func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 	}
 }
 
+func TestEvolvePlanGeneration_RequiresExplicitDeliveryContractBeforeCreatingTask(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "explicit-contract", CreatedBy: "user:a", OwnerRef: "user:a"})
+	h.drain(t)
+	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+	beforeTasks, err := h.tasks.ListByProject(h.ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base,
+		IdempotencyKey: "evo-missing-contract", Reason: "explicit contract required", Evidence: "owner review", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{
+			Ref: "c", Title: "verification evidence only", AssigneeRef: "user:c1", Detached: true,
+		}}},
+	})
+	if !errors.Is(err, pm.ErrInvalidDeliveryContract) {
+		t.Fatalf("missing delivery_contract err=%v, want ErrInvalidDeliveryContract", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d after rejected missing contract", got, base)
+	}
+	afterTasks, err := h.tasks.ListByProject(h.ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterTasks) != len(beforeTasks) {
+		t.Fatalf("task count=%d want %d; rejected missing contract created orphan tasks", len(afterTasks), len(beforeTasks))
+	}
+	if _, found, err := h.plans.FindGenerationByIdempotencyKey(h.ctx, planID, "evo-missing-contract"); err != nil || found {
+		t.Fatalf("missing-contract generation persisted found=%v err=%v", found, err)
+	}
+}
+
 func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -544,7 +586,7 @@ func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing
 	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-paused",
 		Reason: "queue work while paused", Evidence: "paused review", Creator: "user:a",
-		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-paused", AssigneeRef: "user:c1", Detached: true}}},
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-paused", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, Detached: true}}},
 	})
 	if err != nil {
 		t.Fatalf("EvolvePlanGeneration paused: %v", err)
@@ -566,7 +608,7 @@ func TestReopenPlan_AllowsFollowUpEvolutionAfterDone(t *testing.T) {
 	oh := orchestratorSetup(t)
 	h := oh.planAdvanceHarness
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -606,7 +648,7 @@ func TestReopenPlan_AllowsFollowUpEvolutionAfterDone(t *testing.T) {
 	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
 		PlanID: planID, ParentGenerationID: reopened.ActiveGenerationID(), BaseVersion: reopened.Version(), IdempotencyKey: "evo-after-reopen",
 		Reason: "follow-up work after completed plan", Evidence: "owner reopened plan", Creator: "user:a",
-		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-after-reopen", AssigneeRef: "user:c1", Detached: true}}},
+		Diff: pm.PlanGenerationDiff{Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C-after-reopen", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange, Detached: true}}},
 	})
 	if err != nil {
 		t.Fatalf("EvolvePlanGeneration after reopen: %v", err)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -44,6 +45,13 @@ func tsPtr(t *time.Time) string {
 	return ts(*t)
 }
 
+func tsValue(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return ts(t)
+}
+
 // parseTimePtr parses an optional stored timestamp: "" → nil, else a *time.Time.
 func parseTimePtr(s string) *time.Time {
 	if s == "" {
@@ -59,12 +67,15 @@ func parseTimePtr(s string) *time.Time {
 func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, archived_at, archived_by)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, owner_ref, backup_owner_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, attention_status, attention_since, last_attention_event_id, recovery_notify_after_seconds, recovery_remind_after_seconds, recovery_escalate_after_seconds, archived_at, archived_by)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(p.ID()), string(p.ProjectID()), p.Name(), p.Description(),
-		string(p.Status()), string(p.CreatorRef()), p.ConversationID(), tsPtr(p.TargetDate()),
+		string(p.Status()), string(p.CreatorRef()), string(p.OwnerRef()), string(p.BackupOwnerRef()), p.ConversationID(), tsPtr(p.TargetDate()),
 		boolToInt(p.IsBuiltin()), p.OrgNumber(),
-		ts(p.CreatedAt()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()))
+		ts(p.CreatedAt()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()),
+		string(p.AttentionStatus()), tsValue(p.AttentionSince()), string(p.LastAttentionEventID()),
+		p.RecoveryPolicy().NotifyAfterSeconds, p.RecoveryPolicy().RemindAfterSeconds, p.RecoveryPolicy().EscalateAfterSeconds,
+		tsPtr(p.ArchivedAt()), string(p.ArchivedBy()))
 	if isUnique(err) {
 		return pm.ErrPlanExists
 	}
@@ -74,9 +85,12 @@ func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 func (r *PlanRepo) Update(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_plans SET name=?, description=?, status=?, conversation_id=?, target_date=?, is_builtin=?, updated_at=?, version=?, graph_id=?, active_generation_id=?, archived_at=?, archived_by=? WHERE id=?`,
-		p.Name(), p.Description(), string(p.Status()), p.ConversationID(), tsPtr(p.TargetDate()),
-		boolToInt(p.IsBuiltin()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()), tsPtr(p.ArchivedAt()), string(p.ArchivedBy()), string(p.ID()))
+		`UPDATE pm_plans SET name=?, description=?, status=?, owner_ref=?, backup_owner_ref=?, conversation_id=?, target_date=?, is_builtin=?, updated_at=?, version=?, graph_id=?, active_generation_id=?, attention_status=?, attention_since=?, last_attention_event_id=?, recovery_notify_after_seconds=?, recovery_remind_after_seconds=?, recovery_escalate_after_seconds=?, archived_at=?, archived_by=? WHERE id=?`,
+		p.Name(), p.Description(), string(p.Status()), string(p.OwnerRef()), string(p.BackupOwnerRef()), p.ConversationID(), tsPtr(p.TargetDate()),
+		boolToInt(p.IsBuiltin()), ts(p.UpdatedAt()), p.Version(), p.GraphID(), string(p.ActiveGenerationID()),
+		string(p.AttentionStatus()), tsValue(p.AttentionSince()), string(p.LastAttentionEventID()),
+		p.RecoveryPolicy().NotifyAfterSeconds, p.RecoveryPolicy().RemindAfterSeconds, p.RecoveryPolicy().EscalateAfterSeconds,
+		tsPtr(p.ArchivedAt()), string(p.ArchivedBy()), string(p.ID()))
 	if err != nil {
 		return err
 	}
@@ -684,12 +698,12 @@ func (r *PlanRepo) UpsertPlanBlockEvent(ctx context.Context, e *pm.PlanBlockEven
 		 (event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
 		  blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
 		  owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
-		  resolution_kind, resolution_note, notification_state, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		  resolution_kind, resolution_note, notification_state, notification_claimed_at, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(e.EventID), e.IdempotencyKey, string(e.PlanID), string(e.GenerationID), string(e.TaskID), e.NodeID, e.ExecutionID, e.BlockVersion,
 		e.BlockedReason, string(e.ReasonType), string(e.BlockedBy), ts(e.BlockedAt), boolToInt(e.Active), boolToInt(e.Effective), e.ImpactedDownstreamJSON,
 		string(e.OwnerRef), e.NextActionsJSON, tsPtr(&e.AcknowledgedAt), string(e.AcknowledgedBy), tsPtr(&e.ResolvedAt), string(e.ResolvedBy),
-		e.ResolutionKind, e.ResolutionNote, string(e.NotificationState), ts(e.CreatedAt), ts(e.UpdatedAt))
+		e.ResolutionKind, e.ResolutionNote, string(e.NotificationState), tsPtr(&e.NotificationClaimedAt), ts(e.CreatedAt), ts(e.UpdatedAt))
 	if err != nil {
 		return false, err
 	}
@@ -700,17 +714,17 @@ func (r *PlanRepo) UpsertPlanBlockEvent(ctx context.Context, e *pm.PlanBlockEven
 const planBlockEventSelect = `SELECT event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
 	blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
 	owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
-	resolution_kind, resolution_note, notification_state, created_at, updated_at FROM pm_plan_block_events`
+	resolution_kind, resolution_note, notification_state, notification_claimed_at, created_at, updated_at FROM pm_plan_block_events`
 
 func scanPlanBlockEvent(scan func(...any) error) (pm.PlanBlockEvent, error) {
 	var e pm.PlanBlockEvent
 	var eventID, planID, generationID, taskID, reasonType, blockedBy, blockedAt, ownerRef string
-	var ackAt, ackBy, resolvedAt, resolvedBy, notify, createdAt, updatedAt string
+	var ackAt, ackBy, resolvedAt, resolvedBy, notify, claimedAt, createdAt, updatedAt string
 	var active, effective int
 	if err := scan(&eventID, &e.IdempotencyKey, &planID, &generationID, &taskID, &e.NodeID, &e.ExecutionID, &e.BlockVersion,
 		&e.BlockedReason, &reasonType, &blockedBy, &blockedAt, &active, &effective, &e.ImpactedDownstreamJSON,
 		&ownerRef, &e.NextActionsJSON, &ackAt, &ackBy, &resolvedAt, &resolvedBy,
-		&e.ResolutionKind, &e.ResolutionNote, &notify, &createdAt, &updatedAt); err != nil {
+		&e.ResolutionKind, &e.ResolutionNote, &notify, &claimedAt, &createdAt, &updatedAt); err != nil {
 		return pm.PlanBlockEvent{}, err
 	}
 	e.EventID = pm.PlanBlockEventID(eventID)
@@ -728,6 +742,7 @@ func scanPlanBlockEvent(scan func(...any) error) (pm.PlanBlockEvent, error) {
 	e.ResolvedAt = parseTime(resolvedAt)
 	e.ResolvedBy = pm.IdentityRef(resolvedBy)
 	e.NotificationState = pm.PlanBlockNotificationState(notify)
+	e.NotificationClaimedAt = parseTime(claimedAt)
 	e.CreatedAt = parseTime(createdAt)
 	e.UpdatedAt = parseTime(updatedAt)
 	return e, nil
@@ -784,13 +799,16 @@ func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context)
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, planBlockEventSelect+`
 		WHERE active = 1 AND effective = 1 AND resolved_at = ''
-		  AND notification_state IN (?, ?, ?, ?, ?, ?)
+		  AND notification_state IN (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ORDER BY blocked_at, event_id`,
 		string(pm.PlanBlockNotifyPending),
+		string(pm.PlanBlockNotifySending),
 		string(pm.PlanBlockNotifyFailed),
 		string(pm.PlanBlockNotifySent),
+		string(pm.PlanBlockNotifyReminderSending),
 		string(pm.PlanBlockNotifyReminded),
 		string(pm.PlanBlockNotifyReminderFailed),
+		string(pm.PlanBlockNotifyEscalationSending),
 		string(pm.PlanBlockNotifyEscalationFailed),
 	)
 	if err != nil {
@@ -808,11 +826,47 @@ func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context)
 	return out, rows.Err()
 }
 
+func (r *PlanRepo) ClaimPlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at, staleBefore time.Time) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var eligible []pm.PlanBlockNotificationState
+	switch state {
+	case pm.PlanBlockNotifySending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifyPending, pm.PlanBlockNotifyFailed}
+	case pm.PlanBlockNotifyReminderSending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifySent, pm.PlanBlockNotifyReminderFailed}
+	case pm.PlanBlockNotifyEscalationSending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifySent, pm.PlanBlockNotifyReminded, pm.PlanBlockNotifyReminderFailed, pm.PlanBlockNotifyEscalationFailed}
+	default:
+		return false, fmt.Errorf("projectmanager sqlite: invalid notification claim state %q", state)
+	}
+	args := []any{string(state), ts(at), ts(at), string(eventID)}
+	var predicates []string
+	for _, st := range eligible {
+		predicates = append(predicates, "notification_state = ?")
+		args = append(args, string(st))
+	}
+	predicates = append(predicates, "(notification_state = ? AND notification_claimed_at != '' AND notification_claimed_at <= ?)")
+	args = append(args, string(state), ts(staleBefore))
+	res, err := exec.ExecContext(ctx, `UPDATE pm_plan_block_events
+		SET notification_state = ?, notification_claimed_at = ?, updated_at = ?
+		WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''
+		  AND (`+strings.Join(predicates, " OR ")+`)`, args...)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 func (r *PlanRepo) UpdatePlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	claimedAt := ""
+	if state == pm.PlanBlockNotifySending || state == pm.PlanBlockNotifyReminderSending || state == pm.PlanBlockNotifyEscalationSending {
+		claimedAt = ts(at)
+	}
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_plan_block_events SET notification_state = ?, updated_at = ? WHERE event_id = ?`,
-		string(state), ts(at), string(eventID))
+		`UPDATE pm_plan_block_events SET notification_state = ?, notification_claimed_at = ?, updated_at = ? WHERE event_id = ?`,
+		string(state), claimedAt, ts(at), string(eventID))
 	if err != nil {
 		return err
 	}
@@ -956,7 +1010,7 @@ func (r *PlanRepo) ActivateGeneration(ctx context.Context, planID pm.PlanID, gen
 	return n == 1, err
 }
 
-const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, archived_at, archived_by FROM pm_plans`
+const planSelect = `SELECT id, project_id, name, description, status, creator_ref, owner_ref, backup_owner_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version, graph_id, active_generation_id, attention_status, attention_since, last_attention_event_id, recovery_notify_after_seconds, recovery_remind_after_seconds, recovery_escalate_after_seconds, archived_at, archived_by FROM pm_plans`
 
 // boolToInt maps a Go bool to SQLite's 0/1 integer storage convention.
 func boolToInt(b bool) int {
@@ -968,24 +1022,29 @@ func boolToInt(b bool) int {
 
 func scanPlan(scan func(...any) error) (*pm.Plan, error) {
 	var (
-		id, projectID, name, description, status, creatorRef, conversationID, targetDate, createdAt, updatedAt string
-		isBuiltin                                                                                              int
-		orgNumber                                                                                              sql.NullInt64
-		version                                                                                                int
-		graphID, activeGenerationID, archivedAt, archivedBy                                                    string
+		id, projectID, name, description, status, creatorRef, ownerRef, backupOwnerRef, conversationID, targetDate, createdAt, updatedAt string
+		isBuiltin                                                                                                                        int
+		orgNumber                                                                                                                        sql.NullInt64
+		version                                                                                                                          int
+		graphID, activeGenerationID, attentionStatus, attentionSince, lastAttentionEventID, archivedAt, archivedBy                       string
+		recoveryNotify, recoveryRemind, recoveryEscalate                                                                                 int
 	)
-	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &conversationID, &targetDate, &isBuiltin, &orgNumber, &createdAt, &updatedAt, &version, &graphID, &activeGenerationID, &archivedAt, &archivedBy); err != nil {
+	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &ownerRef, &backupOwnerRef, &conversationID, &targetDate, &isBuiltin, &orgNumber, &createdAt, &updatedAt, &version, &graphID, &activeGenerationID, &attentionStatus, &attentionSince, &lastAttentionEventID, &recoveryNotify, &recoveryRemind, &recoveryEscalate, &archivedAt, &archivedBy); err != nil {
 		return nil, err
 	}
 	return pm.RehydratePlan(pm.RehydratePlanInput{
 		ID: pm.PlanID(id), ProjectID: pm.ProjectID(projectID), Name: name, Description: description,
-		Status: pm.PlanStatus(status), CreatorRef: pm.IdentityRef(creatorRef), ConversationID: conversationID,
-		TargetDate:         parseTimePtr(targetDate),
-		Builtin:            isBuiltin != 0,
-		OrgNumber:          int(orgNumber.Int64),
-		GraphID:            graphID,
-		ActiveGenerationID: pm.PlanGenerationID(activeGenerationID),
-		ArchivedAt:         parseTimePtr(archivedAt), ArchivedBy: pm.IdentityRef(archivedBy),
+		Status: pm.PlanStatus(status), CreatorRef: pm.IdentityRef(creatorRef), OwnerRef: pm.IdentityRef(ownerRef), BackupOwnerRef: pm.IdentityRef(backupOwnerRef), ConversationID: conversationID,
+		TargetDate:           parseTimePtr(targetDate),
+		Builtin:              isBuiltin != 0,
+		OrgNumber:            int(orgNumber.Int64),
+		GraphID:              graphID,
+		ActiveGenerationID:   pm.PlanGenerationID(activeGenerationID),
+		AttentionStatus:      pm.PlanAttentionStatus(attentionStatus),
+		AttentionSince:       parseTime(attentionSince),
+		LastAttentionEventID: pm.PlanBlockEventID(lastAttentionEventID),
+		RecoveryPolicy:       pm.PlanRecoveryPolicy{NotifyAfterSeconds: recoveryNotify, RemindAfterSeconds: recoveryRemind, EscalateAfterSeconds: recoveryEscalate},
+		ArchivedAt:           parseTimePtr(archivedAt), ArchivedBy: pm.IdentityRef(archivedBy),
 		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
 	})
 }

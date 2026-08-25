@@ -293,7 +293,7 @@ type createTaskArgs struct {
 	Dispatch bool   `json:"dispatch,omitempty" jsonschema:"when true, also dispatch the task into the project's assignment pool so it is immediately claimable (unassigned) / runnable (assigned) — no separate add_task_to_plan needed"`
 	// I105 Phase 1: per-node fork override. Omit for ordinary code tasks.
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"optional routing override; omit (default) for a normal code task — it forks this Agent's executor with a git worktree. Set to supervisor_inline ONLY for a task whose deliverable is a CENTER ACTION with no code to write (deploy / synthesis / verdict / roll-up): it is then handled by this Agent's Supervisor control plane instead of forking an executor into an empty workspace. Allowed: executor_fork | supervisor_inline"`
-	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"durable delivery required from a forked executor; omit or code_change requires pushed HEAD advancement. Set evidence_only for verification/remediation proposals whose deliverable is acceptance evidence: it permits zero source diff only after runtime-created structured evidence is durably pushed"`
+	DeliveryContract string `json:"delivery_contract" jsonschema:"required explicit durable delivery contract: code_change requires pushed HEAD advancement; evidence_only permits zero source diff only after runtime-created structured evidence is durably pushed; supervisor_inline is only for center-control tasks paired with dispatch_mode=supervisor_inline"`
 }
 
 func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
@@ -836,20 +836,24 @@ func makeUpdateReminder(cfg Config) mcp.ToolHandlerFor[updateReminderArgs, any] 
 // --- create_plan -------------------------------------------------------------
 
 type createPlanArgs struct {
-	ProjectID   string `json:"project_id" jsonschema:"the project to create the plan in (you must be a member)"`
-	Name        string `json:"name" jsonschema:"the plan name"`
-	Description string `json:"description,omitempty" jsonschema:"optional plan description"`
-	TargetDate  string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
+	ProjectID      string `json:"project_id" jsonschema:"the project to create the plan in (you must be a member)"`
+	Name           string `json:"name" jsonschema:"the plan name"`
+	Description    string `json:"description,omitempty" jsonschema:"optional plan description"`
+	TargetDate     string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
+	OwnerRef       string `json:"owner_ref" jsonschema:"required explicit Plan Owner identity ref (user:<id> or agent:<id>); must be a project member"`
+	BackupOwnerRef string `json:"backup_owner_ref,omitempty" jsonschema:"optional backup/escalation owner identity ref; must be a project member when set"`
 }
 
 func makeCreatePlan(cfg Config, planRules *planningRuleCache) mcp.ToolHandlerFor[createPlanArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args createPlanArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":    cfg.AgentID,
-			"project_id":  args.ProjectID,
-			"name":        args.Name,
-			"description": args.Description,
-			"target_date": args.TargetDate,
+			"agent_id":         cfg.AgentID,
+			"project_id":       args.ProjectID,
+			"name":             args.Name,
+			"description":      args.Description,
+			"target_date":      args.TargetDate,
+			"owner_ref":        args.OwnerRef,
+			"backup_owner_ref": args.BackupOwnerRef,
 		}
 		if planRules != nil {
 			body["planning_rules"] = planRules.Snapshot(ctx)
@@ -996,7 +1000,7 @@ type evolveTaskArgs struct {
 	Description      string `json:"description,omitempty" jsonschema:"new task description"`
 	AssigneeRef      string `json:"assignee_ref" jsonschema:"identity ref assigned to the new task"`
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"executor_fork (default) or supervisor_inline"`
-	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"code_change (default) or evidence_only"`
+	DeliveryContract string `json:"delivery_contract" jsonschema:"required explicit contract: code_change, evidence_only or supervisor_inline; never inferred from title or description"`
 	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"lineage-only existing task this new task follows/remediates; does not create an execution edge"`
 	Detached         bool   `json:"detached,omitempty" jsonschema:"true only for intentionally independent new root tasks; otherwise every new root must have an explicit prerequisite edge to prior execution"`
 }
@@ -1065,6 +1069,66 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 			body["planning_rules"] = planRules.Snapshot(ctx)
 		}
 		return callAdmin(ctx, cfg, "evolve_plan_generation", body)
+	}
+}
+
+type transferPlanOwnerArgs struct {
+	PlanID          string `json:"plan_id" jsonschema:"plan whose owner is changing"`
+	NewOwnerRef     string `json:"new_owner_ref" jsonschema:"required new Plan Owner identity ref; must be a project member"`
+	BackupOwnerRef  string `json:"backup_owner_ref,omitempty" jsonschema:"optional backup/escalation owner identity ref; must be a project member when set"`
+	Reason          string `json:"reason" jsonschema:"audit reason for the owner transfer"`
+	ExpectedVersion int    `json:"expected_version" jsonschema:"plan version read from get_plan for CAS"`
+}
+
+func makeTransferPlanOwner(cfg Config) mcp.ToolHandlerFor[transferPlanOwnerArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args transferPlanOwnerArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "transfer_plan_owner", map[string]any{
+			"agent_id":         cfg.AgentID,
+			"plan_id":          args.PlanID,
+			"new_owner_ref":    args.NewOwnerRef,
+			"backup_owner_ref": args.BackupOwnerRef,
+			"reason":           args.Reason,
+			"expected_version": args.ExpectedVersion,
+		})
+	}
+}
+
+type listPlanBlockEventsArgs struct {
+	PlanID     string `json:"plan_id" jsonschema:"plan whose block events to list"`
+	ActiveOnly *bool  `json:"active_only,omitempty" jsonschema:"true/default returns unresolved active effective events only; false includes history"`
+}
+
+func makeListPlanBlockEvents(cfg Config) mcp.ToolHandlerFor[listPlanBlockEventsArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listPlanBlockEventsArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "plan_id": args.PlanID}
+		if args.ActiveOnly != nil {
+			body["active_only"] = *args.ActiveOnly
+		}
+		return callAdmin(ctx, cfg, "list_plan_block_events", body)
+	}
+}
+
+type planBlockActionArgs struct {
+	PlanID         string `json:"plan_id" jsonschema:"plan containing the block event"`
+	EventID        string `json:"event_id" jsonschema:"plan block event id"`
+	ResolutionKind string `json:"resolution_kind,omitempty" jsonschema:"resolve only: resume_original, replace_with_continuation, bypass_remove_node, or pause_or_discard_plan"`
+	Note           string `json:"note,omitempty" jsonschema:"resolve only: owner resolution note"`
+}
+
+func makeAcknowledgePlanBlock(cfg Config) mcp.ToolHandlerFor[planBlockActionArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planBlockActionArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "acknowledge_plan_block", map[string]any{
+			"agent_id": cfg.AgentID, "plan_id": args.PlanID, "event_id": args.EventID,
+		})
+	}
+}
+
+func makeResolvePlanBlock(cfg Config) mcp.ToolHandlerFor[planBlockActionArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planBlockActionArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "resolve_plan_block", map[string]any{
+			"agent_id": cfg.AgentID, "plan_id": args.PlanID, "event_id": args.EventID,
+			"resolution_kind": args.ResolutionKind, "note": args.Note,
+		})
 	}
 }
 

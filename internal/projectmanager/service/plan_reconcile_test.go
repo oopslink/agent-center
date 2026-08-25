@@ -20,7 +20,7 @@ func TestReconcile_DispatchesMissedReadyNode(t *testing.T) {
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "miss", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "miss", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -70,7 +70,7 @@ func TestReconcile_Idempotent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "idem", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "idem", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	_ = h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -111,12 +111,12 @@ func TestReconcile_SkipsDraftAndDone(t *testing.T) {
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// Draft plan with a ready node — must NOT be dispatched (never started).
-	draftID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a"})
+	draftID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_ = h.seedAssignedTask(t, pid, draftID, "D", "user:x")
 
 	// Done plan: a single pre-done task; start then reconcile marks it done.
-	doneID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "done", CreatedBy: "user:a"})
+	doneID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "done", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dt := h.seedAssignedTask(t, pid, doneID, "X", "agent:42")
 	h.setTaskStatus(t, dt, pm.TaskCompleted) // pre-done
@@ -154,12 +154,12 @@ func TestListRunningPlans_OnlyRunning(t *testing.T) {
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// draft (never started)
-	draftID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a"})
+	draftID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_ = h.seedAssignedTask(t, pid, draftID, "D", "user:x")
 
 	// running
-	runID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "run", CreatedBy: "user:a"})
+	runID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "run", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_ = h.seedAssignedTask(t, pid, runID, "R", "user:y")
 	if err := h.svc.StartPlan(ctx, runID, "user:a"); err != nil {
@@ -168,7 +168,7 @@ func TestListRunningPlans_OnlyRunning(t *testing.T) {
 	h.drain(t)
 
 	// done (single pre-done task → reconcile marks done)
-	doneID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "done", CreatedBy: "user:a"})
+	doneID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "done", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dt := h.seedAssignedTask(t, pid, doneID, "X", "agent:42")
 	h.setTaskStatus(t, dt, pm.TaskCompleted)

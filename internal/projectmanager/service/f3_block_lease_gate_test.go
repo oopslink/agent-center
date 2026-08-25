@@ -23,7 +23,7 @@ func TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "dag", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "dag", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

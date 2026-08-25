@@ -136,6 +136,7 @@ const (
 	// dispatch injection + list_findings read, not a cross-BC projection).
 	EvtPlanFindingRecorded  = "pm.plan_finding.recorded"
 	EvtPlanFindingRetracted = "pm.plan_finding.retracted"
+	EvtPlanBlockOwnerWake   = "pm.plan.block_owner_wake"
 	// v2.14.0 I14/F6 (HTTP + Conversation 接线). When a running task is blocked
 	// with reasonType=input_required (the agent needs a USER reply) BlockTask emits
 	// EvtTaskInputRequested IN THE SAME TX; when the task is later unblocked from an
@@ -682,6 +683,22 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+}
+
+type planBlockOwnerWakePayload struct {
+	EventID              string `json:"event_id"`
+	IdempotencyKey       string `json:"idempotency_key"`
+	PlanID               string `json:"plan_id"`
+	ProjectID            string `json:"project_id"`
+	GenerationID         string `json:"generation_id"`
+	TaskID               string `json:"task_id"`
+	OwnerRef             string `json:"owner_ref"`
+	ConversationID       string `json:"conversation_id"`
+	MessageID            string `json:"message_id,omitempty"`
+	Reason               string `json:"reason"`
+	ReasonType           string `json:"reason_type"`
+	RemindAfterSeconds   int    `json:"remind_after_seconds"`
+	EscalateAfterSeconds int    `json:"escalate_after_seconds"`
 }
 
 // taskLeaseExpiredNudgePayload is the JSON payload for EvtTaskLeaseExpiredNudge

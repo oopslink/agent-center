@@ -37,6 +37,10 @@ var AgentFacingToolNames = []string{
 	"get_reminder",
 	"update_reminder",
 	"create_plan",
+	"transfer_plan_owner",
+	"list_plan_block_events",
+	"acknowledge_plan_block",
+	"resolve_plan_block",
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
 	"create_stage",
 	"get_stage",

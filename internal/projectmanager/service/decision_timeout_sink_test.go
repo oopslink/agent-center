@@ -105,7 +105,7 @@ func seedRootDecisionPlan(t *testing.T, h *planAdvanceHarness, name, decisionOwn
 	t.Helper()
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dec := h.seedAssignedTask(t, pid, planID, "Decision", decisionOwner)
 	merge := h.seedAssignedTask(t, pid, planID, "merge to main", "user:int")

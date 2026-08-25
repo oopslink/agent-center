@@ -69,7 +69,7 @@ func TestStage_Barrier_MultiNodeDownstream_RunGate(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, b2, stageA, _ := seedTwoMultiNodeStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {

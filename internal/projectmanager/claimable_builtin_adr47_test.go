@@ -67,7 +67,7 @@ func TestADR47_BuiltinPlan_Immutable(t *testing.T) {
 	}
 
 	// A normal (non-builtin) plan can stop/mark-done as before.
-	np, _ := NewPlan(NewPlanInput{ID: "plan-2", ProjectID: "proj-1", Name: "Sprint", CreatorRef: "user:o", CreatedAt: now})
+	np, _ := NewPlan(NewPlanInput{ID: "plan-2", ProjectID: "proj-1", Name: "Sprint", CreatorRef: "user:o", OwnerRef: "user:o", CreatedAt: now})
 	_ = np.Start(now)
 	if err := np.Stop(now); err != nil {
 		t.Fatalf("Stop on normal plan should work, got %v", err)

@@ -84,9 +84,9 @@ func TestJSONToolsForwarding(t *testing.T) {
 		},
 		{
 			toolName: "create_task",
-			args:     map[string]any{"project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2"},
+			args:     map[string]any{"project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2", "delivery_contract": "code_change"},
 			wantTool: "create_task",
-			wantBody: map[string]any{"agent_id": "agent-X", "project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2"},
+			wantBody: map[string]any{"agent_id": "agent-X", "project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2", "delivery_contract": "code_change"},
 		},
 		{
 			toolName: "assign_task",
@@ -200,14 +200,14 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 	}}
 	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 7})
 
-	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
+	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan", "owner_ref": "agent:agent-1"})
 	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
 	callOK(t, cs, "evolve_plan_generation", map[string]any{
 		"plan_id": "plan-1", "parent_generation_id": "generation-g0", "base_version": 2,
 		"idempotency_key": "evo-1", "reason": "scope changed", "evidence": "review",
 		"diff": map[string]any{
 			"node_decisions": []any{map[string]any{"task_id": "task-a", "action": "preserve", "reason": "in flight"}},
-			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c", "detached": true}},
+			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c", "delivery_contract": "code_change", "detached": true}},
 			"edges":          []any{},
 		},
 	})
@@ -255,7 +255,7 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 		"create_plan":         json.RawMessage(`{"plan_id":"plan-2"}`),
 	}}
 	cs2 := connect(t, Config{AgentID: "agent-1", Admin: fake2, Generation: 8})
-	callOK(t, cs2, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan 2"})
+	callOK(t, cs2, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan 2", "owner_ref": "agent:agent-1"})
 	if got := len(fake2.callsFor("get_team_rule_index")); got != 1 {
 		t.Fatalf("new generation get_team_rule_index calls = %d, want 1", got)
 	}
@@ -274,7 +274,7 @@ func TestPlanRuleFreezeSurvivesSearchToolsReregister(t *testing.T) {
 	cs := connect(t, Config{AgentID: "agent-1", Admin: fake, Generation: 3, TierTools: true})
 
 	callOK(t, cs, "search_tools", map[string]any{"query": "plan"})
-	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan"})
+	callOK(t, cs, "create_plan", map[string]any{"project_id": "proj-1", "name": "Plan", "owner_ref": "agent:agent-1"})
 	callOK(t, cs, "search_tools", map[string]any{"query": "plan"})
 	callOK(t, cs, "edit_plan_topology", map[string]any{"plan_id": "plan-1", "base_version": 1, "ops": []any{}})
 

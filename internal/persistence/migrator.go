@@ -75,6 +75,9 @@ func (m *Migrator) Up(ctx context.Context) error {
 	if err := m.reconcileLegacy0064Collision(ctx, applied); err != nil {
 		return fmt.Errorf("reconcile 0064 collision: %w", err)
 	}
+	if err := m.reconcilePlanOwner0145Reapply(ctx, applied); err != nil {
+		return fmt.Errorf("reconcile 0145 plan owner reapply: %w", err)
+	}
 	all, err := m.loadMigrations()
 	if err != nil {
 		return err
@@ -82,6 +85,14 @@ func (m *Migrator) Up(ctx context.Context) error {
 	for _, mig := range all {
 		if applied[mig.version] {
 			continue
+		}
+		if mig.version == 145 {
+			if err := m.reconcilePlanOwner0145Reapply(ctx, applied); err != nil {
+				return fmt.Errorf("reconcile 0145 plan owner reapply: %w", err)
+			}
+			if applied[mig.version] {
+				continue
+			}
 		}
 		if err := m.applyOne(ctx, mig, true); err != nil {
 			return fmt.Errorf("apply up %04d_%s: %w", mig.version, mig.name, err)
@@ -148,6 +159,82 @@ func (m *Migrator) reconcileLegacy0064Collision(ctx context.Context, applied map
 	}
 	applied[65] = true
 	return nil
+}
+
+func (m *Migrator) reconcilePlanOwner0145Reapply(ctx context.Context, applied map[int]bool) error {
+	if applied[145] {
+		return nil
+	}
+	v, err := m.Version(ctx)
+	if err != nil {
+		return err
+	}
+	if v < 144 {
+		return nil
+	}
+	hasOwner, err := m.columnExists(ctx, "pm_plans", "owner_ref")
+	if err != nil {
+		return err
+	}
+	if !hasOwner {
+		return nil
+	}
+	return RunInTx(ctx, m.db, func(txCtx context.Context) error {
+		exec, err := ExecutorFromCtx(txCtx, m.db)
+		if err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(txCtx, `CREATE TABLE IF NOT EXISTS pm_plan_block_events (
+    event_id TEXT PRIMARY KEY,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    plan_id TEXT NOT NULL,
+    generation_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    node_id TEXT NOT NULL DEFAULT '',
+    execution_id TEXT NOT NULL DEFAULT '',
+    block_version INTEGER NOT NULL,
+    blocked_reason TEXT NOT NULL,
+    reason_type TEXT NOT NULL,
+    blocked_by TEXT NOT NULL,
+    blocked_at TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    effective INTEGER NOT NULL DEFAULT 1,
+    impacted_downstream_json TEXT NOT NULL DEFAULT '[]',
+    owner_ref TEXT NOT NULL,
+    next_actions_json TEXT NOT NULL,
+    acknowledged_at TEXT NOT NULL DEFAULT '',
+    acknowledged_by TEXT NOT NULL DEFAULT '',
+    resolved_at TEXT NOT NULL DEFAULT '',
+    resolved_by TEXT NOT NULL DEFAULT '',
+    resolution_kind TEXT NOT NULL DEFAULT '',
+    resolution_note TEXT NOT NULL DEFAULT '',
+    notification_state TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(plan_id, generation_id, task_id, block_version)
+)`); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(txCtx, `CREATE INDEX IF NOT EXISTS idx_pm_plan_block_events_plan_active
+    ON pm_plan_block_events(plan_id, active, effective, resolved_at)`); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(txCtx, `CREATE INDEX IF NOT EXISTS idx_pm_plan_block_events_notify_retry
+    ON pm_plan_block_events(notification_state, updated_at)`); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(txCtx, `UPDATE pm_plans
+SET owner_ref = creator_ref
+WHERE owner_ref = '' AND status IN ('pending','running','paused')`); err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(txCtx,
+			`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (145, 'plan_owner_block_events', datetime('now'))`); err != nil {
+			return err
+		}
+		applied[145] = true
+		return nil
+	})
 }
 
 // columnExists reports whether table has a column named col, via PRAGMA

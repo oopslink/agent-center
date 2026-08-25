@@ -33,7 +33,7 @@ func TestProductionRelay_PlanDeleted_DeletesConversation(t *testing.T) {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	relay, _ := productionRelay(t, app)
-	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "del", CreatedBy: "user:a"})
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "del", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatalf("CreatePlan: %v", err)
 	}

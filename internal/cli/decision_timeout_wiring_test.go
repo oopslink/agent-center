@@ -112,7 +112,7 @@ func newAdapterFixture(t *testing.T, tasks map[pm.TaskID]*pm.Task, planCreator s
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := pm.NewPlan(pm.NewPlanInput{ID: "plan-1", ProjectID: "proj-1", Name: "PL", CreatorRef: pm.IdentityRef(planCreator), CreatedAt: now})
+	plan, err := pm.NewPlan(pm.NewPlanInput{ID: "plan-1", ProjectID: "proj-1", Name: "PL", CreatorRef: pm.IdentityRef(planCreator), OwnerRef: pm.IdentityRef(planCreator), CreatedAt: now})
 	if err != nil {
 		t.Fatal(err)
 	}

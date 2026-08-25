@@ -41,7 +41,7 @@ func seedBlockedPlanAB(t *testing.T, h *planAdvanceHarness, name string) (pm.Pro
 	t.Helper()
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -159,7 +159,7 @@ func TestDeadline_GatedNode_NotReleased_OnTimeout(t *testing.T) {
 				},
 			}
 			pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-			planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated", CreatedBy: "user:a"})
+			planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated", CreatedBy: "user:a", OwnerRef: "user:a"})
 			h.drain(t)
 			dev := h.seedAssignedTask(t, pid, planID, "Dev", "user:dev")
 			dec := h.seedAssignedTask(t, pid, planID, "Decision", "user:pd")

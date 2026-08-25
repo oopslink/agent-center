@@ -160,7 +160,7 @@ func (h *findingHarness) seedPlanWithAssignedTask(t *testing.T) (pid pm.ProjectI
 			t.Fatalf("AddProjectMember %s: %v", ag, err)
 		}
 	}
-	planID, err = h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, err = h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestDeletePlan_CascadesFindings(t *testing.T) {
 	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:ag1", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

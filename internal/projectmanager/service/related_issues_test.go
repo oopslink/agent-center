@@ -31,7 +31,7 @@ func TestListRelatedIssues_PlanSourceIssues(t *testing.T) {
 func TestListRelatedIssues_NoSourceIssue_Empty(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, tid, "user:a"); err != nil {
 		t.Fatalf("select: %v", err)
