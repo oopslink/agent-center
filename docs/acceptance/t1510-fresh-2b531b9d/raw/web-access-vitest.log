@@ -1,0 +1,2422 @@
+
+> agent-center-web@0.1.0 test /private/tmp/t1510-fresh-accept-2b531b9d-56111/web
+> vitest run -- --run src/pages/Access.test.tsx
+
+
+ RUN  v2.1.9 /private/tmp/t1510-fresh-accept-2b531b9d-56111/web
+
+(node:56518) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56514) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56515) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56519) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56516) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56513) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56517) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56520) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56521) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > desktop two-pane: title bar has name + ref; info rail has status + failed + progress + creator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MentionText.test.tsx (38 tests) 1207ms
+ ✓ src/pages/Environment.test.tsx (22 tests) 1464ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: the @creator tag opens the (unchanged) agent-activity sidebar
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/users/owner
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Progress shows a bar with the done/total label + percentage
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MessageList.test.tsx (32 tests) 1565ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next lists the non-terminal nodes (excludes done/failed)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next task titles open TaskDetail in a new tab
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:56906) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56907) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next is collapsible via its header toggle (@oopslink)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Pause (→ paused) when running and calls usePausePlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/ProjectDetail.test.tsx (17 tests) 3302ms
+   ✓ ProjectDetail page > T566: auto-assign toggle defaults ON and PATCHes auto_assign_enabled:false when turned off 399ms
+   ✓ ProjectDetail page > renders header + per-project Issues / Tasks tabs + Fleet link 403ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:56911) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/OrgWorkItems.test.tsx (25 tests) 3875ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows an accurate hint (not the generic error) when resume fails agent_busy (T101)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows a "nothing to resume" hint when resume fails node_not_paused (T101)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/AgentDetail.test.tsx > AgentDetail page > header Message button: icon + tooltip/aria, opens (deduped) DM with the agent (#240)
+No routes matched location "/dms/C-9" 
+
+(node:56914) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Start when pending (not Stop) and calls useStartPlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:56916) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Reopen when done with an active generation and calls useReopenPlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/SenderDetailSidebar.test.tsx (22 tests) 3011ms
+   ✓ SenderDetailSidebar > dispatches an agent: ref to the agent branch (name + lifecycle) 525ms
+   ✓ SenderDetailSidebar > shows the generic load-failure message for a non-404 error 335ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > maximizes via the tab-row toggle / restores via the overlay button (T347)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/AgentDetail.test.tsx (30 tests) 2968ms
+   ✓ AgentDetail page > breadcrumb "Agents" back-link points to canonical /agents (not /members/agents) 311ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows the plan goal (description) on the detail page (T347)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > collapses a long plan goal (clamped by default; Show more / less) — T349
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/TeamDetail.test.tsx (30 tests) 6998ms
+   ✓ TeamDetail > adds a free agent (real directory ref) through the add-member modal 549ms
+   ✓ TeamDetail > requires a migration confirm for an agent already on another team 441ms
+   ✓ TeamDetail > sends the canonical team id as migrate_from, even when the source team was renamed 395ms
+   ✓ TeamDetail > associates a real picked project and unlinks a project 440ms
+   ✓ TeamDetail > groups team-memory entries and rules with read-only management feedback 414ms
+   ✓ TeamDetail > reviews and promotes team-memory proposals with metadata and diff 336ms
+   ✓ TeamDetail > creates a team-memory proposal only after warning acknowledgement 364ms
+   ✓ TeamDetail > filters unsafe markdown URLs in memory documents 360ms
+(node:57029) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG renders a node per task with the 6-state chips (label + color) + Advance
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57031) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/ProjectPlans.test.tsx (47 tests) 7322ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > renders the board: Backlog column (unplanned tasks) + Plan columns + new-Plan column 401ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > Stage B: a card shows the task Archived badge (orthogonal to plan status) 337ms
+ ✓ src/sse/useSSE.test.tsx (36 tests) 50ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG canvas pans on a background drag but not when starting on a node link
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57034) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > legend includes a paused chip with the stone palette (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > point 1 (T126): DAG nodes + task-list rows show the Task id from node.org_ref; no-org_ref → FULL id, never a #hash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/components/AgentActivityRow.test.tsx > AgentActivityRow (#228 categories) > assistant_text → Output (green) badge + truncated preview
+In HTML, <li> cannot be a child of <tbody>.
+This will cause a hydration error.
+
+  <QueryClientProvider client={{}}>
+    <table>
+>     <tbody>
+        <AgentActivityRow event={{id:"AC-1", ...}}>
+>         <li
+>           className="text-xs"
+>           data-testid="agent-activity-row"
+>           data-activity-id="AC-1"
+>           data-event-type="assistant_text"
+>         >
+
+<tbody> cannot contain a nested <li>.
+See this log for the ancestor stack trace.
+
+ ✓ src/components/AgentActivityRow.test.tsx (31 tests) 428ms
+(node:57036) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57038) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/Agents.test.tsx > Agents page > creates an agent through the modal
+An update to EntitySelect inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+A component suspended inside an `act` scope, but the `act` call was not awaited. When testing React components that depend on asynchronous data, you must await the result:
+
+await act(() => ...)
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > clicking a DAG node assignee opens the agent-activity sidebar
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/Agents.test.tsx > Agents page > T728: toggling the include-description switch off posts false
+An update to EntitySelect inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > point 2: compact toggle zooms the DAG down so a long plan fits
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/DMDetail.test.tsx (19 tests) 3904ms
+   ✓ DMDetail page > renders peer names + messages + composer when found 657ms
+   ✓ DMDetail page > shows "(deleted)" heading when the peer no longer resolves (#215/E1) 345ms
+(node:57041) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG computes a layered left→right layout from depends_on
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/AgentTasks.test.tsx (25 tests) 1073ms
+ ✓ src/pages/AiRuntime.test.tsx (14 tests) 5233ms
+   ✓ AiRuntime page > renders the organization runtime catalog and admin controls for owners 512ms
+   ✓ AiRuntime page > creates a runtime model through the org-scoped POST endpoint with expected_revision 411ms
+   ✓ AiRuntime page > edits a runtime model through the org-scoped PATCH endpoint with expected_revision 379ms
+   ✓ AiRuntime page > disables a runtime model through the revisioned PATCH endpoint 324ms
+   ✓ AiRuntime page > bulk disables selected runtime models with incrementing revisions 488ms
+   ✓ AiRuntime page > bulk deletes selected runtime models with incrementing revisions 527ms
+   ✓ AiRuntime page > disables a runtime CLI through the revisioned PATCH endpoint 342ms
+   ✓ AiRuntime page > bulk disables selected runtime CLIs with incrementing revisions 459ms
+   ✓ AiRuntime page > bulk deletes selected runtime CLIs with incrementing revisions 445ms
+   ✓ AiRuntime page > previews and applies a models-only bulk import while preserving CLIs 375ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG draws an edge per depends_on relation (upstream→downstream)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57044) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan exposes NO manual Advance button (auto-advance only) — @oopslink
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > renders header + description from the Task projection
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/components/ObjectAuditTimeline.test.tsx > ObjectAuditTimeline > i18n (H-1: no hardcoded English) > renders section copy + sentences in Chinese under the zh locale
+An update to ActorRef inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to AuditRow inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ObjectAuditTimeline inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/ObjectAuditTimeline.test.tsx > ObjectAuditTimeline > i18n (H-1: no hardcoded English) > renders the empty state in Chinese
+An update to ObjectAuditTimeline inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/components/ObjectAuditTimeline.test.tsx (12 tests) 725ms
+(node:57047) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > renders the description as markdown in a height-capped, keyboard-scrollable region
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG is display-only: note never claims an edge editor, and no edge-edit control exists
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57049) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Agents.test.tsx (21 tests) 3876ms
+   ✓ Agents page > renders all agents with lifecycle + availability badges; the NAME links to /agents/{id} (T133, no separate Open button) 384ms
+   ✓ Agents page > creates an agent through the modal 372ms
+   ✓ Agents page > T728: toggling the include-description switch off posts false 332ms
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > shows a breadcrumb with the project display name, not its ULID (#186-1/2)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan is display-only: NO in-graph connect / edge-delete controls (and no old editor box)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > shows org_ref (T<n>) in the header + breadcrumb leaf when present (#245)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57052) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > done plan is display-only: NO in-graph connect / edge-delete controls
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > lifecycle controls (Start/Stop) each render exactly once, status-gated
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders a display TOP section and a read-only BOTTOM section
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57054) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > lifecycle controls (Start/Stop) each render exactly once, status-gated
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > has NO inline edit controls — status menu / assignee Change-Unassign / tag "+ Add" are all GONE
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > Edit-Task button (SVG icon, no emoji) opens the TaskEditModal — the single edit path
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > task-list tab lists nodes with task_status + node_status chips
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ReminderCreateModal.test.tsx (15 tests) 632ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: a DONE node shows its completion time; non-done nodes do not
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > hides the Edit-Task button on a terminal (discarded) task — nothing to edit
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > task list shows a Created column with a full timestamp + timezone (— when absent)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/AgentConfigEditModal.test.tsx (16 tests) 2335ms
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > computes the in-status duration ("Xh Ym") from status_changed_at (display)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: rail drops the Threads/Files panel; title bar has no bottom border
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/Channels.test.tsx (15 tests) 1144ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: Edit / Discard / Delete share one button row for a pending plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > omits the duration gracefully when status_changed_at is missing
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57058) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > conversation side renders ConversationView with the plan conversation_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders tags as hashed-color chips (display only) — same tag → same stable class
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > empty conversation_id → friendly initializing state (no crash)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders an empty-tags placeholder with NO "+ Add" affordance
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan shows the auto-advancing indicator (near the status chip)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57061) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/agentActivityGrouping.test.tsx (17 tests) 247ms
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > read-only TASK ID shows a clean handle/pill (org_ref or tail), not the raw id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/task-0001abcdef/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/TeamsDirectory.test.tsx (21 tests) 4309ms
+   ✓ TeamsDirectoryAgents (merged directory + members) > renders the agents table with a TEAMS column and an Unassigned cell 519ms
+   ✓ TeamsDirectoryAgents (merged directory + members) > renders a select checkbox only on a live-agent row (not a directory-only row) 385ms
+   ✓ TeamsDirectoryAgents (merged directory + members) > select-all + a batch action fires the lifecycle mutation over the selected live agents 402ms
+(node:57063) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending plan does NOT show the auto-advancing indicator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > assignee renders an avatar + name (display only) in the top section
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > done plan does NOT show the auto-advancing indicator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > shows "Unassigned" placeholder (display only) when there is no assignee
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/AppLayout.sidebar.test.tsx (16 tests) 4539ms
+   ✓ col② secondary nav — active-module group + sub-lists > renders the active module as a collapsible group with its items expanded by default 346ms
+   ✓ col② secondary nav — active-module group + sub-lists > I23: col① Conversations icon shows the cross-source unread badge (brand on @me) 753ms
+   ✓ col② secondary nav — active-module group + sub-lists > Channels item exposes a sub-list of channel names when expanded 565ms
+   ✓ col② secondary nav — active-module group + sub-lists > count badges reflect real hook counts with accessible labels 591ms
+   ✓ col② secondary nav — active-module group + sub-lists > renders unread/mention badges in the channel sub-list from row counts 494ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending plan shows in-graph affordances: a connect button per node + a delete control per edge
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ActivityRefText.test.tsx (15 tests) 375ms
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > shows a "Stuck" badge on a RUNNING task with a non-empty blocked_reason (solid amber, both-mode AA)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57066) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57067) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > does NOT show the Stuck badge when blocked_reason is empty/absent
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: clicking a node connect button enters connect mode and lights up valid targets
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/TaskDetail.test.tsx > TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > does NOT show the Stuck badge on a non-running task even if blocked_reason is set
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/TS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/TaskDetail.test.tsx (20 tests) 7464ms
+   ✓ TaskDetail page > mobile (<md): shows the compact bar; Show info reveals details; breadcrumb dedupes title 740ms
+   ✓ TaskDetail page > renders header + description from the Task projection 571ms
+   ✓ TaskDetail page > renders the description as markdown in a height-capped, keyboard-scrollable region 377ms
+   ✓ TaskDetail page > shows a breadcrumb with the project display name, not its ULID (#186-1/2) 420ms
+   ✓ TaskDetail page > shows org_ref (T<n>) in the header + breadcrumb leaf when present (#245) 319ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders a display TOP section and a read-only BOTTOM section 623ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > has NO inline edit controls — status menu / assignee Change-Unassign / tag "+ Add" are all GONE 306ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > Edit-Task button (SVG icon, no emoji) opens the TaskEditModal — the single edit path 354ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > hides the Edit-Task button on a terminal (discarded) task — nothing to edit 364ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > computes the in-status duration ("Xh Ym") from status_changed_at (display) 410ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders tags as hashed-color chips (display only) — same tag → same stable class 326ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > renders an empty-tags placeholder with NO "+ Add" affordance 309ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > assignee renders an avatar + name (display only) in the top section 315ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > shows "Unassigned" placeholder (display only) when there is no assignee 324ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > shows a "Stuck" badge on a RUNNING task with a non-empty blocked_reason (solid amber, both-mode AA) 314ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > does NOT show the Stuck badge when blocked_reason is empty/absent 405ms
+   ✓ TaskDetail page > redesigned 2-section sidebar (#281) — read-only display > does NOT show the Stuck badge on a non-running task even if blocked_reason is set 327ms
+ ✓ src/components/TaskEditModal.test.tsx (20 tests) 1484ms
+(node:57071) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57072) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Projects.test.tsx (11 tests) 664ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57075) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MermaidDiagram.test.tsx (13 tests) 522ms
+(node:57078) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/WorkItemConversation.test.tsx (12 tests) 1387ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: an already-existing edge target is NOT offered again (exists excluded)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57080) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/shell/nav/ConversationsSecondaryNav.test.tsx (10 tests) 1373ms
+   ✓ ConversationsSecondaryNav (T64 col② / 例1) > renders Channels + Direct messages sections with rows linking to each conversation 384ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: Escape exits connect mode without adding; the Cancel affordance also exits
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/AgentProfile.test.tsx (19 tests) 684ms
+(node:57083) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57086) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: an edge delete control FIRES the DELETE request with the correct ids (real wiring)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/utils/time.test.ts (36 tests) 49ms
+(node:57088) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/AgentRuntime.test.tsx (9 tests) 918ms
+   ✓ AgentRuntime (T583) > renders the file tree and toggles the collapsible sidebar 397ms
+(node:57090) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > #218: a cycle error from add surfaces the FRIENDLY message (not the raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/api/hooks.test.tsx (22 tests) 1785ms
+ ✓ src/api/client.test.ts (34 tests) 316ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: plan-dag-note states dependencies ARE editable here (in-graph)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/planGraphLayout.test.ts (12 tests) 14ms
+(node:57245) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57259) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > error surface + in-graph controls use solid danger/semantic tokens (no raw red, no alpha-tint)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/AgentBadges.test.tsx (24 tests) 67ms
+(node:57262) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57265) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57266) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/IssueEditModal.test.tsx (17 tests) 580ms
+ ✓ src/AppLayout.shell.test.tsx (12 tests) 2946ms
+   ✓ AppLayout v5 shell (v2.10.0 [T1] — three-column module rail) > renders the four-column scaffold: module rail (col①), secondary nav (col②), content (col③), context slot (col④) 353ms
+   ✓ AppLayout v5 shell (v2.10.0 [T1] — three-column module rail) > col④ context panel is revealed only when a page mounts <ContextPanel> 484ms
+(node:57283) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/OrgRepos.test.tsx (11 tests) 1093ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > opens TaskDetail from the whole desktop DAG node card, without double-opening the title link
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/api/plans.test.ts (13 tests) 783ms
+(node:57429) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57464) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/MessageComposer.attachments.test.tsx (10 tests) 1684ms
+   ✓ MessageComposer attachments (v2.9.2) > adds a dropped file as an attachment chip 306ms
+   ✓ MessageComposer attachments (v2.9.2) > uploads the attachment then sends it with the message 355ms
+(node:57546) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (pending)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/OrgPlans.test.tsx (8 tests) 2032ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > renders the cross-project plan table (name / status / project / progress / updated) 785ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > discarded chip sends status=discarded and renders discarded plans 356ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: running plan rows have NO Remove control (§9.4 pending-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57857) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: done plan rows have NO Remove control (§9.4 pending-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57859) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/UserDetail.test.tsx (7 tests) 990ms
+(node:57862) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/OrgContext.test.tsx (12 tests) 147ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list #218: a remove failure shows a friendly inline message (no raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/ChannelDetail.test.tsx (6 tests) 1159ms
+   ✓ ChannelDetail page > loads the channel by id (URL = hash) + renders name in chrome (#247) 585ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/Reminders.test.tsx (13 tests) 753ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/CommandPalette.test.tsx (11 tests) 1690ms
+   ✓ CommandPalette @ mode — quick DM an agent > opens the desktop floating DM chat instead of navigating when the shell provider is mounted 681ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57876) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57879) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57880) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57883) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57884) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/shell/nav/UnreadConversationsSection.test.tsx (8 tests) 481ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: running plan opens the edit modal with name/goal but NO target-date field
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: clicking Edit opens the modal pre-filled with name/goal/target_date
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ExecutorSlotPanel.test.tsx (8 tests) 339ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: editing + submit PATCHes only the CHANGED fields (name/description), absolute target_date
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/DMs.test.tsx (11 tests) 1060ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: clearing target_date sends target_date: "" (clear); unchanged name/goal omitted
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57900) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Teams.test.tsx (7 tests) 2513ms
+   ✓ Teams list > renders the seeded teams in a table 413ms
+   ✓ Teams list > creates a team through the role-builder modal 542ms
+   ✓ Teams list > prevents creating a team when any role has no name 382ms
+   ✓ Teams list > creates an empty team after removing every role 440ms
+ ✓ src/components/MessageComposer.test.tsx (10 tests) 1290ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: setting a new target_date sends an absolute RFC3339 instant
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/RuntimeSelectors.test.tsx (8 tests) 192ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: Cancel closes the modal WITHOUT a PATCH
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57902) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3 #218: a PATCH failure surfaces a FRIENDLY inline message (no raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57906) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57907) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57909) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/CollapsibleCodeBlock.test.tsx (12 tests) 325ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > renders distinct Start + End anchors (default fixture)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57912) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > synthetic anchors are NOT counted as task nodes (real node count unchanged)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > real depends_on edges are unchanged; synthetic edges are on a separate testid
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/MemberNew.test.tsx (4 tests) 803ms
+   ✓ MemberNew — Add agent runtime selection > selects the first compatible Runtime pair after worker selection and submits it when untouched 442ms
+(node:57924) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/IssueDetail.test.tsx > IssueDetail page > renders header + description from the Issue projection
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/AgentHeatmap.test.tsx (8 tests) 1565ms
+   ✓ AgentHeatmap > renders the card, the 3-way 口径 switch, and a 5-step legend 323ms
+   ✓ AgentHeatmap > switching 口径 re-colors off a different field and updates the tooltip 325ms
+stderr | src/pages/IssueDetail.test.tsx > IssueDetail page > status is READ-ONLY: no inline transition controls are rendered
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single chain A→B→C: Start→A only, C→End only
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57930) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single node: Start→node and node→End
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/IssueDetail.test.tsx > IssueDetail page > Edit button opens the modal covering all 4 fields (title/desc/status/tags)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/AppLayout.mobilenav.test.tsx (6 tests) 1681ms
+   ✓ Mobile module nav sheet — col② reflowed into a bottom sheet > top-bar title opens a sheet exposing the Workspace sections (Issues/Tasks/Plans), not just Projects 429ms
+   ✓ Mobile module nav sheet — col② reflowed into a bottom sheet > navigating from the sheet routes to the section and closes the sheet 380ms
+   ✓ Mobile Context Panel bottom sheet > a page-level ⓘ trigger opens a bottom sheet containing that page's ContextPanel content 372ms
+   ✓ Mobile Context Panel bottom sheet > navigating away from the page closes the context panel sheet, matching the nav/account sheet convention 337ms
+ ✓ src/pages/TeamRoleDetail.test.tsx (5 tests) 4977ms
+   ✓ TeamRoleDetail canonical Team Role surface > renders list, detail, work/access configuration, audit, and no relationship-management copy 1094ms
+   ✓ TeamRoleDetail canonical Team Role surface > adds/removes RAM Roles, previews impact, saves with CAS, then shows server readback 812ms
+   ✓ TeamRoleDetail canonical Team Role surface > preserves the editor on 409 and refreshes the authoritative version before retry 644ms
+   ✓ TeamRoleDetail canonical Team Role surface > renders a read-only permission gate without exposing mutation controls 642ms
+   ✓ TeamRoleDetail canonical Team Role surface > renders explicit loading, error, and empty RAM Roles states 1781ms
+(node:57933) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > empty plan: no synthetic anchors, no crash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/IssueDetail.test.tsx > IssueDetail page > shows org_ref (I<n>) in the header + breadcrumb leaf when present (#245)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/issue-01KT8DABCDEF/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/issue-01KT8DABCDEF/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/IssueDetail.test.tsx (5 tests) 2749ms
+   ✓ IssueDetail page > renders header + description from the Issue projection 1000ms
+   ✓ IssueDetail page > status is READ-ONLY: no inline transition controls are rendered 507ms
+   ✓ IssueDetail page > Edit button opens the modal covering all 4 fields (title/desc/status/tags) 577ms
+   ✓ IssueDetail page > shows org_ref (I<n>) in the header + breadcrumb leaf when present (#245) 647ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > anchors use solid tokens (no alpha-tint, no raw red, not the 6-state border)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/Signup.test.tsx (15 tests) 766ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > shows Delete + Discard, but not Archive, for a PENDING plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57937) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > shows Archive only for a DONE plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57938) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/AppLayout.p6.test.tsx (8 tests) 1708ms
+   ✓ AppLayout v3 — P6 (theme + collapse + palette + shortcuts) > segmented theme control flips html.dark + persists + sets aria-checked 309ms
+   ✓ AppLayout v3 — P6 (theme + collapse + palette + shortcuts) > segmented language control lives in the rail user panel and persists 637ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > offers Pause + Discard, but not Delete/Archive, for a RUNNING plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > an ARCHIVED plan is terminal: NO Delete / Archive entries (read-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57941) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/AgentContextPanel.test.tsx (9 tests) 267ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > clicking Delete opens a CONSEQUENCE-explaining modal (not just "are you sure?")
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57943) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ConversationSurfaceMobile.test.tsx (9 tests) 1181ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete confirm DELETEs /{id} and navigates AWAY to the plans board
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57951) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete Cancel closes the modal WITHOUT a DELETE
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/api/tasks.test.ts (9 tests) 522ms
+ ✓ src/components/BoardTaskCreateModal.test.tsx (7 tests) 356ms
+(node:57959) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete #218: a 409 surfaces a FRIENDLY message and the modal STAYS OPEN
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57962) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > clicking Archive opens a CONSEQUENCE-explaining modal (terminal, cannot be undone)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/AppLayout.alerts.test.tsx (3 tests) 1596ms
+   ✓ rail Alerts — unified attention panel (tasks + directed mentions) > badge + auto-opened panel render both sources, urgent first, each deep-linked 754ms
+   ✓ rail Alerts — unified attention panel (tasks + directed mentions) > dismissing a mention marks it seen (mark_seen) and it drops off the panel 408ms
+   ✓ rail Alerts — unified attention panel (tasks + directed mentions) > renders no badge when nothing needs attention 431ms
+ ✓ src/components/AccessPermissionsPanel.test.tsx (2 tests) 380ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive confirm POSTs /{id}/archive (and stays on the detail view)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57965) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive Cancel closes the modal WITHOUT an archive POST
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57964) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/AgentCreateModal.test.tsx (4 tests) 435ms
+ ✓ src/components/TaskDetailSidebar.test.tsx (8 tests) 652ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive #218: a 409 already-archived surfaces a FRIENDLY message, modal stays open
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57969) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > task-list row shows the Archived badge when task.archived (coexists with status chips)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > archive badge uses a curated SOLID amber pair (no alpha-tint, no raw red, no emoji)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57971) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ConversationInfoPanel.test.tsx (8 tests) 208ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > PlanStatusChip preserves discarded lifecycle color after archival
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57974) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57976) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: Task tab renders ALL nodes of a big plan (no cap)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ConversationView.test.tsx (6 tests) 986ms
+   ✓ ConversationView (#264 surface-agnostic shell) > renders surface-tagged shell with header + message body (loading → messages) + composer 337ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: search filters by title; clearing restores all; no-match shows empty state
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:57980) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: search filters by Task-id (org_ref) and by assignee handle
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MentionComposer.integration.test.tsx (7 tests) 819ms
+   ✓ MessageComposer + #275 mention picker > typing @ opens the picker with filtered members 301ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41/T147: the single per-row assignee dropdown fires the assign mutation with {assignee}
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MessageListThread.test.tsx (7 tests) 894ms
+ ✓ src/components/ThreadSidebar.test.tsx (8 tests) 1254ms
+   ✓ ThreadSidebar > marks the latest reply seen on open (P3 — clears the has-activity dot) 327ms
+(node:57985) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41/T147: choosing Unassigned routes to the unassign endpoint
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > renders a vertical stepper with one node per task (topological order) alongside the desktop graph
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/ContextPanelMobileEntry.test.tsx > mobile ⓘ opens the col④ context sheet — IssueDetail > renders the ⓘ and reveals the conversation sidebar on tap
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/IS-1/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ConversationSidebar.test.tsx (6 tests) 779ms
+ ✓ src/api/issues.test.ts (8 tests) 456ms
+(node:57988) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57990) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:57991) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > each stepper node shows a status dot + state chip + a tappable title link to the task
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/ContextPanelMobileEntry.test.tsx (4 tests) 3025ms
+   ✓ mobile ⓘ opens the col④ context sheet — TaskDetail > renders the ⓘ in the title row and reveals the conversation sidebar on tap 1157ms
+   ✓ mobile ⓘ opens the col④ context sheet — TaskDetail > desktop (≥md): no ⓘ — col④ is a real column, the sheet is not used 425ms
+   ✓ mobile ⓘ opens the col④ context sheet — IssueDetail > renders the ⓘ and reveals the conversation sidebar on tap 800ms
+   ✓ mobile ⓘ opens the col④ context sheet — PlanDetail > renders the ⓘ in the plan header and reveals the conversation sidebar on tap 631ms
+ ✓ src/lib/runtimeSelector.test.ts (6 tests) 10ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > DAG tab survives a loading→has_graph:true resolve: legacy first, then PlanGraphDag, no #300 crash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/Secrets.test.tsx (8 tests) 387ms
+(node:58008) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > graph that stays has_graph:false keeps the legacy renderer (zero-regression fallback)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:58009) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > legacy DAG groups tasks into stage boxes with status/progress/retry
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/ParticipantsPanel.test.tsx (7 tests) 654ms
+(node:58014) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58015) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58018) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > does not manufacture PlanGeneration history from Stage generation integers
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/sse/useSSEConversationSubscribe.test.tsx (8 tests) 747ms
+ ✓ src/shell/nav/WorkspaceSecondaryNav.test.tsx (4 tests) 391ms
+   ✓ WorkspaceSecondaryNav (v2.10.0 [T4]) > top-level: shows Projects / Issues / Tasks / Plans / Repos links when not in a project 315ms
+ ✓ src/components/MarkdownMessage.test.tsx (10 tests) 183ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Plan generation read model shows active/history progress, diff, and node ownership
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/DetailLoadingStates.test.tsx > Detail pages — loading + error branches > TaskDetail isLoading branch
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/tasks/T-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:58021) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > renders an orchestration-graph history revision from its immutable snapshot
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/DetailLoadingStates.test.tsx > Detail pages — loading + error branches > IssueDetail isLoading branch
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/I-1/files
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/issues/I-1/related-plans
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/api/members.test.ts (9 tests) 110ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > connects staged orchestration-graph history revisions through gate topology
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/DetailLoadingStates.test.tsx (5 tests) 1448ms
+   ✓ Detail pages — loading + error branches > DMDetail isLoading branch 311ms
+   ✓ Detail pages — loading + error branches > TaskDetail isLoading branch 463ms
+   ✓ Detail pages — loading + error branches > IssueDetail isLoading branch 502ms
+(node:58023) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58025) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58026) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/WakeGuardrailPanel.test.tsx (7 tests) 136ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Evolution shows whole-request rejection and recovery action for in-flight conflicts
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/WorkerManagement.test.tsx (7 tests) 384ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Evolution rejects malformed diffs before POST and distinguishes stale and idempotency conflicts
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+(node:58030) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58031) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/AppLayout.system.test.tsx (6 tests) 1282ms
+ ✓ src/components/IssueDetailSidebar.test.tsx (6 tests) 366ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > mobile stage audit exposes a visible API error state
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/components/MembersMobile.test.tsx (3 tests) 474ms
+   ✓ MembersAgents — mobile card list > renders a card with online dot + "role · lifecycle"; the avatar opens a DM 315ms
+(node:58036) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58037) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > no-stage plan renders no stage panel (backward compatible)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/PlanDetail.test.tsx (109 tests) 47329ms
+   ✓ PlanDetail — v2.9 #287 execution view > desktop two-pane: title bar has name + ref; info rail has status + failed + progress + creator 585ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: the @creator tag opens the (unchanged) agent-activity sidebar 517ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: Progress shows a bar with the done/total label + percentage 327ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Pause (→ paused) when running and calls usePausePlan 427ms
+   ✓ PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53) 493ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows an accurate hint (not the generic error) when resume fails agent_busy (T101) 407ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows a "nothing to resume" hint when resume fails node_not_paused (T101) 390ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Start when pending (not Stop) and calls useStartPlan 409ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Reopen when done with an active generation and calls useReopenPlan 676ms
+   ✓ PlanDetail — v2.9 #287 execution view > three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count 431ms
+   ✓ PlanDetail — v2.9 #287 execution view > maximizes via the tab-row toggle / restores via the overlay button (T347) 533ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG renders a node per task with the 6-state chips (label + color) + Advance 423ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG canvas pans on a background drag but not when starting on a node link 482ms
+   ✓ PlanDetail — v2.9 #287 execution view > legend includes a paused chip with the stone palette (T53) 517ms
+   ✓ PlanDetail — v2.9 #287 execution view > point 1 (T126): DAG nodes + task-list rows show the Task id from node.org_ref; no-org_ref → FULL id, never a #hash 327ms
+   ✓ PlanDetail — v2.9 #287 execution view > clicking a DAG node assignee opens the agent-activity sidebar 479ms
+   ✓ PlanDetail — v2.9 #287 execution view > point 2: compact toggle zooms the DAG down so a long plan fits 487ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG computes a layered left→right layout from depends_on 563ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG draws an edge per depends_on relation (upstream→downstream) 485ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG is display-only: note never claims an edge editor, and no edge-edit control exists 502ms
+   ✓ PlanDetail — v2.9 #287 execution view > running plan is display-only: NO in-graph connect / edge-delete controls (and no old editor box) 519ms
+   ✓ PlanDetail — v2.9 #287 execution view > done plan is display-only: NO in-graph connect / edge-delete controls 578ms
+   ✓ PlanDetail — v2.9 #287 execution view > lifecycle controls (Start/Stop) each render exactly once, status-gated 554ms
+   ✓ PlanDetail — v2.9 #287 execution view > task-list tab lists nodes with task_status + node_status chips 499ms
+   ✓ PlanDetail — v2.9 #287 execution view > T570: a DONE node shows its completion time; non-done nodes do not 301ms
+   ✓ PlanDetail — v2.9 #287 execution view > task list shows a Created column with a full timestamp + timezone (— when absent) 355ms
+   ✓ PlanDetail — v2.9 #287 execution view > empty conversation_id → friendly initializing state (no crash) 388ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending plan does NOT show the auto-advancing indicator 367ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending plan shows in-graph affordances: a connect button per node + a delete control per edge 420ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: clicking a node connect button enters connect mode and lights up valid targets 594ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to) 858ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block) 525ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: an already-existing edge target is NOT offered again (exists excluded) 509ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: Escape exits connect mode without adding; the Cancel affordance also exits 588ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: an edge delete control FIRES the DELETE request with the correct ids (real wiring) 1101ms
+   ✓ PlanDetail — v2.9 #287 execution view > #218: a cycle error from add surfaces the FRIENDLY message (not the raw API error) 583ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: plan-dag-note states dependencies ARE editable here (in-graph) 416ms
+   ✓ PlanDetail — v2.9 #287 execution view > error surface + in-graph controls use solid danger/semantic tokens (no raw red, no alpha-tint) 618ms
+   ✓ PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id 848ms
+   ✓ PlanDetail — v2.9 #287 execution view > A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener) 757ms
+   ✓ PlanDetail — v2.9 #287 execution view > opens TaskDetail from the whole desktop DAG node card, without double-opening the title link 1132ms
+   ✓ PlanDetail — v2.9 #287 execution view > A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (pending) 607ms
+   ✓ PlanDetail — v2.9 #287 execution view > A2 task-list: running plan rows have NO Remove control (§9.4 pending-only) 512ms
+   ✓ PlanDetail — v2.9 #287 execution view > A2 task-list: done plan rows have NO Remove control (§9.4 pending-only) 380ms
+   ✓ PlanDetail — v2.9 #287 execution view > A2 task-list #218: a remove failure shows a friendly inline message (no raw API error) 575ms
+   ✓ PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans 1574ms
+   ✓ PlanDetail — v2.9 #287 execution view > A3: editing + submit PATCHes only the CHANGED fields (name/description), absolute target_date 512ms
+   ✓ PlanDetail — v2.9 #287 execution view > A3: clearing target_date sends target_date: "" (clear); unchanged name/goal omitted 334ms
+   ✓ PlanDetail — v2.9 #287 execution view > A3: setting a new target_date sends an absolute RFC3339 instant 486ms
+   ✓ PlanDetail — v2.9 #287 execution view > A3 #218: a PATCH failure surfaces a FRIENDLY inline message (no raw API error) 335ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > renders distinct Start + End anchors (default fixture) 452ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > synthetic anchors are NOT counted as task nodes (real node count unchanged) 536ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > real depends_on edges are unchanged; synthetic edges are on a separate testid 474ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow) 483ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single chain A→B→C: Start→A only, C→End only 388ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single node: Start→node and node→End 468ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > empty plan: no synthetic anchors, no crash 401ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > anchors use solid tokens (no alpha-tint, no raw red, not the 6-state border) 491ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > Delete confirm DELETEs /{id} and navigates AWAY to the plans board 459ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > Delete #218: a 409 surfaces a FRIENDLY message and the modal STAYS OPEN 432ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > Archive confirm POSTs /{id}/archive (and stays on the detail view) 422ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > Archive Cancel closes the modal WITHOUT an archive POST 306ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > PlanStatusChip preserves discarded lifecycle color after archival 364ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > T41: Task tab renders ALL nodes of a big plan (no cap) 429ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > T41: search filters by title; clearing restores all; no-match shows empty state 459ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > T41: search filters by Task-id (org_ref) and by assignee handle 431ms
+   ✓ PlanDetail — v2.9 Stage B delete + archive > T41/T147: choosing Unassigned routes to the unassign endpoint 392ms
+   ✓ PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > renders a vertical stepper with one node per task (topological order) alongside the desktop graph 528ms
+   ✓ PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > each stepper node shows a status dot + state chip + a tappable title link to the task 443ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > DAG tab survives a loading→has_graph:true resolve: legacy first, then PlanGraphDag, no #300 crash 455ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > graph that stays has_graph:false keeps the legacy renderer (zero-regression fallback) 345ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > legacy DAG groups tasks into stage boxes with status/progress/retry 615ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > does not manufacture PlanGeneration history from Stage generation integers 428ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Plan generation read model shows active/history progress, diff, and node ownership 459ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > renders an orchestration-graph history revision from its immutable snapshot 381ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > connects staged orchestration-graph history revisions through gate topology 345ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff 563ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Evolution rejects malformed diffs before POST and distinguishes stale and idempotency conflicts 347ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > mobile stage audit exposes a visible API error state 616ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > no-stage plan renders no stage panel (backward compatible) 863ms
+ ✓ src/pages/WorkerDetail.test.tsx (7 tests) 887ms
+   ✓ WorkerDetail (shell) > renders header (name + status badge + #192 id handle) and 4 tabs 309ms
+(node:58041) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/rateLimitReminder.test.ts (10 tests) 42ms
+(node:58064) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Access.test.tsx (23 tests) 48637ms
+   ✓ Access page > renders the independent RAM Roles page without subject controls or duplicate tabs 2639ms
+   ✓ Access page > filters by search, risk, and scope, switches density, paginates, and explains every permission from the registry 2269ms
+   ✓ Access page > renders explicit empty, list error, and detail error states with recovery actions 5132ms
+   ✓ Access page > renders Subject access as a distinct titled page with its own actions and filters 3338ms
+   ✓ Access page > renders a page-specific data error for ram-roles 1577ms
+   ✓ Access page > renders a page-specific data error for subject-access 1426ms
+   ✓ Access page > renders the canonical empty subject state after filters return no decisions 1468ms
+   ✓ Access page > shows Team RAM and direct binding source chains, then opens the direct binding flow 2072ms
+   ✓ Access page > previews and applies a four-step batch grant without deriving final permissions in the UI 2901ms
+   ✓ Access page > previews, confirms, and reports a direct revoke within the selected subject 3205ms
+   ✓ Access page > shows a success toast after the Add direct binding flow applies 2769ms
+   ✓ Access page > keeps the selected subject context and surfaces a 409 apply conflict as a toast 2434ms
+   ✓ Access page > does not preselect resources and clears incompatible resources when permission changes 2128ms
+   ✓ Access page > renders partial failure result items without unknown phantom rows 2298ms
+   ✓ Access page > confirms revoke with the original preview token, stable idempotency key, and reason/message 2041ms
+   ✓ Access page > browses RAM role versions and publishes a real v2 RAM role version with CAS payload 2554ms
+   ✓ Access page > keeps Used by Team Roles read-only and sends changes to the Team Role editor 1431ms
+   ✓ Access page > requires the full RAM role name before deleting an unreferenced custom role 1774ms
+   ✓ Access page > keeps RAM role versions pinned and shows an error when publish hits a CAS conflict 1633ms
+   ✓ Access page > gates the ram-roles route with a page-specific forbidden state 1449ms
+   ✓ Access page > gates the subject-access route with a page-specific forbidden state 2075ms
+ ✓ src/components/useResizablePanel.test.tsx (7 tests) 245ms
+(node:58138) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58265) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58264) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ForceDeleteModal.test.tsx (9 tests) 256ms
+(node:58278) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/MessageComposer.quote.test.tsx (4 tests) 2146ms
+   ✓ MessageComposer quoting (引用) > clicking Quote on a message puts the composer into the quoting state (preview bar) 595ms
+   ✓ MessageComposer quoting (引用) > submitting while quoting sends quoted_message_id and clears the quote after success 1123ms
+   ✓ MessageComposer quoting (引用) > keeps the quote queued when the send fails (retry without re-selecting) 364ms
+ ✓ src/components/MessageList.quote.test.tsx (5 tests) 776ms
+   ✓ MessageList quote card (引用) > renders the quote card with the sender + snippet above the quoting message 352ms
+(node:58394) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/EntitySelect.test.tsx (9 tests) 179ms
+ ✓ src/components/CarryOverDivider.test.tsx (6 tests) 627ms
+   ✓ CarryOverDivider > renders the sender as the resolved display NAME, not the raw ref 337ms
+(node:58614) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/useTablistKeyboard.test.tsx (8 tests) 74ms
+ ✓ src/components/SecretCreateModal.test.tsx (6 tests) 800ms
+   ✓ SecretCreateModal — strict no-plaintext-echo (ADR-0026 § 5) > on successful submit: form clears value + success banner only shows the name, never plaintext 366ms
+(node:58845) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58895) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58894) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/listControls.test.tsx (7 tests) 87ms
+(node:58900) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/DMStartModal.test.tsx (6 tests) 274ms
+ ✓ src/api/teams.test.tsx (6 tests) 394ms
+(node:58903) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58902) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ConversationThreadList.test.tsx (5 tests) 754ms
+   ✓ ConversationThreadList > opens the matching ThreadSidebar when a thread row is clicked 353ms
+(node:58906) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/AccountPanel.test.tsx (11 tests) 492ms
+ ✓ src/api/agents.test.tsx (5 tests) 135ms
+(node:58923) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/MembersHumans.test.tsx (3 tests) 385ms
+(node:58925) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/MemberInviteModal.test.tsx (3 tests) 382ms
+(node:58927) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/WorkerProfile.test.tsx (7 tests) 129ms
+(node:58931) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ChannelCreateModal.test.tsx (5 tests) 419ms
+(node:58933) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58934) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58938) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/AttachmentsSection.test.tsx (3 tests) 351ms
+ ✓ src/components/TaskCreateModal.test.tsx (5 tests) 412ms
+(node:58939) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/BoundAgents.test.tsx (5 tests) 383ms
+ ✓ src/shell/MobileTabBar.test.tsx (7 tests) 91ms
+(node:58957) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/analytics/TokensCostTrend.test.tsx (4 tests) 440ms
+(node:58959) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Unread.test.tsx (4 tests) 464ms
+ ✓ src/components/ProjectMemberAddModal.test.tsx (3 tests) 189ms
+(node:58962) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58963) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/RepoFormModal.test.tsx (3 tests) 369ms
+ ✓ src/utils/analyticsWindows.test.ts (8 tests) 7ms
+(node:58966) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58967) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58970) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58974) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58973) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ReminderDetailModal.test.tsx (2 tests) 289ms
+ ✓ src/components/MessageList.pagination.test.tsx (5 tests) 271ms
+ ✓ src/components/DerivedTasksBlock.test.tsx (2 tests) 185ms
+(node:58979) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58977) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/api/readState.test.tsx (5 tests) 335ms
+ ✓ src/components/CollapsibleDescription.test.tsx (4 tests) 128ms
+ ✓ src/AppLayout.workboard.test.tsx (3 tests) 1100ms
+   ✓ col②/④ Work Board — three-column shell integration (v2.10.0 [T5]) > col② shows the project sub-nav with Work Board the active entry 740ms
+ ✓ src/components/RelatedIssuesBlock.test.tsx (3 tests) 145ms
+(node:58997) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58996) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58998) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/IssueTaskSidebar.test.tsx (3 tests) 122ms
+(node:59003) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59004) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/IssueRelatedPlansBlock.test.tsx (3 tests) 131ms
+ ✓ src/pages/WorkBoardMobile.test.tsx (4 tests) 1157ms
+   ✓ Work Board mobile (v2.10.1 M5) > renders a mobile FAB that opens the New Plan modal 637ms
+(node:59007) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/api/conversationsThread.test.tsx (4 tests) 291ms
+ ✓ src/shell/BottomSheet.test.tsx (6 tests) 123ms
+(node:59008) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/WorkItemMobileMeta.test.tsx (4 tests) 299ms
+ ✓ src/api/conversations.timeline.test.tsx (4 tests) 244ms
+ ✓ src/pages/MembersAgents.test.tsx (2 tests) 364ms
+(node:59012) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59013) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59016) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59017) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59018) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/Avatar.test.tsx (8 tests) 140ms
+ ✓ src/components/analytics/AgentAnalyticsPanel.test.tsx (2 tests) 491ms
+   ✓ AgentAnalyticsPanel > composes overview cards + trend + top tasks on success 470ms
+ ✓ src/shell/nav/RemindersSecondaryNav.test.tsx (4 tests) 139ms
+ ✓ src/shell/contextPanel.collapse.test.tsx (3 tests) 92ms
+(node:59024) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/analytics/TopCostTasks.test.tsx (3 tests) 262ms
+(node:59030) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59031) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/IssueCreateModal.test.tsx (4 tests) 133ms
+ ✓ src/shell/AttentionPanel.test.tsx (3 tests) 62ms
+ ✓ src/a11y.test.tsx (3 tests) 100ms
+(node:59050) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59052) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59054) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59053) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59057) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/UnreadBadge.test.tsx (6 tests) 106ms
+ ✓ src/components/AgentMemoryManager.test.tsx (1 test) 263ms
+ ✓ src/shell/nav/listOrder.test.ts (14 tests) 58ms
+ ✓ src/pages/Version.test.tsx (3 tests) 211ms
+ ✓ src/components/EntityMultiSelect.test.tsx (4 tests) 197ms
+(node:59061) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59062) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59063) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/useModalA11y.test.tsx (6 tests) 57ms
+ ✓ src/components/ConfirmModal.test.tsx (7 tests) 94ms
+stderr | src/components/WorkItemFilterBar.test.tsx > WorkItemFilterBar collapse (T339) > shows an active-filter count badge in the header
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["org","no-org","projects"]
+
+stderr | src/components/WorkItemFilterBar.test.tsx > WorkItemFilterBar collapse (T339) > shows no count badge when no filters are active
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["org","no-org","projects"]
+
+ ✓ src/components/WorkItemFilterBar.test.tsx (3 tests) 180ms
+stderr | src/components/WorkItemFilterBar.test.tsx
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["org","no-org","projects"]
+
+ ✓ src/App.test.tsx (26 tests) 59900ms
+   ✓ App shell + route tree > redirects the org index to the Workspace module (Projects), no Overview/Home 1539ms
+   ✓ App shell + route tree > renders ChannelDetail for /organizations/test/channels/:name 1317ms
+   ✓ App shell + route tree > renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings 21228ms
+   ✓ App shell + route tree > reaches the Plan list + Plan detail via the project detail page (not direct-URL-only) 2244ms
+   ✓ App shell + route tree > rail module icons point at the canonical org-scoped module defaults 820ms
+   ✓ App shell + route tree > redirects legacy Access and standalone Team Roles URLs to canonical pages 2531ms
+   ✓ App shell + route tree > shows exactly two Access links with one active page at a time 2013ms
+   ✓ App shell + route tree > each module col② links point at the canonical org-scoped routes 4386ms
+   ✓ App shell + route tree > reaches ProjectDetail via a Projects-list row link 1144ms
+   ✓ App shell + route tree > project detail shows the col② project sub-nav; a tab drives ?tab= 1362ms
+   ✓ App shell + route tree > A6 TaskDetail is reachable via the new-tab TaskTitleLink anchor on the Plan board 1319ms
+   ✓ App shell + route tree > self change-password (Account tab) is reachable via the rail user link → /me page 868ms
+   ✓ App shell + route tree > redirects the orphaned /members/new URL to the merged teams/agents page 1231ms
+   ✓ App shell + route tree > redirects the retired /members/agents URL to the merged teams/agents page 1726ms
+   ✓ App shell + route tree > redirects the retired /members/humans URL to the merged teams/humans page 1791ms
+   ✓ App shell + route tree > redirects the org /agents list URL to the merged teams/agents page 1536ms
+   ✓ App shell + route tree > the Teams directory col② links point at the merged agents / humans pages 1416ms
+   ✓ App shell + route tree > organization-settings/agents renders the canonical Agents page 1168ms
+   ✓ App shell + route tree > does not route retired template pages 1694ms
+   ✓ App shell + route tree > reaches AI Runtime from a normal page via System col② nav 1716ms
+   ✓ App shell + route tree > keeps direct /ai-runtime access working by redirecting into the first organization 950ms
+   ✓ App shell + route tree > redirects retired AI Runtime and Model Catalog URLs to the canonical AI Runtime page 1822ms
+   ✓ App shell + route tree > ⌘1 / ⌘2 jump to the Workspace / Conversations module defaults (org-scoped) 1547ms
+   ✓ App shell + route tree > opens per-org settings as a col② page from the switcher gear, no standalone entry (#186-6 / T470) 903ms
+   ✓ App shell + route tree > falls back to the 404 page with a nav link home 848ms
+   ✓ App shell + route tree > renders the module rail icons + the active module col② items 777ms
+(node:59068) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59067) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59069) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59074) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59075) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/MentionPicker.test.tsx (5 tests) 146ms
+(node:59078) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/Breadcrumb.test.tsx (3 tests) 84ms
+ ✓ src/components/EntityRef.test.tsx (6 tests) 67ms
+(node:59079) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/SharedFilesPanel.test.tsx (2 tests) 168ms
+(node:59082) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59083) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/shell/contextPanel.test.tsx (2 tests) 108ms
+ ✓ src/components/StickyCommentBox.test.tsx (4 tests) 65ms
+ ✓ src/shell/secondaryNav.test.tsx (2 tests) 448ms
+ ✓ src/mocks/handlers.secret.test.ts (3 tests) 231ms
+ ✓ src/pages/Me.test.tsx (2 tests) 224ms
+(node:59087) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59090) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59089) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59091) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/CapabilitiesEditor.test.tsx (5 tests) 114ms
+ ✓ src/components/analytics/OverviewCards.test.tsx (3 tests) 79ms
+(node:59096) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59097) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/api/agentActivity.test.tsx (1 test) 170ms
+(node:59101) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/planDagEdit.test.ts (8 tests) 14ms
+(node:59103) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/boardDrop.test.ts (10 tests) 7ms
+(node:59105) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/OrgSettingsModal.test.tsx (4 tests) 560ms
+   ✓ OrgSettingsModal (#186-6) > prefills the name + slug from the resolved org 340ms
+ ✓ src/components/WorkerEnrolledToast.test.tsx (4 tests) 99ms
+ ✓ src/shell/SegmentedNav.test.tsx (4 tests) 175ms
+ ✓ src/components/ThreadSidebarContext.test.tsx (2 tests) 550ms
+   ✓ ThreadSidebarProvider > provider opens the single ThreadSidebar with the clicked root message 461ms
+(node:59108) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59109) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59111) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59113) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/attachmentValidation.test.ts (5 tests) 5ms
+(node:59117) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ThreadButton.test.tsx (7 tests) 185ms
+ ✓ src/api/queryKeys.test.ts (1 test) 7ms
+ ✓ src/components/FollowToggle.test.tsx (2 tests) 283ms
+(node:59133) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59135) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59134) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/api/conversationThreadsList.test.tsx (2 tests) 181ms
+(node:59139) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/format.test.ts (9 tests) 12ms
+ ✓ src/components/ContextPanelMobileButton.test.tsx (3 tests) 83ms
+(node:59142) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/theme.test.ts (4 tests) 77ms
+ ✓ src/pages/Settings.test.tsx (2 tests) 338ms
+(node:59143) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59146) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59148) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/shell/nav/TeamUISecondaryNav.test.tsx (3 tests) 88ms
+ ✓ src/components/OrgWorkItemCreateModal.test.tsx (2 tests) 140ms
+ ✓ src/ErrorBoundary.test.tsx (3 tests) 175ms
+(node:59153) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Signin.test.tsx (1 test) 264ms
+(node:59154) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59156) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59160) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59169) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/MessageCopyButton.test.tsx (2 tests) 80ms
+(node:59161) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/OrgModelCatalog.test.tsx (1 test) 57ms
+ ✓ src/components/EmptyState.test.tsx (4 tests) 154ms
+ ✓ src/store/app.test.ts (3 tests) 13ms
+(node:59166) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/sse/SSEIndicator.test.tsx (1 test) 88ms
+ ✓ src/components/mentionAutocomplete.test.ts (13 tests) 14ms
+(node:59168) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/TypeChip.test.tsx (5 tests) 36ms
+ ✓ src/api/concurrency.test.tsx (1 test) 7ms
+
+ Test Files  192 passed (192)
+      Tests  1805 passed (1805)
+   Start at  10:04:41
+   Duration  74.97s (transform 8.32s, setup 123.20s, collect 35.56s, tests 313.42s, environment 111.09s, prepare 18.06s)
+

@@ -1,0 +1,4 @@
+cd web && npx tsc -b --force
+src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.
+src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'.
+make: *** [lint-spa-tsc] Error 2
