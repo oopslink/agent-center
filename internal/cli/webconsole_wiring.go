@@ -445,12 +445,14 @@ func (a *App) outboxProjectors(
 	// periodic loop is the completeness backstop. MUST be registered here or only the
 	// periodic path runs (a defined-but-unregistered projector has no prod consumer).
 	autoAssignTriggerProj := pmservice.NewAutoAssignTriggerProjector(a.PMService, nil)
+	planBlockOwnerWakeProj := buildPlanBlockOwnerWakeProjector(a, appliedRepo)
 	projectors := []outbox.Projector{
 		participantProj,
 		planParticipantProj,
 		taskInputConvProj,
 		agentControlProj,
 		wakeProj,
+		planBlockOwnerWakeProj,
 		planOrchestratorProj,
 		dispatchWakeProj,
 		msgAckProj,
@@ -464,6 +466,35 @@ func (a *App) outboxProjectors(
 		projectors = append(projectors, evProj)
 	}
 	return projectors, wakeProj
+}
+
+func buildPlanBlockOwnerWakeProjector(a *App, applied outbox.AppliedStore) *pmservice.PlanBlockOwnerWakeProjector {
+	if a == nil {
+		return nil
+	}
+	displayName := func(ctx context.Context, identityRef string) (string, bool) {
+		if a.IdentityRepo == nil {
+			return "", false
+		}
+		id := identityRef
+		if i := strings.IndexByte(id, ':'); i >= 0 {
+			id = id[i+1:]
+		}
+		idn, err := a.IdentityRepo.GetByID(ctx, id)
+		if err != nil || idn == nil {
+			return "", false
+		}
+		return idn.DisplayName(), true
+	}
+	dispatcher := convservice.NewPlanDispatchAdapter(a.MessageWriter, displayName)
+	return pmservice.NewPlanBlockOwnerWakeProjector(
+		a.DB,
+		pmsql.NewPlanRepo(a.DB),
+		pmsql.NewProjectMemberRepo(a.DB),
+		dispatcher,
+		applied,
+		a.Clock,
+	)
 }
 
 // runWebConsole binds + serves the Web Console HTTP API at addr,
@@ -662,6 +693,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// T206: scan + fire due reminders on the same 1s tick (design §D4).
 	if hook := buildReminderTickHook(a, logger); hook != nil {
 		pump = pump.WithTickHook(hook)
+	}
+	if planBlockWake := buildPlanBlockOwnerWakeProjector(a, appliedRepo); planBlockWake != nil {
+		pump = pump.WithTickHook(func(ctx context.Context) {
+			if err := planBlockWake.Tick(ctx); err != nil {
+				logger("plan block owner wake tick: " + err.Error())
+			}
+		})
 	}
 	pumpCtx, pumpCancel := context.WithCancel(ctx)
 	go pump.Run(pumpCtx)

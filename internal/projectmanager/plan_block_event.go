@@ -35,9 +35,13 @@ func DefaultPlanRecoveryPolicy() PlanRecoveryPolicy {
 type PlanBlockNotificationState string
 
 const (
-	PlanBlockNotifyPending PlanBlockNotificationState = "pending"
-	PlanBlockNotifySent    PlanBlockNotificationState = "sent"
-	PlanBlockNotifyFailed  PlanBlockNotificationState = "failed"
+	PlanBlockNotifyPending          PlanBlockNotificationState = "pending"
+	PlanBlockNotifySent             PlanBlockNotificationState = "sent"
+	PlanBlockNotifyFailed           PlanBlockNotificationState = "failed"
+	PlanBlockNotifyReminded         PlanBlockNotificationState = "reminded"
+	PlanBlockNotifyReminderFailed   PlanBlockNotificationState = "reminder_failed"
+	PlanBlockNotifyEscalated        PlanBlockNotificationState = "escalated"
+	PlanBlockNotifyEscalationFailed PlanBlockNotificationState = "escalation_failed"
 )
 
 type PlanBlockEvent struct {

@@ -274,6 +274,7 @@ type PlanRepository interface {
 	FindPlanBlockEventByID(ctx context.Context, eventID PlanBlockEventID) (*PlanBlockEvent, bool, error)
 	FindPlanBlockEventByKey(ctx context.Context, key string) (*PlanBlockEvent, bool, error)
 	ListPlanBlockEvents(ctx context.Context, planID PlanID, activeOnly bool) ([]PlanBlockEvent, error)
+	ListActivePlanBlockEventsForNotification(ctx context.Context) ([]PlanBlockEvent, error)
 	UpdatePlanBlockEventNotification(ctx context.Context, eventID PlanBlockEventID, state PlanBlockNotificationState, at time.Time) error
 	AcknowledgePlanBlockEvent(ctx context.Context, eventID PlanBlockEventID, actor IdentityRef, at time.Time) error
 	ResolvePlanBlockEvent(ctx context.Context, eventID PlanBlockEventID, actor IdentityRef, kind, note string, at time.Time) error

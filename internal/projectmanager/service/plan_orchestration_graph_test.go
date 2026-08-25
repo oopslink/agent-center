@@ -52,6 +52,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		DB: db, Graphs: orchsql.NewGraphRepo(db), Nodes: orchsql.NewNodeRepo(db),
 		Edges: orchsql.NewEdgeRepo(db), IDGen: gen, Clock: clk,
 	})
+	dispatcher := convservice.NewPlanDispatchAdapter(writer, planTestDisplayName)
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
@@ -60,7 +61,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		TaskActionLogs: actionLogs,
 		OrgSeq:         pmsql.NewOrgSequenceRepo(db),
 		AgentDir:       allOrgDir("org-1"),
-		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
+		PlanDispatcher: dispatcher,
 		Orch:           orchSvc,                // T768: graph-backed dispatch
 		Stages:         pmsql.NewStageRepo(db), // 2026-07-03 plan-stage-model: Stage落图/driver
 		Remediation:    pmsql.NewRemediationRepo(db),
@@ -68,7 +69,8 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
-	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
+	blockWakeProj := NewPlanBlockOwnerWakeProjector(db, plans, pmsql.NewProjectMemberRepo(db), dispatcher, applied, clk)
+	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj, blockWakeProj)
 	h := &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
 	return h, orchSvc
 }

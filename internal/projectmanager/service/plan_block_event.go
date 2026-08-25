@@ -65,38 +65,22 @@ func (s *Service) projectPlanBlockEvent(txCtx context.Context, t *pm.Task, reaso
 	if err := s.materializeBlockedOn(txCtx, p); err != nil {
 		return err
 	}
-	msgID, notifyState := s.notifyPlanOwnerOfBlock(txCtx, p, ev, t)
-	if notifyState != ev.NotificationState {
-		_ = s.plans.UpdatePlanBlockEventNotification(txCtx, ev.EventID, notifyState, now)
-	}
 	policy := p.RecoveryPolicy()
 	if err := s.emit(txCtx, EvtPlanBlockOwnerWake,
 		refsJSON(map[string]string{"plan_id": string(p.ID()), "task_id": string(t.ID()), "event_id": string(ev.EventID)}),
 		planBlockOwnerWakePayload{
 			EventID: string(ev.EventID), IdempotencyKey: ev.IdempotencyKey, PlanID: string(p.ID()), ProjectID: string(p.ProjectID()),
 			GenerationID: string(p.ActiveGenerationID()), TaskID: string(t.ID()), OwnerRef: string(p.OwnerRef()),
-			ConversationID: p.ConversationID(), MessageID: msgID, Reason: reason, ReasonType: string(reasonType),
+			ConversationID: p.ConversationID(), Reason: reason, ReasonType: string(reasonType),
 			RemindAfterSeconds: policy.RemindAfterSeconds, EscalateAfterSeconds: policy.EscalateAfterSeconds,
 		}); err != nil {
 		return err
 	}
 	s.auditPlan(txCtx, p, pm.AuditPlanBlockCreated, actor, map[string]any{
 		"event_id": string(ev.EventID), "task_id": string(t.ID()), "generation_id": string(p.ActiveGenerationID()),
-		"reason_type": string(reasonType), "reason": reason, "notification_state": string(notifyState),
+		"reason_type": string(reasonType), "reason": reason, "notification_state": string(pm.PlanBlockNotifyPending),
 	})
 	return nil
-}
-
-func (s *Service) notifyPlanOwnerOfBlock(ctx context.Context, p *pm.Plan, ev *pm.PlanBlockEvent, t *pm.Task) (string, pm.PlanBlockNotificationState) {
-	if s.planDispatcher == nil || strings.TrimSpace(p.ConversationID()) == "" {
-		return "", pm.PlanBlockNotifyFailed
-	}
-	content := fmt.Sprintf("plan attention required: task %s is blocked [%s]: %s", taskRefToken(t), ev.ReasonType, ev.BlockedReason)
-	msgID, err := s.planDispatcher.PostMention(ctx, p.ConversationID(), string(p.OwnerRef()), content)
-	if err != nil {
-		return "", pm.PlanBlockNotifyFailed
-	}
-	return msgID, pm.PlanBlockNotifySent
 }
 
 func impactedDownstreamJSON(edges []pm.PlanGenerationEdgeSnapshot, taskID pm.TaskID) string {

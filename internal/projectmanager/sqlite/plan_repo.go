@@ -793,6 +793,34 @@ func (r *PlanRepo) ListPlanBlockEvents(ctx context.Context, planID pm.PlanID, ac
 	return out, rows.Err()
 }
 
+func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context) ([]pm.PlanBlockEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, planBlockEventSelect+`
+		WHERE active = 1 AND effective = 1 AND resolved_at = ''
+		  AND notification_state IN (?, ?, ?, ?, ?, ?)
+		ORDER BY blocked_at, event_id`,
+		string(pm.PlanBlockNotifyPending),
+		string(pm.PlanBlockNotifyFailed),
+		string(pm.PlanBlockNotifySent),
+		string(pm.PlanBlockNotifyReminded),
+		string(pm.PlanBlockNotifyReminderFailed),
+		string(pm.PlanBlockNotifyEscalationFailed),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.PlanBlockEvent
+	for rows.Next() {
+		e, serr := scanPlanBlockEvent(rows.Scan)
+		if serr != nil {
+			return nil, serr
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 func (r *PlanRepo) UpdatePlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
