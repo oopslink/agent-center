@@ -1,0 +1,261 @@
+T
+Search
+⌘K
+ACCESS
+⌄
+RAM Roles
+Subject access
+
+ACCESS
+
+RAM Roles
+Runtime SHA: 188082803dbf2d110397293cf6128b86f603b9a4
+＋ New RAM Role
+17 roles
+Search RAM Roles
+RAM ROLE RISK
+All ram role risk
+high
+medium
+low
+RAM ROLE SCOPE
+All ram role scope
+org
+project
+team
+DENSITY
+Comfortable
+Compact
+3 custom · 1 high risk · 43 permissions · 2 referenced
+ROLE	RISK	PERMISSIONS	USED BY TEAM ROLES	UPDATED ↓
+
+Custom reviewer mt8cfly9
+custom-reviewer-mt8cfly9
+	Low	1	0	Latest
+v2
+
+Team basic
+team-basic
+	Low	2	0	Latest
+v1
+
+Team contributor
+team-contributor
+	Medium	4	0	Latest
+v1
+
+Team contributor mt8cfly9
+team-contributor-mt8cfly9
+	Medium	3	1	Latest
+v1
+
+Team curator
+team-curator
+	High risk	5	0	Latest
+v2
+
+Team observer mt8cfly9
+team-observer-mt8cfly9
+	Low	1	1	Latest
+v1
+
+admin_token.scope
+sys-admin-token
+	Low	8	0	Latest
+v1
+
+background.worker
+sys-background-worker
+	Low	1	0	Latest
+v1
+
+org.admin
+sys-org-admin
+	Low	15	0	Latest
+v1
+
+org.member
+sys-org-member
+	Low	9	0	Latest
+v1
+Showing 1 to 10 of 17 RAM roles
+Previous
+1
+2
+Next
+10 / page
+Custom reviewer mt8cfly9
+
+custom-reviewer-mt8cfly9
+
+Edit
+Delete
+Low
+Latest v2 · team
+Used by Team Roles (read-only)
+
+Open the Team Role to change its RAM Roles.
+
+None
+PERMISSION SUMMARY
+Low
+1 permissions
+0 high
+0 medium
+1 low
+team.read
+Read team
+Low
+
+Read team roster and settings.
+
+team · read
+
+Version history
+v2
+Low
+team.read
+v1
+High risk
+team.memory.review, team.read
+DELETE RAM ROLE
+
+Type the RAM Role name, then confirm deletion. Remove it from every Team Role first if it is in use.
+
+NAME
+STABLE KEY
+DESCRIPTION
+SCOPE
+Permissions
+1 selected
+admin_token.manage
+Low
+agent.operate.self
+Low
+ai_runtime.catalog.export
+Low
+ai_runtime.catalog.manage
+High risk
+ai_runtime.catalog.read
+Low
+blob.put
+Low
+coderepo.project_ref.read
+Low
+coderepo.workspace.manage
+Low
+coderepo.workspace.read
+Low
+conversation.post
+Low
+conversation.read
+Low
+dispatch.pull
+Low
+file.attach
+Low
+file.download
+Medium
+file.upload
+Low
+git.agent.read.self
+Low
+git.agent.write.self
+Low
+git.global.read
+Low
+issue.read
+Low
+issue.write
+Low
+model_catalog.manage
+Low
+org.analytics.read
+Low
+org.invitation.manage
+Medium
+org.lifecycle.manage
+High risk
+org.member.create.agent
+Medium
+org.member.create.human
+Medium
+org.member.disable
+Low
+org.member.list
+Low
+org.member.role.manage
+High risk
+org.read
+Low
+org.settings.manage
+High risk
+org.work_items.read
+Low
+plan.read
+Low
+plan.write
+Low
+project.member.add
+Medium
+project.member.remove
+High risk
+project.read
+Low
+project.repo_ref.manage
+Low
+project.stage.manage
+Low
+project.write
+Medium
+secret.resolve
+Low
+task.block.self
+Low
+task.complete.self
+Low
+task.heartbeat.self
+Low
+task.internal.report
+Low
+task.read
+Low
+task.start.self
+Low
+task.write
+Low
+team.create
+Low
+team.git.read
+Low
+team.git.write
+Low
+team.member.manage
+Medium
+team.memory.propose
+Medium
+team.memory.read
+Low
+team.memory.review
+High risk
+team.project.link.manage
+Medium
+team.read
+Low
+team.runtime_config.manage
+Low
+team.write
+Medium
+template.read
+Low
+template.write
+Low
+worker.capability.report
+Low
+worker.enroll
+Low
+worker.heartbeat
+Low
+Create version
+Delete
+TYPE CUSTOM REVIEWER MT8CFLY9 TO DELETE

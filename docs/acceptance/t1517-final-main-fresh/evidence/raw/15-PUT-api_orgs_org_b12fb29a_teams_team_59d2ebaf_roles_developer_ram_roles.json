@@ -1,0 +1,16 @@
+{
+  "method": "PUT",
+  "url": "/api/orgs/org-b12fb29a/teams/team-59d2ebaf/roles/developer/ram-roles",
+  "status": 200,
+  "body": {
+    "team_id": "team-59d2ebaf",
+    "team_role": "developer",
+    "ram_role_ids": [
+      "role-15d7bc173986282c",
+      "role-1c979e9054ca20c0"
+    ],
+    "version": 2,
+    "updated_at": "2026-08-25T07:27:58.991064Z",
+    "updated_by": "user:user-9a657c5c"
+  }
+}

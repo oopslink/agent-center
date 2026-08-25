@@ -1,0 +1,479 @@
+T
+Search
+⌘K
+ACCESS
+⌄
+RAM Roles
+Subject access
+
+ACCESS
+
+Subject access
+Add direct binding
+Batch grant
+ALLOWED
+14
+HIGH RISK
+5
+EXPIRING
+0
+NO ACCESS
+0
+NOT APPLICABLE
+1
+Search access
+TYPE
+All type
+human
+agent
+worker
+system
+PROJECT
+All project
+PERMISSION
+All permission
+admin_token.manage
+agent.operate.self
+ai_runtime.catalog.export
+ai_runtime.catalog.manage
+ai_runtime.catalog.read
+blob.put
+coderepo.project_ref.read
+coderepo.workspace.manage
+coderepo.workspace.read
+conversation.post
+conversation.read
+dispatch.pull
+file.attach
+file.download
+file.upload
+git.agent.read.self
+git.agent.write.self
+git.global.read
+issue.read
+issue.write
+model_catalog.manage
+org.analytics.read
+org.invitation.manage
+org.lifecycle.manage
+org.member.create.agent
+org.member.create.human
+org.member.disable
+org.member.list
+org.member.role.manage
+org.read
+org.settings.manage
+org.work_items.read
+plan.read
+plan.write
+project.member.add
+project.member.remove
+project.read
+project.repo_ref.manage
+project.stage.manage
+project.write
+secret.resolve
+task.block.self
+task.complete.self
+task.heartbeat.self
+task.internal.report
+task.read
+task.start.self
+task.write
+team.create
+team.git.read
+team.git.write
+team.member.manage
+team.memory.propose
+team.memory.read
+team.memory.review
+team.project.link.manage
+team.read
+team.runtime_config.manage
+team.write
+template.read
+template.write
+worker.capability.report
+worker.enroll
+worker.heartbeat
+RISK
+All risk
+high
+medium
+low
+STATUS
+All status
+allowed
+denied
+unauthorized
+not_applicable
+Subject access workbench
+
+1 subjects from the filtered authorization read model.
+
+14 effective
+0 explicit deny
+0 direct
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+human
+joined
+14 allow
+file.download does not apply to org resources
+Previous
+Page 1 of 1
+Next
+t1517-owner-mt8cfly9
+
+user:user-2e951b4f
+
+t1517-owner-mt8cfly9@example.test
+
+owner
+joined
+human
+EFFECTIVE
+14
+EXPLICIT DENY
+0
+DIRECT UNION
+0
+HIGH RISK
+5
+EXPIRING
+0
+WHY ACCESS
+org.read
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+org.member.list
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+org.member.create.human
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+org.member.create.agent
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+org.invitation.manage
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+ai_runtime.catalog.manage
+Allowed
+Result
+Allowed · matched org_role
+Resource
+organization-1d45dd5c (org:organization-1d45dd5c)
+Source chain
+org_role → members:mem-0ce1a8d0 → final allow
+EXPLICIT DENY AND N/A
+file.download
+Not applicable
+file.download does not apply to org resources
+permission_registry:file.download
+DIRECT UNION
+
+No direct bindings in this subject slice.
+
+SUMMARY AND ACTIVITY
+
+14 effective permissions across 2 resources.
+
+14 active or expiring grants are present for this subject.
+
+0 team-role bindings contribute to the current union.
+
+14 effective permissions · full decision table
+
+Other bindings: org_role, file_scope
+
+SUBJECT	PERMISSION	RESOURCE	STATUS	RISK	SOURCE
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.read
+Read organization
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	Low	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.member.list
+List members
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	Low	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.member.create.human
+Create human member
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.member.create.agent
+Create agent member
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.invitation.manage
+Manage invitations
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+ai_runtime.catalog.manage
+Manage AI runtime catalog
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	High risk	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.settings.manage
+Manage org settings
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	High risk	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.lifecycle.manage
+Manage org lifecycle
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	High risk	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+org.member.role.manage
+Manage org roles
+	
+organization-1d45dd5c
+org
+	Allowed
+matched org_role
+	High risk	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+team.read
+Read team
+	
+T1517 Platform mt8cfly9
+team
+	Allowed
+matched org_role
+	Low	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+team.write
+Write team
+	
+T1517 Platform mt8cfly9
+team
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+team.member.manage
+Manage team members
+	
+T1517 Platform mt8cfly9
+team
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+team.project.link.manage
+Manage team project links
+	
+T1517 Platform mt8cfly9
+team
+	Allowed
+matched org_role
+	Medium	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+team.memory.review
+Review team memory
+	
+T1517 Platform mt8cfly9
+team
+	Allowed
+matched org_role
+	High risk	org_role
+
+t1517-owner-mt8cfly9
+user:user-2e951b4f
+	
+file.download
+Download files
+	
+organization-1d45dd5c
+org
+	Not applicable
+file.download does not apply to org resources
+	Medium	file_scope
+Trace + audit
+
+t1517-owner-mt8cfly9
+
+DECISION TRACE
+org.read
+Low
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.member.list
+Low
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.member.create.human
+Medium
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.member.create.agent
+Medium
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.invitation.manage
+Medium
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+ai_runtime.catalog.manage
+High risk
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.settings.manage
+High risk
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+org.lifecycle.manage
+High risk
+
+Final → allowed · org_role → members:mem-0ce1a8d0
+
+members:mem-0ce1a8d0
+
+file.download
+
+Final → N/A · file.download does not apply to org resources
+
+DIRECT BINDING UNION
+
+No direct bindings in the current filter.
+
+AUDIT HISTORY
+authorization.assignment.revoked
+user:user-2e951b4f · Aug 25, 2026, 3:28 PM GMT+8
+asgn-52df8d5b
+authorization.direct_grant.created
+user:user-2e951b4f · Aug 25, 2026, 3:28 PM GMT+8
+asgn-52df8d5b
+Direct bindings
+
+user:user-2e951b4f
+
+Preview revoke
+REASON
+SELECT	GRANT
+No direct bindings for this subject. Inherited access is read-only here and must be changed at its source.

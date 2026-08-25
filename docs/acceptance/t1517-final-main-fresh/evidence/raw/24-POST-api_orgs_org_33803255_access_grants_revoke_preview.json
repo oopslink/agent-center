@@ -1,0 +1,35 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-33803255/access/grants/revoke/preview",
+  "status": 200,
+  "body": {
+    "expires_at": "2026-08-25T07:33:31Z",
+    "items": [
+      {
+        "id": "revoke-1",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.member.role.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "status": "not_applicable",
+        "risk": "high",
+        "high_risk": true,
+        "reason": "grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c is a derived permission and must be revoked at its source",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c"
+      }
+    ],
+    "preview_id": "access-revoke-preview-0308a51b937a61a0",
+    "summary": {
+      "grantable": 0,
+      "high_risk": 1,
+      "not_applicable": 1,
+      "total": 1,
+      "unauthorized": 0
+    }
+  }
+}

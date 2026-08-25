@@ -1,0 +1,23 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/teams/team-59d2ebaf/roles/developer/ram-roles/preview",
+  "status": 200,
+  "body": {
+    "team_id": "team-59d2ebaf",
+    "team_role": "developer",
+    "current_ram_role_ids": [
+      "role-1c979e9054ca20c0"
+    ],
+    "next_ram_role_ids": [
+      "role-15d7bc173986282c",
+      "role-1c979e9054ca20c0"
+    ],
+    "added_ram_role_ids": [
+      "role-15d7bc173986282c"
+    ],
+    "removed_ram_role_ids": null,
+    "affected_members": 0,
+    "affected_project_ids": null,
+    "version": 1
+  }
+}

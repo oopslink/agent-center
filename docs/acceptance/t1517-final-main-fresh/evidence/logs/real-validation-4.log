@@ -1,0 +1,8 @@
+file:///private/tmp/t1517-final-main-fresh-1787642555/docs/acceptance/t1517-final-main-fresh/run-real-validation.mjs:308
+    throw new Error(`validation found ${deviations.length} deviations`);
+          ^
+
+Error: validation found 2 deviations
+    at file:///private/tmp/t1517-final-main-fresh-1787642555/docs/acceptance/t1517-final-main-fresh/run-real-validation.mjs:308:11
+
+Node.js v25.6.0

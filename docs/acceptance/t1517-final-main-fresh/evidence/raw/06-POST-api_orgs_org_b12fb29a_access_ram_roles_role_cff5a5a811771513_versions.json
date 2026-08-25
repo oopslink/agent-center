@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/ram-roles/role-cff5a5a811771513/versions",
+  "status": 409,
+  "body": {
+    "error": "version_conflict",
+    "message": "RAM role latest version changed"
+  }
+}

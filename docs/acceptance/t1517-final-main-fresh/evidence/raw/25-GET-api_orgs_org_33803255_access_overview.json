@@ -1,0 +1,1699 @@
+{
+  "method": "GET",
+  "url": "/api/orgs/org-33803255/access/overview",
+  "status": 200,
+  "body": {
+    "catalog": [
+      {
+        "key": "admin_token.manage",
+        "label": "Admin_token Manage",
+        "description": "Unified authorization permission admin_token.manage.",
+        "resource_kinds": [
+          "admin_token"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "agent.operate.self",
+        "label": "Agent Operate Self",
+        "description": "Unified authorization permission agent.operate.self.",
+        "resource_kinds": [
+          "agent"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "agents.worker_id"
+        ]
+      },
+      {
+        "key": "ai_runtime.catalog.export",
+        "label": "Ai_runtime Catalog Export",
+        "description": "Unified authorization permission ai_runtime.catalog.export.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "export"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "ai_runtime.catalog.manage",
+        "label": "Manage AI runtime catalog",
+        "description": "Create, update, import, or delete runtime catalog entries.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "ai_runtime.catalog.read",
+        "label": "Ai_runtime Catalog Read",
+        "description": "Unified authorization permission ai_runtime.catalog.read.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "blob.put",
+        "label": "Blob Put",
+        "description": "Unified authorization permission blob.put.",
+        "resource_kinds": [
+          "blob"
+        ],
+        "actions": [
+          "put"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "coderepo.project_ref.read",
+        "label": "Coderepo Project_ref Read",
+        "description": "Unified authorization permission coderepo.project_ref.read.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "coderepo.workspace.manage",
+        "label": "Coderepo Workspace Manage",
+        "description": "Unified authorization permission coderepo.workspace.manage.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "coderepo.workspace.read",
+        "label": "Coderepo Workspace Read",
+        "description": "Unified authorization permission coderepo.workspace.read.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "conversation.post",
+        "label": "Conversation Post",
+        "description": "Unified authorization permission conversation.post.",
+        "resource_kinds": [
+          "conversation"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "conversations.participants"
+        ]
+      },
+      {
+        "key": "conversation.read",
+        "label": "Conversation Read",
+        "description": "Unified authorization permission conversation.read.",
+        "resource_kinds": [
+          "conversation"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "conversations.participants"
+        ]
+      },
+      {
+        "key": "dispatch.pull",
+        "label": "Dispatch Pull",
+        "description": "Unified authorization permission dispatch.pull.",
+        "resource_kinds": [
+          "worker"
+        ],
+        "actions": [
+          "pull"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "file.attach",
+        "label": "File Attach",
+        "description": "Unified authorization permission file.attach.",
+        "resource_kinds": [
+          "file"
+        ],
+        "actions": [
+          "attach"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "file_references"
+        ]
+      },
+      {
+        "key": "file.download",
+        "label": "Download files",
+        "description": "Download files reachable through live scope references.",
+        "resource_kinds": [
+          "file"
+        ],
+        "actions": [
+          "download"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "file_references"
+        ]
+      },
+      {
+        "key": "file.upload",
+        "label": "File Upload",
+        "description": "Unified authorization permission file.upload.",
+        "resource_kinds": [
+          "file"
+        ],
+        "actions": [
+          "upload"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "file_references"
+        ]
+      },
+      {
+        "key": "git.agent.read.self",
+        "label": "Git Agent Read Self",
+        "description": "Unified authorization permission git.agent.read.self.",
+        "resource_kinds": [
+          "agent"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "agents.identity_member_id"
+        ]
+      },
+      {
+        "key": "git.agent.write.self",
+        "label": "Git Agent Write Self",
+        "description": "Unified authorization permission git.agent.write.self.",
+        "resource_kinds": [
+          "agent"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "agents.identity_member_id"
+        ]
+      },
+      {
+        "key": "git.global.read",
+        "label": "Git Global Read",
+        "description": "Unified authorization permission git.global.read.",
+        "resource_kinds": [
+          "git"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "system"
+        ]
+      },
+      {
+        "key": "issue.read",
+        "label": "Issue Read",
+        "description": "Unified authorization permission issue.read.",
+        "resource_kinds": [
+          "issue"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "issue.write",
+        "label": "Issue Write",
+        "description": "Unified authorization permission issue.write.",
+        "resource_kinds": [
+          "issue"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "model_catalog.manage",
+        "label": "Model_catalog Manage",
+        "description": "Unified authorization permission model_catalog.manage.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "agent_worker_binding"
+        ]
+      },
+      {
+        "key": "org.analytics.read",
+        "label": "Org Analytics Read",
+        "description": "Unified authorization permission org.analytics.read.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.invitation.manage",
+        "label": "Manage invitations",
+        "description": "Create or cancel organization invitations.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.lifecycle.manage",
+        "label": "Manage org lifecycle",
+        "description": "Disable, enable, or delete an organization.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.member.create.agent",
+        "label": "Create agent member",
+        "description": "Provision an agent identity in the organization.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.member.create.human",
+        "label": "Create human member",
+        "description": "Invite or create a human member.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.member.disable",
+        "label": "Org Member Disable",
+        "description": "Unified authorization permission org.member.disable.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.member.list",
+        "label": "List members",
+        "description": "Read the organization member directory.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "list"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "org.member.role.manage",
+        "label": "Manage org roles",
+        "description": "Change owner/admin/member assignments.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.read",
+        "label": "Read organization",
+        "description": "Open organization-scoped resources.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "org.settings.manage",
+        "label": "Manage org settings",
+        "description": "Update organization profile settings.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "members.role"
+        ]
+      },
+      {
+        "key": "org.work_items.read",
+        "label": "Org Work_items Read",
+        "description": "Unified authorization permission org.work_items.read.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "plan.read",
+        "label": "Plan Read",
+        "description": "Unified authorization permission plan.read.",
+        "resource_kinds": [
+          "plan"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "plan.write",
+        "label": "Plan Write",
+        "description": "Unified authorization permission plan.write.",
+        "resource_kinds": [
+          "plan"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "project.member.add",
+        "label": "Add project member",
+        "description": "Add a member to a project.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "project.member.remove",
+        "label": "Remove project member",
+        "description": "Remove a member from a project.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "delete"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members.role"
+        ]
+      },
+      {
+        "key": "project.read",
+        "label": "Read project",
+        "description": "Read project work and project metadata.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "project.repo_ref.manage",
+        "label": "Project Repo_ref Manage",
+        "description": "Unified authorization permission project.repo_ref.manage.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "project.stage.manage",
+        "label": "Project Stage Manage",
+        "description": "Unified authorization permission project.stage.manage.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members.role"
+        ]
+      },
+      {
+        "key": "project.write",
+        "label": "Write project",
+        "description": "Create and update project work items.",
+        "resource_kinds": [
+          "project"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "secret.resolve",
+        "label": "Secret Resolve",
+        "description": "Unified authorization permission secret.resolve.",
+        "resource_kinds": [
+          "secret"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "task.block.self",
+        "label": "Task Block Self",
+        "description": "Unified authorization permission task.block.self.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "block"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_tasks.assignee"
+        ]
+      },
+      {
+        "key": "task.complete.self",
+        "label": "Task Complete Self",
+        "description": "Unified authorization permission task.complete.self.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "complete"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_tasks.assignee"
+        ]
+      },
+      {
+        "key": "task.heartbeat.self",
+        "label": "Task Heartbeat Self",
+        "description": "Unified authorization permission task.heartbeat.self.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "heartbeat"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_tasks.assignee"
+        ]
+      },
+      {
+        "key": "task.internal.report",
+        "label": "Task Internal Report",
+        "description": "Unified authorization permission task.internal.report.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "report"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "task.read",
+        "label": "Task Read",
+        "description": "Unified authorization permission task.read.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members",
+          "pm_tasks.assignee"
+        ]
+      },
+      {
+        "key": "task.start.self",
+        "label": "Task Start Self",
+        "description": "Unified authorization permission task.start.self.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "start"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_tasks.assignee"
+        ]
+      },
+      {
+        "key": "task.write",
+        "label": "Task Write",
+        "description": "Unified authorization permission task.write.",
+        "resource_kinds": [
+          "task"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "pm_project_members"
+        ]
+      },
+      {
+        "key": "team.create",
+        "label": "Team Create",
+        "description": "Unified authorization permission team.create.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "team.git.read",
+        "label": "Team Git Read",
+        "description": "Unified authorization permission team.git.read.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "team_members"
+        ]
+      },
+      {
+        "key": "team.git.write",
+        "label": "Team Git Write",
+        "description": "Unified authorization permission team.git.write.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "team_members"
+        ]
+      },
+      {
+        "key": "team.member.manage",
+        "label": "Manage team members",
+        "description": "Add, move, or remove team members.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "team.memory.propose",
+        "label": "Propose team memory",
+        "description": "Submit team memory proposals.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members.role",
+          "team_members"
+        ]
+      },
+      {
+        "key": "team.memory.read",
+        "label": "Read team memory",
+        "description": "Read the team's memory entries.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members",
+          "team_members"
+        ]
+      },
+      {
+        "key": "team.memory.review",
+        "label": "Review team memory",
+        "description": "Promote or reject team memory proposals.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "review"
+        ],
+        "risk": "high",
+        "high_risk": true,
+        "category": "access",
+        "legacy_sources": [
+          "members.role",
+          "team_memory_policy_curators"
+        ]
+      },
+      {
+        "key": "team.project.link.manage",
+        "label": "Manage team project links",
+        "description": "Associate or disassociate projects with a team.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "team.read",
+        "label": "Read team",
+        "description": "Read team roster and settings.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "team.runtime_config.manage",
+        "label": "Team Runtime_config Manage",
+        "description": "Unified authorization permission team.runtime_config.manage.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "manage"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "team.write",
+        "label": "Write team",
+        "description": "Update team configuration.",
+        "resource_kinds": [
+          "team"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "medium",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "template.read",
+        "label": "Template Read",
+        "description": "Unified authorization permission template.read.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "read"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "template.write",
+        "label": "Template Write",
+        "description": "Unified authorization permission template.write.",
+        "resource_kinds": [
+          "org"
+        ],
+        "actions": [
+          "update"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "members"
+        ]
+      },
+      {
+        "key": "worker.capability.report",
+        "label": "Worker Capability Report",
+        "description": "Unified authorization permission worker.capability.report.",
+        "resource_kinds": [
+          "worker"
+        ],
+        "actions": [
+          "report"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.owner"
+        ]
+      },
+      {
+        "key": "worker.enroll",
+        "label": "Worker Enroll",
+        "description": "Unified authorization permission worker.enroll.",
+        "resource_kinds": [
+          "worker"
+        ],
+        "actions": [
+          "create"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.scopes_json"
+        ]
+      },
+      {
+        "key": "worker.heartbeat",
+        "label": "Worker Heartbeat",
+        "description": "Unified authorization permission worker.heartbeat.",
+        "resource_kinds": [
+          "worker"
+        ],
+        "actions": [
+          "heartbeat"
+        ],
+        "risk": "low",
+        "category": "access",
+        "legacy_sources": [
+          "admin_tokens.owner"
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.read",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.read:org:organization-1d45dd5c",
+        "risk": "low"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.member.list",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.member.list:org:organization-1d45dd5c",
+        "risk": "low"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.member.create.human",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.member.create.human:org:organization-1d45dd5c",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.member.create.agent",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.member.create.agent:org:organization-1d45dd5c",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.invitation.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.invitation.manage:org:organization-1d45dd5c",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "ai_runtime.catalog.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:ai_runtime.catalog.manage:org:organization-1d45dd5c",
+        "risk": "high"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.settings.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.settings.manage:org:organization-1d45dd5c",
+        "risk": "high"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.lifecycle.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.lifecycle.manage:org:organization-1d45dd5c",
+        "risk": "high"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "org.member.role.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c",
+        "risk": "high"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "team.read",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:team.read:team:team-1e895baf",
+        "risk": "low"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "team.write",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:team.write:team:team-1e895baf",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "team.member.manage",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:team.member.manage:team:team-1e895baf",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "team.project.link.manage",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:team.project.link.manage:team:team-1e895baf",
+        "risk": "medium"
+      },
+      {
+        "allowed": true,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "team.memory.review",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "reason": "matched org_role",
+        "evidence_ref": "members:mem-0ce1a8d0",
+        "status": "allowed",
+        "grant_id": "grant:org_role:user:user-2e951b4f:team.memory.review:team:team-1e895baf",
+        "risk": "high"
+      },
+      {
+        "allowed": false,
+        "subject_ref": "user:user-2e951b4f",
+        "permission": "file.download",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "file_scope",
+        "reason": "file.download does not apply to org resources",
+        "evidence_ref": "permission_registry:file.download",
+        "status": "not_applicable",
+        "risk": "medium"
+      }
+    ],
+    "generated_at": "2026-08-25T07:28:31Z",
+    "grants": [
+      {
+        "id": "grant:org_role:user:user-2e951b4f:ai_runtime.catalog.manage:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "ai_runtime.catalog.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "high"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.lifecycle.manage:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.lifecycle.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "high"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.member.role.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "high"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.settings.manage:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.settings.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "high"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:team.memory.review:team:team-1e895baf",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "team.memory.review",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "high"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.invitation.manage:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.invitation.manage",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.member.create.agent:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.member.create.agent",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.read:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.read",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "low"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.member.create.human:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.member.create.human",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:team.read:team:team-1e895baf",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "team.read",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "low"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:team.member.manage:team:team-1e895baf",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "team.member.manage",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:team.project.link.manage:team:team-1e895baf",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "team.project.link.manage",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:team.write:team:team-1e895baf",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "team.write",
+        "resource": {
+          "kind": "team",
+          "id": "team-1e895baf",
+          "org_id": "organization-1d45dd5c",
+          "label": "T1517 Platform mt8cfly9"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "medium"
+      },
+      {
+        "id": "grant:org_role:user:user-2e951b4f:org.member.list:org:organization-1d45dd5c",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.member.list",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "source": "org_role",
+        "status": "active",
+        "created_by": "system",
+        "created_at": "2026-08-25T07:28:31Z",
+        "risk": "low"
+      }
+    ],
+    "roles": [
+      {
+        "id": "org:owner",
+        "name": "Org owner",
+        "scope_kind": "org",
+        "description": "Derived from members.role=owner.",
+        "permissions": [
+          "org.read",
+          "org.settings.manage",
+          "org.lifecycle.manage",
+          "org.member.list",
+          "org.member.create.human",
+          "org.member.create.agent",
+          "org.member.role.manage",
+          "org.invitation.manage",
+          "ai_runtime.catalog.manage"
+        ],
+        "editable": false,
+        "source": "org_role",
+        "high_risk": true
+      },
+      {
+        "id": "org:admin",
+        "name": "Org admin",
+        "scope_kind": "org",
+        "description": "Derived from members.role=admin.",
+        "permissions": [
+          "org.read",
+          "org.member.list",
+          "org.member.create.human",
+          "org.member.create.agent",
+          "org.invitation.manage",
+          "ai_runtime.catalog.manage"
+        ],
+        "editable": false,
+        "source": "org_role",
+        "high_risk": true
+      },
+      {
+        "id": "org:member",
+        "name": "Org member",
+        "scope_kind": "org",
+        "description": "Derived from members.role=member.",
+        "permissions": [
+          "org.read",
+          "org.member.list"
+        ],
+        "editable": false,
+        "source": "org_role"
+      },
+      {
+        "id": "project:owner",
+        "name": "Project owner",
+        "scope_kind": "project",
+        "description": "Derived from pm_project_members.role=owner.",
+        "permissions": [
+          "project.read",
+          "project.write",
+          "project.member.add",
+          "project.member.remove"
+        ],
+        "editable": false,
+        "source": "project_member",
+        "high_risk": true
+      },
+      {
+        "id": "project:member",
+        "name": "Project member",
+        "scope_kind": "project",
+        "description": "Derived from pm_project_members.role=member.",
+        "permissions": [
+          "project.read",
+          "project.write",
+          "project.member.add"
+        ],
+        "editable": false,
+        "source": "project_member"
+      },
+      {
+        "id": "team:web-member",
+        "name": "Team web member",
+        "scope_kind": "team",
+        "description": "Phase-1 legacy projection from organization membership.",
+        "permissions": [
+          "team.read",
+          "team.write",
+          "team.member.manage",
+          "team.project.link.manage"
+        ],
+        "editable": false,
+        "source": "org_role"
+      },
+      {
+        "id": "team:memory-curator",
+        "name": "Team memory curator",
+        "scope_kind": "team",
+        "description": "Derived from team memory policy curator refs.",
+        "permissions": [
+          "team.memory.read",
+          "team.memory.propose",
+          "team.memory.review"
+        ],
+        "editable": false,
+        "source": "team_memory_policy",
+        "high_risk": true
+      },
+      {
+        "id": "role-baabcb20d47d4502",
+        "name": "Custom reviewer mt8cfly9",
+        "scope_kind": "team",
+        "description": "T1517 custom role updated",
+        "permissions": [
+          "team.read"
+        ],
+        "editable": true,
+        "source": "custom_role"
+      },
+      {
+        "id": "role-4763d5b2b0b2d799",
+        "name": "Team contributor mt8cfly9",
+        "scope_kind": "project",
+        "description": "T1517 team contributor",
+        "permissions": [
+          "project.read",
+          "project.write",
+          "team.read"
+        ],
+        "editable": true,
+        "source": "custom_role"
+      },
+      {
+        "id": "role-2f59779094000871",
+        "name": "Team observer mt8cfly9",
+        "scope_kind": "team",
+        "description": "T1517 team observer",
+        "permissions": [
+          "team.read"
+        ],
+        "editable": true,
+        "source": "custom_role"
+      }
+    ],
+    "subjects": [
+      {
+        "ref": "user:user-2e951b4f",
+        "kind": "human",
+        "name": "t1517-owner-mt8cfly9",
+        "email": "t1517-owner-mt8cfly9@example.test",
+        "role": "owner",
+        "status": "joined"
+      }
+    ],
+    "summary": {
+      "allowed": 14,
+      "denied": 0,
+      "expiring": 0,
+      "high_risk": 5,
+      "not_applicable": 1
+    }
+  }
+}

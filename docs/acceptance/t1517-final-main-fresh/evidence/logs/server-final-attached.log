@@ -1,0 +1,5 @@
+[server] admin token bootstrap: wrote /tmp/t1517-final-main-runtime-final-1787643350/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/tmp/t1517-final-main-runtime-final-1787643350/agent-center.db web=127.0.0.1:18125 admin=/tmp/t1517-final-main-runtime-final-1787643350/admin.sock (escalator running)
+  admin tcp:  127.0.0.1:18126 (TLS, auto-generated)
+              cert valid until 2027-08-25 (364 days)
+              fingerprint: sha256:82:A7:B5:1A:81:B4:5C:F7:B0:B9:C5:17:32:0E:FD:C4:A0:1E:83:47:B8:0C:B4:03:4C:85:C9:37:8F:19:BC:C5

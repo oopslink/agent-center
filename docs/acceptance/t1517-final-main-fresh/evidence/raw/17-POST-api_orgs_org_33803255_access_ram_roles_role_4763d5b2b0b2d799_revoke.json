@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-33803255/access/ram-roles/role-4763d5b2b0b2d799/revoke",
+  "status": 409,
+  "body": {
+    "error": "ram_role_referenced",
+    "message": "RAM role is still referenced: team_role_mappings=1"
+  }
+}

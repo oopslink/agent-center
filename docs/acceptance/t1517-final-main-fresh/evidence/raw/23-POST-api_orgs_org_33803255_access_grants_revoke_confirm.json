@@ -1,0 +1,37 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-33803255/access/grants/revoke/confirm",
+  "status": 200,
+  "body": {
+    "applied_at": "2026-08-25T07:28:31Z",
+    "items": [
+      {
+        "id": "revoke-1",
+        "subject_ref": "user:user-2e951b4f",
+        "subject_name": "t1517-owner-mt8cfly9",
+        "permission": "org.analytics.read",
+        "resource": {
+          "kind": "org",
+          "id": "organization-1d45dd5c",
+          "org_id": "organization-1d45dd5c",
+          "label": "organization-1d45dd5c"
+        },
+        "status": "allowed",
+        "risk": "low",
+        "high_risk": false,
+        "reason": "grant revoked by unified authorization API",
+        "evidence_ref": "authorization_revoke_confirm:rvp-a2bea765a8600d80",
+        "grant_id": "asgn-52df8d5b"
+      }
+    ],
+    "operation_id": "access-revoke-e15cacc5036861fe",
+    "summary": {
+      "failed": 0,
+      "not_applicable": 0,
+      "partial_failure": false,
+      "succeeded": 1,
+      "total": 1,
+      "unauthorized": 0
+    }
+  }
+}

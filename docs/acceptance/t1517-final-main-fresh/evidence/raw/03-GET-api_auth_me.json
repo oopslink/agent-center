@@ -1,0 +1,10 @@
+{
+  "method": "GET",
+  "url": "/api/auth/me",
+  "status": 200,
+  "body": {
+    "display_name": "t1517-owner-mt8cfly9",
+    "identity_id": "user-2e951b4f",
+    "kind": "user"
+  }
+}

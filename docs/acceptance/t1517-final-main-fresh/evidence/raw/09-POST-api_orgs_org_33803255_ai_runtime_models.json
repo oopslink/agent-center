@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-33803255/ai-runtime/models",
+  "status": 201,
+  "body": {
+    "entry": {
+      "id": "01M0VX4695HFY4QQN3BCRRHE1W",
+      "key": "gpt-5",
+      "model_key": "gpt-5",
+      "display_name": "GPT-5",
+      "compatible_cli_keys": [
+        "codex"
+      ],
+      "default_parameters": {},
+      "enabled": true,
+      "created_at": "2026-08-25T07:28:31.013693Z",
+      "updated_at": "2026-08-25T07:28:31.013693Z"
+    },
+    "revision": 1
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "url": "/api/orgs/org-b12fb29a/access/ram-roles/role-access-3e36b786ab0baabd",
+  "status": 404,
+  "body": {
+    "error": "not_found",
+    "message": "RAM role not found"
+  }
+}

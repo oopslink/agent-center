@@ -1,0 +1,178 @@
+[
+  {
+    "name": "fresh bootstrap",
+    "status": "MATCH",
+    "detail": "initialized=false",
+    "evidence": [
+      "raw/http-bootstrap.json"
+    ]
+  },
+  {
+    "name": "fresh signup",
+    "status": "MATCH",
+    "detail": "org=org-33803255 identity=user-2e951b4f",
+    "evidence": []
+  },
+  {
+    "name": "authenticated session endpoint",
+    "status": "MATCH",
+    "detail": "status=200",
+    "evidence": []
+  },
+  {
+    "name": "RAM Role System roles",
+    "status": "MATCH",
+    "detail": "14 system roles visible",
+    "evidence": []
+  },
+  {
+    "name": "Managed/Internal hidden from RAM catalog",
+    "status": "MATCH",
+    "detail": "0 internal/managed/role-access rows in catalog",
+    "evidence": []
+  },
+  {
+    "name": "RAM Role Custom create",
+    "status": "MATCH",
+    "detail": "kind=custom version=1",
+    "evidence": []
+  },
+  {
+    "name": "RAM Role 409 stale version",
+    "status": "MATCH",
+    "detail": "status=409",
+    "evidence": []
+  },
+  {
+    "name": "Team Role default RAM Role binding",
+    "status": "MATCH",
+    "detail": "[\"role-4763d5b2b0b2d799\"]",
+    "evidence": []
+  },
+  {
+    "name": "Team Role layering preview",
+    "status": "MATCH",
+    "detail": "preview status=200 keys=team_id,team_role,current_ram_role_ids,next_ram_role_ids,added_ram_role_ids,removed_ram_role_ids,affected_members,affected_project_ids,version",
+    "evidence": []
+  },
+  {
+    "name": "Team Role mapping 409 stale version",
+    "status": "MATCH",
+    "detail": "status=409",
+    "evidence": []
+  },
+  {
+    "name": "RAM Role referenced revoke 409",
+    "status": "MATCH",
+    "detail": "status=409",
+    "evidence": []
+  },
+  {
+    "name": "Direct binding default no Team Role resources",
+    "status": "MATCH",
+    "detail": "operator ram_role_ids=[]",
+    "evidence": []
+  },
+  {
+    "name": "Direct binding permission/resource-kind linkage",
+    "status": "MATCH",
+    "detail": "{\"org\":\"allowed\",\"team\":\"not_applicable\"}",
+    "evidence": []
+  },
+  {
+    "name": "Managed/Internal direct role hidden by detail",
+    "status": "MATCH",
+    "detail": "status=404",
+    "evidence": []
+  },
+  {
+    "name": "Direct binding revoke preview success",
+    "status": "MATCH",
+    "detail": "{\"id\":\"revoke-1\",\"subject_ref\":\"user:user-2e951b4f\",\"subject_name\":\"t1517-owner-mt8cfly9\",\"permission\":\"org.analytics.read\",\"resource\":{\"kind\":\"org\",\"id\":\"organization-1d45dd5c\",\"org_id\":\"organization-1d45dd5c\",\"label\":\"organization-1d45dd5c\"},\"status\":\"allowed\",\"risk\":\"low\",\"high_risk\":false,\"reason\":\"grant can be revoked by unified authorization API\",\"evidence_ref\":\"authorization_revoke_preview:rvp-a2bea765a8600d80\",\"grant_id\":\"asgn-52df8d5b\"}",
+    "evidence": []
+  },
+  {
+    "name": "Direct binding revoke 403/409-class bad token",
+    "status": "MATCH",
+    "detail": "status=409",
+    "evidence": []
+  },
+  {
+    "name": "Direct binding revoke confirm",
+    "status": "MATCH",
+    "detail": "{\"failed\":0,\"not_applicable\":0,\"partial_failure\":false,\"succeeded\":1,\"total\":1,\"unauthorized\":0}",
+    "evidence": []
+  },
+  {
+    "name": "Derived revoke blocked/not_applicable",
+    "status": "MATCH",
+    "detail": "{\"id\":\"revoke-1\",\"subject_ref\":\"user:user-2e951b4f\",\"subject_name\":\"t1517-owner-mt8cfly9\",\"permission\":\"org.member.role.manage\",\"resource\":{\"kind\":\"org\",\"id\":\"organization-1d45dd5c\",\"org_id\":\"organization-1d45dd5c\",\"label\":\"organization-1d45dd5c\"},\"status\":\"not_applicable\",\"risk\":\"high\",\"high_risk\":true,\"reason\":\"grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c is a derived permission and must be revoked at its source\",\"grant_id\":\"grant:org_role:user:user-2e951b4f:org.member.role.manage:org:organization-1d45dd5c\"}",
+    "evidence": []
+  },
+  {
+    "name": "No visible role-access-* proliferation in access overview",
+    "status": "MATCH",
+    "detail": "role-access-* occurrences=0",
+    "evidence": []
+  },
+  {
+    "name": "UI RAM Roles product names",
+    "status": "MATCH",
+    "detail": "RAM Roles page text inspected",
+    "evidence": [
+      "screenshots/access-ram-roles-1440x900.png"
+    ]
+  },
+  {
+    "name": "UI no visible role-access-* on RAM Roles",
+    "status": "MATCH",
+    "detail": "contains role-access=false",
+    "evidence": []
+  },
+  {
+    "name": "UI Subject access direct binding",
+    "status": "MATCH",
+    "detail": "Subject access page text inspected",
+    "evidence": [
+      "screenshots/subject-access-1440x900.png"
+    ]
+  },
+  {
+    "name": "UI no visible role-access-* on Subject access",
+    "status": "MATCH",
+    "detail": "contains role-access=false",
+    "evidence": []
+  },
+  {
+    "name": "UI Team Role RAM layering",
+    "status": "MATCH",
+    "detail": "Team Role detail text inspected",
+    "evidence": [
+      "screenshots/team-role-developer-1440x900.png"
+    ]
+  },
+  {
+    "name": "UI Team Role empty default",
+    "status": "MATCH",
+    "detail": "Operator role has no RAM Roles",
+    "evidence": [
+      "screenshots/team-role-operator-empty-1280x720.png"
+    ]
+  },
+  {
+    "name": "Browser network no unexpected failures",
+    "status": "MATCH",
+    "detail": "0 failing API responses",
+    "evidence": [
+      "network/browser-network.json"
+    ]
+  },
+  {
+    "name": "Browser console no errors",
+    "status": "MATCH",
+    "detail": "0 console errors",
+    "evidence": [
+      "console/browser-console.json"
+    ]
+  }
+]

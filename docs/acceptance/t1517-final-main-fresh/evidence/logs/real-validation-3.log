@@ -1,0 +1,9 @@
+file:///private/tmp/t1517-final-main-fresh-1787642555/docs/acceptance/t1517-final-main-fresh/run-real-validation.mjs:46
+  if (actual !== expected) throw new Error(`${label}: status ${actual}, want ${expected}`);
+                                 ^
+
+Error: custom RAM role update: status 201, want 200
+    at assertStatus (file:///private/tmp/t1517-final-main-fresh-1787642555/docs/acceptance/t1517-final-main-fresh/run-real-validation.mjs:46:34)
+    at file:///private/tmp/t1517-final-main-fresh-1787642555/docs/acceptance/t1517-final-main-fresh/run-real-validation.mjs:108:3
+
+Node.js v25.6.0

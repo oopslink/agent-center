@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "url": "/api/auth/bootstrap",
+  "status": 200,
+  "body": {
+    "initialized": false
+  }
+}

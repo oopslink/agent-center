@@ -1,0 +1,77 @@
+T
+Search
+⌘K
+TEAMS
+All teams
+PEOPLES
+Agents
+Humans
+Teams
+/
+T1517 Platform mt8cfly9
+/
+Roles
+/
+operator
+operator
+
+Team Role properties for T1517 Platform mt8cfly9.
+
+Back to roles
+Edit Team Role
+MEMBERS
+0
+RAM ROLES
+0
+EFFECTIVE PERMISSIONS
+0
+PROJECTS
+0
+VERSION
+1
+Team Roles
+
+Select a role to inspect all of its properties.
+
+developer
+0 members
+codex · gpt-5 · 2
+operator
+0 members
+codex · gpt-5 · 1
+operator properties
+
+Saved configuration · server version 1
+
+2026-08-25T07:28:31.019808Z
+Work configuration
+
+Execution defaults carried by this Team Role.
+
+CLI
+codex
+MODEL
+gpt-5
+CONCURRENCY
+1
+Access configuration
+
+RAM Roles this Team Role grants directly to its members.
+
+No RAM Roles
+
+This Team Role does not grant a RAM Role.
+
+0 members inherit these permissions. Scope follows T1517 Platform mt8cfly9 and its 0 linked projects.
+Capabilities
+
+Declarative scheduling and supervision hints.
+
+ram
+Audit
+
+Latest authoritative Team Role access change.
+
+Team Role access updated
+system · 2026-08-25T07:28:31.019808Z
+v1

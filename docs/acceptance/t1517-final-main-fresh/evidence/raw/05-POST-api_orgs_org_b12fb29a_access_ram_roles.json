@@ -1,0 +1,48 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/ram-roles",
+  "status": 201,
+  "body": {
+    "id": "role-cff5a5a811771513",
+    "stable_key": "custom-reviewer-mt8cex8k",
+    "name": "Custom reviewer mt8cex8k",
+    "description": "T1517 custom role",
+    "kind": "custom",
+    "scope": "team",
+    "latest": {
+      "id": "role-cff5a5a811771513",
+      "stable_key": "custom-reviewer-mt8cex8k",
+      "name": "Custom reviewer mt8cex8k",
+      "version": 1,
+      "kind": "custom",
+      "description": "T1517 custom role",
+      "permissions": [
+        "team.memory.review",
+        "team.read"
+      ],
+      "risk": "high",
+      "scope": "team",
+      "created_at": "2026-08-25T07:27:58.973713Z",
+      "updated_at": "2026-08-25T07:27:58.973713Z"
+    },
+    "versions": [
+      {
+        "id": "role-cff5a5a811771513",
+        "stable_key": "custom-reviewer-mt8cex8k",
+        "name": "Custom reviewer mt8cex8k",
+        "version": 1,
+        "kind": "custom",
+        "description": "T1517 custom role",
+        "permissions": [
+          "team.memory.review",
+          "team.read"
+        ],
+        "risk": "high",
+        "scope": "team",
+        "created_at": "2026-08-25T07:27:58.973713Z",
+        "updated_at": "2026-08-25T07:27:58.973713Z"
+      }
+    ],
+    "references": null
+  }
+}

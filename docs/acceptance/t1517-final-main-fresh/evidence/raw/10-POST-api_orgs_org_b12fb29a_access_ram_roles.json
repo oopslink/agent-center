@@ -1,0 +1,50 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/ram-roles",
+  "status": 201,
+  "body": {
+    "id": "role-1c979e9054ca20c0",
+    "stable_key": "team-contributor-mt8cex8k",
+    "name": "Team contributor mt8cex8k",
+    "description": "T1517 team contributor",
+    "kind": "custom",
+    "scope": "team",
+    "latest": {
+      "id": "role-1c979e9054ca20c0",
+      "stable_key": "team-contributor-mt8cex8k",
+      "name": "Team contributor mt8cex8k",
+      "version": 1,
+      "kind": "custom",
+      "description": "T1517 team contributor",
+      "permissions": [
+        "project.read",
+        "project.write",
+        "team.read"
+      ],
+      "risk": "medium",
+      "scope": "team",
+      "created_at": "2026-08-25T07:27:58.981832Z",
+      "updated_at": "2026-08-25T07:27:58.981832Z"
+    },
+    "versions": [
+      {
+        "id": "role-1c979e9054ca20c0",
+        "stable_key": "team-contributor-mt8cex8k",
+        "name": "Team contributor mt8cex8k",
+        "version": 1,
+        "kind": "custom",
+        "description": "T1517 team contributor",
+        "permissions": [
+          "project.read",
+          "project.write",
+          "team.read"
+        ],
+        "risk": "medium",
+        "scope": "team",
+        "created_at": "2026-08-25T07:27:58.981832Z",
+        "updated_at": "2026-08-25T07:27:58.981832Z"
+      }
+    ],
+    "references": null
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "method": "GET",
+  "url": "/api/orgs/org-33803255/ai-runtime",
+  "status": 200,
+  "body": {
+    "org_id": "organization-1d45dd5c",
+    "revision": 0,
+    "clis": [
+      {
+        "id": "cli-claude-code-organization-1d45dd5c",
+        "key": "claude-code",
+        "display_name": "Claude Code",
+        "executable": "claude",
+        "required_features": [],
+        "parameter_schema": {
+          "type": "object"
+        },
+        "enabled": true,
+        "system": true,
+        "created_at": "2026-08-25T07:28:31.01225Z",
+        "updated_at": "2026-08-25T07:28:31.01225Z"
+      },
+      {
+        "id": "cli-codex-organization-1d45dd5c",
+        "key": "codex",
+        "display_name": "Codex",
+        "executable": "codex",
+        "required_features": [],
+        "parameter_schema": {
+          "type": "object"
+        },
+        "enabled": true,
+        "system": true,
+        "created_at": "2026-08-25T07:28:31.01225Z",
+        "updated_at": "2026-08-25T07:28:31.01225Z"
+      }
+    ],
+    "models": []
+  }
+}

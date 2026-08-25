@@ -1,0 +1,52 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/teams",
+  "status": 201,
+  "body": {
+    "created": "2026-08-25T07:27:58Z",
+    "description": "RAM Role layering validation",
+    "glyph": "TP",
+    "id": "team-59d2ebaf",
+    "members_count": 0,
+    "memory_permissions": {
+      "can_manage": true,
+      "web_edit": true
+    },
+    "name": "T1517 Platform mt8cex8k",
+    "org_id": "organization-f3877775",
+    "projects_count": 0,
+    "roles": [
+      {
+        "access_lint": null,
+        "access_requirements": [],
+        "capability_tags": [
+          "ram",
+          "ui"
+        ],
+        "cli": "codex",
+        "count": 0,
+        "max_concurrency": 2,
+        "model": "gpt-5",
+        "ram_role_keys": [
+          "Team contributor mt8cex8k"
+        ],
+        "role": "developer"
+      },
+      {
+        "access_lint": null,
+        "access_requirements": [],
+        "capability_tags": [
+          "ram"
+        ],
+        "cli": "codex",
+        "count": 0,
+        "max_concurrency": 1,
+        "model": "gpt-5",
+        "ram_role_keys": [],
+        "role": "operator"
+      }
+    ],
+    "status": "draft",
+    "version": 1
+  }
+}

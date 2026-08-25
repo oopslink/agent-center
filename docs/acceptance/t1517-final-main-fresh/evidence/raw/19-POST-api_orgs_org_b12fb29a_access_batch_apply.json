@@ -1,0 +1,54 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/batch/apply",
+  "status": 200,
+  "body": {
+    "applied_at": "2026-08-25T07:27:59Z",
+    "items": [
+      {
+        "id": "item-1",
+        "subject_ref": "user:user-9a657c5c",
+        "subject_name": "t1517-owner-mt8cex8k",
+        "permission": "org.analytics.read",
+        "resource": {
+          "kind": "org",
+          "id": "organization-f3877775",
+          "org_id": "organization-f3877775",
+          "label": "T1517 Fresh Org"
+        },
+        "status": "allowed",
+        "risk": "low",
+        "high_risk": false,
+        "reason": "grant applied by unified authorization API",
+        "evidence_ref": "authorization_batch:access-apply-fa044e9a29c2d56c",
+        "grant_id": "asgn-bc6d49ab"
+      },
+      {
+        "id": "item-2",
+        "subject_ref": "user:user-9a657c5c",
+        "subject_name": "t1517-owner-mt8cex8k",
+        "permission": "org.analytics.read",
+        "resource": {
+          "kind": "team",
+          "id": "team-59d2ebaf",
+          "org_id": "organization-f3877775",
+          "label": "T1517 Platform mt8cex8k"
+        },
+        "status": "not_applicable",
+        "risk": "low",
+        "high_risk": false,
+        "reason": "org.analytics.read does not apply to team",
+        "evidence_ref": "permission_registry:org.analytics.read"
+      }
+    ],
+    "operation_id": "access-apply-2ddff6f5137abefa",
+    "summary": {
+      "failed": 1,
+      "not_applicable": 1,
+      "partial_failure": true,
+      "succeeded": 1,
+      "total": 2,
+      "unauthorized": 0
+    }
+  }
+}

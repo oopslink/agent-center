@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "url": "/api/version",
+  "status": 404,
+  "body": {
+    "error": "not_found",
+    "message": "no such API route"
+  }
+}

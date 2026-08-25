@@ -1,0 +1,37 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/grants/revoke/preview",
+  "status": 200,
+  "body": {
+    "expires_at": "2026-08-25T07:32:59Z",
+    "items": [
+      {
+        "id": "revoke-1",
+        "subject_ref": "user:user-9a657c5c",
+        "subject_name": "t1517-owner-mt8cex8k",
+        "permission": "org.analytics.read",
+        "resource": {
+          "kind": "org",
+          "id": "organization-f3877775",
+          "org_id": "organization-f3877775",
+          "label": "organization-f3877775"
+        },
+        "status": "allowed",
+        "risk": "low",
+        "high_risk": false,
+        "reason": "grant can be revoked by unified authorization API",
+        "evidence_ref": "authorization_revoke_preview:rvp-7d1fd6adcc105565",
+        "grant_id": "asgn-bc6d49ab"
+      }
+    ],
+    "preview_id": "rvp-7d1fd6adcc105565",
+    "summary": {
+      "grantable": 1,
+      "high_risk": 0,
+      "not_applicable": 0,
+      "total": 1,
+      "unauthorized": 0
+    },
+    "token": "c680d69848bb8cb34214b40a142567f79bf2117e5dd0e697"
+  }
+}

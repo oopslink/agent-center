@@ -1,0 +1,2 @@
+[server] admin token bootstrap: wrote /tmp/t1517-final-main-runtime-1787642770/bootstrap_token (scope=* owner=system:bootstrap)
+Error: webconsole: webconsole: auth not configured — set secret_management.master_key_file in the server config (the master key doubles as the JWT signing key)

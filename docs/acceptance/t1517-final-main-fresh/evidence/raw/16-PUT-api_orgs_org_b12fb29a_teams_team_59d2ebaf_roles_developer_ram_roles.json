@@ -1,0 +1,9 @@
+{
+  "method": "PUT",
+  "url": "/api/orgs/org-b12fb29a/teams/team-59d2ebaf/roles/developer/ram-roles",
+  "status": 409,
+  "body": {
+    "error": "version_conflict",
+    "message": "team: RAM role mapping version conflict"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "method": "POST",
+  "url": "/api/orgs/org-b12fb29a/access/grants/revoke/confirm",
+  "status": 409,
+  "body": {
+    "decision": {
+      "allowed": false,
+      "subject_ref": "user:user-9a657c5c",
+      "permission": "",
+      "resource": {
+        "kind": "org",
+        "id": "organization-f3877775"
+      },
+      "reason": ""
+    },
+    "error": "revoke_preview_rejected",
+    "message": "authorization: revoke preview rejected"
+  }
+}

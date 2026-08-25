@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "url": "/api/auth/signup",
+  "status": 201,
+  "body": {
+    "display_name": "t1517-owner-mt8cfly9",
+    "identity_id": "user-2e951b4f",
+    "organization_id": "organization-1d45dd5c",
+    "organization_slug": "org-33803255"
+  }
+}

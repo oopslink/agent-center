@@ -1,0 +1,13 @@
+{
+  "method": "GET",
+  "url": "/api/orgs/org-b12fb29a/teams/team-59d2ebaf/roles/operator/ram-roles",
+  "status": 200,
+  "body": {
+    "team_id": "team-59d2ebaf",
+    "team_role": "operator",
+    "ram_role_ids": [],
+    "version": 1,
+    "updated_at": "2026-08-25T07:27:58.98619Z",
+    "updated_by": "system"
+  }
+}
