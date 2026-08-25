@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -601,6 +602,93 @@ func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing
 	}
 	if dispatchedSet(t, h, planID)[cSnap.TaskID] {
 		t.Fatalf("paused evolution task %s got a dispatch record", cSnap.TaskID)
+	}
+}
+
+func TestOwnerReplaceBlockedTask_EvolvesAndResolvesAtomically(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:owner"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:a", Actor: "user:owner"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:a1", Actor: "user:owner"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:c1", Actor: "user:owner"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner replace", CreatedBy: "user:owner", OwnerRef: "user:owner"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:owner"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.drain(t)
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	if err := h.svc.BlockTask(h.ctx, a, "executor failed after partial work", pm.BlockReasonObstacle, "user:owner"); err != nil {
+		t.Fatalf("BlockTask: %v", err)
+	}
+	p, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.AttentionStatus() != pm.PlanAttentionRequired || p.LastAttentionEventID() == "" {
+		t.Fatalf("plan attention=%s event=%s, want active owner block", p.AttentionStatus(), p.LastAttentionEventID())
+	}
+	events, err := h.plans.ListPlanBlockEvents(h.ctx, planID, true)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("active events=%d err=%v", len(events), err)
+	}
+	eventID := events[0].EventID
+	if err := h.svc.AcknowledgePlanBlock(h.ctx, AcknowledgePlanBlockCommand{EventID: eventID, Actor: "user:owner"}); err != nil {
+		t.Fatalf("AcknowledgePlanBlock: %v", err)
+	}
+	ack, found, err := h.plans.FindPlanBlockEventByID(h.ctx, eventID)
+	if err != nil || !found {
+		t.Fatal(err)
+	}
+	if ack.AcknowledgedAt.IsZero() || !ack.Active {
+		t.Fatalf("ack event=%+v, want acknowledged but still active", ack)
+	}
+	base := p.Version()
+	_, parent := activePlanGeneration(t, h, planID)
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "owner-replace-blocked-a",
+		Reason: "owner replaces failed task with continuation", Evidence: "owner reviewed failure evidence", Creator: "user:owner",
+		ResolveBlockEventID: eventID, ResolutionKind: pm.PlanBlockReplaceWithContinuation, ResolutionNote: "retry as continuation",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: a, Action: pm.EvolutionSupersede, Reason: "failed history"}},
+			Tasks: []pm.PlanGenerationTaskDraft{{
+				Ref: "c", Title: "C continuation", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange,
+				FollowsTaskID: a, Detached: true,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("EvolvePlanGeneration replacement: %v", err)
+	}
+	c := generationTaskByTitle(t, res.Generation, "C continuation").TaskID
+	if len(res.Dispatched) != 1 || res.Dispatched[0] != c {
+		t.Fatalf("dispatched=%v, want continuation %s", res.Dispatched, c)
+	}
+	old, _ := h.tasks.FindByID(h.ctx, a)
+	if old.PlanID() != planID || old.Status() != pm.TaskDiscarded {
+		t.Fatalf("old task plan/status=%s/%s, want retained discarded history", old.PlanID(), old.Status())
+	}
+	cont, _ := h.tasks.FindByID(h.ctx, c)
+	if cont.PlanID() != planID || cont.FollowsTaskID() != a || cont.DeliveryContract() != pm.DeliveryCodeChange {
+		t.Fatalf("continuation lineage/contract=%s/%s/%s", cont.PlanID(), cont.FollowsTaskID(), cont.DeliveryContract())
+	}
+	resolved, found, _ := h.plans.FindPlanBlockEventByID(h.ctx, eventID)
+	if !found || resolved.Active || resolved.ResolutionKind != string(pm.PlanBlockReplaceWithContinuation) || !strings.Contains(resolved.ResolutionNote, string(res.Generation.ID)) {
+		t.Fatalf("resolved event=%+v", resolved)
+	}
+	p, _ = h.plans.FindByID(h.ctx, planID)
+	if p.AttentionStatus() != pm.PlanAttentionNone {
+		t.Fatalf("attention=%s, want cleared after atomic replacement resolution", p.AttentionStatus())
+	}
+	if unplanned, err := h.tasks.ListUnplannedByProject(h.ctx, pid); err != nil || len(unplanned) != 0 {
+		t.Fatalf("unplanned=%d err=%v, want no orphan backlog", len(unplanned), err)
 	}
 }
 

@@ -231,8 +231,22 @@ func (s *Service) ResolvePlanBlock(ctx context.Context, cmd ResolvePlanBlockComm
 				}
 			}
 			s.auditTaskUnblocked(txCtx, t, cmd.Actor)
-		case pm.PlanBlockReplaceWithContinuation, pm.PlanBlockBypassRemoveNode, pm.PlanBlockPauseOrDiscardPlan:
-			return fmt.Errorf("%w: %s requires evolve_plan_generation or plan lifecycle command", pm.ErrInvalidPlanBlockResolution, kind)
+		case pm.PlanBlockReplaceWithContinuation, pm.PlanBlockBypassRemoveNode:
+			return fmt.Errorf("%w: %s requires evolve_plan_generation", pm.ErrInvalidPlanBlockResolution, kind)
+		case pm.PlanBlockPauseOrDiscardPlan:
+			switch strings.ToLower(strings.TrimSpace(cmd.Note)) {
+			case "discard":
+				if err := p.Discard(now); err != nil {
+					return err
+				}
+			default:
+				if err := p.Pause(now); err != nil {
+					return err
+				}
+			}
+			if err := s.plans.Update(txCtx, p); err != nil {
+				return err
+			}
 		}
 		if err := s.plans.ResolvePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, string(kind), strings.TrimSpace(cmd.Note), now); err != nil {
 			return err

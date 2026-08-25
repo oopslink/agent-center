@@ -101,9 +101,18 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 			if t.ProjectID() != p.ProjectID() {
 				return pm.ErrPlanProjectMismatch
 			}
+			if t.DeliveryContract() == "" || !t.DeliveryContract().IsValid() {
+				return pm.ErrInvalidDeliveryContract
+			}
 			if err := s.validateResolvableAssignee(txCtx, p, t); err != nil {
 				return err
 			}
+		}
+		if err := p.RequireOwner(); err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), p.OwnerRef()); err != nil {
+			return err
 		}
 		if err := p.Start(now); err != nil {
 			return err

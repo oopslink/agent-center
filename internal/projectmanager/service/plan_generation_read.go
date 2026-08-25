@@ -67,8 +67,14 @@ func (s *Service) GetPlanGenerations(ctx context.Context, planID pm.PlanID) (*Pl
 		return nil, err
 	}
 	activeTasks := make(map[pm.TaskID]bool)
-	for _, task := range lineage[len(lineage)-1].Snapshot.Tasks {
+	activeGeneration := lineage[len(lineage)-1]
+	for _, task := range activeGeneration.Snapshot.Tasks {
 		activeTasks[task.TaskID] = true
+	}
+	for _, decision := range activeGeneration.Diff.NodeDecisions {
+		if decision.Action == pm.EvolutionSupersede {
+			delete(activeTasks, decision.TaskID)
+		}
 	}
 	owned := make(map[pm.TaskID]bool)
 	for revision, generation := range lineage {

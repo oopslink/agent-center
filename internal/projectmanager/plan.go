@@ -315,6 +315,13 @@ func (p *Plan) SetOwner(owner, backup IdentityRef, at time.Time) error {
 	return nil
 }
 
+func (p *Plan) RequireOwner() error {
+	if p.ownerRef == "" {
+		return ErrPlanOwnerRequired
+	}
+	return p.ownerRef.Validate()
+}
+
 func (p *Plan) RequireAttention(eventID PlanBlockEventID, at time.Time) {
 	if p.attentionStatus != PlanAttentionEscalated {
 		p.attentionStatus = PlanAttentionRequired
