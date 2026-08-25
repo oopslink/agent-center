@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -697,12 +698,12 @@ func (r *PlanRepo) UpsertPlanBlockEvent(ctx context.Context, e *pm.PlanBlockEven
 		 (event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
 		  blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
 		  owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
-		  resolution_kind, resolution_note, notification_state, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		  resolution_kind, resolution_note, notification_state, notification_claimed_at, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(e.EventID), e.IdempotencyKey, string(e.PlanID), string(e.GenerationID), string(e.TaskID), e.NodeID, e.ExecutionID, e.BlockVersion,
 		e.BlockedReason, string(e.ReasonType), string(e.BlockedBy), ts(e.BlockedAt), boolToInt(e.Active), boolToInt(e.Effective), e.ImpactedDownstreamJSON,
 		string(e.OwnerRef), e.NextActionsJSON, tsPtr(&e.AcknowledgedAt), string(e.AcknowledgedBy), tsPtr(&e.ResolvedAt), string(e.ResolvedBy),
-		e.ResolutionKind, e.ResolutionNote, string(e.NotificationState), ts(e.CreatedAt), ts(e.UpdatedAt))
+		e.ResolutionKind, e.ResolutionNote, string(e.NotificationState), tsPtr(&e.NotificationClaimedAt), ts(e.CreatedAt), ts(e.UpdatedAt))
 	if err != nil {
 		return false, err
 	}
@@ -713,17 +714,17 @@ func (r *PlanRepo) UpsertPlanBlockEvent(ctx context.Context, e *pm.PlanBlockEven
 const planBlockEventSelect = `SELECT event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
 	blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
 	owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
-	resolution_kind, resolution_note, notification_state, created_at, updated_at FROM pm_plan_block_events`
+	resolution_kind, resolution_note, notification_state, notification_claimed_at, created_at, updated_at FROM pm_plan_block_events`
 
 func scanPlanBlockEvent(scan func(...any) error) (pm.PlanBlockEvent, error) {
 	var e pm.PlanBlockEvent
 	var eventID, planID, generationID, taskID, reasonType, blockedBy, blockedAt, ownerRef string
-	var ackAt, ackBy, resolvedAt, resolvedBy, notify, createdAt, updatedAt string
+	var ackAt, ackBy, resolvedAt, resolvedBy, notify, claimedAt, createdAt, updatedAt string
 	var active, effective int
 	if err := scan(&eventID, &e.IdempotencyKey, &planID, &generationID, &taskID, &e.NodeID, &e.ExecutionID, &e.BlockVersion,
 		&e.BlockedReason, &reasonType, &blockedBy, &blockedAt, &active, &effective, &e.ImpactedDownstreamJSON,
 		&ownerRef, &e.NextActionsJSON, &ackAt, &ackBy, &resolvedAt, &resolvedBy,
-		&e.ResolutionKind, &e.ResolutionNote, &notify, &createdAt, &updatedAt); err != nil {
+		&e.ResolutionKind, &e.ResolutionNote, &notify, &claimedAt, &createdAt, &updatedAt); err != nil {
 		return pm.PlanBlockEvent{}, err
 	}
 	e.EventID = pm.PlanBlockEventID(eventID)
@@ -741,6 +742,7 @@ func scanPlanBlockEvent(scan func(...any) error) (pm.PlanBlockEvent, error) {
 	e.ResolvedAt = parseTime(resolvedAt)
 	e.ResolvedBy = pm.IdentityRef(resolvedBy)
 	e.NotificationState = pm.PlanBlockNotificationState(notify)
+	e.NotificationClaimedAt = parseTime(claimedAt)
 	e.CreatedAt = parseTime(createdAt)
 	e.UpdatedAt = parseTime(updatedAt)
 	return e, nil
@@ -797,13 +799,16 @@ func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context)
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, planBlockEventSelect+`
 		WHERE active = 1 AND effective = 1 AND resolved_at = ''
-		  AND notification_state IN (?, ?, ?, ?, ?, ?)
+		  AND notification_state IN (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ORDER BY blocked_at, event_id`,
 		string(pm.PlanBlockNotifyPending),
+		string(pm.PlanBlockNotifySending),
 		string(pm.PlanBlockNotifyFailed),
 		string(pm.PlanBlockNotifySent),
+		string(pm.PlanBlockNotifyReminderSending),
 		string(pm.PlanBlockNotifyReminded),
 		string(pm.PlanBlockNotifyReminderFailed),
+		string(pm.PlanBlockNotifyEscalationSending),
 		string(pm.PlanBlockNotifyEscalationFailed),
 	)
 	if err != nil {
@@ -821,11 +826,47 @@ func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context)
 	return out, rows.Err()
 }
 
+func (r *PlanRepo) ClaimPlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at, staleBefore time.Time) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var eligible []pm.PlanBlockNotificationState
+	switch state {
+	case pm.PlanBlockNotifySending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifyPending, pm.PlanBlockNotifyFailed}
+	case pm.PlanBlockNotifyReminderSending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifySent, pm.PlanBlockNotifyReminderFailed}
+	case pm.PlanBlockNotifyEscalationSending:
+		eligible = []pm.PlanBlockNotificationState{pm.PlanBlockNotifySent, pm.PlanBlockNotifyReminded, pm.PlanBlockNotifyReminderFailed, pm.PlanBlockNotifyEscalationFailed}
+	default:
+		return false, fmt.Errorf("projectmanager sqlite: invalid notification claim state %q", state)
+	}
+	args := []any{string(state), ts(at), ts(at), string(eventID)}
+	var predicates []string
+	for _, st := range eligible {
+		predicates = append(predicates, "notification_state = ?")
+		args = append(args, string(st))
+	}
+	predicates = append(predicates, "(notification_state = ? AND notification_claimed_at != '' AND notification_claimed_at <= ?)")
+	args = append(args, string(state), ts(staleBefore))
+	res, err := exec.ExecContext(ctx, `UPDATE pm_plan_block_events
+		SET notification_state = ?, notification_claimed_at = ?, updated_at = ?
+		WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''
+		  AND (`+strings.Join(predicates, " OR ")+`)`, args...)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 func (r *PlanRepo) UpdatePlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	claimedAt := ""
+	if state == pm.PlanBlockNotifySending || state == pm.PlanBlockNotifyReminderSending || state == pm.PlanBlockNotifyEscalationSending {
+		claimedAt = ts(at)
+	}
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_plan_block_events SET notification_state = ?, updated_at = ? WHERE event_id = ?`,
-		string(state), ts(at), string(eventID))
+		`UPDATE pm_plan_block_events SET notification_state = ?, notification_claimed_at = ?, updated_at = ? WHERE event_id = ?`,
+		string(state), claimedAt, ts(at), string(eventID))
 	if err != nil {
 		return err
 	}

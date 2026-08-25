@@ -64,10 +64,14 @@ func (p *PlanBlockOwnerWakeProjector) Project(ctx context.Context, e outbox.Even
 		if !found || !fresh.Active || !fresh.Effective || !fresh.ResolvedAt.IsZero() {
 			return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 		}
-		if fresh.NotificationState == pm.PlanBlockNotifyPending || fresh.NotificationState == pm.PlanBlockNotifyFailed {
+		if phase2, ok := p.duePhase(txCtx, *fresh, now); ok && phase2 == planBlockNotifyInitial {
 			phase = planBlockNotifyInitial
-			if err := p.claimNotify(txCtx, fresh.EventID, phase, now); err != nil {
+			claimed, err := p.claimNotify(txCtx, fresh.EventID, phase, now)
+			if err != nil {
 				return err
+			}
+			if !claimed {
+				return nil
 			}
 			ev = fresh
 			return nil
@@ -108,10 +112,11 @@ func (p *PlanBlockOwnerWakeProjector) Tick(ctx context.Context) error {
 					return nil
 				}
 				if phase2, ok := p.duePhase(txCtx, *fresh, now); ok && phase2 == phase {
-					if err := p.claimNotify(txCtx, fresh.EventID, phase, now); err != nil {
+					var err error
+					claimed, err = p.claimNotify(txCtx, fresh.EventID, phase, now)
+					if err != nil {
 						return err
 					}
-					claimed = true
 				}
 				return nil
 			}); err != nil {
@@ -135,6 +140,8 @@ const (
 	planBlockNotifyEscalation planBlockNotifyPhase = "escalation"
 )
 
+const planBlockNotificationClaimLease = 2 * time.Minute
+
 func (p *PlanBlockOwnerWakeProjector) duePhase(ctx context.Context, ev pm.PlanBlockEvent, now time.Time) (planBlockNotifyPhase, bool) {
 	plan, err := p.plans.FindByID(ctx, ev.PlanID)
 	if err != nil || plan == nil {
@@ -146,6 +153,12 @@ func (p *PlanBlockOwnerWakeProjector) duePhase(ctx context.Context, ev pm.PlanBl
 	switch ev.NotificationState {
 	case pm.PlanBlockNotifyPending, pm.PlanBlockNotifyFailed:
 		return planBlockNotifyInitial, true
+	case pm.PlanBlockNotifySending:
+		return planBlockNotifyInitial, p.notificationClaimExpired(ev, now)
+	case pm.PlanBlockNotifyReminderSending:
+		return planBlockNotifyReminder, p.notificationClaimExpired(ev, now)
+	case pm.PlanBlockNotifyEscalationSending:
+		return planBlockNotifyEscalation, p.notificationClaimExpired(ev, now)
 	case pm.PlanBlockNotifySent, pm.PlanBlockNotifyReminded, pm.PlanBlockNotifyReminderFailed, pm.PlanBlockNotifyEscalationFailed:
 		if policy.EscalateAfterSeconds > 0 && !now.Before(escalateAt) {
 			return planBlockNotifyEscalation, true
@@ -157,8 +170,12 @@ func (p *PlanBlockOwnerWakeProjector) duePhase(ctx context.Context, ev pm.PlanBl
 	return "", false
 }
 
-func (p *PlanBlockOwnerWakeProjector) claimNotify(ctx context.Context, eventID pm.PlanBlockEventID, phase planBlockNotifyPhase, now time.Time) error {
-	return p.plans.UpdatePlanBlockEventNotification(ctx, eventID, sendingState(phase), now)
+func (p *PlanBlockOwnerWakeProjector) notificationClaimExpired(ev pm.PlanBlockEvent, now time.Time) bool {
+	return !ev.NotificationClaimedAt.IsZero() && !now.Before(ev.NotificationClaimedAt.Add(planBlockNotificationClaimLease))
+}
+
+func (p *PlanBlockOwnerWakeProjector) claimNotify(ctx context.Context, eventID pm.PlanBlockEventID, phase planBlockNotifyPhase, now time.Time) (bool, error) {
+	return p.plans.ClaimPlanBlockEventNotification(ctx, eventID, sendingState(phase), now, now.Add(-planBlockNotificationClaimLease))
 }
 
 func (p *PlanBlockOwnerWakeProjector) sendClaimed(ctx context.Context, ev *pm.PlanBlockEvent, phase planBlockNotifyPhase, now time.Time) error {
