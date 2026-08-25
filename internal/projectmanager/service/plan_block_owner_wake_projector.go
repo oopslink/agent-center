@@ -45,7 +45,9 @@ func (p *PlanBlockOwnerWakeProjector) Project(ctx context.Context, e outbox.Even
 		return nil
 	}
 	now := p.clock.Now()
-	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+	var ev *pm.PlanBlockEvent
+	var phase planBlockNotifyPhase
+	if err := persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
 		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
 			return err
 		} else if done {
@@ -55,20 +57,32 @@ func (p *PlanBlockOwnerWakeProjector) Project(ctx context.Context, e outbox.Even
 		if !ok {
 			return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 		}
-		ev, found, err := p.plans.FindPlanBlockEventByID(txCtx, eventID)
+		fresh, found, err := p.plans.FindPlanBlockEventByID(txCtx, eventID)
 		if err != nil {
 			return err
 		}
-		if !found || !ev.Active || !ev.Effective || !ev.ResolvedAt.IsZero() {
+		if !found || !fresh.Active || !fresh.Effective || !fresh.ResolvedAt.IsZero() {
 			return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 		}
-		if ev.NotificationState == pm.PlanBlockNotifyPending || ev.NotificationState == pm.PlanBlockNotifyFailed {
-			if err := p.notify(txCtx, ev, planBlockNotifyInitial, now); err != nil {
+		if fresh.NotificationState == pm.PlanBlockNotifyPending || fresh.NotificationState == pm.PlanBlockNotifyFailed {
+			phase = planBlockNotifyInitial
+			if err := p.claimNotify(txCtx, fresh.EventID, phase, now); err != nil {
 				return err
 			}
+			ev = fresh
+			return nil
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
-	})
+	}); err != nil {
+		return err
+	}
+	if ev == nil || phase == "" {
+		return nil
+	}
+	if err := p.sendClaimed(ctx, ev, phase, now); err != nil {
+		return err
+	}
+	return p.applied.MarkApplied(ctx, p.Name(), e.ID, now)
 }
 
 // Tick scans active block events and advances due notification phases. It is safe
@@ -84,6 +98,7 @@ func (p *PlanBlockOwnerWakeProjector) Tick(ctx context.Context) error {
 	now := p.clock.Now()
 	for _, ev := range events {
 		if phase, ok := p.duePhase(ctx, ev, now); ok {
+			claimed := false
 			if err := persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
 				fresh, found, err := p.plans.FindPlanBlockEventByID(txCtx, ev.EventID)
 				if err != nil || !found {
@@ -93,11 +108,19 @@ func (p *PlanBlockOwnerWakeProjector) Tick(ctx context.Context) error {
 					return nil
 				}
 				if phase2, ok := p.duePhase(txCtx, *fresh, now); ok && phase2 == phase {
-					return p.notify(txCtx, fresh, phase, now)
+					if err := p.claimNotify(txCtx, fresh.EventID, phase, now); err != nil {
+						return err
+					}
+					claimed = true
 				}
 				return nil
 			}); err != nil {
 				return err
+			}
+			if claimed {
+				if err := p.sendClaimed(ctx, &ev, phase, now); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -134,7 +157,11 @@ func (p *PlanBlockOwnerWakeProjector) duePhase(ctx context.Context, ev pm.PlanBl
 	return "", false
 }
 
-func (p *PlanBlockOwnerWakeProjector) notify(ctx context.Context, ev *pm.PlanBlockEvent, phase planBlockNotifyPhase, now time.Time) error {
+func (p *PlanBlockOwnerWakeProjector) claimNotify(ctx context.Context, eventID pm.PlanBlockEventID, phase planBlockNotifyPhase, now time.Time) error {
+	return p.plans.UpdatePlanBlockEventNotification(ctx, eventID, sendingState(phase), now)
+}
+
+func (p *PlanBlockOwnerWakeProjector) sendClaimed(ctx context.Context, ev *pm.PlanBlockEvent, phase planBlockNotifyPhase, now time.Time) error {
 	plan, err := p.plans.FindByID(ctx, ev.PlanID)
 	if err != nil {
 		return err
@@ -162,6 +189,17 @@ func (p *PlanBlockOwnerWakeProjector) notify(ctx context.Context, ev *pm.PlanBlo
 		return nil
 	}
 	return p.plans.UpdatePlanBlockEventNotification(ctx, ev.EventID, successState(phase), now)
+}
+
+func sendingState(phase planBlockNotifyPhase) pm.PlanBlockNotificationState {
+	switch phase {
+	case planBlockNotifyReminder:
+		return pm.PlanBlockNotifyReminderSending
+	case planBlockNotifyEscalation:
+		return pm.PlanBlockNotifyEscalationSending
+	default:
+		return pm.PlanBlockNotifySending
+	}
 }
 
 func (p *PlanBlockOwnerWakeProjector) target(ctx context.Context, plan *pm.Plan, phase planBlockNotifyPhase, now time.Time) (pm.IdentityRef, bool, error) {

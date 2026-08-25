@@ -28,7 +28,7 @@ func TestHumanDecisionSink_OnlyHumanDecision(t *testing.T) {
 	sink := NewHumanDecisionTimeoutSink(port, 3)
 	for _, wt := range []pm.WaitType{
 		pm.WaitUpstreamCompletion, pm.WaitAcceptanceVerdict, pm.WaitStageBarrier,
-		pm.WaitExternalEvent, pm.WaitExecutorLiveness, pm.WaitTimeoutOnly,
+		pm.WaitExternalEvent, pm.WaitExecutionActive, pm.WaitTimeoutOnly,
 	} {
 		if err := sink.OnTimeout(context.Background(), pm.TimeoutEvent{WaitType: wt, ProbeCount: 1}); err != nil {
 			t.Fatalf("OnTimeout(%s) err = %v", wt, err)

@@ -1090,7 +1090,7 @@ type blockedOnClass struct {
 // actually reject on. Priority order (most-specific first):
 //
 //  1. terminal (done/failed/skipped)        → clear
-//  2. running/paused (holds an exec lease)   → executor_liveness (marker; detection downstream)
+//  2. running/paused (holds an exec lease)   → execution_active
 //  3. acceptance hard gate holds it          → acceptance_verdict
 //  4. stage barrier holds it                 → stage_barrier
 //  5. it IS a pending decision/review node   → human_decision
@@ -1109,13 +1109,13 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if t.Status().IsParked() {
 			return blockedOnClass{pm.WaitHumanDecision, []string{string(t.ID())}, "the plan owner resolves the blocked task"}, false, nil
 		}
-		// In motion holding an execution lease → a marker so the downstream executor-
-		// liveness detector/takeover has a record to probe. Detection is NOT this task.
+		// In motion holding an execution lease. This is normal active work, not a
+		// liveness incident.
 		var keys []string
 		if a := strings.TrimSpace(string(t.Assignee())); a != "" {
 			keys = []string{a}
 		}
-		return blockedOnClass{pm.WaitExecutorLiveness, keys, "the executor holding the lease stays alive"}, false, nil
+		return blockedOnClass{pm.WaitExecutionActive, keys, "the active execution completes or parks"}, false, nil
 	}
 	// Non-terminal, non-running (ready / dispatched / blocked). Gate-aware checks first:
 	// a node deriving `ready` off the stage-UNAWARE view may still be gate-held.

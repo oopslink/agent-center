@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -297,5 +298,102 @@ func TestPlanBlockOwnerWake_FallbackWhenOwnerRemoved(t *testing.T) {
 	}
 	if latest := h.latestPlanMsgText(t, planID); !strings.Contains(latest, "@backup ") || !strings.Contains(latest, "owner was removed") {
 		t.Fatalf("fallback notification mismatch: %q", latest)
+	}
+}
+
+func TestPlanBlockOwnerAction_OnlyCurrentOwnerMayAckOrResolve(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-only", CreatedBy: "user:a", OwnerRef: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "blocked work", "user:a")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.StartTask(h.ctx, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.BlockTask(h.ctx, taskID, "waiting", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := h.svc.ListPlanBlockEvents(h.ctx, planID, true)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	if err := h.svc.AcknowledgePlanBlock(h.ctx, AcknowledgePlanBlockCommand{EventID: events[0].EventID, Actor: "user:b"}); !errors.Is(err, pm.ErrPlanOwnerOnly) {
+		t.Fatalf("ack by non-owner err=%v, want ErrPlanOwnerOnly", err)
+	}
+	if err := h.svc.ResolvePlanBlock(h.ctx, ResolvePlanBlockCommand{EventID: events[0].EventID, Actor: "user:b", ResolutionKind: string(pm.PlanBlockResumeOriginal), Note: "done"}); !errors.Is(err, pm.ErrPlanOwnerOnly) {
+		t.Fatalf("resolve by non-owner err=%v, want ErrPlanOwnerOnly", err)
+	}
+}
+
+func TestRemoveProjectMember_ImmediatelyFallbacksPlanOwner(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:owner", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:backup", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "fallback-now", CreatedBy: "user:a", OwnerRef: "user:owner", BackupOwnerRef: "user:backup",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.RemoveProjectMember(h.ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:owner", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.OwnerRef() != "user:backup" {
+		t.Fatalf("owner after removal = %s, want backup", plan.OwnerRef())
+	}
+}
+
+func TestPlanBlockOwnerWake_ReplayAfterClaimDoesNotDuplicateSend(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replay", CreatedBy: "user:a", OwnerRef: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "blocked work", "user:a")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.StartTask(h.ctx, taskID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.BlockTask(h.ctx, taskID, "waiting", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := h.svc.ListPlanBlockEvents(h.ctx, planID, true)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	if err := h.plans.UpdatePlanBlockEventNotification(h.ctx, events[0].EventID, pm.PlanBlockNotifySending, h.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	proj := NewPlanBlockOwnerWakeProjector(h.svc.db, h.plans, h.svc.members, h.svc.planDispatcher, nil, h.clk)
+	before := h.planConvMsgCount(t, planID)
+	if err := proj.Tick(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.planConvMsgCount(t, planID); got != before {
+		t.Fatalf("claimed notification replay sent duplicate: got %d want %d", got, before)
 	}
 }

@@ -694,12 +694,15 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	if hook := buildReminderTickHook(a, logger); hook != nil {
 		pump = pump.WithTickHook(hook)
 	}
-	if planBlockWake := buildPlanBlockOwnerWakeProjector(a, appliedRepo); planBlockWake != nil {
-		pump = pump.WithTickHook(func(ctx context.Context) {
-			if err := planBlockWake.Tick(ctx); err != nil {
-				logger("plan block owner wake tick: " + err.Error())
-			}
-		})
+	for _, proj := range projectors {
+		if planBlockWake, ok := proj.(*pmservice.PlanBlockOwnerWakeProjector); ok && planBlockWake != nil {
+			pump = pump.WithTickHook(func(ctx context.Context) {
+				if err := planBlockWake.Tick(ctx); err != nil {
+					logger("plan block owner wake tick: " + err.Error())
+				}
+			})
+			break
+		}
 	}
 	pumpCtx, pumpCancel := context.WithCancel(ctx)
 	go pump.Run(pumpCtx)

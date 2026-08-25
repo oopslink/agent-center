@@ -7,7 +7,7 @@ import "testing"
 func TestWaitType_IsValid(t *testing.T) {
 	valid := []WaitType{
 		WaitUpstreamCompletion, WaitAcceptanceVerdict, WaitStageBarrier,
-		WaitHumanDecision, WaitExternalEvent, WaitExecutorLiveness, WaitTimeoutOnly,
+		WaitHumanDecision, WaitExternalEvent, WaitExecutionActive, WaitTimeoutOnly,
 	}
 	if len(valid) != 7 {
 		t.Fatalf("expected 7 wait types, got %d", len(valid))

@@ -183,6 +183,7 @@ func (s *Service) RemoveProjectMember(ctx context.Context, cmd RemoveProjectMemb
 	if err := cmd.IdentityID.Validate(); err != nil {
 		return err
 	}
+	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		// Owner-only gate (stricter than requireProjectMember): the actor must be
 		// a member AND hold the owner role.
@@ -210,6 +211,19 @@ func (s *Service) RemoveProjectMember(ctx context.Context, cmd RemoveProjectMemb
 		}
 		if err := s.members.Delete(txCtx, target.ID()); err != nil {
 			return err
+		}
+		if s.plans != nil {
+			plans, err := s.plans.ListByProject(txCtx, cmd.ProjectID)
+			if err != nil {
+				return err
+			}
+			for _, p := range plans {
+				if p.OwnerRef() == cmd.IdentityID {
+					if err := s.reconcilePlanOwner(txCtx, p, cmd.Actor, "owner_removed", now); err != nil {
+						return err
+					}
+				}
+			}
 		}
 		return s.emit(txCtx, EvtMemberRemoved,
 			refsJSON(map[string]string{"project_id": string(cmd.ProjectID)}),

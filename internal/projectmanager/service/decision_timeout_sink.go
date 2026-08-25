@@ -17,7 +17,7 @@ import (
 //   - upstream_completion / stage_barrier / acceptance_verdict — released only by their
 //     own resolver (the upstream completing, the gate passing). The clock never releases
 //     them; re-probing them would be noise.
-//   - executor_liveness — the running-node lease marker. The center does NOT re-take an
+//   - execution_active — the running-node lease marker. The center does NOT re-take an
 //     executor here: ready-node re-dispatch is already covered by ReconcileRunningPlans'
 //     per-sweep dispatchReadyNodes, and a dead executor is recovered by the stuck-Running
 //     self-heal (issue-6ff12523) + the runtime's own self-recovery (v2.34.0). Re-building
