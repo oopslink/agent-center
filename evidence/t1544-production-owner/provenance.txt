@@ -1,0 +1,11 @@
+production_main=3cba9b306bb9a11cad7a2d1b1a0140f1f64df5cc
+production_tree=f18710d4010076c0ecc94e1aac7080c6d9392f44
+task=task-31b7cd50
+fixture_plan=plan-04fd1e00
+fixture_generation_g0=generation-eb4dabf6
+fixture_source_task=task-c338d336
+source_block_reason=T1544_ISOLATED_BLOCK
+source_block_message=01M0XGM0D55XX3VRZC5JNQ0NRS
+evolution_attempt_1=t1544-prod-isolated-replace-v1:plan_conflict
+evolution_attempt_2=t1544-prod-isolated-replace-v2:plan_conflict
+supervisor_inline_fork_command=01M0XGFC97VQY4085TEVAQGGXR:rejected
