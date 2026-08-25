@@ -61,6 +61,7 @@ func TestOutboxProjectors_RegistersEventConsumers(t *testing.T) {
 		"pm-participant-sync",
 		"env-agent-control",
 		"conv-agent-wake",
+		"pm-plan-block-owner-wake",
 		"task-dispatch-wake", // T465 (I34) — consumes pm.task.assigned/.reassigned/.state_changed → immediate agent.work_available
 	} {
 		if !got[required] {

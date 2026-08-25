@@ -675,6 +675,187 @@ func (r *PlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.Bl
 	return out, rows.Err()
 }
 
+// --- Plan Block Events -------------------------------------------------------
+
+func (r *PlanRepo) UpsertPlanBlockEvent(ctx context.Context, e *pm.PlanBlockEvent) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`INSERT OR IGNORE INTO pm_plan_block_events
+		 (event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
+		  blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
+		  owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
+		  resolution_kind, resolution_note, notification_state, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		string(e.EventID), e.IdempotencyKey, string(e.PlanID), string(e.GenerationID), string(e.TaskID), e.NodeID, e.ExecutionID, e.BlockVersion,
+		e.BlockedReason, string(e.ReasonType), string(e.BlockedBy), ts(e.BlockedAt), boolToInt(e.Active), boolToInt(e.Effective), e.ImpactedDownstreamJSON,
+		string(e.OwnerRef), e.NextActionsJSON, tsPtr(&e.AcknowledgedAt), string(e.AcknowledgedBy), tsPtr(&e.ResolvedAt), string(e.ResolvedBy),
+		e.ResolutionKind, e.ResolutionNote, string(e.NotificationState), ts(e.CreatedAt), ts(e.UpdatedAt))
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+const planBlockEventSelect = `SELECT event_id, idempotency_key, plan_id, generation_id, task_id, node_id, execution_id, block_version,
+	blocked_reason, reason_type, blocked_by, blocked_at, active, effective, impacted_downstream_json,
+	owner_ref, next_actions_json, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
+	resolution_kind, resolution_note, notification_state, created_at, updated_at FROM pm_plan_block_events`
+
+func scanPlanBlockEvent(scan func(...any) error) (pm.PlanBlockEvent, error) {
+	var e pm.PlanBlockEvent
+	var eventID, planID, generationID, taskID, reasonType, blockedBy, blockedAt, ownerRef string
+	var ackAt, ackBy, resolvedAt, resolvedBy, notify, createdAt, updatedAt string
+	var active, effective int
+	if err := scan(&eventID, &e.IdempotencyKey, &planID, &generationID, &taskID, &e.NodeID, &e.ExecutionID, &e.BlockVersion,
+		&e.BlockedReason, &reasonType, &blockedBy, &blockedAt, &active, &effective, &e.ImpactedDownstreamJSON,
+		&ownerRef, &e.NextActionsJSON, &ackAt, &ackBy, &resolvedAt, &resolvedBy,
+		&e.ResolutionKind, &e.ResolutionNote, &notify, &createdAt, &updatedAt); err != nil {
+		return pm.PlanBlockEvent{}, err
+	}
+	e.EventID = pm.PlanBlockEventID(eventID)
+	e.PlanID = pm.PlanID(planID)
+	e.GenerationID = pm.PlanGenerationID(generationID)
+	e.TaskID = pm.TaskID(taskID)
+	e.ReasonType = pm.BlockReasonType(reasonType)
+	e.BlockedBy = pm.IdentityRef(blockedBy)
+	e.BlockedAt = parseTime(blockedAt)
+	e.Active = active != 0
+	e.Effective = effective != 0
+	e.OwnerRef = pm.IdentityRef(ownerRef)
+	e.AcknowledgedAt = parseTime(ackAt)
+	e.AcknowledgedBy = pm.IdentityRef(ackBy)
+	e.ResolvedAt = parseTime(resolvedAt)
+	e.ResolvedBy = pm.IdentityRef(resolvedBy)
+	e.NotificationState = pm.PlanBlockNotificationState(notify)
+	e.CreatedAt = parseTime(createdAt)
+	e.UpdatedAt = parseTime(updatedAt)
+	return e, nil
+}
+
+func (r *PlanRepo) FindPlanBlockEventByKey(ctx context.Context, key string) (*pm.PlanBlockEvent, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	e, err := scanPlanBlockEvent(exec.QueryRowContext(ctx, planBlockEventSelect+` WHERE idempotency_key = ?`, key).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &e, true, nil
+}
+
+func (r *PlanRepo) FindPlanBlockEventByID(ctx context.Context, eventID pm.PlanBlockEventID) (*pm.PlanBlockEvent, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	e, err := scanPlanBlockEvent(exec.QueryRowContext(ctx, planBlockEventSelect+` WHERE event_id = ?`, string(eventID)).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &e, true, nil
+}
+
+func (r *PlanRepo) ListPlanBlockEvents(ctx context.Context, planID pm.PlanID, activeOnly bool) ([]pm.PlanBlockEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	q := planBlockEventSelect + ` WHERE plan_id = ?`
+	if activeOnly {
+		q += ` AND active = 1 AND effective = 1 AND resolved_at = ''`
+	}
+	q += ` ORDER BY blocked_at, event_id`
+	rows, err := exec.QueryContext(ctx, q, string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.PlanBlockEvent
+	for rows.Next() {
+		e, serr := scanPlanBlockEvent(rows.Scan)
+		if serr != nil {
+			return nil, serr
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) ListActivePlanBlockEventsForNotification(ctx context.Context) ([]pm.PlanBlockEvent, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, planBlockEventSelect+`
+		WHERE active = 1 AND effective = 1 AND resolved_at = ''
+		  AND notification_state IN (?, ?, ?, ?, ?, ?)
+		ORDER BY blocked_at, event_id`,
+		string(pm.PlanBlockNotifyPending),
+		string(pm.PlanBlockNotifyFailed),
+		string(pm.PlanBlockNotifySent),
+		string(pm.PlanBlockNotifyReminded),
+		string(pm.PlanBlockNotifyReminderFailed),
+		string(pm.PlanBlockNotifyEscalationFailed),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.PlanBlockEvent
+	for rows.Next() {
+		e, serr := scanPlanBlockEvent(rows.Scan)
+		if serr != nil {
+			return nil, serr
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) UpdatePlanBlockEventNotification(ctx context.Context, eventID pm.PlanBlockEventID, state pm.PlanBlockNotificationState, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plan_block_events SET notification_state = ?, updated_at = ? WHERE event_id = ?`,
+		string(state), ts(at), string(eventID))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanBlockEventNotFound
+	}
+	return nil
+}
+
+func (r *PlanRepo) AcknowledgePlanBlockEvent(ctx context.Context, eventID pm.PlanBlockEventID, actor pm.IdentityRef, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plan_block_events
+		 SET acknowledged_at = CASE WHEN acknowledged_at = '' THEN ? ELSE acknowledged_at END,
+		     acknowledged_by = CASE WHEN acknowledged_by = '' THEN ? ELSE acknowledged_by END,
+		     updated_at = ?
+		 WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''`,
+		ts(at), string(actor), ts(at), string(eventID))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanBlockEventNotFound
+	}
+	return nil
+}
+
+func (r *PlanRepo) ResolvePlanBlockEvent(ctx context.Context, eventID pm.PlanBlockEventID, actor pm.IdentityRef, kind, note string, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plan_block_events
+		 SET active = 0, resolved_at = ?, resolved_by = ?, resolution_kind = ?, resolution_note = ?, updated_at = ?
+		 WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''`,
+		ts(at), string(actor), kind, note, ts(at), string(eventID))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanBlockEventNotFound
+	}
+	return nil
+}
+
 // --- Plan generations --------------------------------------------------------
 
 func (r *PlanRepo) SaveGeneration(ctx context.Context, g *pm.PlanGeneration) error {
