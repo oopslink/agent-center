@@ -1,0 +1,17 @@
+Tue Aug 25 06:50:06 UTC 2026
+## HEAD (no branch)
+1a8a55e9e9b862c15c05300689c1b08cd328df7d
+cd web && pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 315ms using pnpm v10.31.0
+cd web && VITE_BUILD_SHA=1a8a55e9e9b862c15c05300689c1b08cd328df7d pnpm run build
+
+> agent-center-web@0.1.0 build /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-3e4ee0f6/.runtime-evidence/t1512-20260825T063958Z/fresh-clone-local-064920/web
+> tsc -b && vite build
+
+src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.
+src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'.
+ ELIFECYCLE  Command failed with exit code 2.
+make: *** [build-frontend] Error 2

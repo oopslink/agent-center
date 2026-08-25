@@ -1,0 +1,49 @@
+{
+  "task": "T1512",
+  "verdict": "BLOCKED",
+  "pass": false,
+  "reason": "Fresh build of origin/main@1a8a55e9e9b862c15c05300689c1b08cd328df7d failed before a deployable binary was produced, so real HTTP/MCP/UI deployment and product screenshots could not be collected.",
+  "code_object": {
+    "required_origin_main": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "observed_origin_main": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "fresh_clone_head": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "candidate_2b531b9d_is_origin_main_ancestor": true,
+    "mergepoint_976aa24f_is_origin_main_ancestor": true
+  },
+  "fresh_provenance": {
+    "attempted_remote_clone": ".runtime-evidence/t1512-20260825T063958Z/fresh-clone",
+    "remote_clone_note": "Remote partial clone succeeded but checkout/blob restore made no progress for several minutes and was interrupted; fallback used a new local clone after fetch-confirming the remote origin/main SHA.",
+    "fallback_fresh_clone": ".runtime-evidence/t1512-20260825T063958Z/fresh-clone-local-064920",
+    "node": "v25.6.0",
+    "pnpm": "10.31.0",
+    "go": "go1.26.3 darwin/arm64"
+  },
+  "build": {
+    "command": "make build",
+    "exit_code": 2,
+    "raw_log": "docs/acceptance/t1512-fresh-main/raw/make-build.log",
+    "failure": [
+      "src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.",
+      "src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'."
+    ]
+  },
+  "checklist": {
+    "remote_origin_main_exact_sha_verified": true,
+    "candidate_and_mergepoint_ancestor_verified": true,
+    "fresh_clone_or_equivalent_isolated_checkout_created": true,
+    "fresh_build_completed": false,
+    "independent_data_directory_created_for_running_service": false,
+    "independent_ports_bound": false,
+    "real_http_verified": false,
+    "real_mcp_verified": false,
+    "fresh_browser_session_used_for_product_ui": false,
+    "screenshots_ram_roles_system_custom": false,
+    "screenshots_managed_internal": false,
+    "direct_binding_default_no_resource_verified": false,
+    "permission_resource_kind_linkage_verified": false,
+    "no_visible_role_access_id_proliferation_verified": false,
+    "success_reject_revoke_states_verified": false,
+    "console_network_captured": false,
+    "product_code_modified": false
+  }
+}
