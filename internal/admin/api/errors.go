@@ -77,6 +77,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskNotRunnable):
 		writeError(w, http.StatusConflict, "task_not_runnable", err.Error())
 
+	case errors.Is(err, pm.ErrDeliveryContractMismatch):
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":       "delivery_contract_mismatch",
+			"message":     err.Error(),
+			"next_action": "discard/supersede this node or recreate it with delivery_contract=evidence_only; evidence_only still must commit and push runtime evidence to the canonical executor branch",
+		})
+
 	// ---- task_blocked (409) — v2.14.0 I14/F5 §2.5: heartbeat on a blocked task. A
 	// blocked task is a lease-free legal pause, so there is no lease to renew. ----
 	case errors.Is(err, pm.ErrTaskBlocked):

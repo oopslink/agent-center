@@ -137,6 +137,39 @@ func TestCompleteTaskRejectsReportedZeroDelivery(t *testing.T) {
 	}
 }
 
+func TestCompleteTaskEvidenceOnlyAcceptsPushedRuntimeEvidenceCommit(t *testing.T) {
+	svc, _, ctx := flowSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{
+		ProjectID: pid, Title: "final verification", CreatedBy: "user:a",
+		DeliveryContract: pm.DeliveryEvidenceOnly,
+	})
+	if err := svc.AssignTask(ctx, tid, "user:b", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartTask(ctx, tid, "user:b"); err != nil {
+		t.Fatal(err)
+	}
+	task, err := svc.tasks.FindByID(ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.SetDelivery(&pm.Delivery{
+		Probed: true, Pushed: true, Dirty: false, Branch: "ac-exec/task/evidence",
+		HeadSHA: "evidence-sha", BaseKnown: true, AheadOfBase: 1,
+		Source: "executor", ExecutorID: "exec-1", Evidence: "runtime evidence committed and pushed",
+	})
+	if err := svc.tasks.Update(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
+		t.Fatalf("evidence_only pushed evidence completion rejected: %v", err)
+	}
+}
+
 // TestReassign_DropsOldAssigneeFromSubscribers is the §4.2/ADR-0052 acceptance:
 // on reassignment the previous assignee leaves the effective subscriber set
 // (unless creator/manual), and the new assignee joins it.

@@ -191,6 +191,13 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	if prevFailed || !pm.TaskIsFailed(t.Status()) {
 		return nil // not a →failed transition (already failed, or not failed) → nothing to notify.
 	}
+	frontier, ferr := p.failureFrontier(txCtx, plan, t.ID())
+	if ferr != nil {
+		return ferr
+	}
+	if !frontier.Effective {
+		return nil
+	}
 	// reminder-event: a plan task's →failed edge is the plan's "failed" signal (the
 	// plan aggregate has no failed state of its own). Emit pm.plan.failed IN THIS SAME
 	// TX so on_event reminders watching this plan (event=failed) are armed — regardless
@@ -208,9 +215,9 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	// plan-conversation reminder is unambiguous; fall back to title-only when unallocated.
 	var content string
 	if ref := taskRefToken(t); ref != "" {
-		content = fmt.Sprintf("task %s %q failed — its downstream is blocked pending resolution.", ref, t.Title())
+		content = fmt.Sprintf("task %s %q failed — its downstream is blocked pending resolution (generation=%s effective=%t).", ref, t.Title(), frontier.GenerationLabel(), frontier.Effective)
 	} else {
-		content = fmt.Sprintf("task %q failed — its downstream is blocked pending resolution.", t.Title())
+		content = fmt.Sprintf("task %q failed — its downstream is blocked pending resolution (generation=%s effective=%t).", t.Title(), frontier.GenerationLabel(), frontier.Effective)
 	}
 	msgID, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
 	if perr != nil {
@@ -262,7 +269,71 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 			PlanID:         string(plan.ID()),
 			TaskID:         string(t.ID()),
 			OrganizationID: orgID,
+			GenerationID:   string(frontier.GenerationID),
+			Generation:     frontier.Revision,
+			Effective:      frontier.Effective,
 		})
+}
+
+type failureFrontierInfo struct {
+	GenerationID pm.PlanGenerationID
+	Revision     int
+	Effective    bool
+}
+
+func (f failureFrontierInfo) GenerationLabel() string {
+	if f.GenerationID == "" {
+		return "legacy"
+	}
+	return fmt.Sprintf("%d/%s", f.Revision, f.GenerationID)
+}
+
+func (p *PlanOrchestratorProjector) failureFrontier(txCtx context.Context, plan *pm.Plan, taskID pm.TaskID) (failureFrontierInfo, error) {
+	info := failureFrontierInfo{Effective: true}
+	tasks, err := p.svc.tasks.ListByPlan(txCtx, plan.ID())
+	if err != nil {
+		return info, err
+	}
+	edges, err := p.svc.plans.ListDependencies(txCtx, plan.ID())
+	if err != nil {
+		return info, err
+	}
+	records, err := p.svc.plans.ListDispatchRecords(txCtx, plan.ID())
+	if err != nil {
+		return info, err
+	}
+	outcomes, err := p.svc.plans.ListDecisionOutcomes(txCtx, plan.ID())
+	if err != nil {
+		return info, err
+	}
+	opts, err := p.svc.planViewOptions(txCtx, plan, tasks, edges)
+	if err != nil {
+		return info, err
+	}
+	view := pm.DerivePlanViewWithOptions(tasks, edges, records, outcomes, nil, opts)
+	for _, n := range view.Nodes {
+		if n.TaskID == taskID {
+			info.Effective = n.Effective
+			break
+		}
+	}
+	if plan.ActiveGenerationID() == "" {
+		return info, nil
+	}
+	read, err := p.svc.GetPlanGenerations(txCtx, plan.ID())
+	if err != nil {
+		return info, err
+	}
+	for _, owner := range read.Nodes {
+		if owner.TaskID == taskID {
+			info.GenerationID = owner.GenerationID
+			info.Revision = owner.Revision
+			info.Effective = info.Effective && owner.PresentInActive
+			return info, nil
+		}
+	}
+	info.Effective = false
+	return info, nil
 }
 
 // targetPlan extracts the Plan id this event should advance. For

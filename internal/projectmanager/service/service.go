@@ -682,6 +682,9 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+	GenerationID   string `json:"generation_id,omitempty"`
+	Generation     int    `json:"generation,omitempty"`
+	Effective      bool   `json:"effective"`
 }
 
 // taskLeaseExpiredNudgePayload is the JSON payload for EvtTaskLeaseExpiredNudge

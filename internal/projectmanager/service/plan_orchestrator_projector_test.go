@@ -622,6 +622,53 @@ func TestOrchestrator_FailureWakesAgentCreator(t *testing.T) {
 	if strings.TrimSpace(pl.MessageID) == "" {
 		t.Fatal("creator-wake MessageID is empty — the WakeProjector needs the failure @mention id as its converse idempotency anchor")
 	}
+	if !pl.Effective {
+		t.Fatal("creator-wake Effective=false, want true for current frontier failure")
+	}
+}
+
+func TestOrchestrator_SupersededHistoricalFailureDoesNotNotify(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "historical-failure", CreatedBy: "user:a"})
+	h.drain(t)
+	old := h.seedAssignedTask(t, pid, planID, "old QA", "user:x")
+	successor, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{
+		ProjectID: pid, Title: "successor QA", CreatedBy: "user:a",
+		Assignee: "user:y", FollowsTaskID: old,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, successor, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	baseMentions := h.mentionCount(t, planID, "user:a")
+
+	h.setTaskStatus(t, old, pm.TaskDiscarded)
+	h.drain(t)
+
+	if got := h.mentionCount(t, planID, "user:a"); got != baseMentions {
+		t.Fatalf("superseded historical failure notified creator: got %d want %d", got, baseMentions)
+	}
+	detail, err := h.svc.GetPlanDetail(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[pm.TaskID]pm.PlanNodeView{}
+	for _, node := range detail.View.Nodes {
+		byID[node.TaskID] = node
+	}
+	if byID[old].Effective {
+		t.Fatal("old failed node effective=true, want historical effective=false")
+	}
+	if !byID[successor].Effective {
+		t.Fatal("successor effective=false, want current effective=true")
+	}
 }
 
 // TestOrchestrator_FailureHumanCreator_NoWake asserts the AGENT-ONLY gate: a

@@ -99,6 +99,11 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status() == pm.TaskRunning {
 		return nil
 	}
+	if t.DeliveryContract().Effective() == pm.DeliveryCodeChange {
+		if inferred, ok := pm.InferredDeliveryContract(t.Title(), t.Description()); ok && inferred == pm.DeliveryEvidenceOnly {
+			return pm.ErrDeliveryContractMismatch
+		}
+	}
 	planID := t.PlanID()
 	if planID == "" {
 		if s.pools != nil {

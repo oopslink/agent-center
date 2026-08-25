@@ -125,6 +125,49 @@ func TestEnsureTaskRunnable_RealPlanNode_OK(t *testing.T) {
 	}
 }
 
+func TestCreateTask_QADeliveryContractDefaultsEvidenceOnlyAndLegacyMismatchStopsStart(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "qa-contract", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+
+	auto := h.seedAssignedTask(t, pid, planID, "deployment acceptance screenshot QA", "user:x")
+	task, err := h.svc.tasks.FindByID(h.ctx, auto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.DeliveryContract() != pm.DeliveryEvidenceOnly {
+		t.Fatalf("QA task delivery_contract=%q, want evidence_only", task.DeliveryContract())
+	}
+
+	legacy, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{
+		ProjectID: pid, Title: "verification detached final-main", CreatedBy: "user:a",
+		DeliveryContract: pm.DeliveryCodeChange,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, legacy, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AssignTask(h.ctx, legacy, "user:x", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.EnsureTaskRunnable(h.ctx, legacy); !errors.Is(err, pm.ErrDeliveryContractMismatch) {
+		t.Fatalf("legacy QA code_change start gate=%v, want ErrDeliveryContractMismatch", err)
+	}
+}
+
 // T329: a real-plan node whose plan is still DRAFT is NOT runnable (the dispatch/
 // start gate respects plan run-state). This pins the behavior the pre-fix gate got
 // wrong (it returned nil for any structured-plan member regardless of plan state).

@@ -224,6 +224,34 @@ func (d DeliveryContract) Effective() DeliveryContract {
 	return d
 }
 
+// InferredDeliveryContract returns the runtime delivery contract implied by a
+// task's human-facing text. Verification/QA/screenshot/deployment-acceptance
+// nodes produce runtime evidence rather than product source changes, so omitted
+// contracts default to evidence_only instead of legacy code_change.
+func InferredDeliveryContract(title, description string) (DeliveryContract, bool) {
+	text := strings.ToLower(strings.TrimSpace(title + "\n" + description))
+	if text == "" {
+		return "", false
+	}
+	for _, token := range strings.FieldsFunc(text, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+	}) {
+		if token == "qa" {
+			return DeliveryEvidenceOnly, true
+		}
+	}
+	for _, marker := range []string{
+		"verification", "verify", "quality assurance", "screenshot",
+		"deployment acceptance", "deploy acceptance", "acceptance",
+		"验收", "截图", "复验", "验证", "质检",
+	} {
+		if strings.Contains(text, marker) {
+			return DeliveryEvidenceOnly, true
+		}
+	}
+	return DeliveryCodeChange, false
+}
+
 // TaskAction names a lifecycle event recorded on a Task's append-only action log
 // (issue I14 §2.4). The TaskActionLog replaces the deleted AgentWorkItem
 // transition history — reassignment, block/unblock, lease expiry, etc. all become

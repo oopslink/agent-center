@@ -337,6 +337,11 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 	if !cmd.DeliveryContract.IsValid() {
 		return "", pm.ErrInvalidDeliveryContract
 	}
+	if cmd.DeliveryContract == "" {
+		if inferred, ok := pm.InferredDeliveryContract(cmd.Title, cmd.Description); ok && inferred == pm.DeliveryEvidenceOnly {
+			cmd.DeliveryContract = pm.DeliveryEvidenceOnly
+		}
+	}
 	now := s.clock.Now()
 	taskID := pm.TaskID(s.idgen.NewEntityID("task"))
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
