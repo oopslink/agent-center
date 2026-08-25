@@ -2245,16 +2245,25 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
     expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('1/3 done');
     expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 tasks');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 tasks');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g1');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0');
+    expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));
+    let detail = await screen.findByTestId('plan-dag-evolution-selected-detail');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 tasks');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g1');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0');
+    fireEvent.click(within(detail).getByTestId('plan-dag-evolution-detail-close'));
 
     const node = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
     expect(within(node).getByTestId('plan-node-generation')).toHaveTextContent('R2');
 
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
-    await waitFor(() => expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0'));
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));
+    detail = await screen.findByTestId('plan-dag-evolution-selected-detail');
+    await waitFor(() => expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0'));
+    fireEvent.click(within(detail).getByTestId('plan-dag-evolution-detail-close'));
     expect(screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]')).not.toBeInTheDocument();
     expect(screen.getAllByText('design schema at G0').length).toBeGreaterThan(0);
 
@@ -2263,7 +2272,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(within(row).getByTestId('plan-row-generation')).toHaveTextContent('R2');
   });
 
-  it('paginates long PlanGeneration history without clipping older revisions', async () => {
+  it('keeps long PlanGeneration history in a compact horizontal strip without hiding DAG', async () => {
     const generations = Array.from({ length: 8 }, (_, revision) => ({
       id: `generation-g${revision}`,
       plan_id: 'PL-1',
@@ -2301,14 +2310,11 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
 
     const panel = await screen.findByTestId('plan-dag-evolution');
-    await waitFor(() => expect(within(panel).getByTestId('plan-dag-evolution-page-label')).toHaveTextContent('Page 2 of 2'));
-    expect(within(panel).getByTestId('plan-dag-evolution-revision-8')).toBeInTheDocument();
-    expect(within(panel).queryByTestId('plan-dag-evolution-revision-1')).not.toBeInTheDocument();
-
-    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-page-previous'));
-    expect(within(panel).getByTestId('plan-dag-evolution-page-label')).toHaveTextContent('Page 1 of 2');
+    expect(within(panel).queryByTestId('plan-dag-evolution-page-label')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+    expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
     expect(within(panel).getByTestId('plan-dag-evolution-revision-1')).toBeInTheDocument();
-    expect(within(panel).queryByTestId('plan-dag-evolution-revision-8')).not.toBeInTheDocument();
+    expect(within(panel).getByTestId('plan-dag-evolution-revision-8')).toBeInTheDocument();
   });
 
   it('renders an orchestration-graph history revision from its immutable snapshot', async () => {

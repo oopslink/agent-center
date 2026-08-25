@@ -2833,10 +2833,6 @@ function stageTaskIdSet(stages: PlanStage[]): Set<string> {
   return ids;
 }
 
-function shortLineageId(id?: string): string {
-  return id ? id.slice(0, 8) : '';
-}
-
 function usableGenerationRead(read: PlanGenerationRead | undefined): PlanGenerationRead | undefined {
   if (!read) return undefined;
   return read.generations.length > 0 || read.nodes.length > 0 ? read : undefined;
@@ -3058,19 +3054,15 @@ function DagEvolutionPanel({
   const { t } = useTranslation('work');
   const [collapsed, setCollapsed] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [revisionPage, setRevisionPage] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
   const panelBodyId = React.useId();
-  const revisionsPerPage = 6;
+  const detailTitleId = React.useId();
+  const detailDialogRef = useModalA11y({ open: detailOpen, onClose: () => setDetailOpen(false) });
 
   const selectedIndex = Math.max(0, revisions.findIndex((revision) => revision.generation === selectedGeneration));
   const selected = revisions[selectedIndex] ?? revisions[revisions.length - 1] ?? null;
   const latest = revisions[revisions.length - 1] ?? null;
   const progressPct = revisions.length <= 1 ? 100 : Math.round((selectedIndex / (revisions.length - 1)) * 100);
-  const revisionPageCount = Math.max(1, Math.ceil(revisions.length / revisionsPerPage));
-  const visibleRevisions = revisions.slice(
-    revisionPage * revisionsPerPage,
-    (revisionPage + 1) * revisionsPerPage,
-  );
   const collapseLabel = collapsed
     ? t('plan.detail.dag.evolution.expand')
     : t('plan.detail.dag.evolution.collapse');
@@ -3087,263 +3079,77 @@ function DagEvolutionPanel({
     return () => window.clearTimeout(timer);
   }, [playing, revisions, selectedIndex, onSelectGeneration]);
 
-  useEffect(() => {
-    setRevisionPage(Math.floor(selectedIndex / revisionsPerPage));
-  }, [selectedIndex]);
-
   if (selected == null || latest == null) return null;
 
   return (
-    <section
-      className="mb-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1"
-      data-testid="plan-dag-evolution"
-      data-collapsed={collapsed ? 'true' : 'false'}
-    >
-      <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-subtle text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-label={collapseLabel}
-          title={collapseLabel}
-          aria-expanded={!collapsed}
-          aria-controls={panelBodyId}
-          data-testid="plan-dag-evolution-toggle"
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          <DagEvolutionChevron open={!collapsed} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
-            <span
-              className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
-              data-testid="plan-dag-evolution-active-revision"
-            >
-              {selected.label}
-            </span>
-            <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-progress-label">
-              {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
-            </span>
-          </div>
-          <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
-            <span className="font-semibold text-text-primary">{selected.title}</span>
-            <span className="text-text-muted">
-              {' '}
-              · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
-            </span>
-            {selected.progress && (
-              <span className="text-text-muted" data-testid="plan-dag-evolution-generation-progress">
-                {' '}
-                · {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
-              </span>
-            )}
-            {selected.diff && (
-              <span className="text-text-muted" data-testid="plan-dag-evolution-diff">
-                {' '}
-                · {evolutionDiffLabel(selected.diff, t)}
-              </span>
-            )}
-            {selected.verdictOutcome && (
-              <span className="text-text-muted"> · {selected.verdictOutcome}</span>
-            )}
-          </p>
-        </div>
-        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+    <>
+      <section
+        className="mb-2 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1"
+        data-testid="plan-dag-evolution"
+        data-collapsed={collapsed ? 'true' : 'false'}
+      >
+        <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
           <button
             type="button"
-            className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-            data-testid="plan-dag-evolution-current"
-            disabled={selected.generation === latest.generation}
-            onClick={() => {
-              setPlaying(false);
-              onSelectGeneration(latest.generation);
-            }}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-subtle text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            aria-label={collapseLabel}
+            title={collapseLabel}
+            aria-expanded={!collapsed}
+            aria-controls={panelBodyId}
+            data-testid="plan-dag-evolution-toggle"
+            onClick={() => setCollapsed((v) => !v)}
           >
-            {t('plan.detail.dag.evolution.current')}
+            <DagEvolutionChevron open={!collapsed} />
           </button>
-          <button
-            type="button"
-            className="rounded bg-accent px-2.5 py-1 text-xs font-semibold text-white shadow-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-            data-testid="plan-dag-evolution-play"
-            disabled={revisions.length <= 1}
-            onClick={() => {
-              if (playing) {
-                setPlaying(false);
-                return;
-              }
-              if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
-              setPlaying(true);
-            }}
-          >
-            {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
-          </button>
-        </div>
-      </div>
-
-      <div className="h-1 bg-bg-subtle" aria-hidden="true">
-        <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
-      </div>
-
-      {!collapsed && (
-        <div id={panelBodyId} className="grid gap-2 p-3" data-testid="plan-dag-evolution-body">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="plan-dag-evolution-revisions">
-            {visibleRevisions.map((revision) => {
-              const active = revision.generation === selected.generation;
-              return (
-                <button
-                  key={revision.generation}
-                  type="button"
-                  className={`flex min-h-[7.5rem] min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                    active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
-                  }`}
-                  aria-pressed={active}
-                  data-testid={`plan-dag-evolution-revision-${revision.revision}`}
-                  data-active={active ? 'true' : 'false'}
-                  onClick={() => {
-                    setPlaying(false);
-                    onSelectGeneration(revision.generation);
-                  }}
-                >
-                  <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
-                    <span className="shrink-0 font-mono text-xs font-bold text-text-primary">{revision.label}</span>
-                    <span className="min-w-0 truncate text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
-                      {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
-                    </span>
-                  </div>
-                  <div className="line-clamp-2 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary">{revision.title}</div>
-                  <div className="mt-1 line-clamp-2 min-w-0 break-words text-[0.6875rem] leading-4 text-text-secondary" data-testid={`plan-dag-evolution-reason-${revision.revision}`}>
-                    <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
-                    {revision.reason}
-                  </div>
-                  {(revision.progress || revision.diff) && (
-                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.625rem] text-text-muted">
-                      {revision.progress && (
-                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono" data-testid={`plan-dag-evolution-progress-${revision.revision}`}>
-                          {revision.progress.done}/{revision.progress.total}
-                        </span>
-                      )}
-                      {revision.diff && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5" data-testid={`plan-dag-evolution-diff-${revision.revision}`}>
-                          {evolutionDiffLabel(revision.diff, t)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {(revision.generationId || revision.parentGenerationId || revision.verdictId || revision.continuationId || revision.createdAt) && (
-                    <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2 text-[0.625rem] text-text-muted">
-                      {revision.generationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.generationId}>
-                          {t('plan.detail.dag.evolution.generationId', { id: shortLineageId(revision.generationId) })}
-                        </span>
-                      )}
-                      {revision.parentGenerationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.parentGenerationId}>
-                          {t('plan.detail.dag.evolution.parentId', { id: shortLineageId(revision.parentGenerationId) })}
-                        </span>
-                      )}
-                      {revision.verdictId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
-                          {revision.verdictOutcome
-                            ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: revision.verdictOutcome, id: shortLineageId(revision.verdictId) })
-                            : t('plan.detail.dag.evolution.verdict', { id: shortLineageId(revision.verdictId) })}
-                        </span>
-                      )}
-                      {revision.continuationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
-                          {t('plan.detail.dag.evolution.continuation', { id: shortLineageId(revision.continuationId) })}
-                        </span>
-                      )}
-                      {revision.createdAt && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5">
-                          {formatLocalTime(revision.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {revisionPageCount > 1 && (
-            <nav className="flex items-center justify-between gap-3" aria-label={t('plan.detail.dag.evolution.pagination')}>
-              <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-page-label">
-                {t('plan.detail.dag.evolution.page', { current: revisionPage + 1, total: revisionPageCount })}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  className="rounded border border-border-base bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
-                  data-testid="plan-dag-evolution-page-previous"
-                  disabled={revisionPage === 0}
-                  onClick={() => setRevisionPage((page) => Math.max(0, page - 1))}
-                >
-                  {t('plan.detail.dag.evolution.previous')}
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-border-base bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
-                  data-testid="plan-dag-evolution-page-next"
-                  disabled={revisionPage >= revisionPageCount - 1}
-                  onClick={() => setRevisionPage((page) => Math.min(revisionPageCount - 1, page + 1))}
-                >
-                  {t('plan.detail.dag.evolution.next')}
-                </button>
-              </div>
-            </nav>
-          )}
-          <div
-            className="rounded-lg border border-border-base bg-bg-subtle/60 p-3"
-            data-testid="plan-dag-evolution-selected-detail"
-          >
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
+              <span
+                className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
+                data-testid="plan-dag-evolution-active-revision"
+              >
                 {selected.label}
               </span>
-              <span className="min-w-0 break-words text-xs font-semibold text-text-primary">{selected.title}</span>
-              <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-                {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+              <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-progress-label">
+                {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
+              </span>
+            </div>
+            <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
+              <span className="font-semibold text-text-primary">{selected.title}</span>
+              <span className="text-text-muted">
+                {' '}
+                · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
               </span>
               {selected.progress && (
-                <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
-                  {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+                <span className="text-text-muted" data-testid="plan-dag-evolution-generation-progress">
+                  {' '}
+                  · {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
                 </span>
               )}
-              {selected.active && (
-                <span className="rounded bg-success px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
-                  {t('plan.detail.dag.evolution.active')}
+              {selected.diff && (
+                <span className="text-text-muted" data-testid="plan-dag-evolution-diff">
+                  {' '}
+                  · {evolutionDiffLabel(selected.diff, t)}
                 </span>
               )}
-            </div>
-            <div
-              className="mt-2 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
-              data-testid="plan-dag-evolution-selected-reason"
-            >
-              <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
-              {selected.reason}
-            </div>
-            {selected.diff && (
-              <div className="mt-2 text-xs text-text-secondary" data-testid="plan-dag-evolution-selected-diff">
-                <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.diffLabel')}: </span>
-                {evolutionDiffLabel(selected.diff, t)}
-              </div>
-            )}
-            {selected.idempotencyKey && (
-              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.idempotencyKey}>
-                {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
-              </div>
-            )}
-            {selected.generationId && (
-              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.generationId} data-testid="plan-dag-evolution-selected-generation-id">
-                {t('plan.detail.dag.evolution.generationId', { id: selected.generationId })}
-                {selected.parentGenerationId ? ` · ${t('plan.detail.dag.evolution.parentId', { id: selected.parentGenerationId })}` : ''}
-              </div>
-            )}
+              {selected.verdictOutcome && (
+                <span className="text-text-muted"> · {selected.verdictOutcome}</span>
+              )}
+            </p>
           </div>
-          <div className="flex gap-1.5 sm:hidden">
+          <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
             <button
               type="button"
-              className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-              data-testid="plan-dag-evolution-current-mobile"
+              className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="plan-dag-evolution-detail-open"
+              onClick={() => setDetailOpen(true)}
+            >
+              {t('plan.detail.dag.evolution.details')}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-current"
               disabled={selected.generation === latest.generation}
               onClick={() => {
                 setPlaying(false);
@@ -3354,8 +3160,8 @@ function DagEvolutionPanel({
             </button>
             <button
               type="button"
-              className="flex-1 rounded bg-accent px-2.5 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-              data-testid="plan-dag-evolution-play-mobile"
+              className="rounded bg-accent px-2.5 py-1 text-xs font-semibold text-white shadow-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-play"
               disabled={revisions.length <= 1}
               onClick={() => {
                 if (playing) {
@@ -3370,8 +3176,206 @@ function DagEvolutionPanel({
             </button>
           </div>
         </div>
+
+        <div className="h-1 bg-bg-subtle" aria-hidden="true">
+          <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        {!collapsed && (
+          <div id={panelBodyId} className="space-y-2 p-2.5" data-testid="plan-dag-evolution-body">
+            <div
+              className="flex max-h-[5.75rem] gap-2 overflow-x-auto overflow-y-hidden pb-1"
+              data-testid="plan-dag-evolution-revisions"
+            >
+              {revisions.map((revision) => {
+                const active = revision.generation === selected.generation;
+                return (
+                  <button
+                    key={revision.generation}
+                    type="button"
+                    className={`flex h-20 w-44 shrink-0 flex-col overflow-hidden rounded-md border px-2.5 py-2 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
+                    }`}
+                    aria-pressed={active}
+                    data-testid={`plan-dag-evolution-revision-${revision.revision}`}
+                    data-active={active ? 'true' : 'false'}
+                    onClick={() => {
+                      setPlaying(false);
+                      onSelectGeneration(revision.generation);
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="shrink-0 font-mono text-xs font-bold text-text-primary">{revision.label}</span>
+                      {revision.active && (
+                        <span className="rounded bg-success px-1 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-white">
+                          {t('plan.detail.dag.evolution.active')}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="mt-1 line-clamp-1 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary"
+                      data-testid={`plan-dag-evolution-reason-${revision.revision}`}
+                    >
+                      {revision.title}
+                    </div>
+                    <div className="mt-auto flex min-w-0 items-center gap-1.5 text-[0.625rem] text-text-muted">
+                      <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5">
+                        {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
+                      </span>
+                      {revision.progress && (
+                        <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 font-mono" data-testid={`plan-dag-evolution-progress-${revision.revision}`}>
+                          {revision.progress.done}/{revision.progress.total}
+                        </span>
+                      )}
+                      {revision.diff && (
+                        <span className="min-w-0 truncate rounded bg-bg-subtle px-1.5 py-0.5" data-testid={`plan-dag-evolution-diff-${revision.revision}`}>
+                          {evolutionDiffLabel(revision.diff, t)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-1.5 sm:hidden">
+              <button
+                type="button"
+                className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                data-testid="plan-dag-evolution-detail-open-mobile"
+                onClick={() => setDetailOpen(true)}
+              >
+                {t('plan.detail.dag.evolution.details')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                data-testid="plan-dag-evolution-current-mobile"
+                disabled={selected.generation === latest.generation}
+                onClick={() => {
+                  setPlaying(false);
+                  onSelectGeneration(latest.generation);
+                }}
+              >
+                {t('plan.detail.dag.evolution.current')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded bg-accent px-2.5 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                data-testid="plan-dag-evolution-play-mobile"
+                disabled={revisions.length <= 1}
+                onClick={() => {
+                  if (playing) {
+                    setPlaying(false);
+                    return;
+                  }
+                  if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
+                  setPlaying(true);
+                }}
+              >
+                {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {detailOpen && (
+        <div
+          ref={detailDialogRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={detailTitleId}
+          data-testid="plan-dag-evolution-detail-modal"
+          onClick={() => setDetailOpen(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-lg border border-border-base bg-bg-elevated text-text-primary shadow-[var(--shadow-3)]"
+            data-testid="plan-dag-evolution-selected-detail"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
+              <div className="min-w-0">
+                <h2 id={detailTitleId} className="text-sm font-semibold">
+                  {t('plan.detail.dag.evolution.detailTitle', { revision: selected.label })}
+                </h2>
+                <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">{selected.title}</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-label={t('plan.detail.dag.evolution.closeDetails')}
+                data-testid="plan-dag-evolution-detail-close"
+                onClick={() => setDetailOpen(false)}
+              >
+                <IconClose className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[calc(85vh-4rem)] space-y-4 overflow-y-auto p-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg">
+                  {selected.label}
+                </span>
+                <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+                  {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+                </span>
+                {selected.progress && (
+                  <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
+                    {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+                  </span>
+                )}
+                {selected.active && (
+                  <span className="rounded bg-success px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
+                    {t('plan.detail.dag.evolution.active')}
+                  </span>
+                )}
+              </div>
+              <div
+                className="min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
+                data-testid="plan-dag-evolution-selected-reason"
+              >
+                <div className="mb-1 font-semibold text-text-primary">{t('plan.detail.dag.evolution.reasonLabel')}</div>
+                {selected.reason}
+              </div>
+              {selected.diff && (
+                <div className="text-xs text-text-secondary" data-testid="plan-dag-evolution-selected-diff">
+                  <div className="mb-1 font-semibold text-text-primary">{t('plan.detail.dag.evolution.diffLabel')}</div>
+                  {evolutionDiffLabel(selected.diff, t)}
+                </div>
+              )}
+              <div className="space-y-1.5 rounded-md border border-border-base bg-bg-subtle/60 p-3 text-[0.6875rem] text-text-muted">
+                {selected.generationId && (
+                  <div className="truncate font-mono" title={selected.generationId} data-testid="plan-dag-evolution-selected-generation-id">
+                    {t('plan.detail.dag.evolution.generationId', { id: selected.generationId })}
+                    {selected.parentGenerationId ? ` · ${t('plan.detail.dag.evolution.parentId', { id: selected.parentGenerationId })}` : ''}
+                  </div>
+                )}
+                {selected.idempotencyKey && (
+                  <div className="truncate font-mono" title={selected.idempotencyKey}>
+                    {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
+                  </div>
+                )}
+                {selected.verdictId && (
+                  <div className="truncate font-mono" title={selected.verdictId}>
+                    {selected.verdictOutcome
+                      ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: selected.verdictOutcome, id: selected.verdictId })
+                      : t('plan.detail.dag.evolution.verdict', { id: selected.verdictId })}
+                  </div>
+                )}
+                {selected.continuationId && (
+                  <div className="truncate font-mono" title={selected.continuationId}>
+                    {t('plan.detail.dag.evolution.continuation', { id: selected.continuationId })}
+                  </div>
+                )}
+                {selected.createdAt && (
+                  <div>{formatLocalTime(selected.createdAt)}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </section>
+    </>
   );
 }
 
