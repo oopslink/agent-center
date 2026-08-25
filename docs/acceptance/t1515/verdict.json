@@ -1,0 +1,80 @@
+{
+  "task": "T1515",
+  "verdict": "PASS",
+  "validated_at_utc": "2026-08-25T07:08:57Z",
+  "executor_branch": "ac-exec/task-47290169/exec-30f922a0",
+  "candidate": {
+    "remote_ref": "origin/ac-exec/T1514-access-test-ts2339",
+    "expected_sha": "af936471ed2d1a2f011159ef5cb284345346bb48",
+    "actual_sha": "af936471ed2d1a2f011159ef5cb284345346bb48",
+    "worktree": "/tmp/t1515-fresh-worktree.QfQEmA/candidate",
+    "checkout_mode": "detached HEAD"
+  },
+  "baseline": {
+    "remote_ref": "origin/main",
+    "expected_sha": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "actual_sha": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "main_drifted": false
+  },
+  "ancestry": {
+    "merge_base": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+    "behind_ahead_origin_main_to_candidate": "0\t1"
+  },
+  "diff_review": {
+    "changed_files": [
+      "web/src/pages/Access.test.tsx"
+    ],
+    "stat": "1 file changed, 6 insertions(+), 4 deletions(-)",
+    "manual_assertion_review": "No assertions were removed or weakened. Existing equality assertions for permission_keys and resources remain; the change only introduces a concrete PreviewRequestBody type and casts the captured preview body before those assertions."
+  },
+  "task_input_package": {
+    "expected_paths": [
+      "task-input/v1/README.md",
+      "task-input/v1/manifest.json"
+    ],
+    "status": "not found in workspace root or parent worktree search",
+    "evidence_log": "raw-logs/10-task-input-search.log"
+  },
+  "commands": [
+    {
+      "command": "git fetch --prune origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/ac-exec/T1514-access-test-ts2339:refs/remotes/origin/ac-exec/T1514-access-test-ts2339'",
+      "cwd": ".",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate",
+      "exit_code": 1,
+      "note": "Repo root has no package.json; retained as raw evidence, then rerun from web package."
+    },
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate/web",
+      "exit_code": 0
+    },
+    {
+      "command": "make build",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm exec vitest run src/pages/Access.test.tsx",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate/web",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check origin/main..HEAD",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate",
+      "exit_code": 0
+    },
+    {
+      "command": "make lint-spa-tsc",
+      "cwd": "/tmp/t1515-fresh-worktree.QfQEmA/candidate",
+      "exit_code": 0
+    }
+  ],
+  "final_candidate_state": {
+    "git_status_short_branch": "## HEAD (no branch)",
+    "tracked_or_untracked_changes": "none reported by git status --short --branch"
+  }
+}

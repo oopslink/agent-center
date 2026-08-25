@@ -1,0 +1,32 @@
+$ pnpm exec vitest run src/pages/Access.test.tsx
+
+ RUN  v2.1.9 /private/tmp/t1515-fresh-worktree.QfQEmA/candidate/web
+
+(node:79321) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Access.test.tsx (23 tests) 9326ms
+   ✓ Access page > renders the independent RAM Roles page without subject controls or duplicate tabs 480ms
+   ✓ Access page > filters by search, risk, and scope, switches density, paginates, and explains every permission from the registry 379ms
+   ✓ Access page > renders explicit empty, list error, and detail error states with recovery actions 971ms
+   ✓ Access page > renders Subject access as a distinct titled page with its own actions and filters 625ms
+   ✓ Access page > renders a page-specific data error for ram-roles 321ms
+   ✓ Access page > shows Team RAM and direct binding source chains, then opens the direct binding flow 437ms
+   ✓ Access page > previews and applies a four-step batch grant without deriving final permissions in the UI 549ms
+   ✓ Access page > previews, confirms, and reports a direct revoke within the selected subject 475ms
+   ✓ Access page > shows a success toast after the Add direct binding flow applies 551ms
+   ✓ Access page > keeps the selected subject context and surfaces a 409 apply conflict as a toast 466ms
+   ✓ Access page > does not preselect resources and clears incompatible resources when permission changes 472ms
+   ✓ Access page > renders partial failure result items without unknown phantom rows 530ms
+   ✓ Access page > confirms revoke with the original preview token, stable idempotency key, and reason/message 465ms
+   ✓ Access page > browses RAM role versions and publishes a real v2 RAM role version with CAS payload 444ms
+   ✓ Access page > keeps Used by Team Roles read-only and sends changes to the Team Role editor 310ms
+   ✓ Access page > requires the full RAM role name before deleting an unreferenced custom role 347ms
+   ✓ Access page > keeps RAM role versions pinned and shows an error when publish hits a CAS conflict 341ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  15:07:55
+   Duration  10.20s (transform 155ms, setup 277ms, collect 115ms, tests 9.33s, environment 213ms, prepare 36ms)
+
+
+[exit_code=0]
