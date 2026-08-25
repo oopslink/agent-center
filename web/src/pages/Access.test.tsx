@@ -366,10 +366,11 @@ describe('Access page', () => {
   });
 
   it('does not preselect resources and clears incompatible resources when permission changes', async () => {
-    let previewBody: { permission_keys?: string[]; resources?: Array<{ kind: string; id: string }> } | null = null;
+    type PreviewRequestBody = { permission_keys?: string[]; resources?: Array<{ kind: string; id: string; label?: string }> };
+    let previewBody: PreviewRequestBody | null = null;
     server.use(
       http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
-        previewBody = (await request.json()) as typeof previewBody;
+        previewBody = (await request.json()) as PreviewRequestBody;
         return HttpResponse.json({
           request_id: 'preview-org-only',
           expires_at: null,
@@ -408,8 +409,9 @@ describe('Access page', () => {
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'org-only direct grant' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
     await within(drawer).findByTestId('access-preview-summary');
-    expect(previewBody?.permission_keys).toEqual(['org.read']);
-    expect(previewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
+    const capturedPreviewBody = previewBody as PreviewRequestBody | null;
+    expect(capturedPreviewBody?.permission_keys).toEqual(['org.read']);
+    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
   });
 
   it('renders partial failure result items without unknown phantom rows', async () => {
