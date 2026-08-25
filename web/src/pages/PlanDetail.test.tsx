@@ -65,6 +65,66 @@ function planWith(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const blockEvent = {
+  event_id: 'plan-block-1',
+  idempotency_key: 'block:n6:v1',
+  plan_id: 'PL-1',
+  generation_id: 'generation-1',
+  task_id: 'n6',
+  node_id: 'gate:review',
+  block_version: 1,
+  blocked_reason: 'acceptance gate pending',
+  reason_type: 'input_required',
+  blocked_by: 'user:owner',
+  blocked_at: '2026-06-02T01:00:00Z',
+  active: true,
+  effective: true,
+  owner_ref: 'user:owner',
+  notification_state: 'sent',
+};
+
+function blockedPlanOverrides(extra: Record<string, unknown> = {}) {
+  return {
+    active_generation_id: 'generation-1',
+    ready_set: ['n5'],
+    active_frontier: {
+      active_generation_id: 'generation-1',
+      effective_nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'],
+      ready_set: ['n5'],
+      blocked: [{ task_id: 'n6', event_id: 'plan-block-1' }],
+      running: ['n3'],
+      completed_history: ['n1', 'n2'],
+    },
+    block_events: [blockEvent],
+    frontier: {
+      total: 1,
+      groups: [{
+        wait_type: 'human_decision',
+        count: 1,
+        nodes: [{
+          task_id: 'n6',
+          node_id: 'gate:review',
+          wait_type: 'human_decision',
+          wait_keys: ['user:owner'],
+          trigger_condition: 'acceptance gate pending',
+          waited_since: '2026-06-02T01:00:00Z',
+          on_timeout: 'owner_review_then_resume',
+        }],
+      }],
+    },
+    pending_decisions: [{
+      task_id: 'n6',
+      node_id: 'gate:review',
+      wait_type: 'human_decision',
+      wait_keys: ['user:owner'],
+      trigger_condition: 'acceptance gate pending',
+      waited_since: '2026-06-02T01:00:00Z',
+      on_timeout: 'owner_review_then_resume',
+    }],
+    ...extra,
+  };
+}
+
 function mockPlan(overrides: Record<string, unknown> = {}) {
   const payload = planWith(overrides) as Record<string, unknown>;
   const generationRead = (overrides.generation_read as Record<string, unknown> | undefined) ?? {
@@ -77,7 +137,9 @@ function mockPlan(overrides: Record<string, unknown> = {}) {
   server.use(
     http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
     http.get('/api/projects/proj-a/plans/PL-1', () => HttpResponse.json(payload)),
+    http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
     http.get('/api/projects/proj-a/plans/PL-1/generations', () => HttpResponse.json(generationRead)),
+    http.get('/api/projects/proj-a/plans/PL-1/related-issues', () => HttpResponse.json({ issues: [] })),
   );
 }
 
@@ -302,6 +364,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
 
   it('renders owner, backup, attention and blocked panel from explicit plan fields', async () => {
     let acknowledged = false;
+    let resolvedBody: Record<string, unknown> | null = null;
     const blockEvents = [{
       event_id: 'plan-block-1',
       idempotency_key: 'block:n6:v1',
@@ -430,18 +493,121 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
           }],
         }));
       }),
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/plan-block-1/resolve', async ({ request }) => {
+        resolvedBody = await request.json() as Record<string, unknown>;
+        return HttpResponse.json(planWith(blockedPlanOverrides()));
+      }),
     );
     wrap();
     expect(await screen.findByTestId('plan-owner-strip')).toBeInTheDocument();
     expect(screen.getByTestId('plan-owner-ref')).toHaveTextContent('owner');
     expect(screen.getByTestId('plan-backup-owner-ref')).toHaveTextContent('backup');
     expect(screen.getByTestId('plan-attention-state')).toHaveTextContent('blocked');
+    expect(screen.getByTestId('plan-recovery-policy')).toHaveTextContent('manual_review');
     const panel = screen.getByTestId('plan-blocked-panel');
     expect(within(panel).getByTestId('plan-blocked-reason')).toHaveTextContent('human_decision');
+    expect(within(panel).getByTestId('plan-blocked-actor')).toHaveTextContent('owner');
+    expect(within(panel).getByTestId('plan-blocked-assignee')).toHaveTextContent('you');
+    expect(within(panel).getByTestId('plan-blocked-recovery')).toHaveTextContent('manual_review');
     expect(within(panel).getByTestId('plan-blocked-impact')).toHaveTextContent('No downstream effective nodes');
+    fireEvent.click(within(panel).getByTestId('plan-blocked-resume-n6'));
+    await waitFor(() => expect(resolvedBody).toMatchObject({ resolution_kind: 'resume_original', note: 'n6' }));
     fireEvent.click(within(panel).getByTestId('plan-blocked-ack-n6'));
     await waitFor(() => expect(acknowledged).toBe(true));
     expect(await within(panel).findByText('Acknowledged')).toBeInTheDocument();
+  });
+
+  it('Replace and Bypass carry block context through real evolution, then resolve the event', async () => {
+    const evolutionBodies: Record<string, unknown>[] = [];
+    const resolveBodies: Record<string, unknown>[] = [];
+    mockPlan(blockedPlanOverrides({
+      status: 'running',
+      version: 13,
+      active_generation_id: 'generation-1',
+      nodes: [
+        ...planWith().nodes.slice(0, 6),
+        { task_id: 'n8', title: 'downstream deploy', assignee_ref: 'agent:dev2', task_status: 'open', node_status: 'blocked', depends_on: ['n6'], org_ref: 'T808' },
+      ],
+    }));
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        evolutionBodies.push(await request.json() as Record<string, unknown>);
+        return HttpResponse.json({
+          ok: true,
+          duplicate: false,
+          active_generation_id: 'generation-next',
+          version: 14,
+          dispatched: [],
+          generation: { id: 'generation-next', parent_generation_id: 'generation-1' },
+        });
+      }),
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/plan-block-1/resolve', async ({ request }) => {
+        resolveBodies.push(await request.json() as Record<string, unknown>);
+        return HttpResponse.json(planWith(blockedPlanOverrides({ active_generation_id: 'generation-next', version: 14 })));
+      }),
+    );
+
+    wrap();
+    const panel = await screen.findByTestId('plan-blocked-panel');
+    fireEvent.click(within(panel).getByTestId('plan-blocked-replace-n6'));
+    const replaceModal = await screen.findByTestId('plan-evolution-modal');
+    expect(within(replaceModal).getByTestId('plan-evolution-context-kind')).toHaveTextContent('replace');
+    expect(within(replaceModal).getByTestId('plan-evolution-context-event')).toHaveTextContent('plan-block-1');
+    expect(within(replaceModal).getByTestId('plan-evolution-context-impact')).toHaveTextContent('T808');
+    expect((within(replaceModal).getByTestId('plan-evolution-diff') as HTMLTextAreaElement).value).toContain('"follows_task_id": "n6"');
+    fireEvent.change(within(replaceModal).getByTestId('plan-evolution-idempotency'), { target: { value: 'replace-idem' } });
+    await act(async () => fireEvent.click(within(replaceModal).getByTestId('plan-evolution-submit')));
+    await waitFor(() => expect(resolveBodies[0]).toMatchObject({ resolution_kind: 'replace_with_continuation', note: 'replace-idem' }));
+    expect(evolutionBodies[0]).toMatchObject({
+      parent_generation_id: 'generation-1',
+      base_version: 13,
+    });
+
+    fireEvent.click((await screen.findByTestId('plan-blocked-panel')).querySelector('[data-testid="plan-blocked-bypass-n6"]') as HTMLElement);
+    const bypassModal = await screen.findByTestId('plan-evolution-modal');
+    expect(within(bypassModal).getByTestId('plan-evolution-context-kind')).toHaveTextContent('bypass');
+    expect((within(bypassModal).getByTestId('plan-evolution-diff') as HTMLTextAreaElement).value).toContain('"action": "supersede"');
+    fireEvent.change(within(bypassModal).getByTestId('plan-evolution-idempotency'), { target: { value: 'bypass-idem' } });
+    await act(async () => fireEvent.click(within(bypassModal).getByTestId('plan-evolution-submit')));
+    await waitFor(() => expect(resolveBodies[1]).toMatchObject({ resolution_kind: 'bypass_remove_node', note: 'bypass-idem' }));
+  });
+
+  it('Blocked Panel surfaces real HTTP 403 and 409 failures without hiding the action context', async () => {
+    let fail: 403 | 409 = 403;
+    mockPlan(blockedPlanOverrides());
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/plan-block-1/acknowledge', () =>
+        HttpResponse.json(
+          { error: fail === 403 ? 'forbidden' : 'plan_conflict', message: fail === 403 ? 'not allowed to acknowledge' : 'event already resolved' },
+          { status: fail },
+        ),
+      ),
+    );
+    wrap();
+    const panel = await screen.findByTestId('plan-blocked-panel');
+    fireEvent.click(within(panel).getByTestId('plan-blocked-ack-n6'));
+    expect(await within(panel).findByTestId('plan-blocked-error-n6')).toHaveTextContent(/not allowed/i);
+    expect(within(panel).getByTestId('plan-blocked-actor')).toHaveTextContent('owner');
+
+    fail = 409;
+    fireEvent.click(within(panel).getByTestId('plan-blocked-ack-n6'));
+    await waitFor(() => expect(within(panel).getByTestId('plan-blocked-error-n6')).toHaveTextContent(/already resolved/i));
+  });
+
+  it('mobile renders owner/recovery and Blocked Panel actions with accessible controls', async () => {
+    setMobileViewport(true);
+    mockPlan(blockedPlanOverrides());
+    wrap();
+    const header = await screen.findByTestId('plan-detail-header');
+    expect(within(header).getAllByTestId('plan-owner-strip').length).toBeGreaterThan(0);
+    expect(within(header).getAllByTestId('plan-recovery-policy')[0]).toHaveTextContent('owner_review_then_resume');
+    const panel = await screen.findByTestId('plan-blocked-panel');
+    expect(within(panel).getByTestId('plan-blocked-recovery')).toHaveTextContent('owner_review_then_resume');
+    for (const id of ['ack', 'resume', 'replace', 'bypass', 'pause', 'discard']) {
+      const control = within(panel).getByTestId(`plan-blocked-${id}-n6`);
+      expect(control.tagName).toBe('BUTTON');
+      expect(control).not.toHaveAttribute('aria-hidden', 'true');
+    }
   });
 
   it('shows Reopen when done with an active generation and calls useReopenPlan', async () => {
@@ -2702,7 +2868,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.getByTestId('plan-evolution-review-tasks')).toHaveTextContent('1');
     expect(screen.getByTestId('plan-evolution-review-ready-set')).toHaveTextContent('n5');
     expect(screen.getByTestId('plan-evolution-review-gates')).toHaveTextContent('Review:open');
-    expect(screen.getByTestId('plan-evolution-review-risks')).toHaveTextContent(/pending acceptance gates/i);
+    expect(screen.getByTestId('plan-evolution-review-risks')).toHaveTextContent(/pending acceptance gate/i);
     await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
 
     await waitFor(() => expect(body).not.toBeNull());

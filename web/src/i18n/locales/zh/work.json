@@ -292,7 +292,8 @@
         "aria": "计划 owner 状态",
         "owner": "Owner",
         "backup": "Backup",
-        "attention": "Attention"
+        "attention": "Attention",
+        "recovery": "恢复策略"
       },
       "startModal": {
         "aria": "启动前确认计划 owner",
@@ -306,7 +307,10 @@
         "aria": "计划阻塞前沿",
         "title": "Blocked",
         "owner": "责任人",
+        "actor": "阻塞发起人",
+        "assignee": "执行人",
         "since": "开始时间",
+        "recovery": "恢复策略",
         "impact": "下游影响",
         "unknown": "未知",
         "noImpact": "无 effective 下游节点。",
@@ -387,6 +391,17 @@
         "gates": "验收门",
         "emptyGates": "无验收门",
         "risks": "风险",
+        "context": "阻塞上下文",
+        "contextReasonReplace": "替换受阻节点 {{task}}",
+        "contextReasonBypass": "旁路受阻节点 {{task}}",
+        "risk": {
+          "missingActiveGeneration": "缺少活跃 generation",
+          "readySetWillDispatch": "ready_set 会在提交后派发",
+          "pendingAcceptanceGate": "存在待处理验收门",
+          "supersedeEffectiveNode": "会替换 effective 节点",
+          "detachedTask": "存在 detached 任务",
+          "none": "无 API 风险标记"
+        },
         "reviewInvalid": "输入合法 PlanGenerationDiff 后可预览拓扑、验收门、ready_set 与风险。",
         "commit": "提交 Evolution",
         "committing": "提交中…",

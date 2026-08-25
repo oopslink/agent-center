@@ -119,10 +119,28 @@ function attentionStatus(plan: Plan): string {
   return plan.attention?.status ?? 'normal';
 }
 
+function planRecoveryPolicy(plan: Plan): string {
+  const activeTimeout = (plan.pending_decisions ?? [])
+    .map((item) => item.on_timeout)
+    .find((policy): policy is string => typeof policy === 'string' && policy.trim() !== '');
+  if (activeTimeout) return activeTimeout;
+  return plan.attention?.reason || 'manual_review';
+}
+
 function ownerDisplay(ref: string, resolveName: (ref: string) => string): string {
   if (!ref) return 'Unassigned';
   const name = resolveName(ref);
   return name === ref ? normalizeIdentityRef(ref) : name;
+}
+
+type PlanEvolutionContextKind = 'replace' | 'bypass';
+
+interface PlanEvolutionContext {
+  kind: PlanEvolutionContextKind;
+  blocked: PlanBlockedOn;
+  event?: PlanBlockEvent;
+  node?: PlanNode;
+  impact: PlanNode[];
 }
 
 export default function PlanDetail(): React.ReactElement {
@@ -140,7 +158,7 @@ export default function PlanDetail(): React.ReactElement {
   // that starts closed — this opens it from the ⓘ in the header row.
   const ctxTrigger = useContextPanelMobileTrigger();
   const [tab, setTab] = useState<Tab>('chat');
-  const [mobileEvolutionOpen, setMobileEvolutionOpen] = useState(false);
+  const [mobileEvolutionOpen, setMobileEvolutionOpen] = useState<PlanEvolutionContext | null>(null);
   // T347: chat maximize state lives here so the toggle can sit on the tab row.
   const [chatMaximized, setChatMaximized] = useState(false);
   // T348: DAG compact (zoom-to-fit) state lifted here too, so its toggle becomes an
@@ -226,7 +244,7 @@ export default function PlanDetail(): React.ReactElement {
           <PlanContinuationBanner continuations={p.continuations ?? []} />
           {isMobile && (
             <div className="border-b border-border-base">
-              <BlockedPanel projectId={id} plan={p} onReplace={() => setMobileEvolutionOpen(true)} />
+              <BlockedPanel projectId={id} plan={p} onEvolve={(ctx) => setMobileEvolutionOpen(ctx)} />
             </div>
           )}
 
@@ -385,7 +403,7 @@ export default function PlanDetail(): React.ReactElement {
         </ContextPanel>
       )}
       {mobileEvolutionOpen && (
-        <PlanEvolutionModal projectId={id} plan={p} onClose={() => setMobileEvolutionOpen(false)} />
+        <PlanEvolutionModal projectId={id} plan={p} context={mobileEvolutionOpen} onClose={() => setMobileEvolutionOpen(null)} />
       )}
     </section>
   );
@@ -803,6 +821,7 @@ function PlanOwnerStrip({ plan, compact = false }: { plan: Plan; compact?: boole
   const ownerRef = planOwnerRef(plan);
   const backupRef = planBackupOwnerRef(plan);
   const status = attentionStatus(plan);
+  const recoveryPolicy = planRecoveryPolicy(plan);
   const elevated = status === 'blocked' || status === 'escalated' || status === 'attention';
   return (
     <dl
@@ -810,7 +829,7 @@ function PlanOwnerStrip({ plan, compact = false }: { plan: Plan; compact?: boole
         elevated
           ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
           : 'border-border-base bg-bg-subtle text-text-secondary'
-      } ${compact ? 'grid-cols-1' : 'grid-cols-3'}`}
+      } ${compact ? 'grid-cols-1' : 'grid-cols-4'}`}
       data-testid="plan-owner-strip"
       aria-label={t('plan.detail.owner.aria')}
     >
@@ -828,6 +847,10 @@ function PlanOwnerStrip({ plan, compact = false }: { plan: Plan; compact?: boole
           {status}
           {plan.attention?.escalated_to_ref ? ` -> ${ownerDisplay(plan.attention.escalated_to_ref, resolveName)}` : ''}
         </dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.owner.recovery')}</dt>
+        <dd className="truncate font-medium" data-testid="plan-recovery-policy" title={recoveryPolicy}>{recoveryPolicy}</dd>
       </div>
     </dl>
   );
@@ -941,15 +964,14 @@ function downstreamImpact(plan: Plan, taskId: string): PlanNode[] {
 function BlockedPanel({
   projectId,
   plan,
-  onReplace,
+  onEvolve,
 }: {
   projectId: string;
   plan: Plan;
-  onReplace: () => void;
+  onEvolve: (context: PlanEvolutionContext) => void;
 }): React.ReactElement | null {
   const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
-  const resume = useResumePausedNode(projectId, plan.id);
   const acknowledge = useAcknowledgePlanBlock(projectId, plan.id);
   const resolveBlock = useResolvePlanBlock(projectId, plan.id);
   const blocked = useMemo(() => {
@@ -978,10 +1000,15 @@ function BlockedPanel({
           const impact = downstreamImpact(plan, item.task_id);
           const event = blockEventFor(plan, item);
           const eventId = event?.event_id;
+          const node = (plan.nodes ?? []).find((n) => n.task_id === item.task_id);
           const isAck = !!event?.acknowledged_at;
           const blockedAt = event?.blocked_at ?? item.waited_since;
           const reason = event?.blocked_reason || item.trigger_condition || item.wait_type;
           const eventOwner = event?.owner_ref || owner;
+          const blockedActor = event?.blocked_by || owner;
+          const assignee = node?.assignee_ref || t('plan.detail.blocked.unknown');
+          const recoveryPolicy = item.on_timeout || planRecoveryPolicy(plan);
+          const evolutionContext: Omit<PlanEvolutionContext, 'kind'> = { blocked: item, event, node, impact };
           return (
             <li key={`${item.task_id}:${item.wait_type}`} className="rounded-lg border border-status-amber-border bg-status-amber-bg p-3 text-status-amber-fg" data-testid="plan-blocked-item">
               <div className="flex min-w-0 items-start justify-between gap-2">
@@ -1001,8 +1028,20 @@ function BlockedPanel({
                   <dd className="truncate" title={eventOwner}>{ownerDisplay(eventOwner, resolveName)}</dd>
                 </div>
                 <div>
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.actor')}</dt>
+                  <dd className="truncate" title={blockedActor} data-testid="plan-blocked-actor">{ownerDisplay(blockedActor, resolveName)}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.assignee')}</dt>
+                  <dd className="truncate" title={assignee} data-testid="plan-blocked-assignee">{ownerDisplay(assignee, resolveName)}</dd>
+                </div>
+                <div>
                   <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.since')}</dt>
                   <dd title={blockedAt ?? ''}>{blockedAt ? formatLocalTime(blockedAt) : t('plan.detail.blocked.unknown')}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.recovery')}</dt>
+                  <dd className="truncate" title={recoveryPolicy} data-testid="plan-blocked-recovery">{recoveryPolicy}</dd>
                 </div>
                 <div className="col-span-2">
                   <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.impact')}</dt>
@@ -1013,15 +1052,15 @@ function BlockedPanel({
               </dl>
               <div className="mt-3 grid grid-cols-3 gap-1.5">
                 <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId || acknowledge.isPending || isAck} onClick={() => eventId && acknowledge.mutate(eventId)} data-testid={`plan-blocked-ack-${item.task_id}`}>{t('plan.detail.blocked.acknowledge')}</button>
-                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={resume.isPending} onClick={() => resume.mutate(item.task_id)} data-testid={`plan-blocked-resume-${item.task_id}`}>{t('plan.detail.blocked.resume')}</button>
-                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary" onClick={onReplace} data-testid={`plan-blocked-replace-${item.task_id}`}>{t('plan.detail.blocked.replace')}</button>
-                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary" onClick={onReplace} title={t('plan.detail.blocked.bypassTitle')} data-testid={`plan-blocked-bypass-${item.task_id}`}>{t('plan.detail.blocked.bypass')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId || resolveBlock.isPending} onClick={() => eventId && resolveBlock.mutate({ event_id: eventId, resolution_kind: 'resume_original', note: item.task_id })} data-testid={`plan-blocked-resume-${item.task_id}`}>{t('plan.detail.blocked.resume')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId} onClick={() => onEvolve({ ...evolutionContext, kind: 'replace' })} data-testid={`plan-blocked-replace-${item.task_id}`}>{t('plan.detail.blocked.replace')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId} onClick={() => onEvolve({ ...evolutionContext, kind: 'bypass' })} title={t('plan.detail.blocked.bypassTitle')} data-testid={`plan-blocked-bypass-${item.task_id}`}>{t('plan.detail.blocked.bypass')}</button>
                 <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId || resolveBlock.isPending || plan.status !== 'running'} onClick={() => eventId && resolveBlock.mutate({ event_id: eventId, resolution_kind: 'pause_or_discard_plan', note: 'pause' })} data-testid={`plan-blocked-pause-${item.task_id}`}>{t('plan.detail.blocked.pause')}</button>
                 <button type="button" className="rounded border border-danger bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-danger disabled:opacity-50" disabled={!eventId || resolveBlock.isPending} onClick={() => eventId && resolveBlock.mutate({ event_id: eventId, resolution_kind: 'pause_or_discard_plan', note: 'discard' })} data-testid={`plan-blocked-discard-${item.task_id}`}>{t('plan.detail.blocked.discard')}</button>
               </div>
-              {(resume.isError || acknowledge.isError || resolveBlock.isError) && (
+              {(acknowledge.isError || resolveBlock.isError) && (
                 <p className="mt-2 text-[0.6875rem] font-semibold text-danger" role="alert" data-testid={`plan-blocked-error-${item.task_id}`}>
-                  {((resume.error ?? acknowledge.error ?? resolveBlock.error) as Error).message}
+                  {((acknowledge.error ?? resolveBlock.error) as Error).message}
                 </p>
               )}
             </li>
@@ -1058,6 +1097,7 @@ function PlanInfoRail({
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [evolving, setEvolving] = useState(false);
+  const [evolutionContext, setEvolutionContext] = useState<PlanEvolutionContext | null>(null);
   const [startConfirming, setStartConfirming] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [goalOpen, setGoalOpen] = useState(false);
@@ -1280,7 +1320,7 @@ function PlanInfoRail({
         </div>
       )}
 
-      <BlockedPanel projectId={projectId} plan={plan} onReplace={() => setEvolving(true)} />
+      <BlockedPanel projectId={projectId} plan={plan} onEvolve={(ctx) => setEvolutionContext(ctx)} />
 
       {/* Up next (collapsible) */}
       <div className="border-b border-border-base p-5" data-testid="plan-upnext-section">
@@ -1357,6 +1397,7 @@ function PlanInfoRail({
         />
       )}
       {evolving && <PlanEvolutionModal projectId={projectId} plan={plan} onClose={() => setEvolving(false)} />}
+      {evolutionContext && <PlanEvolutionModal projectId={projectId} plan={plan} context={evolutionContext} onClose={() => setEvolutionContext(null)} />}
       {confirming === 'delete' && <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'archive' && <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'discard' && <PlanDiscardModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
@@ -1664,33 +1705,76 @@ function parseEvolutionDiff(raw: string, t: TFunction): PlanGenerationDiff {
 
 function evolutionRiskItems(plan: Plan, diff: PlanGenerationDiff | null): string[] {
   const risks: string[] = [];
-  if (!plan.active_generation_id) risks.push('missing active generation');
-  if ((plan.ready_set ?? []).length > 0) risks.push('ready nodes may dispatch after commit');
-  if ((plan.gates ?? []).some((gate) => gate.pending)) risks.push('pending acceptance gates');
-  if ((diff?.node_decisions ?? []).some((decision) => decision.action === 'supersede')) risks.push('supersedes effective nodes');
-  if ((diff?.tasks ?? []).some((task) => task.detached)) risks.push('detached follow-up node');
-  if (risks.length === 0) risks.push('no immediate risk flags');
+  if (!plan.active_generation_id) risks.push('missingActiveGeneration');
+  if ((plan.ready_set ?? []).length > 0) risks.push('readySetWillDispatch');
+  if ((plan.gates ?? []).some((gate) => gate.pending)) risks.push('pendingAcceptanceGate');
+  if ((diff?.node_decisions ?? []).some((decision) => decision.action === 'supersede')) risks.push('supersedeEffectiveNode');
+  if ((diff?.tasks ?? []).some((task) => task.detached)) risks.push('detachedTask');
+  if (risks.length === 0) risks.push('none');
   return risks;
+}
+
+function evolutionDefaultReason(t: TFunction, context?: PlanEvolutionContext): string {
+  if (!context) return '';
+  const key = context.kind === 'replace' ? 'plan.detail.evolutionModal.contextReasonReplace' : 'plan.detail.evolutionModal.contextReasonBypass';
+  return t(key, { task: context.node?.title ?? context.blocked.task_id });
+}
+
+function evolutionDefaultEvidence(context?: PlanEvolutionContext): string {
+  if (!context) return '';
+  const event = context.event;
+  return [
+    `block_event=${event?.event_id ?? ''}`,
+    `task_id=${context.blocked.task_id}`,
+    `node_id=${context.blocked.node_id ?? context.event?.node_id ?? ''}`,
+    `reason_type=${event?.reason_type ?? context.blocked.wait_type}`,
+    `blocked_reason=${event?.blocked_reason ?? context.blocked.trigger_condition ?? ''}`,
+  ].filter(Boolean).join('\n');
+}
+
+function evolutionDefaultDiff(context?: PlanEvolutionContext): PlanGenerationDiff {
+  if (!context) return { node_decisions: [], tasks: [], edges: [] };
+  if (context.kind === 'bypass') {
+    return {
+      node_decisions: [{ task_id: context.blocked.task_id, action: 'supersede', reason: context.event?.blocked_reason ?? context.blocked.trigger_condition ?? context.blocked.wait_type }],
+      tasks: [],
+      edges: [],
+    };
+  }
+  const ref = `replace-${context.blocked.task_id}`;
+  return {
+    node_decisions: [{ task_id: context.blocked.task_id, action: 'hold_at_gate', reason: context.event?.blocked_reason ?? context.blocked.trigger_condition ?? context.blocked.wait_type }],
+    tasks: [{
+      ref,
+      title: `${context.node?.title ?? context.blocked.task_id} recovery`,
+      assignee_ref: context.node?.assignee_ref || context.event?.owner_ref || '',
+      follows_task_id: context.blocked.task_id,
+    }],
+    edges: [{ from: ref, to: context.blocked.task_id, kind: 'seq' }],
+  };
 }
 
 function PlanEvolutionModal({
   projectId,
   plan,
+  context,
   onClose,
 }: {
   projectId: string;
   plan: Plan;
+  context?: PlanEvolutionContext;
   onClose: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const baseVersion = planBaseVersion(plan);
   const parentGenerationId = plan.active_generation_id ?? '';
-  const [reason, setReason] = useState('');
-  const [evidence, setEvidence] = useState('');
+  const [reason, setReason] = useState(() => evolutionDefaultReason(t, context));
+  const [evidence, setEvidence] = useState(() => evolutionDefaultEvidence(context));
   const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
-  const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
+  const [diffText, setDiffText] = useState(() => JSON.stringify(evolutionDefaultDiff(context), null, 2));
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
+  const resolveBlock = useResolvePlanBlock(projectId, plan.id);
   const reviewDiff = useMemo(() => {
     try {
       return parseEvolutionDiff(diffText, t);
@@ -1720,6 +1804,13 @@ function PlanEvolutionModal({
     };
     try {
       await commit.mutateAsync(input);
+      if (context?.event?.event_id) {
+        await resolveBlock.mutateAsync({
+          event_id: context.event.event_id,
+          resolution_kind: context.kind === 'replace' ? 'replace_with_continuation' : 'bypass_remove_node',
+          note: idempotencyKey.trim(),
+        });
+      }
       onClose();
     } catch {
       // surfaced inline below
@@ -1749,6 +1840,26 @@ function PlanEvolutionModal({
             {t('plan.detail.evolutionModal.liveStatus', { status: plan.status })}
           </span>
         </div>
+
+        {context && (
+          <section className="mb-4 rounded-lg border border-status-amber-border bg-status-amber-bg p-3 text-xs text-status-amber-fg" data-testid="plan-evolution-context">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold uppercase tracking-wide">{t('plan.detail.evolutionModal.context')}</span>
+              <span className="rounded bg-bg-elevated px-2 py-0.5 font-mono text-text-secondary" data-testid="plan-evolution-context-kind">{context.kind}</span>
+              <span className="rounded bg-bg-elevated px-2 py-0.5 font-mono text-text-secondary" data-testid="plan-evolution-context-event">{context.event?.event_id ?? context.blocked.task_id}</span>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.assignee')}</dt>
+                <dd data-testid="plan-evolution-context-assignee">{context.node?.assignee_ref || context.event?.owner_ref || ''}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.impact')}</dt>
+                <dd data-testid="plan-evolution-context-impact">{context.impact.length > 0 ? context.impact.map((n) => n.org_ref ?? n.task_id).join(', ') : t('plan.detail.blocked.noImpact')}</dd>
+              </div>
+            </dl>
+          </section>
+        )}
 
         <label className="block text-xs font-medium" htmlFor="plan-evolution-reason">
           {t('plan.detail.evolutionModal.reason')}
@@ -1846,7 +1957,7 @@ function PlanEvolutionModal({
                 <div>
                   <p className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.risks')}</p>
                   <ul className="mt-1 space-y-1 text-text-secondary" data-testid="plan-evolution-review-risks">
-                    {riskItems.map((risk) => <li key={risk}>{risk}</li>)}
+                    {riskItems.map((risk) => <li key={risk} data-risk={risk}>{t(`plan.detail.evolutionModal.risk.${risk}`)}</li>)}
                   </ul>
                 </div>
               </div>
@@ -1858,9 +1969,9 @@ function PlanEvolutionModal({
           )}
         </section>
 
-        {(parseError || commit.isError) && (
+        {(parseError || commit.isError || resolveBlock.isError) && (
           <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">
-            {parseError ?? friendlyEvolutionError(commit.error, t)}
+            {parseError ?? (commit.isError ? friendlyEvolutionError(commit.error, t) : ((resolveBlock.error as Error | null)?.message ?? t('plan.detail.evolutionModal.errorGeneric')))}
           </p>
         )}
 
@@ -1875,11 +1986,11 @@ function PlanEvolutionModal({
           </button>
           <button
             type="submit"
-            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim()}
+            disabled={commit.isPending || resolveBlock.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim()}
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-evolution-submit"
           >
-            {commit.isPending ? t('plan.detail.evolutionModal.committing') : t('plan.detail.evolutionModal.commit')}
+            {commit.isPending || resolveBlock.isPending ? t('plan.detail.evolutionModal.committing') : t('plan.detail.evolutionModal.commit')}
           </button>
         </div>
       </form>

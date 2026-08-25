@@ -292,7 +292,8 @@
         "aria": "Plan owner state",
         "owner": "Owner",
         "backup": "Backup",
-        "attention": "Attention"
+        "attention": "Attention",
+        "recovery": "Recovery policy"
       },
       "startModal": {
         "aria": "Confirm plan owner before start",
@@ -306,7 +307,10 @@
         "aria": "Blocked plan frontier",
         "title": "Blocked",
         "owner": "Responsible",
+        "actor": "Blocked by",
+        "assignee": "Assignee",
         "since": "Since",
+        "recovery": "Recovery policy",
         "impact": "Downstream impact",
         "unknown": "unknown",
         "noImpact": "No downstream effective nodes.",
@@ -387,6 +391,17 @@
         "gates": "Acceptance gates",
         "emptyGates": "No gates",
         "risks": "Risks",
+        "context": "Block context",
+        "contextReasonReplace": "Replace blocked node {{task}}",
+        "contextReasonBypass": "Bypass blocked node {{task}}",
+        "risk": {
+          "missingActiveGeneration": "Missing active generation",
+          "readySetWillDispatch": "ready_set will dispatch after commit",
+          "pendingAcceptanceGate": "Pending acceptance gate",
+          "supersedeEffectiveNode": "Supersedes an effective node",
+          "detachedTask": "Detached task",
+          "none": "No API risk flags"
+        },
         "reviewInvalid": "Enter a valid PlanGenerationDiff to preview topology, gates, ready_set, and risks.",
         "commit": "Commit evolution",
         "committing": "Committing…",
