@@ -74,10 +74,10 @@ describe('plans hooks', () => {
     );
     const { result } = renderHook(() => useCreatePlan('proj-a'), { wrapper: makeWrapper() });
     act(() => {
-      result.current.mutate({ name: 'New plan', description: 'goal', target_date: '2026-07-01T00:00:00Z' });
+      result.current.mutate({ name: 'New plan', description: 'goal', target_date: '2026-07-01T00:00:00Z', owner_ref: 'user:owner' });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(received).toMatchObject({ name: 'New plan', description: 'goal', target_date: '2026-07-01T00:00:00Z' });
+    expect(received).toMatchObject({ name: 'New plan', description: 'goal', target_date: '2026-07-01T00:00:00Z', owner_ref: 'user:owner' });
     expect(result.current.data?.id).toBe('PL-NEW');
   });
 

@@ -288,6 +288,37 @@
         "target": "Target",
         "creator": "Creator"
       },
+      "owner": {
+        "aria": "Plan owner state",
+        "owner": "Owner",
+        "backup": "Backup",
+        "attention": "Attention"
+      },
+      "startModal": {
+        "aria": "Confirm plan owner before start",
+        "title": "Confirm owner before start",
+        "body": "Starting freezes the active generation and dispatches effective ready nodes. Confirm the accountable owner first.",
+        "missingOwner": "This plan has no explicit owner_ref in the API payload.",
+        "confirm": "Confirm owner and start",
+        "pending": "Starting…"
+      },
+      "blocked": {
+        "aria": "Blocked plan frontier",
+        "title": "Blocked",
+        "owner": "Responsible",
+        "since": "Since",
+        "impact": "Downstream impact",
+        "unknown": "unknown",
+        "noImpact": "No downstream effective nodes.",
+        "acknowledge": "Acknowledge",
+        "acknowledged": "Acknowledged",
+        "resume": "Resume",
+        "replace": "Replace",
+        "bypass": "Bypass",
+        "bypassTitle": "No explicit bypass API is available for this blocked snapshot.",
+        "pause": "Pause",
+        "discard": "Discard"
+      },
       "rail": {
         "nodesDone": "nodes done"
       },
@@ -345,6 +376,18 @@
         "idempotency": "Idempotency key",
         "diff": "PlanGenerationDiff JSON",
         "diffHint": "Provide complete node_decisions, tasks, and edges arrays. New task refs can be used by edge from/to fields.",
+        "reviewAria": "Evolution review",
+        "review": "Evolution Review",
+        "noGeneration": "no active generation",
+        "reviewTasks": "New tasks",
+        "reviewDecisions": "Decisions",
+        "reviewEdges": "Edges",
+        "readySet": "ready_set",
+        "emptyReadySet": "No ready nodes",
+        "gates": "Acceptance gates",
+        "emptyGates": "No gates",
+        "risks": "Risks",
+        "reviewInvalid": "Enter a valid PlanGenerationDiff to preview topology, gates, ready_set, and risks.",
         "commit": "Commit evolution",
         "committing": "Committing…",
         "errorDiffJson": "PlanGenerationDiff must be valid JSON.",
@@ -506,6 +549,10 @@
         "name": "Name",
         "description": "Description",
         "targetDate": "Target date",
+        "owner": "Owner",
+        "ownerPlaceholder": "Select an owner",
+        "backupOwner": "Backup owner",
+        "noBackupOwner": "No backup owner",
         "cancel": "Cancel",
         "creating": "Creating…",
         "submit": "Create Plan"

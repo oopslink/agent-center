@@ -81,6 +81,7 @@ export interface PlanNode {
   // shows a "waiting for a qualified agent" badge. Absent/false when not starved.
   // Contract locked with PD: field name `starved` on the pool node DTO.
   starved?: boolean;
+  blocked_on?: PlanBlockedOn;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -143,6 +144,53 @@ export interface Plan {
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
   active_generation_id?: string;
+  owner_ref?: string;
+  backup_owner_ref?: string | null;
+  attention?: PlanAttentionState;
+  ready_set?: string[];
+  gates?: PlanGate[];
+  frontier?: PlanFrontier;
+  pending_decisions?: PlanBlockedOn[];
+}
+
+export interface PlanAttentionState {
+  status?: 'normal' | 'attention' | 'escalated' | 'blocked' | string;
+  owner_ref?: string;
+  backup_owner_ref?: string | null;
+  escalated_to_ref?: string | null;
+  reason?: string;
+  since?: string;
+  updated_at?: string;
+}
+
+export interface PlanBlockedOn {
+  task_id: string;
+  node_id?: string;
+  wait_type: string;
+  wait_keys: string[];
+  trigger_condition?: string;
+  waited_since?: string;
+  deadline?: string;
+  on_timeout?: string;
+}
+
+export interface PlanFrontierGroup {
+  wait_type: string;
+  count: number;
+  nodes: PlanBlockedOn[];
+}
+
+export interface PlanFrontier {
+  total: number;
+  groups: PlanFrontierGroup[];
+}
+
+export interface PlanGate {
+  node_id: string;
+  stage_id: string;
+  stage_name?: string;
+  status: string;
+  pending?: boolean;
 }
 
 export interface GateVerdict {
@@ -624,6 +672,8 @@ export interface CreatePlanInput {
   name: string;
   description?: string;
   target_date?: string | null;
+  owner_ref: string;
+  backup_owner_ref?: string | null;
 }
 
 export function useCreatePlan(projectId: string) {
@@ -810,9 +860,15 @@ export function useCommitPlanEvolution(projectId: string, planId: string) {
 }
 
 // ADR-0055 lifecycle: pending→running↔paused; done can reopen to paused.
+export interface StartPlanInput {
+  owner_ref: string;
+  backup_owner_ref?: string | null;
+  owner_confirmed: true;
+}
+
 export function useStartPlan(projectId: string, planId: string) {
-  return usePlanWrite<void, Plan>(projectId, planId, () =>
-    api.post<Plan>(`${plansBase(projectId)}/${planId}/start`),
+  return usePlanWrite<StartPlanInput, Plan>(projectId, planId, (input) =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/start`, input),
   );
 }
 
