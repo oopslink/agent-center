@@ -105,7 +105,7 @@ func wantWaitKeys(t *testing.T, got []string, want ...string) {
 // TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle drives the full
 // materialize→refresh→clear lifecycle over a two-node plan A→B (B depends_on A):
 //   - upstream_completion: B is blocked on A (wait_keys=[A]).
-//   - executor_liveness: A running holds a lease (wait_keys=[assignee]).
+//   - execution_active: A running holds a lease (wait_keys=[assignee]).
 //   - clear: a node entering ready/running/terminal drops its snapshot.
 func TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle(t *testing.T) {
 	h, _ := planGraphSetup(t)
@@ -139,15 +139,15 @@ func TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle(t *testing.T) {
 		t.Fatal("B snapshot missing node_id")
 	}
 
-	// A running → executor_liveness (lease held by its assignee); B unchanged.
+	// A running → execution_active (lease held by its assignee); B unchanged.
 	h.setTaskStatus(t, a, pm.TaskRunning)
 	h.drain(t)
 	if err := h.svc.ReconcileRunningPlans(ctx, nil); err != nil {
 		t.Fatalf("sweep #2: %v", err)
 	}
 	bo = blockedOnByTask(t, h, planID)
-	if bo[a].WaitType != pm.WaitExecutorLiveness {
-		t.Fatalf("A wait_type = %q, want executor_liveness", bo[a].WaitType)
+	if bo[a].WaitType != pm.WaitExecutionActive {
+		t.Fatalf("A wait_type = %q, want execution_active", bo[a].WaitType)
 	}
 	wantWaitKeys(t, bo[a].WaitKeys, "user:x")
 	if bo[b].WaitType != pm.WaitUpstreamCompletion {
@@ -502,14 +502,14 @@ func TestBlockedOn_Classify_Fallbacks(t *testing.T) {
 		t.Fatalf("unknown status wait_type = %q, want timeout_only", cls.waitType)
 	}
 
-	// paused (a running task holds a lease too) → executor_liveness; with no assignee
+	// paused (a running task holds a lease too) → execution_active; with no assignee
 	// the wait_keys are empty (the empty-assignee branch).
 	cls, clear, err = h.svc.classifyBlockedOn(ctx, plan, task, pm.PlanNodeView{TaskID: "T1", NodeStatus: pm.NodePaused}, nil, nil, nil)
 	if err != nil || clear {
 		t.Fatalf("NodePaused classify = (clear=%v, err=%v), want a snapshot", clear, err)
 	}
-	if cls.waitType != pm.WaitExecutorLiveness || len(cls.waitKeys) != 0 {
-		t.Fatalf("NodePaused (no assignee) = %+v, want executor_liveness with empty keys", cls)
+	if cls.waitType != pm.WaitExecutionActive || len(cls.waitKeys) != 0 {
+		t.Fatalf("NodePaused (no assignee) = %+v, want execution_active with empty keys", cls)
 	}
 
 	// upstreamConditionNodeIDs nil-guard: an unbound node (no graph_id / node_id) returns

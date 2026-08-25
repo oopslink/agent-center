@@ -124,6 +124,7 @@ func DefaultDeadlinePolicy() DeadlinePolicy {
 			WaitStageBarrier:       {Timeout: 2 * time.Hour, OnTimeout: TimeoutEscalate},
 			WaitHumanDecision:      {Timeout: 4 * time.Hour, OnTimeout: TimeoutEscalate},
 			WaitExternalEvent:      {Timeout: 15 * time.Minute, OnTimeout: TimeoutReprobe},
+			WaitExecutionActive:    {Timeout: 10 * time.Minute, OnTimeout: TimeoutReprobe},
 			WaitExecutorLiveness:   {Timeout: 10 * time.Minute, OnTimeout: TimeoutReprobe},
 			WaitTimeoutOnly:        {Timeout: 30 * time.Minute, OnTimeout: TimeoutRouteToHandler},
 		},

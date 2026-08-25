@@ -35,14 +35,34 @@ func DefaultPlanRecoveryPolicy() PlanRecoveryPolicy {
 type PlanBlockNotificationState string
 
 const (
-	PlanBlockNotifyPending          PlanBlockNotificationState = "pending"
-	PlanBlockNotifySent             PlanBlockNotificationState = "sent"
-	PlanBlockNotifyFailed           PlanBlockNotificationState = "failed"
-	PlanBlockNotifyReminded         PlanBlockNotificationState = "reminded"
-	PlanBlockNotifyReminderFailed   PlanBlockNotificationState = "reminder_failed"
-	PlanBlockNotifyEscalated        PlanBlockNotificationState = "escalated"
-	PlanBlockNotifyEscalationFailed PlanBlockNotificationState = "escalation_failed"
+	PlanBlockNotifyPending           PlanBlockNotificationState = "pending"
+	PlanBlockNotifySending           PlanBlockNotificationState = "sending"
+	PlanBlockNotifySent              PlanBlockNotificationState = "sent"
+	PlanBlockNotifyFailed            PlanBlockNotificationState = "failed"
+	PlanBlockNotifyReminderSending   PlanBlockNotificationState = "reminder_sending"
+	PlanBlockNotifyReminded          PlanBlockNotificationState = "reminded"
+	PlanBlockNotifyReminderFailed    PlanBlockNotificationState = "reminder_failed"
+	PlanBlockNotifyEscalationSending PlanBlockNotificationState = "escalation_sending"
+	PlanBlockNotifyEscalated         PlanBlockNotificationState = "escalated"
+	PlanBlockNotifyEscalationFailed  PlanBlockNotificationState = "escalation_failed"
 )
+
+type PlanBlockResolutionKind string
+
+const (
+	PlanBlockResumeOriginal          PlanBlockResolutionKind = "resume_original"
+	PlanBlockReplaceWithContinuation PlanBlockResolutionKind = "replace_with_continuation"
+	PlanBlockBypassRemoveNode        PlanBlockResolutionKind = "bypass_remove_node"
+	PlanBlockPauseOrDiscardPlan      PlanBlockResolutionKind = "pause_or_discard_plan"
+)
+
+func (k PlanBlockResolutionKind) IsValid() bool {
+	switch k {
+	case PlanBlockResumeOriginal, PlanBlockReplaceWithContinuation, PlanBlockBypassRemoveNode, PlanBlockPauseOrDiscardPlan:
+		return true
+	}
+	return false
+}
 
 type PlanBlockEvent struct {
 	EventID                PlanBlockEventID

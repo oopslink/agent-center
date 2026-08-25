@@ -6,7 +6,7 @@ import "time"
 // It is DERIVED from the live graph state by the reconcile materialize (never
 // authored) and is the routing key the downstream I103 tasks consume (each wait_type
 // has its own resolver — deadline/on_timeout, human_decision queue, external_event
-// subscription, executor_liveness detection). It is a pure OBSERVATION label — it
+// subscription, execution activity checks). It is a pure OBSERVATION label — it
 // changes no gating/readiness semantics.
 type WaitType string
 
@@ -30,9 +30,11 @@ const (
 	// consumer when a real external-signal source exists (avoid dead scaffolding until
 	// then).
 	WaitExternalEvent WaitType = "external_event"
-	// WaitExecutorLiveness — a running (or paused) node holding an execution lease; the
-	// snapshot is a MARKER so the downstream executor-liveness detector/takeover has a
-	// record to probe. This task only stamps the marker (detection is downstream).
+	// WaitExecutionActive — a running (or paused) node holding an execution lease. This is
+	// normal in-flight work, not an executor-liveness incident.
+	WaitExecutionActive WaitType = "execution_active"
+	// WaitExecutorLiveness is a legacy read value retained for persisted historical rows.
+	// New production classification must use WaitExecutionActive.
 	WaitExecutorLiveness WaitType = "executor_liveness"
 	// WaitTimeoutOnly — the catch-all: a non-terminal, non-running, non-ready node with
 	// no more specific derivable reason. Only a deadline can release it.
@@ -43,7 +45,7 @@ const (
 func (w WaitType) IsValid() bool {
 	switch w {
 	case WaitUpstreamCompletion, WaitAcceptanceVerdict, WaitStageBarrier,
-		WaitHumanDecision, WaitExternalEvent, WaitExecutorLiveness, WaitTimeoutOnly:
+		WaitHumanDecision, WaitExternalEvent, WaitExecutionActive, WaitExecutorLiveness, WaitTimeoutOnly:
 		return true
 	}
 	return false
@@ -76,7 +78,7 @@ type BlockedOn struct {
 	// deadline engine + on_timeout router. The materialize preserves them.
 	Deadline  time.Time
 	OnTimeout string
-	// LastProbeAt / ProbeCount are owned by the downstream prober (executor_liveness /
+	// LastProbeAt / ProbeCount are owned by the downstream prober (execution_active /
 	// external_event polling). The materialize preserves them across refreshes.
 	LastProbeAt time.Time
 	ProbeCount  int

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -144,7 +145,7 @@ func (s *Service) AcknowledgePlanBlock(ctx context.Context, cmd AcknowledgePlanB
 		if err != nil {
 			return err
 		}
-		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+		if err := s.requireCurrentPlanOwner(txCtx, p, cmd.Actor, now); err != nil {
 			return err
 		}
 		if err := s.plans.AcknowledgePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, now); err != nil {
@@ -171,6 +172,10 @@ func (s *Service) ResolvePlanBlock(ctx context.Context, cmd ResolvePlanBlockComm
 	if err := cmd.Actor.Validate(); err != nil {
 		return err
 	}
+	kind := pm.PlanBlockResolutionKind(strings.TrimSpace(cmd.ResolutionKind))
+	if !kind.IsValid() {
+		return pm.ErrInvalidPlanBlockResolution
+	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		ev, ok, err := s.plans.FindPlanBlockEventByID(txCtx, cmd.EventID)
@@ -184,10 +189,50 @@ func (s *Service) ResolvePlanBlock(ctx context.Context, cmd ResolvePlanBlockComm
 		if err != nil {
 			return err
 		}
-		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+		if err := s.requireCurrentPlanOwner(txCtx, p, cmd.Actor, now); err != nil {
 			return err
 		}
-		if err := s.plans.ResolvePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, strings.TrimSpace(cmd.ResolutionKind), strings.TrimSpace(cmd.Note), now); err != nil {
+		switch kind {
+		case pm.PlanBlockResumeOriginal:
+			t, err := s.tasks.FindByID(txCtx, ev.TaskID)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(t.BlockedReason()) == "" {
+				return pm.ErrPlanBlockStillBlocked
+			}
+			prevReasonType := t.BlockedReasonType()
+			if err := t.Unblock(cmd.Note, cmd.Actor, now); err != nil {
+				return err
+			}
+			if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
+				return err
+			}
+			if err := s.tasks.Update(txCtx, t); err != nil {
+				return err
+			}
+			if err := s.flushActionLogs(txCtx, t); err != nil {
+				return err
+			}
+			if herr := s.reopenStuckPlanNode(txCtx, t, "plan_block_resume_original"); herr != nil {
+				return herr
+			}
+			if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
+				return err
+			}
+			if prevReasonType == pm.BlockReasonInputRequired {
+				if err := s.emitTaskInputEvent(txCtx, EvtTaskInputReplied, taskInputEventPayload{
+					TaskID: string(t.ID()), ProjectID: string(t.ProjectID()), OwnerRef: "pm://tasks/" + string(t.ID()),
+					ActorRef: string(cmd.Actor), Comment: cmd.Note,
+				}); err != nil {
+					return err
+				}
+			}
+			s.auditTaskUnblocked(txCtx, t, cmd.Actor)
+		case pm.PlanBlockReplaceWithContinuation, pm.PlanBlockBypassRemoveNode, pm.PlanBlockPauseOrDiscardPlan:
+			return fmt.Errorf("%w: %s requires evolve_plan_generation or plan lifecycle command", pm.ErrInvalidPlanBlockResolution, kind)
+		}
+		if err := s.plans.ResolvePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, string(kind), strings.TrimSpace(cmd.Note), now); err != nil {
 			return err
 		}
 		remaining, err := s.plans.ListPlanBlockEvents(txCtx, p.ID(), true)
@@ -206,6 +251,69 @@ func (s *Service) ResolvePlanBlock(ctx context.Context, cmd ResolvePlanBlockComm
 		})
 		return nil
 	})
+}
+
+func (s *Service) requireCurrentPlanOwner(ctx context.Context, p *pm.Plan, actor pm.IdentityRef, now time.Time) error {
+	if p == nil {
+		return pm.ErrPlanNotFound
+	}
+	if err := s.reconcilePlanOwner(ctx, p, actor, "owner_action", now); err != nil {
+		return err
+	}
+	if p.OwnerRef() != actor {
+		s.auditPlan(ctx, p, pm.AuditPlanBlockAcknowledged, actor, map[string]any{
+			"denied": "not_current_owner", "owner_ref": string(p.OwnerRef()),
+		})
+		return pm.ErrPlanOwnerOnly
+	}
+	return nil
+}
+
+func (s *Service) reconcilePlanOwner(ctx context.Context, p *pm.Plan, actor pm.IdentityRef, reason string, now time.Time) error {
+	if p == nil {
+		return nil
+	}
+	if err := s.requireProjectMember(ctx, p.ProjectID(), p.OwnerRef()); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrNotMember) && !errors.Is(err, pm.ErrMemberNotFound) {
+		return err
+	}
+	prevOwner, prevBackup := p.OwnerRef(), p.BackupOwnerRef()
+	var target pm.IdentityRef
+	if prevBackup != "" {
+		if err := s.requireProjectMember(ctx, p.ProjectID(), prevBackup); err == nil {
+			target = prevBackup
+		} else if !errors.Is(err, ErrNotMember) && !errors.Is(err, pm.ErrMemberNotFound) {
+			return err
+		}
+	}
+	if target == "" {
+		members, err := s.members.ListByProject(ctx, p.ProjectID())
+		if err != nil {
+			return err
+		}
+		for _, m := range members {
+			if m.Role() == pm.RoleOwner {
+				target = m.IdentityID()
+				break
+			}
+		}
+	}
+	if target != "" {
+		if err := p.SetOwner(target, "", now); err != nil {
+			return err
+		}
+	} else {
+		p.RequireAttention(p.LastAttentionEventID(), now)
+	}
+	if err := s.plans.Update(ctx, p); err != nil {
+		return err
+	}
+	s.auditPlan(ctx, p, pm.AuditPlanOwnerTransferred, actor, map[string]any{
+		"field": "owner_ref", "from": string(prevOwner), "to": string(target),
+		"backup_from": string(prevBackup), "backup_to": "", "reason": reason,
+	})
+	return nil
 }
 
 func (s *Service) resolvePlanBlockForTask(txCtx context.Context, t *pm.Task, actor pm.IdentityRef, kind, note string, at time.Time) error {

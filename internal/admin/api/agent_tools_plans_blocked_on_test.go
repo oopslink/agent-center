@@ -57,7 +57,7 @@ func TestPlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue(t *testing.T) {
 	detail := &pmservice.PlanDetail{
 		Plan: dtoPlan(t),
 		View: pm.PlanView{Nodes: []pm.PlanNodeView{
-			nodeView("t-a", pm.NodeRunning), // executor_liveness
+			nodeView("t-a", pm.NodeRunning), // execution_active
 			nodeView("t-b", pm.NodeBlocked), // upstream_completion
 			nodeView("t-dec", pm.NodeReady), // human_decision
 			nodeView("t-done", pm.NodeDone), // terminal — no blocked_on even if a stray row exists
@@ -65,7 +65,7 @@ func TestPlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue(t *testing.T) {
 		BlockedOn: []pm.BlockedOn{
 			{TaskID: "t-b", NodeID: "n-b", WaitType: pm.WaitUpstreamCompletion, WaitKeys: []string{"t-a"}, TriggerCondition: "A completes", WaitedSince: waited},
 			{TaskID: "t-dec", NodeID: "n-dec", WaitType: pm.WaitHumanDecision, WaitKeys: []string{"t-dec"}, TriggerCondition: "a human records the decision outcome", WaitedSince: waited},
-			{TaskID: "t-a", NodeID: "n-a", WaitType: pm.WaitExecutorLiveness, WaitKeys: []string{"user:x"}, TriggerCondition: "lease stays alive", WaitedSince: waited},
+			{TaskID: "t-a", NodeID: "n-a", WaitType: pm.WaitExecutionActive, WaitKeys: []string{"user:x"}, TriggerCondition: "active execution completes", WaitedSince: waited},
 			// A stray snapshot for a terminal node (defensive) — must NOT attach per-node.
 			{TaskID: "t-done", NodeID: "n-done", WaitType: pm.WaitTimeoutOnly},
 		},
@@ -117,7 +117,7 @@ func TestPlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue(t *testing.T) {
 	}
 	wantOrder := []string{
 		string(pm.WaitUpstreamCompletion), string(pm.WaitHumanDecision),
-		string(pm.WaitExecutorLiveness), string(pm.WaitTimeoutOnly),
+		string(pm.WaitExecutionActive), string(pm.WaitTimeoutOnly),
 	}
 	for i, wt := range wantOrder {
 		if groups[i]["wait_type"] != wt {

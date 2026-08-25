@@ -43,7 +43,7 @@ func taskIDs(nodes []BlockedOn) []string {
 func TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder(t *testing.T) {
 	// Deliberately NOT in canonical order, and two nodes share human_decision.
 	in := []BlockedOn{
-		bo("t-exec", WaitExecutorLiveness),
+		bo("t-exec", WaitExecutionActive),
 		bo("t-dec1", WaitHumanDecision),
 		bo("t-up1", WaitUpstreamCompletion),
 		bo("t-dec2", WaitHumanDecision),
@@ -54,8 +54,8 @@ func TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder(t *testing.T) {
 	if f.Total != 5 {
 		t.Fatalf("Total = %d, want 5", f.Total)
 	}
-	// Canonical order: upstream_completion before human_decision before executor_liveness.
-	wantTypes := []WaitType{WaitUpstreamCompletion, WaitHumanDecision, WaitExecutorLiveness}
+	// Canonical order: upstream_completion before human_decision before execution_active.
+	wantTypes := []WaitType{WaitUpstreamCompletion, WaitHumanDecision, WaitExecutionActive}
 	gotTypes := make([]WaitType, 0, len(f.Groups))
 	for _, g := range f.Groups {
 		gotTypes = append(gotTypes, g.WaitType)
@@ -111,7 +111,7 @@ func TestDerivePendingDecisions_FiltersHumanDecision(t *testing.T) {
 	in := []BlockedOn{
 		bo("t-up", WaitUpstreamCompletion),
 		bo("t-dec1", WaitHumanDecision),
-		bo("t-exec", WaitExecutorLiveness),
+		bo("t-exec", WaitExecutionActive),
 		bo("t-dec2", WaitHumanDecision),
 		bo("t-acc", WaitAcceptanceVerdict),
 	}
