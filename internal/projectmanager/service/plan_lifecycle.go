@@ -322,6 +322,9 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if p.IsBuiltin() {
 		return s.dispatchBuiltinPool(txCtx, p)
 	}
+	if ok, err := s.planOwnerAllowsDispatch(txCtx, p); err != nil || !ok {
+		return nil, err
+	}
 	if s.planDispatcher == nil {
 		return nil, ErrDispatcherUnavailable
 	}
@@ -484,6 +487,33 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		return nil, cerr
 	}
 	return dispatched, nil
+}
+
+func (s *Service) planOwnerAllowsDispatch(txCtx context.Context, p *pm.Plan) (bool, error) {
+	if p == nil || p.IsBuiltin() {
+		return true, nil
+	}
+	now := s.clock.Now()
+	if ok, err := s.validPlanOwner(txCtx, p.ProjectID(), p.OwnerRef()); err != nil {
+		return false, err
+	} else if ok {
+		return true, nil
+	}
+	if err := s.reconcilePlanOwner(txCtx, p, pm.SystemActor("plan-dispatch"), "owner_dispatch_preflight", now); err != nil {
+		return false, err
+	}
+	if ok, err := s.validPlanOwner(txCtx, p.ProjectID(), p.OwnerRef()); err != nil {
+		return false, err
+	} else if ok {
+		return true, nil
+	}
+	// Owner access loss with no fallback is a durable attention state, not a
+	// transient dispatcher failure. Leave the ready frontier undispatched until an
+	// owner/backup/project owner is restored.
+	if p.AttentionStatus() == pm.PlanAttentionRequired || p.AttentionStatus() == pm.PlanAttentionEscalated {
+		return false, nil
+	}
+	return false, nil
 }
 
 // dispatchBuiltinPool is the ADR-0047 PULL dispatch core for the built-in pool: a

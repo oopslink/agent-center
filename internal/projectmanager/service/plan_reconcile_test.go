@@ -62,6 +62,102 @@ func TestReconcile_DispatchesMissedReadyNode(t *testing.T) {
 	}
 }
 
+func TestAdvancePlan_OwnerAccessLossNoFallbackDoesNotDispatch(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID := seedOwnerLossPlan(t, h, pid, "")
+	a, b := seedTwoNodePlan(t, h, pid, planID)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+
+	if dispatched, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil || len(dispatched) != 1 || dispatched[0] != a {
+		t.Fatalf("initial advance dispatched=%v err=%v, want only A", dispatched, err)
+	}
+	h.setTaskStatus(t, a, pm.TaskCompleted)
+	ownerAccessLossNoFallback(t, h, pid, planID)
+	beforeMsgs := h.planConvMsgCount(t, planID)
+
+	dispatched, err := h.svc.AdvancePlan(ctx, planID, "user:a")
+	if err != nil {
+		t.Fatalf("AdvancePlan after fail-closed owner loss: %v", err)
+	}
+	if len(dispatched) != 0 {
+		t.Fatalf("AdvancePlan dispatched %v, want none while owner loss has no fallback", dispatched)
+	}
+	recs, _ := h.plans.ListDispatchRecords(ctx, planID)
+	if dispatchCount(recs, b) != 0 {
+		t.Fatalf("B dispatch count=%d, want 0 under fail-closed owner loss", dispatchCount(recs, b))
+	}
+	if got := h.planConvMsgCount(t, planID); got != beforeMsgs {
+		t.Fatalf("AdvancePlan posted %d messages, want none", got-beforeMsgs)
+	}
+}
+
+func TestReconcile_OwnerAccessLossNoFallbackDoesNotDispatch(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID := seedOwnerLossPlan(t, h, pid, "")
+	a, _ := seedTwoNodePlan(t, h, pid, planID)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	ownerAccessLossNoFallback(t, h, pid, planID)
+	beforeMsgs := h.planConvMsgCount(t, planID)
+
+	if err := h.svc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans after fail-closed owner loss: %v", err)
+	}
+	recs, _ := h.plans.ListDispatchRecords(ctx, planID)
+	if dispatchCount(recs, a) != 0 {
+		t.Fatalf("A dispatch count=%d, want 0 under fail-closed owner loss", dispatchCount(recs, a))
+	}
+	if got := h.planConvMsgCount(t, planID); got != beforeMsgs {
+		t.Fatalf("ReconcileRunningPlans posted %d messages, want none", got-beforeMsgs)
+	}
+}
+
+func TestDispatch_OwnerAccessLossFallbackStillProgressesWithAttention(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID := seedOwnerLossPlan(t, h, pid, "user:backup")
+	a, b := seedTwoNodePlan(t, h, pid, planID)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if dispatched, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil || len(dispatched) != 1 || dispatched[0] != a {
+		t.Fatalf("initial advance dispatched=%v err=%v, want only A", dispatched, err)
+	}
+	h.setTaskStatus(t, a, pm.TaskCompleted)
+	if _, err := h.svc.db.ExecContext(h.ctx, `DELETE FROM pm_project_members WHERE project_id=? AND identity_id='user:owner'`, string(pid)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ReconcilePlanOwnerAccessLoss(ctx, "org-1", "user:owner", "removed", "system"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := h.svc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans with fallback owner: %v", err)
+	}
+	recs, _ := h.plans.ListDispatchRecords(ctx, planID)
+	if dispatchCount(recs, b) != 1 {
+		t.Fatalf("B dispatch count=%d, want 1 with fallback owner", dispatchCount(recs, b))
+	}
+	plan, _ := h.plans.FindByID(ctx, planID)
+	if plan.OwnerRef() != "user:backup" {
+		t.Fatalf("owner=%s want fallback backup", plan.OwnerRef())
+	}
+	if plan.AttentionStatus() != pm.PlanAttentionRequired {
+		t.Fatalf("attention=%s want retained attention_required", plan.AttentionStatus())
+	}
+}
+
 // TestReconcile_Idempotent asserts the sweep dispatches NOTHING when the ready
 // nodes are already dispatched (no double @mention). Run ReconcileRunningPlans
 // twice over the same plan; the second sweep adds no records and posts no
@@ -199,5 +295,55 @@ func TestListRunningPlans_OnlyRunning(t *testing.T) {
 	}
 	if gotIDs[doneID] {
 		t.Fatalf("ListRunningPlans included the done plan %s", doneID)
+	}
+}
+
+func seedOwnerLossPlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, backup pm.IdentityRef) pm.PlanID {
+	t.Helper()
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:owner", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	if backup != "" {
+		if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: backup, Role: pm.RoleMember, Actor: "user:a"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{
+		ProjectID: pid, Name: "owner-loss-dispatch-freeze", CreatedBy: "user:a", OwnerRef: "user:owner", BackupOwnerRef: backup,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	return planID
+}
+
+func seedTwoNodePlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, planID pm.PlanID) (pm.TaskID, pm.TaskID) {
+	t.Helper()
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:a")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:a")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	return a, b
+}
+
+func ownerAccessLossNoFallback(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, planID pm.PlanID) {
+	t.Helper()
+	if _, err := h.svc.db.ExecContext(h.ctx, `UPDATE pm_project_members SET role='member' WHERE project_id=? AND identity_id='user:a'`, string(pid)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.db.ExecContext(h.ctx, `DELETE FROM pm_project_members WHERE project_id=? AND identity_id='user:owner'`, string(pid)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ReconcilePlanOwnerAccessLoss(h.ctx, "org-1", "user:owner", "removed", "system"); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.OwnerRef() != "user:owner" || plan.AttentionStatus() != pm.PlanAttentionRequired {
+		t.Fatalf("owner-loss setup owner=%s attention=%s, want original owner + attention_required", plan.OwnerRef(), plan.AttentionStatus())
 	}
 }
