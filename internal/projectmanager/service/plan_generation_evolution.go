@@ -150,7 +150,7 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			return err
 		}
 
-		newTaskIDs, refToTask, err := s.createEvolutionTasks(txCtx, p, cmd, now)
+		newTaskIDs, refToTask, err := s.createEvolutionTasks(txCtx, p, cmd, supersedeLineageSource(superseded), now)
 		if err != nil {
 			return err
 		}
@@ -473,10 +473,21 @@ func (s *Service) applySupersededNodes(
 	return nil
 }
 
+func supersedeLineageSource(superseded map[pm.TaskID]bool) pm.TaskID {
+	if len(superseded) != 1 {
+		return ""
+	}
+	for id := range superseded {
+		return id
+	}
+	return ""
+}
+
 func (s *Service) createEvolutionTasks(
 	ctx context.Context,
 	p *pm.Plan,
 	cmd EvolvePlanGenerationCommand,
+	lineageSource pm.TaskID,
 	now time.Time,
 ) ([]pm.TaskID, map[string]pm.TaskID, error) {
 	refToTask := map[string]pm.TaskID{}
@@ -489,10 +500,14 @@ func (s *Service) createEvolutionTasks(
 		if _, exists := refToTask[ref]; exists {
 			return nil, nil, pm.ErrRemediationProposalInvalid
 		}
+		followsTaskID := spec.FollowsTaskID
+		if followsTaskID == "" {
+			followsTaskID = lineageSource
+		}
 		taskID, err := s.CreateTask(ctx, CreateTaskCommand{
 			ProjectID: p.ProjectID(), Title: spec.Title, Description: spec.Description,
 			CreatedBy: cmd.Creator, Assignee: spec.AssigneeRef, DispatchMode: spec.DispatchMode,
-			DeliveryContract: spec.DeliveryContract, FollowsTaskID: spec.FollowsTaskID,
+			DeliveryContract: spec.DeliveryContract, FollowsTaskID: followsTaskID,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -591,7 +606,7 @@ func (s *Service) applyGenerationGraphDelta(
 			return err
 		}
 		if t.NodeID() != "" {
-			if err := s.orch.RemoveNode(ctx, orch.NodeID(t.NodeID())); err != nil {
+			if err := s.removeSupersededGraphNode(ctx, orch.NodeID(t.NodeID())); err != nil {
 				return err
 			}
 		}
@@ -652,6 +667,20 @@ func (s *Service) applyGenerationGraphDelta(
 		}
 	}
 	return nil
+}
+
+func (s *Service) removeSupersededGraphNode(ctx context.Context, nodeID orch.NodeID) error {
+	n, err := s.orch.GetNode(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	switch n.Status() {
+	case orch.NodeRunning, orch.NodeCompleted:
+		if err := s.orch.ReopenNode(ctx, nodeID, "superseded by plan evolution"); err != nil {
+			return err
+		}
+	}
+	return s.orch.RemoveNode(ctx, nodeID)
 }
 
 func planGenerationSnapshot(

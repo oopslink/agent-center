@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
 
 func generationTaskByTitle(t *testing.T, g *pm.PlanGeneration, title string) pm.PlanGenerationTaskSnapshot {
@@ -548,6 +549,126 @@ func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *
 	p, _ := h.plans.FindByID(h.ctx, planID)
 	if p.ActiveGenerationID() != res.Generation.ID || p.Version() != base+1 {
 		t.Fatalf("active/version=%s/%d want %s/%d", p.ActiveGenerationID(), p.Version(), res.Generation.ID, base+1)
+	}
+	cSnap := generationTaskByTitle(t, res.Generation, "replacement")
+	cTask, err := h.tasks.FindByID(h.ctx, cSnap.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cTask.FollowsTaskID() != b {
+		t.Fatalf("replacement follows_task_id=%s, want superseded source %s", cTask.FollowsTaskID(), b)
+	}
+	if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldB.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
+		t.Fatalf("superseded blocked graph node lookup err=%v, want ErrNodeNotFound", err)
+	}
+}
+
+func TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-terminal-supersede", CreatedBy: "user:a"})
+	h.drain(t)
+	a, _ := h.startRunningPlanAB(t, pid, planID)
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	h.setTaskStatus(t, a, pm.TaskCompleted)
+	h.drain(t)
+	oldA, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldA.NodeID() == "" {
+		t.Fatal("completed source task has no graph node")
+	}
+	if err := h.svc.orch.StartNode(h.ctx, orch.NodeID(oldA.NodeID())); err != nil {
+		t.Fatalf("StartNode(old A): %v", err)
+	}
+	if err := h.svc.orch.CompleteNode(h.ctx, orch.NodeID(oldA.NodeID()), "success"); err != nil {
+		t.Fatalf("CompleteNode(old A): %v", err)
+	}
+	if n, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); err != nil || n.Status() != orch.NodeCompleted {
+		t.Fatalf("old graph node status=%v err=%v, want completed", n, err)
+	}
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-owner-supersede-completed",
+		Reason: "replace completed terminal source", Evidence: "owner accepted continuation", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: a, Action: pm.EvolutionSupersede}},
+			Tasks:         []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "terminal replacement", AssigneeRef: "user:c1", Detached: true}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("owner supersede completed terminal node: %v", err)
+	}
+	reloadedA, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloadedA.PlanID() != "" {
+		t.Fatalf("superseded completed task still in plan: %s", reloadedA.PlanID())
+	}
+	if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
+		t.Fatalf("completed graph node lookup err=%v, want ErrNodeNotFound", err)
+	}
+	cSnap := generationTaskByTitle(t, res.Generation, "terminal replacement")
+	cTask, err := h.tasks.FindByID(h.ctx, cSnap.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cTask.FollowsTaskID() != a {
+		t.Fatalf("terminal replacement follows_task_id=%s, want %s", cTask.FollowsTaskID(), a)
+	}
+	if p, _ := h.plans.FindByID(h.ctx, planID); p.ActiveGenerationID() != res.Generation.ID || p.Version() != base+1 {
+		t.Fatalf("active/version=%s/%d want %s/%d", p.ActiveGenerationID(), p.Version(), res.Generation.ID, base+1)
+	}
+}
+
+func TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-discarded-supersede", CreatedBy: "user:a"})
+	h.drain(t)
+	a, _ := h.startRunningPlanAB(t, pid, planID)
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	oldA, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+
+	res, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-owner-supersede-discarded",
+		Reason: "replace formally discarded source", Evidence: "owner accepted continuation", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: a, Action: pm.EvolutionSupersede}},
+			Tasks:         []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "discarded replacement", AssigneeRef: "user:c1", Detached: true}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("owner supersede discarded terminal node: %v", err)
+	}
+	reloadedA, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloadedA.PlanID() != "" {
+		t.Fatalf("superseded discarded task still in plan: %s", reloadedA.PlanID())
+	}
+	if oldA.NodeID() != "" {
+		if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
+			t.Fatalf("discarded graph node lookup err=%v, want ErrNodeNotFound", err)
+		}
+	}
+	cSnap := generationTaskByTitle(t, res.Generation, "discarded replacement")
+	cTask, err := h.tasks.FindByID(h.ctx, cSnap.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cTask.FollowsTaskID() != a {
+		t.Fatalf("discarded replacement follows_task_id=%s, want %s", cTask.FollowsTaskID(), a)
 	}
 }
 
