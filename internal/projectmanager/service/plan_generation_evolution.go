@@ -122,7 +122,7 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			dispatchedSet[r.TaskID] = true
 		}
 
-		superseded, err := s.validateEvolutionNodeDecisions(cmd.Diff.NodeDecisions, taskByID, edges, dispatchedSet)
+		superseded, err := s.validateEvolutionNodeDecisions(txCtx, p, cmd.Creator, cmd.Diff.NodeDecisions, taskByID, edges, dispatchedSet)
 		if err != nil {
 			return err
 		}
@@ -319,6 +319,9 @@ func evolutionRequestFingerprint(cmd EvolvePlanGenerationCommand) (string, error
 }
 
 func (s *Service) validateEvolutionNodeDecisions(
+	ctx context.Context,
+	p *pm.Plan,
+	actor pm.IdentityRef,
 	decisions []pm.PlanGenerationNodeDecision,
 	taskByID map[pm.TaskID]*pm.Task,
 	edges []pm.Dependency,
@@ -339,7 +342,12 @@ func (s *Service) validateEvolutionNodeDecisions(
 			continue
 		case pm.EvolutionSupersede:
 			if !mutable {
-				return nil, fmt.Errorf("%w: supersede task %s", pm.ErrPlanNodeInFlight, d.TaskID)
+				if !ownerMaySupersedeSettledNode(t.Status(), dispatched[d.TaskID]) {
+					return nil, fmt.Errorf("%w: supersede task %s", pm.ErrPlanNodeInFlight, d.TaskID)
+				}
+				if err := s.requirePlanCreatorOrProjectOwner(ctx, p, actor); err != nil {
+					return nil, err
+				}
 			}
 			superseded[d.TaskID] = true
 		case pm.EvolutionHoldAtGate:
@@ -358,6 +366,13 @@ func (s *Service) validateEvolutionNodeDecisions(
 		}
 	}
 	return superseded, nil
+}
+
+func ownerMaySupersedeSettledNode(status pm.TaskStatus, dispatched bool) bool {
+	if status == pm.TaskRunning {
+		return false
+	}
+	return dispatched || status.IsParked() || status.IsTerminal()
 }
 
 func (s *Service) applySupersededNodes(
@@ -387,6 +402,12 @@ func (s *Service) applySupersededNodes(
 			return err
 		}
 		if err := s.tasks.Update(ctx, t); err != nil {
+			return err
+		}
+		if err := s.plans.ClearDispatch(ctx, p.ID(), id); err != nil {
+			return err
+		}
+		if err := s.plans.ClearBlockedOn(ctx, p.ID(), id); err != nil {
 			return err
 		}
 		s.auditPlanByID(ctx, p.ProjectID(), p.ID(), pm.AuditPlanNodeRemoved, p.CreatorRef(), map[string]any{
