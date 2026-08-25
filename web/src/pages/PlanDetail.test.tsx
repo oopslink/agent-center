@@ -641,6 +641,42 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(table).getAllByTestId('node-state-chip').length).toBe(7);
   });
 
+  it('task-list tab surfaces blocked recovery owner, reason, next action, and entrypoint', async () => {
+    mockPlan({
+      nodes: [
+        {
+          task_id: 'blocked-1',
+          title: 'recover executor delivery',
+          assignee_ref: 'agent:exec',
+          task_status: 'blocked',
+          node_status: 'paused',
+          depends_on: [],
+          blocked_on: {
+            node_id: 'node-blocked-1',
+            task_id: 'blocked-1',
+            wait_type: 'blocked_on_external',
+            wait_keys: ['agent:exec'],
+            trigger_condition: 'owner/PM resolves the block or registers manual recovery delivery',
+            responsible_ref: 'agent:exec',
+            reason: 'executor exhausted after task_non_delivery',
+            reason_type: 'obstacle',
+            next_action: 'Call report_manual_recovery_delivery, then complete_task.',
+            recovery_entrypoint: 'report_manual_recovery_delivery',
+            recovery_entrypoints: ['unblock_task', 'report_manual_recovery_delivery', 'complete_task'],
+          },
+        },
+      ],
+    });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const recovery = await screen.findByTestId('plan-node-recovery-blocked-1');
+    expect(recovery).toHaveTextContent('Recovery blocked');
+    expect(recovery).toHaveTextContent('owner agent:exec');
+    expect(recovery).toHaveTextContent('executor exhausted after task_non_delivery');
+    expect(recovery).toHaveTextContent('Call report_manual_recovery_delivery, then complete_task.');
+    expect(recovery).toHaveTextContent('report_manual_recovery_delivery');
+  });
+
   // ── T570: plan detail page polish ─────────────────────────────────────────
   it('T570: a DONE node shows its completion time; non-done nodes do not', async () => {
     mockPlan({

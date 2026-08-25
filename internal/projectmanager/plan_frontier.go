@@ -44,6 +44,7 @@ var frontierWaitOrder = []WaitType{
 	WaitStageBarrier,
 	WaitHumanDecision,
 	WaitExternalEvent,
+	WaitBlockedOnExternal,
 	WaitExecutorLiveness,
 	WaitTimeoutOnly,
 }

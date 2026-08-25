@@ -391,6 +391,8 @@
         "reassign": "重新分配 {{title}}",
         "removeError": "无法将此任务从计划中移除。请重试。",
         "assignError": "无法重新分配此任务。请重试。",
+        "recoveryBlocked": "恢复受阻",
+        "recoveryOwner": "责任人 {{owner}}",
         "resume": "恢复",
         "resuming": "恢复中…",
         "resumeAria": "恢复 {{title}}",

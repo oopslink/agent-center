@@ -1130,6 +1130,10 @@ func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm
 // node is not advancing, on whom, and since when. Timestamps/optional fields are omitted
 // when zero (RFC3339Nano, mirroring the rest of this file). It carries NO gate semantics.
 func blockedOnMap(b pm.BlockedOn) map[string]any {
+	return blockedOnMapForTask(b, nil)
+}
+
+func blockedOnMapForTask(b pm.BlockedOn, t *pm.Task) map[string]any {
 	waitKeys := make([]string, 0, len(b.WaitKeys))
 	waitKeys = append(waitKeys, b.WaitKeys...)
 	m := map[string]any{
@@ -1150,6 +1154,44 @@ func blockedOnMap(b pm.BlockedOn) map[string]any {
 	if b.OnTimeout != "" {
 		m["on_timeout"] = b.OnTimeout
 	}
+	if b.WaitType == pm.WaitBlockedOnExternal {
+		owner := ""
+		reason := ""
+		reasonType := ""
+		delivery := (*pm.Delivery)(nil)
+		if t != nil {
+			owner = strings.TrimSpace(string(t.Assignee()))
+			reason = strings.TrimSpace(t.BlockedReason())
+			reasonType = strings.TrimSpace(string(t.BlockedReasonType()))
+			delivery = t.Delivery()
+		}
+		if owner == "" && len(waitKeys) == 1 {
+			owner = waitKeys[0]
+		}
+		if owner != "" {
+			m["responsible_ref"] = owner
+		}
+		if reason != "" {
+			m["reason"] = reason
+		}
+		if reasonType != "" {
+			m["reason_type"] = reasonType
+		}
+		next := "Resolve the blocker, then call unblock_task; if a human recovered and pushed the retained work, call report_manual_recovery_delivery and then complete_task."
+		m["next_action"] = next
+		m["recovery_entrypoints"] = []string{"unblock_task", "report_manual_recovery_delivery", "complete_task"}
+		m["recovery_entrypoint"] = "unblock_task"
+		if delivery != nil && delivery.Source == "manual_recovery" {
+			m["manual_recovery"] = map[string]any{
+				"branch": delivery.Branch, "head_sha": delivery.HeadSHA,
+				"pushed": delivery.Pushed, "evidence": delivery.Evidence, "reason": delivery.Reason,
+			}
+			if delivery.HasValidDelivery() {
+				m["next_action"] = "Manual recovery delivery is registered and pushed; call complete_task to finish this node and advance downstream."
+				m["recovery_entrypoint"] = "complete_task"
+			}
+		}
+	}
 	return m
 }
 
@@ -1162,16 +1204,28 @@ func blockedOnList(bs []pm.BlockedOn) []map[string]any {
 	return out
 }
 
+func blockedOnListForTasks(bs []pm.BlockedOn, taskByID map[pm.TaskID]*pm.Task) []map[string]any {
+	out := make([]map[string]any, 0, len(bs))
+	for _, b := range bs {
+		out = append(out, blockedOnMapForTask(b, taskByID[b.TaskID]))
+	}
+	return out
+}
+
 // frontierMap renders the un-advanced FRONTIER (I103 §2): the blocked_on snapshots
 // grouped by wait_type + the total blocked count, as {groups:[{wait_type,count,nodes}],
 // total}.
 func frontierMap(f pm.PlanFrontier) map[string]any {
+	return frontierMapForTasks(f, nil)
+}
+
+func frontierMapForTasks(f pm.PlanFrontier, taskByID map[pm.TaskID]*pm.Task) map[string]any {
 	groups := make([]map[string]any, 0, len(f.Groups))
 	for _, g := range f.Groups {
 		groups = append(groups, map[string]any{
 			"wait_type": string(g.WaitType),
 			"count":     len(g.Nodes),
-			"nodes":     blockedOnList(g.Nodes),
+			"nodes":     blockedOnListForTasks(g.Nodes, taskByID),
 		})
 	}
 	return map[string]any{"groups": groups, "total": f.Total}
@@ -1185,6 +1239,10 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	// I103 §2: index the 旁路 blocked_on snapshots by task so each non-terminal node can
 	// carry its own "why am I waiting" descriptor (per-node blocked_on).
 	blockedByTask := make(map[pm.TaskID]pm.BlockedOn, len(detail.BlockedOn))
+	taskByID := make(map[pm.TaskID]*pm.Task, len(detail.Tasks))
+	for _, t := range detail.Tasks {
+		taskByID[t.ID()] = t
+	}
 	for _, b := range detail.BlockedOn {
 		blockedByTask[b.TaskID] = b
 	}
@@ -1194,7 +1252,7 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 		// Attach blocked_on only to NON-terminal nodes (a terminal node carries no snapshot —
 		// the reconcile sweep clears it; the guard is defensive against a stale row).
 		if b, ok := blockedByTask[n.TaskID]; ok && !n.NodeStatus.IsTerminal() {
-			node["blocked_on"] = blockedOnMap(b)
+			node["blocked_on"] = blockedOnMapForTask(b, taskByID[n.TaskID])
 		}
 		nodes = append(nodes, node)
 	}
@@ -1238,9 +1296,9 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	// blocked_on snapshots — a fully-advancing / builtin / ungraphed plan omits both keys
 	// (zero-regression, mirroring the `gates` key).
 	if len(detail.BlockedOn) > 0 {
-		m["frontier"] = frontierMap(pm.DeriveFrontier(detail.BlockedOn))
+		m["frontier"] = frontierMapForTasks(pm.DeriveFrontier(detail.BlockedOn), taskByID)
 		if pend := pm.DerivePendingDecisions(detail.BlockedOn); len(pend) > 0 {
-			m["pending_decisions"] = blockedOnList(pend)
+			m["pending_decisions"] = blockedOnListForTasks(pend, taskByID)
 		}
 	}
 	return m

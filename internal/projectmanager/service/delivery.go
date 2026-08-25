@@ -31,6 +31,9 @@ func (s *Service) RecordDelivery(ctx context.Context, taskID pm.TaskID, actor pm
 			return pm.ErrNotTaskAssignee
 		}
 		t.SetDelivery(d)
-		return s.tasks.Update(txCtx, t)
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		return s.refreshPlanBlockedOnForTask(txCtx, t)
 	})
 }

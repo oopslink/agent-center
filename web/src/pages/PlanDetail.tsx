@@ -5008,6 +5008,26 @@ function PlanTaskRow({
             {resumeNodeErrorMessage(resume.error, t)}
           </span>
         )}
+        {node.blocked_on?.wait_type === 'blocked_on_external' && (
+          <div
+            className="mt-1 max-w-[22rem] text-[0.6875rem] leading-4 text-danger"
+            data-testid={`plan-node-recovery-${node.task_id}`}
+          >
+            <span className="font-semibold">{t('plan.detail.taskList.recoveryBlocked')}</span>
+            {node.blocked_on.responsible_ref && (
+              <span> · {t('plan.detail.taskList.recoveryOwner', { owner: node.blocked_on.responsible_ref })}</span>
+            )}
+            {node.blocked_on.reason && (
+              <span className="block break-words">{node.blocked_on.reason}</span>
+            )}
+            {node.blocked_on.next_action && (
+              <span className="block break-words text-text-secondary">{node.blocked_on.next_action}</span>
+            )}
+            {node.blocked_on.recovery_entrypoint && (
+              <span className="block font-mono text-[0.625rem] text-text-muted">{node.blocked_on.recovery_entrypoint}</span>
+            )}
+          </div>
+        )}
       </td>
       {/* Created column (owner ask): the underlying task's creation time as a
           full local timestamp WITH timezone; raw ISO on hover. "—" if absent. */}

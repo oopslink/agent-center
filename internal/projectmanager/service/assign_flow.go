@@ -570,6 +570,9 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
+		if err := s.refreshPlanBlockedOnForTask(txCtx, t); err != nil {
+			return err
+		}
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
@@ -669,6 +672,9 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		// next plan advance re-dispatches it. No-op for a built-in pool / backlog task.
 		if herr := s.reopenStuckPlanNode(txCtx, t, "task_unblock"); herr != nil {
 			return herr
+		}
+		if err := s.refreshPlanBlockedOnForTask(txCtx, t); err != nil {
+			return err
 		}
 		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
 			return err
@@ -933,6 +939,9 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
+		if err := s.refreshPlanBlockedOnForTask(txCtx, t); err != nil {
+			return err
+		}
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
@@ -1127,4 +1136,18 @@ func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, prevStat
 			Status: string(t.Status()), PrevStatus: string(prevStatus), Reason: reason,
 			EffectiveSubscribers: EffectiveTaskSubscribers(t, manual),
 		})
+}
+
+func (s *Service) refreshPlanBlockedOnForTask(ctx context.Context, t *pm.Task) error {
+	if t == nil || t.PlanID() == "" || s.plans == nil {
+		return nil
+	}
+	p, err := s.plans.FindByID(ctx, t.PlanID())
+	if err != nil {
+		return err
+	}
+	if p.Status() != pm.PlanRunning {
+		return nil
+	}
+	return s.materializeBlockedOn(ctx, p)
 }

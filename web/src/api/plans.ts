@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Issue, Task, TaskStatus } from './types';
+import type { BlockReasonType, Issue, Task, TaskStatus } from './types';
 
 // Plans — v2.9 Plan Orchestration P1 (#286 foundation + backlog→Plan selection).
 //
@@ -36,6 +36,41 @@ export type PlanNodeStatus =
   | 'paused' // T53: running task whose agent paused its work item (set aside)
   | 'done'
   | 'failed';
+
+export type PlanBlockedOnWaitType =
+  | 'upstream_completion'
+  | 'acceptance_verdict'
+  | 'stage_barrier'
+  | 'human_decision'
+  | 'external_event'
+  | 'blocked_on_external'
+  | 'executor_liveness'
+  | 'timeout_only'
+  | string;
+
+export interface PlanBlockedOn {
+  node_id: string;
+  task_id: string;
+  wait_type: PlanBlockedOnWaitType;
+  wait_keys: string[];
+  trigger_condition: string;
+  waited_since?: string;
+  deadline?: string;
+  on_timeout?: string;
+  responsible_ref?: string;
+  reason?: string;
+  reason_type?: BlockReasonType;
+  next_action?: string;
+  recovery_entrypoint?: string;
+  recovery_entrypoints?: string[];
+  manual_recovery?: {
+    branch?: string;
+    head_sha?: string;
+    pushed?: boolean;
+    evidence?: string;
+    reason?: string;
+  };
+}
 
 // PlanNode (§9.2) — a task's projection inside a Plan's DAG. `depends_on` is the
 // list of upstream task ids this node depends on (those complete first).
@@ -81,6 +116,7 @@ export interface PlanNode {
   // shows a "waiting for a qualified agent" badge. Absent/false when not starved.
   // Contract locked with PD: field name `starved` on the pool node DTO.
   starved?: boolean;
+  blocked_on?: PlanBlockedOn;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -142,6 +178,11 @@ export interface Plan {
   node_count?: number;
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
+  frontier?: {
+    total: number;
+    groups: Array<{ wait_type: PlanBlockedOnWaitType; count: number; nodes: PlanBlockedOn[] }>;
+  };
+  pending_decisions?: PlanBlockedOn[];
   active_generation_id?: string;
 }
 

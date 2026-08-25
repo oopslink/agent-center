@@ -30,6 +30,11 @@ const (
 	// consumer when a real external-signal source exists (avoid dead scaffolding until
 	// then).
 	WaitExternalEvent WaitType = "external_event"
+	// WaitBlockedOnExternal — the task itself is parked blocked by its assignee after
+	// non-delivery or an obstacle. This is an active recovery frontier: owner/PM must
+	// resolve/unblock it or register manual recovery delivery, not wait for executor
+	// liveness.
+	WaitBlockedOnExternal WaitType = "blocked_on_external"
 	// WaitExecutorLiveness — a running (or paused) node holding an execution lease; the
 	// snapshot is a MARKER so the downstream executor-liveness detector/takeover has a
 	// record to probe. This task only stamps the marker (detection is downstream).
@@ -43,7 +48,7 @@ const (
 func (w WaitType) IsValid() bool {
 	switch w {
 	case WaitUpstreamCompletion, WaitAcceptanceVerdict, WaitStageBarrier,
-		WaitHumanDecision, WaitExternalEvent, WaitExecutorLiveness, WaitTimeoutOnly:
+		WaitHumanDecision, WaitExternalEvent, WaitBlockedOnExternal, WaitExecutorLiveness, WaitTimeoutOnly:
 		return true
 	}
 	return false

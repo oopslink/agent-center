@@ -1090,14 +1090,16 @@ type blockedOnClass struct {
 // actually reject on. Priority order (most-specific first):
 //
 //  1. terminal (done/failed/skipped)        → clear
-//  2. running/paused (holds an exec lease)   → executor_liveness (marker; detection downstream)
-//  3. acceptance hard gate holds it          → acceptance_verdict
-//  4. stage barrier holds it                 → stage_barrier
-//  5. it IS a pending decision/review node   → human_decision
-//  6. blocked behind an unresolved decision  → human_decision
-//  7. blocked on unfinished upstream deps    → upstream_completion
-//  8. ready/dispatched, no gate (runnable)   → clear (awaiting agent pickup, not blocked)
-//  9. fallback (unknown non-terminal state)  → timeout_only
+//  2. task parked blocked                    → blocked_on_external (owner/PM recovery)
+//  3. running/paused (holds an exec lease)   → executor_liveness (marker; detection downstream)
+//  4. acceptance hard gate holds it          → acceptance_verdict
+//  5. stage barrier holds it                 → stage_barrier
+//  6. it IS a pending decision/review node   → human_decision
+//  7. blocked behind an unresolved decision  → human_decision
+//  8. blocked on unfinished upstream deps    → upstream_completion
+//  9. ready/dispatched, no gate (runnable)   → clear (awaiting agent pickup, not blocked)
+//
+// 10. fallback (unknown non-terminal state)  → timeout_only
 //
 // external_event is intentionally NOT derived here — no current graph state maps to
 // it (external_event subscription is a downstream I103 task); the enum reserves it.
@@ -1105,6 +1107,15 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 	switch n.NodeStatus {
 	case pm.NodeDone, pm.NodeFailed, pm.NodeSkipped:
 		return blockedOnClass{}, true, nil // settled — clear any snapshot.
+	}
+	if t.Status() == pm.TaskBlocked || strings.TrimSpace(t.BlockedReason()) != "" {
+		keys := []string{string(t.Assignee())}
+		if strings.TrimSpace(keys[0]) == "" {
+			keys = nil
+		}
+		return blockedOnClass{pm.WaitBlockedOnExternal, keys, "owner/PM resolves the block or registers manual recovery delivery"}, false, nil
+	}
+	switch n.NodeStatus {
 	case pm.NodeRunning, pm.NodePaused:
 		// In motion holding an execution lease → a marker so the downstream executor-
 		// liveness detector/takeover has a record to probe. Detection is NOT this task.

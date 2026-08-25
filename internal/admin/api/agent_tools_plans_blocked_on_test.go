@@ -135,6 +135,78 @@ func TestPlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue(t *testing.T) {
 	}
 }
 
+func TestPlanDetailMap_BlockedExternalRecoveryFields(t *testing.T) {
+	waited := time.Unix(1_700_000_200, 0).UTC()
+	task, err := pm.NewTask(pm.NewTaskInput{
+		ID: "t-blocked", ProjectID: "proj-1", Title: "recover blocked node",
+		CreatedBy: "user:owner", CreatedAt: waited,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Assign("agent:exec", waited); err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Start(waited); err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Block("executor exhausted after task_non_delivery", pm.BlockReasonObstacle, "agent:exec", waited); err != nil {
+		t.Fatal(err)
+	}
+	if err := task.SetPlan("plan-1", waited); err != nil {
+		t.Fatal(err)
+	}
+	task.SetDelivery(&pm.Delivery{
+		Probed: true, Pushed: true, Branch: "ac-exec/task/recovery", HeadSHA: "abc123",
+		BaseKnown: true, AheadOfBase: 1, Source: "manual_recovery", Evidence: "go test ./...", Reason: "operator pushed retained work",
+	})
+	detail := &pmservice.PlanDetail{
+		Plan:  dtoPlan(t),
+		Tasks: []*pm.Task{task},
+		View: pm.PlanView{Nodes: []pm.PlanNodeView{
+			nodeView("t-blocked", pm.NodePaused),
+		}},
+		BlockedOn: []pm.BlockedOn{{
+			TaskID: "t-blocked", NodeID: "n-blocked", WaitType: pm.WaitBlockedOnExternal,
+			WaitKeys: []string{"agent:exec"}, TriggerCondition: "owner/PM resolves the block or registers manual recovery delivery", WaitedSince: waited,
+		}},
+	}
+
+	m := planDetailMap(detail)
+	nodeBO := nodeByTaskID(t, m["nodes"], "t-blocked")["blocked_on"].(map[string]any)
+	if nodeBO["wait_type"] != string(pm.WaitBlockedOnExternal) {
+		t.Fatalf("wait_type = %v, want blocked_on_external", nodeBO["wait_type"])
+	}
+	if nodeBO["responsible_ref"] != "agent:exec" || nodeBO["reason_type"] != string(pm.BlockReasonObstacle) {
+		t.Fatalf("responsibility fields = %+v", nodeBO)
+	}
+	if nodeBO["reason"] != "executor exhausted after task_non_delivery" {
+		t.Fatalf("reason = %v", nodeBO["reason"])
+	}
+	if nodeBO["next_action"] != "Manual recovery delivery is registered and pushed; call complete_task to finish this node and advance downstream." {
+		t.Fatalf("next_action = %v", nodeBO["next_action"])
+	}
+	if nodeBO["recovery_entrypoint"] != "complete_task" {
+		t.Fatalf("recovery_entrypoint = %v", nodeBO["recovery_entrypoint"])
+	}
+	if eps, ok := nodeBO["recovery_entrypoints"].([]string); !ok || len(eps) != 3 {
+		t.Fatalf("recovery_entrypoints = %#v", nodeBO["recovery_entrypoints"])
+	}
+	manual, ok := nodeBO["manual_recovery"].(map[string]any)
+	if !ok || manual["head_sha"] != "abc123" || manual["evidence"] != "go test ./..." {
+		t.Fatalf("manual_recovery = %+v", nodeBO["manual_recovery"])
+	}
+	fr := m["frontier"].(map[string]any)
+	groups := fr["groups"].([]map[string]any)
+	if groups[0]["wait_type"] != string(pm.WaitBlockedOnExternal) {
+		t.Fatalf("frontier group = %+v, want blocked_on_external first", groups)
+	}
+	frontierNode := groups[0]["nodes"].([]map[string]any)[0]
+	if frontierNode["responsible_ref"] != "agent:exec" || frontierNode["recovery_entrypoint"] != "complete_task" {
+		t.Fatalf("frontier node missing recovery fields: %+v", frontierNode)
+	}
+}
+
 // TestBlockedOnMap_DeadlineOnTimeoutRenderedWhenSet asserts the downstream-owned
 // deadline / on_timeout fields ride the DTO read-only when set (omitted otherwise,
 // covered above).

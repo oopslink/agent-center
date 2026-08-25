@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -18,6 +21,49 @@ var errBoom = errors.New("boom")
 type failingPlanRepo struct {
 	*pmsql.PlanRepo
 	failOn string
+}
+
+func outboxEventPayloads(t *testing.T, db *sql.DB, eventType string) []string {
+	t.Helper()
+	rows, err := db.QueryContext(context.Background(), `SELECT payload FROM outbox_events WHERE event_type = ? ORDER BY id`, eventType)
+	if err != nil {
+		t.Fatalf("query outbox_events: %v", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatalf("scan outbox payload: %v", err)
+		}
+		out = append(out, payload)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate outbox payloads: %v", err)
+	}
+	return out
+}
+
+func projectTaskStateChanged(t *testing.T, h *planAdvanceHarness, taskID pm.TaskID) {
+	t.Helper()
+	ob := outboxsql.NewOutboxRepo(h.svc.db)
+	evs, err := ob.FetchUnprocessed(h.ctx, 1000)
+	if err != nil {
+		t.Fatalf("FetchUnprocessed: %v", err)
+	}
+	for _, ev := range evs {
+		if ev.EventType == EvtTaskStateChanged &&
+			strings.Contains(ev.Payload, `"task_id":"`+string(taskID)+`"`) &&
+			strings.Contains(ev.Payload, `"status":"completed"`) {
+			applied := outboxsql.NewAppliedRepo(h.svc.db)
+			proj := NewPlanOrchestratorProjector(h.svc.db, h.svc, applied, h.clk)
+			if err := proj.Project(h.ctx, ev); err != nil {
+				t.Fatalf("PlanOrchestratorProjector.Project: %v", err)
+			}
+			return
+		}
+	}
+	t.Fatalf("no unprocessed %s event for task %s", EvtTaskStateChanged, taskID)
 }
 
 func (r *failingPlanRepo) ListDependencies(ctx context.Context, planID pm.PlanID) ([]pm.Dependency, error) {
@@ -162,6 +208,96 @@ func TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle(t *testing.T) {
 	}
 	if bo := blockedOnByTask(t, h, planID); len(bo) != 0 {
 		t.Fatalf("after A done + B dispatched, want NO snapshots, got %+v", bo)
+	}
+}
+
+func TestBlockedOn_BlockedTaskRecoveryFrontier_RecomputesAndDispatchesDownstream(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	for _, member := range []pm.IdentityRef{"user:exec", "user:next"} {
+		if _, err := h.svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: member, Actor: "user:a"}); err != nil {
+			t.Fatalf("AddProjectMember(%s): %v", member, err)
+		}
+	}
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "blocked recovery", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:exec")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:next")
+	if err := h.svc.AddPlanDependency(ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	if err := h.svc.StartTask(ctx, a, "user:exec"); err != nil {
+		t.Fatalf("StartTask: %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan running: %v", err)
+	}
+	if err := h.svc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatalf("materialize running: %v", err)
+	}
+	if got := blockedOnByTask(t, h, planID)[a].WaitType; got != pm.WaitExecutorLiveness {
+		t.Fatalf("precondition wait_type = %q, want executor_liveness", got)
+	}
+
+	reason := "executor exhausted after task_non_delivery; retained worktree requires owner recovery"
+	if err := h.svc.BlockTask(ctx, a, reason, pm.BlockReasonObstacle, "user:exec"); err != nil {
+		t.Fatalf("BlockTask: %v", err)
+	}
+	bo := blockedOnByTask(t, h, planID)
+	if got := bo[a].WaitType; got != pm.WaitBlockedOnExternal {
+		t.Fatalf("blocked task wait_type = %q, want blocked_on_external (stale executor_liveness must be gone)", got)
+	}
+	wantWaitKeys(t, bo[a].WaitKeys, "user:exec")
+	if !strings.Contains(bo[a].TriggerCondition, "manual recovery") {
+		t.Fatalf("trigger_condition = %q, want executable recovery guidance", bo[a].TriggerCondition)
+	}
+	if got := bo[b].WaitType; got != pm.WaitUpstreamCompletion {
+		t.Fatalf("downstream wait_type = %q, want upstream_completion while A blocked", got)
+	}
+	var sawNotification bool
+	for _, payload := range outboxEventPayloads(t, h.svc.db, EvtTaskStateChanged) {
+		if strings.Contains(payload, string(a)) && strings.Contains(payload, `"status":"blocked"`) && strings.Contains(payload, reason) {
+			sawNotification = true
+		}
+	}
+	if !sawNotification {
+		t.Fatalf("block transaction did not emit owner/PM-visible %s notification payload for %s", EvtTaskStateChanged, a)
+	}
+
+	if err := h.svc.RecordDelivery(ctx, a, "user:exec", &pm.Delivery{
+		Probed: true, Pushed: true, Branch: "ac-exec/task/recovery", HeadSHA: "abc123",
+		BaseKnown: true, AheadOfBase: 1, Source: "manual_recovery", Evidence: "go test ./internal/projectmanager/service", Reason: "operator pushed retained work",
+	}); err != nil {
+		t.Fatalf("RecordDelivery manual recovery: %v", err)
+	}
+	if got := blockedOnByTask(t, h, planID)[a].WaitType; got != pm.WaitBlockedOnExternal {
+		t.Fatalf("manual recovery registration should keep explicit recovery frontier until complete_task, got %q", got)
+	}
+	if err := h.svc.CompleteTask(ctx, a, "user:exec"); err != nil {
+		t.Fatalf("CompleteTask after manual recovery: %v", err)
+	}
+	projectTaskStateChanged(t, h, a)
+	h.drain(t)
+	if bo := blockedOnByTask(t, h, planID); bo[a].TaskID != "" {
+		t.Fatalf("completed recovery node still has blocked_on snapshot: %+v", bo[a])
+	}
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatalf("GetPlanDetail: %v", err)
+	}
+	var bStatus pm.NodeStatus
+	for _, n := range detail.View.Nodes {
+		if n.TaskID == b {
+			bStatus = n.NodeStatus
+		}
+	}
+	if bStatus != pm.NodeDispatched && bStatus != pm.NodeRunning {
+		t.Fatalf("downstream B was not auto-dispatched after recovery completion; node_status=%q", bStatus)
 	}
 }
 

@@ -391,6 +391,8 @@
         "reassign": "Reassign {{title}}",
         "removeError": "Couldn't remove this task from the plan. Please try again.",
         "assignError": "Couldn't reassign this task. Please try again.",
+        "recoveryBlocked": "Recovery blocked",
+        "recoveryOwner": "owner {{owner}}",
         "resume": "Resume",
         "resuming": "Resuming…",
         "resumeAria": "Resume {{title}}",
