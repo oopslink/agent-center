@@ -409,6 +409,9 @@ func (s *Service) createEvolutionTasks(
 		if ref == "" || strings.TrimSpace(spec.Title) == "" {
 			return nil, nil, pm.ErrRemediationProposalInvalid
 		}
+		if spec.DeliveryContract == "" || !spec.DeliveryContract.IsValid() {
+			return nil, nil, pm.ErrInvalidDeliveryContract
+		}
 		if _, exists := refToTask[ref]; exists {
 			return nil, nil, pm.ErrRemediationProposalInvalid
 		}

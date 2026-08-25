@@ -84,9 +84,9 @@ func TestJSONToolsForwarding(t *testing.T) {
 		},
 		{
 			toolName: "create_task",
-			args:     map[string]any{"project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2"},
+			args:     map[string]any{"project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2", "delivery_contract": "code_change"},
 			wantTool: "create_task",
-			wantBody: map[string]any{"agent_id": "agent-X", "project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2"},
+			wantBody: map[string]any{"agent_id": "agent-X", "project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2", "delivery_contract": "code_change"},
 		},
 		{
 			toolName: "assign_task",
@@ -207,7 +207,7 @@ func TestPlanToolsFreezePlanRulesPerMCPSession(t *testing.T) {
 		"idempotency_key": "evo-1", "reason": "scope changed", "evidence": "review",
 		"diff": map[string]any{
 			"node_decisions": []any{map[string]any{"task_id": "task-a", "action": "preserve", "reason": "in flight"}},
-			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c", "detached": true}},
+			"tasks":          []any{map[string]any{"ref": "c", "title": "C", "assignee_ref": "agent:c", "delivery_contract": "code_change", "detached": true}},
 			"edges":          []any{},
 		},
 	})

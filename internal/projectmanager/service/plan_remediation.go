@@ -307,7 +307,7 @@ func defaultRemediationProposal(stage *pm.Stage, gateTask *pm.Task, verdict pm.G
 	contract := base + "\n\nReject evidence to address:\n" + verdict.Evidence
 	return pm.RemediationProposalPayload{
 		Name: "Remediation: " + stage.Name(), Rationale: verdict.Evidence,
-		Tasks: []pm.RemediationTaskSpec{{Ref: "fix", Title: "Address rejection for " + stage.Name(), Description: verdict.Evidence, AssigneeRef: assignee, DispatchMode: pm.DispatchExecutorFork, FollowsTaskID: gateTask.ID()}},
+		Tasks: []pm.RemediationTaskSpec{{Ref: "fix", Title: "Address rejection for " + stage.Name(), Description: verdict.Evidence, AssigneeRef: assignee, DispatchMode: pm.DispatchExecutorFork, DeliveryContract: pm.DeliveryCodeChange, FollowsTaskID: gateTask.ID()}},
 		Gate:  pm.RemediationGateSpec{AssigneeRef: actor, AcceptanceContract: contract},
 	}
 }

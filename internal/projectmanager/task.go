@@ -204,13 +204,14 @@ func (d DispatchMode) RoutesInline() bool { return d == DispatchSupervisorInline
 type DeliveryContract string
 
 const (
-	DeliveryCodeChange   DeliveryContract = "code_change"
-	DeliveryEvidenceOnly DeliveryContract = "evidence_only"
+	DeliveryCodeChange       DeliveryContract = "code_change"
+	DeliveryEvidenceOnly     DeliveryContract = "evidence_only"
+	DeliverySupervisorInline DeliveryContract = "supervisor_inline"
 )
 
 func (d DeliveryContract) IsValid() bool {
 	switch d {
-	case "", DeliveryCodeChange, DeliveryEvidenceOnly:
+	case "", DeliveryCodeChange, DeliveryEvidenceOnly, DeliverySupervisorInline:
 		return true
 	default:
 		return false
