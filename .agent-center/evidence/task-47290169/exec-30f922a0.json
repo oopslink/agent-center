@@ -1,0 +1,431 @@
+{
+  "task_id": "task-47290169",
+  "execution_id": "exec-30f922a0",
+  "reviewed_sha": "95893ca259b2c9d10998324a55b898ab46104f31",
+  "base_sha": "1a8a55e9e9b862c15c05300689c1b08cd328df7d",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"rg --files -g '\"'!*node_modules*'\"' | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type d -name 'task-input' -o -name 'v1' | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git fetch --prune origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/ac-exec/T1514-access-test-ts2339:refs/remotes/origin/ac-exec/T1514-access-test-ts2339'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git rev-list --left-right --count origin/main...origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git rev-parse origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git diff --name-status origin/main..origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git merge-base origin/main origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git diff --stat origin/main..origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git diff --unified=80 origin/main..origin/ac-exec/T1514-access-test-ts2339 -- web/src/pages/Access.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git show --name-only --format=fuller origin/ac-exec/T1514-access-test-ts2339'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1515/raw-logs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'mktemp -d /tmp/t1515-fresh-worktree.XXXXXX'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/t1515-fresh-worktree.QfQEmA/candidate af936471ed2d1a2f011159ef5cb284345346bb48'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git rev-parse HEAD'\"\\\\n'; git rev-parse HEAD; printf '\\\\n\"'$ git status --short --branch'\"\\\\n'; git status --short --branch; printf '\\\\n\"'$ git rev-parse --is-inside-work-tree'\"\\\\n'; git rev-parse --is-inside-work-tree; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/00-worktree-provenance.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ pnpm install --frozen-lockfile'\"\\\\n'; pnpm install --frozen-lockfile; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/01-pnpm-install-frozen-lockfile.log 2\u003e\u00261'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1515/raw-logs/01-pnpm-install-frozen-lockfile.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'find . -maxdepth 3 -name package.json -o -name pnpm-lock.yaml'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ pnpm install --frozen-lockfile'\"\\\\n'; pnpm install --frozen-lockfile; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/02-web-pnpm-install-frozen-lockfile.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ make build'\"\\\\n'; make build; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/03-make-build.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ pnpm exec vitest run src/pages/Access.test.tsx'\"\\\\n'; pnpm exec vitest run src/pages/Access.test.tsx; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/04-vitest-access.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git diff --check origin/main..HEAD'\"\\\\n'; git diff --check origin/main..HEAD; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/05-git-diff-check.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ make lint-spa-tsc'\"\\\\n'; make lint-spa-tsc; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/06-lint-spa-tsc.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git status --short --branch'\"\\\\n'; git status --short --branch; printf '\\\\n\"'$ git diff --stat origin/main..HEAD'\"\\\\n'; git diff --stat origin/main..HEAD; printf '\\\\n\"'$ git diff --name-status origin/main..HEAD'\"\\\\n'; git diff --name-status origin/main..HEAD; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0/docs/acceptance/t1515/raw-logs/07-final-candidate-state.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git rev-parse origin/main'\"\\\\n'; git rev-parse origin/main; printf '\\\\n\"'$ git rev-parse origin/ac-exec/T1514-access-test-ts2339'\"\\\\n'; git rev-parse origin/ac-exec/T1514-access-test-ts2339; printf '\\\\n\"'$ git merge-base origin/main origin/ac-exec/T1514-access-test-ts2339'\"\\\\n'; git merge-base origin/main origin/ac-exec/T1514-access-test-ts2339; printf '\\\\n\"'$ git rev-list --left-right --count origin/main...origin/ac-exec/T1514-access-test-ts2339'\"\\\\n'; git rev-list --left-right --count origin/main...origin/ac-exec/T1514-access-test-ts2339; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e docs/acceptance/t1515/raw-logs/08-remote-state.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git diff --unified=80 origin/main..origin/ac-exec/T1514-access-test-ts2339 -- web/src/pages/Access.test.tsx'\"\\\\n'; git diff --unified=80 origin/main..origin/ac-exec/T1514-access-test-ts2339 -- web/src/pages/Access.test.tsx; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e docs/acceptance/t1515/raw-logs/09-candidate-diff-access-test.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ find .. -path */task-input/v1/README.md -o -path */task-input/v1/manifest.json'\"\\\\n'; find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e docs/acceptance/t1515/raw-logs/10-task-input-search.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/08-remote-state.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'tail -40 docs/acceptance/t1515/raw-logs/03-make-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'tail -80 docs/acceptance/t1515/raw-logs/04-vitest-access.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/07-final-candidate-state.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'tail -40 docs/acceptance/t1515/raw-logs/06-lint-spa-tsc.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/05-git-diff-check.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/02-web-pnpm-install-frozen-lockfile.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/00-worktree-provenance.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/10-task-input-search.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'shasum -a 256 docs/acceptance/t1515/raw-logs/*.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git worktree list --porcelain'\"\\\\n'; git worktree list --porcelain; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e docs/acceptance/t1515/raw-logs/12-worktree-list.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf '\"'$ git fetch --prune origin +refs/heads/main:refs/remotes/origin/main +refs/heads/ac-exec/T1514-access-test-ts2339:refs/remotes/origin/ac-exec/T1514-access-test-ts2339'\"\\\\n'; git fetch --prune origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/ac-exec/T1514-access-test-ts2339:refs/remotes/origin/ac-exec/T1514-access-test-ts2339'; rc=\"'$?; printf '\"'\\\\n[exit_code=%s]\\\\n' \\\"\"'$rc\"; exit \"$rc\"; } \u003e docs/acceptance/t1515/raw-logs/11-fetch-remote-refs.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'shasum -a 256 docs/acceptance/t1515/raw-logs/*.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git diff -- docs/acceptance/t1515/REPORT.md docs/acceptance/t1515/verdict.json docs/acceptance/t1515/raw-logs/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1515 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t1515/raw-logs/12-worktree-list.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1515/verdict.json \u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'git diff --check -- docs/acceptance/t1515'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1515'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'git diff --cached --name-status'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git diff --cached --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'git commit -m \"docs: add T1515 acceptance evidence\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc 'git push origin HEAD:ac-exec/task-47290169/exec-30f922a0'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc 'git remote show origin-push'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc 'git remote show origin'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:ac-exec/task-47290169/exec-30f922a0'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-47290169/exec-30f922a0'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-30f922a0/command_events.jsonl",
+  "command_event_digest": "sha256:b3569a91a8d317b661ee6b732546bdb29b8f4c2ed5c0e174f851f47b9fc1ebde",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "T1515 independent acceptance completed: PASS.",
+  "artifact_digest": "sha256:e2a5e0db66f3a37e97fa2d5845c084cb5948782802c0dc207fb679d90f46b244",
+  "path": ".agent-center/evidence/task-47290169/exec-30f922a0.json",
+  "branch": "ac-exec/task-47290169/exec-30f922a0"
+}
