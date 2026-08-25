@@ -312,6 +312,10 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     let posted: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/members', () => HttpResponse.json([
+        { kind: 'user', identity_id: 'owner', display_name: 'Owner User' },
+        { kind: 'agent', identity_id: 'backup', display_name: 'Backup Agent' },
+      ])),
       http.post('/api/projects/proj-a/plans', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ id: 'PL-NEW', project_id: 'proj-a', name: posted.name }, { status: 201 });
@@ -322,10 +326,12 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     fireEvent.click(screen.getByTestId('new-plan-column'));
     expect(screen.getByTestId('plan-create-modal')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('plan-create-name'), { target: { value: 'Q3 plan' } });
+    fireEvent.change(screen.getByTestId('plan-create-owner'), { target: { value: 'user:owner' } });
+    fireEvent.change(screen.getByTestId('plan-create-backup-owner'), { target: { value: 'agent:backup' } });
     await act(async () => {
       fireEvent.click(screen.getByTestId('plan-create-submit'));
     });
-    await waitFor(() => expect(posted).toMatchObject({ name: 'Q3 plan' }));
+    await waitFor(() => expect(posted).toMatchObject({ name: 'Q3 plan', owner_ref: 'user:owner', backup_owner_ref: 'agent:backup' }));
   });
 
   it('#218: a board load error renders a friendly message + hides the raw error behind [Details]', async () => {

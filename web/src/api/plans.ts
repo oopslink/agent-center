@@ -81,6 +81,7 @@ export interface PlanNode {
   // shows a "waiting for a qualified agent" badge. Absent/false when not starved.
   // Contract locked with PD: field name `starved` on the pool node DTO.
   starved?: boolean;
+  blocked_on?: PlanBlockedOn;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -143,6 +144,91 @@ export interface Plan {
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
   active_generation_id?: string;
+  owner_ref?: string;
+  backup_owner_ref?: string | null;
+  attention_status?: 'none' | 'attention_required' | 'escalated' | string;
+  attention_since?: string;
+  last_attention_event_id?: string;
+  attention?: PlanAttentionState;
+  ready_set?: string[];
+  gates?: PlanGate[];
+  frontier?: PlanFrontier;
+  pending_decisions?: PlanBlockedOn[];
+  block_events?: PlanBlockEvent[];
+  active_frontier?: PlanActiveFrontier;
+}
+
+export interface PlanAttentionState {
+  status?: 'normal' | 'attention' | 'escalated' | 'blocked' | string;
+  owner_ref?: string;
+  backup_owner_ref?: string | null;
+  escalated_to_ref?: string | null;
+  reason?: string;
+  since?: string;
+  updated_at?: string;
+}
+
+export interface PlanBlockedOn {
+  task_id: string;
+  node_id?: string;
+  wait_type: string;
+  wait_keys: string[];
+  trigger_condition?: string;
+  waited_since?: string;
+  deadline?: string;
+  on_timeout?: string;
+}
+
+export interface PlanBlockEvent {
+  event_id: string;
+  idempotency_key: string;
+  plan_id: string;
+  generation_id: string;
+  task_id: string;
+  node_id?: string;
+  block_version: number;
+  blocked_reason: string;
+  reason_type: string;
+  blocked_by: string;
+  blocked_at: string;
+  active: boolean;
+  effective: boolean;
+  owner_ref: string;
+  notification_state: string;
+  acknowledged_by?: string;
+  acknowledged_at?: string;
+  resolved_by?: string;
+  resolved_at?: string;
+  resolution_kind?: string;
+  resolution_note?: string;
+}
+
+export interface PlanActiveFrontier {
+  active_generation_id: string;
+  effective_nodes: string[];
+  ready_set: string[];
+  blocked: Array<{ task_id: string; event_id: string }>;
+  running: string[];
+  completed_history: string[];
+}
+
+export interface PlanFrontierGroup {
+  wait_type: string;
+  count: number;
+  nodes: PlanBlockedOn[];
+}
+
+export interface PlanFrontier {
+  total: number;
+  groups: PlanFrontierGroup[];
+}
+
+export interface PlanGate {
+  node_id: string;
+  stage_id: string;
+  stage_name?: string;
+  status: string;
+  pending?: boolean;
 }
 
 export interface GateVerdict {
@@ -624,6 +710,8 @@ export interface CreatePlanInput {
   name: string;
   description?: string;
   target_date?: string | null;
+  owner_ref: string;
+  backup_owner_ref?: string | null;
 }
 
 export function useCreatePlan(projectId: string) {
@@ -715,7 +803,18 @@ function usePlanWrite<TVars, TResult>(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => invalidatePlanWrite(qc, projectId, planId),
+    onSuccess: (result) => {
+      if (
+        result &&
+        typeof result === 'object' &&
+        'id' in result &&
+        'project_id' in result &&
+        (result as { id?: unknown }).id === planId
+      ) {
+        qc.setQueryData(qk.plan(planId), result);
+      }
+      invalidatePlanWrite(qc, projectId, planId);
+    },
   });
 }
 
@@ -810,9 +909,15 @@ export function useCommitPlanEvolution(projectId: string, planId: string) {
 }
 
 // ADR-0055 lifecycle: pending→running↔paused; done can reopen to paused.
+export interface StartPlanInput {
+  owner_ref: string;
+  backup_owner_ref?: string | null;
+  owner_confirmed: true;
+}
+
 export function useStartPlan(projectId: string, planId: string) {
-  return usePlanWrite<void, Plan>(projectId, planId, () =>
-    api.post<Plan>(`${plansBase(projectId)}/${planId}/start`),
+  return usePlanWrite<StartPlanInput, Plan>(projectId, planId, (input) =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/start`, input),
   );
 }
 
@@ -862,6 +967,35 @@ export function useResumePausedNode(projectId: string, planId: string) {
   return usePlanWrite<string, Plan>(projectId, planId, (taskId) =>
     api.post<Plan>(
       `${plansBase(projectId)}/${planId}/nodes/${encodeURIComponent(taskId)}/resume`,
+    ),
+  );
+}
+
+export type PlanBlockResolutionKind =
+  | 'resume_original'
+  | 'replace_with_continuation'
+  | 'bypass_remove_node'
+  | 'pause_or_discard_plan';
+
+export interface ResolvePlanBlockInput {
+  event_id: string;
+  resolution_kind: PlanBlockResolutionKind;
+  note?: string;
+}
+
+export function useAcknowledgePlanBlock(projectId: string, planId: string) {
+  return usePlanWrite<string, Plan>(projectId, planId, (eventId) =>
+    api.post<Plan>(
+      `${plansBase(projectId)}/${planId}/block-events/${encodeURIComponent(eventId)}/acknowledge`,
+    ),
+  );
+}
+
+export function useResolvePlanBlock(projectId: string, planId: string) {
+  return usePlanWrite<ResolvePlanBlockInput, Plan>(projectId, planId, (input) =>
+    api.post<Plan>(
+      `${plansBase(projectId)}/${planId}/block-events/${encodeURIComponent(input.event_id)}/resolve`,
+      { resolution_kind: input.resolution_kind, note: input.note ?? '' },
     ),
   );
 }

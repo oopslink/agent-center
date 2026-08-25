@@ -44,6 +44,9 @@ function planWith(overrides: Record<string, unknown> = {}) {
     version: 7,
     org_ref: 'P9',
     creator_ref: 'user:owner',
+    owner_ref: 'user:owner',
+    backup_owner_ref: 'agent:backup',
+    attention: { status: 'normal', owner_ref: 'user:owner', backup_owner_ref: 'agent:backup' },
     conversation_id: 'conv-plan-1',
     target_date: '2026-07-15T00:00:00Z',
     has_failed: true,
@@ -276,9 +279,11 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
 
   it('shows Start when pending (not Stop) and calls useStartPlan', async () => {
     let started = false;
+    let body: Record<string, unknown> | undefined;
     mockPlan({ status: 'pending', has_failed: false });
     server.use(
-      http.post('/api/projects/proj-a/plans/PL-1/start', () => {
+      http.post('/api/projects/proj-a/plans/PL-1/start', async ({ request }) => {
+        body = await request.json() as Record<string, unknown>;
         started = true;
         return HttpResponse.json(planWith({ status: 'running' }));
       }),
@@ -287,7 +292,156 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(screen.getByTestId('plan-start-btn')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-pause-btn')).not.toBeInTheDocument();
     await act(async () => fireEvent.click(screen.getByTestId('plan-start-btn')));
+    const modal = await screen.findByTestId('plan-start-owner-modal');
+    expect(modal).toBeInTheDocument();
+    expect(within(modal).getByTestId('plan-owner-ref')).toHaveTextContent('owner');
+    await act(async () => fireEvent.click(screen.getByTestId('plan-start-confirm')));
     await waitFor(() => expect(started).toBe(true));
+    expect(body).toMatchObject({ owner_ref: 'user:owner', backup_owner_ref: 'agent:backup', owner_confirmed: true });
+  });
+
+  it('renders owner, backup, attention and blocked panel from explicit plan fields', async () => {
+    let acknowledged = false;
+    const blockEvents = [{
+      event_id: 'plan-block-1',
+      idempotency_key: 'block:n6:v1',
+      plan_id: 'PL-1',
+      generation_id: 'generation-1',
+      task_id: 'n6',
+      node_id: 'gate:review',
+      block_version: 1,
+      blocked_reason: 'acceptance gate pending',
+      reason_type: 'input_required',
+      blocked_by: 'user:owner',
+      blocked_at: '2026-06-02T01:00:00Z',
+      active: true,
+      effective: true,
+      owner_ref: 'user:owner',
+      notification_state: 'sent',
+    }];
+    mockPlan({
+      ready_set: ['n5'],
+      active_frontier: {
+        active_generation_id: 'generation-1',
+        effective_nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'],
+        ready_set: ['n5'],
+        blocked: [{ task_id: 'n6', event_id: 'plan-block-1' }],
+        running: ['n3'],
+        completed_history: ['n1', 'n2'],
+      },
+      block_events: blockEvents,
+      frontier: {
+        total: 1,
+        groups: [{
+          wait_type: 'human_decision',
+          count: 1,
+          nodes: [{
+            task_id: 'n6',
+            node_id: 'gate:review',
+            wait_type: 'human_decision',
+            wait_keys: ['user:owner'],
+            trigger_condition: 'acceptance gate pending',
+            waited_since: '2026-06-02T01:00:00Z',
+          }],
+        }],
+      },
+      pending_decisions: [{
+        task_id: 'n6',
+        node_id: 'gate:review',
+        wait_type: 'human_decision',
+        wait_keys: ['user:owner'],
+        trigger_condition: 'acceptance gate pending',
+        waited_since: '2026-06-02T01:00:00Z',
+      }],
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1', () => HttpResponse.json(planWith({
+        ready_set: ['n5'],
+        active_frontier: {
+          active_generation_id: 'generation-1',
+          effective_nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'],
+          ready_set: ['n5'],
+          blocked: [{ task_id: 'n6', event_id: 'plan-block-1' }],
+          running: ['n3'],
+          completed_history: ['n1', 'n2'],
+        },
+        block_events: acknowledged
+          ? [{ ...blockEvents[0], acknowledged_by: 'user:owner', acknowledged_at: '2026-06-02T01:05:00Z' }]
+          : blockEvents,
+        frontier: {
+          total: 1,
+          groups: [{
+            wait_type: 'human_decision',
+            count: 1,
+            nodes: [{
+              task_id: 'n6',
+              node_id: 'gate:review',
+              wait_type: 'human_decision',
+              wait_keys: ['user:owner'],
+              trigger_condition: 'acceptance gate pending',
+              waited_since: '2026-06-02T01:00:00Z',
+            }],
+          }],
+        },
+        pending_decisions: [{
+          task_id: 'n6',
+          node_id: 'gate:review',
+          wait_type: 'human_decision',
+          wait_keys: ['user:owner'],
+          trigger_condition: 'acceptance gate pending',
+          waited_since: '2026-06-02T01:00:00Z',
+        }],
+      }))),
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/plan-block-1/acknowledge', () => {
+        acknowledged = true;
+        return HttpResponse.json(planWith({
+          ready_set: ['n5'],
+          active_frontier: {
+            active_generation_id: 'generation-1',
+            effective_nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'],
+            ready_set: ['n5'],
+            blocked: [{ task_id: 'n6', event_id: 'plan-block-1' }],
+            running: ['n3'],
+            completed_history: ['n1', 'n2'],
+          },
+          block_events: [{ ...blockEvents[0], acknowledged_by: 'user:owner', acknowledged_at: '2026-06-02T01:05:00Z' }],
+          frontier: {
+            total: 1,
+            groups: [{
+              wait_type: 'human_decision',
+              count: 1,
+              nodes: [{
+                task_id: 'n6',
+                node_id: 'gate:review',
+                wait_type: 'human_decision',
+                wait_keys: ['user:owner'],
+                trigger_condition: 'acceptance gate pending',
+                waited_since: '2026-06-02T01:00:00Z',
+              }],
+            }],
+          },
+          pending_decisions: [{
+            task_id: 'n6',
+            node_id: 'gate:review',
+            wait_type: 'human_decision',
+            wait_keys: ['user:owner'],
+            trigger_condition: 'acceptance gate pending',
+            waited_since: '2026-06-02T01:00:00Z',
+          }],
+        }));
+      }),
+    );
+    wrap();
+    expect(await screen.findByTestId('plan-owner-strip')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-owner-ref')).toHaveTextContent('owner');
+    expect(screen.getByTestId('plan-backup-owner-ref')).toHaveTextContent('backup');
+    expect(screen.getByTestId('plan-attention-state')).toHaveTextContent('blocked');
+    const panel = screen.getByTestId('plan-blocked-panel');
+    expect(within(panel).getByTestId('plan-blocked-reason')).toHaveTextContent('human_decision');
+    expect(within(panel).getByTestId('plan-blocked-impact')).toHaveTextContent('No downstream effective nodes');
+    fireEvent.click(within(panel).getByTestId('plan-blocked-ack-n6'));
+    await waitFor(() => expect(acknowledged).toBe(true));
+    expect(await within(panel).findByText('Acknowledged')).toBeInTheDocument();
   });
 
   it('shows Reopen when done with an active generation and calls useReopenPlan', async () => {
@@ -2511,7 +2665,14 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
 
   it('running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff', async () => {
     let body: Record<string, unknown> | null = null;
-    mockPlan({ status: 'paused', has_failed: false, version: 11, active_generation_id: 'generation-parent' });
+    mockPlan({
+      status: 'paused',
+      has_failed: false,
+      version: 11,
+      active_generation_id: 'generation-parent',
+      ready_set: ['n5'],
+      gates: [{ node_id: 'gate-a', stage_id: 'stage-a', stage_name: 'Review', status: 'open', pending: true }],
+    });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
@@ -2536,6 +2697,12 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.change(screen.getByTestId('plan-evolution-diff'), {
       target: { value: '{"node_decisions":[{"task_id":"n3","action":"preserve"}],"tasks":[{"ref":"verify","title":"Verify fix","assignee_ref":"agent:dev"}],"edges":[{"from":"verify","to":"n3","kind":"seq"}]}' },
     });
+    expect(screen.getByTestId('plan-evolution-review')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-evolution-review-generation')).toHaveTextContent('generation-parent');
+    expect(screen.getByTestId('plan-evolution-review-tasks')).toHaveTextContent('1');
+    expect(screen.getByTestId('plan-evolution-review-ready-set')).toHaveTextContent('n5');
+    expect(screen.getByTestId('plan-evolution-review-gates')).toHaveTextContent('Review:open');
+    expect(screen.getByTestId('plan-evolution-review-risks')).toHaveTextContent(/pending acceptance gates/i);
     await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
 
     await waitFor(() => expect(body).not.toBeNull());

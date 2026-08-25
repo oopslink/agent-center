@@ -288,6 +288,37 @@
         "target": "目标日期",
         "creator": "创建者"
       },
+      "owner": {
+        "aria": "计划 owner 状态",
+        "owner": "Owner",
+        "backup": "Backup",
+        "attention": "Attention"
+      },
+      "startModal": {
+        "aria": "启动前确认计划 owner",
+        "title": "启动前确认 Owner",
+        "body": "启动会冻结活跃 generation 并派发 effective ready 节点。请先确认责任 owner。",
+        "missingOwner": "API payload 中没有显式 owner_ref。",
+        "confirm": "确认 owner 并启动",
+        "pending": "启动中…"
+      },
+      "blocked": {
+        "aria": "计划阻塞前沿",
+        "title": "Blocked",
+        "owner": "责任人",
+        "since": "开始时间",
+        "impact": "下游影响",
+        "unknown": "未知",
+        "noImpact": "无 effective 下游节点。",
+        "acknowledge": "Acknowledge",
+        "acknowledged": "已确认",
+        "resume": "Resume",
+        "replace": "Replace",
+        "bypass": "Bypass",
+        "bypassTitle": "当前 blocked snapshot 没有显式 bypass API。",
+        "pause": "Pause",
+        "discard": "Discard"
+      },
       "rail": {
         "nodesDone": "已完成节点"
       },
@@ -345,6 +376,18 @@
         "idempotency": "幂等键",
         "diff": "PlanGenerationDiff JSON",
         "diffHint": "必须提供完整的 node_decisions、tasks、edges 数组；新增任务 ref 可用于 edge 的 from/to。",
+        "reviewAria": "Evolution review",
+        "review": "Evolution Review",
+        "noGeneration": "无活跃 generation",
+        "reviewTasks": "新增任务",
+        "reviewDecisions": "节点决策",
+        "reviewEdges": "边",
+        "readySet": "ready_set",
+        "emptyReadySet": "无 ready 节点",
+        "gates": "验收门",
+        "emptyGates": "无验收门",
+        "risks": "风险",
+        "reviewInvalid": "输入合法 PlanGenerationDiff 后可预览拓扑、验收门、ready_set 与风险。",
         "commit": "提交 Evolution",
         "committing": "提交中…",
         "errorDiffJson": "PlanGenerationDiff 必须是合法 JSON。",
@@ -506,6 +549,10 @@
         "name": "名称",
         "description": "描述",
         "targetDate": "目标日期",
+        "owner": "Owner",
+        "ownerPlaceholder": "选择 owner",
+        "backupOwner": "Backup owner",
+        "noBackupOwner": "无 backup owner",
         "cancel": "取消",
         "creating": "正在创建…",
         "submit": "创建计划"

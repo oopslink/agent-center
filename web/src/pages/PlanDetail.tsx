@@ -19,6 +19,8 @@ import {
   useRemoveDependency,
   useRemoveTaskFromPlan,
   useResumePausedNode,
+  useAcknowledgePlanBlock,
+  useResolvePlanBlock,
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
@@ -39,6 +41,9 @@ import {
   type PlanGeneration,
   type PlanGenerationDiff,
   type CommitPlanEvolutionInput,
+  type StartPlanInput,
+  type PlanBlockedOn,
+  type PlanBlockEvent,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -100,6 +105,26 @@ type Tab = 'chat' | 'dag' | 'tasks' | 'history';
 // removed — chat is now a top-level tab (see the 3-tab layout above), so the
 // chat-width state / localStorage persistence / lg-breakpoint splitter are gone.
 
+function planOwnerRef(plan: Plan): string {
+  return plan.owner_ref ?? plan.attention?.owner_ref ?? '';
+}
+
+function planBackupOwnerRef(plan: Plan): string {
+  return plan.backup_owner_ref ?? plan.attention?.backup_owner_ref ?? '';
+}
+
+function attentionStatus(plan: Plan): string {
+  if (plan.frontier && plan.frontier.total > 0) return 'blocked';
+  if (plan.attention_status && plan.attention_status !== 'none') return plan.attention_status;
+  return plan.attention?.status ?? 'normal';
+}
+
+function ownerDisplay(ref: string, resolveName: (ref: string) => string): string {
+  if (!ref) return 'Unassigned';
+  const name = resolveName(ref);
+  return name === ref ? normalizeIdentityRef(ref) : name;
+}
+
 export default function PlanDetail(): React.ReactElement {
   const { t } = useTranslation('work');
   const { id = '', planId = '' } = useParams<{ id: string; planId: string }>();
@@ -115,6 +140,7 @@ export default function PlanDetail(): React.ReactElement {
   // that starts closed — this opens it from the ⓘ in the header row.
   const ctxTrigger = useContextPanelMobileTrigger();
   const [tab, setTab] = useState<Tab>('chat');
+  const [mobileEvolutionOpen, setMobileEvolutionOpen] = useState(false);
   // T347: chat maximize state lives here so the toggle can sit on the tab row.
   const [chatMaximized, setChatMaximized] = useState(false);
   // T348: DAG compact (zoom-to-fit) state lifted here too, so its toggle becomes an
@@ -198,6 +224,11 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
           <PlanContinuationBanner continuations={p.continuations ?? []} />
+          {isMobile && (
+            <div className="border-b border-border-base">
+              <BlockedPanel projectId={id} plan={p} onReplace={() => setMobileEvolutionOpen(true)} />
+            </div>
+          )}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -353,6 +384,9 @@ export default function PlanDetail(): React.ReactElement {
           />
         </ContextPanel>
       )}
+      {mobileEvolutionOpen && (
+        <PlanEvolutionModal projectId={id} plan={p} onClose={() => setMobileEvolutionOpen(false)} />
+      )}
     </section>
   );
 }
@@ -377,6 +411,7 @@ function PlanDetailHeader({
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [evolving, setEvolving] = useState(false);
+  const [startConfirming, setStartConfirming] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
@@ -450,7 +485,7 @@ function PlanDetailHeader({
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.edit')}</button>
                   )}
                   {plan.status === 'pending' && (
-                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); start.mutate(); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.start')}</button>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setStartConfirming(true); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.start')}</button>
                   )}
                   {canDiscard && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('discard'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">{t('plan.detail.actions.discard')}</button>
@@ -467,6 +502,7 @@ function PlanDetailHeader({
           </span>
         )}
       </div>
+      {isMobile && <PlanOwnerStrip plan={plan} compact />}
       {/* Row 2 (desktop only): status chips + inline meta + actions. The
           Progress/Creator meta rides on THIS row (was a separate 4th header row)
           so the header stays to 3 rows and the chat gets the height back. */}
@@ -491,6 +527,9 @@ function PlanDetailHeader({
             <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">@{creatorLabel}</dd>
           </div>
         </dl>
+        <div className="basis-full">
+          <PlanOwnerStrip plan={plan} />
+        </div>
         <span className="flex-1" />
         {/* T341: on MOBILE the action buttons collapse into an "Actions ▾" dropdown
             (@oopslink); on DESKTOP the wrapper dissolves (md:contents) and the menu
@@ -575,7 +614,7 @@ function PlanDetailHeader({
             type="button"
             data-testid="plan-start-btn"
             disabled={start.isPending}
-            onClick={() => { setActionsOpen(false); start.mutate(); }}
+            onClick={() => { setActionsOpen(false); setStartConfirming(true); }}
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border-0 md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white md:hover:opacity-90"
           >
             {t('plan.detail.lifecycle.start')}
@@ -667,6 +706,15 @@ function PlanDetailHeader({
       {editing && (
         <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />
       )}
+      {startConfirming && (
+        <PlanStartConfirmModal
+          plan={plan}
+          pending={start.isPending}
+          error={start.isError ? start.error : null}
+          onCancel={() => setStartConfirming(false)}
+          onConfirm={(input) => start.mutate(input, { onSuccess: () => setStartConfirming(false) })}
+        />
+      )}
       {evolving && (
         <PlanEvolutionModal projectId={projectId} plan={plan} onClose={() => setEvolving(false)} />
       )}
@@ -749,6 +797,104 @@ function PlanProgressBar({ done, total }: { done: number; total: number }): Reac
   );
 }
 
+function PlanOwnerStrip({ plan, compact = false }: { plan: Plan; compact?: boolean }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const resolveName = useDisplayNameResolver();
+  const ownerRef = planOwnerRef(plan);
+  const backupRef = planBackupOwnerRef(plan);
+  const status = attentionStatus(plan);
+  const elevated = status === 'blocked' || status === 'escalated' || status === 'attention';
+  return (
+    <dl
+      className={`grid gap-2 rounded-lg border px-3 py-2 text-xs ${
+        elevated
+          ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
+          : 'border-border-base bg-bg-subtle text-text-secondary'
+      } ${compact ? 'grid-cols-1' : 'grid-cols-3'}`}
+      data-testid="plan-owner-strip"
+      aria-label={t('plan.detail.owner.aria')}
+    >
+      <div className="min-w-0">
+        <dt className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.owner.owner')}</dt>
+        <dd className="truncate font-medium" data-testid="plan-owner-ref" title={ownerRef}>{ownerDisplay(ownerRef, resolveName)}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.owner.backup')}</dt>
+        <dd className="truncate font-medium" data-testid="plan-backup-owner-ref" title={backupRef}>{ownerDisplay(backupRef, resolveName)}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.owner.attention')}</dt>
+        <dd className="truncate font-medium" data-testid="plan-attention-state" title={plan.attention?.reason ?? status}>
+          {status}
+          {plan.attention?.escalated_to_ref ? ` -> ${ownerDisplay(plan.attention.escalated_to_ref, resolveName)}` : ''}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function PlanStartConfirmModal({
+  plan,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  plan: Plan;
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: (input: StartPlanInput) => void;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const resolveName = useDisplayNameResolver();
+  const ownerRef = planOwnerRef(plan);
+  const backupRef = planBackupOwnerRef(plan);
+  const canConfirm = ownerRef.trim() !== '';
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      data-testid="plan-start-owner-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('plan.detail.startModal.aria')}
+    >
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <h2 className="text-lg font-semibold">{t('plan.detail.startModal.title')}</h2>
+        <p className="mt-2 text-sm text-text-secondary">{t('plan.detail.startModal.body')}</p>
+        <div className="mt-4">
+          <PlanOwnerStrip plan={plan} compact />
+        </div>
+        {!canConfirm && (
+          <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid="plan-start-owner-missing">
+            {t('plan.detail.startModal.missingOwner')}
+          </p>
+        )}
+        {error ? (
+          <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid="plan-start-error">
+            {(error as Error).message}
+          </p>
+        ) : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle" onClick={onCancel} data-testid="plan-start-cancel">
+            {t('plan.detail.cancel')}
+          </button>
+          <button
+            type="button"
+            disabled={pending || !canConfirm}
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
+            onClick={() => onConfirm({ owner_ref: ownerRef, backup_owner_ref: backupRef || null, owner_confirmed: true })}
+            data-testid="plan-start-confirm"
+            title={canConfirm ? ownerDisplay(ownerRef, resolveName) : t('plan.detail.startModal.missingOwner')}
+          >
+            {pending ? t('plan.detail.startModal.pending') : t('plan.detail.startModal.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // nodeDotColor — the status dot beside an "Up next" node row. Up next only ever
 // lists non-terminal nodes (done/failed are filtered out), so this maps the live
 // states: running/dispatched (active) → accent, ready → secondary, blocked/paused
@@ -763,6 +909,127 @@ function nodeDotColor(status: PlanNodeStatus): string {
     default: // blocked | paused
       return 'var(--color-text-muted)';
   }
+}
+
+function blockedNodeTitle(plan: Plan, blocked: PlanBlockedOn): string {
+  return (plan.nodes ?? []).find((node) => node.task_id === blocked.task_id)?.title ?? blocked.task_id;
+}
+
+function blockEventFor(plan: Plan, blocked: PlanBlockedOn): PlanBlockEvent | undefined {
+  const eventId = plan.active_frontier?.blocked.find((item) => item.task_id === blocked.task_id)?.event_id;
+  if (eventId) return plan.block_events?.find((event) => event.event_id === eventId);
+  return plan.block_events?.find((event) => event.task_id === blocked.task_id && event.active && event.effective);
+}
+
+function downstreamImpact(plan: Plan, taskId: string): PlanNode[] {
+  const nodes = plan.nodes ?? [];
+  const impacted = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const node of nodes) {
+      if (impacted.has(node.task_id)) continue;
+      if (node.depends_on.includes(taskId) || node.depends_on.some((id) => impacted.has(id))) {
+        impacted.add(node.task_id);
+        changed = true;
+      }
+    }
+  }
+  return nodes.filter((node) => impacted.has(node.task_id) && node.effective !== false);
+}
+
+function BlockedPanel({
+  projectId,
+  plan,
+  onReplace,
+}: {
+  projectId: string;
+  plan: Plan;
+  onReplace: () => void;
+}): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  const resolveName = useDisplayNameResolver();
+  const resume = useResumePausedNode(projectId, plan.id);
+  const acknowledge = useAcknowledgePlanBlock(projectId, plan.id);
+  const resolveBlock = useResolvePlanBlock(projectId, plan.id);
+  const blocked = useMemo(() => {
+    const byTask = new Map<string, PlanBlockedOn>();
+    for (const item of plan.pending_decisions ?? []) byTask.set(item.task_id, item);
+    for (const group of plan.frontier?.groups ?? []) {
+      for (const item of group.nodes ?? []) byTask.set(item.task_id, item);
+    }
+    for (const node of plan.nodes ?? []) {
+      if (node.blocked_on) byTask.set(node.task_id, node.blocked_on);
+    }
+    return Array.from(byTask.values());
+  }, [plan.frontier?.groups, plan.nodes, plan.pending_decisions]);
+  if (blocked.length === 0) return null;
+  return (
+    <section className="border-b border-border-base p-5" data-testid="plan-blocked-panel" aria-label={t('plan.detail.blocked.aria')}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.blocked.title')}</h3>
+        <span className="rounded bg-status-amber-bg px-2 py-0.5 text-[0.625rem] font-bold text-status-amber-fg" data-testid="plan-blocked-count">
+          {blocked.length}
+        </span>
+      </div>
+      <ul className="space-y-3">
+        {blocked.map((item) => {
+          const owner = item.wait_keys.find((key) => key.startsWith('user:') || key.startsWith('agent:')) ?? planOwnerRef(plan);
+          const impact = downstreamImpact(plan, item.task_id);
+          const event = blockEventFor(plan, item);
+          const eventId = event?.event_id;
+          const isAck = !!event?.acknowledged_at;
+          const blockedAt = event?.blocked_at ?? item.waited_since;
+          const reason = event?.blocked_reason || item.trigger_condition || item.wait_type;
+          const eventOwner = event?.owner_ref || owner;
+          return (
+            <li key={`${item.task_id}:${item.wait_type}`} className="rounded-lg border border-status-amber-border bg-status-amber-bg p-3 text-status-amber-fg" data-testid="plan-blocked-item">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold" title={blockedNodeTitle(plan, item)}>
+                    {blockedNodeTitle(plan, item)}
+                  </p>
+                  <p className="mt-0.5 text-xs opacity-80" data-testid="plan-blocked-reason">
+                    {item.wait_type} · {reason}
+                  </p>
+                </div>
+                {isAck && <span className="shrink-0 rounded bg-bg-elevated px-2 py-0.5 text-[0.625rem] font-bold text-text-secondary">{t('plan.detail.blocked.acknowledged')}</span>}
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.owner')}</dt>
+                  <dd className="truncate" title={eventOwner}>{ownerDisplay(eventOwner, resolveName)}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.since')}</dt>
+                  <dd title={blockedAt ?? ''}>{blockedAt ? formatLocalTime(blockedAt) : t('plan.detail.blocked.unknown')}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="font-semibold uppercase tracking-wide opacity-75">{t('plan.detail.blocked.impact')}</dt>
+                  <dd data-testid="plan-blocked-impact">
+                    {impact.length > 0 ? impact.map((node) => node.org_ref ?? node.title).join(', ') : t('plan.detail.blocked.noImpact')}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId || acknowledge.isPending || isAck} onClick={() => eventId && acknowledge.mutate(eventId)} data-testid={`plan-blocked-ack-${item.task_id}`}>{t('plan.detail.blocked.acknowledge')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={resume.isPending} onClick={() => resume.mutate(item.task_id)} data-testid={`plan-blocked-resume-${item.task_id}`}>{t('plan.detail.blocked.resume')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary" onClick={onReplace} data-testid={`plan-blocked-replace-${item.task_id}`}>{t('plan.detail.blocked.replace')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary" onClick={onReplace} title={t('plan.detail.blocked.bypassTitle')} data-testid={`plan-blocked-bypass-${item.task_id}`}>{t('plan.detail.blocked.bypass')}</button>
+                <button type="button" className="rounded border border-status-amber-border bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-text-secondary disabled:opacity-50" disabled={!eventId || resolveBlock.isPending || plan.status !== 'running'} onClick={() => eventId && resolveBlock.mutate({ event_id: eventId, resolution_kind: 'pause_or_discard_plan', note: 'pause' })} data-testid={`plan-blocked-pause-${item.task_id}`}>{t('plan.detail.blocked.pause')}</button>
+                <button type="button" className="rounded border border-danger bg-bg-elevated px-2 py-1 text-[0.6875rem] font-semibold text-danger disabled:opacity-50" disabled={!eventId || resolveBlock.isPending} onClick={() => eventId && resolveBlock.mutate({ event_id: eventId, resolution_kind: 'pause_or_discard_plan', note: 'discard' })} data-testid={`plan-blocked-discard-${item.task_id}`}>{t('plan.detail.blocked.discard')}</button>
+              </div>
+              {(resume.isError || acknowledge.isError || resolveBlock.isError) && (
+                <p className="mt-2 text-[0.6875rem] font-semibold text-danger" role="alert" data-testid={`plan-blocked-error-${item.task_id}`}>
+                  {((resume.error ?? acknowledge.error ?? resolveBlock.error) as Error).message}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 // PlanInfoRail — the DESKTOP right-hand information rail (双栏方案 B). It owns the
@@ -791,6 +1058,7 @@ function PlanInfoRail({
   const discard = useDiscardPlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [evolving, setEvolving] = useState(false);
+  const [startConfirming, setStartConfirming] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive' | 'discard'>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   // @oopslink: Up next is collapsible (mirrors the unmerged-branch panel). Default
@@ -834,6 +1102,7 @@ function PlanInfoRail({
           进度放到顶端 + plan 状态和进度合并到一起). The standalone Progress section
           that used to sit below Participants was removed. Owns plan-detail-meta. */}
       <div className="space-y-3 border-b border-border-base p-5" data-testid="plan-detail-meta">
+        <PlanOwnerStrip plan={plan} compact />
         <div className="flex flex-wrap items-center gap-2">
           <PlanStatusChip status={plan.status} />
           <PlanArchivedBadge archivedAt={plan.archived_at} />
@@ -880,7 +1149,7 @@ function PlanInfoRail({
               type="button"
               data-testid="plan-start-btn"
               disabled={start.isPending}
-              onClick={() => start.mutate()}
+              onClick={() => setStartConfirming(true)}
               className="flex-1 rounded-lg border-0 bg-accent px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {t('plan.detail.lifecycle.start')}
@@ -1011,6 +1280,8 @@ function PlanInfoRail({
         </div>
       )}
 
+      <BlockedPanel projectId={projectId} plan={plan} onReplace={() => setEvolving(true)} />
+
       {/* Up next (collapsible) */}
       <div className="border-b border-border-base p-5" data-testid="plan-upnext-section">
         <button
@@ -1076,6 +1347,15 @@ function PlanInfoRail({
       <SenderDetailSidebar open={agentRef !== null} senderRef={agentRef} onClose={() => setAgentRef(null)} />
 
       {editing && <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />}
+      {startConfirming && (
+        <PlanStartConfirmModal
+          plan={plan}
+          pending={start.isPending}
+          error={start.isError ? start.error : null}
+          onCancel={() => setStartConfirming(false)}
+          onConfirm={(input) => start.mutate(input, { onSuccess: () => setStartConfirming(false) })}
+        />
+      )}
       {evolving && <PlanEvolutionModal projectId={projectId} plan={plan} onClose={() => setEvolving(false)} />}
       {confirming === 'delete' && <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
       {confirming === 'archive' && <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
@@ -1382,6 +1662,17 @@ function parseEvolutionDiff(raw: string, t: TFunction): PlanGenerationDiff {
   return parsed as PlanGenerationDiff;
 }
 
+function evolutionRiskItems(plan: Plan, diff: PlanGenerationDiff | null): string[] {
+  const risks: string[] = [];
+  if (!plan.active_generation_id) risks.push('missing active generation');
+  if ((plan.ready_set ?? []).length > 0) risks.push('ready nodes may dispatch after commit');
+  if ((plan.gates ?? []).some((gate) => gate.pending)) risks.push('pending acceptance gates');
+  if ((diff?.node_decisions ?? []).some((decision) => decision.action === 'supersede')) risks.push('supersedes effective nodes');
+  if ((diff?.tasks ?? []).some((task) => task.detached)) risks.push('detached follow-up node');
+  if (risks.length === 0) risks.push('no immediate risk flags');
+  return risks;
+}
+
 function PlanEvolutionModal({
   projectId,
   plan,
@@ -1400,6 +1691,14 @@ function PlanEvolutionModal({
   const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
+  const reviewDiff = useMemo(() => {
+    try {
+      return parseEvolutionDiff(diffText, t);
+    } catch {
+      return null;
+    }
+  }, [diffText, t]);
+  const riskItems = useMemo(() => evolutionRiskItems(plan, reviewDiff), [plan, reviewDiff]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1504,6 +1803,60 @@ function PlanEvolutionModal({
         <p className="mt-1 text-[0.6875rem] text-text-muted">
           {t('plan.detail.evolutionModal.diffHint')}
         </p>
+
+        <section className="mt-4 rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="plan-evolution-review" aria-label={t('plan.detail.evolutionModal.reviewAria')}>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.review')}</span>
+            <span className="rounded bg-bg-elevated px-2 py-0.5 font-mono text-text-secondary" data-testid="plan-evolution-review-generation">
+              {parentGenerationId || t('plan.detail.evolutionModal.noGeneration')}
+            </span>
+            <span className="rounded bg-bg-elevated px-2 py-0.5 text-text-secondary" data-testid="plan-evolution-review-base">
+              v{baseVersion}
+            </span>
+          </div>
+          {reviewDiff ? (
+            <>
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.reviewTasks')}</dt>
+                  <dd className="text-text-primary" data-testid="plan-evolution-review-tasks">{reviewDiff.tasks.length}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.reviewDecisions')}</dt>
+                  <dd className="text-text-primary" data-testid="plan-evolution-review-decisions">{reviewDiff.node_decisions.length}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.reviewEdges')}</dt>
+                  <dd className="text-text-primary" data-testid="plan-evolution-review-edges">{reviewDiff.edges.length}</dd>
+                </div>
+              </dl>
+              <div className="mt-3 grid gap-3 text-xs md:grid-cols-3">
+                <div>
+                  <p className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.readySet')}</p>
+                  <p className="mt-1 text-text-secondary" data-testid="plan-evolution-review-ready-set">
+                    {(plan.ready_set ?? []).length > 0 ? (plan.ready_set ?? []).join(', ') : t('plan.detail.evolutionModal.emptyReadySet')}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.gates')}</p>
+                  <p className="mt-1 text-text-secondary" data-testid="plan-evolution-review-gates">
+                    {(plan.gates ?? []).length > 0 ? (plan.gates ?? []).map((gate) => `${gate.stage_name ?? gate.stage_id}:${gate.status}`).join(', ') : t('plan.detail.evolutionModal.emptyGates')}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.risks')}</p>
+                  <ul className="mt-1 space-y-1 text-text-secondary" data-testid="plan-evolution-review-risks">
+                    {riskItems.map((risk) => <li key={risk}>{risk}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="mt-3 text-xs text-danger" data-testid="plan-evolution-review-invalid">
+              {t('plan.detail.evolutionModal.reviewInvalid')}
+            </p>
+          )}
+        </section>
 
         {(parseError || commit.isError) && (
           <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">

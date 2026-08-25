@@ -22,7 +22,7 @@ import {
   type AssignmentPoolTask,
   type CreatePlanInput,
 } from '@/api/plans';
-import { refKind, useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { refKind, useDisplayNameResolver, normalizeIdentityRef, useMembers, identityRefOf } from '@/api/members';
 import type { Task } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -1498,12 +1498,23 @@ export function PlanCreateModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [targetDate, setTargetDate] = useState('');
+  const [ownerRef, setOwnerRef] = useState('');
+  const [backupOwnerRef, setBackupOwnerRef] = useState('');
   const create = useCreatePlan(projectId);
+  const members = useMembers();
+  const memberOptions = (members.data ?? []).map((member) => {
+    const ref = identityRefOf(member);
+    return {
+      ref,
+      label: `${member.display_name ?? normalizeIdentityRef(ref)} (${normalizeIdentityRef(ref)})`,
+    };
+  });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    const input: CreatePlanInput = { name: name.trim() };
+    if (!name.trim() || !ownerRef.trim()) return;
+    const input: CreatePlanInput = { name: name.trim(), owner_ref: ownerRef.trim() };
+    if (backupOwnerRef.trim()) input.backup_owner_ref = backupOwnerRef.trim();
     if (description.trim()) input.description = description.trim();
     // YYYY-MM-DD → RFC3339 with local offset (absolute instant, not naive UTC).
     if (targetDate) {
@@ -1562,6 +1573,33 @@ export function PlanCreateModal({
           className={modalInputClass}
           data-testid="plan-create-target-date"
         />
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-owner-ref">
+          {t('plan.board.createModal.owner')}
+        </label>
+        <select
+          id="plan-owner-ref"
+          value={ownerRef}
+          onChange={(e) => setOwnerRef(e.target.value)}
+          className={modalInputClass}
+          data-testid="plan-create-owner"
+          required
+        >
+          <option value="">{t('plan.board.createModal.ownerPlaceholder')}</option>
+          {memberOptions.map((member) => <option key={member.ref} value={member.ref}>{member.label}</option>)}
+        </select>
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-backup-owner-ref">
+          {t('plan.board.createModal.backupOwner')}
+        </label>
+        <select
+          id="plan-backup-owner-ref"
+          value={backupOwnerRef}
+          onChange={(e) => setBackupOwnerRef(e.target.value)}
+          className={modalInputClass}
+          data-testid="plan-create-backup-owner"
+        >
+          <option value="">{t('plan.board.createModal.noBackupOwner')}</option>
+          {memberOptions.filter((member) => member.ref !== ownerRef).map((member) => <option key={member.ref} value={member.ref}>{member.label}</option>)}
+        </select>
         {create.isError && (
           <p className="mt-3 text-xs text-danger" data-testid="plan-create-error">
             {(create.error as Error).message}
@@ -1577,7 +1615,7 @@ export function PlanCreateModal({
           </button>
           <button
             type="submit"
-            disabled={create.isPending || !name.trim()}
+            disabled={create.isPending || !name.trim() || !ownerRef.trim()}
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-create-submit"
           >
