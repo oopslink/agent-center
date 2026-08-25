@@ -81,6 +81,7 @@ export interface PlanNode {
   // shows a "waiting for a qualified agent" badge. Absent/false when not starved.
   // Contract locked with PD: field name `starved` on the pool node DTO.
   starved?: boolean;
+  blocked_on?: PlanBlockedOn;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -143,6 +144,45 @@ export interface Plan {
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
   active_generation_id?: string;
+  owner_ref?: string;
+  backup_owner_ref?: string;
+  attention_required?: boolean;
+  recovery_policy?: PlanRecoveryPolicy;
+  ready_set?: string[];
+  frontier?: PlanFrontier;
+  pending_decisions?: PlanBlockedOn[];
+}
+
+export interface PlanRecoveryPolicy {
+  notify_after_seconds?: number;
+  remind_after_seconds?: number;
+  escalate_after_seconds?: number;
+}
+
+export interface PlanBlockedOn {
+  task_id: string;
+  node_id?: string;
+  wait_type?: string;
+  wait_keys?: string[];
+  trigger_condition?: string;
+  waited_since?: string;
+  deadline?: string;
+  on_timeout?: string;
+  last_probe_at?: string;
+  probe_count?: number;
+  blocked_by?: string;
+  reason_type?: string;
+}
+
+export interface PlanFrontierGroup {
+  wait_type: string;
+  count: number;
+  items: PlanBlockedOn[];
+}
+
+export interface PlanFrontier {
+  total: number;
+  groups: PlanFrontierGroup[];
 }
 
 export interface GateVerdict {
@@ -807,6 +847,36 @@ export function useCommitPlanEvolution(projectId: string, planId: string) {
   return usePlanWrite<CommitPlanEvolutionInput, PlanEvolutionCommitResponse>(projectId, planId, (vars) =>
     api.post<PlanEvolutionCommitResponse>(`${plansBase(projectId)}/${planId}/evolution`, vars),
   );
+}
+
+export type ResolvePlanBlockAction =
+  | 'acknowledge'
+  | 'resume_original'
+  | 'pause_or_discard_plan';
+
+export interface ResolvePlanBlockInput {
+  task_id: string;
+  action: ResolvePlanBlockAction;
+  disposition?: 'pause' | 'discard';
+  note?: string;
+  idempotency_key: string;
+}
+
+export interface ResolvePlanBlockResponse {
+  ok: boolean;
+  plan?: Plan;
+}
+
+// POST /{id}/blocks/{task_id}/resolve — ResolvePlanBlock. Resume for a blocked
+// plan must use action=resume_original; paused-node resume is a different API.
+export function useResolvePlanBlock(projectId: string, planId: string) {
+  return usePlanWrite<ResolvePlanBlockInput, ResolvePlanBlockResponse>(projectId, planId, (vars) => {
+    const { task_id, ...body } = vars;
+    return api.post<ResolvePlanBlockResponse>(
+      `${plansBase(projectId)}/${planId}/blocks/${encodeURIComponent(task_id)}/resolve`,
+      body,
+    );
+  });
 }
 
 // ADR-0055 lifecycle: pending→running↔paused; done can reopen to paused.

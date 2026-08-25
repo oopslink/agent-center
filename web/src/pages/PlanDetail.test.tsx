@@ -306,6 +306,134 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(reopened).toBe(true));
   });
 
+  it('renders owner/recovery and blocked panel details, then resolves acknowledge/resume/pause/discard via ResolvePlanBlock', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    mockPlan({
+      owner_ref: 'user:pm',
+      backup_owner_ref: 'user:backup',
+      attention_required: true,
+      recovery_policy: { notify_after_seconds: 60, remind_after_seconds: 300, escalate_after_seconds: 900 },
+      frontier: { total: 1, groups: [{ wait_type: 'human_decision', count: 1, items: [] }] },
+      pending_decisions: [{ task_id: 'n6', wait_type: 'human_decision', blocked_by: 'gate:S1', reason_type: 'acceptance_gate', waited_since: '2026-06-02T01:00:00Z' }],
+      nodes: [
+        { task_id: 'n5', title: 'upstream', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'done', depends_on: [] },
+        { task_id: 'n6', title: 'blocked decision', assignee_ref: 'user:owner', task_status: 'open', node_status: 'blocked', depends_on: ['n5'], org_ref: 'T606', blocked_on: { task_id: 'n6', wait_type: 'human_decision', blocked_by: 'gate:S1', reason_type: 'acceptance_gate', waited_since: '2026-06-02T01:00:00Z' } },
+        { task_id: 'n7', title: 'downstream ship', assignee_ref: 'agent:dev2', task_status: 'open', node_status: 'blocked', depends_on: ['n6'], org_ref: 'T607' },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/blocks/n6/resolve', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    wrap();
+    const strip = await screen.findByTestId('plan-owner-strip');
+    expect(strip).toHaveAttribute('data-elevated', 'true');
+    expect(strip).toHaveTextContent('@pm');
+    expect(strip).toHaveTextContent('@backup');
+    expect(screen.getByTestId('plan-recovery-policy')).toHaveTextContent(/notify 1m/i);
+    const panel = screen.getByTestId('plan-blocked-panel');
+    expect(within(panel).getByTestId('plan-blocked-by')).toHaveTextContent('gate:S1');
+    expect(within(panel).getByTestId('plan-blocked-assignee')).toHaveTextContent('@owner');
+    expect(within(panel).getByTestId('plan-blocked-downstream')).toHaveTextContent('T607');
+
+    await act(async () => fireEvent.click(screen.getByTestId('plan-block-ack-n6')));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-block-resume-n6')));
+    fireEvent.click(screen.getByTestId('plan-block-pause-n6'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-block-disposition-confirm')));
+    fireEvent.click(screen.getByTestId('plan-block-discard-n6'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-block-disposition-confirm')));
+
+    await waitFor(() => expect(bodies).toHaveLength(4));
+    expect(bodies.map((b) => b.action)).toEqual(['acknowledge', 'resume_original', 'pause_or_discard_plan', 'pause_or_discard_plan']);
+    expect(bodies[2]).toMatchObject({ disposition: 'pause' });
+    expect(bodies[3]).toMatchObject({ disposition: 'discard' });
+  });
+
+  it('blocked replace and bypass open contextual Evolution Review and POST atomic generation diffs', async () => {
+    const commits: Record<string, unknown>[] = [];
+    mockPlan({
+      active_generation_id: 'gen-1',
+      ready_set: ['n5'],
+      nodes: [
+        { task_id: 'n5', title: 'upstream', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], org_ref: 'T605' },
+        { task_id: 'n6', title: 'blocked decision', assignee_ref: 'user:owner', task_status: 'open', node_status: 'blocked', depends_on: ['n5'], org_ref: 'T606', blocked_on: { task_id: 'n6', wait_type: 'human_decision', blocked_by: 'gate:S1', reason_type: 'acceptance_gate' } },
+        { task_id: 'n7', title: 'downstream ship', assignee_ref: 'agent:dev2', task_status: 'open', node_status: 'blocked', depends_on: ['n6'], org_ref: 'T607' },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        commits.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          ok: true,
+          duplicate: false,
+          active_generation_id: 'gen-2',
+          version: 8,
+          dispatched: [],
+          generation: { id: 'gen-2', revision: 2, diff: commits.at(-1)?.diff, snapshot: { tasks: [], edges: [], dispatch_records: [] }, snapshot_progress: { done: 0, total: 0 } },
+        });
+      }),
+    );
+    wrap();
+    await screen.findByTestId('plan-blocked-panel');
+
+    fireEvent.click(screen.getByTestId('plan-block-replace-n6'));
+    expect(await screen.findByTestId('plan-evolution-review')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-evolution-node-decisions')).toHaveTextContent('n6: supersede');
+    expect(screen.getByTestId('plan-evolution-task-drafts')).toHaveTextContent('replacement-n6');
+    expect(screen.getByTestId('plan-evolution-task-drafts')).toHaveTextContent('delivery contract');
+    expect(screen.getByTestId('plan-evolution-edge-drafts')).toHaveTextContent('replacement-n6');
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+
+    await waitFor(() => expect(commits).toHaveLength(1));
+    expect(commits[0]).toMatchObject({
+      parent_generation_id: 'gen-1',
+      base_version: 7,
+      diff: {
+        node_decisions: [expect.objectContaining({ task_id: 'n6', action: 'supersede' })],
+        tasks: [expect.objectContaining({ ref: 'replacement-n6', detached: false })],
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('plan-block-bypass-n6'));
+    expect(await screen.findByTestId('plan-evolution-review')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-evolution-task-drafts')).toHaveTextContent('none');
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+    await waitFor(() => expect(commits).toHaveLength(2));
+    expect(commits[1]).toMatchObject({
+      diff: {
+        node_decisions: [expect.objectContaining({ task_id: 'n6', action: 'supersede' })],
+        tasks: [],
+        edges: [expect.objectContaining({ from: 'n7', to: 'n5', kind: 'seq' })],
+      },
+    });
+  });
+
+  it('blocked panel surfaces 403 resolve and 409 evolution errors', async () => {
+    mockPlan({
+      active_generation_id: 'gen-1',
+      nodes: [
+        { task_id: 'n6', title: 'blocked decision', assignee_ref: 'user:owner', task_status: 'open', node_status: 'blocked', depends_on: [], blocked_on: { task_id: 'n6', wait_type: 'human_decision' } },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/blocks/n6/resolve', () =>
+        HttpResponse.json({ error: 'forbidden', message: 'owner confirmation required' }, { status: 403 }),
+      ),
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', () =>
+        HttpResponse.json({ error: 'plan_conflict', message: 'active_generation conflict' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    await screen.findByTestId('plan-blocked-panel');
+    await act(async () => fireEvent.click(screen.getByTestId('plan-block-ack-n6')));
+    expect(await screen.findByTestId('plan-blocked-error')).toHaveTextContent(/rejected|refresh/i);
+    fireEvent.click(screen.getByTestId('plan-block-bypass-n6'));
+    await act(async () => fireEvent.click(await screen.findByTestId('plan-evolution-submit')));
+    expect(await screen.findByTestId('plan-evolution-error')).toHaveTextContent(/changed before commit|refresh/i);
+  });
+
   it('three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count', async () => {
     mockPlan();
     wrap();

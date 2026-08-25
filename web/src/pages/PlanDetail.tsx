@@ -19,6 +19,7 @@ import {
   useRemoveDependency,
   useRemoveTaskFromPlan,
   useResumePausedNode,
+  useResolvePlanBlock,
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
@@ -39,6 +40,7 @@ import {
   type PlanGeneration,
   type PlanGenerationDiff,
   type CommitPlanEvolutionInput,
+  type PlanBlockedOn,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -467,6 +469,8 @@ function PlanDetailHeader({
           </span>
         )}
       </div>
+      <PlanOwnerStrip plan={plan} compact={isMobile} />
+      {isMobile && <PlanBlockedPanel projectId={projectId} plan={plan} />}
       {/* Row 2 (desktop only): status chips + inline meta + actions. The
           Progress/Creator meta rides on THIS row (was a separate 4th header row)
           so the header stays to 3 rows and the chat gets the height back. */}
@@ -688,9 +692,10 @@ function PlanDetailHeader({
 // in the right-hand PlanInfoRail (@oopslink 双栏方案 B). Mobile keeps the full
 // single-row PlanDetailHeader instead.
 function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <div
-      className="flex items-center gap-2 px-5 py-3"
+      className="flex flex-wrap items-center gap-2 px-5 py-3"
       data-testid="plan-title-bar"
     >
       <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
@@ -700,6 +705,14 @@ function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
       >
         {plan.name}
       </h1>
+      <span className="ml-auto text-xs text-text-muted" data-testid="plan-title-owner">
+        {t('plan.detail.ownerPolicy.owner')} @{normalizeIdentityRef(planPrimaryOwner(plan))}
+      </span>
+      {plan.attention_required && (
+        <span className="rounded bg-status-amber-bg px-2 py-0.5 text-[0.625rem] font-semibold uppercase text-status-amber-fg" data-testid="plan-title-attention">
+          {t('plan.detail.ownerPolicy.attention')}
+        </span>
+      )}
     </div>
   );
 }
@@ -746,6 +759,247 @@ function PlanProgressBar({ done, total }: { done: number; total: number }): Reac
         <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, background: 'var(--color-success)' }} />
       </div>
     </div>
+  );
+}
+
+function planPrimaryOwner(plan: Plan): string {
+  return plan.owner_ref || plan.creator_ref;
+}
+
+function secondsLabel(seconds: number | undefined, t: TFunction): string {
+  if (!seconds || seconds <= 0) return t('plan.detail.ownerPolicy.notSet');
+  if (seconds < 60) return t('plan.detail.ownerPolicy.seconds', { count: seconds });
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return t('plan.detail.ownerPolicy.minutes', { count: minutes });
+  return t('plan.detail.ownerPolicy.hours', { count: Math.round(minutes / 60) });
+}
+
+function PlanOwnerStrip({ plan, compact = false }: { plan: Plan; compact?: boolean }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const resolveName = useDisplayNameResolver();
+  const owner = planPrimaryOwner(plan);
+  const ownerName = resolveName(owner);
+  const ownerLabel = ownerName === owner ? normalizeIdentityRef(owner) : ownerName;
+  const backup = plan.backup_owner_ref;
+  const backupName = backup ? resolveName(backup) : '';
+  const backupLabel = backup ? (backupName === backup ? normalizeIdentityRef(backup) : backupName) : t('plan.detail.ownerPolicy.noBackup');
+  const elevated = !!plan.attention_required || !!plan.frontier?.total;
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2 text-xs ${
+        elevated
+          ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
+          : 'border-border-base bg-bg-subtle text-text-secondary'
+      }`}
+      data-testid="plan-owner-strip"
+      data-elevated={elevated ? 'true' : 'false'}
+    >
+      <div className={`flex ${compact ? 'flex-col items-start' : 'flex-wrap items-center'} gap-2`}>
+        <span className="font-semibold">{t('plan.detail.ownerPolicy.owner')}</span>
+        <span title={owner} data-testid="plan-owner-ref">@{ownerLabel}</span>
+        <span className="text-text-muted">{t('plan.detail.ownerPolicy.backup')}</span>
+        <span title={backup || ''} data-testid="plan-backup-owner-ref">@{backupLabel}</span>
+        {plan.attention_required && (
+          <span className="rounded bg-status-amber-border px-1.5 py-0.5 font-semibold uppercase" data-testid="plan-attention-required">
+            {t('plan.detail.ownerPolicy.attention')}
+          </span>
+        )}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[0.6875rem] text-text-muted" data-testid="plan-recovery-policy">
+        <span>{t('plan.detail.ownerPolicy.notify', { value: secondsLabel(plan.recovery_policy?.notify_after_seconds, t) })}</span>
+        <span>{t('plan.detail.ownerPolicy.remind', { value: secondsLabel(plan.recovery_policy?.remind_after_seconds, t) })}</span>
+        <span>{t('plan.detail.ownerPolicy.escalate', { value: secondsLabel(plan.recovery_policy?.escalate_after_seconds, t) })}</span>
+      </div>
+    </div>
+  );
+}
+
+function blockedEvents(plan: Plan): Array<{ event: PlanBlockedOn; node: PlanNode }> {
+  const byTask = new Map<string, PlanNode>((plan.nodes ?? []).map((node) => [node.task_id, node]));
+  const direct = (plan.nodes ?? [])
+    .filter((node) => node.blocked_on)
+    .map((node) => ({ event: node.blocked_on as PlanBlockedOn, node }));
+  const pending = (plan.pending_decisions ?? [])
+    .flatMap((event) => {
+      const node = byTask.get(event.task_id);
+      return node ? [{ event, node }] : [];
+    });
+  const seen = new Set<string>();
+  return [...direct, ...pending].filter(({ event, node }) => {
+    const key = `${event.task_id}:${event.wait_type ?? ''}:${event.waited_since ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return node.node_status !== 'done' && node.node_status !== 'failed';
+  });
+}
+
+function downstreamOf(plan: Plan, taskId: string): PlanNode[] {
+  const nodes = plan.nodes ?? [];
+  const byId = new Map(nodes.map((node) => [node.task_id, node]));
+  const children = new Map<string, string[]>();
+  for (const node of nodes) {
+    for (const dep of node.depends_on ?? []) {
+      children.set(dep, [...(children.get(dep) ?? []), node.task_id]);
+    }
+  }
+  const out: PlanNode[] = [];
+  const seen = new Set<string>();
+  const stack = [...(children.get(taskId) ?? [])];
+  while (stack.length) {
+    const id = stack.shift() as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = byId.get(id);
+    if (node) out.push(node);
+    stack.push(...(children.get(id) ?? []));
+  }
+  return out;
+}
+
+function blockIdempotency(plan: Plan, taskId: string, action: string): string {
+  return `block-${plan.id}-${taskId}-${action}-${plan.version ?? 0}-${Date.now()}`;
+}
+
+function makeReplaceDiff(plan: Plan, node: PlanNode): PlanGenerationDiff {
+  const ref = `replacement-${node.task_id}`;
+  return {
+    node_decisions: [
+      { task_id: node.task_id, action: 'supersede', reason: `replace blocked node ${node.task_id}` },
+    ],
+    tasks: [{
+      ref,
+      title: `${node.title} (recovery)`,
+      description: `Continuation task replacing blocked node ${node.task_id}.`,
+      assignee_ref: node.assignee_ref,
+      delivery_contract: `Recover delivery contract for ${node.title}.`,
+      follows_task_id: node.task_id,
+      detached: false,
+    }],
+    edges: [
+      ...(node.depends_on ?? []).map((dep) => ({ from: ref, to: dep, kind: 'seq' as const })),
+      ...downstreamOf(plan, node.task_id)
+        .filter((downstream) => downstream.depends_on.includes(node.task_id))
+        .map((downstream) => ({ from: downstream.task_id, to: ref, kind: 'seq' as const })),
+    ],
+  };
+}
+
+function makeBypassDiff(plan: Plan, node: PlanNode): PlanGenerationDiff {
+  const directDownstream = (plan.nodes ?? []).filter((candidate) => candidate.depends_on.includes(node.task_id));
+  return {
+    node_decisions: [
+      { task_id: node.task_id, action: 'supersede', reason: `bypass blocked node ${node.task_id}` },
+    ],
+    tasks: [],
+    edges: directDownstream.flatMap((downstream) =>
+      (node.depends_on ?? []).map((dep) => ({ from: downstream.task_id, to: dep, kind: 'seq' as const })),
+    ),
+  };
+}
+
+function PlanBlockedPanel({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  const resolve = useResolvePlanBlock(projectId, plan.id);
+  const [confirm, setConfirm] = useState<null | { taskId: string; disposition: 'pause' | 'discard' }>(null);
+  const [review, setReview] = useState<null | { node: PlanNode; mode: 'replace' | 'bypass'; diff: PlanGenerationDiff }>(null);
+  const events = blockedEvents(plan);
+  if (!events.length && !plan.frontier?.total) return null;
+  const resolveBlock = (taskId: string, action: 'acknowledge' | 'resume_original') => {
+    resolve.mutate({
+      task_id: taskId,
+      action,
+      note: action === 'acknowledge' ? t('plan.detail.blockedPanel.ackNote') : t('plan.detail.blockedPanel.resumeNote'),
+      idempotency_key: blockIdempotency(plan, taskId, action),
+    });
+  };
+  const resolveDisposition = (taskId: string, disposition: 'pause' | 'discard') => {
+    resolve.mutate({
+      task_id: taskId,
+      action: 'pause_or_discard_plan',
+      disposition,
+      note: t('plan.detail.blockedPanel.dispositionNote', { disposition }),
+      idempotency_key: blockIdempotency(plan, taskId, disposition),
+    });
+  };
+  return (
+    <section className="border-b border-border-base p-5" data-testid="plan-blocked-panel" aria-label={t('plan.detail.blockedPanel.title')}>
+      <div className="mb-3 flex items-center gap-2">
+        <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.blockedPanel.title')}</h3>
+        {plan.frontier?.total ? (
+          <span className="rounded-full bg-status-amber-bg px-2 py-0.5 text-[0.625rem] font-bold text-status-amber-fg" data-testid="plan-frontier-total">
+            {t('plan.detail.blockedPanel.frontierTotal', { count: plan.frontier.total })}
+          </span>
+        ) : null}
+      </div>
+      {events.length === 0 ? (
+        <p className="text-xs text-text-muted" data-testid="plan-blocked-empty">{t('plan.detail.blockedPanel.empty')}</p>
+      ) : (
+        <ul className="space-y-3">
+          {events.map(({ event, node }) => {
+            const impacted = downstreamOf(plan, node.task_id);
+            const blockedBy = event.blocked_by || event.wait_keys?.join(', ') || event.trigger_condition || event.wait_type || t('plan.detail.blockedPanel.unknown');
+            return (
+              <li key={`${node.task_id}-${event.waited_since ?? ''}`} className="rounded-lg border border-status-amber-border bg-status-amber-bg p-3 text-xs text-status-amber-fg" data-testid="plan-blocked-event">
+                <div className="flex flex-wrap items-center gap-2">
+                  <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} testId="plan-blocked-task" />
+                  <strong className="text-text-primary">{node.title}</strong>
+                  <span className="ml-auto font-mono uppercase">{event.reason_type || event.wait_type || t('plan.detail.blockedPanel.blocked')}</span>
+                </div>
+                <dl className="mt-2 grid gap-1 sm:grid-cols-2">
+                  <div><dt className="font-semibold">{t('plan.detail.blockedPanel.blockedBy')}</dt><dd data-testid="plan-blocked-by">{blockedBy}</dd></div>
+                  <div><dt className="font-semibold">{t('plan.detail.blockedPanel.assignee')}</dt><dd data-testid="plan-blocked-assignee">@{normalizeIdentityRef(node.assignee_ref || t('plan.detail.taskList.unassigned'))}</dd></div>
+                  <div><dt className="font-semibold">{t('plan.detail.blockedPanel.waitingSince')}</dt><dd data-testid="plan-blocked-since">{event.waited_since ? fullDateTime(event.waited_since) : t('plan.detail.blockedPanel.unknown')}</dd></div>
+                  <div><dt className="font-semibold">{t('plan.detail.blockedPanel.downstream')}</dt><dd data-testid="plan-blocked-downstream">{impacted.length ? impacted.map((n) => n.org_ref ?? n.task_id).join(', ') : t('plan.detail.blockedPanel.none')}</dd></div>
+                </dl>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" data-testid={`plan-block-ack-${node.task_id}`} onClick={() => resolveBlock(node.task_id, 'acknowledge')} disabled={resolve.isPending} className="rounded border border-border-strong bg-bg-subtle px-2 py-1 font-semibold text-text-secondary disabled:opacity-50">{t('plan.detail.blockedPanel.ack')}</button>
+                  <button type="button" data-testid={`plan-block-resume-${node.task_id}`} onClick={() => resolveBlock(node.task_id, 'resume_original')} disabled={resolve.isPending} className="rounded bg-accent px-2 py-1 font-semibold text-white disabled:opacity-50">{t('plan.detail.blockedPanel.resume')}</button>
+                  <button type="button" data-testid={`plan-block-replace-${node.task_id}`} onClick={() => setReview({ node, mode: 'replace', diff: makeReplaceDiff(plan, node) })} className="rounded border border-accent bg-bg-subtle px-2 py-1 font-semibold text-accent">{t('plan.detail.blockedPanel.replace')}</button>
+                  <button type="button" data-testid={`plan-block-bypass-${node.task_id}`} onClick={() => setReview({ node, mode: 'bypass', diff: makeBypassDiff(plan, node) })} className="rounded border border-accent bg-bg-subtle px-2 py-1 font-semibold text-accent">{t('plan.detail.blockedPanel.bypass')}</button>
+                  <button type="button" data-testid={`plan-block-pause-${node.task_id}`} onClick={() => setConfirm({ taskId: node.task_id, disposition: 'pause' })} className="rounded border border-danger bg-bg-subtle px-2 py-1 font-semibold text-danger">{t('plan.detail.blockedPanel.pause')}</button>
+                  <button type="button" data-testid={`plan-block-discard-${node.task_id}`} onClick={() => setConfirm({ taskId: node.task_id, disposition: 'discard' })} className="rounded border border-danger bg-bg-subtle px-2 py-1 font-semibold text-danger">{t('plan.detail.blockedPanel.discard')}</button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {resolve.isError && (
+        <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-blocked-error">
+          {friendlyEvolutionError(resolve.error, t)}
+        </p>
+      )}
+      {confirm && (
+        <DestructiveConfirmModal
+          testId="plan-block-disposition-modal"
+          title={t(`plan.detail.blockedPanel.${confirm.disposition}Title`)}
+          planName={plan.name}
+          body={t(`plan.detail.blockedPanel.${confirm.disposition}Body`)}
+          confirmLabel={t(`plan.detail.blockedPanel.${confirm.disposition}Confirm`)}
+          pendingLabel={t('plan.detail.blockedPanel.resolving')}
+          pending={resolve.isPending}
+          error={resolve.isError ? friendlyEvolutionError(resolve.error, t) : null}
+          errorTestId="plan-block-disposition-error"
+          cancelTestId="plan-block-disposition-cancel"
+          confirmTestId="plan-block-disposition-confirm"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            resolveDisposition(confirm.taskId, confirm.disposition);
+            setConfirm(null);
+          }}
+        />
+      )}
+      {review && (
+        <PlanEvolutionModal
+          projectId={projectId}
+          plan={plan}
+          initialDiff={review.diff}
+          initialReason={t(`plan.detail.evolutionModal.${review.mode}Reason`, { task: review.node.org_ref ?? review.node.task_id })}
+          initialEvidence={t('plan.detail.evolutionModal.blockEvidence', { task: review.node.org_ref ?? review.node.task_id })}
+          onClose={() => setReview(null)}
+        />
+      )}
+    </section>
   );
 }
 
@@ -834,6 +1088,7 @@ function PlanInfoRail({
           进度放到顶端 + plan 状态和进度合并到一起). The standalone Progress section
           that used to sit below Participants was removed. Owns plan-detail-meta. */}
       <div className="space-y-3 border-b border-border-base p-5" data-testid="plan-detail-meta">
+        <PlanOwnerStrip plan={plan} compact />
         <div className="flex flex-wrap items-center gap-2">
           <PlanStatusChip status={plan.status} />
           <PlanArchivedBadge archivedAt={plan.archived_at} />
@@ -939,6 +1194,8 @@ function PlanInfoRail({
 	          </p>
 	        )}
       </div>
+
+      <PlanBlockedPanel projectId={projectId} plan={plan} />
 
       {/* Goal + creator tag. The section ALWAYS renders (the @creator tag — which
           opens the agent-activity sidebar — must show even when there's no goal). */}
@@ -1385,21 +1642,30 @@ function parseEvolutionDiff(raw: string, t: TFunction): PlanGenerationDiff {
 function PlanEvolutionModal({
   projectId,
   plan,
+  initialDiff,
+  initialReason,
+  initialEvidence,
   onClose,
 }: {
   projectId: string;
   plan: Plan;
+  initialDiff?: PlanGenerationDiff;
+  initialReason?: string;
+  initialEvidence?: string;
   onClose: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const baseVersion = planBaseVersion(plan);
   const parentGenerationId = plan.active_generation_id ?? '';
-  const [reason, setReason] = useState('');
-  const [evidence, setEvidence] = useState('');
+  const [reason, setReason] = useState(initialReason ?? '');
+  const [evidence, setEvidence] = useState(initialEvidence ?? '');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
-  const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
+  const [diffText, setDiffText] = useState(() => JSON.stringify(initialDiff ?? { node_decisions: [], tasks: [], edges: [] }, null, 2));
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
+  const parsedPreview = useMemo(() => {
+    try { return parseEvolutionDiff(diffText, t); } catch { return null; }
+  }, [diffText, t]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1505,6 +1771,8 @@ function PlanEvolutionModal({
           {t('plan.detail.evolutionModal.diffHint')}
         </p>
 
+        <EvolutionReviewPreview plan={plan} diff={parsedPreview} />
+
         {(parseError || commit.isError) && (
           <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">
             {parseError ?? friendlyEvolutionError(commit.error, t)}
@@ -1531,6 +1799,94 @@ function PlanEvolutionModal({
         </div>
       </form>
     </div>
+  );
+}
+
+function EvolutionReviewPreview({ plan, diff }: { plan: Plan; diff: PlanGenerationDiff | null }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const nodes = plan.nodes ?? [];
+  const touched = new Set(diff?.node_decisions.map((decision) => decision.task_id) ?? []);
+  const addedRefs = new Set(diff?.tasks.map((task) => task.ref) ?? []);
+  const impact = nodes.filter((node) => touched.has(node.task_id) || node.depends_on.some((dep) => touched.has(dep)));
+  const readyPreview = [
+    ...(plan.ready_set ?? []).filter((id) => !touched.has(id)),
+    ...(diff?.tasks ?? []).filter((task) => !task.detached).map((task) => task.ref),
+  ];
+  const risks = [
+    ...(diff?.tasks ?? []).some((task) => task.detached) ? [t('plan.detail.evolutionModal.riskDetached')] : [],
+    ...(diff?.edges ?? []).length === 0 && (diff?.tasks ?? []).length ? [t('plan.detail.evolutionModal.riskNoEdges')] : [],
+    impact.some((node) => node.node_status === 'running' || node.node_status === 'dispatched') ? [t('plan.detail.evolutionModal.riskInFlight')] : [],
+  ];
+  return (
+    <section className="mt-4 rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="plan-evolution-review">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.evolutionModal.reviewTitle')}</h3>
+        <span className="rounded bg-bg-elevated px-2 py-0.5 font-mono text-[0.6875rem] text-text-secondary" data-testid="plan-evolution-generation">
+          {t('plan.detail.evolutionModal.generation', { generation: plan.active_generation_id || t('plan.detail.evolutionModal.none') })}
+        </span>
+      </div>
+      {!diff ? (
+        <p className="text-xs text-danger" data-testid="plan-evolution-review-invalid">{t('plan.detail.evolutionModal.reviewInvalid')}</p>
+      ) : (
+        <div className="space-y-3 text-xs">
+          <div data-testid="plan-evolution-node-decisions">
+            <h4 className="font-semibold text-text-primary">{t('plan.detail.evolutionModal.nodeDecisions')}</h4>
+            {diff.node_decisions.length === 0 ? <p className="text-text-muted">{t('plan.detail.evolutionModal.none')}</p> : (
+              <ul className="mt-1 space-y-1">
+                {diff.node_decisions.map((decision) => (
+                  <li key={`${decision.task_id}-${decision.action}`} className="font-mono text-text-secondary">
+                    {decision.task_id}: {decision.action}{decision.reason ? ` - ${decision.reason}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div data-testid="plan-evolution-task-drafts">
+            <h4 className="font-semibold text-text-primary">{t('plan.detail.evolutionModal.taskDrafts')}</h4>
+            {diff.tasks.length === 0 ? <p className="text-text-muted">{t('plan.detail.evolutionModal.none')}</p> : (
+              <ul className="mt-1 space-y-1">
+                {diff.tasks.map((task) => (
+                  <li key={task.ref} className="rounded border border-border-base bg-bg-elevated px-2 py-1">
+                    <span className="font-mono font-semibold">{task.ref}</span> {task.title}
+                    <span className="ml-2 text-text-muted">@{normalizeIdentityRef(task.assignee_ref)}</span>
+                    <span className="ml-2 text-text-muted">{t('plan.detail.evolutionModal.detached')}: {task.detached ? t('plan.detail.evolutionModal.yes') : t('plan.detail.evolutionModal.no')}</span>
+                    <div className="mt-0.5 text-text-muted">{t('plan.detail.evolutionModal.deliveryContract')}: {task.delivery_contract || t('plan.detail.evolutionModal.none')}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div data-testid="plan-evolution-edge-drafts">
+            <h4 className="font-semibold text-text-primary">{t('plan.detail.evolutionModal.edgeChanges')}</h4>
+            {diff.edges.length === 0 ? <p className="text-text-muted">{t('plan.detail.evolutionModal.none')}</p> : (
+              <ul className="mt-1 space-y-1">
+                {diff.edges.map((edge, index) => (
+                  <li key={`${edge.from}-${edge.to}-${index}`} className="font-mono text-text-secondary">
+                    {edge.from} -&gt; {edge.to} ({edge.kind ?? 'seq'}{edge.when ? `, ${edge.when}` : ''})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <dl className="grid gap-2 sm:grid-cols-2" data-testid="plan-evolution-effective-preview">
+            <div><dt className="font-semibold">{t('plan.detail.evolutionModal.readyPreview')}</dt><dd className="font-mono text-text-secondary">{readyPreview.length ? readyPreview.join(', ') : t('plan.detail.evolutionModal.none')}</dd></div>
+            <div><dt className="font-semibold">{t('plan.detail.evolutionModal.impactPreview')}</dt><dd className="font-mono text-text-secondary">{impact.length ? impact.map((node) => node.org_ref ?? node.task_id).join(', ') : t('plan.detail.evolutionModal.none')}</dd></div>
+            <div><dt className="font-semibold">{t('plan.detail.evolutionModal.gatePreview')}</dt><dd className="text-text-secondary">{(plan.gate_verdicts ?? []).length ? t('plan.detail.evolutionModal.gatesPresent', { count: plan.gate_verdicts?.length ?? 0 }) : t('plan.detail.evolutionModal.noGates')}</dd></div>
+            <div><dt className="font-semibold">{t('plan.detail.evolutionModal.topologyDiff')}</dt><dd className="text-text-secondary">{t('plan.detail.evolutionModal.topologySummary', { decisions: diff.node_decisions.length, tasks: diff.tasks.length, edges: diff.edges.length, refs: addedRefs.size })}</dd></div>
+          </dl>
+          <div data-testid="plan-evolution-risks">
+            <h4 className="font-semibold text-text-primary">{t('plan.detail.evolutionModal.risks')}</h4>
+            {risks.length ? (
+              <ul className="mt-1 list-disc pl-4 text-status-amber-fg">
+                {risks.map((risk) => <li key={risk}>{risk}</li>)}
+              </ul>
+            ) : (
+              <p className="text-text-muted">{t('plan.detail.evolutionModal.noRisks')}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

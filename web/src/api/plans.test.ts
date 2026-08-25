@@ -13,6 +13,8 @@ import {
   useRemoveTaskFromPlan,
   useDeletePlan,
   useArchivePlan,
+  useCommitPlanEvolution,
+  useResolvePlanBlock,
   friendlyDestructivePlanError,
 } from './plans';
 
@@ -176,6 +178,90 @@ describe('plans hooks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(method).toBe('POST');
     expect(url).toBe('/api/projects/proj-a/plans/PL-1/archive');
+  });
+
+  it('useResolvePlanBlock POSTs acknowledge/resume/pause/discard bodies to the block resolve route', async () => {
+    const calls: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/blocks/:taskId/resolve', async ({ request }) => {
+        calls.push({
+          method: request.method,
+          path: new URL(request.url).pathname,
+          body: (await request.json()) as Record<string, unknown>,
+        });
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    const { result } = renderHook(() => useResolvePlanBlock('proj-a', 'PL-1'), { wrapper: makeWrapper() });
+    for (const action of [
+      { task_id: 'TS-BLOCK', action: 'acknowledge' as const, note: 'ack', idempotency_key: 'ack-1' },
+      { task_id: 'TS-BLOCK', action: 'resume_original' as const, note: 'resume', idempotency_key: 'resume-1' },
+      { task_id: 'TS-BLOCK', action: 'pause_or_discard_plan' as const, disposition: 'pause' as const, idempotency_key: 'pause-1' },
+      { task_id: 'TS-BLOCK', action: 'pause_or_discard_plan' as const, disposition: 'discard' as const, idempotency_key: 'discard-1' },
+    ]) {
+      await act(async () => {
+        await result.current.mutateAsync(action);
+      });
+    }
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'POST', 'POST', 'POST']);
+    expect(calls.every((c) => c.path === '/api/projects/proj-a/plans/PL-1/blocks/TS-BLOCK/resolve')).toBe(true);
+    expect(calls.map((c) => c.body)).toEqual([
+      { action: 'acknowledge', note: 'ack', idempotency_key: 'ack-1' },
+      { action: 'resume_original', note: 'resume', idempotency_key: 'resume-1' },
+      { action: 'pause_or_discard_plan', disposition: 'pause', idempotency_key: 'pause-1' },
+      { action: 'pause_or_discard_plan', disposition: 'discard', idempotency_key: 'discard-1' },
+    ]);
+  });
+
+  it('useCommitPlanEvolution POSTs replace/bypass generation diffs to /evolution', async () => {
+    const calls: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        calls.push({ method: request.method, path: new URL(request.url).pathname, body });
+        return HttpResponse.json({
+          ok: true,
+          duplicate: false,
+          active_generation_id: 'gen-next',
+          version: 8,
+          dispatched: [],
+          generation: { id: 'gen-next', revision: 2, diff: body.diff, snapshot: { tasks: [], edges: [], dispatch_records: [] }, snapshot_progress: { done: 0, total: 0 } },
+        });
+      }),
+    );
+    const { result } = renderHook(() => useCommitPlanEvolution('proj-a', 'PL-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      await result.current.mutateAsync({
+        parent_generation_id: 'gen-1',
+        base_version: 7,
+        reason: 'replace',
+        evidence: 'blocked',
+        idempotency_key: 'replace-1',
+        diff: {
+          node_decisions: [{ task_id: 'TS-BLOCK', action: 'supersede', reason: 'replace blocked node' }],
+          tasks: [{ ref: 'replacement-TS-BLOCK', title: 'replacement', assignee_ref: 'agent:a', delivery_contract: 'ship replacement', detached: false }],
+          edges: [{ from: 'replacement-TS-BLOCK', to: 'TS-UP', kind: 'seq' }],
+        },
+      });
+      await result.current.mutateAsync({
+        parent_generation_id: 'gen-1',
+        base_version: 7,
+        reason: 'bypass',
+        evidence: 'blocked',
+        idempotency_key: 'bypass-1',
+        diff: {
+          node_decisions: [{ task_id: 'TS-BLOCK', action: 'supersede', reason: 'bypass blocked node' }],
+          tasks: [],
+          edges: [{ from: 'TS-DOWN', to: 'TS-UP', kind: 'seq' }],
+        },
+      });
+    });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'POST /api/projects/proj-a/plans/PL-1/evolution',
+      'POST /api/projects/proj-a/plans/PL-1/evolution',
+    ]);
+    expect(calls[0].body.diff).toMatchObject({ tasks: [expect.objectContaining({ delivery_contract: 'ship replacement', detached: false })] });
+    expect(calls[1].body.diff).toMatchObject({ tasks: [], edges: [{ from: 'TS-DOWN', to: 'TS-UP', kind: 'seq' }] });
   });
 
   it('friendlyDestructivePlanError maps 409s by message substring (status-agnostic, no raw error)', () => {
