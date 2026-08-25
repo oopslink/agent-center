@@ -1398,6 +1398,9 @@ function PlanEvolutionModal({
   const [evidence, setEvidence] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
   const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
+  const blockContext = plan.blocked_on?.[0] ?? null;
+  const [resolutionKind, setResolutionKind] = useState<'replace' | 'bypass' | ''>('');
+  const [resolutionNote, setResolutionNote] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
 
@@ -1419,6 +1422,11 @@ function PlanEvolutionModal({
       idempotency_key: idempotencyKey.trim(),
       diff,
     };
+    if (blockContext && resolutionKind) {
+      input.resolve_block_event_id = blockContext.event_id || blockContext.task_id;
+      input.resolution_kind = resolutionKind;
+      input.resolution_note = resolutionNote.trim();
+    }
     try {
       await commit.mutateAsync(input);
       onClose();
@@ -1505,6 +1513,53 @@ function PlanEvolutionModal({
           {t('plan.detail.evolutionModal.diffHint')}
         </p>
 
+        {blockContext && (
+          <section className="mt-4 rounded border border-border-base bg-bg-subtle p-3" data-testid="plan-blocked-resolution-panel">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 text-xs text-text-secondary">
+                <div className="font-semibold text-text-primary">Blocked context</div>
+                <div data-testid="plan-blocked-resolution-reason">{blockContext.trigger_condition || blockContext.wait_type}</div>
+                <div className="mt-1 font-mono text-[0.6875rem] text-text-muted" data-testid="plan-blocked-resolution-event">
+                  {blockContext.event_id || blockContext.task_id}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2" role="group" aria-label="Block resolution action">
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${resolutionKind === 'replace' ? 'border-brand bg-brand text-white' : 'border-border-base text-text-primary hover:bg-bg-elevated'}`}
+                  onClick={() => setResolutionKind('replace')}
+                  data-testid="plan-block-replace"
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${resolutionKind === 'bypass' ? 'border-brand bg-brand text-white' : 'border-border-base text-text-primary hover:bg-bg-elevated'}`}
+                  onClick={() => setResolutionKind('bypass')}
+                  data-testid="plan-block-bypass"
+                >
+                  Bypass
+                </button>
+              </div>
+            </div>
+            {resolutionKind && (
+              <>
+                <label className="mt-3 block text-xs font-medium" htmlFor="plan-block-resolution-note">
+                  Resolution note
+                </label>
+                <input
+                  id="plan-block-resolution-note"
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                  className={PLAN_EDIT_MODAL_INPUT}
+                  data-testid="plan-block-resolution-note"
+                  required
+                />
+              </>
+            )}
+          </section>
+        )}
+
         {(parseError || commit.isError) && (
           <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">
             {parseError ?? friendlyEvolutionError(commit.error, t)}
@@ -1522,7 +1577,7 @@ function PlanEvolutionModal({
           </button>
           <button
             type="submit"
-            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim()}
+            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim() || (Boolean(resolutionKind) && !resolutionNote.trim())}
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-evolution-submit"
           >

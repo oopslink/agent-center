@@ -142,7 +142,22 @@ export interface Plan {
   node_count?: number;
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
+  blocked_on?: PlanBlockedOn[];
   active_generation_id?: string;
+}
+
+export interface PlanBlockedOn {
+  event_id: string;
+  task_id: string;
+  node_id?: string;
+  wait_type: string;
+  wait_keys: string[];
+  trigger_condition: string;
+  waited_since: string;
+  deadline?: string;
+  on_timeout?: string;
+  last_probe_at?: string;
+  probe_count?: number;
 }
 
 export interface GateVerdict {
@@ -790,6 +805,9 @@ export interface CommitPlanEvolutionInput {
   evidence: string;
   idempotency_key: string;
   diff: PlanGenerationDiff;
+  resolve_block_event_id?: string;
+  resolution_kind?: 'replace' | 'bypass';
+  resolution_note?: string;
 }
 
 export interface PlanEvolutionCommitResponse {

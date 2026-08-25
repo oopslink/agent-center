@@ -2553,6 +2553,70 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     });
   });
 
+  it('Replace resolves the current blocked context inside one evolution request', async () => {
+    let body: Record<string, unknown> | null = null;
+    let evolutionCount = 0;
+    let standaloneResolveCount = 0;
+    mockPlan({
+      status: 'paused',
+      has_failed: false,
+      version: 12,
+      active_generation_id: 'generation-parent',
+      blocked_on: [{
+        event_id: 'n6',
+        task_id: 'n6',
+        wait_type: 'acceptance_verdict',
+        wait_keys: ['gate-review'],
+        trigger_condition: 'Acceptance gate is waiting for review',
+        waited_since: '2026-08-01T00:00:00Z',
+      }],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        evolutionCount += 1;
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ok: true,
+          version: 13,
+          dispatched: [],
+          duplicate: false,
+          active_generation_id: 'generation-child',
+          generation: {},
+        });
+      }),
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/:eventId/resolve', () => {
+        standaloneResolveCount += 1;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-evolution-btn'));
+    expect(screen.getByTestId('plan-blocked-resolution-panel')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Bypass' })).toBeVisible();
+    fireEvent.click(screen.getByTestId('plan-block-replace'));
+    fireEvent.change(screen.getByTestId('plan-block-resolution-note'), { target: { value: 'Replace blocked branch with verification node.' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Gate replacement' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Reviewer requested replacement.' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-evo-replace' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), {
+      target: { value: '{"node_decisions":[],"tasks":[{"ref":"verify","title":"Verify fix","assignee_ref":"agent:dev","detached":true}],"edges":[]}' },
+    });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+
+    await waitFor(() => expect(evolutionCount).toBe(1));
+    expect(standaloneResolveCount).toBe(0);
+    expect(body).toMatchObject({
+      parent_generation_id: 'generation-parent',
+      base_version: 12,
+      idempotency_key: 'idem-ui-evo-replace',
+      resolve_block_event_id: 'n6',
+      resolution_kind: 'replace',
+      resolution_note: 'Replace blocked branch with verification node.',
+    });
+  });
+
   it('Evolution shows whole-request rejection and recovery action for in-flight conflicts', async () => {
     mockPlan({ status: 'running', version: 20, active_generation_id: 'generation-active' });
     server.use(

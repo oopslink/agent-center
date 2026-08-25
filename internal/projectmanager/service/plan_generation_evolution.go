@@ -19,14 +19,17 @@ import (
 // active generation. It is the server-side Evolution API: optimistic-concurrency
 // checked, idempotent, and dispatch-atomic for running plans.
 type EvolvePlanGenerationCommand struct {
-	PlanID             pm.PlanID
-	ParentGenerationID pm.PlanGenerationID
-	BaseVersion        int
-	IdempotencyKey     string
-	Reason             string
-	Evidence           string
-	Creator            pm.IdentityRef
-	Diff               pm.PlanGenerationDiff
+	PlanID              pm.PlanID
+	ParentGenerationID  pm.PlanGenerationID
+	BaseVersion         int
+	IdempotencyKey      string
+	Reason              string
+	Evidence            string
+	Creator             pm.IdentityRef
+	Diff                pm.PlanGenerationDiff
+	ResolveBlockEventID string
+	ResolutionKind      string
+	ResolutionNote      string
 }
 
 type EvolvePlanGenerationResult struct {
@@ -46,11 +49,17 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 	cmd.IdempotencyKey = strings.TrimSpace(cmd.IdempotencyKey)
 	cmd.Reason = strings.TrimSpace(cmd.Reason)
 	cmd.Evidence = strings.TrimSpace(cmd.Evidence)
+	cmd.ResolveBlockEventID = strings.TrimSpace(cmd.ResolveBlockEventID)
+	cmd.ResolutionKind = strings.TrimSpace(cmd.ResolutionKind)
+	cmd.ResolutionNote = strings.TrimSpace(cmd.ResolutionNote)
 	if cmd.IdempotencyKey == "" {
 		return result, errors.New("projectmanager: evolution idempotency_key required")
 	}
 	if cmd.Reason == "" || cmd.Evidence == "" {
 		return result, errors.New("projectmanager: evolution reason and evidence required")
+	}
+	if err := validateEvolutionBlockResolution(cmd); err != nil {
+		return result, err
 	}
 	fingerprint, err := evolutionRequestFingerprint(cmd)
 	if err != nil {
@@ -99,6 +108,11 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 		if p.ActiveGenerationID() != cmd.ParentGenerationID {
 			return fmt.Errorf("%w: parent_generation_id=%s active_generation_id=%s",
 				pm.ErrPlanGenerationConflict, cmd.ParentGenerationID, p.ActiveGenerationID())
+		}
+		if cmd.ResolveBlockEventID != "" {
+			if err := s.resolveEvolutionBlockEvent(txCtx, p.ProjectID(), p.ID(), cmd); err != nil {
+				return err
+			}
 		}
 
 		tasks, err := s.tasks.ListByPlan(txCtx, p.ID())
@@ -302,20 +316,62 @@ func validateEvolutionNewRootsConnected(diff pm.PlanGenerationDiff) error {
 
 func evolutionRequestFingerprint(cmd EvolvePlanGenerationCommand) (string, error) {
 	body := struct {
-		PlanID             pm.PlanID             `json:"plan_id"`
-		ParentGenerationID pm.PlanGenerationID   `json:"parent_generation_id"`
-		BaseVersion        int                   `json:"base_version"`
-		Reason             string                `json:"reason"`
-		Evidence           string                `json:"evidence"`
-		Creator            pm.IdentityRef        `json:"creator"`
-		Diff               pm.PlanGenerationDiff `json:"diff"`
-	}{cmd.PlanID, cmd.ParentGenerationID, cmd.BaseVersion, strings.TrimSpace(cmd.Reason), strings.TrimSpace(cmd.Evidence), cmd.Creator, cmd.Diff}
+		PlanID              pm.PlanID             `json:"plan_id"`
+		ParentGenerationID  pm.PlanGenerationID   `json:"parent_generation_id"`
+		BaseVersion         int                   `json:"base_version"`
+		Reason              string                `json:"reason"`
+		Evidence            string                `json:"evidence"`
+		Creator             pm.IdentityRef        `json:"creator"`
+		Diff                pm.PlanGenerationDiff `json:"diff"`
+		ResolveBlockEventID string                `json:"resolve_block_event_id,omitempty"`
+		ResolutionKind      string                `json:"resolution_kind,omitempty"`
+		ResolutionNote      string                `json:"resolution_note,omitempty"`
+	}{cmd.PlanID, cmd.ParentGenerationID, cmd.BaseVersion, strings.TrimSpace(cmd.Reason), strings.TrimSpace(cmd.Evidence), cmd.Creator, cmd.Diff, cmd.ResolveBlockEventID, cmd.ResolutionKind, strings.TrimSpace(cmd.ResolutionNote)}
 	b, err := json.Marshal(body)
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(b)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func validateEvolutionBlockResolution(cmd EvolvePlanGenerationCommand) error {
+	if cmd.ResolveBlockEventID == "" {
+		if cmd.ResolutionKind != "" || cmd.ResolutionNote != "" {
+			return fmt.Errorf("%w: resolve_block_event_id is required with resolution fields", pm.ErrPlanGenerationConflict)
+		}
+		return nil
+	}
+	switch cmd.ResolutionKind {
+	case "replace", "bypass":
+	default:
+		return fmt.Errorf("%w: invalid resolution_kind %q", pm.ErrInvalidStatus, cmd.ResolutionKind)
+	}
+	if strings.TrimSpace(cmd.ResolutionNote) == "" {
+		return errors.New("projectmanager: resolution_note required")
+	}
+	return nil
+}
+
+func (s *Service) resolveEvolutionBlockEvent(ctx context.Context, projectID pm.ProjectID, planID pm.PlanID, cmd EvolvePlanGenerationCommand) error {
+	taskID := pm.TaskID(cmd.ResolveBlockEventID)
+	blocked, found, err := s.plans.GetBlockedOn(ctx, planID, taskID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: resolve_block_event_id=%s is not active on plan %s", pm.ErrPlanGenerationConflict, cmd.ResolveBlockEventID, planID)
+	}
+	if err := s.plans.ClearBlockedOn(ctx, planID, taskID); err != nil {
+		return err
+	}
+	s.auditPlanByID(ctx, projectID, planID, pm.AuditPlanTopologyCommit, cmd.Creator, map[string]any{
+		"resolve_block_event_id": cmd.ResolveBlockEventID,
+		"resolution_kind":        cmd.ResolutionKind,
+		"resolution_note":        cmd.ResolutionNote,
+		"wait_type":              string(blocked.WaitType),
+	})
+	return nil
 }
 
 func (s *Service) validateEvolutionNodeDecisions(
