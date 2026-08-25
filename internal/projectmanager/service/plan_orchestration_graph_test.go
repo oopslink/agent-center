@@ -82,7 +82,7 @@ func TestStartPlan_BuildsGraph_AndDispatchesOffIt(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "graphdag", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "graphdag", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
@@ -209,7 +209,7 @@ func TestGraphCycle_ConditionGate_PassReleasesDownstream(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclepass", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclepass", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 
@@ -267,7 +267,7 @@ func TestGraphCycle_Loopback_RejectCreatesNextRound(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclereject", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cyclereject", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 
@@ -402,7 +402,7 @@ func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cycleexhaust", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cycleexhaust", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID) // loopback max_rounds=2
 
@@ -503,7 +503,7 @@ func TestGraphDispatch_FailedTaskBlocksDownstream(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "failblock", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "failblock", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")

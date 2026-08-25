@@ -397,6 +397,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/assignment-pool/tasks/{task_id}", s.pmRemoveAssignmentPoolTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/owner/transfer", s.pmTransferPlanOwnerHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/block-events", s.pmListPlanBlockEventsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/block-events/{event_id}/acknowledge", s.pmAcknowledgePlanBlockHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/block-events/{event_id}/resolve", s.pmResolvePlanBlockHandler)
 	// PlanGeneration ledger: persisted active/parent identities, immutable
 	// snapshots and diffs, plus first-generation node ownership.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/generations", s.pmGetPlanGenerationsHandler)

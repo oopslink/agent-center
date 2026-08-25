@@ -49,7 +49,7 @@ func TestCreatePlan_T99_AllocatesOrgNumber(t *testing.T) {
 
 	// Two plans in org-1 → P1, P2.
 	for want := 1; want <= 2; want++ {
-		plid, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p1, Name: "plan", CreatedBy: "user:a"})
+		plid, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p1, Name: "plan", CreatedBy: "user:a", OwnerRef: "user:a"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,7 +76,7 @@ func TestCreatePlan_T99_AllocatesOrgNumber(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plid2, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p2, Name: "p", CreatedBy: "user:b"})
+	plid2, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p2, Name: "p", CreatedBy: "user:b", OwnerRef: "user:b"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestCreatePlan_T99_AllocatesOrgNumber(t *testing.T) {
 	}
 
 	// org-1 plan counter continues at 3 (undisturbed by org-2 or the task).
-	plid3, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p1, Name: "p3", CreatedBy: "user:a"})
+	plid3, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: p1, Name: "p3", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

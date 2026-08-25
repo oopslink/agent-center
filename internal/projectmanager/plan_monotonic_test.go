@@ -8,7 +8,7 @@ import (
 
 func TestPlanDoneCanReopenWhileDiscardedStaysTerminal(t *testing.T) {
 	t0 := time.Unix(1000, 0).UTC()
-	p, err := NewPlan(NewPlanInput{ID: "plan-1", ProjectID: "project-1", Name: "ship", CreatorRef: "user:a", CreatedAt: t0})
+	p, err := NewPlan(NewPlanInput{ID: "plan-1", ProjectID: "project-1", Name: "ship", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: t0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestPlanDoneCanReopenWhileDiscardedStaysTerminal(t *testing.T) {
 
 func TestPlanArchiveIsOrthogonalAndTerminalOnly(t *testing.T) {
 	t0 := time.Unix(1000, 0).UTC()
-	p, _ := NewPlan(NewPlanInput{ID: "plan-1", ProjectID: "project-1", Name: "ship", CreatorRef: "user:a", CreatedAt: t0})
+	p, _ := NewPlan(NewPlanInput{ID: "plan-1", ProjectID: "project-1", Name: "ship", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: t0})
 	if err := p.Archive(t0, "user:a"); !errors.Is(err, ErrPlanNotTerminal) {
 		t.Fatalf("archive pending = %v, want not terminal", err)
 	}

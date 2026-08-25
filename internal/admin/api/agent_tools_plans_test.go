@@ -38,7 +38,7 @@ func (f *writeToolsFixture) seedPlanMember(t *testing.T) (pm.ProjectID, string) 
 	ctx := context.Background()
 	pid, _ := f.seedMemberProject(t) // AG1 is now a member of pid.
 	planID, err := f.pmSvc.CreatePlan(ctx, pmservice.CreatePlanCommand{
-		ProjectID: pid, Name: "Plan A", CreatedBy: pm.IdentityRef("agent:" + atAgent1),
+		ProjectID: pid, Name: "Plan A", CreatedBy: pm.IdentityRef("agent:" + atAgent1), OwnerRef: pm.IdentityRef("agent:" + atAgent1),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestCreatePlan_AsMember_OK(t *testing.T) {
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "My Plan", "description": "d"})
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "My Plan", "description": "d", "owner_ref": "agent:" + atAgent1})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
@@ -197,7 +197,7 @@ func TestCreatePlan_AutoLoadsPlanTeamRules_OK(t *testing.T) {
 	}
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Rules Plan"})
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Rules Plan", "owner_ref": "agent:" + atAgent1})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
@@ -384,7 +384,7 @@ func TestCreatePlan_TeamRuleIsolation_NoTeamNoRepoCrossOrgAndBadRules(t *testing
 		srv, _ := wireTeam(t, f)
 		pid, _ := f.seedMemberProject(t)
 		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Team"})
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Team", "owner_ref": "agent:" + atAgent1})
 		if status != http.StatusOK {
 			t.Fatalf("status=%d body=%v", status, body)
 		}
@@ -401,7 +401,7 @@ func TestCreatePlan_TeamRuleIsolation_NoTeamNoRepoCrossOrgAndBadRules(t *testing
 		pid, _ := f.seedMemberProject(t)
 		teamID := createPlanRuleTeam(t, srv.URL)
 		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Repo"})
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "No Repo", "owner_ref": "agent:" + atAgent1})
 		if status != http.StatusOK {
 			t.Fatalf("status=%d body=%v", status, body)
 		}
@@ -426,7 +426,7 @@ func TestCreatePlan_TeamRuleIsolation_NoTeamNoRepoCrossOrgAndBadRules(t *testing
 			t.Fatal(err)
 		}
 		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Cross Org"})
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Cross Org", "owner_ref": "agent:" + atAgent1})
 		if status != http.StatusOK {
 			t.Fatalf("status=%d body=%v", status, body)
 		}
@@ -449,7 +449,7 @@ func TestCreatePlan_TeamRuleIsolation_NoTeamNoRepoCrossOrgAndBadRules(t *testing
 		}
 		pushMalformedPlanRule(t, gitHost, teamID)
 		status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Bad Rule"})
+			map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "Bad Rule", "owner_ref": "agent:" + atAgent1})
 		if status != http.StatusOK {
 			t.Fatalf("status=%d body=%v", status, body)
 		}
@@ -468,7 +468,7 @@ func TestCreatePlan_ForeignProject_403(t *testing.T) {
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "nope"})
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "name": "nope", "owner_ref": "agent:" + atAgent1})
 	// requireProjectMember in the AppService → ErrNotMember → 403.
 	if status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (pm ErrNotMember); body = %v", status, body)
@@ -925,7 +925,7 @@ func TestGetPlan_NonMember_403(t *testing.T) {
 	// …but the plan lives in a project AG1 is NOT a member of.
 	foreign := f.seedForeignProject(t)
 	planID, err := f.pmSvc.CreatePlan(context.Background(), pmservice.CreatePlanCommand{
-		ProjectID: foreign, Name: "secret plan", CreatedBy: pm.IdentityRef("user:other"),
+		ProjectID: foreign, Name: "secret plan", CreatedBy: pm.IdentityRef("user:other"), OwnerRef: pm.IdentityRef("user:other"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1011,7 +1011,7 @@ func TestListPlans_Pagination(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 4; i++ {
 		if _, err := f.pmSvc.CreatePlan(ctx, pmservice.CreatePlanCommand{
-			ProjectID: pid, Name: "P", CreatedBy: pm.IdentityRef("agent:" + atAgent1),
+			ProjectID: pid, Name: "P", CreatedBy: pm.IdentityRef("agent:" + atAgent1), OwnerRef: pm.IdentityRef("agent:" + atAgent1),
 		}); err != nil {
 			t.Fatal(err)
 		}

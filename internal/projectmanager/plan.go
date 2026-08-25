@@ -127,7 +127,11 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 		return nil, err
 	}
 	if in.OwnerRef == "" {
-		in.OwnerRef = in.CreatorRef
+		if in.Builtin {
+			in.OwnerRef = in.CreatorRef
+		} else {
+			return nil, ErrPlanOwnerRequired
+		}
 	}
 	if err := in.OwnerRef.Validate(); err != nil {
 		return nil, err

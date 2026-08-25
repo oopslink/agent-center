@@ -83,6 +83,7 @@ func TestProductionRelay_PlanCreated_BindsConversation(t *testing.T) {
 		ProjectID:  pm.ProjectID("proj-reltest"),
 		Name:       "v3.0",
 		CreatorRef: pm.IdentityRef("user:reltester"),
+		OwnerRef:   pm.IdentityRef("user:reltester"),
 		CreatedAt:  app.Clock.Now(),
 	})
 	if err != nil {
@@ -163,7 +164,7 @@ func TestProductionRelay_AutoAdvance_OnTaskDone(t *testing.T) {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	relay, _ := productionRelay(t, app)
-	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "auto", CreatedBy: "user:a"})
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "auto", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatalf("CreatePlan: %v", err)
 	}
@@ -289,7 +290,7 @@ func TestProductionRelay_AgentCreatorFailureWake(t *testing.T) {
 
 	relay, _, controlLog := productionRelayWithControlLog(t, app)
 	// Plan CREATED BY THE AGENT (creator_ref = agent:CREATORBOT).
-	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "agentplan", CreatedBy: "agent:CREATORBOT"})
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "agentplan", CreatedBy: "agent:CREATORBOT", OwnerRef: "agent:CREATORBOT"})
 	if err != nil {
 		t.Fatalf("CreatePlan: %v", err)
 	}
@@ -410,7 +411,7 @@ func TestProductionRelay_DispatchWake_ImmediateWorkAvailable(t *testing.T) {
 
 	relay, _, controlLog := productionRelayWithControlLog(t, app)
 
-	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatalf("CreatePlan: %v", err)
 	}

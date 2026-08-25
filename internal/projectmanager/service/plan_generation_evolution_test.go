@@ -37,7 +37,7 @@ func activePlanGeneration(t *testing.T, h *planAdvanceHarness, planID pm.PlanID)
 func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -122,7 +122,7 @@ func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0-atomic", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0-atomic", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	before := h.planVersion(t, planID)
@@ -162,7 +162,7 @@ func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "start-race", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "start-race", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	base := h.planVersion(t, planID)
@@ -203,7 +203,7 @@ func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testin
 func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve-race", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve-race", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -262,7 +262,7 @@ func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 func TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
 	h.setTaskStatus(t, a, pm.TaskRunning)
@@ -384,7 +384,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("supersede running node rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
 		h.setTaskStatus(t, a, pm.TaskRunning)
@@ -406,7 +406,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("edge rewrite of dispatched dependent rejects whole request", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
 		base := h.planVersion(t, planID)
@@ -444,7 +444,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("hold at gate with in flight downstream rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "hold", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "hold", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a, b := h.startRunningPlanAB(t, pid, planID)
 		h.setTaskStatus(t, a, pm.TaskRunning)
@@ -472,7 +472,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
 	base := h.planVersion(t, planID)
@@ -531,7 +531,7 @@ func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 func TestEvolvePlanGeneration_RequiresExplicitDeliveryContractBeforeCreatingTask(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "explicit-contract", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "explicit-contract", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -572,7 +572,7 @@ func TestEvolvePlanGeneration_RequiresExplicitDeliveryContractBeforeCreatingTask
 func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -608,7 +608,7 @@ func TestReopenPlan_AllowsFollowUpEvolutionAfterDone(t *testing.T) {
 	oh := orchestratorSetup(t)
 	h := oh.planAdvanceHarness
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {

@@ -14,7 +14,7 @@ import (
 func TestUpdatePlan_PartialUpdate_NilFieldsUnchanged(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a", OwnerRef: "user:a"})
 
 	// Description-only update → Name must stay "Orig".
 	desc := "D1"
@@ -49,7 +49,7 @@ func TestUpdatePlan_PartialUpdate_NilFieldsUnchanged(t *testing.T) {
 func TestUpdatePlan_TargetDateSet_ThreeStates(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a", OwnerRef: "user:a"})
 
 	// 1) flag=true + value → set.
 	d := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
@@ -87,7 +87,7 @@ func TestUpdatePlan_TargetDateSet_ThreeStates(t *testing.T) {
 func TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a", OwnerRef: "user:a"})
 	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, planID, taskA, "user:a"); err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected(t *testing.T) {
 func TestUpdatePlan_RejectsArchived(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a", OwnerRef: "user:a"})
 	p, _ := plans.FindByID(ctx, planID)
 	if err := p.Discard(svc.clock.Now()); err != nil {
 		t.Fatal(err)

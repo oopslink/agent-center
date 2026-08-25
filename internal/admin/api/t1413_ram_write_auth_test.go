@@ -51,7 +51,7 @@ func TestT1413AgentPlanWriteEnforceRevokesPlanTools(t *testing.T) {
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_plan", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "project_id": string(projectID), "name": "RAM plan",
+		"agent_id": atAgent1, "project_id": string(projectID), "name": "RAM plan", "owner_ref": "agent:" + atAgent1,
 	})
 	if status != http.StatusOK {
 		t.Fatalf("create_plan status=%d body=%v", status, body)

@@ -109,7 +109,7 @@ func TestEnsureTaskRunnable_RealPlanNode_OK(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -65,7 +65,7 @@ func (h *planAdvanceHarness) nodeStatus(t *testing.T, planID pm.PlanID) map[pm.T
 func TestEditPlanTopology_DraftEquivalence(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedBacklogAssignedTask(t, pid, "A", "user:a1")
 	b := h.seedBacklogAssignedTask(t, pid, "B", "user:b1")
@@ -112,7 +112,7 @@ func TestEditPlanTopology_DraftEquivalence(t *testing.T) {
 func TestEditPlanTopology_CASConflict(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cas", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cas", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedBacklogAssignedTask(t, pid, "A", "user:a1")
 	b := h.seedBacklogAssignedTask(t, pid, "B", "user:b1")
@@ -143,7 +143,7 @@ func TestEditPlanTopology_CASConflict(t *testing.T) {
 func TestEditPlanTopology_ReorderMidCycleTerminalLegal(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reorder", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reorder", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedBacklogAssignedTask(t, pid, "A", "user:a1")
 	b := h.seedBacklogAssignedTask(t, pid, "B", "user:b1")
@@ -176,7 +176,7 @@ func TestEditPlanTopology_ReorderMidCycleTerminalLegal(t *testing.T) {
 func TestEditPlanTopology_TerminalCycleRejected(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedBacklogAssignedTask(t, pid, "A", "user:a1")
 	b := h.seedBacklogAssignedTask(t, pid, "B", "user:b1")
@@ -222,7 +222,7 @@ func (h *planAdvanceHarness) startRunningPlanAB(t *testing.T, pid pm.ProjectID, 
 func TestEditPlanTopology_RunningFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "inflight", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "inflight", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
 	h.setTaskStatus(t, a, pm.TaskRunning) // A is dispatched + running → immutable
@@ -251,7 +251,7 @@ func TestEditPlanTopology_RunningFailClosed(t *testing.T) {
 func TestEditPlanTopology_PausedFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.startRunningPlanAB(t, pid, planID)
 	if err := h.svc.PausePlan(h.ctx, planID, "user:a"); err != nil {

@@ -12,7 +12,7 @@ func TestArchivePlan_TerminalOnly(t *testing.T) {
 	archivable := func(t *testing.T) (*planRemovalHarness, pm.PlanID, pm.TaskID) {
 		h := planRemovalSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 		return h, planID, a

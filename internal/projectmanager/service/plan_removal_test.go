@@ -109,7 +109,7 @@ func (h *planRemovalHarness) seedTaskInPlan(t *testing.T, pid pm.ProjectID, plan
 func TestDeletePlan_NonRunning_UnloadsTasksAndDeletesPlanAndDeps(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
@@ -161,7 +161,7 @@ func TestDeletePlan_NonRunning_UnloadsTasksAndDeletesPlanAndDeps(t *testing.T) {
 func TestDeletePlan_Running_Rejected(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "agent:bot")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -189,7 +189,7 @@ func TestDeletePlan_Running_Rejected(t *testing.T) {
 func TestDiscardTask_ArchivedOpen_EscapeHatch(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 
@@ -231,7 +231,7 @@ func TestDiscardTask_ArchivedOpen_EscapeHatch(t *testing.T) {
 func TestArchivePlan_OrthogonalAfterDiscard(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 	b := h.seedTaskInPlan(t, pid, planID, "b", "user:y")
@@ -286,7 +286,7 @@ func TestArchivePlan_OrthogonalAfterDiscard(t *testing.T) {
 func TestArchivePlan_Running_Rejected(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedTaskInPlan(t, pid, planID, "a", "agent:bot")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -302,7 +302,7 @@ func TestArchivePlan_Running_Rejected(t *testing.T) {
 func TestArchivePlan_DiscardSettlesRunningTask(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 	// Drive the member task to running while the plan stays draft (the in-flight case).
@@ -326,7 +326,7 @@ func TestArchivePlan_DiscardSettlesRunningTask(t *testing.T) {
 func TestArchivePlan_DoubleRejected(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	if err := h.svc.DiscardPlan(h.ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)

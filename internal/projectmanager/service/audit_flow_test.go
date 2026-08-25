@@ -162,7 +162,7 @@ func TestAudit_IssueAndReadOnly(t *testing.T) {
 func TestAudit_PlanDependency_NoOpNotRecorded(t *testing.T) {
 	svc, ctx := auditSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dep", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dep", CreatedBy: "user:a", OwnerRef: "user:a"})
 	a, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
 	b, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, planID, a, "user:a"); err != nil {
@@ -206,7 +206,7 @@ func TestAudit_PlanDependency_NoOpNotRecorded(t *testing.T) {
 func TestAudit_ForcePlanCompletionRecordsReasonAndBlockers(t *testing.T) {
 	svc, ctx := auditSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P-force", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "force audit", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "force audit", CreatedBy: "user:a", OwnerRef: "user:a"})
 	taskID, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "unfinished", CreatedBy: "user:a"})
 	assignee := "user:a"
 	if err := svc.BatchUpdateTask(ctx, taskID, BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {

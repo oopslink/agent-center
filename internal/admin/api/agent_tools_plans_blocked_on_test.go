@@ -19,7 +19,7 @@ import (
 func dtoPlan(t *testing.T) *pm.Plan {
 	t.Helper()
 	p, err := pm.NewPlan(pm.NewPlanInput{
-		ID: "plan-1", ProjectID: "proj-1", Name: "P", CreatorRef: "user:a",
+		ID: "plan-1", ProjectID: "proj-1", Name: "P", CreatorRef: "user:a", OwnerRef: "user:a",
 		GraphID: "g-1", CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
 	})
 	if err != nil {

@@ -55,7 +55,7 @@ func TestCreateStage_ProvisionsExecutableGateTask(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	spec := pm.DefaultHumanGateSpec("user:a")
@@ -94,7 +94,7 @@ func TestCreateStage_RejectsEmptyHumanGateContract(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	spec := pm.DefaultHumanGateSpec("user:a")
 	spec.AcceptanceContract = ""
 	if _, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "Acceptance", GateSpec: spec, Actor: "user:a"}); !errors.Is(err, pm.ErrMissingGateContract) {
@@ -106,7 +106,7 @@ func TestCreateStage_RunningPausedFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "work", "user:a1")
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -127,7 +127,7 @@ func TestLegacyBareStageGate_RejectsThenReconciles(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	taskID := h.seedAssignedTask(t, pid, planID, "work", "user:a")
 	stage, err := pm.NewStage(pm.NewStageInput{ID: "stage-legacy", PlanID: planID, Name: "Legacy", CreatedAt: h.clk.Now()})
@@ -161,7 +161,7 @@ func TestStage_Barrier_GatePass(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, stageA, stageB := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -266,7 +266,7 @@ func TestStage_GateReject_LegacyEntrypointIsRetired(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -305,7 +305,7 @@ func TestStageGateReadiness_RequiresEveryMemberTerminal(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	detail, err := h.svc.GetStage(ctx, stageA)
@@ -335,7 +335,7 @@ func TestStageGateReadiness_ReloadsPersistedMembersFailClosed(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	detail, err := h.svc.GetStage(ctx, stageA)
@@ -373,7 +373,7 @@ func TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal(t *tes
 		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
 	})
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
-		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a", OwnerRef: "user:a",
 	})
 	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{
 		PlanID: planID, Name: "S1", MaxRounds: 2, Actor: "user:a",
@@ -414,7 +414,7 @@ func TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass(t *testi
 		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
 	})
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
-		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a", OwnerRef: "user:a",
 	})
 	stageA, err := h.svc.CreateStage(ctx, CreateStageCommand{
 		PlanID: planID, Name: "A", MaxRounds: 2, Actor: "user:a",
@@ -463,7 +463,7 @@ func TestGetPlanDetail_HidesStageGatesUntilReadinessPasses(t *testing.T) {
 		OrganizationID: "org-1", Name: "P", CreatedBy: "user:a",
 	})
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{
-		ProjectID: pid, Name: "staged", CreatedBy: "user:a",
+		ProjectID: pid, Name: "staged", CreatedBy: "user:a", OwnerRef: "user:a",
 	})
 	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{
 		PlanID: planID, Name: "S1", MaxRounds: 2, Actor: "user:a",
@@ -523,7 +523,7 @@ func TestStageGate_FirstMemberComplete_ReconcileDoesNotDispatch(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, _, _, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -580,7 +580,7 @@ func TestStage_ZeroRegression(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nostages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nostages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
@@ -604,7 +604,7 @@ func TestListStagesForPlan_SharesProjectionWithGetStage(t *testing.T) {
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	// No-stage plan → ListStagesForPlan is empty (§8 backward compat).
-	noStage, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nostages", CreatedBy: "user:a"})
+	noStage, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nostages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	if dets, err := h.svc.ListStagesForPlan(ctx, noStage); err != nil || len(dets) != 0 {
 		t.Fatalf("ListStagesForPlan(no-stage) = (%d stages, %v), want (0, nil)", len(dets), err)
@@ -612,7 +612,7 @@ func TestListStagesForPlan_SharesProjectionWithGetStage(t *testing.T) {
 
 	// Two-stage plan, driven into a mixed state (stage A members done, gate pending →
 	// running; stage B not started → open), so the projection has something to compare.
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_, _, _, stageA, stageB := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -659,7 +659,7 @@ func TestStage_CrossEdge_RejectedAtBuild(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, _, b1, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	// A hand-drawn cross-stage business edge b1 depends_on a1 (bypasses the gate barrier).
@@ -678,7 +678,7 @@ func TestStage_StagelessNode_RejectedAtBuild(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	seedTwoStagePlan(t, h, pid, planID, 3)
 	// A business task selected into the staged plan but NEVER assigned to a stage — the

@@ -119,7 +119,7 @@ func dispatchCount(recs []pm.DispatchRecord, tid pm.TaskID) int {
 func TestOrchestrator_AutoAdvance_OnTaskDone(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fan", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fan", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -163,7 +163,7 @@ func TestOrchestrator_AutoAdvance_OnTaskDone(t *testing.T) {
 func TestOrchestrator_ReplayIdempotent(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replay", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replay", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -215,7 +215,7 @@ func TestOrchestrator_ReplayIdempotent(t *testing.T) {
 func TestOrchestrator_ConcurrentDispatch(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "conc", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "conc", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -281,7 +281,7 @@ func TestOrchestrator_NoopCases(t *testing.T) {
 	})
 
 	t.Run("plan in draft", func(t *testing.T) {
-		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: "user:a", OwnerRef: "user:a"})
 		h.drain(t)
 		tid := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 		// Plan is still draft (not started) → orchestrator must NOT dispatch.
@@ -327,7 +327,7 @@ func TestOrchestrator_NoopCases(t *testing.T) {
 func TestOrchestrator_FailureNotifiesCreator(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fail", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fail", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -376,7 +376,7 @@ func TestOrchestrator_FailureNotifiesCreator(t *testing.T) {
 func TestOrchestrator_FailureIndependentBranchAdvances(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "branch", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "branch", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -420,7 +420,7 @@ func TestOrchestrator_FailureIndependentBranchAdvances(t *testing.T) {
 func TestOrchestrator_FailureReplayNotifiesOnce(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replayfail", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replayfail", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -455,7 +455,7 @@ func TestOrchestrator_FailureReplayNotifiesOnce(t *testing.T) {
 func TestOrchestrator_FirstFailureTransitionNotifies(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "firstfail", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "firstfail", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -488,7 +488,7 @@ func TestOrchestrator_FirstFailureTransitionNotifies(t *testing.T) {
 func TestOrchestrator_ReDiscardDoesNotRenotify(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "rediscard", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "rediscard", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
@@ -561,7 +561,7 @@ func (h *orchestratorHarness) seedAgentCreatorPlan(t *testing.T, pid pm.ProjectI
 	}); err != nil {
 		t.Fatalf("AddProjectMember(%s): %v", agentCreator, err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: pm.IdentityRef(agentCreator)})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: pm.IdentityRef(agentCreator), OwnerRef: pm.IdentityRef(agentCreator)})
 	if err != nil {
 		t.Fatalf("CreatePlan(agent creator): %v", err)
 	}
@@ -631,7 +631,7 @@ func TestOrchestrator_FailureWakesAgentCreator(t *testing.T) {
 func TestOrchestrator_FailureHumanCreator_NoWake(t *testing.T) {
 	h := orchestratorSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "humanplan", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "humanplan", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {

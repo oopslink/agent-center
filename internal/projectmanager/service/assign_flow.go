@@ -676,6 +676,9 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
 			return err
 		}
+		if err := s.resolvePlanBlockForTask(txCtx, t, cmd.Actor, "resume_original", cmd.Comment, now); err != nil {
+			return err
+		}
 		// audit §5: record the unblock as a human-facing blocked→running status change.
 		s.auditTaskUnblocked(txCtx, t, cmd.Actor)
 		// F6 §4: an input_required unblock IS the user's reply → emit EvtTaskInputReplied

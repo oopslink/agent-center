@@ -55,7 +55,7 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		return "", err
 	}
 	if cmd.OwnerRef == "" {
-		cmd.OwnerRef = cmd.CreatedBy
+		return "", pm.ErrPlanOwnerRequired
 	}
 	if err := cmd.OwnerRef.Validate(); err != nil {
 		return "", err

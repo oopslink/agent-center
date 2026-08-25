@@ -31,7 +31,7 @@ func TestRelatedIssuesAndPlansAPI(t *testing.T) {
 	}
 
 	mkPlan := func(name string, issue pm.IssueID) pm.PlanID {
-		plID, perr := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: caller})
+		plID, perr := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: caller, OwnerRef: caller})
 		if perr != nil {
 			t.Fatalf("CreatePlan %s: %v", name, perr)
 		}
@@ -80,7 +80,7 @@ func TestRelatedIssuesAndPlansAPI(t *testing.T) {
 	}
 
 	// A plan with no source issue → empty related-issues list.
-	solo, _ := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: caller})
+	solo, _ := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "solo", CreatedBy: caller, OwnerRef: caller})
 	stid, _ := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "solo task", CreatedBy: caller})
 	if err := fx.deps.PM.SelectTaskIntoPlan(ctx, solo, stid, caller); err != nil {
 		t.Fatal(err)

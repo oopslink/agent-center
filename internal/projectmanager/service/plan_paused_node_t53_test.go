@@ -51,7 +51,7 @@ func nodeStatusOf(d *PlanDetail, tid pm.TaskID) pm.NodeStatus {
 func TestGetPlanDetail_PausedOverlay(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	tRun := h.seedAssignedTask(t, pid, planID, "running-node", "agent:AG1")
 	h.setTaskStatus(t, tRun, pm.TaskRunning)
@@ -104,7 +104,7 @@ func TestGetPlanDetail_PausedOverlay(t *testing.T) {
 func TestResumePausedNode_AuthzAndDelegation(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	tid := h.seedAssignedTask(t, pid, planID, "node", "agent:AG1")
 

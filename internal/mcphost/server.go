@@ -457,6 +457,26 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeEvolvePlanGeneration(cfg, planningRules))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "transfer_plan_owner",
+		Description: "Atomically transfer Plan Owner with expected_version CAS. new_owner_ref is required and must be a project member; backup_owner_ref is the optional escalation target. Writes audit and never leaves the plan ownerless.",
+	}, makeTransferPlanOwner(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_plan_block_events",
+		Description: "List Plan Block Events. active_only defaults true and returns unresolved active effective events only; false includes acknowledged, resolved, ineffective, discarded, or superseded history.",
+	}, makeListPlanBlockEvents(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "acknowledge_plan_block",
+		Description: "Acknowledge an active Plan Block Event without resolving it. The plan remains attention_required until every active block event is resolved.",
+	}, makeAcknowledgePlanBlock(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resolve_plan_block",
+		Description: "Resolve an active Plan Block Event with resolution_kind and note. Use after owner action such as resume_original, replace_with_continuation, bypass_remove_node, or pause_or_discard_plan.",
+	}, makeResolvePlanBlock(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",
 		Description: "Validate and start a pending plan (move it to running), atomically freezing its immutable G0 generation and exposing it through get_plan.active_generation_id. The center dispatches each node once its dependencies complete.",
 	}, makePlanID(cfg, "start_plan"))

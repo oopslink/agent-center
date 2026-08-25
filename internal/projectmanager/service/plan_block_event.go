@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -122,4 +123,135 @@ func impactedDownstreamJSON(edges []pm.PlanGenerationEdgeSnapshot, taskID pm.Tas
 		return "[]"
 	}
 	return string(b)
+}
+
+type AcknowledgePlanBlockCommand struct {
+	EventID pm.PlanBlockEventID
+	Actor   pm.IdentityRef
+}
+
+func (s *Service) ListPlanBlockEvents(ctx context.Context, planID pm.PlanID, activeOnly bool) ([]pm.PlanBlockEvent, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	if _, err := s.plans.FindByID(ctx, planID); err != nil {
+		return nil, err
+	}
+	return s.plans.ListPlanBlockEvents(ctx, planID, activeOnly)
+}
+
+func (s *Service) AcknowledgePlanBlock(ctx context.Context, cmd AcknowledgePlanBlockCommand) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if err := cmd.Actor.Validate(); err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		ev, ok, err := s.plans.FindPlanBlockEventByID(txCtx, cmd.EventID)
+		if err != nil {
+			return err
+		}
+		if !ok || !ev.Active || !ev.Effective || !ev.ResolvedAt.IsZero() {
+			return pm.ErrPlanBlockEventNotFound
+		}
+		p, err := s.plans.FindByID(txCtx, ev.PlanID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
+		if err := s.plans.AcknowledgePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, now); err != nil {
+			return err
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanBlockAcknowledged, cmd.Actor, map[string]any{
+			"event_id": string(cmd.EventID), "task_id": string(ev.TaskID), "generation_id": string(ev.GenerationID),
+		})
+		return nil
+	})
+}
+
+type ResolvePlanBlockCommand struct {
+	EventID        pm.PlanBlockEventID
+	ResolutionKind string
+	Note           string
+	Actor          pm.IdentityRef
+}
+
+func (s *Service) ResolvePlanBlock(ctx context.Context, cmd ResolvePlanBlockCommand) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if err := cmd.Actor.Validate(); err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		ev, ok, err := s.plans.FindPlanBlockEventByID(txCtx, cmd.EventID)
+		if err != nil {
+			return err
+		}
+		if !ok || !ev.Active || !ev.Effective || !ev.ResolvedAt.IsZero() {
+			return pm.ErrPlanBlockEventNotFound
+		}
+		p, err := s.plans.FindByID(txCtx, ev.PlanID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
+		if err := s.plans.ResolvePlanBlockEvent(txCtx, cmd.EventID, cmd.Actor, strings.TrimSpace(cmd.ResolutionKind), strings.TrimSpace(cmd.Note), now); err != nil {
+			return err
+		}
+		remaining, err := s.plans.ListPlanBlockEvents(txCtx, p.ID(), true)
+		if err != nil {
+			return err
+		}
+		if len(remaining) == 0 {
+			p.ClearAttention(now)
+			if err := s.plans.Update(txCtx, p); err != nil {
+				return err
+			}
+		}
+		s.auditPlan(txCtx, p, pm.AuditPlanBlockResolved, cmd.Actor, map[string]any{
+			"event_id": string(cmd.EventID), "task_id": string(ev.TaskID), "generation_id": string(ev.GenerationID),
+			"resolution_kind": strings.TrimSpace(cmd.ResolutionKind), "resolution_note": strings.TrimSpace(cmd.Note),
+		})
+		return nil
+	})
+}
+
+func (s *Service) resolvePlanBlockForTask(txCtx context.Context, t *pm.Task, actor pm.IdentityRef, kind, note string, at time.Time) error {
+	if s.plans == nil || t == nil || t.PlanID() == "" {
+		return nil
+	}
+	p, err := s.plans.FindByID(txCtx, t.PlanID())
+	if err != nil || p.ActiveGenerationID() == "" {
+		return err
+	}
+	events, err := s.plans.ListPlanBlockEvents(txCtx, p.ID(), true)
+	if err != nil {
+		return err
+	}
+	for _, ev := range events {
+		if ev.TaskID == t.ID() && ev.GenerationID == p.ActiveGenerationID() {
+			if err := s.plans.ResolvePlanBlockEvent(txCtx, ev.EventID, actor, kind, note, at); err != nil {
+				return err
+			}
+		}
+	}
+	remaining, err := s.plans.ListPlanBlockEvents(txCtx, p.ID(), true)
+	if err != nil {
+		return err
+	}
+	if len(remaining) == 0 {
+		p.ClearAttention(at)
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+	}
+	return nil
 }

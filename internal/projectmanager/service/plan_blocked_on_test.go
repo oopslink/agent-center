@@ -111,7 +111,7 @@ func TestBlockedOn_UpstreamCompletion_ExecutorLiveness_Lifecycle(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "up", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "up", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -172,7 +172,7 @@ func TestBlockedOn_Idempotent(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "idem", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "idem", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -223,7 +223,7 @@ func TestBlockedOn_HumanDecision(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dec", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dec", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 	h.drain(t)
@@ -283,7 +283,7 @@ func TestBlockedOn_AcceptanceVerdict(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "acc", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "acc", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev := h.seedAssignedTask(t, pid, planID, "Dev", "user:dev")
 	dec := h.seedAssignedTask(t, pid, planID, "Decision", "user:pd")
@@ -325,7 +325,7 @@ func TestBlockedOn_StageBarrier(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, _, _, _ := seedTwoMultiNodeStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -370,7 +370,7 @@ func TestBlockedOn_NoGateRegression(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "reg", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "reg", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -428,7 +428,7 @@ func TestBlockedOn_Materialize_PropagatesRepoErrors(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "err", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "err", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
 	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
@@ -482,7 +482,7 @@ func TestBlockedOn_Classify_Fallbacks(t *testing.T) {
 	// A bare (non-merge, unbound) task + empty plan/edges is enough for these branches:
 	// none of them touch the graph gates (a non-merge task short-circuits
 	// acceptanceVerdictBlocks, and an unbound node short-circuits stageGateBlocks).
-	plan, _ := pm.NewPlan(pm.NewPlanInput{ID: "PL-x", ProjectID: "P1", Name: "n", CreatorRef: "user:a", CreatedAt: t0svc})
+	plan, _ := pm.NewPlan(pm.NewPlanInput{ID: "PL-x", ProjectID: "P1", Name: "n", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: t0svc})
 	task, _ := pm.NewTask(pm.NewTaskInput{ID: "T1", ProjectID: "P1", Title: "t", CreatedBy: "user:a", CreatedAt: t0svc})
 
 	// terminal → clear.

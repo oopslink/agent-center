@@ -17,7 +17,7 @@ func TestListPlanSummaries_ArchivedInclusion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "shipped plan", CreatedBy: "user:a"})
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "shipped plan", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatal(err)
 	}

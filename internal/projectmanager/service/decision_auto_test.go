@@ -79,7 +79,7 @@ func (f *autoFixture) decisionNode(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskI
 	if err := f.svc.codeRepoRefs.Save(f.ctx, ref); err != nil {
 		t.Fatal(err)
 	}
-	planID, err := f.svc.CreatePlan(f.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:pd"})
+	planID, err := f.svc.CreatePlan(f.ctx, CreatePlanCommand{ProjectID: pid, Name: "cycle", CreatedBy: "user:pd", OwnerRef: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}

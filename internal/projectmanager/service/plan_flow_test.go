@@ -70,7 +70,7 @@ func TestCreatePlan_CreatesConversationAndBinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint 1", CreatedBy: "user:a"})
+	planID, err := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint 1", CreatedBy: "user:a", OwnerRef: "user:a"})
 	if err != nil {
 		t.Fatalf("CreatePlan: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestCreatePlan_Unavailable_WhenNoPlanRepo(t *testing.T) {
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Tasks: pmsql.NewTaskRepo(db), Outbox: outboxsql.NewOutboxRepo(db), IDGen: gen, Clock: clk,
 	})
-	if _, err := svc.CreatePlan(context.Background(), CreatePlanCommand{ProjectID: "p", Name: "x", CreatedBy: "user:a"}); !errors.Is(err, ErrPlansUnavailable) {
+	if _, err := svc.CreatePlan(context.Background(), CreatePlanCommand{ProjectID: "p", Name: "x", CreatedBy: "user:a", OwnerRef: "user:a"}); !errors.Is(err, ErrPlansUnavailable) {
 		t.Fatalf("CreatePlan with nil plans = %v, want ErrPlansUnavailable", err)
 	}
 }
@@ -213,7 +213,7 @@ func TestCreatePlan_Unavailable_WhenNoPlanRepo(t *testing.T) {
 func TestSelectTaskIntoPlan_HumanAssignee_BecomesParticipant(t *testing.T) {
 	svc, convRepo, _, _, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	// Assign a HUMAN to the task (BatchUpdateTask assigns without the agent-membership
 	// grant, so no AgentDirectory is needed for a human).
@@ -238,7 +238,7 @@ func TestSelectTaskIntoPlan_AgentAssignee_BecomesParticipant(t *testing.T) {
 	// orchestrator's @mention can never wake it.
 	svc, convRepo, _, _, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	agent := "agent:007"
 	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &agent}, "user:a"); err != nil {
@@ -259,7 +259,7 @@ func TestSelectTaskIntoPlan_AgentAssignee_BecomesParticipant(t *testing.T) {
 func TestSelectTaskIntoPlan_Additive_RemoveDoesNotDropParticipant(t *testing.T) {
 	svc, convRepo, _, _, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 
 	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
 	taskB, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
@@ -304,7 +304,7 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	otherPid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "Other", CreatedBy: "user:a"})
 
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	drain(t, relay, ctx)
 
 	// Different project → ErrPlanProjectMismatch.
@@ -314,7 +314,7 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 	}
 
 	// Task already in ANOTHER plan → ErrTaskInOtherPlan.
-	otherPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Other Plan", CreatedBy: "user:a"})
+	otherPlan, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Other Plan", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, otherPlan, tid, "user:a"); err != nil {
 		t.Fatal(err)
@@ -346,7 +346,7 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, planID, taskA, "user:a"); err != nil {
 		t.Fatal(err)
@@ -398,7 +398,7 @@ func TestRemoveTaskFromPlan_BuiltinPool_OK(t *testing.T) {
 func TestSelectTaskIntoPlan_SamePlan_NoOp(t *testing.T) {
 	svc, _, _, tasks, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
 		t.Fatal(err)
@@ -417,7 +417,7 @@ func TestSelectTaskIntoPlan_SamePlan_NoOp(t *testing.T) {
 func TestPlanParticipantSync_Idempotent(t *testing.T) {
 	svc, convRepo, _, _, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	human := "user:bob"
 	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &human}, "user:a"); err != nil {
@@ -453,7 +453,7 @@ func TestPlanParticipantSync_Idempotent(t *testing.T) {
 func TestAssignAfterSelect_SyncsPlanParticipant(t *testing.T) {
 	svc, convRepo, _, _, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a", OwnerRef: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
 	// Select FIRST, with NO assignee → no participant delta for the task yet.

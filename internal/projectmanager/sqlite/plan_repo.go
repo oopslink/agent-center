@@ -758,6 +758,18 @@ func (r *PlanRepo) FindPlanBlockEventByKey(ctx context.Context, key string) (*pm
 	return &e, true, nil
 }
 
+func (r *PlanRepo) FindPlanBlockEventByID(ctx context.Context, eventID pm.PlanBlockEventID) (*pm.PlanBlockEvent, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	e, err := scanPlanBlockEvent(exec.QueryRowContext(ctx, planBlockEventSelect+` WHERE event_id = ?`, string(eventID)).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &e, true, nil
+}
+
 func (r *PlanRepo) ListPlanBlockEvents(ctx context.Context, planID pm.PlanID, activeOnly bool) ([]pm.PlanBlockEvent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := planBlockEventSelect + ` WHERE plan_id = ?`
@@ -786,6 +798,40 @@ func (r *PlanRepo) UpdatePlanBlockEventNotification(ctx context.Context, eventID
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_plan_block_events SET notification_state = ?, updated_at = ? WHERE event_id = ?`,
 		string(state), ts(at), string(eventID))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanBlockEventNotFound
+	}
+	return nil
+}
+
+func (r *PlanRepo) AcknowledgePlanBlockEvent(ctx context.Context, eventID pm.PlanBlockEventID, actor pm.IdentityRef, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plan_block_events
+		 SET acknowledged_at = CASE WHEN acknowledged_at = '' THEN ? ELSE acknowledged_at END,
+		     acknowledged_by = CASE WHEN acknowledged_by = '' THEN ? ELSE acknowledged_by END,
+		     updated_at = ?
+		 WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''`,
+		ts(at), string(actor), ts(at), string(eventID))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanBlockEventNotFound
+	}
+	return nil
+}
+
+func (r *PlanRepo) ResolvePlanBlockEvent(ctx context.Context, eventID pm.PlanBlockEventID, actor pm.IdentityRef, kind, note string, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_plan_block_events
+		 SET active = 0, resolved_at = ?, resolved_by = ?, resolution_kind = ?, resolution_note = ?, updated_at = ?
+		 WHERE event_id = ? AND active = 1 AND effective = 1 AND resolved_at = ''`,
+		ts(at), string(actor), kind, note, ts(at), string(eventID))
 	if err != nil {
 		return err
 	}

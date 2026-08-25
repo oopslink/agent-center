@@ -132,7 +132,7 @@ func TestPlanRepo_BlockedOn_ListIsolationAndOrder(t *testing.T) {
 // BlockedOn snapshots (they must not outlive the plan).
 func TestPlanRepo_BlockedOn_DeletePlanCascade(t *testing.T) {
 	ctx, pr, _ := planSetup(t)
-	p, _ := pm.NewPlan(pm.NewPlanInput{ID: "PL-del", ProjectID: "P1", Name: "n", CreatorRef: "user:a", CreatedAt: t0})
+	p, _ := pm.NewPlan(pm.NewPlanInput{ID: "PL-del", ProjectID: "P1", Name: "n", CreatorRef: "user:a", OwnerRef: "user:a", CreatedAt: t0})
 	if err := pr.Save(ctx, p); err != nil {
 		t.Fatalf("Save plan: %v", err)
 	}

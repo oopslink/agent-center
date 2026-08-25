@@ -57,7 +57,7 @@ func TestResetTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, _, _, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -118,7 +118,7 @@ func TestUnblockTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, _, _, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -173,7 +173,7 @@ func TestGetPlanDetail_StageBarrierHeldEntryNotReady(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_, _, b1, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
@@ -211,7 +211,7 @@ func TestDispatch_NoStageRunAhead(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a1, a2, b1, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {

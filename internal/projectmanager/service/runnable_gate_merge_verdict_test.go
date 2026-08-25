@@ -34,7 +34,7 @@ func TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "ungated-merge", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "ungated-merge", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	dev := h.seedAssignedTask(t, pid, planID, "Dev", "user:dev")
@@ -79,7 +79,7 @@ func TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass(t *testing.
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated-merge", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "gated-merge", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 	tagMergeToMain(t, h, integ) // Integrate = the merge-to-main node, gated behind Decision.
@@ -123,7 +123,7 @@ func TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "reject-merge", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "reject-merge", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID)
 	tagMergeToMain(t, h, integ)

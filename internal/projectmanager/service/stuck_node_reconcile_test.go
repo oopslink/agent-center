@@ -128,7 +128,7 @@ func setupStuckNode(t *testing.T, assignee string) stuckNodeFixture {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stuck", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stuck", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	tid := h.seedAssignedTask(t, pid, planID, "work", assignee)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {

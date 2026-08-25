@@ -11,7 +11,7 @@ import (
 func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
 	p, g0 := activePlanGeneration(t, h, planID)

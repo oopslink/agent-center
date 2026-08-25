@@ -122,7 +122,7 @@ func planGraphSetupWithOrchSpies(t *testing.T) (*planAdvanceHarness, *countingNo
 // (so b1 is barrier-held). Returns the plan id + b1.
 func startedTwoStagePlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, name string) (pm.PlanID, pm.TaskID) {
 	t.Helper()
-	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	_, _, b1, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {

@@ -84,7 +84,7 @@ func TestPlanGraphAPI_StartedPlan_ServesEngineGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "graphed", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "graphed", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestPlanGraphAPI_NoGraph_FallbackShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "draft", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "staged", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "staged", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestPlanStagesAPI_NoStage_EmptyShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "nostage", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "nostage", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func setupGenerationAPIPlan(t *testing.T, fx *planAPIFixture, sess testSession) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: caller})
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: caller, OwnerRef: caller})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,7 +42,7 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "authored", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "authored", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 
 	dev, rev, dec, integ := authorCycleViaAgentTools(t, h, pid, planID)
@@ -119,7 +119,7 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 func twoTaskDraft(t *testing.T, h *planAdvanceHarness) (planID pm.PlanID, a, b pm.TaskID) {
 	t.Helper()
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ = h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edges", CreatedBy: "user:a"})
+	planID, _ = h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edges", CreatedBy: "user:a", OwnerRef: "user:a"})
 	h.drain(t)
 	a = h.seedAssignedTask(t, pid, planID, "A", "user:a")
 	b = h.seedAssignedTask(t, pid, planID, "B", "user:b")

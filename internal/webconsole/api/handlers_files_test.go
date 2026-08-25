@@ -570,7 +570,7 @@ func TestAPI_Files_Download_PlanConversation_ProjectMemberNonParticipant_200(t *
 		t.Fatal(err)
 	}
 	planID, err := deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{
-		ProjectID: pid, Name: "P1", CreatedBy: caller,
+		ProjectID: pid, Name: "P1", CreatedBy: caller, OwnerRef: caller,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -620,7 +620,7 @@ func TestAPI_Files_Download_PlanConversation_NonProjectMember_403(t *testing.T) 
 		t.Fatal(err)
 	}
 	planID, err := deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{
-		ProjectID: pid, Name: "P1", CreatedBy: other,
+		ProjectID: pid, Name: "P1", CreatedBy: other, OwnerRef: other,
 	})
 	if err != nil {
 		t.Fatal(err)

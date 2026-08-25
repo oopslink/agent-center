@@ -1072,6 +1072,66 @@ func makeEvolvePlanGeneration(cfg Config, planRules *planningRuleCache) mcp.Tool
 	}
 }
 
+type transferPlanOwnerArgs struct {
+	PlanID          string `json:"plan_id" jsonschema:"plan whose owner is changing"`
+	NewOwnerRef     string `json:"new_owner_ref" jsonschema:"required new Plan Owner identity ref; must be a project member"`
+	BackupOwnerRef  string `json:"backup_owner_ref,omitempty" jsonschema:"optional backup/escalation owner identity ref; must be a project member when set"`
+	Reason          string `json:"reason" jsonschema:"audit reason for the owner transfer"`
+	ExpectedVersion int    `json:"expected_version" jsonschema:"plan version read from get_plan for CAS"`
+}
+
+func makeTransferPlanOwner(cfg Config) mcp.ToolHandlerFor[transferPlanOwnerArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args transferPlanOwnerArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "transfer_plan_owner", map[string]any{
+			"agent_id":         cfg.AgentID,
+			"plan_id":          args.PlanID,
+			"new_owner_ref":    args.NewOwnerRef,
+			"backup_owner_ref": args.BackupOwnerRef,
+			"reason":           args.Reason,
+			"expected_version": args.ExpectedVersion,
+		})
+	}
+}
+
+type listPlanBlockEventsArgs struct {
+	PlanID     string `json:"plan_id" jsonschema:"plan whose block events to list"`
+	ActiveOnly *bool  `json:"active_only,omitempty" jsonschema:"true/default returns unresolved active effective events only; false includes history"`
+}
+
+func makeListPlanBlockEvents(cfg Config) mcp.ToolHandlerFor[listPlanBlockEventsArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listPlanBlockEventsArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "plan_id": args.PlanID}
+		if args.ActiveOnly != nil {
+			body["active_only"] = *args.ActiveOnly
+		}
+		return callAdmin(ctx, cfg, "list_plan_block_events", body)
+	}
+}
+
+type planBlockActionArgs struct {
+	PlanID         string `json:"plan_id" jsonschema:"plan containing the block event"`
+	EventID        string `json:"event_id" jsonschema:"plan block event id"`
+	ResolutionKind string `json:"resolution_kind,omitempty" jsonschema:"resolve only: resume_original, replace_with_continuation, bypass_remove_node, or pause_or_discard_plan"`
+	Note           string `json:"note,omitempty" jsonschema:"resolve only: owner resolution note"`
+}
+
+func makeAcknowledgePlanBlock(cfg Config) mcp.ToolHandlerFor[planBlockActionArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planBlockActionArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "acknowledge_plan_block", map[string]any{
+			"agent_id": cfg.AgentID, "plan_id": args.PlanID, "event_id": args.EventID,
+		})
+	}
+}
+
+func makeResolvePlanBlock(cfg Config) mcp.ToolHandlerFor[planBlockActionArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planBlockActionArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "resolve_plan_block", map[string]any{
+			"agent_id": cfg.AgentID, "plan_id": args.PlanID, "event_id": args.EventID,
+			"resolution_kind": args.ResolutionKind, "note": args.Note,
+		})
+	}
+}
+
 // --- create_stage / get_stage ------------------------------------------------
 
 type createStageArgs struct {
