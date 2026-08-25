@@ -1,0 +1,6 @@
+=== RUN   TestDirectGrantManagedCarrierEffectiveExpiryDenyAndRevoke
+--- PASS: TestDirectGrantManagedCarrierEffectiveExpiryDenyAndRevoke (0.12s)
+=== RUN   TestStoreRoleAssignmentLifecycleAndScopedRevoke
+--- PASS: TestStoreRoleAssignmentLifecycleAndScopedRevoke (0.09s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/authorization	0.479s

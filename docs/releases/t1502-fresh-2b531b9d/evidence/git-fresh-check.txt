@@ -1,0 +1,14 @@
+## git identity
+## ac-exec/task-3cc86539/f733c4cf-direct-binding-fix
+?? docs/releases/t1502-fresh-2b531b9d/
+HEAD=2b531b9d5a81a7857b707ed425886b2d2ac96774
+branch=ac-exec/task-3cc86539/f733c4cf-direct-binding-fix
+merge_base=7611db9afb385b9622408577ab9e4c6de57aadb1
+behind_ahead=0 1
+## refs
+2b531b9d5a81a7857b707ed425886b2d2ac96774 refs/heads/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix
+4a194395b30e79e49cd79352c7bc5fed15955cde refs/heads/evidence/t1502-fresh-2b531b9d
+7611db9afb385b9622408577ab9e4c6de57aadb1 refs/heads/integration/t1501-ram-role-main-candidate
+2b531b9d5a81a7857b707ed425886b2d2ac96774 refs/remotes/origin-push/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix
+517b7b2dc334704d83d8f2494b260200c8f34bec refs/remotes/origin-push/evidence/t1502-fresh-2b531b9d
+7611db9afb385b9622408577ab9e4c6de57aadb1 refs/remotes/origin-push/integration/t1501-ram-role-main-candidate

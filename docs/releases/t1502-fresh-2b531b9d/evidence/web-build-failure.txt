@@ -1,0 +1,6 @@
+
+> agent-center-web@0.1.0 build
+> tsc -b && vite build
+
+src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.
+src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'.

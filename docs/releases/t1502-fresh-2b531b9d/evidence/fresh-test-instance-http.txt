@@ -1,0 +1,24 @@
+## test instance
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 25 Aug 2026 01:41:14 GMT
+Content-Length: 32
+
+{"status":"ok","version":"dev"}
+
+## root
+HTTP/1.1 503 Service Unavailable
+Content-Type: text/html; charset=utf-8
+Date: Tue, 25 Aug 2026 01:41:14 GMT
+Content-Length: 673
+
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>agent-center — SPA not built</title></head>
+  <body style="font-family: ui-sans-serif, system-ui, sans-serif; padding: 2rem; max-width: 40rem; margin: 0 auto;">
+    <h1>SPA not built</h1>
+    <p>The embedded React SPA bundle is missing. This binary was compiled before <code>make build-frontend</code> ran.</p>
+    <p>To run the dev frontend instead, start <code>vite</code> in <code>web/</code> (proxies <code>/api</code> to this server) and open <a href="http://localhost:5173">http://localhost:5173</a>.</p>
+    <p>To build the embedded bundle: <code>make build</code> at the repo root.</p>
+  </body>
+</html>

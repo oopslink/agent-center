@@ -1,0 +1,16 @@
+=== RUN   TestAccessEffectiveBatchAndRevokeContract
+--- PASS: TestAccessEffectiveBatchAndRevokeContract (0.18s)
+=== RUN   TestAccessOverviewShowsTeamRAMAndDirectBindingUnion
+--- PASS: TestAccessOverviewShowsTeamRAMAndDirectBindingUnion (0.13s)
+=== RUN   TestAccessOverviewDirectBindingUsesResolverExpiryFailClosed
+--- PASS: TestAccessOverviewDirectBindingUsesResolverExpiryFailClosed (0.13s)
+=== RUN   TestAccessOverviewExplicitDenyPrecedesDirectBinding
+--- PASS: TestAccessOverviewExplicitDenyPrecedesDirectBinding (0.11s)
+=== RUN   TestAccessOverviewResolverErrorsSurfaceFailClosedRows
+--- PASS: TestAccessOverviewResolverErrorsSurfaceFailClosedRows (0.11s)
+=== RUN   TestAccessRAMRolesPersistVersionsCASRevokeAndReferences
+--- PASS: TestAccessRAMRolesPersistVersionsCASRevokeAndReferences (0.10s)
+=== RUN   TestAccessRAMRoleV4EditDeleteAndReferenceBlocking
+--- PASS: TestAccessRAMRoleV4EditDeleteAndReferenceBlocking (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.230s
