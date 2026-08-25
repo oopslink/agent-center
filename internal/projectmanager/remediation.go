@@ -257,15 +257,7 @@ func CompileRemediationProposal(payload RemediationProposalPayload, baseContract
 		if !t.DispatchMode.IsValid() {
 			diagnostics = append(diagnostics, "invalid_dispatch_mode:"+t.Ref)
 		}
-		// Evidence-supplement remediation nodes default to evidence_only; ordinary repair
-		// nodes remain the legacy code_change contract.
-		if t.DeliveryContract == "" {
-			text := strings.ToLower(t.Title + "\n" + t.Description)
-			if strings.Contains(text, "evidence") || strings.Contains(text, "verification") || strings.Contains(text, "验收证据") || strings.Contains(text, "补证据") {
-				t.DeliveryContract = DeliveryEvidenceOnly
-			}
-		}
-		if !t.DeliveryContract.IsValid() {
+		if t.DeliveryContract == "" || !t.DeliveryContract.IsValid() {
 			diagnostics = append(diagnostics, "invalid_delivery_contract:"+t.Ref)
 		}
 	}

@@ -293,7 +293,7 @@ type createTaskArgs struct {
 	Dispatch bool   `json:"dispatch,omitempty" jsonschema:"when true, also dispatch the task into the project's assignment pool so it is immediately claimable (unassigned) / runnable (assigned) — no separate add_task_to_plan needed"`
 	// I105 Phase 1: per-node fork override. Omit for ordinary code tasks.
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"optional routing override; omit (default) for a normal code task — it forks this Agent's executor with a git worktree. Set to supervisor_inline ONLY for a task whose deliverable is a CENTER ACTION with no code to write (deploy / synthesis / verdict / roll-up): it is then handled by this Agent's Supervisor control plane instead of forking an executor into an empty workspace. Allowed: executor_fork | supervisor_inline"`
-	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"durable delivery required from a forked executor; omit or code_change requires pushed HEAD advancement. Set evidence_only for verification/remediation proposals whose deliverable is acceptance evidence: it permits zero source diff only after runtime-created structured evidence is durably pushed"`
+	DeliveryContract string `json:"delivery_contract" jsonschema:"required explicit durable delivery contract: code_change requires pushed HEAD advancement; evidence_only permits zero source diff only after runtime-created structured evidence is durably pushed; supervisor_inline is only for center-control tasks paired with dispatch_mode=supervisor_inline"`
 }
 
 func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
@@ -996,7 +996,7 @@ type evolveTaskArgs struct {
 	Description      string `json:"description,omitempty" jsonschema:"new task description"`
 	AssigneeRef      string `json:"assignee_ref" jsonschema:"identity ref assigned to the new task"`
 	DispatchMode     string `json:"dispatch_mode,omitempty" jsonschema:"executor_fork (default) or supervisor_inline"`
-	DeliveryContract string `json:"delivery_contract,omitempty" jsonschema:"code_change (default) or evidence_only"`
+	DeliveryContract string `json:"delivery_contract" jsonschema:"required explicit contract: code_change, evidence_only or supervisor_inline; never inferred from title or description"`
 	FollowsTaskID    string `json:"follows_task_id,omitempty" jsonschema:"lineage-only existing task this new task follows/remediates; does not create an execution edge"`
 	Detached         bool   `json:"detached,omitempty" jsonschema:"true only for intentionally independent new root tasks; otherwise every new root must have an explicit prerequisite edge to prior execution"`
 }

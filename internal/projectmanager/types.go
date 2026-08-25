@@ -132,7 +132,7 @@ var (
 	// can never reach the fork gate; the read side coerces anything unknown back to
 	// "" (fork) as a second net.
 	ErrInvalidDispatchMode     = errors.New("projectmanager: invalid dispatch mode (must be executor_fork or supervisor_inline)")
-	ErrInvalidDeliveryContract = errors.New("projectmanager: invalid delivery contract (must be code_change or evidence_only)")
+	ErrInvalidDeliveryContract = errors.New("projectmanager: invalid delivery contract (must be code_change, evidence_only or supervisor_inline)")
 	// ErrNotTaskAssignee / ErrTaskBlocked guard the v2.14.0 I14 block+lease model:
 	// only the assignee agent may Block its own running task, and a legally blocked
 	// task cannot renew its execution lease (a block is a lease-free pause).

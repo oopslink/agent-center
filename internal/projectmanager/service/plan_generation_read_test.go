@@ -24,7 +24,7 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 				{TaskID: a, Action: pm.EvolutionPreserve, Reason: "already dispatched"},
 				{TaskID: b, Action: pm.EvolutionSupersede, Reason: "obsolete before dispatch"},
 			},
-			Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1"}},
+			Tasks: []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "C", AssigneeRef: "user:c1", DeliveryContract: pm.DeliveryCodeChange}},
 			Edges: []pm.PlanGenerationEdgeDraft{{From: "c", To: string(a), Kind: pm.EdgeSeq}},
 		},
 	})
