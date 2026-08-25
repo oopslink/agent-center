@@ -200,14 +200,14 @@ describe('Access page', () => {
     expect(builder).toHaveTextContent('Team Role reviewer');
     expect(builder).toHaveTextContent('RAM Role team-curator');
     expect(builder).toHaveTextContent('direct binding');
-    expect(builder).toHaveTextContent('RAM Role role-access-project-write');
+    expect(builder).toHaveTextContent('grant grant-custom-1');
     const sidebar = await screen.findByTestId('access-subject-sidebar');
     const trace = within(sidebar).getByTestId('access-permission-trace');
     expect(trace).toHaveTextContent('Membership → Team Role → RAM Role');
     expect(trace).toHaveTextContent('agent-center core → reviewer → team-curator');
     expect(trace).toHaveTextContent('Explicit deny');
     expect(trace).toHaveTextContent('Final → denied');
-    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('role-access-project-write');
+    expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('grant-custom-1');
     await waitFor(() => expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created'));
 
     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
@@ -225,9 +225,8 @@ describe('Access page', () => {
     const drawer = await screen.findByTestId('access-batch-drawer');
     fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
     fireEvent.click(within(drawer).getByRole('button', { name: /External Bot/ }));
-    fireEvent.click(within(drawer).getByRole('button', { name: /project\.write/ }));
     fireEvent.click(within(drawer).getByRole('button', { name: /team\.memory\.review/ }));
-    fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+    fireEvent.click(within(drawer).getAllByRole('button', { name: /agent-center core/ })[0]);
     fireEvent.change(within(drawer).getByTestId('access-batch-expires'), {
       target: { value: '2026-08-20T12:30' },
     });
@@ -239,12 +238,12 @@ describe('Access page', () => {
     const preview = await within(drawer).findByTestId('access-preview-summary');
     expect(preview).toHaveTextContent('High risk');
     expect(preview).toHaveTextContent('No access');
-    expect(preview).toHaveTextContent('N/A');
+    expect(preview).toHaveTextContent('N/A0');
     expect(preview).toHaveTextContent('Expires');
     expect(preview).not.toHaveTextContent('Expires -');
     const previewRows = within(drawer).getByTestId('access-batch-items');
     expect(previewRows).toHaveTextContent('No access');
-    expect(previewRows).toHaveTextContent('Not applicable');
+    expect(previewRows).not.toHaveTextContent('Not applicable');
 
     const continueButton = within(drawer).getByTestId('access-preview-continue');
     expect(continueButton).toBeDisabled();
@@ -257,9 +256,9 @@ describe('Access page', () => {
     const result = await within(drawer).findByTestId('access-result');
     expect(result).toHaveTextContent('Partial failure');
     expect(result).toHaveTextContent('409 conflict');
-    expect(result).toHaveTextContent('reported a failed operation without item detail');
     expect(result).toHaveTextContent('no access');
-    expect(result).toHaveTextContent('not applicable');
+    expect(result).toHaveTextContent('0 not applicable');
+    expect(result).not.toHaveTextContent('Unknown resource');
   });
 
   it('previews, confirms, and reports a direct revoke within the selected subject', async () => {
@@ -364,6 +363,121 @@ describe('Access page', () => {
     fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
     expect(await screen.findByTestId('access-toast')).toHaveTextContent('409:');
     expect(screen.getByTestId('access-toast')).toHaveTextContent('subject access changed after preview');
+  });
+
+  it('does not preselect resources and clears incompatible resources when permission changes', async () => {
+    let previewBody: { permission_keys?: string[]; resources?: Array<{ kind: string; id: string }> } | null = null;
+    server.use(
+      http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
+        previewBody = (await request.json()) as typeof previewBody;
+        return HttpResponse.json({
+          request_id: 'preview-org-only',
+          expires_at: null,
+          items: [{
+            id: 'item-1',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            permission: 'org.read',
+            resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+            status: 'allowed',
+            risk: 'low',
+            high_risk: false,
+            reason: 'grant can be applied by unified authorization API',
+          }],
+          summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+        });
+      }),
+    );
+    renderPage('/organizations/test/access/subject-access');
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    const orgResource = within(drawer).getByRole('button', { name: /Test Org/ });
+    const projectResource = within(drawer).getByRole('button', { name: /Project Alpha/ });
+    expect(orgResource).toHaveAttribute('aria-pressed', 'false');
+    expect(projectResource).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(projectResource);
+    expect(projectResource).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(orgResource);
+    fireEvent.click(within(drawer).getByRole('button', { name: /org\.read/ }));
+    expect(projectResource).toHaveAttribute('aria-pressed', 'false');
+    expect(projectResource).toBeDisabled();
+    expect(orgResource).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'org-only direct grant' } });
+    fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+    await within(drawer).findByTestId('access-preview-summary');
+    expect(previewBody?.permission_keys).toEqual(['org.read']);
+    expect(previewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
+  });
+
+  it('renders partial failure result items without unknown phantom rows', async () => {
+    server.use(
+      http.post('*/api/orgs/:slug/access/batch/preview', () => HttpResponse.json({
+        request_id: 'preview-partial',
+        expires_at: null,
+        items: [{
+          id: 'item-1',
+          subject_ref: 'agent:builder',
+          subject_name: 'Builder',
+          permission: 'org.read',
+          resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+          status: 'allowed',
+          risk: 'low',
+          high_risk: false,
+          reason: 'grant can be applied by unified authorization API',
+        }],
+        summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+      })),
+      http.post('*/api/orgs/:slug/access/batch/apply', () => HttpResponse.json({
+        operation_id: 'access-op-partial',
+        applied_at: '2026-08-14T08:01:00Z',
+        items: [
+          {
+            id: 'item-1',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            permission: 'org.read',
+            resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+            status: 'allowed',
+            risk: 'low',
+            high_risk: false,
+            reason: 'grant applied by unified authorization API',
+          },
+          {
+            id: 'item-2',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            permission: 'org.read',
+            resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'not_applicable',
+            risk: 'low',
+            high_risk: false,
+            reason: 'org.read does not apply to project',
+          },
+        ],
+        summary: { total: 2, succeeded: 1, failed: 1, unauthorized: 0, not_applicable: 1, partial_failure: true },
+      })),
+    );
+    renderPage('/organizations/test/access/subject-access');
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    fireEvent.click(within(drawer).getByRole('button', { name: /org\.read/ }));
+    fireEvent.click(within(drawer).getByRole('button', { name: /Test Org/ }));
+    fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'partial mapping' } });
+    fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+    await within(drawer).findByTestId('access-preview-summary');
+    fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+    fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+
+    const result = await within(drawer).findByTestId('access-result');
+    expect(result).toHaveTextContent('1 succeeded, 1 failed, 0 no access, 1 not applicable');
+    const rows = within(result).getAllByRole('row');
+    expect(rows).toHaveLength(3);
+    expect(result).not.toHaveTextContent('Unknown resource');
+    expect(result).not.toHaveTextContent('unknown');
   });
 
   it('confirms revoke with the original preview token, stable idempotency key, and reason/message', async () => {

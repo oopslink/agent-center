@@ -1460,7 +1460,9 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 		}
 		decision.EvidenceRef = explain.Decision.EvidenceRef
 		if eff, ok := accessDecisionEffective(explain.Effective, decision.Permission, decision.EvidenceRef); ok {
-			decision.RoleID = eff.RoleID
+			if decision.Source != string(authz.SourceCustomRole) {
+				decision.RoleID = eff.RoleID
+			}
 			if eff.ExpiresAt != nil {
 				value := eff.ExpiresAt.UTC().Format(time.RFC3339)
 				decision.ExpiresAt = &value
@@ -1566,8 +1568,10 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 					Reason:      "matched unified authorization service",
 					EvidenceRef: permission.EvidenceRef,
 					Status:      "allowed",
-					RoleID:      permission.RoleID,
 					Risk:        fallback(def.Risk, "medium"),
+				}
+				if permission.Source != authz.SourceCustomRole {
+					decision.RoleID = permission.RoleID
 				}
 				if permission.ExpiresAt != nil {
 					value := permission.ExpiresAt.UTC().Format(time.RFC3339)

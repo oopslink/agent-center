@@ -65,14 +65,37 @@ type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } |
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
 const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'worker', 'system'];
-function emptyBatchRequest(resources: AccessResourceScope[], subjectRef = ''): AccessBatchRequest {
+function emptyBatchRequest(subjectRef = ''): AccessBatchRequest {
   return {
     subject_refs: subjectRef ? [subjectRef] : [],
     permission_keys: [],
-    resources: resources.slice(0, 1),
+    resources: [],
     expires_at: '',
     reason: '',
   };
+}
+
+function selectedPermissionDefinitions(
+  permissions: AccessPermissionDefinition[],
+  keys: string[],
+): AccessPermissionDefinition[] {
+  const byKey = new Map(permissions.map((permission) => [permission.key, permission]));
+  return keys.map((key) => byKey.get(key)).filter((permission): permission is AccessPermissionDefinition => Boolean(permission));
+}
+
+function resourceCompatibleWithPermissions(
+  resource: AccessResourceScope,
+  selectedPermissions: AccessPermissionDefinition[],
+): boolean {
+  return selectedPermissions.length === 0 || selectedPermissions.every((permission) => permission.resource_kinds.includes(resource.kind));
+}
+
+function filterResourcesForPermissions(
+  resources: AccessResourceScope[],
+  selectedPermissions: AccessPermissionDefinition[],
+): AccessResourceScope[] {
+  if (selectedPermissions.length === 0) return resources;
+  return resources.filter((resource) => resourceCompatibleWithPermissions(resource, selectedPermissions));
 }
 
 function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): AccessResourceScope[] {
@@ -1155,7 +1178,7 @@ function SubjectDecisionView({
               <div className="mt-2 space-y-2">
                 {selectedGrants.filter((grant) => grant.source === 'custom_role').map((grant) => (
                   <div key={grant.id} className="text-xs">
-                    <div className="font-mono font-semibold text-text-primary">{grant.role_id || grant.id}</div>
+                    <div className="font-mono font-semibold text-text-primary">{grant.id}</div>
                     <div className="text-text-secondary">{grant.permission} on {accessResourceLabel(grant.resource)}</div>
                     <div className="text-text-muted">{grant.status} · expires {displayAccessDate(grant.expires_at)}</div>
                   </div>
@@ -1184,7 +1207,7 @@ function SubjectDecisionView({
               ))}
               {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
                 <p key={`${row.permission}:${row.evidence_ref}:detail`} className="rounded border border-border-base p-2">
-                  <span className="font-mono text-text-primary">direct binding</span> -&gt; RAM Role {row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                  <span className="font-mono text-text-primary">direct binding</span> -&gt; grant {row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
                 </p>
               ))}
               {selectedRows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && (
@@ -1213,7 +1236,7 @@ function decisionStats(rows: AccessDecision[], grants: AccessGrant[]): { allowed
 
 function sourceChain(row: AccessDecision): string {
   if (row.source === 'team_role_ram') return `membership → Team Role → RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
-  if (row.source === 'custom_role') return `direct binding → RAM Role ${row.role_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
+  if (row.source === 'custom_role') return `direct binding → grant ${row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'}`;
   return `${row.source} → ${row.evidence_ref}`;
 }
 
@@ -1334,7 +1357,7 @@ function SubjectAccessSidebar({
               {direct.map((grant) => (
                 <div key={`${grant.id}:trace`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="font-semibold text-text-primary">Direct union</div>
-                  <p className="mt-1 text-text-secondary">direct binding → RAM Role {grant.role_id || grant.id} → {grant.permission}</p>
+                  <p className="mt-1 text-text-secondary">direct binding → grant {grant.id} → {grant.permission}</p>
                 </div>
               ))}
               {deniedRows.map((row) => (
@@ -1380,7 +1403,7 @@ function SubjectAccessSidebar({
                 <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
                   <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
-                  <div className="mt-1 font-mono text-text-muted">{grant.role_id || grant.id}</div>
+                  <div className="mt-1 font-mono text-text-muted">{grant.id}</div>
                 </div>
               ))}
             </div>
@@ -1569,7 +1592,7 @@ function BatchGrantDrawer({
   const previewMutation = useAccessBatchPreview();
   const applyMutation = useAccessBatchApply();
   const [step, setStep] = useState(0);
-  const [request, setRequest] = useState<AccessBatchRequest>(() => emptyBatchRequest(resources, contextSubjectRef));
+  const [request, setRequest] = useState<AccessBatchRequest>(() => emptyBatchRequest(contextSubjectRef));
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
@@ -1587,10 +1610,20 @@ function BatchGrantDrawer({
     setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
   };
   const togglePermission = (key: string): void => {
-    setRequest((prev) => ({ ...prev, permission_keys: toggleValue(prev.permission_keys, key) }));
+    setRequest((prev) => {
+      const permissionKeys = toggleValue(prev.permission_keys, key);
+      const selectedPermissions = selectedPermissionDefinitions(permissions, permissionKeys);
+      return {
+        ...prev,
+        permission_keys: permissionKeys,
+        resources: filterResourcesForPermissions(prev.resources, selectedPermissions),
+      };
+    });
   };
   const toggleResource = (resource: AccessResourceScope): void => {
     setRequest((prev) => {
+      const selectedPermissions = selectedPermissionDefinitions(permissions, prev.permission_keys);
+      if (!resourceCompatibleWithPermissions(resource, selectedPermissions)) return prev;
       const keys = new Set(prev.resources.map(accessResourceKey));
       const next = keys.has(accessResourceKey(resource))
         ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
@@ -1700,16 +1733,20 @@ function BatchGrantDrawer({
                 ))}
               </Picker>
               <Picker title="Resources">
-                {resources.map((resource) => (
-                  <ChoiceRow
-                    key={accessResourceKey(resource)}
-                    checked={request.resources.some((r) => accessResourceKey(r) === accessResourceKey(resource))}
-                    disabled={!canManageAccess}
-                    onChange={() => toggleResource(resource)}
-                    label={accessResourceLabel(resource)}
-                    detail={resource.kind}
-                  />
-                ))}
+                {resources.map((resource) => {
+                  const selectedPermissions = selectedPermissionDefinitions(permissions, request.permission_keys);
+                  const compatible = resourceCompatibleWithPermissions(resource, selectedPermissions);
+                  return (
+                    <ChoiceRow
+                      key={accessResourceKey(resource)}
+                      checked={request.resources.some((r) => accessResourceKey(r) === accessResourceKey(resource))}
+                      disabled={!canManageAccess || !compatible}
+                      onChange={() => toggleResource(resource)}
+                      label={accessResourceLabel(resource)}
+                      detail={compatible ? resource.kind : `${resource.kind} - incompatible with selected permission`}
+                    />
+                  );
+                })}
               </Picker>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block">
@@ -1898,24 +1935,7 @@ function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.Rea
   );
 }
 
-function BatchItemsTable({ items, expectedFailed = 0 }: { items: AccessBatchItem[]; expectedFailed?: number }): React.ReactElement {
-  const visibleFailed = items.filter((item) => item.status !== 'allowed' && item.status !== 'not_applicable').length;
-  const missingFailed = Math.max(0, expectedFailed - visibleFailed);
-  const rows: AccessBatchItem[] = [
-    ...items,
-    ...Array.from({ length: missingFailed }, (_, index) => ({
-      id: `missing-failed-${index + 1}`,
-      subject_ref: 'unknown',
-      subject_name: 'Failed operation',
-      permission: 'unknown',
-      resource: { kind: 'org' as const, id: 'unknown', label: 'Unknown resource' },
-      status: 'denied' as const,
-      risk: 'medium' as const,
-      high_risk: false,
-      code: '409 conflict',
-      reason: 'The authorization API reported a failed operation without item detail. Refresh and retry to resolve the conflict.',
-    })),
-  ];
+function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactElement {
   return (
     <div className="overflow-x-auto rounded border border-border-base">
       <table className="w-full min-w-[42rem] text-left text-sm" data-testid="access-batch-items">
@@ -1930,7 +1950,7 @@ function BatchItemsTable({ items, expectedFailed = 0 }: { items: AccessBatchItem
           </tr>
         </thead>
         <tbody>
-          {rows.map((item) => (
+          {items.map((item) => (
             <tr key={item.id} className="border-b border-border-base last:border-0">
               <td className="px-3 py-2">{item.subject_name}</td>
               <td className="px-3 py-2 font-mono text-xs">{item.permission}</td>
@@ -1966,7 +1986,7 @@ function ResultPanel({ result, title }: { result: AccessBatchResult | AccessBatc
           {succeeded} succeeded, {failed} failed, {result.summary.unauthorized} no access, {result.summary.not_applicable} not applicable.
         </p>
       </div>
-      <BatchItemsTable items={result.items} expectedFailed={failed} />
+      <BatchItemsTable items={result.items} />
     </div>
   );
 }

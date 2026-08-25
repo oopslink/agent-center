@@ -501,7 +501,6 @@ function accessHandlers() {
       created_by: 'user:hayang',
       created_at: '2026-08-14T00:00:00Z',
       revoked_at: null,
-      role_id: 'role-access-project-write',
       risk: 'medium',
     },
     {
@@ -567,7 +566,6 @@ function accessHandlers() {
       status: 'allowed',
       expires_at: '2026-08-21T00:00:00Z',
       grant_id: 'grant-custom-1',
-      role_id: 'role-access-project-write',
       risk: 'medium',
     },
     {

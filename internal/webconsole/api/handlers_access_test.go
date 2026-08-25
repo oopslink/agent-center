@@ -104,18 +104,80 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 	var applied struct {
 		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
 			PartialFailure bool `json:"partial_failure"`
 			Failed         int  `json:"failed"`
 			Unauthorized   int  `json:"unauthorized"`
 			NotApplicable  int  `json:"not_applicable"`
 		} `json:"summary"`
+		Items []struct {
+			ID         string `json:"id"`
+			SubjectRef string `json:"subject_ref"`
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+				ID   string `json:"id"`
+			} `json:"resource"`
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&applied); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 {
-		t.Fatalf("apply did not expose partial failure details: %+v", applied.Summary)
+	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 || applied.Summary.Total != len(applied.Items) {
+		t.Fatalf("apply did not expose partial failure details/items: summary=%+v items=%+v", applied.Summary, applied.Items)
+	}
+	for _, item := range applied.Items {
+		if item.SubjectRef == "unknown" || item.Permission == "unknown" || item.Resource.ID == "unknown" {
+			t.Fatalf("apply returned phantom unknown item: %+v", item)
+		}
+	}
+
+	mixedBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.analytics.read"],
+		"resources":[
+			{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"},
+			{"kind":"project","id":"proj-alpha","org_id":"` + sess.OrgID + `","label":"Project Alpha"}
+		],
+		"reason":"temporary analytics audit"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", mixedBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mixed org/project apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var mixed struct {
+		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
+			Failed         int  `json:"failed"`
+			NotApplicable  int  `json:"not_applicable"`
+			PartialFailure bool `json:"partial_failure"`
+		} `json:"summary"`
+		Items []struct {
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+			} `json:"resource"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&mixed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(mixed.Items) != 2 || mixed.Summary.Total != 2 || mixed.Summary.Succeeded != 1 || mixed.Summary.Failed != 1 || mixed.Summary.NotApplicable != 1 || !mixed.Summary.PartialFailure {
+		t.Fatalf("mixed org/project apply summary/items mismatch: summary=%+v items=%+v", mixed.Summary, mixed.Items)
+	}
+	statusByKind := map[string]string{}
+	for _, item := range mixed.Items {
+		statusByKind[item.Resource.Kind] = item.Status
+	}
+	if statusByKind["org"] != "allowed" || statusByKind["project"] != "not_applicable" {
+		t.Fatalf("mixed org/project item mapping mismatch: %+v", mixed.Items)
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
@@ -300,15 +362,15 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES ('role-access-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
+		VALUES ('role-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
-		VALUES ('role-access-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
+		VALUES ('role-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-access-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
+	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`INSERT OR REPLACE INTO team_role_ram_role_versions (team_id, team_role, version, updated_at, updated_by) VALUES (?, 'reviewer', 1, ?, 'system')`, tm.ID().String(), now); err != nil {
@@ -370,10 +432,10 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	for _, d := range overview.Decisions {
 		if d.SubjectRef == subject && d.Permission == "team.memory.review" {
 			seen[d.Source] = true
-			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-access-union-reviewer" {
+			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-union-reviewer" {
 				t.Fatalf("team RAM role_id=%q evidence=%q", d.RoleID, d.EvidenceRef)
 			}
-			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
+			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "" || d.RoleID != "") {
 				t.Fatalf("direct decision grant/expiry not read back: %+v", d)
 			}
 		}
@@ -385,7 +447,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	var directGrant bool
 	for _, grant := range overview.Grants {
-		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID != "" {
+		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID == "" {
 			directGrant = true
 		}
 	}
