@@ -28,6 +28,7 @@
 
 当前功能设计：
 
+- [Insight Phase 1：24h 容量与执行效率冻结合同](features/insight-phase-1-contract.md)
 - [Team Rule Registry：索引常驻、正文按需加载](features/2026-08-13-team-rule-registry.md)
 - [Access 管理页与角色治理改造方案](features/2026-08-17-access-management-redesign.md)
 
