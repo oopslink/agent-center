@@ -913,6 +913,44 @@ export function useArchivePlan(projectId: string, planId: string) {
   );
 }
 
+export interface BatchArchivePlansResult {
+  archived: string[];
+  failed: Array<{ planId: string; reason: string }>;
+}
+
+// Project Plans list bulk action. Archive remains one domain command per Plan:
+// this UI coordinator deliberately reuses the canonical endpoint so lifecycle,
+// membership and owner/creator guards cannot drift from the detail action.
+export function useBatchArchivePlans(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (planIds: string[]): Promise<BatchArchivePlansResult> => {
+      const settled = await Promise.allSettled(
+        planIds.map((planId) => api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`)),
+      );
+      const result: BatchArchivePlansResult = { archived: [], failed: [] };
+      settled.forEach((entry, index) => {
+        const planId = planIds[index];
+        if (entry.status === 'fulfilled') result.archived.push(planId);
+        else result.failed.push({
+          planId,
+          reason: entry.reason instanceof Error ? entry.reason.message : String(entry.reason),
+        });
+      });
+      return result;
+    },
+    onSuccess: (result) => {
+      result.archived.forEach((planId) => {
+        void qc.invalidateQueries({ queryKey: qk.plan(planId) });
+      });
+      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.assignmentPoolByProject(projectId) });
+    },
+  });
+}
+
 // #218 friendly error for the destructive 409s (running / already-archived).
 // STATUS-AGNOSTIC: match by MESSAGE substring (mirrors friendlyDependencyError),
 // never the raw API error. Shared by the Delete + Archive confirm-modals.
