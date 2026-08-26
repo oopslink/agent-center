@@ -45,6 +45,9 @@ func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *test
 	insertQueue(t, db, "cmd-pending", "worker-1", "agent-1", "task-1", "", "pending", asOf.Add(-30*time.Minute), asOf.Add(-30*time.Minute))
 
 	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh first: %v", err)
+	}
 	first, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
 		t.Fatalf("overview first: %v", err)
@@ -74,6 +77,9 @@ func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *test
 	}
 
 	insertActivity(t, db, "start-late", "agent-1", "task-1", "exec-late", map[string]any{"event": "executor.start", "executor_id": "exec-late"}, asOf.Add(-2*time.Hour+1*time.Second))
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh late start: %v", err)
+	}
 	resp, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, AgentRef: "agent:agent-1", Limit: 100})
 	if err != nil {
 		t.Fatalf("executions after late start: %v", err)
@@ -176,6 +182,9 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 		{SlotIndex: 1, State: concurrency.StateDraining},
 	}}, asOf)
 	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
 	o, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
 		t.Fatalf("overview: %v", err)
@@ -293,12 +302,125 @@ func TestInsightInvalidTimeOrder(t *testing.T) {
 	insertActivity(t, db, "start-bad", "agent-1", "task-1", "exec-bad", map[string]any{"event": "executor.start", "executor_id": "exec-bad"}, asOf.Add(-time.Hour))
 	insertActivity(t, db, "stop-bad", "agent-1", "task-1", "exec-bad", map[string]any{"event": "executor.stop", "executor_id": "exec-bad", "outcome": "failed"}, asOf.Add(-2*time.Hour))
 	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
 	o, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
 		t.Fatalf("overview: %v", err)
 	}
 	if o.Diagnostics.InvalidFacts != 1 {
 		t.Fatalf("invalid facts = %d, want 1", o.Diagnostics.InvalidFacts)
+	}
+}
+
+func TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	for _, execID := range []string{"exec-c", "exec-b", "exec-a"} {
+		insertActivity(t, db, "start-"+execID, "agent-1", "task-1", execID, map[string]any{"event": "executor.start", "executor_id": execID}, asOf.Add(-time.Hour))
+		insertActivity(t, db, "stop-"+execID, "agent-1", "task-1", execID, map[string]any{"event": "executor.stop", "executor_id": execID, "outcome": "succeeded"}, asOf.Add(-time.Minute))
+	}
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	first, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 1})
+	if err != nil {
+		t.Fatalf("executions page 1: %v", err)
+	}
+	if len(first.Executions) != 1 || first.Executions[0].ExecutionID != "exec-c" || first.NextCursor == "" {
+		t.Fatalf("page 1 = %+v, want exec-c with next cursor", first)
+	}
+	second, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 1, Cursor: first.NextCursor})
+	if err != nil {
+		t.Fatalf("executions page 2: %v", err)
+	}
+	if len(second.Executions) != 1 || second.Executions[0].ExecutionID != "exec-b" || second.NextCursor == "" {
+		t.Fatalf("page 2 = %+v, want exec-b with next cursor", second)
+	}
+	third, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 1, Cursor: second.NextCursor})
+	if err != nil {
+		t.Fatalf("executions page 3: %v", err)
+	}
+	if len(third.Executions) != 1 || third.Executions[0].ExecutionID != "exec-a" || third.NextCursor != "" {
+		t.Fatalf("page 3 = %+v, want final exec-a without cursor", third)
+	}
+}
+
+func TestInsightCrashRecoveryTransactionAndCheckpointRestart(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	insertActivity(t, db, "start-crash", "agent-1", "task-1", "exec-crash", map[string]any{"event": "executor.start", "executor_id": "exec-crash"}, asOf.Add(-time.Hour))
+	insertActivity(t, db, "stop-crash", "agent-1", "task-1", "exec-crash", map[string]any{"event": "executor.stop", "executor_id": "exec-crash", "outcome": "failed"}, asOf.Add(-time.Hour+time.Second))
+	svc := openInsight(t, db)
+
+	tx, err := svc.duck.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO execution_fact
+		(execution_id, organization_id, agent_ref, started_at, finished_at, outcome, recovered, quality, first_event_id, last_event_id, observed_at)
+		VALUES ('exec-crash','org-1','agent:agent-1',?,?,?,false,'valid','activity:start-crash','activity:stop-crash',?)`,
+		fmtTS(asOf.Add(-time.Hour)), fmtTS(asOf.Add(-time.Hour+time.Second)), "failed", fmtTS(asOf)); err != nil {
+		t.Fatal(err)
+	}
+	if err := markProjected(ctx, tx, "activity:stop-crash", SourceActivity, "stop-crash", asOf); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	var rolledBack int
+	if err := svc.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-crash'`).Scan(&rolledBack); err != nil {
+		t.Fatal(err)
+	}
+	if rolledBack != 0 {
+		t.Fatalf("rolled back projected_event count = %d, want 0", rolledBack)
+	}
+
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh after rollback: %v", err)
+	}
+	var cursor string
+	if err := svc.duck.QueryRowContext(ctx, `SELECT source_cursor FROM projector_checkpoint WHERE source_kind=?`, SourceActivity).Scan(&cursor); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != "stop-crash" {
+		t.Fatalf("checkpoint cursor = %q, want stop-crash", cursor)
+	}
+	first, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if first.Summary.CompletedExecutions != 1 {
+		t.Fatalf("completed before restart = %d, want 1", first.Summary.CompletedExecutions)
+	}
+	path := svc.path
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(ctx, db, path, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if err := reopened.Refresh(ctx); err != nil {
+		t.Fatalf("refresh after restart: %v", err)
+	}
+	var factCount, projectedCount int
+	if err := reopened.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-crash'`).Scan(&factCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM projected_event WHERE source_kind=?`, SourceActivity).Scan(&projectedCount); err != nil {
+		t.Fatal(err)
+	}
+	if factCount != 1 || projectedCount != 2 {
+		t.Fatalf("after restart factCount=%d projectedCount=%d, want 1 and 2", factCount, projectedCount)
 	}
 }
 

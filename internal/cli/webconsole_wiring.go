@@ -759,6 +759,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	)
 	go activityEventGC.Run(activityEventGCCtx)
 
+	insightProjectorCancel := func() {}
+	if a.InsightSvc != nil {
+		insightProjectorCancel = a.InsightSvc.StartProjector(ctx, time.Second, func(err error) {
+			logger("webconsole insight projector: " + err.Error())
+		})
+	}
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
@@ -768,6 +775,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		activityEventGCCancel()
+		insightProjectorCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
