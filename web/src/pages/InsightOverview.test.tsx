@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
@@ -43,12 +43,12 @@ function overview(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderPage() {
-  window.history.pushState({}, '', '/organizations/acme/insights/overview');
+function renderPage(path = '/organizations/acme/insights/overview') {
+  window.history.pushState({}, '', path);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/organizations/acme/insights/overview']}>
+      <MemoryRouter initialEntries={[path]}>
         <InsightOverview />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -58,7 +58,7 @@ function renderPage() {
 afterEach(() => cleanup());
 
 describe('InsightOverview page', () => {
-  it('renders authoritative 24h overview metrics and opens agent drilldown by execution_id', async () => {
+  it('renders authoritative 24h overview metrics and opens agent execution table by exact agent_ref', async () => {
     let executionUrl = '';
     server.use(
       http.get('/api/orgs/:slug/insights/overview', ({ request }) => {
@@ -105,13 +105,35 @@ describe('InsightOverview page', () => {
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('20%');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('Coverage 90%');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Builder' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Builder' }));
 
     const row = await screen.findByTestId('insight-execution-row');
     expect(row).toHaveTextContent('exec-24h-1');
     expect(row).toHaveTextContent('Ship UI');
+    expect(row).toHaveTextContent('TaskExecution detail route unavailable');
+    expect(screen.queryByRole('link', { name: /Ship UI|T1|task-1/ })).not.toBeInTheDocument();
     expect(new URL(executionUrl).searchParams.get('agent_ref')).toBe('agent:builder');
+    expect(new URL(executionUrl).searchParams.get('project_id')).toBeNull();
     expect(new URL(executionUrl).searchParams.get('window')).toBe('24h');
+  });
+
+  it('opens project execution table by exact project_id', async () => {
+    let executionUrl = '';
+    server.use(
+      http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview())),
+      http.get('/api/orgs/:slug/insights/executions', ({ request }) => {
+        executionUrl = request.url;
+        return HttpResponse.json({ ...windowEnvelope, executions: [], next_cursor: null });
+      }),
+    );
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Launch' }));
+
+    expect(await screen.findByTestId('insight-drilldown-empty')).toBeInTheDocument();
+    expect(new URL(executionUrl).searchParams.get('project_id')).toBe('proj-1');
+    expect(new URL(executionUrl).searchParams.get('agent_ref')).toBeNull();
   });
 
   it('renders empty denominators distinctly without inventing zero rates', async () => {
@@ -134,7 +156,7 @@ describe('InsightOverview page', () => {
 
     expect(await screen.findByTestId('insight-empty')).toHaveTextContent('No executions');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('Failure rate');
-    expect(screen.getByTestId('insight-summary')).toHaveTextContent('—');
+    expect(screen.getByTestId('insight-summary')).toHaveTextContent('-');
   });
 
   it('shows stale overview and stale drilldown as visible states', async () => {
@@ -154,9 +176,53 @@ describe('InsightOverview page', () => {
     renderPage();
 
     expect(await screen.findByTestId('insight-stale')).toHaveTextContent('Stale data');
-    fireEvent.click(screen.getByRole('button', { name: 'Launch' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Launch' }));
     expect(await screen.findByTestId('insight-drilldown-stale')).toBeInTheDocument();
     expect(screen.getByTestId('insight-drilldown-empty')).toBeInTheDocument();
+  });
+
+  it('renders /insights/executions directly with URL filters and pagination cursor', async () => {
+    let executionUrl = '';
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions', ({ request }) => {
+        executionUrl = request.url;
+        return HttpResponse.json({
+          ...windowEnvelope,
+          executions: [
+            {
+              execution_id: 'exec-project-1',
+              command_id: null,
+              task_id: 'task-1',
+              task_ref: 'T1',
+              task_title: 'Ship UI',
+              agent_ref: 'agent:builder',
+              agent_name: 'Builder',
+              project_id: 'proj-1',
+              project_name: 'Launch',
+              worker_id: null,
+              outcome: 'completed',
+              failure_reason: null,
+              queued_at: null,
+              started_at: null,
+              finished_at: null,
+              queue_wait_ms: null,
+              duration_ms: 5000,
+              recovered: false,
+              quality: 'valid',
+            },
+          ],
+          next_cursor: 'cursor-2',
+        });
+      }),
+    );
+
+    renderPage('/organizations/acme/insights/executions?project_id=proj-1');
+
+    expect(await screen.findByTestId('insight-execution-row')).toHaveTextContent('exec-project-1');
+    expect(screen.getByTestId('insight-executions-table')).toHaveTextContent('project_id=proj-1');
+    expect(new URL(executionUrl).searchParams.get('project_id')).toBe('proj-1');
+    expect(new URL(executionUrl).searchParams.get('limit')).toBe('50');
+    expect(screen.getByRole('link', { name: 'Next page' })).toHaveAttribute('href', '/organizations/acme/insights/executions?project_id=proj-1&cursor=cursor-2');
   });
 
   it('shows authorization errors separately from unavailable errors', async () => {

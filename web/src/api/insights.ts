@@ -89,7 +89,7 @@ export interface InsightExecutions {
   refreshed_at: string;
   freshness: InsightFreshness;
   executions: InsightExecutionRow[];
-  next_cursor: string | null;
+  next_cursor?: string | null;
 }
 
 export interface InsightExecutionFilters {
@@ -108,14 +108,15 @@ function executionParams(filters: InsightExecutionFilters = {}): string {
   return params.toString();
 }
 
-export function useInsightOverview() {
+export function useInsightOverview(enabled = true) {
   return useQuery({
     queryKey: qk.insightOverview(),
     queryFn: () => api.get<InsightOverview>('/insights/overview?window=24h'),
+    enabled,
   });
 }
 
-export function useInsightExecutions(filters: InsightExecutionFilters, enabled: boolean) {
+export function useInsightExecutions(filters: InsightExecutionFilters = {}, enabled = true) {
   return useQuery({
     queryKey: qk.insightExecutions(filters),
     queryFn: () => api.get<InsightExecutions>(`/insights/executions?${executionParams(filters)}`),

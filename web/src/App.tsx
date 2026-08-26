@@ -123,6 +123,7 @@ export function App(): React.ReactElement {
           <Route path="repos" element={<OrgRepos />} />
           <Route path="insights" element={<Navigate to="overview" replace />} />
           <Route path="insights/overview" element={<InsightOverview />} />
+          <Route path="insights/executions" element={<InsightOverview />} />
           {/* Legacy model catalog UI now converges on AI Runtime Models. */}
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
