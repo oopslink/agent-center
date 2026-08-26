@@ -395,6 +395,32 @@ func TestArchivePlan_OrthogonalAfterDiscard(t *testing.T) {
 	}
 }
 
+// Discard is an operator escape hatch, like pause/resume/complete, rather than
+// an authoring-only action. A project member must be able to settle a stuck Plan
+// even when the original creator (and a project owner) is unavailable.
+func TestDiscardPlan_ProjectMemberOtherThanCreator_OK(t *testing.T) {
+	h := planRemovalSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: "user:b", Role: pm.RoleMember, Actor: "user:a",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "stuck", CreatedBy: "user:a"})
+	h.seedTaskInPlan(t, pid, planID, "unfinished", "user:x")
+
+	if err := h.svc.DiscardPlan(h.ctx, planID, "user:b"); err != nil {
+		t.Fatalf("DiscardPlan(project member other than creator) = %v, want nil", err)
+	}
+	p, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status() != pm.PlanDiscarded {
+		t.Fatalf("plan status = %q want discarded", p.Status())
+	}
+}
+
 // A running Plan is not terminal and therefore cannot be archived.
 func TestArchivePlan_Running_Rejected(t *testing.T) {
 	h := planRemovalSetup(t)
