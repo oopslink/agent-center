@@ -1,6 +1,9 @@
 package insight
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	Window24h             = "24h"
@@ -10,6 +13,8 @@ const (
 	SourceQueue           = "worker_control_events"
 	SourceSlotObservation = "agent_concurrency_observations"
 )
+
+var ErrExecutionNotFound = errors.New("insight: execution not found")
 
 type Freshness struct {
 	State       string `json:"state"`
@@ -93,6 +98,14 @@ type ExecutionsResponse struct {
 	Freshness   Freshness      `json:"freshness"`
 	Executions  []ExecutionRow `json:"executions"`
 	NextCursor  string         `json:"next_cursor,omitempty"`
+}
+
+type ExecutionResponse struct {
+	Window      Window       `json:"window"`
+	AsOf        string       `json:"as_of"`
+	RefreshedAt string       `json:"refreshed_at"`
+	Freshness   Freshness    `json:"freshness"`
+	Execution   ExecutionRow `json:"execution"`
 }
 
 type ExecutionFilter struct {

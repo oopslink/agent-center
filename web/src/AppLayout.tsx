@@ -125,6 +125,14 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     pathPrefixes: ['access'],
   },
   {
+    id: 'insight',
+    label: 'Insight',
+    short: 'Insight',
+    defaultPath: 'insights/overview',
+    Icon: InsightIcon,
+    pathPrefixes: ['insights'],
+  },
+  {
     id: 'reminders',
     label: 'Reminders',
     short: 'Remind',
@@ -210,6 +218,10 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       return [{ label: 'Access', items: [
         { to: p('access/ram-roles'), label: 'RAM Roles', Icon: AccessIcon },
         { to: p('access/subject-access'), label: 'Subject access', Icon: AccessIcon },
+      ] }];
+    case 'insight':
+      return [{ label: 'Insight', items: [
+        { to: p('insights/overview'), label: 'Overview', Icon: InsightIcon },
       ] }];
     case 'system':
       return [{ label: 'System', items: [
@@ -1426,6 +1438,9 @@ function TeamsRailIcon(): React.ReactElement {
 }
 function AccessIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="8.5" width="12" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" strokeLinecap="round" /><path d="M10 12v1.8" strokeLinecap="round" /></svg>);
+}
+function InsightIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 15.5h13" strokeLinecap="round" /><rect x="4.5" y="9" width="2.5" height="4.5" rx=".6" /><rect x="8.75" y="5.5" width="2.5" height="8" rx=".6" /><rect x="13" y="7.5" width="2.5" height="6" rx=".6" /></svg>);
 }
 function TrashIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" /></svg>);

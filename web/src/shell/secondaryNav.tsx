@@ -29,7 +29,7 @@ import TeamUISecondaryNav from '@/shell/nav/TeamUISecondaryNav'; // Team WebUI (
 // ============================================================================
 
 // members-into-teams: the legacy 'members' module is merged into 'teamui'.
-export type ShellModuleId = 'workspace' | 'conversations' | 'teamui' | 'access' | 'reminders' | 'system';
+export type ShellModuleId = 'workspace' | 'conversations' | 'teamui' | 'access' | 'insight' | 'reminders' | 'system';
 
 export interface ModuleSecondaryNavProps {
   /** The org base path ('' in isolated tests, '/organizations/:slug' live). */
