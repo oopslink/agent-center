@@ -36,6 +36,8 @@ const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 // T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
+const InsightsOverview = lazy(() => import('./pages/InsightsOverview'));
+const InsightExecutionDetail = lazy(() => import('./pages/InsightExecutionDetail'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Access = lazy(() => import('./pages/Access'));
 const Secrets = lazy(() => import('./pages/Secrets'));
@@ -120,6 +122,8 @@ export function App(): React.ReactElement {
           {/* T575 (issue-f980c8de): workspace-level Repos — top-level code-repo
               registry (CRUD + credentials + remote viewing). */}
           <Route path="repos" element={<OrgRepos />} />
+          <Route path="insights" element={<InsightsOverview />} />
+          <Route path="insights/executions/:executionId" element={<InsightExecutionDetail />} />
           {/* Legacy model catalog UI now converges on AI Runtime Models. */}
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}

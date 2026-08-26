@@ -10,6 +10,71 @@ const ok = (body: JsonBodyType, status = 200) => HttpResponse.json(body, { statu
 const err = (status: number, error: string, message: string) =>
   HttpResponse.json({ error, message }, { status });
 
+const mockInsightExecution = {
+  execution_id: 'exec-24h-001',
+  task_id: 'task-24h-001',
+  task_title: 'Ship Insight overview',
+  task_org_ref: 'T24',
+  project_id: 'proj-a',
+  project_name: 'agent-center2',
+  agent_id: 'agent-alpha',
+  status: 'completed',
+  status_reason: '',
+  status_detail: '',
+  attempt: 2,
+  submitted_at: '2026-08-26T10:00:00Z',
+  started_at: '2026-08-26T10:01:00Z',
+  completed_at: '2026-08-26T10:06:00Z',
+  queue_wait_ms: 60_000,
+  duration_ms: 360_000,
+  command_id: 'cmd-24h-001',
+  worker_id: 'worker-a',
+  refreshed_at: '2026-08-26T10:07:00Z',
+  freshness: 'fresh',
+  current_activity: '',
+  total_tool_calls: 0,
+  total_tokens_input: 0,
+  total_tokens_output: 0,
+};
+
+const mockInsightsOverview = {
+  window: {
+    from: '2026-08-25T10:07:00Z',
+    to: '2026-08-26T10:07:00Z',
+    label: 'past_24h',
+  },
+  refreshed_at: '2026-08-26T10:07:00Z',
+  freshness: 'fresh',
+  metrics: {
+    execution_count: 2,
+    failure_rate: 0.5,
+    slot_utilization: 0.5,
+    queue_wait_p50_ms: 60_000,
+    queue_wait_p95_ms: 120_000,
+    execution_duration_p50_ms: 360_000,
+    execution_duration_p95_ms: 600_000,
+  },
+  agents: [
+    { id: 'agent-alpha', name: 'agent-alpha', executions: 2, failures: 1, failure_rate: 0.5 },
+  ],
+  projects: [
+    { id: 'proj-a', name: 'agent-center2', executions: 2, failures: 1, failure_rate: 0.5 },
+  ],
+  executions: [
+    mockInsightExecution,
+    {
+      ...mockInsightExecution,
+      execution_id: 'exec-24h-002',
+      task_id: 'task-24h-002',
+      task_org_ref: 'T25',
+      status: 'failed',
+      attempt: 1,
+      queue_wait_ms: 120_000,
+      duration_ms: 600_000,
+    },
+  ],
+};
+
 // taskActionHandlers — the v2.7 task lifecycle sub-routes. Each returns
 // the refreshed TaskMap with a status derived from the action.
 function taskActionHandlers() {
@@ -1636,6 +1701,14 @@ const baseHandlers = [
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
+
+  // Insight > Overview (fixed past 24h) and TaskExecution drill-down.
+  http.get('/api/insights/overview', () => ok(mockInsightsOverview)),
+  http.get('/api/insights/executions/:executionId', ({ params }) => {
+    const id = String(params.executionId);
+    const row = mockInsightsOverview.executions.find((item) => item.execution_id === id);
+    return row ? ok(row) : err(404, 'not_found', 'execution not found');
+  }),
 
   // Workers (Environment fleet list). Org-scoped → also gets an /orgs/:slug
   // variant via the duplication below. Previously unhandled, which made every

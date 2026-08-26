@@ -528,6 +528,63 @@ export interface TaskExecRow {
   last_activity_at?: string;
 }
 
+export interface InsightsExecution {
+  execution_id: string;
+  task_id: string;
+  task_title?: string;
+  task_org_ref?: string;
+  project_id?: string;
+  project_name?: string;
+  agent_id?: string;
+  status: string;
+  status_reason?: string;
+  status_detail?: string;
+  attempt: number;
+  submitted_at: string;
+  started_at?: string;
+  completed_at?: string;
+  queue_wait_ms: number;
+  duration_ms: number;
+  command_id?: string;
+  worker_id?: string;
+  refreshed_at: string;
+  freshness: 'fresh' | 'stale';
+  current_activity?: string;
+  total_tool_calls: number;
+  total_tokens_input: number;
+  total_tokens_output: number;
+}
+
+export interface InsightsRankRow {
+  id: string;
+  name?: string;
+  executions: number;
+  failures: number;
+  failure_rate: number;
+}
+
+export interface InsightsOverview {
+  window: {
+    from: string;
+    to: string;
+    label: 'past_24h' | string;
+  };
+  refreshed_at: string;
+  freshness: 'fresh' | 'stale';
+  metrics: {
+    execution_count: number;
+    failure_rate: number;
+    slot_utilization: number;
+    queue_wait_p50_ms: number;
+    queue_wait_p95_ms: number;
+    execution_duration_p50_ms: number;
+    execution_duration_p95_ms: number;
+  };
+  agents: InsightsRankRow[];
+  projects: InsightsRankRow[];
+  executions: InsightsExecution[];
+}
+
 // EnvWorker (v2.7 E1 #138): the Environment-page worker — the CONTROL-CONNECTED
 // view (environment.Worker), distinct from FleetWorkerRow (legacy workforce
 // enrolled set). status is the control-connection state (online|offline);

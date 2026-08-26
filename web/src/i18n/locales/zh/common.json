@@ -9,6 +9,7 @@
     "members": "成员",
     "teamui": "编队",
     "access": "权限",
+    "insights": "洞察",
     "reminders": "提醒",
     "system": "系统",
     "orgSettings": "组织设置",
@@ -18,6 +19,7 @@
       "members": "成员",
       "teamui": "编队",
       "access": "权限",
+      "insights": "洞察",
       "reminders": "提醒",
       "system": "系统"
     }
