@@ -95,7 +95,9 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 }
 
 // ArchivePlan sets an orthogonal marker on a terminal Plan. It never rewrites Plan
-// lifecycle or Task lifecycle; done/discarded remains the durable outcome.
+// lifecycle or Task lifecycle; done/discarded remains the durable outcome. The actor
+// must be the Plan creator, a Project owner, or an active owner of the Project's
+// organization.
 func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -141,7 +143,8 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 
 // DiscardPlan permanently abandons a pending/running/paused Plan. Remaining
 // non-terminal member Tasks are finalized to discarded in the same transaction;
-// terminal Task history is preserved.
+// terminal Task history is preserved. The actor must be the Plan creator, a
+// Project owner, or an active owner of the Project's organization.
 func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
