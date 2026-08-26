@@ -16,12 +16,14 @@ import { redirectAfterAuthLoss } from './authRedirect';
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly body: unknown;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, body?: unknown) {
     super(`[${status} ${code}] ${message}`);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -112,6 +114,7 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
         resp.status,
         errBody?.error ?? 'http_error',
         errBody?.message ?? resp.statusText,
+        errBody,
       );
     }
     if (resp.status === 204) {

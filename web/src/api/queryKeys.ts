@@ -110,6 +110,9 @@ export const qk = {
   aiRuntimeCatalog: () => o('ai-runtime'),
   accessOverview: (filters?: unknown) =>
     filters === undefined ? o('access', 'overview') : o('access', 'overview', filters ?? null),
+  insightOverview: () => o('insight', 'overview', '24h'),
+  insightExecutions: (filters?: unknown) => o('insight', 'executions', filters ?? null),
+  insightExecution: (executionId: string) => o('insight', 'executions', executionId),
   ramRoles: () => o('access', 'ram-roles'),
   ramRole: (id: string) => o('access', 'ram-roles', id),
   permissions: () => o('permissions'),

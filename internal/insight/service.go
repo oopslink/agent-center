@@ -246,6 +246,62 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 	return ExecutionsResponse{Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Executions: out, NextCursor: next}, nil
 }
 
+func (s *Service) Execution(ctx context.Context, orgID, executionID string, asOf time.Time) (ExecutionResponse, error) {
+	if strings.TrimSpace(executionID) == "" {
+		return ExecutionResponse{}, ErrExecutionNotFound
+	}
+	if asOf.IsZero() {
+		asOf = time.Now().UTC()
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	row := s.duck.QueryRowContext(ctx, `SELECT execution_id, command_id, task_id, task_title, agent_ref, agent_name,
+		project_id, project_name, worker_id, outcome, failure_reason, queued_at, started_at, finished_at,
+		CASE WHEN queued_at IS NOT NULL AND started_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END,
+		CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at THEN date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP)) END,
+		recovered, quality
+		FROM execution_fact WHERE organization_id = ? AND execution_id = ?`, orgID, executionID)
+	execution, err := scanExecutionRow(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ExecutionResponse{}, ErrExecutionNotFound
+	}
+	if err != nil {
+		return ExecutionResponse{}, err
+	}
+	ref, fresh := s.freshness(ctx, asOf)
+	return ExecutionResponse{Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Execution: execution}, nil
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanExecutionRow(scanner rowScanner) (ExecutionRow, error) {
+	var r ExecutionRow
+	var cmd, task, title, an, proj, pn, worker, outcome, reason sql.NullString
+	var queued, started, finished sql.NullString
+	var qwait, dur sql.NullInt64
+	if err := scanner.Scan(&r.ExecutionID, &cmd, &task, &title, &r.AgentRef, &an, &proj, &pn, &worker, &outcome, &reason, &queued, &started, &finished, &qwait, &dur, &r.Recovered, &r.Quality); err != nil {
+		return ExecutionRow{}, err
+	}
+	r.CommandID = strPtr(cmd)
+	r.TaskID = strPtr(task)
+	r.TaskRef = strPtr(task)
+	r.TaskTitle = strPtr(title)
+	r.AgentName = strPtr(an)
+	r.ProjectID = strPtr(proj)
+	r.ProjectName = strPtr(pn)
+	r.WorkerID = strPtr(worker)
+	r.Outcome = strPtr(outcome)
+	r.FailureReason = strPtr(reason)
+	r.QueuedAt = strPtr(queued)
+	r.StartedAt = strPtr(started)
+	r.FinishedAt = strPtr(finished)
+	r.QueueWaitMS = intPtr(qwait)
+	r.DurationMS = intPtr(dur)
+	return r, nil
+}
+
 func (s *Service) rebuildLocked(ctx context.Context) error {
 	if s.duck != nil {
 		_ = s.duck.Close()

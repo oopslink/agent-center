@@ -9,6 +9,7 @@
     "members": "Members",
     "teamui": "Teams",
     "access": "Access",
+    "insight": "Insight",
     "reminders": "Reminders",
     "system": "System",
     "orgSettings": "Organization Settings",
@@ -18,6 +19,7 @@
       "members": "Team",
       "teamui": "Teams",
       "access": "Access",
+      "insight": "Insight",
       "reminders": "Remind",
       "system": "Sys"
     }

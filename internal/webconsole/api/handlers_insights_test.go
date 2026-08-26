@@ -122,6 +122,61 @@ func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
 	}
 }
 
+func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/executions/exec-api?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("execution status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Execution struct {
+			ExecutionID string  `json:"execution_id"`
+			TaskTitle   *string `json:"task_title"`
+			AgentRef    string  `json:"agent_ref"`
+			ProjectID   *string `json:"project_id"`
+			DurationMS  *int64  `json:"duration_ms"`
+		} `json:"execution"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Execution.ExecutionID != "exec-api" || out.Execution.AgentRef != "agent:agent-api" || out.Execution.ProjectID == nil || *out.Execution.ProjectID != "project-api" || out.Execution.DurationMS == nil {
+		t.Fatalf("execution body = %+v", out.Execution)
+	}
+
+	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/executions/missing?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func seedInsightHTTPFacts(t *testing.T, db *sql.DB, orgID string, finished time.Time) {
 	t.Helper()
 	now := finished.UTC().Format(time.RFC3339Nano)
