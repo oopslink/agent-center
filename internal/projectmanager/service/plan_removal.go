@@ -155,12 +155,7 @@ func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err != nil {
 			return err
 		}
-		// Discard is the lifecycle escape hatch for a stuck Plan. Keep its
-		// authorization aligned with the other Plan lifecycle operations (start,
-		// pause, resume, complete): any project member may settle it. Restricting
-		// this to the original creator or a project owner can leave failed Plans
-		// permanently unclosable when neither identity is available.
-		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+		if err := s.requirePlanCreatorOrProjectOwner(txCtx, p, actor); err != nil {
 			return err
 		}
 		tasks, err := s.tasks.ListByPlan(txCtx, planID)
