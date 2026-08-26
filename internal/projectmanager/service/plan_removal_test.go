@@ -214,6 +214,47 @@ func TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember(t *testing
 	}
 }
 
+func TestDiscardPlan_SkipsAlreadyDiscardedTasks(t *testing.T) {
+	h := planRemovalSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused-with-discarded-task", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	taskID := h.seedTaskInPlan(t, pid, planID, "already-discarded", "agent:bot")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SetTaskStatus(h.ctx, taskID, pm.TaskDiscarded, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.PausePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := h.svc.DiscardPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("DiscardPlan: %v", err)
+	}
+	p, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status() != pm.PlanDiscarded {
+		t.Fatalf("plan status=%s want discarded", p.Status())
+	}
+	task, err := h.tasks.FindByID(h.ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status() != pm.TaskDiscarded {
+		t.Fatalf("task status=%s want discarded", task.Status())
+	}
+}
+
 // --- DeletePlan -------------------------------------------------------------
 
 // TestDeletePlan_NonRunning_UnloadsTasksAndDeletesPlanAndDeps: a draft plan with
