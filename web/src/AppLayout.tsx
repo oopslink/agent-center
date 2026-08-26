@@ -133,6 +133,14 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     pathPrefixes: ['reminders'],
   },
   {
+    id: 'insights',
+    label: 'Insights',
+    short: 'Insight',
+    defaultPath: 'insights/overview',
+    Icon: InsightIcon,
+    pathPrefixes: ['insights'],
+  },
+  {
     id: 'system',
     label: 'System',
     short: 'System',
@@ -205,6 +213,10 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'reminders':
       return [{ label: 'Reminders', items: [
         { to: p('reminders'), label: 'Reminders', Icon: ReminderIcon },
+      ] }];
+    case 'insights':
+      return [{ label: 'Insight', items: [
+        { to: p('insights/overview'), label: 'Overview', Icon: InsightIcon },
       ] }];
     case 'access':
       return [{ label: 'Access', items: [
@@ -1441,6 +1453,9 @@ function SignoutIcon(): React.ReactElement {
 }
 function ReminderIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.5V1M10 2.5C7 2.5 4.5 5 4.5 8c0 3.5-1.5 5-2 5.5h15c-.5-.5-2-2-2-5.5 0-3-2.5-5.5-5.5-5.5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 15.5a2 2 0 0 0 4 0" strokeLinecap="round" /></svg>);
+}
+function InsightIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 15V5M4 15h12" strokeLinecap="round" /><rect x="6.5" y="9" width="2.5" height="4" rx=".5" /><rect x="10.5" y="6" width="2.5" height="7" rx=".5" /><path d="M5.5 6.5 8 5l2.5 1.5L15 4" strokeLinecap="round" strokeLinejoin="round" /></svg>);
 }
 // Alerts (rail) — a warning triangle, not a bell. "Needs your attention" reads
 // as an alert/warning signal, kept visually distinct from the Reminders bell

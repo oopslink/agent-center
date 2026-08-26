@@ -10,6 +10,7 @@
     "teamui": "编队",
     "access": "权限",
     "reminders": "提醒",
+    "insights": "洞察",
     "system": "系统",
     "orgSettings": "组织设置",
     "short": {
@@ -19,6 +20,7 @@
       "teamui": "编队",
       "access": "权限",
       "reminders": "提醒",
+      "insights": "洞察",
       "system": "系统"
     }
   },

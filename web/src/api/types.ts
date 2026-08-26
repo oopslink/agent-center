@@ -477,6 +477,83 @@ export interface AgentAnalyticsTaskDrilldown {
   }>;
 }
 
+export type InsightFreshness = 'fresh' | 'stale';
+
+export interface InsightWindow {
+  label: 'past_24h' | string;
+  started_at: string;
+  ended_at: string;
+  refreshed_at: string;
+}
+
+export interface InsightPercentiles {
+  p50_seconds: number | null;
+  p95_seconds: number | null;
+}
+
+export interface InsightOverview {
+  window: InsightWindow;
+  refreshed_at: string;
+  freshness: InsightFreshness;
+  stale: boolean;
+  summary: {
+    executions: number;
+    failures: number;
+    failure_rate: number | null;
+    slot_utilization: {
+      running: number;
+      capacity: number;
+      utilization: number | null;
+    };
+    queue_wait: InsightPercentiles;
+    execution_duration: InsightPercentiles;
+  };
+  leaderboards: {
+    agents: InsightLeaderboardRow[];
+    projects: InsightLeaderboardRow[];
+  };
+}
+
+export interface InsightLeaderboardRow {
+  id: string;
+  name: string;
+  executions: number;
+  failures: number;
+  failure_rate: number | null;
+}
+
+export interface InsightTaskExecution {
+  task_id: string;
+  org_ref?: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  agent_id: string;
+  agent_name?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  status_changed_at: string;
+  completed_at?: string;
+  assigned_at?: string;
+  started_at?: string;
+  terminal_at?: string;
+  queue_wait_seconds?: number;
+  duration_seconds?: number;
+  constituent_scopes: string[];
+}
+
+export interface InsightTaskExecutions {
+  window: InsightWindow;
+  refreshed_at: string;
+  freshness: InsightFreshness;
+  stale: boolean;
+  filter?: string;
+  value?: string;
+  items: InsightTaskExecution[];
+  total: number;
+}
+
 export type SecretKind = 'mcp' | 'cloud_credential' | 'repo_deploy_key' | 'other';
 export type SecretState = 'active' | 'revoked';
 

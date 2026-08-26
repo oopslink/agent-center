@@ -112,6 +112,9 @@ type HandlerDeps struct {
 	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
 	// endpoints are not wired (legacy/test deps).
 	PM *pmservice.Service
+	// Insight overview reads the same production PM task/action-log stores as the
+	// task runtime views. Both are optional so legacy tests can leave them unwired.
+	PMTaskActions pm.TaskActionLogRepository
 
 	// CodeRepoSvc is the workspace CodeRepo app service (v2.18.4 BE-1) backing the
 	// /api/orgs/{slug}/code-repos CRUD + credential storage. Optional — nil → 501.

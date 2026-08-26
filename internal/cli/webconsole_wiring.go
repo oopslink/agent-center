@@ -132,7 +132,8 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
 		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
 		// Wired in BOTH builders so the test handler and the live server agree.
-		Analytics: usagesql.NewAnalytics(a.DB),
+		Analytics:     usagesql.NewAnalytics(a.DB),
+		PMTaskActions: pmsql.NewTaskActionLogRepo(a.DB, a.IDGen),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
@@ -569,7 +570,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
 		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
 		// Wired in BOTH builders so the test handler and the live server agree.
-		Analytics: usagesql.NewAnalytics(a.DB),
+		Analytics:     usagesql.NewAnalytics(a.DB),
+		PMTaskActions: pmsql.NewTaskActionLogRepo(a.DB, a.IDGen),
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),

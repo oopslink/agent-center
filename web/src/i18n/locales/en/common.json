@@ -10,6 +10,7 @@
     "teamui": "Teams",
     "access": "Access",
     "reminders": "Reminders",
+    "insights": "Insights",
     "system": "System",
     "orgSettings": "Organization Settings",
     "short": {
@@ -19,6 +20,7 @@
       "teamui": "Teams",
       "access": "Access",
       "reminders": "Remind",
+      "insights": "Insight",
       "system": "Sys"
     }
   },

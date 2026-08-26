@@ -132,6 +132,9 @@ export const qk = {
   orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
   // v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
   orgPlans: (filters?: unknown) => o('orgPlans', filters ?? null),
+  insightsOverview: () => o('insights', 'overview'),
+  insightsTaskExecutions: (filter?: string, value?: string) =>
+    o('insights', 'task-executions', filter ?? '', value ?? ''),
   // T207 reminders — org-scoped list (filter/status) + a single reminder detail.
   // No-arg form returns the 3-element PREFIX (no trailing param) so an
   // invalidateQueries(qk.reminders()) prefix-matches every filtered list key

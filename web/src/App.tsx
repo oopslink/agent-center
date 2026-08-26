@@ -37,6 +37,7 @@ const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 // T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
 const Reminders = lazy(() => import('./pages/Reminders'));
+const InsightsOverview = lazy(() => import('./pages/InsightsOverview'));
 const Access = lazy(() => import('./pages/Access'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -124,6 +125,8 @@ export function App(): React.ReactElement {
           <Route path="model-catalog" element={<OrgAiRuntimeRedirect tab="models" />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
+          <Route path="insights" element={<Navigate to="overview" replace />} />
+          <Route path="insights/overview" element={<InsightsOverview />} />
           <Route path="access" element={<Navigate to="ram-roles" replace />} />
           <Route path="access/ram-roles" element={<Access page="ram-roles" />} />
           <Route path="access/subject-access" element={<Access page="subject-access" />} />

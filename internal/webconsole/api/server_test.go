@@ -133,6 +133,7 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		// the real directory over the test agent repo so agent assignment works.
 		AgentDir: agentpkg.NewOrgDirectory(agentsql.NewAgentRepo(db)),
 	})
+	deps.PMTaskActions = pmsql.NewTaskActionLogRepo(db, idgen.NewGenerator(clock.SystemClock{}))
 	// v2.7 C3: wire the Agent BC AppService for the /api/agents... routes
 	// (handlers_agent.go). Mirrors deps.PM: sqlite repos over the test DB + the
 	// workforce WorkerRepo for the worker-in-org check & availability derivation.
