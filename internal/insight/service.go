@@ -23,7 +23,7 @@ type Service struct {
 	duck   *sql.DB
 	path   string
 	ttl    time.Duration
-	mu     sync.Mutex
+	mu     sync.RWMutex
 }
 
 func DefaultDuckDBPath(sqlitePath string) string {
@@ -63,6 +63,8 @@ func (s *Service) Close() error {
 	if s == nil || s.duck == nil {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.duck.Close()
 }
 
@@ -95,13 +97,45 @@ func (s *Service) Refresh(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) StartProjector(ctx context.Context, interval time.Duration, onError func(error)) context.CancelFunc {
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	if onError == nil {
+		onError = func(error) {}
+	}
+	projCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := s.Refresh(projCtx); err != nil && !errors.Is(projCtx.Err(), context.Canceled) {
+			onError(err)
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-projCtx.Done():
+				return
+			case <-ticker.C:
+				if err := s.Refresh(projCtx); err != nil && !errors.Is(projCtx.Err(), context.Canceled) {
+					onError(err)
+				}
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
 func (s *Service) Overview(ctx context.Context, orgID string, asOf time.Time) (Overview, error) {
 	if asOf.IsZero() {
 		asOf = time.Now().UTC()
 	}
-	if err := s.Refresh(ctx); err != nil {
-		return Overview{}, err
-	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	win := makeWindow(asOf)
 	ref, fresh := s.freshness(ctx, asOf)
 	sum, err := s.summary(ctx, orgID, "", "", asOf)
@@ -128,9 +162,8 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 	if asOf.IsZero() {
 		asOf = time.Now().UTC()
 	}
-	if err := s.Refresh(ctx); err != nil {
-		return ExecutionsResponse{}, err
-	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	limit := f.Limit
 	if limit <= 0 {
 		limit = 50
@@ -170,7 +203,8 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 	}
 	defer rows.Close()
 	var out []ExecutionRow
-	var lastKey, lastID string
+	var cursorKey, cursorID string
+	hasNext := false
 	for rows.Next() {
 		var r ExecutionRow
 		var cmd, task, title, an, proj, pn, worker, outcome, reason sql.NullString
@@ -194,16 +228,19 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 		r.FinishedAt = strPtr(finished)
 		r.QueueWaitMS = intPtr(qwait)
 		r.DurationMS = intPtr(dur)
-		lastKey, lastID = sortKey.String, r.ExecutionID
+		if len(out) == limit {
+			hasNext = true
+			continue
+		}
+		cursorKey, cursorID = sortKey.String, r.ExecutionID
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
 		return ExecutionsResponse{}, err
 	}
 	next := ""
-	if len(out) > limit {
-		out = out[:limit]
-		next = encodeCursor(lastKey, lastID)
+	if hasNext {
+		next = encodeCursor(cursorKey, cursorID)
 	}
 	ref, fresh := s.freshness(ctx, asOf)
 	return ExecutionsResponse{Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Executions: out, NextCursor: next}, nil

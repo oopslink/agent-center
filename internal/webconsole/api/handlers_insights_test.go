@@ -16,11 +16,15 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
-	svc, err := insight.Open(context.Background(), db, t.TempDir()+"/insight.duckdb", time.Minute)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer svc.Close()
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	deps.Insight = svc
 	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
 	defer ts.Close()
@@ -61,6 +65,60 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
 	}
 	if out.Window.Duration != "24h" || out.Summary.Completed != 1 || out.Summary.Failed != 0 || len(out.Agents) != 1 {
 		t.Fatalf("overview body = %+v", out)
+	}
+}
+
+func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Summary struct {
+			Completed int64 `json:"completed_executions"`
+		} `json:"summary"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Summary.Completed != 0 {
+		t.Fatalf("completed from HTTP read = %d, want 0 without projector refresh", out.Summary.Completed)
+	}
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	duck, err := sql.Open("duckdb", duckPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer duck.Close()
+	var projected int
+	if err := duck.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM projected_event`).Scan(&projected); err != nil {
+		t.Fatal(err)
+	}
+	if projected != 0 {
+		t.Fatalf("HTTP read projected_event count = %d, want 0", projected)
 	}
 }
 
