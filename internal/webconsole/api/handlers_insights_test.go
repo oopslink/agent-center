@@ -1,0 +1,86 @@
+package api
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/insight"
+)
+
+func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
+	svc, err := insight.Open(context.Background(), db, t.TempDir()+"/insight.duckdb", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=12h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid window status = %d, want 400", resp.StatusCode)
+	}
+
+	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("overview status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Window struct {
+			Duration string `json:"duration"`
+		} `json:"window"`
+		Summary struct {
+			Completed int64 `json:"completed_executions"`
+			Failed    int64 `json:"failed_executions"`
+		} `json:"summary"`
+		Agents []any `json:"agents"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Window.Duration != "24h" || out.Summary.Completed != 1 || out.Summary.Failed != 0 || len(out.Agents) != 1 {
+		t.Fatalf("overview body = %+v", out)
+	}
+}
+
+func seedInsightHTTPFacts(t *testing.T, db *sql.DB, orgID string, finished time.Time) {
+	t.Helper()
+	now := finished.UTC().Format(time.RFC3339Nano)
+	execWebSQL(t, db, `INSERT INTO workers (id, organization_id, status, capabilities_json, enrolled_at, created_at, updated_at) VALUES ('worker-api', ?,'online','[]',?,?,?)`, orgID, now, now, now)
+	execWebSQL(t, db, `INSERT INTO agents (id, organization_id, name, env_vars, worker_id, lifecycle, created_by, created_at, updated_at) VALUES ('agent-api', ?, 'Agent API', '{}', 'worker-api', 'running', 'user:test', ?, ?)`, orgID, now, now)
+	execWebSQL(t, db, `INSERT INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES ('project-api', ?, 'Project API', '', 'active', 'user:test', ?, ?)`, orgID, now, now)
+	execWebSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES ('task-api', 'project-api', 'Task API', '', 'running', 'agent:agent-api', 'user:test', ?, ?)`, now, now)
+	started := finished.Add(-time.Second)
+	payloadStart := `{"event":"executor.start","executor_id":"exec-api","cli":"codex","model":"gpt-5"}`
+	payloadStop := `{"event":"executor.stop","executor_id":"exec-api","outcome":"succeeded"}`
+	execWebSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at) VALUES ('api-start','agent-api','task-api','executor:exec-api','lifecycle',?,?)`, payloadStart, started.Format(time.RFC3339Nano))
+	execWebSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at) VALUES ('api-stop','agent-api','task-api','executor:exec-api','lifecycle',?,?)`, payloadStop, finished.Format(time.RFC3339Nano))
+}
+
+func execWebSQL(t *testing.T, db *sql.DB, q string, args ...any) {
+	t.Helper()
+	if _, err := db.ExecContext(context.Background(), q, args...); err != nil {
+		t.Fatalf("exec %s: %v", q, err)
+	}
+}

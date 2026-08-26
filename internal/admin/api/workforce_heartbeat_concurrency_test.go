@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/insight"
 )
 
 func postHeartbeat(t *testing.T, deps HandlerDeps, body any) int {
@@ -32,6 +35,7 @@ func TestWorkerHeartbeat_WritesConcurrencySnapshots(t *testing.T) {
 	deps := newWorkerEnrollTestDeps(t)
 	store := concurrency.NewInMemoryStore()
 	deps.LiveState = store
+	deps.InsightObservations = insight.NewObservationRepo(deps.DB, idgen.NewGenerator(clock.SystemClock{}))
 	// The worker must exist (enroll creates it).
 	if status, _ := postEnroll(t, deps, map[string]any{"worker_id": "w-1", "capabilities": []string{"claude-code"}}); status != http.StatusOK {
 		t.Fatalf("enroll status = %d", status)
@@ -76,6 +80,13 @@ func TestWorkerHeartbeat_WritesConcurrencySnapshots(t *testing.T) {
 	}
 	if len(snap.Slots) != 3 || snap.Slots[2].State != concurrency.StateDraining {
 		t.Errorf("slots = %+v, want third draining slot", snap.Slots)
+	}
+	var observations int
+	if err := deps.DB.QueryRow(`SELECT COUNT(*) FROM agent_concurrency_observations WHERE worker_id='w-1' AND agent_id='agent-1'`).Scan(&observations); err != nil {
+		t.Fatal(err)
+	}
+	if observations != 1 {
+		t.Fatalf("durable observations = %d, want 1", observations)
 	}
 }
 

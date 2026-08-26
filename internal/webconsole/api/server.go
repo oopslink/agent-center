@@ -178,6 +178,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/preview", s.permissionsBatchPreviewHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/apply", s.permissionsBatchApplyHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/permissions/batch/revoke", s.permissionsBatchRevokeHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/overview", s.insightsOverviewHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/executions", s.insightsExecutionsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/apply", s.accessBatchApplyHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs

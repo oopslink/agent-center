@@ -35,6 +35,7 @@ import (
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
@@ -229,11 +230,13 @@ type App struct {
 	IdentityInvitationRepo      identity.InvitationRepository
 
 	// Observability Phase 4
-	QuerySvc  *query.Service
-	FleetSvc  *query.FleetSnapshotService
-	StatsSvc  *query.StatsService
-	LogsSvc   *query.LogsService
-	BlobStore blobstore.BlobStore
+	QuerySvc               *query.Service
+	FleetSvc               *query.FleetSnapshotService
+	StatsSvc               *query.StatsService
+	LogsSvc                *query.LogsService
+	BlobStore              blobstore.BlobStore
+	InsightSvc             *insight.Service
+	InsightObservationRepo *insight.ObservationRepo
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -467,6 +470,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:  clk,
 	})
 	liveState := concurrency.NewInMemoryStore()
+	insightSvc, _ := insight.Open(context.Background(), db, insight.DefaultDuckDBPath(cfg.Server.SqlitePath), insight.DefaultFreshnessSLA)
+	insightObservations := insight.NewObservationRepo(db, gen)
 
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:               db,
@@ -657,11 +662,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,
 
-		QuerySvc:  querySvc,
-		FleetSvc:  fleetSvc,
-		StatsSvc:  statsSvc,
-		LogsSvc:   logsSvc,
-		BlobStore: bs,
+		QuerySvc:               querySvc,
+		FleetSvc:               fleetSvc,
+		StatsSvc:               statsSvc,
+		LogsSvc:                logsSvc,
+		BlobStore:              bs,
+		InsightSvc:             insightSvc,
+		InsightObservationRepo: insightObservations,
 	}
 
 	// I103 §2: wire the production on_timeout sink now that the App (and thus
