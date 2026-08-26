@@ -135,6 +135,9 @@ func TestInsightCheckpointRestartDoesNotDuplicateFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := first.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := first.Overview(ctx, "org-1", asOf); err != nil {
 		t.Fatal(err)
 	}
@@ -146,6 +149,9 @@ func TestInsightCheckpointRestartDoesNotDuplicateFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = second.Close() })
+	if err := second.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := second.Overview(ctx, "org-1", asOf); err != nil {
 		t.Fatal(err)
 	}
@@ -278,6 +284,9 @@ func TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = svc.Close() })
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
 	o, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
 		t.Fatal(err)
