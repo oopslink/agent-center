@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
@@ -23,6 +26,7 @@ import (
 // the conversation cascade (so EvtPlanDeleted hard-deletes / EvtPlanArchived
 // archives the plan conversation) — the surface DeletePlan/ArchivePlan exercise.
 type planRemovalHarness struct {
+	db       *sql.DB
 	svc      *Service
 	plans    *pmsql.PlanRepo
 	tasks    *pmsql.TaskRepo
@@ -55,7 +59,8 @@ func planRemovalSetup(t *testing.T) *planRemovalHarness {
 	tasks := pmsql.NewTaskRepo(db)
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
-		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
+		OrgMembers: identity.NewSQLiteMemberRepo(db),
+		Issues:     pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
 		AgentDir:       allOrgDir("org-1"),
@@ -65,7 +70,7 @@ func planRemovalSetup(t *testing.T) *planRemovalHarness {
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk).
 		WithConversationCascade(msgRepo, readState)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	return &planRemovalHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, relay: relay, ctx: context.Background()}
+	return &planRemovalHarness{db: db, svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, relay: relay, ctx: context.Background()}
 }
 
 func (h *planRemovalHarness) drain(t *testing.T) {
@@ -99,6 +104,114 @@ func (h *planRemovalHarness) seedTaskInPlan(t *testing.T, pid pm.ProjectID, plan
 	}
 	h.drain(t)
 	return tid
+}
+
+func (h *planRemovalHarness) seedIdentityOrgMember(t *testing.T, orgID, identityID string, role identity.MemberRole) {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	hash, _ := identity.HashPasscode("123456")
+	id := identity.RehydrateIdentity(identityID, identity.KindUser, identityID, "", identity.AccountActive, hash, &now, now, now)
+	if err := identity.NewSQLiteIdentityRepo(h.db).Save(h.ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	m, err := identity.MemberFactory{}.New(orgID, identityID, role, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewSQLiteMemberRepo(h.db).Save(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *planRemovalHarness) seedOrg(t *testing.T, orgID string) {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	org := identity.RehydrateOrganization(orgID, "org-owner-plan", "Org Owner Plan", "", "a", now, now, nil, nil)
+	if err := identity.NewSQLiteOrganizationRepo(h.db).Save(h.ctx, org); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember(t *testing.T) {
+	h := planRemovalSetup(t)
+	h.seedOrg(t, "org-1")
+	h.seedIdentityOrgMember(t, "org-1", "org-owner", identity.RoleOwner)
+	h.seedIdentityOrgMember(t, "org-1", "plain-member", identity.RoleMember)
+
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, actor := range []pm.IdentityRef{"user:org-owner", "user:plain-member"} {
+		if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{
+			ProjectID: pid, IdentityID: actor, Role: pm.RoleMember, Actor: "user:a",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, tc := range []struct {
+		name  string
+		pause bool
+	}{
+		{name: "running"},
+		{name: "paused", pause: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "org-owner-" + tc.name, CreatedBy: "user:a"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.drain(t)
+			taskID := h.seedTaskInPlan(t, pid, planID, "task-"+tc.name, "user:org-owner")
+			if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.pause {
+				if err := h.svc.PausePlan(h.ctx, planID, "user:a"); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if err := h.svc.DiscardPlan(h.ctx, planID, "user:org-owner"); err != nil {
+				t.Fatalf("org owner project member DiscardPlan(%s): %v", tc.name, err)
+			}
+			p, err := h.plans.FindByID(h.ctx, planID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Status() != pm.PlanDiscarded {
+				t.Fatalf("plan status=%s want discarded", p.Status())
+			}
+			task, err := h.tasks.FindByID(h.ctx, taskID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if task.Status() != pm.TaskDiscarded {
+				t.Fatalf("task status=%s want discarded", task.Status())
+			}
+		})
+	}
+
+	plainPlan, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "plain-member", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	h.seedTaskInPlan(t, pid, plainPlan, "plain-task", "user:plain-member")
+	if err := h.svc.StartPlan(h.ctx, plainPlan, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.DiscardPlan(h.ctx, plainPlan, "user:plain-member"); !errors.Is(err, ErrStageGateReopenForbidden) {
+		t.Fatalf("plain project member DiscardPlan err=%v want forbidden", err)
+	}
+	p, err := h.plans.FindByID(h.ctx, plainPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status() != pm.PlanRunning {
+		t.Fatalf("plain member rejection mutated plan status=%s want running", p.Status())
+	}
 }
 
 // --- DeletePlan -------------------------------------------------------------

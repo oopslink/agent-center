@@ -257,6 +257,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pmservice.ErrStageGateReopenForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),

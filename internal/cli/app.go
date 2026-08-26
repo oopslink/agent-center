@@ -473,6 +473,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Orch:             orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
 		Projects:         pmsql.NewProjectRepo(db),
 		Members:          pmsql.NewProjectMemberRepo(db),
+		OrgMembers:       identity.NewSQLiteMemberRepo(db),
 		Issues:           pmsql.NewIssueRepo(db),
 		Tasks:            pmsql.NewTaskRepo(db),
 		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),

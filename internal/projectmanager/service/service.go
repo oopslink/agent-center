@@ -19,6 +19,7 @@ import (
 	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -214,6 +215,7 @@ type Service struct {
 	db           *sql.DB
 	projects     pm.ProjectRepository
 	members      pm.ProjectMemberRepository
+	orgMembers   identity.MemberRepository
 	issues       pm.IssueRepository
 	tasks        pm.TaskRepository
 	taskSubs     pm.TaskSubscriberRepository
@@ -353,9 +355,12 @@ var ErrNodeNotPaused = errors.New("projectmanager: plan node has no paused work 
 
 // Deps bundles the Service dependencies.
 type Deps struct {
-	DB           *sql.DB
-	Projects     pm.ProjectRepository
-	Members      pm.ProjectMemberRepository
+	DB       *sql.DB
+	Projects pm.ProjectRepository
+	Members  pm.ProjectMemberRepository
+	// OrgMembers is OPTIONAL for older tests. When wired, Plan lifecycle owner gates
+	// also accept an active owner of the Plan's organization.
+	OrgMembers   identity.MemberRepository
 	Issues       pm.IssueRepository
 	Tasks        pm.TaskRepository
 	TaskSubs     pm.TaskSubscriberRepository
@@ -454,7 +459,7 @@ func New(d Deps) *Service {
 		})
 	}
 	return &Service{
-		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
+		db: d.DB, projects: d.Projects, members: d.Members, orgMembers: d.OrgMembers, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,

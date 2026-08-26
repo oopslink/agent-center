@@ -546,7 +546,8 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 }
 
 // PausePlan closes new dispatch while preserving the immutable execution history.
-// Only the Plan creator or a Project owner may change this control latch.
+// Only the Plan creator, a Project owner, or an active owner of the Project's
+// organization may change this control latch.
 func (s *Service) PausePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
