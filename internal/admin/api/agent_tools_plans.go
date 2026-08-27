@@ -1250,7 +1250,95 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 			m["pending_decisions"] = blockedOnList(pend)
 		}
 	}
+	if detail.ProgressControl != nil {
+		m["progress_control"] = agentPlanProgressControlMap(detail.ProgressControl)
+	}
 	return m
+}
+
+func agentPlanProgressControlMap(pc *pm.ProgressControl) map[string]any {
+	out := map[string]any{
+		"as_of":                 planTimeOrEmpty(pc.AsOf),
+		"health":                string(pc.Health),
+		"freshness":             map[string]any{"state": string(pc.Freshness.State), "watermark_lag_ms": pc.Freshness.WatermarkLag.Milliseconds(), "threshold_ms": pc.Freshness.Threshold.Milliseconds(), "source": pc.Freshness.Source},
+		"decision":              string(pc.Decision),
+		"observation_vector_id": pc.ObservationVectorID,
+		"quality":               string(pc.Quality),
+		"open_obligations":      agentPlanProgressObligations(pc.OpenObligations),
+		"open_incidents":        agentPlanProgressIncidents(pc.OpenIncidents),
+		"open_holds":            agentPlanProgressHolds(pc.OpenHolds),
+		"required_actions":      agentPlanProgressRequiredActions(pc.RequiredActions),
+		"valid_in_flight":       agentPlanProgressInFlight(pc.ValidInFlight),
+		"coverage": map[string]any{
+			"total_nodes":              pc.Coverage.TotalNodes,
+			"classified_nodes":         pc.Coverage.ClassifiedNodes,
+			"verified_progress_nodes":  pc.Coverage.VerifiedProgressNodes,
+			"responsibility_nodes":     pc.Coverage.ResponsibilityNodes,
+			"cannot_determine_nodes":   pc.Coverage.CannotDetermineNodes,
+			"suspect_nodes":            pc.Coverage.SuspectNodes,
+			"valid_in_flight_nodes":    pc.Coverage.ValidInFlightNodes,
+			"open_obligations":         pc.Coverage.OpenObligations,
+			"open_incidents":           pc.Coverage.OpenIncidents,
+			"open_holds":               pc.Coverage.OpenHolds,
+			"blocked_on_rows_observed": pc.Coverage.BlockedOnRowsObserved,
+			"missing_deadline_holds":   pc.Coverage.MissingDeadlineHolds,
+		},
+	}
+	if pc.PrimaryAttention != nil {
+		out["primary_attention"] = agentPlanProgressRequiredAction(*pc.PrimaryAttention)
+	}
+	return out
+}
+
+func agentPlanProgressObligations(rows []pm.ProgressObligation) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"id": r.ID, "plan_id": string(r.PlanID), "task_id": string(r.TaskID), "kind": r.Kind, "owner_ref": string(r.OwnerRef), "owner_display": r.OwnerDisplay, "deadline_at": planTimeOrEmpty(r.DeadlineAt), "ack_required": r.AckRequired, "acked_at": planTimeOrEmpty(r.AckedAt), "escalate_to_ref": string(r.EscalateToRef), "escalation_deadline_at": planTimeOrEmpty(r.EscalationDeadlineAt), "source_fact_refs": r.SourceFactRefs, "status": r.Status, "created_at": planTimeOrEmpty(r.CreatedAt), "updated_at": planTimeOrEmpty(r.UpdatedAt)})
+	}
+	return out
+}
+
+func agentPlanProgressIncidents(rows []pm.ProgressIncident) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"id": r.ID, "plan_id": string(r.PlanID), "task_id": string(r.TaskID), "kind": r.Kind, "owner_ref": string(r.OwnerRef), "owner_display": r.OwnerDisplay, "deadline_at": planTimeOrEmpty(r.DeadlineAt), "ack_required": r.AckRequired, "acked_at": planTimeOrEmpty(r.AckedAt), "escalate_to_ref": string(r.EscalateToRef), "escalation_deadline_at": planTimeOrEmpty(r.EscalationDeadlineAt), "source_fact_refs": r.SourceFactRefs, "status": r.Status, "created_at": planTimeOrEmpty(r.CreatedAt), "updated_at": planTimeOrEmpty(r.UpdatedAt)})
+	}
+	return out
+}
+
+func agentPlanProgressHolds(rows []pm.ProgressHold) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"id": r.ID, "plan_id": string(r.PlanID), "task_id": string(r.TaskID), "reason_kind": r.ReasonKind, "reason_id": r.ReasonID, "blocks_new_dispatch": r.BlocksNewDispatch, "blocks_gate_pass_token": r.BlocksGatePassToken, "blocks_destructive_downstream_start": r.BlocksDestructiveDownstreamStart, "in_flight_policy": r.InFlightPolicy, "hold_ack_deadline": planTimeOrEmpty(r.HoldAckDeadline), "max_hold_duration_ms": r.MaxHoldDuration.Milliseconds(), "started_at": planTimeOrEmpty(r.StartedAt), "deadline_at": planTimeOrEmpty(r.DeadlineAt), "released_at": planTimeOrEmpty(r.ReleasedAt), "release_fact_ref": r.ReleaseFactRef, "acked_at": planTimeOrEmpty(r.AckedAt), "age_ms": r.Age.Milliseconds(), "deadline_remaining_ms": r.DeadlineRemaining.Milliseconds()})
+	}
+	return out
+}
+
+func agentPlanProgressRequiredActions(rows []pm.ProgressRequiredAction) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, agentPlanProgressRequiredAction(r))
+	}
+	return out
+}
+
+func agentPlanProgressRequiredAction(r pm.ProgressRequiredAction) map[string]any {
+	return map[string]any{"id": r.ID, "kind": string(r.Kind), "action": r.Action, "subject_id": r.SubjectID, "node_id": r.NodeID, "owner_ref": string(r.OwnerRef), "deadline_at": planTimeOrEmpty(r.DeadlineAt), "ack_required": r.AckRequired, "acked_at": planTimeOrEmpty(r.AckedAt), "hold_id": r.HoldID, "incident_id": r.IncidentID, "obligation_id": r.ObligationID, "severity": r.Severity, "source": r.Source, "summary": r.Summary}
+}
+
+func agentPlanProgressInFlight(rows []pm.ProgressInFlight) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"task_id": string(r.TaskID), "node_id": r.NodeID, "status": string(r.Status), "assignee_ref": string(r.AssigneeRef), "started_at": planTimeOrEmpty(r.StartedAt), "quality": string(r.Quality), "source": r.Source})
+	}
+	return out
+}
+
+func planTimeOrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 // planSummaryMap renders a Plan for the list tool: the bare Plan fields plus the
