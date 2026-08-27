@@ -1,0 +1,449 @@
+{
+  "task_id": "task-2ef2af2b",
+  "execution_id": "exec-161ad4ba",
+  "reviewed_sha": "8e2a7e58b46effa8a7b48b14824a306be551c97e",
+  "base_sha": "16dc58155dfa0cafd79c08595c8a8e378b5eede9",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 . | head -200'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"git fetch --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git fetch --prune origin main:refs/remotes/origin/main'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse --git-dir \u0026\u0026 ls -l $(git rev-parse --git-dir)/refs/remotes/origin || true \u0026\u0026 git symbolic-ref refs/remotes/origin/HEAD || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git show-ref --heads --tags --verify refs/heads/main || true \u0026\u0026 git rev-parse --verify main \u0026\u0026 git rev-parse --verify FETCH_HEAD \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"ls \u0026\u0026 find . -maxdepth 3 -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'go.mod' -o -name 'Makefile'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git merge --ff-only main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"rg -n \\\"Insight|fresh|stale|TaskExecution|metrics|ranking|DuckDB|duckdb|replay|crash|exactly\\\" . --glob '\"'!node_modules'\"' --glob '\"'!web/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/insight/helpers.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"rg -n \\\"Insight|freshness|stale|rebuilding|unavailable|TaskExecution|Past 24|24h|insights\\\" web/src internal/webconsole internal/insight --glob '\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '360,520p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' web/src/pages/InsightOverview.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' internal/webconsole/api/handlers_insights.go \u0026\u0026 sed -n '1,180p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/s6-r4-origin-main/raw-logs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc '{ test -f task-input/v1/README.md; echo README_exists=$?; test -f task-input/v1/manifest.json; echo manifest_exists=$?; find . -path '\"'./task-input/v1/*' -maxdepth 4 2\u003e/dev/null; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/01-task-input.log 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'git status --short --branch \u003e docs/acceptance/s6-r4-origin-main/raw-logs/02-pre-test-status.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"{ date -u; git ls-remote origin refs/heads/main; git rev-parse HEAD; git rev-parse main; git merge-base --is-ancestor ca953dbd2a6b58e04b542d62a1a2ea196d278f68 main \u0026\u0026 echo 'candidate-ancestor-of-main=yes'; git diff --stat 16dc58155dfa0cafd79c08595c8a8e378b5eede9..main -- internal/insight/helpers.go internal/insight/service_test.go internal/webconsole/api/handlers_insights_test.go; git diff --name-status 16dc58155dfa0cafd79c08595c8a8e378b5eede9..main -- internal/insight/helpers.go internal/insight/service_test.go internal/webconsole/api/handlers_insights_test.go; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/00-provenance.log 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm install --frozen-lockfile \u003e ../docs/acceptance/s6-r4-origin-main/raw-logs/20-web-pnpm-install.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"go test ./internal/insight -run 'TestInsight(Replay|Freshness|SlotObservation|PreCommit|PostCommit|ExecutionsCursor)' -count=1 -v \u003e docs/acceptance/s6-r4-origin-main/raw-logs/10-go-insight-targeted.log 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'TestInsights' -count=1 -v \u003e docs/acceptance/s6-r4-origin-main/raw-logs/11-go-api-insights.log 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm vitest run src/pages/InsightOverview.test.tsx --runInBand \u003e ../docs/acceptance/s6-r4-origin-main/raw-logs/21-web-insight-vitest.log 2\u003e\u00261'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm exec tsc -b \u003e ../docs/acceptance/s6-r4-origin-main/raw-logs/22-web-tsc.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/s6-r4-origin-main/raw-logs/21-web-insight-vitest.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' docs/acceptance/s6-r4-origin-main/raw-logs/22-web-tsc.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm vitest run src/pages/InsightOverview.test.tsx --pool=forks --poolOptions.forks.singleFork \u003e ../docs/acceptance/s6-r4-origin-main/raw-logs/21b-web-insight-vitest.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm build \u003e ../docs/acceptance/s6-r4-origin-main/raw-logs/23-web-build.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc 'make build \u003e docs/acceptance/s6-r4-origin-main/raw-logs/30-make-build.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'for f in docs/acceptance/s6-r4-origin-main/raw-logs/{10-go-insight-targeted.log,11-go-api-insights.log,21b-web-insight-vitest.log,23-web-build.log,30-make-build.log}; do echo $f; tail -40 $f; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'make lint \u003e docs/acceptance/s6-r4-origin-main/raw-logs/31-make-lint.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'tail -120 docs/acceptance/s6-r4-origin-main/raw-logs/12-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'tail -80 docs/acceptance/s6-r4-origin-main/raw-logs/31-make-lint.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'tail -80 docs/acceptance/s6-r4-origin-main/raw-logs/12-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'go test ./... \u003e docs/acceptance/s6-r4-origin-main/raw-logs/12-go-test-all.log 2\u003e\u00261'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'tail -220 docs/acceptance/s6-r4-origin-main/raw-logs/12-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'rg -n \"FAIL|panic|--- FAIL|Error|fatal|timeout|signal\" docs/acceptance/s6-r4-origin-main/raw-logs/12-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'git diff -- internal/insight/helpers.go internal/insight/service_test.go internal/webconsole/api/handlers_insights_test.go \u003e docs/acceptance/s6-r4-origin-main/raw-logs/03-main-remediation-diff.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"{ date -u; lsof -nP -iTCP:7100 -sTCP:LISTEN || true; ps -axo pid,ppid,command | rg 'agent-center|7100|rvskew' || true; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/40-e2e-env-diagnostics.log 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/helpers.go | sed -n '60,110p'; nl -ba internal/insight/service.go | sed -n '145,300p'; nl -ba internal/webconsole/api/handlers_insights.go | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"nl -ba web/src/pages/InsightOverview.test.tsx | sed -n '100,290p'; nl -ba internal/insight/service_test.go | sed -n '17,185p'; nl -ba internal/insight/service_test.go | sed -n '379,485p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'go test ./tests/e2e -count=1 -v \u003e docs/acceptance/s6-r4-origin-main/raw-logs/41-go-e2e-rerun.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' docs/acceptance/s6-r4-origin-main/raw-logs/40-e2e-env-diagnostics.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'tail -120 docs/acceptance/s6-r4-origin-main/raw-logs/41-go-e2e-rerun.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git ls-tree -r --name-only HEAD | head -20 \u0026\u0026 git ls-tree -r --name-only HEAD | wc -l \u0026\u0026 git diff --cached --name-only | wc -l \u0026\u0026 git diff --name-only | wc -l'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc \"git status --short --branch | sed -n '1,80p' \u0026\u0026 git rev-parse --is-inside-work-tree \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline -3 --decorate\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git diff --cached --stat | tail -40 \u0026\u0026 git diff --stat | tail -40'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"git reset --mixed main \u0026\u0026 git status --short --branch | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' docs/acceptance/s6-r4-origin-main/raw-logs/00-provenance.log \u0026\u0026 sed -n '1,80p' docs/acceptance/s6-r4-origin-main/raw-logs/01-task-input.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc '(cd docs/acceptance/s6-r4-origin-main/raw-logs \u0026\u0026 shasum -a 256 * \u003e SHA256SUMS)'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' docs/acceptance/s6-r4-origin-main/verdict.json \u0026\u0026 tail -20 docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc '{ date -u; git ls-remote origin refs/heads/main; git rev-parse main; git rev-parse HEAD; git merge-base --is-ancestor ca953dbd2a6b58e04b542d62a1a2ea196d278f68 HEAD \u0026\u0026 echo candidate-ancestor-of-HEAD=yes; git status --short --branch; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/90-final-precommit-state.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc '(cd docs/acceptance/s6-r4-origin-main/raw-logs \u0026\u0026 shasum -a 256 * \u003e SHA256SUMS) \u0026\u0026 tail -8 docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' docs/acceptance/s6-r4-origin-main/raw-logs/90-final-precommit-state.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc '{ find docs/acceptance/s6-r4-origin-main -type f ! -name SHA256SUMS | sort | xargs shasum -a 256; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS \u0026\u0026 git add docs/acceptance/s6-r4-origin-main \u0026\u0026 git commit -m \"Add S6-R4 origin main acceptance report\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-2ef2af2b/exec-161ad4ba'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph -3 \u0026\u0026 git rev-parse HEAD''^ \u0026\u0026 git rev-parse main \u0026\u0026 git diff --stat HEAD''^..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'git remote show -n origin \u0026\u0026 git remote show -n origin-push'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-2ef2af2b/exec-161ad4ba'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_97",
+      "command": "/bin/zsh -lc \"printf 'Thu Aug 27 15:03:10 UTC 2026\\\\nCOMMAND     PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\\\\nagent-cen 76377 oopslink   11u  IPv4 0x9c9d17d49eb4e06a      0t0  TCP 127.0.0.1:7100 (LISTEN)\\\\n' \u003e docs/acceptance/s6-r4-origin-main/raw-logs/40-e2e-env-diagnostics.log\n{ find docs/acceptance/s6-r4-origin-main -type f \"'! -name SHA256SUMS | sort | xargs shasum -a 256; } \u003e docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS\ngit add docs/acceptance/s6-r4-origin-main/raw-logs/40-e2e-env-diagnostics.log docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS\ngit commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc 'rg -n \"acat_|--admin-token|mcp_config|server-fingerprint|worker token|admin-target\" docs/acceptance/s6-r4-origin-main || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc 'git push --force-with-lease origin-push HEAD:refs/heads/ac-exec/task-2ef2af2b/exec-161ad4ba'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' docs/acceptance/s6-r4-origin-main/raw-logs/SHA256SUMS \u0026\u0026 sed -n '1,120p' docs/acceptance/s6-r4-origin-main/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_101",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git ls-remote origin-push refs/heads/ac-exec/task-2ef2af2b/exec-161ad4ba \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse HEAD''^ \u0026\u0026 git rev-parse main \u0026\u0026 git diff --stat HEAD''^..HEAD'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-161ad4ba/command_events.jsonl",
+  "command_event_digest": "sha256:6eecf7f7ede92585c3ac95171a9d2d9532b1ed449ad319a490ee0a4309dcf52f",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "完成 S6-R4 独立终验并交付 durable evidence commit。",
+  "artifact_digest": "sha256:87e36110716d2d7ecc13c09f99a65927fc70aec2cfc688edeb506033914371e2",
+  "path": ".agent-center/evidence/task-2ef2af2b/exec-161ad4ba.json",
+  "branch": "ac-exec/task-2ef2af2b/exec-161ad4ba"
+}
