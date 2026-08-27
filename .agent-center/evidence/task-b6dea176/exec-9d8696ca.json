@@ -1,0 +1,263 @@
+{
+  "task_id": "task-b6dea176",
+  "execution_id": "exec-9d8696ca",
+  "reviewed_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "base_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files -n task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git rev-parse --show-toplevel'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"git branch -a --contains HEAD | sed -n '1,120p' \u0026\u0026 git log -1 --oneline --decorate\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*task-input*' -o -name 'manifest.json' -o -name 'README.md' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse origin/s3/phase0-candidate-58626ffe \u0026\u0026 git cat-file -t origin/s3/phase0-candidate-58626ffe'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git fetch origin refs/heads/s3/phase0-candidate-58626ffe:refs/remotes/origin/s3/phase0-candidate-58626ffe --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='commit=%H%nparents=%P%ntree=%T%nauthor=%an \u003c%ae\u003e%ndate=%cI%nsubject=%s' 58626ffebe569bc04daf10e5f195ba57b8f181b9\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'test ! -e ../t1622-58626ffe-isolated \u0026\u0026 git worktree add --detach ../t1622-58626ffe-isolated 58626ffebe569bc04daf10e5f195ba57b8f181b9'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'rg -n \"torn|stability|fence|fencing|lease|watchdog|fail-closed|cannot_determine|progress_hold|hold_slo|wake|token bucket|suppressed|P0|degraded|watermark|suspect\" .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"rg --files | rg '(_test\\\\.go\"'$|test|spec)'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse --abbrev-ref HEAD \u0026\u0026 git branch -r --contains HEAD | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"rg -n \\\"torn|stability|fence|lease|watchdog|fail.closed|cannot_determine|progress_hold|hold_slo|wake|bucket|suppressed|degraded|watermark|suspect|P0\\\" internal/projectmanager internal/admin/api internal/webconsole/api | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"ls -la internal/projectmanager | sed -n '1,220p' \u0026\u0026 ls -la internal/projectmanager/service | sed -n '1,220p' \u0026\u0026 ls -la internal/projectmanager/sqlite | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/... ./internal/admin/api ./internal/webconsole/api -run 'Progress|Wake|Lease|Watchdog|Deadline|Hold|SLO|Degraded|Watermark|Control' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/projectmanager/service/progress_control_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '280,620p' internal/projectmanager/service/progress_control_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/progress_control_s2d_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/progress_observation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '760,900p' internal/projectmanager/service/reads.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' internal/projectmanager/service/progress_control.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' internal/projectmanager/service/progress_observation.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/projectmanager/sqlite/progress_control_repo.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/webconsole/api/progress_control_contract_test.go \u0026\u0026 sed -n '1,220p' internal/admin/api/progress_control_contract_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api ./internal/admin/api -run 'ProgressControl.*Contract|PMProgressControlMapContract|ProgressControlMapContract' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestProgressControl_(TornReadDisappearanceRequiresSecondConfirmation|WatermarkLagDedupsIncident|StaleFenceConflictPersistsWithoutMutation|WatchdogIndependentFromPlanReconcile|WatchdogSilentCreatesServiceIncident|WatchdogTreatsMissingHeartbeatAsSilent|WakeBucketP0ReserveAndAutoResume|WakeStormAggregates1000PlansAndDurablyDrains|ReconcileExpiredWakeCreatesHoldAndEscalates)|TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch|TestProgressHold_' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"rg -n \\\"ProgressFence|progress_fence|fencing|Watchdog|ProgressWatchdog|SuppressedWake|wake_bucket|suppressed\\\" internal/projectmanager internal/persistence internal/projectmanager/sqlite | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"rg -n \\\"pm_progress_(fences|observations|incidents|holds|wake|suppressed|buckets)|progress_control\\\" internal/persistence -S | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'go test ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/projectmanager ./internal/admin/api ./internal/webconsole/api -count=1'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'git rev-parse 87e0383cedf6246e76c9d883fd1859452f0d7173''^{tree} 58626ffebe569bc04daf10e5f195ba57b8f181b9''^{tree} \u0026\u0026 git diff --stat 87e0383cedf6246e76c9d883fd1859452f0d7173 58626ffebe569bc04daf10e5f195ba57b8f181b9'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/progress_control_s2d_test.go | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/progress_control_test.go | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/progress_observation_test.go | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/progress_control_test.go | sed -n '258,285p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/reads.go | sed -n '720,820p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"nl -ba internal/projectmanager/service/progress_control_s2d.go | sed -n '1,230p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"rg -n \\\"func \\\\(r \\\\*ProgressControlRepo\\\\) SnapshotPlan|SnapshotPlan\\\" internal/projectmanager/sqlite/progress_control_repo.go internal/projectmanager -S | sed -n '1,120p' \u0026\u0026 nl -ba internal/projectmanager/sqlite/progress_control_repo.go | sed -n '360,540p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/s3/phase0-candidate-58626ffe'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'TestProgressControl_(TornReadDisappearanceRequiresSecondConfirmation|WatermarkLagDedupsIncident|WatchdogTreatsMissingHeartbeatAsSilent)' -count=1 -v\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-9d8696ca/command_events.jsonl",
+  "command_event_digest": "sha256:65b0444a7e08e8b695b696b4063ab7bbfd3588242f55a0b440568283dfe738fd",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT.",
+  "artifact_digest": "sha256:52e49e488114018272aa90d7f29396ea259f9e58cbe4398d7a2dcb50f98c4fd7",
+  "path": ".agent-center/evidence/task-b6dea176/exec-9d8696ca.json",
+  "branch": "ac-exec/task-b6dea176/exec-9d8696ca"
+}
