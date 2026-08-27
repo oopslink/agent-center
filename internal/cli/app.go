@@ -489,6 +489,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Stages:           pmsql.NewStageRepo(db),          // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		AssignmentPools:  pmsql.NewAssignmentPoolRepo(db), // ADR-0055: background pull queue, independent of Plan
 		Remediation:      pmsql.NewRemediationRepo(db),
+		ProgressControl:  pmsql.NewProgressControlRepo(db),
 		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		// I103 §2: turn the deadline engine ON in production — the reconcile materialize
 		// assigns each BlockedOn node its per-wait_type deadline + on_timeout action, and
