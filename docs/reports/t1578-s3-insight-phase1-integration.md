@@ -1,5 +1,16 @@
 # T1578 Insight Phase 1 integration evidence
 
+## Authoritative candidate identity
+
+- The single authoritative candidate ref is `refs/heads/s3/insight-phase1-candidate-20260827`.
+- Its delivery alias is `refs/heads/ac-exec/task-5493aaeb/exec-9bd82743`. After publication, both refs must resolve to the same immutable evidence-commit SHA; the post-push `git ls-remote` readback is the authoritative record of that SHA.
+- The evidence commit is based directly on verified candidate `9419d5da2e21c9b9e15183efe33c869ef2413ccc` and changes only this integration report. Thus its production code tree is exactly the verified `9419d5da` code tree.
+- `refs/heads/ac-exec/task-eebbbe21/exec-26365c40` is the historical input delivery ref for `9419d5da`, not an additional authoritative S3 candidate.
+
+### Stale-ref convergence decision
+
+Before remediation, the authoritative S3 name incorrectly resolved to stale and incomplete SHA `3fdc241158dfe369354e73f62b712311f4cac11b`, while the verified candidate resolved from the historical delivery ref to `9419d5da2e21c9b9e15183efe33c869ef2413ccc`. The stale S3 ref must be updated with `--force-with-lease` against the observed `3fdc2411` value, then read back together with the delivery alias. Any mismatch between those two refs is a gate failure; no consumer should select the historical input ref or the superseded `3fdc2411` SHA as the S3 candidate.
+
 ## Candidate construction
 
 - Base: `origin/main` at `b66fe30eb3c3d5bbcedda4ef711150d391f67b81`.
@@ -37,4 +48,3 @@ The early S2B SHA and the S2B-R line share `16a41203` as merge-base. The S2B-R l
 - `pnpm exec vitest run src/pages/InsightOverview.test.tsx`: PASS (11/11).
 - `pnpm exec tsc -b --force`: PASS.
 - `pnpm test`: PASS (193 files, 1820 tests).
-
