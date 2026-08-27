@@ -88,6 +88,7 @@ const (
 	ObligationProduceDelivery ProgressObligationKind = "produce_delivery"
 	ObligationSourceRecovery  ProgressObligationKind = "source_recovery"
 	ObligationAckWake         ProgressObligationKind = "ack_wake"
+	ObligationHumanDecision   ProgressObligationKind = "human_decision"
 	ProgressObligationAckWake                        = "ack_wake"
 )
 
@@ -202,6 +203,25 @@ type ProgressObligation struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	Version              int
+}
+
+// ProgressPrerequisiteSubscription is the durable second-clock contract for a
+// human decision that is intentionally waiting on an authoritative fact. A chat
+// reply is never a subscription: the prerequisite task, next deadline and action
+// are all explicit and replayable.
+type ProgressPrerequisiteSubscription struct {
+	ID                 string
+	PlanID             PlanID
+	DecisionTaskID     TaskID
+	PrerequisiteTaskID TaskID
+	OwnerRef           IdentityRef
+	NextDeadlineAt     time.Time
+	Action             string
+	ReasonFactRef      string
+	Status             ResponsibilityStatus
+	CreatedAt          time.Time
+	ResolvedAt         time.Time
+	DecisionFactRef    string
 }
 
 type ProgressWake struct {
@@ -334,6 +354,9 @@ type ProgressControlRepository interface {
 	ReleaseHoldsByReason(context.Context, string, string, IdentityRef, string, time.Time) (int, error)
 	ResolveOpenObligationsByFact(context.Context, PlanID, TaskID, IdentityRef, string, time.Time) (int, error)
 	ResolveOpenIncidentsBySource(context.Context, PlanID, TaskID, string, string, time.Time) (int, error)
+	UpsertPrerequisiteSubscription(context.Context, ProgressPrerequisiteSubscription) (bool, error)
+	ListOpenPrerequisiteSubscriptions(context.Context, time.Time, int) ([]ProgressPrerequisiteSubscription, error)
+	ResolvePrerequisiteSubscription(context.Context, string, string, time.Time) (bool, error)
 	RecordEscalation(context.Context, ProgressEscalation) (bool, error)
 	SnapshotPlan(context.Context, PlanID, time.Time) (ProgressControlSnapshot, error)
 }

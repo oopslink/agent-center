@@ -41,8 +41,55 @@ func (s *Service) ensureProgressHoldForBlockedOn(ctx context.Context, p *pm.Plan
 		BlocksAcceptance: true,
 		BlocksCompletion: true,
 	}
-	_, err := s.progress.UpsertHold(ctx, hold)
+	if _, err := s.progress.UpsertHold(ctx, hold); err != nil {
+		return err
+	}
+	if b.WaitType != pm.WaitHumanDecision {
+		return nil
+	}
+	deadline := b.Deadline
+	if deadline.IsZero() {
+		deadline = now.Add(defaultMaxHoldDuration)
+	}
+	// A notification is not resolution. Materialize the named owner's durable,
+	// decision-fact-bound responsibility in the same transaction as the hold.
+	_, err := s.progress.UpsertObligation(ctx, pm.ProgressObligation{
+		ID: "human:" + string(p.ID()) + ":" + string(b.TaskID), PlanID: p.ID(), TaskID: b.TaskID, NodeID: b.NodeID,
+		Kind: pm.ObligationHumanDecision, OwnerRef: pm.IdentityRef(owner), OwnerDisplay: owner,
+		DeadlineAt: deadline, AckRequired: true, EscalateToRef: "role:operational-owner",
+		EscalationDeadlineAt: deadline, SourceFactRefs: []string{"blocked_on:" + string(b.WaitType) + ":" + strings.Join(b.WaitKeys, ",")},
+		Status: pm.ResponsibilityOpen, CreatedAt: now, UpdatedAt: now, Version: 1,
+	})
 	return err
+}
+
+// WaitHumanDecisionForPrerequisite records the only legal form of “continue
+// waiting”: an explicit prerequisite fact, automatic re-evaluation subscription
+// and next deadline. It deliberately leaves the owner human_decision obligation
+// open until the subscribed fact produces a Decision fact.
+func (s *Service) WaitHumanDecisionForPrerequisite(ctx context.Context, planID pm.PlanID, decisionTaskID, prerequisiteTaskID pm.TaskID, owner pm.IdentityRef, reasonFactRef string, nextDeadline time.Time) error {
+	if s.progress == nil || planID == "" || decisionTaskID == "" || prerequisiteTaskID == "" || owner == "" || strings.TrimSpace(reasonFactRef) == "" || nextDeadline.IsZero() {
+		return fmt.Errorf("projectmanager: prerequisite wait requires plan, decision, prerequisite, named owner, reason fact and next deadline")
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		_, err := s.progress.UpsertPrerequisiteSubscription(txCtx, pm.ProgressPrerequisiteSubscription{
+			ID:     "prereq:" + string(planID) + ":" + string(decisionTaskID) + ":" + string(prerequisiteTaskID),
+			PlanID: planID, DecisionTaskID: decisionTaskID, PrerequisiteTaskID: prerequisiteTaskID,
+			OwnerRef: owner, NextDeadlineAt: nextDeadline, Action: "unblock_resume", ReasonFactRef: reasonFactRef,
+			Status: pm.ResponsibilityOpen, CreatedAt: now,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = s.progress.UpsertObligation(txCtx, pm.ProgressObligation{
+			ID: "wait:" + string(planID) + ":" + string(decisionTaskID), PlanID: planID, TaskID: decisionTaskID,
+			Kind: pm.ObligationSourceRecovery, OwnerRef: owner, OwnerDisplay: string(owner), DeadlineAt: nextDeadline,
+			AckRequired: true, SourceFactRefs: []string{reasonFactRef, "prerequisite_task:" + string(prerequisiteTaskID), "subscription:automatic"},
+			Status: pm.ResponsibilityOpen, CreatedAt: now, UpdatedAt: now, Version: 1,
+		})
+		return err
+	})
 }
 
 func (s *Service) recordProgressWakeRequested(ctx context.Context, p *pm.Plan, b pm.BlockedOn) error {
@@ -114,6 +161,42 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
+		// Second clock: a satisfied prerequisite is an authoritative fact. Consume
+		// it without relying on the owner to remember to return, and atomically move
+		// the blocked projection away from human_decision.
+		subs, err := s.progress.ListOpenPrerequisiteSubscriptions(txCtx, now, limit)
+		if err != nil {
+			return err
+		}
+		for _, sub := range subs {
+			prerequisite, err := s.tasks.FindByID(txCtx, sub.PrerequisiteTaskID)
+			if err != nil {
+				return err
+			}
+			if !prerequisite.Status().IsTerminal() {
+				continue
+			}
+			factRef := "prerequisite_satisfied:" + string(sub.PrerequisiteTaskID)
+			if _, err := s.progress.ReleaseHoldsByFact(txCtx, sub.PlanID, sub.DecisionTaskID, sub.OwnerRef, factRef, now); err != nil {
+				return err
+			}
+			if _, err := s.progress.ResolveOpenObligationsByFact(txCtx, sub.PlanID, sub.DecisionTaskID, sub.OwnerRef, factRef, now); err != nil {
+				return err
+			}
+			if err := s.plans.RecordDecisionOutcome(txCtx, sub.PlanID, sub.DecisionTaskID, "pass", now); err != nil {
+				return err
+			}
+			if _, err := s.progress.ResolvePrerequisiteSubscription(txCtx, sub.ID, factRef, now); err != nil {
+				return err
+			}
+			p, err := s.plans.FindByID(txCtx, sub.PlanID)
+			if err != nil {
+				return err
+			}
+			if err := s.materializeBlockedOn(txCtx, p); err != nil {
+				return err
+			}
+		}
 		wakes, err := s.progress.ListExpiredUnackedWakes(txCtx, now, limit)
 		if err != nil {
 			return err

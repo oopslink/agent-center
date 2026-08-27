@@ -157,7 +157,8 @@ func (r *ProgressControlRepo) UpsertObligation(ctx context.Context, o pm.Progres
 	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_control_obligations
 		(id, plan_id, task_id, node_id, kind, owner_ref, owner_display, deadline_at, ack_required, acked_at, escalate_to_ref, escalation_deadline_at, source_fact_refs, status, created_at, updated_at, version)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(plan_id, task_id, kind, owner_ref, deadline_at) DO UPDATE SET updated_at=excluded.updated_at, status=pm_progress_control_obligations.status`,
+		ON CONFLICT DO UPDATE SET updated_at=excluded.updated_at, status=pm_progress_control_obligations.status,
+		 deadline_at=excluded.deadline_at, source_fact_refs=excluded.source_fact_refs`,
 		o.ID, string(o.PlanID), string(o.TaskID), o.NodeID, o.Kind, string(o.OwnerRef), o.OwnerDisplay, ts(o.DeadlineAt), boolToInt(o.AckRequired),
 		tsPtr(o.AckedAt), o.EscalateToRef, ts(o.EscalationDeadlineAt), encodeStrings(o.SourceFactRefs), o.Status, ts(o.CreatedAt), ts(o.UpdatedAt), o.Version)
 	return err == nil, err
@@ -281,6 +282,59 @@ func (r *ProgressControlRepo) ResolveOpenIncidentsBySource(ctx context.Context, 
 	n, err := res.RowsAffected()
 	_ = factRef
 	return int(n), err
+}
+
+func (r *ProgressControlRepo) UpsertPrerequisiteSubscription(ctx context.Context, s pm.ProgressPrerequisiteSubscription) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_prerequisite_subscriptions
+		(id, plan_id, decision_task_id, prerequisite_task_id, owner_ref, next_deadline_at, action, reason_fact_ref, status, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(plan_id, decision_task_id, prerequisite_task_id, reason_fact_ref) DO UPDATE SET
+		 owner_ref=excluded.owner_ref, next_deadline_at=excluded.next_deadline_at, action=excluded.action`,
+		s.ID, string(s.PlanID), string(s.DecisionTaskID), string(s.PrerequisiteTaskID), string(s.OwnerRef), ts(s.NextDeadlineAt), s.Action, s.ReasonFactRef, s.Status, ts(s.CreatedAt))
+	return err == nil, err
+}
+
+func (r *ProgressControlRepo) ListOpenPrerequisiteSubscriptions(ctx context.Context, now time.Time, limit int) ([]pm.ProgressPrerequisiteSubscription, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT id, plan_id, decision_task_id, prerequisite_task_id, owner_ref,
+		next_deadline_at, action, reason_fact_ref, status, created_at, resolved_at, decision_fact_ref
+		FROM pm_progress_prerequisite_subscriptions WHERE status='open'
+		ORDER BY next_deadline_at, id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressPrerequisiteSubscription
+	for rows.Next() {
+		var s pm.ProgressPrerequisiteSubscription
+		var planID, decisionID, prerequisiteID, owner, deadline, created, resolved string
+		if err := rows.Scan(&s.ID, &planID, &decisionID, &prerequisiteID, &owner, &deadline, &s.Action, &s.ReasonFactRef, &s.Status, &created, &resolved, &s.DecisionFactRef); err != nil {
+			return nil, err
+		}
+		s.PlanID, s.DecisionTaskID, s.PrerequisiteTaskID, s.OwnerRef = pm.PlanID(planID), pm.TaskID(decisionID), pm.TaskID(prerequisiteID), pm.IdentityRef(owner)
+		s.NextDeadlineAt, s.CreatedAt = parseTime(deadline), parseTime(created)
+		if t := parseTimePtr(resolved); t != nil {
+			s.ResolvedAt = *t
+		}
+		out = append(out, s)
+	}
+	_ = now // deadline is surfaced to the cockpit; satisfaction drives evaluation.
+	return out, rows.Err()
+}
+
+func (r *ProgressControlRepo) ResolvePrerequisiteSubscription(ctx context.Context, id, factRef string, at time.Time) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_prerequisite_subscriptions
+		SET status='resolved', resolved_at=?, decision_fact_ref=? WHERE id=? AND status='open'`, ts(at), factRef, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 func (r *ProgressControlRepo) ReleaseHoldsByReason(ctx context.Context, reasonKind, reasonID string, actor pm.IdentityRef, factRef string, at time.Time) (int, error) {
