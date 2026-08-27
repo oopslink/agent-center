@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -66,6 +67,34 @@ func (s *Server) insightsExecutionsHandler(w http.ResponseWriter, r *http.Reques
 		Limit:     limit,
 		AsOf:      time.Now().UTC(),
 	})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) insightsExecutionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.Insight == nil {
+		writeError(w, http.StatusNotImplemented, "insight_not_wired", "")
+		return
+	}
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !requireWebAuthorization(w, r, d, caller, "org.analytics.read", authz.ResourceScope{Kind: "org", ID: orgID, OrgID: orgID}) {
+		return
+	}
+	if !requireInsightWindow(w, r) {
+		return
+	}
+	res, err := d.Insight.Execution(r.Context(), orgID, strings.TrimSpace(r.PathValue("execution_id")), time.Now().UTC())
+	if errors.Is(err, insight.ErrExecutionNotFound) {
+		writeError(w, http.StatusNotFound, "not_found", "execution not found")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
 		return
