@@ -559,6 +559,23 @@ func (s *Service) projectSlots(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	tx, err := s.duck.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS slot_interval_fact`); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE slot_interval_fact (
+		worker_id VARCHAR NOT NULL, agent_ref VARCHAR NOT NULL, slot_index INTEGER NOT NULL,
+		valid_from TIMESTAMPTZ NOT NULL, valid_to TIMESTAMPTZ, state VARCHAR NOT NULL, occupied BOOLEAN NOT NULL,
+		admissible BOOLEAN NOT NULL, execution_id VARCHAR, task_id VARCHAR, integrity VARCHAR,
+		source_event_id VARCHAR NOT NULL, organization_id VARCHAR, PRIMARY KEY (worker_id, agent_ref, slot_index, valid_from))`); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	var lastCursor string
 	for _, r := range all {
 		id, workerID, agentID, raw, observedRaw := r.id, r.workerID, r.agentID, r.raw, r.observedRaw
 		observed, _ := parseTS(observedRaw)
@@ -567,17 +584,6 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			continue
 		}
 		sourceID := "slot:" + id
-		tx, err := s.duck.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if seen, err := projected(ctx, tx, sourceID); err != nil || seen {
-			_ = tx.Rollback()
-			if err != nil {
-				return err
-			}
-			continue
-		}
 		agentRef := normalizeAgent(agentID)
 		d, _ := s.dimensions(ctx, "", agentID)
 		for _, slot := range normalizedSlots(snap) {
@@ -608,13 +614,34 @@ func (s *Service) projectSlots(ctx context.Context) error {
 				}
 			}
 		}
-		if err := markProjected(ctx, tx, sourceID, SourceSlotObservation, id, observed); err != nil {
+		if err := upsertProjected(ctx, tx, sourceID, SourceSlotObservation, id, observed); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
-		if err := tx.Commit(); err != nil {
+		lastCursor = id
+	}
+	if lastCursor == "" {
+		now := time.Now().UTC()
+		_, err = tx.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
+			VALUES (?,'',?,'fresh',NULL)
+			ON CONFLICT (source_kind) DO UPDATE SET refreshed_at=?, state='fresh', last_error=NULL`,
+			SourceSlotObservation, fmtTS(now), fmtTS(now))
+		if err != nil {
+			_ = tx.Rollback()
 			return err
 		}
+	} else {
+		now := time.Now().UTC()
+		if _, err := tx.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
+			VALUES (?,?,?,?,NULL)
+			ON CONFLICT (source_kind) DO UPDATE SET source_cursor=?, refreshed_at=?, state='fresh', last_error=NULL`,
+			SourceSlotObservation, lastCursor, fmtTS(now), "fresh", lastCursor, fmtTS(now)); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	return nil
 }

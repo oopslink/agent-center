@@ -72,6 +72,19 @@ func markProjected(ctx context.Context, tx *sql.Tx, id, kind, cursor string, occ
 	return err
 }
 
+func upsertProjected(ctx context.Context, tx *sql.Tx, id, kind, cursor string, occurred time.Time) error {
+	now := time.Now().UTC()
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO projected_event (source_event_id, source_kind, source_cursor, occurred_at, projected_at)
+		VALUES (?,?,?,?,?)`, id, kind, cursor, fmtTS(occurred), fmtTS(now)); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
+		VALUES (?,?,?,?,NULL)
+		ON CONFLICT (source_kind) DO UPDATE SET source_cursor=?, refreshed_at=?, state='fresh', last_error=NULL`,
+		kind, cursor, fmtTS(now), "fresh", cursor, fmtTS(now))
+	return err
+}
+
 func (s *Service) markError(ctx context.Context, kind string, err error) error {
 	_, e := s.duck.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
 		VALUES (?,'',?,'unavailable',?)

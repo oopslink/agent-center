@@ -154,6 +154,154 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 	}
 }
 
+func TestInsightS2CProjectionReplayRecoveryAndTaskExecutionReconciliation(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	repo := NewObservationRepo(db, idgen.NewGenerator(clock.NewFakeClock(asOf)))
+
+	insertQueue(t, db, "cmd-reconcile", "worker-1", "agent-1", "task-1", "exec-reconcile", "started", asOf.Add(-90*time.Minute), asOf.Add(-89*time.Minute))
+	insertActivity(t, db, "stop-reconcile", "agent-1", "task-1", "exec-reconcile", map[string]any{
+		"event": "executor.stop", "executor_id": "exec-reconcile", "outcome": "succeeded",
+	}, asOf.Add(-80*time.Minute))
+	insertActivity(t, db, "start-reconcile", "agent-1", "task-1", "exec-reconcile", map[string]any{
+		"event": "executor.start", "executor_id": "exec-reconcile", "cli": "codex", "model": "gpt-5",
+	}, asOf.Add(-85*time.Minute))
+	insertActivity(t, db, "start-before-stop", "agent-1", "task-1", "exec-bad-order", map[string]any{
+		"event": "executor.start", "executor_id": "exec-bad-order",
+	}, asOf.Add(-30*time.Minute))
+	insertActivity(t, db, "stop-before-start", "agent-1", "task-1", "exec-bad-order", map[string]any{
+		"event": "executor.stop", "executor_id": "exec-bad-order", "outcome": "failed",
+	}, asOf.Add(-31*time.Minute))
+	insertActivity(t, db, "start-old", "agent-1", "task-1", "exec-old", map[string]any{
+		"event": "executor.start", "executor_id": "exec-old",
+	}, asOf.Add(-25*time.Hour))
+	insertActivity(t, db, "stop-old", "agent-1", "task-1", "exec-old", map[string]any{
+		"event": "executor.stop", "executor_id": "exec-old", "outcome": "failed",
+	}, asOf.Add(-24*time.Hour-time.Nanosecond))
+	insertActivity(t, db, "start-end-exclusive", "agent-1", "task-1", "exec-end-exclusive", map[string]any{
+		"event": "executor.start", "executor_id": "exec-end-exclusive",
+	}, asOf.Add(-time.Minute))
+	insertActivity(t, db, "stop-end-exclusive", "agent-1", "task-1", "exec-end-exclusive", map[string]any{
+		"event": "executor.stop", "executor_id": "exec-end-exclusive", "outcome": "failed",
+	}, asOf)
+
+	_, _ = repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 2, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateRunning, ExecutorID: "exec-a", TaskID: "task-1"},
+		{SlotIndex: 1, State: concurrency.StateIdle},
+		{SlotIndex: 2, State: concurrency.StateDraining},
+	}}, asOf.Add(-3*time.Hour))
+	_, _ = repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 1, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateIdle},
+		{SlotIndex: 1, State: concurrency.StateDraining},
+	}}, asOf.Add(-2*time.Hour))
+	_, _ = repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 0, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateDraining},
+	}}, asOf.Add(-time.Hour))
+	// Late, out-of-order source insert: projection must rebuild intervals by observed_at,
+	// not close a newer open interval with this older timestamp.
+	_, _ = repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 2, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateRunning, ExecutorID: "exec-late-slot", TaskID: "task-1"},
+		{SlotIndex: 1, State: concurrency.StateIdle},
+	}}, asOf.Add(-150*time.Minute))
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh replay: %v", err)
+	}
+	overview, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if overview.Summary.CompletedExecutions != 2 {
+		t.Fatalf("completed executions = %d, want 2", overview.Summary.CompletedExecutions)
+	}
+	if overview.Summary.FailedExecutions != 1 {
+		t.Fatalf("failed executions = %d, want 1", overview.Summary.FailedExecutions)
+	}
+	if overview.Summary.SlotUtilization == nil || *overview.Summary.SlotUtilization <= 0 || *overview.Summary.SlotUtilization >= 1 {
+		t.Fatalf("slot utilization = %v, want non-zero fraction below 1", overview.Summary.SlotUtilization)
+	}
+	if overview.Summary.SlotCoverageRatio == nil || *overview.Summary.SlotCoverageRatio <= 0 || *overview.Summary.SlotCoverageRatio >= 1 {
+		t.Fatalf("slot coverage = %v, want partial 24h denominator coverage", overview.Summary.SlotCoverageRatio)
+	}
+	if overview.Diagnostics.InvalidFacts != 1 {
+		t.Fatalf("invalid facts = %d, want stop-before-start fact only", overview.Diagnostics.InvalidFacts)
+	}
+	assertNoNegativeSlotIntervals(t, svc)
+
+	execs, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, AgentRef: "agent:agent-1", Limit: 20})
+	if err != nil {
+		t.Fatalf("executions: %v", err)
+	}
+	rec := findExecution(execs.Executions, "exec-reconcile")
+	if rec == nil || rec.CommandID == nil || *rec.CommandID != "cmd-reconcile" || rec.TaskID == nil || *rec.TaskID != "task-1" || rec.QueueWaitMS == nil || *rec.QueueWaitMS != 300000 {
+		t.Fatalf("reconciled execution = %+v, want queue/task details", rec)
+	}
+	if old := findExecution(execs.Executions, "exec-old"); old != nil {
+		t.Fatalf("aged-out execution still present: %+v", old)
+	}
+	if end := findExecution(execs.Executions, "exec-end-exclusive"); end != nil {
+		t.Fatalf("end-exclusive execution still present: %+v", end)
+	}
+
+	before := overview.Summary
+	if err := svc.Rebuild(ctx); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+	rebuilt, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatalf("overview rebuilt: %v", err)
+	}
+	if rebuilt.Summary.CompletedExecutions != before.CompletedExecutions || rebuilt.Summary.FailedExecutions != before.FailedExecutions {
+		t.Fatalf("rebuild summary changed: before=%+v after=%+v", before, rebuilt.Summary)
+	}
+	assertNoNegativeSlotIntervals(t, svc)
+
+	path := svc.path
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(ctx, db, path, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if err := reopened.Refresh(ctx); err != nil {
+		t.Fatalf("refresh after checkpoint restart: %v", err)
+	}
+	var facts int
+	if err := reopened.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-reconcile'`).Scan(&facts); err != nil {
+		t.Fatal(err)
+	}
+	if facts != 1 {
+		t.Fatalf("execution fact duplicates after restart = %d, want 1", facts)
+	}
+	assertNoNegativeSlotIntervals(t, reopened)
+}
+
+func TestInsightS2CZeroDenominators(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-zero")
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	o, err := svc.Overview(ctx, "org-zero", asOf)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if o.Summary.FailureRate != nil || o.Summary.SlotUtilization != nil || o.Summary.SlotCoverageRatio != nil {
+		t.Fatalf("zero denominators must stay nil, got failure=%v util=%v coverage=%v", o.Summary.FailureRate, o.Summary.SlotUtilization, o.Summary.SlotCoverageRatio)
+	}
+}
+
 func TestInsightInvalidTimeOrder(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
@@ -331,6 +479,26 @@ func insertActivity(t *testing.T, db *sql.DB, id, agentID, taskID, execID string
 	b, _ := json.Marshal(payload)
 	execSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at)
 		VALUES (?, ?, ?, ?, 'lifecycle', ?, ?)`, id, agentID, taskID, "executor:"+execID, string(b), occurred.Format(time.RFC3339Nano))
+}
+
+func findExecution(rows []ExecutionRow, id string) *ExecutionRow {
+	for i := range rows {
+		if rows[i].ExecutionID == id {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+func assertNoNegativeSlotIntervals(t *testing.T, svc *Service) {
+	t.Helper()
+	var bad int
+	if err := svc.duck.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM slot_interval_fact WHERE valid_to IS NOT NULL AND valid_to < valid_from`).Scan(&bad); err != nil {
+		t.Fatal(err)
+	}
+	if bad != 0 {
+		t.Fatalf("negative slot intervals = %d, want 0", bad)
+	}
 }
 
 func execSQL(t *testing.T, db *sql.DB, q string, args ...any) {
