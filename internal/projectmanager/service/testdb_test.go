@@ -18,8 +18,14 @@ var migratedTestDBTemplate = struct {
 	err  error
 }{}
 
+var parallelMigratedDBTests sync.Map
+
 func openMigratedTestDB(t *testing.T) *sql.DB {
 	t.Helper()
+	if _, loaded := parallelMigratedDBTests.LoadOrStore(t.Name(), struct{}{}); !loaded {
+		t.Parallel()
+		t.Cleanup(func() { parallelMigratedDBTests.Delete(t.Name()) })
+	}
 	migratedTestDBTemplate.once.Do(func() {
 		dir, err := os.MkdirTemp("", "ac-pm-service-template-*")
 		if err != nil {
