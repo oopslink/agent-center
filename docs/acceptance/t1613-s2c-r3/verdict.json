@@ -1,0 +1,75 @@
+{
+  "task": "T1613 S2C-R3",
+  "verdict": "REJECT",
+  "date": "2026-08-27",
+  "candidate": {
+    "remote": "origin-push",
+    "ref": "refs/heads/ac-exec/task-38ab4598/exec-ea18819f",
+    "head": "0f53752aea1061bdc4cc761a5e9fe5a9f11d0f53",
+    "origin_main": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+    "origin_push_main": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+    "merge_base_with_origin_main": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+    "origin_main_is_ancestor": true,
+    "candidate_is_ancestor_of_origin_main": false
+  },
+  "diff_review": {
+    "files_changed": [
+      "internal/insight/service.go",
+      "internal/insight/service_test.go"
+    ],
+    "fault_hook_default_closed": true,
+    "fault_hook_non_inert": true,
+    "fault_hook_real_projector_paths": [
+      "projectQueue before tx.Commit",
+      "projectQueue after tx.Commit",
+      "projectActivity before tx.Commit",
+      "projectActivity after tx.Commit",
+      "projectSlots before tx.Commit",
+      "projectSlots after tx.Commit"
+    ]
+  },
+  "tests": [
+    {
+      "name": "focused pre/post commit crash tests",
+      "command": "go test ./internal/insight -run 'TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce|TestInsightPostCommitCrashRestartDoesNotDuplicate' -count=1 -v",
+      "result": "PASS"
+    },
+    {
+      "name": "insight full package",
+      "command": "go test ./internal/insight/... -count=1 -v",
+      "result": "PASS"
+    },
+    {
+      "name": "insight race",
+      "command": "go test -race ./internal/insight -count=10 -v",
+      "result": "PASS",
+      "final_line": "ok  \tgithub.com/oopslink/agent-center/internal/insight\t388.992s"
+    },
+    {
+      "name": "repository race target",
+      "command": "make test-race",
+      "result": "PASS",
+      "scope": "./internal/agentruntime/..."
+    },
+    {
+      "name": "frozen harness overlay",
+      "harness_sha": "738bc0a6769b413dd4d04c6834207c62c2918fae",
+      "command": "git checkout 738bc0a6769b413dd4d04c6834207c62c2918fae -- internal/insight/service_test.go && go test ./internal/insight -count=1 -v",
+      "result": "FAIL",
+      "failures": [
+        {
+          "test": "TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval",
+          "message": "slot 1 cap-boundary intervals = [{admissible:true from:2026-08-26 11:00:00+00 to:}], want admissible closed interval then inadmissible open interval"
+        },
+        {
+          "test": "TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail",
+          "message": "slot coverage = 0.083333333, want 0.000694444; time after heartbeat TTL must be unknown"
+        }
+      ]
+    }
+  ],
+  "blocking_reasons": [
+    "Frozen harness SHA 738bc0a6769b413dd4d04c6834207c62c2918fae is not an ancestor of candidate 0f53752aea1061bdc4cc761a5e9fe5a9f11d0f53.",
+    "The frozen harness fails when overlaid and run against the candidate implementation."
+  ]
+}
