@@ -81,16 +81,12 @@ func (s *Service) markError(ctx context.Context, kind string, err error) error {
 }
 
 func (s *Service) freshness(ctx context.Context, asOf time.Time) (string, Freshness) {
-	var ref string
-	_ = s.duck.QueryRowContext(ctx, `SELECT COALESCE(CAST(MAX(refreshed_at) AS VARCHAR),'') FROM projector_checkpoint WHERE state='fresh'`).Scan(&ref)
 	f := Freshness{State: "unavailable", ThresholdMS: s.ttl.Milliseconds()}
-	if ref == "" {
+	var refreshedMs sql.NullInt64
+	if err := s.duck.QueryRowContext(ctx, `SELECT epoch_ms(MAX(refreshed_at)) FROM projector_checkpoint WHERE state='fresh'`).Scan(&refreshedMs); err != nil || !refreshedMs.Valid {
 		return "", f
 	}
-	t, ok := parseTS(ref)
-	if !ok {
-		return ref, f
-	}
+	t := time.UnixMilli(refreshedMs.Int64).UTC()
 	age := asOf.Sub(t)
 	if age < 0 {
 		age = 0
@@ -291,10 +287,18 @@ func makeWindow(asOf time.Time) Window {
 }
 
 func parseTS(s string) (time.Time, bool) {
-	if strings.TrimSpace(s) == "" {
+	s = strings.TrimSpace(s)
+	if s == "" {
 		return time.Time{}, false
 	}
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05.999999999Z07",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05Z07",
+	} {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.UTC(), true
 		}

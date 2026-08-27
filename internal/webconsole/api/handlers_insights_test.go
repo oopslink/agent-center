@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -206,6 +207,114 @@ func TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("foreign execution status = %d, want 404", resp.StatusCode)
 	}
+}
+
+func TestInsightsFreshnessAPI_ProductionClockBoundaryAndDuckDBRebuild(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
+	duckPath := t.TempDir() + "/insight.duckdb"
+	const ttl = 250 * time.Millisecond
+
+	svc := openInsightHTTPService(t, db, duckPath, ttl)
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ts := serveInsightHTTP(t, deps, svc)
+	overview := getInsightFreshness(t, ts.URL, sess.Cookie, "/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h")
+	if overview.State != "fresh" || overview.RefreshedAt == "" || overview.AgeMS < 0 || overview.AgeMS > overview.ThresholdMS {
+		t.Fatalf("fresh overview freshness = %+v, want fresh within threshold", overview)
+	}
+	detail := getInsightFreshness(t, ts.URL, sess.Cookie, "/api/orgs/"+sess.OrgSlug+"/insights/executions/exec-api?window=24h")
+	if detail.State != "fresh" || detail.RefreshedAt == "" || detail.AgeMS < 0 || detail.AgeMS > detail.ThresholdMS {
+		t.Fatalf("fresh execution detail freshness = %+v, want fresh within threshold", detail)
+	}
+
+	time.Sleep(ttl + 150*time.Millisecond)
+	staleOverview := getInsightFreshness(t, ts.URL, sess.Cookie, "/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h")
+	if staleOverview.State != "stale" || staleOverview.AgeMS <= staleOverview.ThresholdMS {
+		t.Fatalf("stale overview freshness = %+v, want stale after real clock crosses threshold", staleOverview)
+	}
+	staleDetail := getInsightFreshness(t, ts.URL, sess.Cookie, "/api/orgs/"+sess.OrgSlug+"/insights/executions/exec-api?window=24h")
+	if staleDetail.State != "stale" || staleDetail.AgeMS <= staleDetail.ThresholdMS {
+		t.Fatalf("stale execution detail freshness = %+v, want stale after real clock crosses threshold", staleDetail)
+	}
+	ts.Close()
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(duckPath); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Remove(duckPath + ".wal"); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+
+	rebuilt := openInsightHTTPService(t, db, duckPath, ttl)
+	if err := rebuilt.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	rebuildTS := serveInsightHTTP(t, deps, rebuilt)
+	rebuiltOverview := getInsightFreshness(t, rebuildTS.URL, sess.Cookie, "/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h")
+	if rebuiltOverview.State != "fresh" || rebuiltOverview.RefreshedAt == "" || rebuiltOverview.AgeMS < 0 || rebuiltOverview.AgeMS > rebuiltOverview.ThresholdMS {
+		t.Fatalf("rebuilt overview freshness = %+v, want fresh after DuckDB delete and rebuild", rebuiltOverview)
+	}
+}
+
+type insightFreshnessPayload struct {
+	RefreshedAt string `json:"refreshed_at"`
+	State       string
+	AgeMS       int64
+	ThresholdMS int64
+}
+
+func getInsightFreshness(t *testing.T, baseURL string, cookie *http.Cookie, path string) insightFreshnessPayload {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, baseURL+path, nil)
+	req.AddCookie(cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("%s status = %d, want 200", path, resp.StatusCode)
+	}
+	var out struct {
+		RefreshedAt string `json:"refreshed_at"`
+		Freshness   struct {
+			State       string `json:"state"`
+			AgeMS       int64  `json:"age_ms"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	return insightFreshnessPayload{
+		RefreshedAt: out.RefreshedAt,
+		State:       out.Freshness.State,
+		AgeMS:       out.Freshness.AgeMS,
+		ThresholdMS: out.Freshness.ThresholdMS,
+	}
+}
+
+func openInsightHTTPService(t *testing.T, db *sql.DB, duckPath string, ttl time.Duration) *insight.Service {
+	t.Helper()
+	svc, err := insight.Open(context.Background(), db, duckPath, ttl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = svc.Close() })
+	return svc
+}
+
+func serveInsightHTTP(t *testing.T, deps HandlerDeps, svc *insight.Service) *httptest.Server {
+	t.Helper()
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	t.Cleanup(ts.Close)
+	return ts
 }
 
 func seedInsightHTTPFacts(t *testing.T, db *sql.DB, orgID string, finished time.Time) {

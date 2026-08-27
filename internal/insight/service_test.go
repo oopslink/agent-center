@@ -304,6 +304,17 @@ func TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow(t *testing.T) {
 	}
 }
 
+func TestInsightTimestampParserAcceptsDuckDBCheckpointFormat(t *testing.T) {
+	got, ok := parseTS("2026-08-27 12:06:18.377479+00")
+	if !ok {
+		t.Fatal("DuckDB checkpoint timestamp did not parse")
+	}
+	want := time.Date(2026, 8, 27, 12, 6, 18, 377479000, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("DuckDB checkpoint timestamp = %s, want %s", got.Format(time.RFC3339Nano), want.Format(time.RFC3339Nano))
+	}
+}
+
 func TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
