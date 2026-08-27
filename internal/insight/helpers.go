@@ -192,14 +192,21 @@ func (s *Service) slotUtilization(ctx context.Context, orgID, agentRef string, a
 		where += ` AND agent_ref=?`
 		whereArgs = append(whereArgs, agentRef)
 	}
-	args := []any{fmtTS(start), fmtTS(asOf), fmtTS(asOf), fmtTS(start), fmtTS(asOf), fmtTS(asOf)}
+	ttlMS := s.ttl.Milliseconds()
+	args := []any{fmtTS(start), fmtTS(start), ttlMS, fmtTS(asOf), fmtTS(start)}
 	args = append(args, whereArgs...)
 	args = append(args, fmtTS(asOf), fmtTS(asOf), fmtTS(start))
 	row := s.duck.QueryRowContext(ctx, `SELECT
-		SUM(CASE WHEN occupied AND admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(LEAST(COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)), CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP)) ELSE 0 END),
-		SUM(CASE WHEN admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(LEAST(COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)), CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP)) ELSE 0 END),
+		SUM(CASE WHEN occupied AND admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(known_to AS TIMESTAMP)) ELSE 0 END),
+		SUM(CASE WHEN admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(known_to AS TIMESTAMP)) ELSE 0 END),
 		COUNT(DISTINCT worker_id || ':' || agent_ref || ':' || slot_index)
-		FROM slot_interval_fact WHERE `+where+` AND valid_from < CAST(? AS TIMESTAMPTZ) AND COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)) > CAST(? AS TIMESTAMPTZ) AND state <> 'unknown'`, args...)
+		FROM (
+			SELECT *, LEAST(
+				CASE WHEN valid_to IS NULL THEN CAST(valid_from AS TIMESTAMP) + (? * INTERVAL 1 MILLISECOND) ELSE CAST(valid_to AS TIMESTAMP) END,
+				CAST(? AS TIMESTAMP)
+			) AS known_to
+			FROM slot_interval_fact
+		) WHERE known_to > CAST(? AS TIMESTAMP) AND `+where+` AND valid_from < CAST(? AS TIMESTAMPTZ) AND COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)) > CAST(? AS TIMESTAMPTZ) AND state <> 'unknown'`, args...)
 	var occ, avail sql.NullFloat64
 	var slots sql.NullInt64
 	if err := row.Scan(&occ, &avail, &slots); err != nil {
