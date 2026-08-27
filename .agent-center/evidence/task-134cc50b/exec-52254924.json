@@ -1,0 +1,347 @@
+{
+  "task_id": "task-134cc50b",
+  "execution_id": "exec-52254924",
+  "reviewed_sha": "ef5ca0d264720e29125955b47d2dc7326e42bbfb",
+  "base_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'task-input/v1/**' -g '\"'!**/.git/**'\"'\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'find task-input -maxdepth 4 -print 2\u003e/dev/null | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"git show-ref --heads --remotes | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git fetch origin +refs/heads/s3/phase0-candidate-58626ffe:refs/remotes/origin/s3/phase0-candidate-58626ffe +refs/heads/main:refs/remotes/origin/main --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"git rev-parse origin/s3/phase0-candidate-58626ffe origin/main HEAD \u0026\u0026 git merge-base origin/main origin/s3/phase0-candidate-58626ffe \u0026\u0026 git merge-base --is-ancestor origin/main origin/s3/phase0-candidate-58626ffe; printf 'main_ancestor_exit=%s\\\\n' \"'$? \u0026\u0026 git merge-base --is-ancestor origin/s3/phase0-candidate-58626ffe origin/main; printf '\"'candidate_ancestor_exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(objectname) %(refname:short)' refs/heads refs/remotes/origin | sort | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git diff --name-status origin/main..origin/s3/phase0-candidate-58626ffe | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"test -e ../candidate-58626ffe-verify; printf 'exists=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git worktree add --detach ../candidate-58626ffe-verify origin/s3/phase0-candidate-58626ffe'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -iname '*contract*' -o -iname '*acceptance*' -o -iname '*gate*' | sort | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"rg -n \\\"focused|full|race|web|human_decision|auto.?re.?evaluation|DeliverySubject|Acceptance|old projection|projection|Gate|gate evidence|invariant|obligation\\\" README.md CLAUDE.md Makefile docs internal web package.json go.mod .github 2\u003e/dev/null | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline --decorate -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' Makefile \u0026\u0026 sed -n '1,90p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/projectmanager/service/progress_control_s2d_test.go \u0026\u0026 sed -n '1,220p' internal/projectmanager/service/progress_human_decision_contract_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/projectmanager/service/delivery_acceptance_s2b_test.go \u0026\u0026 sed -n '1,180p' internal/admin/api/progress_control_contract_test.go \u0026\u0026 sed -n '1,180p' internal/webconsole/api/progress_control_contract_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/PlanProgressCockpit.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"test -d web/node_modules; printf 'web_node_modules_exists=%s\\\\n' \"'$? \u0026\u0026 pnpm --dir web exec vitest run src/pages/PlanProgressCockpit.test.tsx; printf '\"'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/admin/api ./internal/webconsole/api ./internal/projectmanager -run 'Test(ProgressControl|HumanDecision|S2B|PMProgressControl|Acceptance|Delivery)' -count=1; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"pnpm --dir web install --frozen-lockfile; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"pnpm --dir web exec vitest run src/pages/PlanProgressCockpit.test.tsx; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"ps -axo pid,ppid,stat,etime,pcpu,pmem,command | rg 'go test|/go-build|agent-center.test|agentruntime|projectmanager' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"go test ./...; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"make test-race; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"go test -race -count=10 ./internal/projectmanager/service; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"rg -n \\\"HumanDecision|WaitHumanDecision|WaitHumanDecisionForPrerequisite|blockedOn|DeliverySubject|RecordStageGateVerdict|VerifyDeliverySubject|ErrDeliveryVerificationFailed|FindEffectiveAcceptance|ProgressWatchdog|ReconcileProgressControl|DrainProgressSuppressedWakes|lease_fence|FencingToken|progress_control\\\" internal/projectmanager internal/admin internal/webconsole web/src/pages web/src/api | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc \"pnpm --dir web run build; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"pnpm --dir web test; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t58626ffe-pre-main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc \"jq . docs/acceptance/t58626ffe-pre-main/verdict.json \u003e/dev/null; printf 'jq_exit=%s\\\\n' \"'$? \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git restore internal/webconsole/spa/dist/.gitkeep \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"git status --short --branch \u0026\u0026 git diff -- docs/acceptance/t58626ffe-pre-main/REPORT.md docs/acceptance/t58626ffe-pre-main/verdict.json | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t58626ffe-pre-main/REPORT.md docs/acceptance/t58626ffe-pre-main/verdict.json \u0026\u0026 git commit -m \"evidence: reject candidate 58626ffe pre-main\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-134cc50b/exec-52254924'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git log --oneline -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-134cc50b/exec-52254924'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-134cc50b/exec-52254924 refs/heads/s3/phase0-candidate-58626ffe refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc \"git fetch origin +refs/heads/s3/phase0-candidate-58626ffe:refs/remotes/origin/s3/phase0-candidate-58626ffe +refs/heads/main:refs/remotes/origin/main --prune \u0026\u0026 git rev-parse origin/s3/phase0-candidate-58626ffe origin/main \u0026\u0026 git merge-base origin/main origin/s3/phase0-candidate-58626ffe \u0026\u0026 git merge-base --is-ancestor origin/main origin/s3/phase0-candidate-58626ffe; printf 'main_ancestor_exit=%s\\\\n' \"'$? \u0026\u0026 git merge-base --is-ancestor origin/s3/phase0-candidate-58626ffe origin/main; printf '\"'candidate_ancestor_exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc \"jq . docs/acceptance/t58626ffe-pre-main/verdict.json \u003e/dev/null; printf 'jq_exit=%s\\\\n' \"'$? \u0026\u0026 git diff --stat HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t58626ffe-pre-main/REPORT.md docs/acceptance/t58626ffe-pre-main/verdict.json \u0026\u0026 git commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc 'git push --force-with-lease origin-push HEAD:refs/heads/ac-exec/task-134cc50b/exec-52254924'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_106",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git log --oneline -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_108",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_107",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-134cc50b/exec-52254924 refs/heads/s3/phase0-candidate-58626ffe refs/heads/main'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-52254924/command_events.jsonl",
+  "command_event_digest": "sha256:1b3f92ee31f6c8a7cf5ab74f3872ed451c3d228c31c962230e07715315070296",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "完成独立验收并推送 evidence-only 分支。",
+  "artifact_digest": "sha256:7af0a0550dfcdac62521f8d4f5dc276f2fe850bb8dbdc26d0f917bcdd016c6fd",
+  "path": ".agent-center/evidence/task-134cc50b/exec-52254924.json",
+  "branch": "ac-exec/task-134cc50b/exec-52254924"
+}
