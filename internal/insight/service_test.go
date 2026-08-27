@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -210,7 +211,7 @@ func TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow(t *testing.T) {
 	}
 }
 
-func TestInsightCrashRecoveryTransactionAndCheckpointRestart(t *testing.T) {
+func TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
 	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
@@ -219,46 +220,83 @@ func TestInsightCrashRecoveryTransactionAndCheckpointRestart(t *testing.T) {
 	insertActivity(t, db, "stop-crash", "agent-1", "task-1", "exec-crash", map[string]any{"event": "executor.stop", "executor_id": "exec-crash", "outcome": "failed"}, asOf.Add(-time.Hour+time.Second))
 	svc := openInsight(t, db)
 
-	tx, err := svc.duck.BeginTx(ctx, nil)
+	crash := errors.New("test pre-commit crash")
+	var hookCalls int
+	svc.projectorFaultHook = func(_ context.Context, kind, sourceID string, stage insightProjectorCommitStage) error {
+		if kind == SourceActivity && sourceID == "activity:stop-crash" && stage == insightProjectorBeforeCommit {
+			hookCalls++
+			return crash
+		}
+		return nil
+	}
+
+	if err := svc.Refresh(ctx); !errors.Is(err, crash) {
+		t.Fatalf("refresh pre-commit crash = %v, want %v", err, crash)
+	}
+	if hookCalls != 1 {
+		t.Fatalf("pre-commit hook calls = %d, want 1", hookCalls)
+	}
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-crash'`, 0)
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM projector_checkpoint WHERE source_kind=? AND source_cursor='stop-crash' AND state='fresh'`, 0, SourceActivity)
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-crash' AND finished_at IS NOT NULL`, 0)
+
+	svc.projectorFaultHook = nil
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh after pre-commit crash: %v", err)
+	}
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-crash'`, 1)
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-crash'`, 1)
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM projected_event WHERE source_kind=?`, 2, SourceActivity)
+
+	var cursor, state string
+	if err := svc.duck.QueryRowContext(ctx, `SELECT source_cursor, state FROM projector_checkpoint WHERE source_kind=?`, SourceActivity).Scan(&cursor, &state); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != "stop-crash" || state != "fresh" {
+		t.Fatalf("checkpoint after replay = (%q,%q), want (stop-crash,fresh)", cursor, state)
+	}
+	overview, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO execution_fact
-		(execution_id, organization_id, agent_ref, started_at, finished_at, outcome, recovered, quality, first_event_id, last_event_id, observed_at)
-		VALUES ('exec-crash','org-1','agent:agent-1',?,?,?,false,'valid','activity:start-crash','activity:stop-crash',?)`,
-		fmtTS(asOf.Add(-time.Hour)), fmtTS(asOf.Add(-time.Hour+time.Second)), "failed", fmtTS(asOf)); err != nil {
-		t.Fatal(err)
+	if overview.Summary.CompletedExecutions != 1 || overview.Summary.FailedExecutions != 1 {
+		t.Fatalf("summary after replay = %+v, want one failed completion", overview.Summary)
 	}
-	if err := markProjected(ctx, tx, "activity:stop-crash", SourceActivity, "stop-crash", asOf); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Rollback(); err != nil {
-		t.Fatal(err)
-	}
-	var rolledBack int
-	if err := svc.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-crash'`).Scan(&rolledBack); err != nil {
-		t.Fatal(err)
-	}
-	if rolledBack != 0 {
-		t.Fatalf("rolled back projected_event count = %d, want 0", rolledBack)
+}
+
+func TestInsightPostCommitCrashRestartDoesNotDuplicate(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	insertActivity(t, db, "start-post", "agent-1", "task-1", "exec-post", map[string]any{"event": "executor.start", "executor_id": "exec-post"}, asOf.Add(-time.Hour))
+	insertActivity(t, db, "stop-post", "agent-1", "task-1", "exec-post", map[string]any{"event": "executor.stop", "executor_id": "exec-post", "outcome": "succeeded"}, asOf.Add(-time.Hour+time.Second))
+	svc := openInsight(t, db)
+
+	crash := errors.New("test post-commit crash")
+	var hookCalls int
+	svc.projectorFaultHook = func(_ context.Context, kind, sourceID string, stage insightProjectorCommitStage) error {
+		if kind == SourceActivity && sourceID == "activity:stop-post" && stage == insightProjectorAfterCommit {
+			hookCalls++
+			return crash
+		}
+		return nil
 	}
 
-	if err := svc.Refresh(ctx); err != nil {
-		t.Fatalf("refresh after rollback: %v", err)
+	if err := svc.projectActivity(ctx); !errors.Is(err, crash) {
+		t.Fatalf("projectActivity post-commit crash = %v, want %v", err, crash)
 	}
+	if hookCalls != 1 {
+		t.Fatalf("post-commit hook calls = %d, want 1", hookCalls)
+	}
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-post'`, 1)
+	assertDuckCount(t, svc.duck, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-post'`, 1)
 	var cursor string
 	if err := svc.duck.QueryRowContext(ctx, `SELECT source_cursor FROM projector_checkpoint WHERE source_kind=?`, SourceActivity).Scan(&cursor); err != nil {
 		t.Fatal(err)
 	}
-	if cursor != "stop-crash" {
-		t.Fatalf("checkpoint cursor = %q, want stop-crash", cursor)
-	}
-	first, err := svc.Overview(ctx, "org-1", asOf)
-	if err != nil {
-		t.Fatalf("overview: %v", err)
-	}
-	if first.Summary.CompletedExecutions != 1 {
-		t.Fatalf("completed before restart = %d, want 1", first.Summary.CompletedExecutions)
+	if cursor != "stop-post" {
+		t.Fatalf("checkpoint cursor after post-commit crash = %q, want stop-post", cursor)
 	}
 	path := svc.path
 	if err := svc.Close(); err != nil {
@@ -272,15 +310,16 @@ func TestInsightCrashRecoveryTransactionAndCheckpointRestart(t *testing.T) {
 	if err := reopened.Refresh(ctx); err != nil {
 		t.Fatalf("refresh after restart: %v", err)
 	}
-	var factCount, projectedCount int
-	if err := reopened.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-crash'`).Scan(&factCount); err != nil {
+	assertDuckCount(t, reopened.duck, `SELECT COUNT(*) FROM execution_fact WHERE execution_id='exec-post'`, 1)
+	assertDuckCount(t, reopened.duck, `SELECT COUNT(*) FROM projected_event WHERE source_event_id='activity:stop-post'`, 1)
+	assertDuckCount(t, reopened.duck, `SELECT COUNT(*) FROM projected_event WHERE source_kind=?`, 2, SourceActivity)
+
+	overview, err := reopened.Overview(ctx, "org-1", asOf)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := reopened.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM projected_event WHERE source_kind=?`, SourceActivity).Scan(&projectedCount); err != nil {
-		t.Fatal(err)
-	}
-	if factCount != 1 || projectedCount != 2 {
-		t.Fatalf("after restart factCount=%d projectedCount=%d, want 1 and 2", factCount, projectedCount)
+	if overview.Summary.CompletedExecutions != 1 || overview.Summary.FailedExecutions != 0 {
+		t.Fatalf("summary after restart = %+v, want one successful completion", overview.Summary)
 	}
 }
 
@@ -337,5 +376,16 @@ func execSQL(t *testing.T, db *sql.DB, q string, args ...any) {
 	t.Helper()
 	if _, err := db.ExecContext(context.Background(), q, args...); err != nil {
 		t.Fatalf("exec %s: %v", q, err)
+	}
+}
+
+func assertDuckCount(t *testing.T, db *sql.DB, q string, want int, args ...any) {
+	t.Helper()
+	var got int
+	if err := db.QueryRowContext(context.Background(), q, args...).Scan(&got); err != nil {
+		t.Fatalf("query count %s: %v", q, err)
+	}
+	if got != want {
+		t.Fatalf("count %s = %d, want %d", q, got, want)
 	}
 }
