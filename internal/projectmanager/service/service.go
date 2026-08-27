@@ -285,6 +285,8 @@ type Service struct {
 	// store backing the per-project auto_assign master switch (autoassign.Enabled). nil
 	// ⇒ the switch reads its default (ON) for every project.
 	autoAssignSettings settings.Store
+	autoAssignSweepMu  sync.Mutex
+	poolAssignmentMu   sync.Mutex
 	// orch is OPTIONAL (nil-safe, T768). The orchestration engine application service.
 	// When wired, StartPlan builds a graph mirroring the plan DAG (business node per
 	// task + condition node per decision) and dispatch/advance switch to the graph as
