@@ -1162,14 +1162,35 @@ func (r *PlanRepo) UpsertProgressWakeBucketState(ctx context.Context, s pm.Progr
 
 func (r *PlanRepo) UpsertProgressSuppressedWake(ctx context.Context, w pm.ProgressSuppressedWake) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	// Merge Plan IDs in-process while holding the caller's write transaction. This
-	// keeps a storm of distinct Plans bounded to one durable lane row.
 	var existingJSON string
 	var existingAttempts int
 	var created string
 	err := exec.QueryRowContext(ctx, `SELECT plan_ids_json, attempt_count, created_at
 		FROM pm_progress_suppressed_wakes WHERE id = ?`, w.ID).Scan(&existingJSON, &existingAttempts, &created)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil && len(w.PlanIDs) == 1 {
+		planID := strings.TrimSpace(string(w.PlanIDs[0]))
+		if planID == "" {
+			return errors.New("projectmanager sqlite: suppressed wake plan id is required")
+		}
+		planJSON, jerr := json.Marshal(pm.PlanID(planID))
+		if jerr != nil {
+			return jerr
+		}
+		plansJSON := existingJSON
+		if !strings.Contains(existingJSON, string(planJSON)) {
+			if strings.TrimSpace(existingJSON) == "[]" {
+				plansJSON = "[" + string(planJSON) + "]"
+			} else {
+				plansJSON = strings.TrimSuffix(existingJSON, "]") + "," + string(planJSON) + "]"
+			}
+		}
+		_, err = exec.ExecContext(ctx, `UPDATE pm_progress_suppressed_wakes
+			SET plan_ids_json=?, attempt_count=?, next_attempt_at=?, updated_at=?
+			WHERE id=?`,
+			plansJSON, existingAttempts+w.AttemptCount, ts(w.NextAttemptAt), ts(w.UpdatedAt), w.ID)
 		return err
 	}
 	seen := make(map[pm.PlanID]struct{}, len(w.PlanIDs))

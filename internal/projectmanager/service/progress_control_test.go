@@ -10,21 +10,13 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 func progressServiceFixture(t *testing.T) (*Service, *pmsql.ProgressControlRepo, *clock.FakeClock, *sql.DB, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC))
 	repo := pmsql.NewProgressControlRepo(db)
 	svc := New(Deps{DB: db, Clock: clk, IDGen: idgen.NewGenerator(clk), ProgressControl: repo})

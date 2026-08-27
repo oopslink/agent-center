@@ -92,6 +92,7 @@ func (s *Service) recordProgressWakeAttempt(ctx context.Context, a ProgressWakeA
 	keys := []string{"global", "org:" + a.OrganizationID, "severity:" + string(a.Severity), "channel:" + a.Channel}
 	states := make([]pm.ProgressWakeBucketState, 0, len(keys))
 	allowed, before := true, a.Capacity
+	var d pm.ProgressWakeBucketDiagnostic
 	err := s.runInTx(ctx, func(tx context.Context) error {
 		for _, key := range keys {
 			st, found, err := s.plans.GetProgressWakeBucketState(tx, key)
@@ -125,33 +126,33 @@ func (s *Service) recordProgressWakeAttempt(ctx context.Context, a ProgressWakeA
 				return err
 			}
 		}
+		reason := "delivered"
+		after := before - 1
+		if !allowed {
+			reason = "token_bucket_suppressed"
+			after = before
+		}
+		d = pm.ProgressWakeBucketDiagnostic{ID: stableID("pwake", string(a.PlanID), string(a.OwnerRef), a.IdempotencyKey), PlanID: a.PlanID, OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef, Severity: a.Severity, Allowed: allowed, Reason: reason, TokensBefore: before, TokensAfter: after, Capacity: a.Capacity, ReservedP0: a.ReservedP0, RefillPerMinute: a.RefillPerMinute, AttemptedAt: now, NextRefillAt: now.Add(time.Minute), EvidenceJSON: fmt.Sprintf(`{"idempotency_key":%q}`, a.IdempotencyKey)}
+		if err := s.plans.UpsertProgressWakeBucketDiagnostic(tx, d); err != nil {
+			return err
+		}
+		if !allowed && persist {
+			w := pm.ProgressSuppressedWake{ID: stableID("pswake", a.OrganizationID, string(a.OwnerRef), string(a.Severity), a.Channel), OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef, Severity: a.Severity, Channel: a.Channel, PlanIDs: []pm.PlanID{a.PlanID}, AttemptCount: 1, NextAttemptAt: d.NextRefillAt, CreatedAt: now, UpdatedAt: now}
+			if err := s.plans.UpsertProgressSuppressedWake(tx, w); err != nil {
+				return err
+			}
+			v := pm.ObservationVector{PlanID: a.PlanID, Decision: pm.ResponsibilityBound, Quality: pm.ProgressQualitySuspect, AsOf: now, EvaluatedAt: now, SuspectKey: "wake_suppressed", Facts: []pm.ProgressFact{{ID: d.ID, SourceKind: "pm_progress_wake_bucket_diagnostics", SourceID: d.ID, OccurredAt: now, ObservedAt: now, Revision: d.ID, Summary: "wake_suppressed", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true}}}
+			o := progressObligation(v, pm.ObligationAckWake, now)
+			o.OwnerRef = a.OwnerRef
+			o.OwnerDisplay = string(a.OwnerRef)
+			if err := s.plans.UpsertProgressObligation(tx, o); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return pm.ProgressWakeBucketDiagnostic{}, err
-	}
-	reason := "delivered"
-	after := before - 1
-	if !allowed {
-		reason = "token_bucket_suppressed"
-		after = before
-	}
-	d := pm.ProgressWakeBucketDiagnostic{ID: stableID("pwake", string(a.PlanID), string(a.OwnerRef), a.IdempotencyKey), PlanID: a.PlanID, OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef, Severity: a.Severity, Allowed: allowed, Reason: reason, TokensBefore: before, TokensAfter: after, Capacity: a.Capacity, ReservedP0: a.ReservedP0, RefillPerMinute: a.RefillPerMinute, AttemptedAt: now, NextRefillAt: now.Add(time.Minute), EvidenceJSON: fmt.Sprintf(`{"idempotency_key":%q}`, a.IdempotencyKey)}
-	if err := s.plans.UpsertProgressWakeBucketDiagnostic(ctx, d); err != nil {
-		return pm.ProgressWakeBucketDiagnostic{}, err
-	}
-	if !allowed && persist {
-		w := pm.ProgressSuppressedWake{ID: stableID("pswake", a.OrganizationID, string(a.OwnerRef), string(a.Severity), a.Channel), OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef, Severity: a.Severity, Channel: a.Channel, PlanIDs: []pm.PlanID{a.PlanID}, AttemptCount: 1, NextAttemptAt: d.NextRefillAt, CreatedAt: now, UpdatedAt: now}
-		if err := s.plans.UpsertProgressSuppressedWake(ctx, w); err != nil {
-			return pm.ProgressWakeBucketDiagnostic{}, err
-		}
-		v := pm.ObservationVector{PlanID: a.PlanID, Decision: pm.ResponsibilityBound, Quality: pm.ProgressQualitySuspect, AsOf: now, EvaluatedAt: now, SuspectKey: "wake_suppressed", Facts: []pm.ProgressFact{{ID: d.ID, SourceKind: "pm_progress_wake_bucket_diagnostics", SourceID: d.ID, OccurredAt: now, ObservedAt: now, Revision: d.ID, Summary: "wake_suppressed", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true}}}
-		o := progressObligation(v, pm.ObligationAckWake, now)
-		o.OwnerRef = a.OwnerRef
-		o.OwnerDisplay = string(a.OwnerRef)
-		if err := s.plans.UpsertProgressObligation(ctx, o); err != nil {
-			return pm.ProgressWakeBucketDiagnostic{}, err
-		}
 	}
 	return d, nil
 }
