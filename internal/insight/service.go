@@ -19,11 +19,28 @@ import (
 const replayOverlap = 48 * time.Hour
 
 type Service struct {
-	sqlite *sql.DB
-	duck   *sql.DB
-	path   string
-	ttl    time.Duration
-	mu     sync.RWMutex
+	sqlite             *sql.DB
+	duck               *sql.DB
+	path               string
+	ttl                time.Duration
+	mu                 sync.RWMutex
+	projectorFaultHook insightProjectorFaultHook
+}
+
+type insightProjectorCommitStage string
+
+const (
+	insightProjectorBeforeCommit insightProjectorCommitStage = "before_commit"
+	insightProjectorAfterCommit  insightProjectorCommitStage = "after_commit"
+)
+
+type insightProjectorFaultHook func(ctx context.Context, sourceKind, sourceEventID string, stage insightProjectorCommitStage) error
+
+func (s *Service) runProjectorFaultHook(ctx context.Context, sourceKind, sourceEventID string, stage insightProjectorCommitStage) error {
+	if s.projectorFaultHook == nil {
+		return nil
+	}
+	return s.projectorFaultHook(ctx, sourceKind, sourceEventID, stage)
 }
 
 func DefaultDuckDBPath(sqlitePath string) string {
@@ -416,7 +433,14 @@ func (s *Service) projectQueue(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceQueue, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceQueue, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
@@ -532,7 +556,14 @@ func (s *Service) projectActivity(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceActivity, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceActivity, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
@@ -584,15 +615,16 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			occupied := occupiedState(slot.State)
 			admissible := slot.SlotIndex < snap.AdmissionCap && slot.State != concurrency.StateDraining
 			var prevState, prevExec, prevTask, prevIntegrity string
+			var prevAdmissible bool
 			var prevFrom string
-			err = tx.QueryRowContext(ctx, `SELECT state, COALESCE(execution_id,''), COALESCE(task_id,''), COALESCE(integrity,''), valid_from
+			err = tx.QueryRowContext(ctx, `SELECT state, COALESCE(execution_id,''), COALESCE(task_id,''), COALESCE(integrity,''), admissible, valid_from
 				FROM slot_interval_fact WHERE worker_id=? AND agent_ref=? AND slot_index=? AND valid_to IS NULL
-				ORDER BY valid_from DESC LIMIT 1`, workerID, agentRef, slot.SlotIndex).Scan(&prevState, &prevExec, &prevTask, &prevIntegrity, &prevFrom)
+				ORDER BY valid_from DESC LIMIT 1`, workerID, agentRef, slot.SlotIndex).Scan(&prevState, &prevExec, &prevTask, &prevIntegrity, &prevAdmissible, &prevFrom)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				_ = tx.Rollback()
 				return err
 			}
-			same := err == nil && prevState == slot.State && prevExec == slot.ExecutorID && prevTask == slot.TaskID && prevIntegrity == snap.Integrity
+			same := err == nil && prevState == slot.State && prevExec == slot.ExecutorID && prevTask == slot.TaskID && prevIntegrity == snap.Integrity && prevAdmissible == admissible
 			if !same {
 				if _, err := tx.ExecContext(ctx, `UPDATE slot_interval_fact SET valid_to=? WHERE worker_id=? AND agent_ref=? AND slot_index=? AND valid_to IS NULL`,
 					fmtTS(observed), workerID, agentRef, slot.SlotIndex); err != nil {
@@ -612,7 +644,14 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceSlotObservation, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceSlotObservation, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
