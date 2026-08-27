@@ -1,10 +1,13 @@
 package projectmanager
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Delivery is the last forked executor's terminal git status — the center-side mirror
@@ -45,6 +48,155 @@ type Delivery struct {
 	// Reason explains why the delivery was reported manually (dead/exhausted/abandoned
 	// executor, operator takeover, etc.).
 	Reason string `json:"reason,omitempty"`
+}
+
+type DeliverySubjectType string
+
+const (
+	DeliverySubjectCommit DeliverySubjectType = "commit"
+)
+
+type AcceptanceVerdict string
+
+const (
+	AcceptancePassed            AcceptanceVerdict = "passed"
+	AcceptanceRejected          AcceptanceVerdict = "rejected"
+	AcceptanceWaivedByAuthority AcceptanceVerdict = "waived_by_authority"
+)
+
+type DeliverySubject struct {
+	ID                     string              `json:"id"`
+	SubjectType            DeliverySubjectType `json:"subject_type"`
+	PlanID                 PlanID              `json:"plan_id"`
+	TaskID                 TaskID              `json:"task_id"`
+	NodeID                 string              `json:"node_id,omitempty"`
+	ExecutionID            string              `json:"execution_id,omitempty"`
+	RepoID                 string              `json:"repo_id,omitempty"`
+	Remote                 string              `json:"remote"`
+	Branch                 string              `json:"branch"`
+	BaseSHA                string              `json:"base_sha"`
+	CandidateSHA           string              `json:"candidate_sha"`
+	CandidateRef           string              `json:"candidate_ref"`
+	PushedRemote           string              `json:"pushed_remote"`
+	DeliveryContractHash   string              `json:"delivery_contract_hash"`
+	AcceptanceContractHash string              `json:"acceptance_contract_hash"`
+	CreatedAt              time.Time           `json:"created_at"`
+}
+
+type Acceptance struct {
+	ID              string            `json:"id"`
+	SubjectID       string            `json:"subject_id"`
+	SubjectDigest   string            `json:"subject_digest"`
+	PlanID          PlanID            `json:"plan_id"`
+	TaskID          TaskID            `json:"task_id"`
+	GateTaskID      TaskID            `json:"gate_task_id,omitempty"`
+	ContractHash    string            `json:"contract_hash"`
+	Verdict         AcceptanceVerdict `json:"verdict"`
+	ActorRef        IdentityRef       `json:"actor_ref"`
+	AuthorityRank   int               `json:"authority_rank"`
+	AuthoritySource string            `json:"authority_source"`
+	EvidenceRef     string            `json:"evidence_ref"`
+	EvidenceSHA     string            `json:"evidence_sha"`
+	FindingsJSON    string            `json:"findings_json"`
+	CreatedAt       time.Time         `json:"created_at"`
+}
+
+func NewDeliverySubject(s DeliverySubject) (DeliverySubject, error) {
+	if strings.TrimSpace(s.ID) == "" || s.PlanID == "" || s.TaskID == "" {
+		return DeliverySubject{}, errors.New("projectmanager: delivery subject scope required")
+	}
+	if s.SubjectType == "" {
+		s.SubjectType = DeliverySubjectCommit
+	}
+	if s.SubjectType != DeliverySubjectCommit {
+		return DeliverySubject{}, errors.New("projectmanager: unsupported delivery subject type")
+	}
+	s.Remote = strings.TrimSpace(s.Remote)
+	s.Branch = strings.TrimSpace(s.Branch)
+	s.BaseSHA = normalizeDigest(s.BaseSHA)
+	s.CandidateSHA = normalizeDigest(s.CandidateSHA)
+	s.CandidateRef = strings.TrimSpace(s.CandidateRef)
+	s.PushedRemote = strings.TrimSpace(s.PushedRemote)
+	if s.Remote == "" || s.Branch == "" || s.BaseSHA == "" || s.CandidateSHA == "" || s.CandidateRef == "" || s.PushedRemote == "" {
+		return DeliverySubject{}, errors.New("projectmanager: immutable delivery subject requires remote, branch, base_sha, candidate_sha, candidate_ref and pushed_remote")
+	}
+	if !isImmutableVersion(s.BaseSHA) || !isImmutableVersion(s.CandidateSHA) {
+		return DeliverySubject{}, errors.New("projectmanager: delivery subject requires immutable commit/digest shas")
+	}
+	if s.DeliveryContractHash == "" || s.AcceptanceContractHash == "" {
+		return DeliverySubject{}, errors.New("projectmanager: delivery and acceptance contract hashes required")
+	}
+	if s.CreatedAt.IsZero() {
+		return DeliverySubject{}, errors.New("projectmanager: delivery subject created_at required")
+	}
+	s.CreatedAt = s.CreatedAt.UTC()
+	return s, nil
+}
+
+func NewAcceptance(a Acceptance, subject DeliverySubject) (Acceptance, error) {
+	if strings.TrimSpace(a.ID) == "" || strings.TrimSpace(a.SubjectID) == "" || a.PlanID == "" || a.TaskID == "" {
+		return Acceptance{}, errors.New("projectmanager: acceptance scope required")
+	}
+	if a.SubjectID != subject.ID || a.PlanID != subject.PlanID || a.TaskID != subject.TaskID {
+		return Acceptance{}, errors.New("projectmanager: acceptance scope must match delivery subject")
+	}
+	if a.SubjectDigest != subject.Digest() {
+		return Acceptance{}, errors.New("projectmanager: acceptance subject digest mismatch")
+	}
+	if a.ContractHash == "" || a.ContractHash != subject.AcceptanceContractHash {
+		return Acceptance{}, errors.New("projectmanager: acceptance contract hash mismatch")
+	}
+	if a.Verdict != AcceptancePassed && a.Verdict != AcceptanceRejected && a.Verdict != AcceptanceWaivedByAuthority {
+		return Acceptance{}, errors.New("projectmanager: acceptance verdict invalid")
+	}
+	if err := a.ActorRef.Validate(); err != nil {
+		return Acceptance{}, err
+	}
+	if a.AuthorityRank <= 0 || strings.TrimSpace(a.AuthoritySource) == "" {
+		return Acceptance{}, errors.New("projectmanager: trusted acceptance authority required")
+	}
+	a.EvidenceSHA = normalizeDigest(a.EvidenceSHA)
+	if a.EvidenceSHA != "" && a.EvidenceSHA != subject.CandidateSHA {
+		return Acceptance{}, errors.New("projectmanager: acceptance evidence sha must match delivery subject candidate")
+	}
+	if a.CreatedAt.IsZero() {
+		return Acceptance{}, errors.New("projectmanager: acceptance created_at required")
+	}
+	a.CreatedAt = a.CreatedAt.UTC()
+	return a, nil
+}
+
+func (s DeliverySubject) Digest() string {
+	canonical := strings.Join([]string{
+		string(s.SubjectType), string(s.PlanID), string(s.TaskID), s.NodeID, s.ExecutionID, s.RepoID,
+		s.Remote, s.Branch, s.BaseSHA, s.CandidateSHA, s.CandidateRef, s.PushedRemote,
+		s.DeliveryContractHash, s.AcceptanceContractHash, s.CreatedAt.UTC().Format(time.RFC3339Nano),
+	}, "\n")
+	sum := sha256.Sum256([]byte(canonical))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func ContractHash(contract string) string {
+	normalized := strings.Join(strings.Fields(strings.TrimSpace(contract)), " ")
+	sum := sha256.Sum256([]byte(normalized))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func normalizeDigest(v string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "sha256:")
+}
+
+func isImmutableVersion(v string) bool {
+	v = normalizeDigest(v)
+	if len(v) != 40 && len(v) != 64 {
+		return false
+	}
+	for _, r := range v {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // HasValidDelivery reports whether the executor produced a durable, pushed delivery —

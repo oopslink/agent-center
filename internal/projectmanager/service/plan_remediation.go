@@ -75,7 +75,6 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		if gateTask.Status() != pm.TaskCompleted {
 			return pm.ErrIllegalTransition
 		}
-
 		if prior, found, ferr := s.remediation.FindVerdictByKey(txCtx, cmd.IdempotencyKey); ferr != nil {
 			return ferr
 		} else if found {
@@ -129,6 +128,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		now := s.clock.Now()
 		verdict := result.Verdict
 		if !replay {
+			if _, err := s.recordAcceptanceForGate(txCtx, stage, gateTask, plan, cmd); err != nil {
+				return err
+			}
 			verdict, err = pm.NewGateVerdict(pm.GateVerdict{
 				ID: pm.GateVerdictID(s.idgen.NewEntityID("verdict")), ProjectID: plan.ProjectID(),
 				PlanID: plan.ID(), StageID: stage.ID(), GateTaskID: cmd.GateTaskID,
@@ -171,6 +173,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 		}
 		if cmd.Outcome == pm.GateVerdictPass {
+			if err := s.guardPlanProgressHolds(txCtx, plan.ID(), false, true, false); err != nil {
+				return err
+			}
 			if err := s.orch.ResolveCondition(txCtx, gateNode.ID(), "success"); err != nil {
 				return err
 			}

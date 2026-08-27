@@ -238,12 +238,13 @@ func (a *App) outboxProjectors(
 	wakeGuard := a.WakeGuard
 	sweepAgentRepo := agentsql.NewAgentRepo(a.DB)
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
-		DB:         a.DB,
-		Agents:     sweepAgentRepo,
-		ControlLog: controlLog,
-		Applied:    appliedRepo,
-		Clock:      a.Clock,
-		WakeGuard:  wakeGuard,
+		DB:                   a.DB,
+		Agents:               sweepAgentRepo,
+		ControlLog:           controlLog,
+		Applied:              appliedRepo,
+		Clock:                a.Clock,
+		WakeGuard:            wakeGuard,
+		ProgressWakeRecorder: a.PMService.RecordProgressWakeAttempt,
 		// T335 follow-up — server-side session-heal sweep (the second net). The
 		// WakeReconcileLoop drives ReconcileOnce on a 60s tick; it re-emits
 		// agent.work_available for desired-running agents that have queued runnable work
@@ -714,6 +715,19 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
+	// Independent progress-control failure domains: watchdog does not hang off
+	// ReconcileRunningPlans, and suppressed wake intents drain from durable state.
+	progressWatchdogCtx, progressWatchdogCancel := context.WithCancel(ctx)
+	progressWatchdog := pmservice.NewProgressWatchdogLoop(a.PMService, time.Minute, 3*time.Minute, func(msg string) {
+		logger("webconsole progress watchdog: " + msg)
+	})
+	go progressWatchdog.Run(progressWatchdogCtx)
+	progressWakeDrainCtx, progressWakeDrainCancel := context.WithCancel(ctx)
+	progressWakeDrain := pmservice.NewProgressWakeDrainLoop(a.PMService, time.Minute, nil, func(msg string) {
+		logger("webconsole progress wake drain: " + msg)
+	})
+	go progressWakeDrain.Run(progressWakeDrainCtx)
+
 	// Resolved issue lifecycle: after an issue remains resolved for the default
 	// grace period, close it automatically. The service uses durable
 	// status_changed_at, so restarts do not lose the countdown.
@@ -772,6 +786,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		gcCancel()
 		wakeLoopCancel()
 		planReconcileLoopCancel()
+		progressWatchdogCancel()
+		progressWakeDrainCancel()
 		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		activityEventGCCancel()

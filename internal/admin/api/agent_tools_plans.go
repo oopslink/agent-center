@@ -1225,6 +1225,9 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if detail.ProgressControl != nil {
+		m["progress_control"] = progressControlMap(detail.ProgressControl)
+	}
 	// issue-77d9beff ②: surface the stage GATE condition nodes so the plan owner/PD
 	// sees which gate to resolve (get_plan otherwise exposes only business task nodes).
 	if len(detail.Gates) > 0 {
@@ -1251,6 +1254,62 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 		}
 	}
 	return m
+}
+
+func progressControlMap(snap *pm.ProgressControlSnapshot) map[string]any {
+	if snap == nil {
+		return nil
+	}
+	holds := make([]map[string]any, 0, len(snap.OpenHolds))
+	for _, h := range snap.OpenHolds {
+		holds = append(holds, map[string]any{
+			"id": h.ID, "task_id": string(h.TaskID), "node_id": h.NodeID,
+			"reason_kind": h.ReasonKind, "reason_id": h.ReasonID,
+			"owner_ref": h.OwnerRef, "entered_at": h.EnteredAt.Format(time.RFC3339Nano),
+			"hold_ack_deadline":    h.HoldAckDeadline.Format(time.RFC3339Nano),
+			"max_hold_duration_ms": h.MaxHoldDuration.Milliseconds(),
+			"escalation_level":     h.EscalationLevel,
+			"next_escalation_at":   h.NextEscalationAt.Format(time.RFC3339Nano),
+			"blocks_dispatch":      h.BlocksDispatch,
+			"blocks_acceptance":    h.BlocksAcceptance,
+			"blocks_completion":    h.BlocksCompletion,
+		})
+	}
+	obligations := make([]map[string]any, 0, len(snap.OpenObligations))
+	for _, o := range snap.OpenObligations {
+		obligations = append(obligations, map[string]any{
+			"id": o.ID, "task_id": string(o.TaskID), "node_id": o.NodeID,
+			"kind": o.Kind, "owner_ref": string(o.OwnerRef), "deadline_at": o.DeadlineAt.Format(time.RFC3339Nano),
+			"ack_required": o.AckRequired, "escalate_to_ref": o.EscalateToRef,
+			"escalation_deadline_at": o.EscalationDeadlineAt.Format(time.RFC3339Nano),
+			"source_fact_refs":       o.SourceFactRefs,
+			"status":                 o.Status,
+		})
+	}
+	incidents := make([]map[string]any, 0, len(snap.OpenIncidents))
+	for _, i := range snap.OpenIncidents {
+		incidents = append(incidents, map[string]any{
+			"id": i.ID, "task_id": string(i.TaskID), "node_id": i.NodeID,
+			"kind": i.Kind, "severity": i.Severity, "owner_ref": i.OwnerRef,
+			"summary": i.Summary, "source_ref": i.SourceRef, "status": i.Status,
+		})
+	}
+	actions := make([]map[string]any, 0, len(snap.RequiredActions))
+	for _, a := range snap.RequiredActions {
+		actions = append(actions, map[string]any{
+			"id": a.ID, "source_type": a.SourceType, "source_id": a.SourceID,
+			"category": a.Category, "action": a.Action, "owner_ref": a.OwnerRef,
+			"owner_display": a.OwnerDisplay, "deadline_at": a.DeadlineAt.Format(time.RFC3339Nano),
+			"trigger_fact_refs": a.TriggerFactRefs, "options": a.Options,
+		})
+	}
+	return map[string]any{
+		"as_of": snap.AsOf.Format(time.RFC3339Nano), "decision": string(snap.Decision),
+		"observation_vector_id": snap.ObservationVectorID, "quality": string(snap.Quality),
+		"freshness":  map[string]any{"state": snap.Freshness.State, "watermark_lag_ms": snap.Freshness.WatermarkLagMS, "threshold_ms": snap.Freshness.ThresholdMS},
+		"open_holds": holds, "open_obligations": obligations, "open_incidents": incidents,
+		"required_actions": actions,
+	}
 }
 
 // planSummaryMap renders a Plan for the list tool: the bare Plan fields plus the

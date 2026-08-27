@@ -144,6 +144,32 @@ export interface Plan {
   continuations?: PlanContinuation[];
   blocked_on?: PlanBlockedOn[];
   active_generation_id?: string;
+  progress_control?: PlanProgressControl;
+}
+
+export type ProgressDecision = 'progress_fact_verified' | 'responsibility_bound' | 'cannot_determine';
+export interface PlanProgressRequiredAction {
+  id: string;
+  source_type: 'obligation' | 'incident' | 'hold' | string;
+  source_id: string;
+  category: 'owner_action' | 'prerequisite_wait' | 'system_recovery' | 'safety_hold' | string;
+  action: string;
+  owner_ref: string;
+  owner_display: string;
+  deadline_at?: string;
+  trigger_fact_refs: string[];
+  options?: string[];
+}
+export interface PlanProgressControl {
+  as_of: string;
+  freshness: { state: 'fresh' | 'stale' | 'degraded' | string; watermark_lag_ms: number; threshold_ms: number };
+  decision: ProgressDecision | string;
+  observation_vector_id: string;
+  quality: 'valid' | 'suspect' | string;
+  open_obligations: Array<{ id: string; kind: string; owner_ref: string; deadline_at: string; source_fact_refs: string[] }>;
+  open_incidents: Array<{ id: string; kind: string; owner_ref: string; summary: string; source_ref: string }>;
+  open_holds: Array<{ id: string; reason_kind: string; reason_id: string; owner_ref: string; hold_ack_deadline: string }>;
+  required_actions: PlanProgressRequiredAction[];
 }
 
 export interface PlanBlockedOn {

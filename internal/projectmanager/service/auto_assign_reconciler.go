@@ -358,14 +358,6 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 		if aerr := t.Assign(agentRef, now); aerr != nil {
 			return aerr
 		}
-		ok, cerr := s.tasks.ClaimIfUnassigned(txCtx, t)
-		if cerr != nil {
-			return cerr
-		}
-		if !ok {
-			won = false // a concurrent claim took it first (converges with claim_task)
-			return nil
-		}
 		if hasPoolMember {
 			memberWon, merr := s.pools.Claim(txCtx, poolMember.PoolID, taskID, poolMember.Version, agentRef, now, time.Time{})
 			if merr != nil {
@@ -374,6 +366,13 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 			if !memberWon {
 				return pm.ErrTaskAlreadyClaimed
 			}
+		}
+		ok, cerr := s.tasks.ClaimIfUnassigned(txCtx, t)
+		if cerr != nil {
+			return cerr
+		}
+		if !ok {
+			return pm.ErrTaskAlreadyClaimed
 		}
 		won = true
 		matched = matchedCaps
