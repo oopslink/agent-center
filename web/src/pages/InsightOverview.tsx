@@ -118,16 +118,35 @@ export default function InsightOverview(): React.ReactElement {
 export function InsightExecutionDetailPage(): React.ReactElement {
   const { executionId } = useParams<{ executionId: string }>();
   const query = useInsightExecution(executionId);
+  const isNotFound = query.error instanceof ApiError && query.error.status === 404;
   return (
     <section className="space-y-4" data-testid="page-InsightExecutionDetail">
-      <header>
-        <Link to="../../overview" relative="path" className="text-sm text-brand hover:underline">
-          Insight overview
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold text-text-primary">TaskExecution detail</h1>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link to="../../overview" relative="path" className="text-sm text-brand hover:underline">
+            Insight overview
+          </Link>
+          <h1 className="mt-1 text-xl font-semibold text-text-primary">TaskExecution detail</h1>
+          <p className="mt-1 font-mono text-xs text-text-muted">{executionId ?? EMPTY}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void query.refetch()}
+          disabled={!executionId || query.isFetching}
+          className="rounded border border-border-base bg-bg-elevated px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {query.isFetching ? 'Refreshing' : 'Refresh'}
+        </button>
       </header>
       {query.isLoading && <StatePanel testId="insight-execution-loading" title="Loading execution detail" />}
-      {query.isError && (
+      {isNotFound && (
+        <StatePanel
+          testId="insight-execution-not-found"
+          title="Execution not found"
+          body="This TaskExecution does not exist in the current organization Insight window."
+        />
+      )}
+      {query.isError && !isNotFound && (
         <StatePanel
           testId={isAuthError(query.error) ? 'insight-execution-auth-error' : 'insight-execution-error'}
           tone="danger"

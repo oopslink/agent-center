@@ -75,12 +75,19 @@ function renderOverview() {
   );
 }
 
-function renderExecutionDetail() {
-  window.history.pushState({}, '', '/organizations/acme/insights/executions/exec-24h-1');
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderExecutionDetail({
+  slug = 'acme',
+  executionId = 'exec-24h-1',
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+}: {
+  slug?: string;
+  executionId?: string;
+  qc?: QueryClient;
+} = {}) {
+  window.history.pushState({}, '', `/organizations/${slug}/insights/executions/${executionId}`);
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/organizations/acme/insights/executions/exec-24h-1']}>
+      <MemoryRouter initialEntries={[`/organizations/${slug}/insights/executions/${executionId}`]}>
         <Routes>
           <Route path="/organizations/:slug/insights/executions/:executionId" element={<InsightExecutionDetailPage />} />
         </Routes>
@@ -230,8 +237,84 @@ describe('InsightOverview page', () => {
 
     renderExecutionDetail();
 
+    expect(screen.getByTestId('insight-execution-loading')).toHaveTextContent('Loading execution detail');
     expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('exec-24h-1');
     expect(screen.getByTestId('insight-execution-detail')).toHaveTextContent('Ship UI');
     expect(new URL(detailUrl).searchParams.get('window')).toBe('24h');
+  });
+
+  it('refreshes single execution detail explicitly', async () => {
+    let calls = 0;
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions/:executionId', () => {
+        calls += 1;
+        return HttpResponse.json({
+          ...windowEnvelope,
+          execution: { ...execution, outcome: calls === 1 ? 'running' : 'succeeded' },
+        });
+      }),
+    );
+
+    renderExecutionDetail();
+
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('running');
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('succeeded');
+    expect(calls).toBe(2);
+  });
+
+  it('renders 404 as a dedicated not-found state', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions/:executionId', () =>
+        HttpResponse.json({ error: 'not_found', message: 'execution not found' }, { status: 404 }),
+      ),
+    );
+
+    renderExecutionDetail({ executionId: 'missing-exec' });
+
+    expect(await screen.findByTestId('insight-execution-not-found')).toHaveTextContent('Execution not found');
+    expect(screen.queryByText('Execution detail failed')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('insight-execution-detail')).not.toBeInTheDocument();
+  });
+
+  it('keeps non-404 detail failures on the generic error state', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions/:executionId', () =>
+        HttpResponse.json({ error: 'insight_unavailable', message: 'duckdb offline' }, { status: 503 }),
+      ),
+    );
+
+    renderExecutionDetail();
+
+    expect(await screen.findByTestId('insight-execution-error')).toHaveTextContent('Execution detail failed');
+    expect(screen.getByTestId('insight-execution-error')).toHaveTextContent('duckdb offline');
+  });
+
+  it('does not reuse single execution detail across organizations', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions/:executionId', ({ params }) => {
+        seen.push(String(params.slug));
+        return HttpResponse.json({
+          ...windowEnvelope,
+          execution: {
+            ...execution,
+            execution_id: String(params.executionId),
+            project_name: params.slug === 'acme' ? 'Acme Launch' : 'Beta Launch',
+          },
+        });
+      }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    const first = renderExecutionDetail({ slug: 'acme', qc });
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('Acme Launch');
+    first.unmount();
+    cleanup();
+
+    renderExecutionDetail({ slug: 'beta', qc });
+
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('Beta Launch');
+    expect(seen).toEqual(['acme', 'beta']);
   });
 });
