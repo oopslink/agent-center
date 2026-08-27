@@ -85,7 +85,7 @@ func (r *ProgressControlRepo) AcknowledgeWake(ctx context.Context, wakeID string
 	if err != nil || !ok {
 		return false, err
 	}
-	if _, err := r.ReleaseHoldsByReason(ctx, pm.ProgressObligationAckWake, "obl:"+wakeID, actor, factRef, at); err != nil {
+	if _, err := r.ReleaseHoldsByReason(ctx, string(pm.ProgressObligationAckWake), "obl:"+wakeID, actor, factRef, at); err != nil {
 		return false, err
 	}
 	if _, err := r.ResolveOpenObligationsByFact(ctx, w.PlanID, w.TaskID, actor, factRef, at); err != nil {
@@ -154,18 +154,18 @@ func scanWake(scan func(...any) error) (pm.ProgressWake, error) {
 
 func (r *ProgressControlRepo) UpsertObligation(ctx context.Context, o pm.ProgressObligation) (bool, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_obligations
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_control_obligations
 		(id, plan_id, task_id, node_id, kind, owner_ref, owner_display, deadline_at, ack_required, acked_at, escalate_to_ref, escalation_deadline_at, source_fact_refs, status, created_at, updated_at, version)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(plan_id, task_id, kind, owner_ref, deadline_at) DO UPDATE SET updated_at=excluded.updated_at, status=pm_progress_obligations.status`,
+		ON CONFLICT(plan_id, task_id, kind, owner_ref, deadline_at) DO UPDATE SET updated_at=excluded.updated_at, status=pm_progress_control_obligations.status`,
 		o.ID, string(o.PlanID), string(o.TaskID), o.NodeID, o.Kind, string(o.OwnerRef), o.OwnerDisplay, ts(o.DeadlineAt), boolToInt(o.AckRequired),
-		tsPtr(&o.AckedAt), o.EscalateToRef, ts(o.EscalationDeadlineAt), encodeStrings(o.SourceFactRefs), o.Status, ts(o.CreatedAt), ts(o.UpdatedAt), o.Version)
+		tsPtr(o.AckedAt), o.EscalateToRef, ts(o.EscalationDeadlineAt), encodeStrings(o.SourceFactRefs), o.Status, ts(o.CreatedAt), ts(o.UpdatedAt), o.Version)
 	return err == nil, err
 }
 
 func (r *ProgressControlRepo) UpsertIncident(ctx context.Context, i pm.ProgressIncident) (bool, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_incidents
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_control_incidents
 		(id, plan_id, task_id, node_id, kind, severity, owner_ref, owner_display, summary, source_ref, status, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(plan_id, task_id, kind, source_ref) DO UPDATE SET updated_at=excluded.updated_at, severity=excluded.severity`,
@@ -258,7 +258,7 @@ func (r *ProgressControlRepo) ReleaseHoldsByFact(ctx context.Context, planID pm.
 
 func (r *ProgressControlRepo) ResolveOpenObligationsByFact(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, actor pm.IdentityRef, factRef string, at time.Time) (int, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_obligations
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_control_obligations
 		SET status='resolved', acked_at=?, updated_at=?, source_fact_refs=?
 		WHERE plan_id=? AND (?='' OR task_id=?) AND status='open' AND owner_ref=?`,
 		ts(at), ts(at), encodeStrings([]string{factRef}), string(planID), string(taskID), string(taskID), string(actor))
@@ -271,7 +271,7 @@ func (r *ProgressControlRepo) ResolveOpenObligationsByFact(ctx context.Context, 
 
 func (r *ProgressControlRepo) ResolveOpenIncidentsBySource(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, sourceRef string, factRef string, at time.Time) (int, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_incidents
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_control_incidents
 		SET status='resolved', updated_at=?
 		WHERE plan_id=? AND (?='' OR task_id=?) AND status='open' AND source_ref=?`,
 		ts(at), string(planID), string(taskID), string(taskID), sourceRef)
@@ -329,7 +329,7 @@ func (r *ProgressControlRepo) SnapshotPlan(ctx context.Context, planID pm.PlanID
 func (r *ProgressControlRepo) listOpenObligations(ctx context.Context, planID pm.PlanID) ([]pm.ProgressObligation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, `SELECT id, task_id, node_id, kind, owner_ref, owner_display, deadline_at, ack_required, acked_at, escalate_to_ref, escalation_deadline_at, source_fact_refs, status, created_at, updated_at, version
-		FROM pm_progress_obligations WHERE plan_id=? AND status='open' ORDER BY deadline_at, id`, string(planID))
+		FROM pm_progress_control_obligations WHERE plan_id=? AND status='open' ORDER BY deadline_at, id`, string(planID))
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +348,7 @@ func (r *ProgressControlRepo) listOpenObligations(ctx context.Context, planID pm
 		o.DeadlineAt = parseTime(deadline)
 		o.AckRequired = ackRequired != 0
 		if t := parseTimePtr(acked); t != nil {
-			o.AckedAt = *t
+			o.AckedAt = t
 		}
 		o.EscalationDeadlineAt = parseTime(escalationDeadline)
 		o.SourceFactRefs = decodeStrings(refs)
@@ -361,7 +361,7 @@ func (r *ProgressControlRepo) listOpenObligations(ctx context.Context, planID pm
 func (r *ProgressControlRepo) listOpenIncidents(ctx context.Context, planID pm.PlanID) ([]pm.ProgressIncident, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, `SELECT id, task_id, node_id, kind, severity, owner_ref, owner_display, summary, source_ref, status, created_at, updated_at
-		FROM pm_progress_incidents WHERE plan_id=? AND status='open' ORDER BY created_at, id`, string(planID))
+		FROM pm_progress_control_incidents WHERE plan_id=? AND status='open' ORDER BY created_at, id`, string(planID))
 	if err != nil {
 		return nil, err
 	}

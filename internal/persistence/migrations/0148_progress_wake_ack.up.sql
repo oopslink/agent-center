@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS pm_progress_wakes (
 );
 CREATE INDEX IF NOT EXISTS idx_pm_progress_wakes_unacked ON pm_progress_wakes (ack_deadline, acknowledged_at);
 
-CREATE TABLE IF NOT EXISTS pm_progress_obligations (
+CREATE TABLE IF NOT EXISTS pm_progress_control_obligations (
     id TEXT PRIMARY KEY,
     plan_id TEXT NOT NULL,
     task_id TEXT NOT NULL DEFAULT '',
@@ -41,9 +41,9 @@ CREATE TABLE IF NOT EXISTS pm_progress_obligations (
     version INTEGER NOT NULL DEFAULT 1,
     UNIQUE(plan_id, task_id, kind, owner_ref, deadline_at)
 );
-CREATE INDEX IF NOT EXISTS idx_pm_progress_obligations_open ON pm_progress_obligations (plan_id, status, deadline_at);
+CREATE INDEX IF NOT EXISTS idx_pm_progress_control_obligations_open ON pm_progress_control_obligations (plan_id, status, deadline_at);
 
-CREATE TABLE IF NOT EXISTS pm_progress_incidents (
+CREATE TABLE IF NOT EXISTS pm_progress_control_incidents (
     id TEXT PRIMARY KEY,
     plan_id TEXT NOT NULL,
     task_id TEXT NOT NULL DEFAULT '',
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS pm_progress_incidents (
     updated_at TEXT NOT NULL,
     UNIQUE(plan_id, task_id, kind, source_ref)
 );
-CREATE INDEX IF NOT EXISTS idx_pm_progress_incidents_open ON pm_progress_incidents (plan_id, status, severity);
+CREATE INDEX IF NOT EXISTS idx_pm_progress_control_incidents_open ON pm_progress_control_incidents (plan_id, status, severity);
 
 CREATE TABLE IF NOT EXISTS pm_progress_holds (
     id TEXT PRIMARY KEY,

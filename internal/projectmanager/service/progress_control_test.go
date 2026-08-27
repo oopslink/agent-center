@@ -187,6 +187,31 @@ func TestProgressHold_GatesFreshStartButNotInFlightResume(t *testing.T) {
 	}
 }
 
+func TestProgressHold_BlocksAuthoritativeDecisionPassToken(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	_, planID, decision, _ := seedRootDecisionPlan(t, h, "held-pass-token", "user:a")
+	now := h.clk.Now()
+	if _, err := h.svc.progress.UpsertHold(h.ctx, pm.ProgressHold{
+		ID: "hold-pass-token", PlanID: planID, TaskID: decision,
+		ReasonKind: string(pm.WaitHumanDecision), ReasonID: "decision:" + string(decision),
+		OwnerRef: "user:a", OwnerDisplay: "user:a", EnteredAt: now,
+		HoldAckDeadline: now.Add(time.Minute), MaxHoldDuration: time.Hour,
+		NextEscalationAt: now.Add(time.Minute), BlocksAcceptance: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.RecordDecisionOutcome(h.ctx, decision, "pass", "user:a"); !errors.Is(err, pm.ErrProgressHoldOpen) {
+		t.Fatalf("pass token err=%v, want ErrProgressHoldOpen", err)
+	}
+	if err := h.svc.RecordProgressDecision(h.ctx, planID, decision, "user:a", "decision-fact"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.RecordDecisionOutcome(h.ctx, decision, "pass", "user:a"); err != nil {
+		t.Fatalf("pass after executable decision fact: %v", err)
+	}
+}
+
 func TestProgressHold_MaterializesOnlyForMissingExecutableReleaseFact(t *testing.T) {
 	h := planAdvanceSetup(t)
 	h.svc.progress = pmsql.NewProgressControlRepo(h.db)

@@ -123,7 +123,7 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 			_, err = s.progress.UpsertObligation(txCtx, pm.ProgressObligation{
 				ID: obligationID, PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
 				Kind: pm.ProgressObligationAckWake, OwnerRef: w.OwnerRef, OwnerDisplay: w.OwnerDisplay,
-				DeadlineAt: w.AckDeadline, AckRequired: true, EscalateToRef: w.OrganizationOwnerRef,
+				DeadlineAt: w.AckDeadline, AckRequired: true, EscalateToRef: pm.IdentityRef(w.OrganizationOwnerRef),
 				EscalationDeadlineAt: w.NextEscalationAt, SourceFactRefs: []string{w.ID}, Status: "open",
 				CreatedAt: now, UpdatedAt: now, Version: 1,
 			})
@@ -132,7 +132,7 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 			}
 			_, err = s.progress.UpsertIncident(txCtx, pm.ProgressIncident{
 				ID: s.id("inc"), PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
-				Kind: pm.ProgressIncidentOperational, Severity: "operational", OwnerRef: w.OrganizationOwnerRef,
+				Kind: pm.ProgressIncidentOperational, Severity: "operational", OwnerRef: pm.IdentityRef(w.OrganizationOwnerRef),
 				OwnerDisplay: w.OrganizationOwnerRef, Summary: "wake ack deadline missed; notification is not resolution",
 				SourceRef: w.ID, Status: "open", CreatedAt: now, UpdatedAt: now,
 			})
@@ -141,7 +141,7 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 			}
 			_, err = s.progress.UpsertHold(txCtx, pm.ProgressHold{
 				ID: s.id("hold"), PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
-				ReasonKind: pm.ProgressObligationAckWake, ReasonID: obligationID,
+				ReasonKind: string(pm.ProgressObligationAckWake), ReasonID: obligationID,
 				OwnerRef: string(w.OwnerRef), OwnerDisplay: w.OwnerDisplay, EnteredAt: w.RequestedAt,
 				HoldAckDeadline: w.AckDeadline, MaxHoldDuration: w.MaxHoldDuration,
 				EscalationLevel: w.EscalationLevel + 1, NextEscalationAt: w.NextEscalationAt.Add(defaultHoldAckDeadline),
@@ -172,7 +172,7 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 		for _, h := range breached {
 			_, err = s.progress.UpsertIncident(txCtx, pm.ProgressIncident{
 				ID: s.id("inc"), PlanID: h.PlanID, TaskID: h.TaskID, NodeID: h.NodeID,
-				Kind: pm.ProgressIncidentHoldSLOBreach, Severity: "P0", OwnerRef: h.OwnerRef,
+				Kind: pm.ProgressIncidentHoldSLOBreach, Severity: "P0", OwnerRef: pm.IdentityRef(h.OwnerRef),
 				OwnerDisplay: h.OwnerDisplay, Summary: "progress_hold max duration breached",
 				SourceRef: h.ID, Status: "open", CreatedAt: now, UpdatedAt: now,
 			})

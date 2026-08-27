@@ -785,6 +785,13 @@ func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, o
 		if t.PlanID() == "" {
 			return fmt.Errorf("projectmanager: task %s is not in a plan — no decision outcome to record", taskID)
 		}
+		// A pass token is an authoritative release fact: never mint it while a
+		// progress_hold says the evidence chain is still unresolved.
+		if outcome == "pass" || outcome == "success" {
+			if err := s.guardTaskProgressHolds(txCtx, taskID, false, true, false); err != nil {
+				return err
+			}
+		}
 		if rerr := s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now); rerr != nil {
 			return rerr
 		}

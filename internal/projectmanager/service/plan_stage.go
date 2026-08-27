@@ -687,6 +687,9 @@ func (s *Service) ResolveStageGate(ctx context.Context, gateNodeID string, resul
 
 	if pass {
 		if rerr := s.runInTx(ctx, func(txCtx context.Context) error {
+			if err := s.guardPlanProgressHolds(txCtx, p.ID(), false, true, false); err != nil {
+				return err
+			}
 			if cerr := s.orch.ResolveCondition(txCtx, orch.NodeID(gateNodeID), "success"); cerr != nil {
 				return cerr
 			}
