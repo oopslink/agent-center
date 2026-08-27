@@ -1,0 +1,293 @@
+{
+  "task_id": "task-c2fb36b4",
+  "execution_id": "exec-6e762071",
+  "reviewed_sha": "5ff772114c8cdebfbfb50403c76d2fd9f3fc9531",
+  "base_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 . | head -200'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -path '*task-input*' -o -name manifest.json -o -name README.md | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-methodology.md \u0026\u0026 sed -n '1,220p' docs/rules/acceptance-evidence-spec.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"git remote -v \u0026\u0026 git branch -a --contains HEAD | sed -n '1,120p' \u0026\u0026 git log --oneline --decorate -5\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"rg -n \\\"T1613|t1613|projector|Insight|insight|frozen|738bc0a6769b413dd4d04c6834207c62c2918fae|fault hook|fault\\\" . --glob '\"'!node_modules'\"' --glob '\"'!web/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git fetch --all --prune'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git branch -r | rg -n \"1613|insight|projector|remediation|recovery\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*task-input*' -o -name manifest.json | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git ls-remote --heads origin '*1613*' '*insight*' '*projector*' '*remediation*' '*recovery*' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"rg -n \\\"type .*Projector|projector_checkpoint|DuckDB|duckdb|Insight|insights|checkpoint|fault|crash|once|exactly\\\" internal cmd tests docs/design/features/insight-phase-1-contract.md --glob '\"'!**/node_modules/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"find internal -maxdepth 4 -type d | rg -i 'insight|projector|observability|execution'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin | rg -i \"1613|s2c|insight|projector|exact|once|duck|crash|fault|replay|remedi\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'find internal/insight -maxdepth 4 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"git log --all --grep='T1613\\\\|t1613\\\\|Insight\\\\|insight\\\\|projector\\\\|exactly\\\\|crash' --oneline --decorate --max-count=100\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate origin/feat/t1575-insight-contract \u0026\u0026 git show --stat --oneline --decorate origin/test/t1579-insight-harness \u0026\u0026 git show --stat --oneline --decorate origin/s2b-insight-overview-ui-main-20260827'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git diff --stat origin/main..origin-push/ac-exec/task-38ab4598/exec-ea18819f \u0026\u0026 git diff --name-status origin/main..origin-push/ac-exec/task-38ab4598/exec-ea18819f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main origin-push/ac-exec/task-38ab4598/exec-ea18819f origin-push/main \u0026\u0026 git merge-base origin/main origin-push/ac-exec/task-38ab4598/exec-ea18819f \u0026\u0026 git merge-base --is-ancestor origin/main origin-push/ac-exec/task-38ab4598/exec-ea18819f; echo ancestry_origin_main_to_candidate=$? \u0026\u0026 git merge-base --is-ancestor origin-push/ac-exec/task-38ab4598/exec-ea18819f origin/main; echo ancestry_candidate_to_origin_main=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-38ab4598/exec-ea18819f refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git diff --unified=120 origin/main..origin-push/ac-exec/task-38ab4598/exec-ea18819f -- internal/insight/service.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'git diff --unified=120 origin/main..origin-push/ac-exec/task-38ab4598/exec-ea18819f -- internal/insight/service_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'git show --no-patch --format=fuller origin-push/ac-exec/task-38ab4598/exec-ea18819f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -name 'Makefile' -o -name 'go.mod' -o -name 'package.json' | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'git status --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"rg -n \\\"test-race|race|insight|frozen|t1579|harness|focused|go test\\\" Makefile internal/insight docs tests scripts --glob '\"'!**/node_modules/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '80,115p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'git show --name-only --oneline 0f53752aea1061bdc4cc761a5e9fe5a9f11d0f53'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git worktree list'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'git checkout --detach 0f53752aea1061bdc4cc761a5e9fe5a9f11d0f53'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'git merge-base --is-ancestor 738bc0a6769b413dd4d04c6834207c62c2918fae HEAD; echo frozen_738_ancestor_of_candidate=$? \u0026\u0026 git merge-base 738bc0a6769b413dd4d04c6834207c62c2918fae HEAD \u0026\u0026 git diff --name-status 738bc0a6769b413dd4d04c6834207c62c2918fae..HEAD -- internal/insight'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"go test ./internal/insight -run 'TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce|TestInsightPostCommitCrashRestartDoesNotDuplicate' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'git show --unified=80 738bc0a6769b413dd4d04c6834207c62c2918fae -- internal/insight/service_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --ancestry-path 16a4120322f23007511d4609d0cb64d5982d0600..738bc0a6769b413dd4d04c6834207c62c2918fae -- internal/insight/service_test.go \u0026\u0026 git log --oneline --decorate --graph --ancestry-path 16a4120322f23007511d4609d0cb64d5982d0600..HEAD -- internal/insight/service_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc 'go test ./internal/insight -count=1 -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'go test ./internal/insight/... -count=1 -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'tmpdir=$(mktemp -d /tmp/t1613-frozen-on-candidate.XXXXXX)\ngit worktree add --detach \"$tmpdir\" 0f53752aea1061bdc4cc761a5e9fe5a9f11d0f53\ngit -C \"$tmpdir\" checkout 738bc0a6769b413dd4d04c6834207c62c2918fae -- internal/insight/service_test.go\ncd \"$tmpdir\"\ngo test ./internal/insight -count=1 -v'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'make test-race'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'go test -race ./internal/insight -count=10 -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'git checkout ac-exec/task-c2fb36b4/exec-6e762071'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1613-s2c-r3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/acceptance/t1613-s2c-r3/REPORT.md \u0026\u0026 sed -n '1,240p' docs/acceptance/t1613-s2c-r3/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'git diff --check \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1613-s2c-r3/REPORT.md docs/acceptance/t1613-s2c-r3/verdict.json \u0026\u0026 git commit -m \"docs(acceptance): record t1613 s2c-r3 verdict\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-c2fb36b4/exec-6e762071'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git ls-tree -r HEAD -- docs/acceptance/t1613-s2c-r3 \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-c2fb36b4/exec-6e762071'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-6e762071/command_events.jsonl",
+  "command_event_digest": "sha256:9f7f64d56969329b1883b597233ebc6c025a90e594b3844709e8b4acac035ba4",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT。",
+  "artifact_digest": "sha256:5e1cbcef73d9de131e0a2f7e1b05ff64ba87d1937113e7e5b9324f8a96a18995",
+  "path": ".agent-center/evidence/task-c2fb36b4/exec-6e762071.json",
+  "branch": "ac-exec/task-c2fb36b4/exec-6e762071"
+}
