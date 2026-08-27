@@ -21,19 +21,11 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 func pr7InboxSetup(t *testing.T) (*convservice.AgentInboxService, *convservice.ReadStateService, *convsql.ConversationRepo, *convsql.MessageRepo, *clock.FakeClock, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	er, _ := obsqlite.NewEventRepo(context.Background(), db)

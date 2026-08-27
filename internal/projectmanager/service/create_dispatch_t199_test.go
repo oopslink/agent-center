@@ -9,7 +9,6 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -189,14 +188,7 @@ func TestCreateTask_Dispatch_CrossOrgAssignee_RollsBack(t *testing.T) {
 // Dispatch=true on a Service with NO plan repo wired → ErrPlansUnavailable (the
 // one-step dispatch cannot reach the pool). The plain create still works.
 func TestCreateTask_Dispatch_PlansUnavailable(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	svc := New(Deps{
@@ -237,14 +229,7 @@ func TestCreateTask_BadAssigneeRef_Rejected(t *testing.T) {
 // built-in pool (ADR-0047 invariant breach). Seeds a project directly via the
 // repo (bypassing CreateProject's pool creation) to reach the guard.
 func TestRequireBuiltinPool_Missing(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	projRepo := pmsql.NewProjectRepo(db)
