@@ -189,8 +189,7 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 		// (ListRunnableAgentTasks) would bypass the closed barrier. The dispatch path
 		// (graphReadySet → GetReadyNodes) already gates this correctly off the graph; the
 		// run-gate must agree. Reuse the engine's gate: a downstream entry is runnable
-		// only once its upstream stage gate has RESOLVED (completed/discarded), mirroring
-		// orch ReadyNodes' condition-gate satisfaction test.
+		// only once its upstream stage gate has a valid immutable pass Acceptance.
 		blocked, berr := s.stageGateBlocks(ctx, p, t)
 		if berr != nil {
 			return berr
@@ -209,8 +208,8 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 // stage-aware complement to the stage-UNAWARE DerivePlanView: buildStages wires a
 // downstream stage's ENTRY node to depend_on the upstream stage's gate CONDITION
 // node, and that barrier edge lives ONLY in the orchestration graph. This mirrors the
-// engine's own ReadyNodes rule (an unresolved condition gates its downstream), so the
-// run-gate and the dispatcher agree on "barrier lifted".
+// stage Acceptance ledger, so task completion / condition completion alone never lifts
+// the barrier.
 //
 // It is a pure READ (no mutation, no event) so it composes inside any caller's tx.
 // Returns false (no barrier) for a plan with no engine / no graph / a task not bound
@@ -250,16 +249,28 @@ func (s *Service) stageGateBlocks(ctx context.Context, p *pm.Plan, t *pm.Task) (
 			continue
 		}
 		// A stage gate = a CONDITION control node carrying "stage_gate" metadata
-		// (stamped by buildStages). It is "lifted" only once RESOLVED — mirroring
-		// orch.ReadyNodes, which treats a condition dep as satisfied only when
-		// completed/discarded. An unresolved (open/reopen) stage gate HOLDS the entry.
+		// (stamped by buildStages). It is lifted only by a valid immutable pass
+		// Acceptance for the stage's current contract. An unresolved, completed-only, or
+		// stale-contract gate HOLDS the entry.
 		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
 			continue
 		}
-		if _, isStageGate := n.Metadata()["stage_gate"]; !isStageGate {
+		stageID, isStageGate := n.Metadata()["stage_gate"].(string)
+		if !isStageGate || stageID == "" {
 			continue
 		}
-		if n.Status() != orch.NodeCompleted && n.Status() != orch.NodeDiscarded {
+		if s.stages == nil {
+			return true, nil
+		}
+		st, err := s.stages.FindByID(ctx, pm.StageID(stageID))
+		if err != nil {
+			return false, err
+		}
+		accepted, err := s.stageHasEffectivePassAcceptance(ctx, st)
+		if err != nil {
+			return false, err
+		}
+		if !accepted {
 			return true, nil
 		}
 	}
@@ -324,10 +335,27 @@ func (s *Service) acceptanceVerdictBlocks(ctx context.Context, p *pm.Plan, t *pm
 		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
 			continue // a plain business dep is gated by DerivePlanView, not an acceptance gate
 		}
-		// Every direct-upstream acceptance/decision gate MUST have passed. A gate still
-		// unresolved (reject → loopback keeps it open/reopen) or completed with a non-
-		// "success" outcome (force_success on max-rounds exhaustion, discard escape) is
-		// NOT a genuine acceptance pass — any such gate blocks the merge.
+		if stageID, isStageGate := n.Metadata()["stage_gate"].(string); isStageGate && stageID != "" {
+			if s.stages == nil {
+				return true, nil
+			}
+			st, err := s.stages.FindByID(ctx, pm.StageID(stageID))
+			if err != nil {
+				return false, err
+			}
+			accepted, err := s.stageHasEffectivePassAcceptance(ctx, st)
+			if err != nil {
+				return false, err
+			}
+			if !accepted {
+				return true, nil
+			}
+			passedGates++
+			continue
+		}
+		// Legacy decision conditions have no stage-bound Acceptance ledger yet, so they
+		// remain gated by the explicit decision outcome. Stage gates, however, must be
+		// backed by the immutable Acceptance above.
 		if n.Status() != orch.NodeCompleted || n.Outcome() != "success" {
 			return true, nil
 		}

@@ -559,7 +559,12 @@ func (s *Service) projectStage(ctx context.Context, st *pm.Stage, planTasks []*p
 	}
 	gateState, rounds := s.stageGateState(ctx, st)
 	var outcome, evidence, reviewedSHA string
-	if st.GateTaskID() != "" {
+	if st.GateTaskID() != "" && s.remediation != nil {
+		if verdict, ok, err := s.remediation.FindVerdictByGate(ctx, st.GateTaskID()); err == nil && ok {
+			outcome, evidence, reviewedSHA = string(verdict.Outcome), verdict.Evidence, verdict.ReviewedSHA
+		}
+	}
+	if outcome == "" && st.GateTaskID() != "" {
 		if verdict, ok, err := s.plans.GetReviewVerdict(ctx, st.PlanID(), st.GateTaskID()); err == nil && ok {
 			outcome, evidence, reviewedSHA = verdict.Verdict, verdict.Reason, verdict.SHA
 		}
@@ -632,14 +637,33 @@ func (s *Service) stageGateState(ctx context.Context, st *pm.Stage) (pm.StageGat
 		return pm.StageGateNone, 0
 	}
 	rounds := conditionReopenCount(n)
-	switch n.Status() {
-	case orch.NodeCompleted, orch.NodeDiscarded:
+	accepted, err := s.stageHasEffectivePassAcceptance(ctx, st)
+	if err != nil {
+		return pm.StageGatePending, rounds
+	}
+	if accepted {
 		return pm.StageGatePassed, rounds
+	}
+	switch n.Status() {
 	case orch.NodeReopen:
 		return pm.StageGateReopened, rounds
 	default: // open / running — created, awaiting acceptance
 		return pm.StageGatePending, rounds
 	}
+}
+
+func (s *Service) stageHasEffectivePassAcceptance(ctx context.Context, st *pm.Stage) (bool, error) {
+	if s.remediation == nil || st == nil || st.GateTaskID() == "" {
+		return false, nil
+	}
+	verdict, ok, err := s.remediation.FindVerdictByGate(ctx, st.GateTaskID())
+	if err != nil || !ok {
+		return false, err
+	}
+	if verdict.Outcome != pm.GateVerdictPass {
+		return false, nil
+	}
+	return verdict.ValidAcceptanceFor(st.GateSpec().AcceptanceContract), nil
 }
 
 // ResolveStageGate is the Stage gate DRIVER (§5). It resolves a stage's exit gate,
@@ -686,6 +710,13 @@ func (s *Service) ResolveStageGate(ctx context.Context, gateNodeID string, resul
 	pass := result == "pass" || result == "success"
 
 	if pass {
+		accepted, aerr := s.stageHasEffectivePassAcceptance(ctx, st)
+		if aerr != nil {
+			return aerr
+		}
+		if !accepted {
+			return pm.ErrGateVerdictNotFound
+		}
 		if rerr := s.runInTx(ctx, func(txCtx context.Context) error {
 			if cerr := s.orch.ResolveCondition(txCtx, orch.NodeID(gateNodeID), "success"); cerr != nil {
 				return cerr

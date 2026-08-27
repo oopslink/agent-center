@@ -35,7 +35,7 @@ func TestStageReject_AppendsIncrementalStageWithoutReopeningHistory(t *testing.T
 
 	result, err := h.svc.RecordStageGateVerdict(ctx, RecordStageGateVerdictCommand{
 		GateTaskID: oldGateTaskID, Outcome: pm.GateVerdictReject,
-		Evidence: "integration test failed on retry semantics", ReviewedSHA: "deadbeef",
+		Evidence: "integration test failed on retry semantics", ReviewedSHA: immutableTestSHA,
 		IdempotencyKey: "reject-a-1", Actor: "user:a",
 	})
 	if err != nil {
@@ -97,7 +97,7 @@ func TestStageReject_AppendsIncrementalStageWithoutReopeningHistory(t *testing.T
 
 	replay, err := h.svc.RecordStageGateVerdict(ctx, RecordStageGateVerdictCommand{
 		GateTaskID: oldGateTaskID, Outcome: pm.GateVerdictReject,
-		Evidence: "integration test failed on retry semantics", ReviewedSHA: "deadbeef",
+		Evidence: "integration test failed on retry semantics", ReviewedSHA: immutableTestSHA,
 		IdempotencyKey: "reject-a-1", Actor: "user:a",
 	})
 	if err != nil || !replay.Duplicate {
@@ -116,7 +116,7 @@ func TestStageReject_AppendsIncrementalStageWithoutReopeningHistory(t *testing.T
 	h.setTaskStatus(t, newGateTaskID, pm.TaskCompleted)
 	pass, err := h.svc.RecordStageGateVerdict(ctx, RecordStageGateVerdictCommand{
 		GateTaskID: newGateTaskID, Outcome: pm.GateVerdictPass, Evidence: "fix verified",
-		ReviewedSHA: "feedface", IdempotencyKey: "pass-remediation-1", Actor: "user:a",
+		ReviewedSHA: "fedcba98765432100123456789abcdef01234567", IdempotencyKey: "pass-remediation-1", Actor: "user:a",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume(t *testin
 
 	cmd := RecordStageGateVerdictCommand{
 		GateTaskID: gateTaskID, Outcome: pm.GateVerdictReject,
-		Evidence: "paused review found an edge case", ReviewedSHA: "deadbeef",
+		Evidence: "paused review found an edge case", ReviewedSHA: immutableTestSHA,
 		IdempotencyKey: "paused-reject-1", Actor: "user:a",
 	}
 	paused, err := h.svc.RecordStageGateVerdict(ctx, cmd)

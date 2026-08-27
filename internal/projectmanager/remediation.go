@@ -40,6 +40,8 @@ type GateVerdict struct {
 	Outcome        GateVerdictOutcome `json:"outcome"`
 	Evidence       string             `json:"evidence"`
 	ReviewedSHA    string             `json:"reviewed_sha"`
+	Subject        DeliverySubject    `json:"subject"`
+	Acceptance     Acceptance         `json:"acceptance"`
 	ActorRef       IdentityRef        `json:"actor_ref"`
 	IdempotencyKey string             `json:"idempotency_key"`
 	CreatedAt      time.Time          `json:"created_at"`
@@ -61,11 +63,108 @@ func NewGateVerdict(v GateVerdict) (GateVerdict, error) {
 	if v.CreatedAt.IsZero() {
 		return GateVerdict{}, errors.New("projectmanager: verdict created_at required")
 	}
+	if !v.ValidAcceptanceFor("") && (strings.TrimSpace(v.Subject.ImmutableVersion) == "" ||
+		strings.TrimSpace(v.Acceptance.SubjectDigest) == "" || strings.TrimSpace(v.Acceptance.ContractRevision) == "") {
+		return GateVerdict{}, errors.New("projectmanager: verdict immutable subject and acceptance required")
+	}
 	v.Evidence = strings.TrimSpace(v.Evidence)
 	v.ReviewedSHA = strings.TrimSpace(v.ReviewedSHA)
 	v.IdempotencyKey = strings.TrimSpace(v.IdempotencyKey)
 	v.CreatedAt = v.CreatedAt.UTC()
 	return v, nil
+}
+
+type DeliverySubject struct {
+	Kind                string `json:"kind"`
+	Locator             string `json:"locator"`
+	ImmutableVersion    string `json:"immutable_version"`
+	ExecutionGeneration int    `json:"execution_generation"`
+}
+
+type Acceptance struct {
+	SubjectDigest    string    `json:"subject_digest"`
+	ContractRevision string    `json:"contract_revision"`
+	Verdict          string    `json:"verdict"`
+	AuthorityRank    int       `json:"authority_rank"`
+	RequiredChecks   []string  `json:"required_checks"`
+	ReviewedAt       time.Time `json:"reviewed_at"`
+}
+
+func NewCommitDeliverySubject(locator, sha string, generation int) (DeliverySubject, error) {
+	locator = strings.TrimSpace(locator)
+	sha = strings.ToLower(strings.TrimSpace(sha))
+	if !isImmutableVersion(sha) {
+		return DeliverySubject{}, errors.New("projectmanager: immutable commit or digest subject required")
+	}
+	if locator == "" {
+		locator = "git"
+	}
+	return DeliverySubject{Kind: "commit", Locator: locator, ImmutableVersion: sha, ExecutionGeneration: generation}, nil
+}
+
+func (s DeliverySubject) Digest() string {
+	canonical := fmt.Sprintf("kind=%s\nlocator=%s\nimmutable_version=%s\nexecution_generation=%d",
+		strings.TrimSpace(s.Kind), strings.TrimSpace(s.Locator), strings.TrimSpace(s.ImmutableVersion), s.ExecutionGeneration)
+	sum := sha256.Sum256([]byte(canonical))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func ContractRevision(contract string) string {
+	normalized := strings.Join(strings.Fields(strings.TrimSpace(contract)), " ")
+	sum := sha256.Sum256([]byte(normalized))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func NewAcceptance(subject DeliverySubject, contract string, verdict GateVerdictOutcome, authorityRank int, requiredChecks []string, reviewedAt time.Time) Acceptance {
+	if authorityRank <= 0 {
+		authorityRank = 100
+	}
+	checks := make([]string, 0, len(requiredChecks))
+	for _, c := range requiredChecks {
+		if c = strings.TrimSpace(c); c != "" {
+			checks = append(checks, c)
+		}
+	}
+	return Acceptance{
+		SubjectDigest: subject.Digest(), ContractRevision: ContractRevision(contract),
+		Verdict: string(verdict), AuthorityRank: authorityRank, RequiredChecks: checks,
+		ReviewedAt: reviewedAt.UTC(),
+	}
+}
+
+func (v GateVerdict) ValidAcceptanceFor(contract string) bool {
+	if v.Outcome != GateVerdictPass && v.Outcome != GateVerdictReject {
+		return false
+	}
+	if v.Acceptance.Verdict != string(v.Outcome) {
+		return false
+	}
+	if v.Acceptance.AuthorityRank <= 0 || v.Acceptance.ReviewedAt.IsZero() {
+		return false
+	}
+	if v.Acceptance.ContractRevision != ContractRevision(contract) {
+		return false
+	}
+	if !isImmutableVersion(v.Subject.ImmutableVersion) {
+		return false
+	}
+	if strings.TrimSpace(v.Subject.Kind) == "" || strings.TrimSpace(v.Subject.Locator) == "" {
+		return false
+	}
+	return v.Acceptance.SubjectDigest == v.Subject.Digest()
+}
+
+func isImmutableVersion(v string) bool {
+	v = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "sha256:")
+	if len(v) != 40 && len(v) != 64 {
+		return false
+	}
+	for _, r := range v {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 type ContinuationStatus string

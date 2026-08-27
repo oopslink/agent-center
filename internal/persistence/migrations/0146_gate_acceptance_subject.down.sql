@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS idx_pm_gate_verdicts_subject_contract;
+ALTER TABLE pm_gate_verdicts DROP COLUMN reviewed_at;
+ALTER TABLE pm_gate_verdicts DROP COLUMN required_checks_json;
+ALTER TABLE pm_gate_verdicts DROP COLUMN authority_rank;
+ALTER TABLE pm_gate_verdicts DROP COLUMN contract_revision;
+ALTER TABLE pm_gate_verdicts DROP COLUMN subject_digest;
+ALTER TABLE pm_gate_verdicts DROP COLUMN subject_execution_generation;
+ALTER TABLE pm_gate_verdicts DROP COLUMN subject_immutable_version;
+ALTER TABLE pm_gate_verdicts DROP COLUMN subject_locator;
+ALTER TABLE pm_gate_verdicts DROP COLUMN subject_kind;

@@ -23,6 +23,19 @@ func dispatchedSet(t *testing.T, h *planAdvanceHarness, planID pm.PlanID) map[pm
 	return out
 }
 
+const immutableTestSHA = "0123456789abcdef0123456789abcdef01234567"
+
+func recordStageGatePass(t *testing.T, h *planAdvanceHarness, gateTaskID pm.TaskID, key string) {
+	t.Helper()
+	h.setTaskStatus(t, gateTaskID, pm.TaskCompleted)
+	if _, err := h.svc.RecordStageGateVerdict(h.ctx, RecordStageGateVerdictCommand{
+		GateTaskID: gateTaskID, Outcome: pm.GateVerdictPass, Evidence: "stage acceptance verified",
+		ReviewedSHA: immutableTestSHA, IdempotencyKey: key, Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("RecordStageGateVerdict(pass): %v", err)
+	}
+}
+
 // seedTwoStagePlan builds: Stage A = {a1 → a2}, Stage B = {b1}, B depends_on A.
 // Returns the task ids + stage ids. StartPlan is left to the caller.
 func seedTwoStagePlan(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, planID pm.PlanID, maxRounds int) (a1, a2, b1 pm.TaskID, stageA, stageB pm.StageID) {
@@ -216,10 +229,7 @@ func TestStage_Barrier_GatePass(t *testing.T) {
 	}
 
 	// --- gate PASS releases stage B's entry b1 (barrier lifts) ---
-	h.setTaskStatus(t, detA.Stage.GateTaskID(), pm.TaskCompleted)
-	if err := h.svc.RecordDecisionOutcome(ctx, detA.Stage.GateTaskID(), "pass", "user:a"); err != nil {
-		t.Fatalf("RecordDecisionOutcome pass: %v", err)
-	}
+	recordStageGatePass(t, h, detA.Stage.GateTaskID(), "stage-a-pass")
 	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
 		t.Fatalf("AdvancePlan after gate pass: %v", err)
 	}
@@ -240,6 +250,54 @@ func TestStage_Barrier_GatePass(t *testing.T) {
 	detB, _ = h.svc.GetStage(ctx, stageB)
 	if detB.Status != pm.StageRunning {
 		t.Fatalf("stage B status = %q, want running (b1 running)", detB.Status)
+	}
+}
+
+func TestStageGate_FailClosedUntilImmutableAcceptance(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, a2, b1, stageA, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.svc.AdvancePlan(ctx, planID, "user:a")
+	h.setTaskStatus(t, a1, pm.TaskCompleted)
+	h.svc.AdvancePlan(ctx, planID, "user:a")
+	h.setTaskStatus(t, a2, pm.TaskCompleted)
+	h.svc.AdvancePlan(ctx, planID, "user:a")
+	detA, _ := h.svc.GetStage(ctx, stageA)
+
+	h.setTaskStatus(t, detA.Stage.GateTaskID(), pm.TaskCompleted)
+	if err := h.svc.ResolveStageGate(ctx, detA.Stage.GateNodeID(), "pass", "user:a"); !errors.Is(err, pm.ErrGateVerdictNotFound) {
+		t.Fatalf("ResolveStageGate without Acceptance = %v, want ErrGateVerdictNotFound", err)
+	}
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after completed-only gate: %v", err)
+	}
+	if dispatchedSet(t, h, planID)[b1] {
+		t.Fatal("completed gate task/condition released downstream without immutable Acceptance")
+	}
+	if det, _ := h.svc.GetStage(ctx, stageA); det.Status != pm.StageRunning {
+		t.Fatalf("stage status without Acceptance = %s, want running", det.Status)
+	}
+
+	if _, err := h.svc.RecordStageGateVerdict(ctx, RecordStageGateVerdictCommand{
+		GateTaskID: detA.Stage.GateTaskID(), Outcome: pm.GateVerdictPass,
+		Evidence: "mutable ref must not be accepted", ReviewedSHA: "origin/main",
+		IdempotencyKey: "mutable-ref-reject", Actor: "user:a",
+	}); err == nil {
+		t.Fatal("RecordStageGateVerdict accepted mutable remote ref; want immutable subject error")
+	}
+
+	recordStageGatePass(t, h, detA.Stage.GateTaskID(), "stage-a-pass-after-fail-closed")
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after immutable Acceptance: %v", err)
+	}
+	if !dispatchedSet(t, h, planID)[b1] {
+		t.Fatal("valid immutable Acceptance did not release downstream")
 	}
 }
 
@@ -448,9 +506,7 @@ func TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass(t *testi
 	if err := h.svc.EnsureTaskRunnable(ctx, detailB.Stage.GateTaskID()); !errors.Is(err, pm.ErrTaskNotRunnable) {
 		t.Fatalf("downstream gate before upstream pass: EnsureTaskRunnable = %v, want ErrTaskNotRunnable", err)
 	}
-	if err := h.svc.ResolveStageGate(ctx, detailA.Stage.GateNodeID(), "pass", "user:a"); err != nil {
-		t.Fatalf("ResolveStageGate A pass: %v", err)
-	}
+	recordStageGatePass(t, h, detailA.Stage.GateTaskID(), "stage-a-pass-runnable")
 	if err := h.svc.EnsureTaskRunnable(ctx, detailB.Stage.GateTaskID()); err != nil {
 		t.Fatalf("downstream gate after upstream pass: EnsureTaskRunnable = %v, want nil", err)
 	}

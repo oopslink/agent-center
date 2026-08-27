@@ -20,6 +20,9 @@ type RecordStageGateVerdictCommand struct {
 	Outcome        pm.GateVerdictOutcome
 	Evidence       string
 	ReviewedSHA    string
+	SubjectLocator string
+	AuthorityRank  int
+	RequiredChecks []string
 	IdempotencyKey string
 	Actor          pm.IdentityRef
 	Proposal       *pm.RemediationProposalPayload
@@ -129,10 +132,15 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		now := s.clock.Now()
 		verdict := result.Verdict
 		if !replay {
+			subject, err := pm.NewCommitDeliverySubject(cmd.SubjectLocator, cmd.ReviewedSHA, stage.Generation())
+			if err != nil {
+				return err
+			}
 			verdict, err = pm.NewGateVerdict(pm.GateVerdict{
 				ID: pm.GateVerdictID(s.idgen.NewEntityID("verdict")), ProjectID: plan.ProjectID(),
 				PlanID: plan.ID(), StageID: stage.ID(), GateTaskID: cmd.GateTaskID,
 				Outcome: cmd.Outcome, Evidence: cmd.Evidence, ReviewedSHA: cmd.ReviewedSHA,
+				Subject: subject, Acceptance: pm.NewAcceptance(subject, stage.GateSpec().AcceptanceContract, cmd.Outcome, cmd.AuthorityRank, cmd.RequiredChecks, now),
 				ActorRef: cmd.Actor, IdempotencyKey: cmd.IdempotencyKey, CreatedAt: now,
 			})
 			if err != nil {
@@ -282,7 +290,8 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 
 func sameVerdictCommand(v pm.GateVerdict, cmd RecordStageGateVerdictCommand) bool {
 	return v.GateTaskID == cmd.GateTaskID && v.Outcome == cmd.Outcome &&
-		v.Evidence == strings.TrimSpace(cmd.Evidence) && v.ReviewedSHA == strings.TrimSpace(cmd.ReviewedSHA) && v.ActorRef == cmd.Actor
+		v.Evidence == strings.TrimSpace(cmd.Evidence) && v.ReviewedSHA == strings.TrimSpace(cmd.ReviewedSHA) &&
+		v.ActorRef == cmd.Actor
 }
 
 func (s *Service) findContinuationForVerdict(ctx context.Context, verdict pm.GateVerdict) (*pm.PlanContinuation, bool, error) {

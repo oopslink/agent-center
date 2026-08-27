@@ -1228,7 +1228,7 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if kerr != nil {
 			return blockedOnClass{}, false, kerr
 		}
-		return blockedOnClass{pm.WaitStageBarrier, keys, "the upstream stage gate resolves"}, false, nil
+		return blockedOnClass{pm.WaitStageBarrier, keys, "the upstream stage gate passes"}, false, nil
 	}
 	// human_decision: this node IS a pending decision/review (no outcome recorded yet).
 	if pm.IsDecisionNode(edges, t.ID()) && !hasOutcome[t.ID()] {

@@ -175,7 +175,7 @@ func TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent(t *
 			"outcome": "reject",
 			"review": map[string]any{
 				"verdict": "reject", "blocking": true,
-				"reason": "blocking regression remains", "sha": "3f956f29",
+				"reason": "blocking regression remains", "sha": "3f956f290123456789abcdef0123456789abcdef",
 			},
 		},
 	}

@@ -111,8 +111,9 @@ func TestStage_Barrier_MultiNodeDownstream_RunGate(t *testing.T) {
 	mustNotRunnable(t, h, b2, "b2 (non-entry) while b1 not done")
 
 	// --- release: gate A pass lifts the barrier at BOTH surfaces ---
-	if err := h.svc.ResolveStageGate(ctx, detA.Stage.GateNodeID(), "pass", "user:a"); err != nil {
-		t.Fatalf("ResolveStageGate pass: %v", err)
+	recordStageGatePass(t, h, detA.Stage.GateTaskID(), "stage-a-pass-multinode")
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after gate pass: %v", err)
 	}
 	if !dispatchedSet(t, h, planID)[b1] {
 		t.Fatal("b1 not dispatched after gate A pass — barrier did not lift (dispatch)")

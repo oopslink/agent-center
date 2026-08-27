@@ -16,14 +16,26 @@ type RemediationRepo struct{ db *sql.DB }
 func NewRemediationRepo(db *sql.DB) *RemediationRepo { return &RemediationRepo{db: db} }
 
 const verdictSelect = `SELECT id, project_id, plan_id, stage_id, gate_task_id, outcome,
-	evidence, reviewed_sha, actor_ref, idempotency_key, created_at FROM pm_gate_verdicts`
+	evidence, reviewed_sha, subject_kind, subject_locator, subject_immutable_version, subject_execution_generation,
+	subject_digest, contract_revision, authority_rank, required_checks_json, reviewed_at,
+	actor_ref, idempotency_key, created_at FROM pm_gate_verdicts`
 
 func (r *RemediationRepo) SaveVerdict(ctx context.Context, v pm.GateVerdict) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	_, err := exec.ExecContext(ctx, `INSERT INTO pm_gate_verdicts
-		(id, project_id, plan_id, stage_id, gate_task_id, outcome, evidence, reviewed_sha, actor_ref, idempotency_key, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`, string(v.ID), string(v.ProjectID), string(v.PlanID), string(v.StageID),
-		string(v.GateTaskID), string(v.Outcome), v.Evidence, v.ReviewedSHA, string(v.ActorRef), v.IdempotencyKey, ts(v.CreatedAt))
+	requiredChecks, err := json.Marshal(v.Acceptance.RequiredChecks)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO pm_gate_verdicts
+		(id, project_id, plan_id, stage_id, gate_task_id, outcome, evidence, reviewed_sha,
+		 subject_kind, subject_locator, subject_immutable_version, subject_execution_generation,
+		 subject_digest, contract_revision, authority_rank, required_checks_json, reviewed_at,
+		 actor_ref, idempotency_key, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, string(v.ID), string(v.ProjectID), string(v.PlanID), string(v.StageID),
+		string(v.GateTaskID), string(v.Outcome), v.Evidence, v.ReviewedSHA,
+		v.Subject.Kind, v.Subject.Locator, v.Subject.ImmutableVersion, v.Subject.ExecutionGeneration,
+		v.Acceptance.SubjectDigest, v.Acceptance.ContractRevision, v.Acceptance.AuthorityRank, string(requiredChecks), ts(v.Acceptance.ReviewedAt),
+		string(v.ActorRef), v.IdempotencyKey, ts(v.CreatedAt))
 	if isUnique(err) {
 		return pm.ErrGateAlreadyVerdicted
 	}
@@ -31,11 +43,24 @@ func (r *RemediationRepo) SaveVerdict(ctx context.Context, v pm.GateVerdict) err
 }
 
 func scanVerdict(scan func(...any) error) (pm.GateVerdict, error) {
-	var id, projectID, planID, stageID, gateTaskID, outcome, evidence, sha, actor, key, createdAt string
-	err := scan(&id, &projectID, &planID, &stageID, &gateTaskID, &outcome, &evidence, &sha, &actor, &key, &createdAt)
+	var id, projectID, planID, stageID, gateTaskID, outcome, evidence, sha string
+	var subjectKind, subjectLocator, subjectImmutableVersion string
+	var subjectGeneration, authorityRank int
+	var subjectDigest, contractRevision, requiredChecksJSON, reviewedAt, actor, key, createdAt string
+	err := scan(&id, &projectID, &planID, &stageID, &gateTaskID, &outcome, &evidence, &sha,
+		&subjectKind, &subjectLocator, &subjectImmutableVersion, &subjectGeneration,
+		&subjectDigest, &contractRevision, &authorityRank, &requiredChecksJSON, &reviewedAt,
+		&actor, &key, &createdAt)
+	var checks []string
+	if err == nil && requiredChecksJSON != "" {
+		err = json.Unmarshal([]byte(requiredChecksJSON), &checks)
+	}
 	return pm.GateVerdict{ID: pm.GateVerdictID(id), ProjectID: pm.ProjectID(projectID), PlanID: pm.PlanID(planID),
 		StageID: pm.StageID(stageID), GateTaskID: pm.TaskID(gateTaskID), Outcome: pm.GateVerdictOutcome(outcome),
-		Evidence: evidence, ReviewedSHA: sha, ActorRef: pm.IdentityRef(actor), IdempotencyKey: key, CreatedAt: parseTime(createdAt)}, err
+		Evidence: evidence, ReviewedSHA: sha,
+		Subject:    pm.DeliverySubject{Kind: subjectKind, Locator: subjectLocator, ImmutableVersion: subjectImmutableVersion, ExecutionGeneration: subjectGeneration},
+		Acceptance: pm.Acceptance{SubjectDigest: subjectDigest, ContractRevision: contractRevision, Verdict: outcome, AuthorityRank: authorityRank, RequiredChecks: checks, ReviewedAt: parseTime(reviewedAt)},
+		ActorRef:   pm.IdentityRef(actor), IdempotencyKey: key, CreatedAt: parseTime(createdAt)}, err
 }
 
 func (r *RemediationRepo) FindVerdictByGate(ctx context.Context, gateTaskID pm.TaskID) (pm.GateVerdict, bool, error) {
