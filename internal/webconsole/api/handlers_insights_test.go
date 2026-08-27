@@ -54,6 +54,12 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
 		Window struct {
 			Duration string `json:"duration"`
 		} `json:"window"`
+		RefreshedAt string `json:"refreshed_at"`
+		Freshness   struct {
+			State       string `json:"state"`
+			AgeMS       int64  `json:"age_ms"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
 		Summary struct {
 			Completed int64 `json:"completed_executions"`
 			Failed    int64 `json:"failed_executions"`
@@ -65,6 +71,9 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
 	}
 	if out.Window.Duration != "24h" || out.Summary.Completed != 1 || out.Summary.Failed != 0 || len(out.Agents) != 1 {
 		t.Fatalf("overview body = %+v", out)
+	}
+	if out.RefreshedAt == "" || out.Freshness.State != "fresh" || out.Freshness.AgeMS < 0 || out.Freshness.ThresholdMS != time.Minute.Milliseconds() {
+		t.Fatalf("overview freshness = %+v refreshed_at=%q, want fresh production checkpoint", out.Freshness, out.RefreshedAt)
 	}
 }
 
@@ -150,6 +159,12 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 		t.Fatalf("execution status = %d, want 200", resp.StatusCode)
 	}
 	var out struct {
+		RefreshedAt string `json:"refreshed_at"`
+		Freshness   struct {
+			State       string `json:"state"`
+			AgeMS       int64  `json:"age_ms"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
 		Execution struct {
 			ExecutionID string  `json:"execution_id"`
 			TaskTitle   *string `json:"task_title"`
@@ -163,6 +178,9 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	}
 	if out.Execution.ExecutionID != "exec-api" || out.Execution.AgentRef != "agent:agent-api" || out.Execution.ProjectID == nil || *out.Execution.ProjectID != "project-api" || out.Execution.DurationMS == nil {
 		t.Fatalf("execution body = %+v", out.Execution)
+	}
+	if out.RefreshedAt == "" || out.Freshness.State != "fresh" || out.Freshness.AgeMS < 0 || out.Freshness.ThresholdMS != time.Minute.Milliseconds() {
+		t.Fatalf("execution freshness = %+v refreshed_at=%q, want fresh production checkpoint", out.Freshness, out.RefreshedAt)
 	}
 
 	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/executions/missing?window=24h", nil)

@@ -115,6 +115,78 @@ func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *test
 	}
 }
 
+func TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	seedDims(t, db, "org-1")
+	finished := time.Now().UTC().Add(-time.Second)
+	insertActivity(t, db, "start-freshness", "agent-1", "task-1", "exec-freshness", map[string]any{"event": "executor.start", "executor_id": "exec-freshness"}, finished.Add(-time.Second))
+	insertActivity(t, db, "stop-freshness", "agent-1", "task-1", "exec-freshness", map[string]any{"event": "executor.stop", "executor_id": "exec-freshness", "outcome": "succeeded"}, finished)
+
+	const ttl = 2 * time.Minute
+	svc, err := Open(ctx, db, t.TempDir()+"/insight.duckdb", ttl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = svc.Close() })
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	var rawRef string
+	if err := svc.duck.QueryRowContext(ctx, `SELECT CAST(MAX(refreshed_at) AS VARCHAR) FROM projector_checkpoint WHERE state='fresh'`).Scan(&rawRef); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parseTS(rawRef); !ok {
+		t.Fatalf("parseTS(%q) = false; DuckDB TIMESTAMPTZ checkpoint text must parse", rawRef)
+	}
+
+	now := time.Now().UTC()
+	overview, err := svc.Overview(ctx, "org-1", now)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if overview.Freshness.State != "fresh" {
+		t.Fatalf("overview freshness after refresh = %+v raw_ref=%q, want fresh", overview.Freshness, rawRef)
+	}
+	if overview.RefreshedAt == "" {
+		t.Fatal("overview refreshed_at empty after refresh")
+	}
+
+	refreshedAt, ok := parseTS(overview.RefreshedAt)
+	if !ok {
+		t.Fatalf("overview refreshed_at did not parse: %q", overview.RefreshedAt)
+	}
+	atThreshold, err := svc.Execution(ctx, "org-1", "exec-freshness", refreshedAt.Add(ttl))
+	if err != nil {
+		t.Fatalf("execution at threshold: %v", err)
+	}
+	if atThreshold.Freshness.State != "fresh" || atThreshold.Freshness.AgeMS != ttl.Milliseconds() {
+		t.Fatalf("execution freshness at threshold = %+v, want fresh age=%d", atThreshold.Freshness, ttl.Milliseconds())
+	}
+	overThreshold, err := svc.Execution(ctx, "org-1", "exec-freshness", refreshedAt.Add(ttl+time.Millisecond))
+	if err != nil {
+		t.Fatalf("execution over threshold: %v", err)
+	}
+	if overThreshold.Freshness.State != "stale" || overThreshold.Freshness.AgeMS != (ttl+time.Millisecond).Milliseconds() {
+		t.Fatalf("execution freshness over threshold = %+v, want stale age=%d", overThreshold.Freshness, (ttl + time.Millisecond).Milliseconds())
+	}
+
+	if err := svc.Rebuild(ctx); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+	rebuilt, err := svc.Overview(ctx, "org-1", time.Now().UTC())
+	if err != nil {
+		t.Fatalf("overview after rebuild: %v", err)
+	}
+	if rebuilt.Freshness.State != "fresh" {
+		t.Fatalf("rebuilt overview freshness = %+v, want fresh", rebuilt.Freshness)
+	}
+	if rebuilt.Summary.CompletedExecutions != 1 {
+		t.Fatalf("rebuilt completed executions = %d, want 1", rebuilt.Summary.CompletedExecutions)
+	}
+}
+
 func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
