@@ -751,9 +751,6 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 			errFn(p.ID(), fmt.Errorf("reconcile progress_control: %w", perr))
 		}
 	}
-	if werr := s.ProgressWatchdogTick(ctx, 3*time.Minute); werr != nil && errFn != nil {
-		errFn("", fmt.Errorf("progress watchdog: %w", werr))
-	}
 	return firstErr
 }
 

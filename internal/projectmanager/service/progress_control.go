@@ -24,6 +24,7 @@ type ProgressWakeAttempt struct {
 	OrganizationID  string
 	OwnerRef        pm.IdentityRef
 	Severity        pm.ProgressWakeSeverity
+	Channel         string
 	IdempotencyKey  string
 	Capacity        int
 	ReservedP0      int
@@ -219,6 +220,10 @@ func (s *Service) ProgressWatchdogTick(ctx context.Context, silenceThreshold tim
 }
 
 func (s *Service) RecordProgressWakeAttempt(ctx context.Context, a ProgressWakeAttempt) (pm.ProgressWakeBucketDiagnostic, error) {
+	return s.recordProgressWakeAttempt(ctx, a, true)
+}
+
+func (s *Service) recordProgressWakeAttempt(ctx context.Context, a ProgressWakeAttempt, persistSuppressed bool) (pm.ProgressWakeBucketDiagnostic, error) {
 	if s.plans == nil {
 		return pm.ProgressWakeBucketDiagnostic{}, ErrPlansUnavailable
 	}
@@ -235,22 +240,64 @@ func (s *Service) RecordProgressWakeAttempt(ctx context.Context, a ProgressWakeA
 	if a.Severity == "" {
 		a.Severity = pm.ProgressWakeSeverityDefault
 	}
-	diags, err := s.plans.ListProgressWakeBucketDiagnostics(ctx, a.PlanID)
-	if err != nil {
-		return pm.ProgressWakeBucketDiagnostic{}, err
+	if a.Channel == "" {
+		a.Channel = "default"
 	}
-	used := 0
-	for _, d := range diags {
-		if d.OwnerRef == a.OwnerRef && d.Allowed && now.Sub(d.AttemptedAt) < time.Minute {
-			used++
-		}
-	}
-	available := a.Capacity - used
 	floor := 0
 	if a.Severity != pm.ProgressWakeSeverityP0 {
 		floor = a.ReservedP0
 	}
-	allowed := available > floor
+	type bucket struct{ state pm.ProgressWakeBucketState }
+	scopeKeys := []string{
+		"global",
+		"org:" + a.OrganizationID,
+		"severity:" + string(a.Severity),
+		"channel:" + a.Channel,
+	}
+	var buckets []bucket
+	allowed := true
+	available := a.Capacity
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		buckets = buckets[:0]
+		allowed, available = true, a.Capacity
+		for _, key := range scopeKeys {
+			state, found, err := s.plans.GetProgressWakeBucketState(txCtx, key)
+			if err != nil {
+				return err
+			}
+			if !found {
+				state = pm.ProgressWakeBucketState{ScopeKey: key, Tokens: a.Capacity, Capacity: a.Capacity,
+					RefillPerMinute: a.RefillPerMinute, LastRefillAt: now, UpdatedAt: now}
+			} else {
+				state.Capacity, state.RefillPerMinute = a.Capacity, a.RefillPerMinute
+				minutes := int(now.Sub(state.LastRefillAt) / time.Minute)
+				if minutes > 0 {
+					state.Tokens = min(a.Capacity, state.Tokens+minutes*a.RefillPerMinute)
+					state.LastRefillAt = state.LastRefillAt.Add(time.Duration(minutes) * time.Minute)
+				}
+				state.Tokens = min(state.Tokens, a.Capacity)
+				state.UpdatedAt = now
+			}
+			if state.Tokens <= floor {
+				allowed = false
+			}
+			available = min(available, state.Tokens)
+			buckets = append(buckets, bucket{state: state})
+		}
+		for _, b := range buckets {
+			state := b.state
+			if allowed {
+				state.Tokens--
+			}
+			if err := s.plans.UpsertProgressWakeBucketState(txCtx, state); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return pm.ProgressWakeBucketDiagnostic{}, err
+	}
 	reason := "delivered"
 	if !allowed {
 		reason = "token_bucket_suppressed"
@@ -271,7 +318,16 @@ func (s *Service) RecordProgressWakeAttempt(ctx context.Context, a ProgressWakeA
 	if err := s.plans.UpsertProgressWakeBucketDiagnostic(ctx, d); err != nil {
 		return pm.ProgressWakeBucketDiagnostic{}, err
 	}
-	if !allowed {
+	if !allowed && persistSuppressed {
+		laneID := stableID("pswake", a.OrganizationID, string(a.OwnerRef), string(a.Severity), a.Channel)
+		intent := pm.ProgressSuppressedWake{ID: laneID, OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef,
+			Severity: a.Severity, Channel: a.Channel, PlanIDs: []pm.PlanID{a.PlanID}, AttemptCount: 1,
+			NextAttemptAt: d.NextRefillAt, CreatedAt: now, UpdatedAt: now}
+		if err := s.runInTx(ctx, func(txCtx context.Context) error {
+			return s.plans.UpsertProgressSuppressedWake(txCtx, intent)
+		}); err != nil {
+			return pm.ProgressWakeBucketDiagnostic{}, err
+		}
 		v := pm.ObservationVector{
 			ID:     progressObservationID(a.PlanID, "", now, "wake_suppressed", 1),
 			PlanID: a.PlanID, Decision: pm.ResponsibilityBound, Quality: pm.ProgressQualitySuspect,
@@ -293,6 +349,61 @@ func (s *Service) RecordProgressWakeAttempt(ctx context.Context, a ProgressWakeA
 		}
 	}
 	return d, nil
+}
+
+// DrainProgressSuppressedWakes retries due aggregated intents. The row is only
+// deleted after the caller confirms delivery, so a crash or delivery error is
+// replay-safe. A lane represents all of its Plan IDs and is delivered once.
+func (s *Service) DrainProgressSuppressedWakes(ctx context.Context, limit int, deliver func(context.Context, pm.ProgressSuppressedWake) error) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now().UTC()
+	wakes, err := s.plans.ListDueProgressSuppressedWakes(ctx, now, limit)
+	if err != nil {
+		return err
+	}
+	for _, wake := range wakes {
+		if len(wake.PlanIDs) == 0 {
+			continue
+		}
+		d, err := s.recordProgressWakeAttempt(ctx, ProgressWakeAttempt{
+			PlanID: wake.PlanIDs[0], OrganizationID: wake.OrganizationID, OwnerRef: wake.OwnerRef,
+			Severity: wake.Severity, Channel: wake.Channel,
+			IdempotencyKey: "drain:" + wake.ID + ":" + now.Format(time.RFC3339Nano),
+		}, false)
+		if err != nil {
+			return err
+		}
+		if !d.Allowed {
+			wake.AttemptCount = 1
+			wake.NextAttemptAt, wake.UpdatedAt = d.NextRefillAt, now
+			if err := s.runInTx(ctx, func(txCtx context.Context) error { return s.plans.UpsertProgressSuppressedWake(txCtx, wake) }); err != nil {
+				return err
+			}
+			continue
+		}
+		if deliver == nil {
+			wake.AttemptCount = 1
+			wake.NextAttemptAt, wake.UpdatedAt = now.Add(time.Minute), now
+			if uerr := s.runInTx(ctx, func(txCtx context.Context) error { return s.plans.UpsertProgressSuppressedWake(txCtx, wake) }); uerr != nil {
+				return uerr
+			}
+			continue
+		}
+		if err := deliver(ctx, wake); err != nil {
+			wake.AttemptCount = 1
+			wake.NextAttemptAt, wake.UpdatedAt = now.Add(time.Minute), now
+			if uerr := s.runInTx(ctx, func(txCtx context.Context) error { return s.plans.UpsertProgressSuppressedWake(txCtx, wake) }); uerr != nil {
+				return uerr
+			}
+			continue
+		}
+		if err := s.plans.DeleteProgressSuppressedWake(ctx, wake.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) evaluateTaskProgress(ctx context.Context, p *pm.Plan, t *pm.Task, dispatched bool, blocked pm.BlockedOn, cov pm.ProgressCoverage, now time.Time, opt progressReconcileOptions) pm.ObservationVector {

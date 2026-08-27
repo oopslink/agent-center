@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,6 +41,28 @@ func TestProgressControl_StaleFenceConflictPersistsWithoutMutation(t *testing.T)
 	}
 }
 
+func TestProgressControl_WatchdogIndependentFromPlanReconcile(t *testing.T) {
+	h, planID, _ := progressPlanWithOneTask(t)
+	old := h.clk.Now().Add(-10 * time.Minute)
+	if err := h.plans.RecordProgressWatchdogHeartbeat(h.ctx, planID, "dead_component", old); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	incs, _ := h.plans.ListOpenProgressIncidents(h.ctx, planID)
+	if incidentsOfKind(incs, pm.IncidentWatchdogSilent) != 0 {
+		t.Fatal("watchdog still hangs off ReconcileRunningPlans")
+	}
+	if err := h.svc.ProgressWatchdogTick(h.ctx, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	incs, _ = h.plans.ListOpenProgressIncidents(h.ctx, planID)
+	if incidentsOfKind(incs, pm.IncidentWatchdogSilent) != 1 {
+		t.Fatalf("independent watchdog incidents=%+v, want one", incs)
+	}
+}
+
 func TestProgressControl_WatchdogSilentCreatesServiceIncident(t *testing.T) {
 	h, planID, _ := progressPlanWithOneTask(t)
 	old := h.clk.Now().Add(-10 * time.Minute)
@@ -54,6 +78,18 @@ func TestProgressControl_WatchdogSilentCreatesServiceIncident(t *testing.T) {
 	incs, _ := h.plans.ListOpenProgressIncidents(h.ctx, planID)
 	if incidentsOfKind(incs, pm.IncidentWatchdogSilent) != 1 {
 		t.Fatalf("watchdog_silent incidents=%+v, want one service-owned incident", incs)
+	}
+}
+
+func TestProgressControl_WatchdogTreatsMissingHeartbeatAsSilent(t *testing.T) {
+	h, planID, _ := progressPlanWithOneTask(t)
+	h.clk.Advance(10 * time.Minute)
+	if err := h.svc.ProgressWatchdogTick(h.ctx, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	incs, _ := h.plans.ListOpenProgressIncidents(h.ctx, planID)
+	if incidentsOfKind(incs, pm.IncidentWatchdogSilent) != 1 {
+		t.Fatalf("missing-heartbeat incidents=%+v, want fail-closed watchdog_silent", incs)
 	}
 }
 
@@ -87,6 +123,49 @@ func TestProgressControl_WakeBucketP0ReserveAndAutoResume(t *testing.T) {
 	diags, _ := h.plans.ListProgressWakeBucketDiagnostics(h.ctx, planID)
 	if len(diags) != 4 {
 		t.Fatalf("wake diagnostics rows=%d %+v, want all attempts recorded", len(diags), diags)
+	}
+}
+
+func TestProgressControl_WakeStormAggregates1000PlansAndDurablyDrains(t *testing.T) {
+	h, planID, _ := progressPlanWithOneTask(t)
+	base := ProgressWakeAttempt{PlanID: planID, OrganizationID: "org-progress", OwnerRef: "agent:owner",
+		Severity: pm.ProgressWakeSeverityDefault, Channel: "agent-control", Capacity: 1, RefillPerMinute: 1}
+	if d, err := h.svc.RecordProgressWakeAttempt(h.ctx, withWakeKey(base, base.Severity, "prime")); err != nil || !d.Allowed {
+		t.Fatalf("prime=%+v err=%v", d, err)
+	}
+	for i := 0; i < 1000; i++ {
+		a := base
+		a.PlanID = pm.PlanID(fmt.Sprintf("storm-plan-%04d", i))
+		a.IdempotencyKey = fmt.Sprintf("storm-%04d", i)
+		d, err := h.svc.RecordProgressWakeAttempt(h.ctx, a)
+		if err != nil || d.Allowed {
+			t.Fatalf("attempt %d=%+v err=%v, want suppressed", i, d, err)
+		}
+	}
+	h.clk.Advance(61 * time.Second)
+	due, err := h.plans.ListDueProgressSuppressedWakes(h.ctx, h.clk.Now(), 10)
+	if err != nil || len(due) != 1 {
+		t.Fatalf("due lanes=%d err=%v, want one", len(due), err)
+	}
+	if len(due[0].PlanIDs) != 1000 {
+		t.Fatalf("aggregated plans=%d, want 1000", len(due[0].PlanIDs))
+	}
+	delivered := 0
+	if err := h.svc.DrainProgressSuppressedWakes(h.ctx, 10, func(_ context.Context, wake pm.ProgressSuppressedWake) error {
+		delivered++
+		if len(wake.PlanIDs) != 1000 {
+			t.Fatalf("drain plans=%d", len(wake.PlanIDs))
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if delivered != 1 {
+		t.Fatalf("deliveries=%d, want one aggregated delivery", delivered)
+	}
+	due, _ = h.plans.ListDueProgressSuppressedWakes(h.ctx, h.clk.Now().Add(time.Hour), 10)
+	if len(due) != 0 {
+		t.Fatalf("delivered intent survived: %+v", due)
 	}
 }
 

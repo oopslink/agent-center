@@ -287,6 +287,11 @@ type PlanRepository interface {
 	ListStaleProgressWatchdogs(ctx context.Context, olderThan time.Time) ([]ProgressWatchdogObservation, error)
 	UpsertProgressWakeBucketDiagnostic(ctx context.Context, d ProgressWakeBucketDiagnostic) error
 	ListProgressWakeBucketDiagnostics(ctx context.Context, planID PlanID) ([]ProgressWakeBucketDiagnostic, error)
+	GetProgressWakeBucketState(ctx context.Context, scopeKey string) (ProgressWakeBucketState, bool, error)
+	UpsertProgressWakeBucketState(ctx context.Context, state ProgressWakeBucketState) error
+	UpsertProgressSuppressedWake(ctx context.Context, wake ProgressSuppressedWake) error
+	ListDueProgressSuppressedWakes(ctx context.Context, now time.Time, limit int) ([]ProgressSuppressedWake, error)
+	DeleteProgressSuppressedWake(ctx context.Context, id string) error
 
 	// Generations are immutable topology snapshots produced by Evolution commits.
 	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.

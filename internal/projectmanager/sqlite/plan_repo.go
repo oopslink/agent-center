@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -1005,7 +1006,14 @@ func (r *PlanRepo) RecordProgressWatchdogHeartbeat(ctx context.Context, planID p
 func (r *PlanRepo) ListStaleProgressWatchdogs(ctx context.Context, olderThan time.Time) ([]pm.ProgressWatchdogObservation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, `SELECT plan_id, component, last_seen_at
-		FROM pm_progress_watchdog_heartbeats WHERE last_seen_at < ? ORDER BY plan_id, component`, ts(olderThan))
+		FROM pm_progress_watchdog_heartbeats WHERE last_seen_at < ?
+		UNION ALL
+		SELECT p.id, 'progress_reconciler', p.created_at
+		FROM pm_plans p
+		WHERE p.status = ? AND p.created_at < ?
+		  AND NOT EXISTS (SELECT 1 FROM pm_progress_watchdog_heartbeats h
+		                  WHERE h.plan_id = p.id AND h.component = 'progress_reconciler')
+		ORDER BY plan_id, component`, ts(olderThan), string(pm.PlanRunning), ts(olderThan))
 	if err != nil {
 		return nil, err
 	}
@@ -1067,6 +1075,117 @@ func (r *PlanRepo) ListProgressWakeBucketDiagnostics(ctx context.Context, planID
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+func (r *PlanRepo) GetProgressWakeBucketState(ctx context.Context, scopeKey string) (pm.ProgressWakeBucketState, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var s pm.ProgressWakeBucketState
+	var lastRefill, updated string
+	err := exec.QueryRowContext(ctx, `SELECT scope_key, tokens, capacity, refill_per_minute, last_refill_at, updated_at
+		FROM pm_progress_wake_bucket_states WHERE scope_key = ?`, scopeKey).
+		Scan(&s.ScopeKey, &s.Tokens, &s.Capacity, &s.RefillPerMinute, &lastRefill, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pm.ProgressWakeBucketState{}, false, nil
+	}
+	if err != nil {
+		return pm.ProgressWakeBucketState{}, false, err
+	}
+	s.LastRefillAt = parseTime(lastRefill)
+	s.UpdatedAt = parseTime(updated)
+	return s, true, nil
+}
+
+func (r *PlanRepo) UpsertProgressWakeBucketState(ctx context.Context, s pm.ProgressWakeBucketState) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_wake_bucket_states
+		(scope_key, tokens, capacity, refill_per_minute, last_refill_at, updated_at)
+		VALUES (?,?,?,?,?,?) ON CONFLICT(scope_key) DO UPDATE SET
+		tokens=excluded.tokens, capacity=excluded.capacity, refill_per_minute=excluded.refill_per_minute,
+		last_refill_at=excluded.last_refill_at, updated_at=excluded.updated_at`,
+		s.ScopeKey, s.Tokens, s.Capacity, s.RefillPerMinute, ts(s.LastRefillAt), ts(s.UpdatedAt))
+	return err
+}
+
+func (r *PlanRepo) UpsertProgressSuppressedWake(ctx context.Context, w pm.ProgressSuppressedWake) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// Merge Plan IDs in-process while holding the caller's write transaction. This
+	// keeps a storm of distinct Plans bounded to one durable lane row.
+	var existingJSON string
+	var existingAttempts int
+	var created string
+	err := exec.QueryRowContext(ctx, `SELECT plan_ids_json, attempt_count, created_at
+		FROM pm_progress_suppressed_wakes WHERE id = ?`, w.ID).Scan(&existingJSON, &existingAttempts, &created)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	seen := make(map[pm.PlanID]struct{}, len(w.PlanIDs))
+	if err == nil {
+		var existing []pm.PlanID
+		if uerr := json.Unmarshal([]byte(existingJSON), &existing); uerr != nil {
+			return uerr
+		}
+		for _, id := range existing {
+			seen[id] = struct{}{}
+		}
+		w.AttemptCount += existingAttempts
+		w.CreatedAt = parseTime(created)
+	}
+	for _, id := range w.PlanIDs {
+		seen[id] = struct{}{}
+	}
+	w.PlanIDs = w.PlanIDs[:0]
+	for id := range seen {
+		w.PlanIDs = append(w.PlanIDs, id)
+	}
+	slices.Sort(w.PlanIDs)
+	plansJSON, jerr := json.Marshal(w.PlanIDs)
+	if jerr != nil {
+		return jerr
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO pm_progress_suppressed_wakes
+		(id, organization_id, owner_ref, severity, channel, plan_ids_json, attempt_count, next_attempt_at, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+		plan_ids_json=excluded.plan_ids_json, attempt_count=excluded.attempt_count,
+		next_attempt_at=excluded.next_attempt_at, updated_at=excluded.updated_at`,
+		w.ID, w.OrganizationID, string(w.OwnerRef), string(w.Severity), w.Channel, string(plansJSON),
+		w.AttemptCount, ts(w.NextAttemptAt), ts(w.CreatedAt), ts(w.UpdatedAt))
+	return err
+}
+
+func (r *PlanRepo) ListDueProgressSuppressedWakes(ctx context.Context, now time.Time, limit int) ([]pm.ProgressSuppressedWake, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT id, organization_id, owner_ref, severity, channel,
+		plan_ids_json, attempt_count, next_attempt_at, created_at, updated_at
+		FROM pm_progress_suppressed_wakes WHERE next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT ?`, ts(now), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressSuppressedWake
+	for rows.Next() {
+		var w pm.ProgressSuppressedWake
+		var owner, severity, plansJSON, next, created, updated string
+		if err := rows.Scan(&w.ID, &w.OrganizationID, &owner, &severity, &w.Channel, &plansJSON,
+			&w.AttemptCount, &next, &created, &updated); err != nil {
+			return nil, err
+		}
+		w.OwnerRef, w.Severity = pm.IdentityRef(owner), pm.ProgressWakeSeverity(severity)
+		if err := json.Unmarshal([]byte(plansJSON), &w.PlanIDs); err != nil {
+			return nil, err
+		}
+		w.NextAttemptAt, w.CreatedAt, w.UpdatedAt = parseTime(next), parseTime(created), parseTime(updated)
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) DeleteProgressSuppressedWake(ctx context.Context, id string) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM pm_progress_suppressed_wakes WHERE id = ?`, id)
+	return err
 }
 
 func progressLeaseScope(planID pm.PlanID) string {

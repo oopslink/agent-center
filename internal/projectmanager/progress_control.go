@@ -133,6 +133,33 @@ type ProgressWakeBucketDiagnostic struct {
 	EvidenceJSON    string
 }
 
+// ProgressWakeBucketState is the durable token balance for one limiter scope.
+// ScopeKey is deliberately opaque to the repository; the service composes the
+// global, organization, severity, and channel hierarchy.
+type ProgressWakeBucketState struct {
+	ScopeKey        string
+	Tokens          int
+	Capacity        int
+	RefillPerMinute int
+	LastRefillAt    time.Time
+	UpdatedAt       time.Time
+}
+
+// ProgressSuppressedWake is a durable, aggregated delivery intent. One row
+// represents any number of suppressed Plans sharing the same delivery lane.
+type ProgressSuppressedWake struct {
+	ID             string
+	OrganizationID string
+	OwnerRef       IdentityRef
+	Severity       ProgressWakeSeverity
+	Channel        string
+	PlanIDs        []PlanID
+	AttemptCount   int
+	NextAttemptAt  time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type ProgressWatchdogObservation struct {
 	PlanID     PlanID
 	Component  string
