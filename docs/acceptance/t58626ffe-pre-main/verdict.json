@@ -1,0 +1,77 @@
+{
+  "verdict": "REJECT",
+  "reviewed_ref": "origin/s3/phase0-candidate-58626ffe",
+  "reviewed_sha": "58626ffebe569bc04daf10e5f195ba57b8f181b9",
+  "expected_sha": "58626ffebe569bc04daf10e5f195ba57b8f181b9",
+  "initial_origin_main_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "final_origin_main_sha": "16dc58155dfa0cafd79c08595c8a8e378b5eede9",
+  "merge_base_sha": "b66fe30eb3c3d5bbcedda4ef711150d391f67b81",
+  "ancestry": {
+    "origin_main_is_ancestor_of_candidate": false,
+    "candidate_is_ancestor_of_origin_main": false
+  },
+  "task_input_package": {
+    "present": false,
+    "expected_paths": [
+      "task-input/v1/README.md",
+      "task-input/v1/manifest.json"
+    ]
+  },
+  "gates": [
+    {
+      "name": "focused_go_contracts",
+      "command": "go test ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/admin/api ./internal/webconsole/api ./internal/projectmanager -run 'Test(ProgressControl|HumanDecision|S2B|PMProgressControl|Acceptance|Delivery)' -count=1",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "web_dependency_restore",
+      "command": "pnpm --dir web install --frozen-lockfile",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "focused_web_contract",
+      "command": "pnpm --dir web exec vitest run src/pages/PlanProgressCockpit.test.tsx",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "full_go",
+      "command": "go test ./...",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "repository_race_gate",
+      "command": "make test-race",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "candidate_projectmanager_service_race",
+      "command": "go test -race -count=10 ./internal/projectmanager/service",
+      "exit_code": 1,
+      "result": "FAIL",
+      "failure_summary": "panic: test timed out after 10m0s while running TestAutoAssign_ConcurrentSweeps_NoDoubleAssign; package failed after 601.118s"
+    },
+    {
+      "name": "web_full_tests",
+      "command": "pnpm --dir web test",
+      "exit_code": 0,
+      "result": "PASS",
+      "summary": "193 test files passed; 1810 tests passed"
+    },
+    {
+      "name": "web_build_type_gate",
+      "command": "pnpm --dir web run build",
+      "exit_code": 0,
+      "result": "PASS",
+      "summary": "tsc -b && vite build completed with warnings only"
+    }
+  ],
+  "reject_reasons": [
+    "candidate-related race/stress gate failed: go test -race -count=10 ./internal/projectmanager/service timed out after 10m0s",
+    "final fresh fetch shows current origin/main moved to 16dc58155dfa0cafd79c08595c8a8e378b5eede9 and is no longer an ancestor of the candidate"
+  ]
+}
