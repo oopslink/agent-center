@@ -15,7 +15,7 @@
 | 7 | ✅ pass | `TestPMTaskContainerExclusivity_AuthoritativeLists` |
 | 8 | ✅ pass | `ProjectPlans.test.tsx` 的单容器优先级回归 |
 | 9 | ✅ pass | `go test ./...`、`cd web && pnpm test --run`、`make lint`、`make build` 均退出 0 |
-| 10 | 待最终验收 | 完成合并前记录真实 binary smoke |
+| 10 | ✅ pass | `make smoke`：真实 binary pipeline 1 个 Playwright case + runtime-version 4 个 Go cases，`smoke pass: 50 seconds` |
 
 ## 测试分层
 
@@ -23,8 +23,8 @@
 |---|---|
 | Unit / domain | 106 个 Go package 的全量 `go test ./...`；ProjectManager service + migration 定向回归 |
 | Integration with mocks | Web Console API（真实 SQLite + in-process HTTP）与 Vitest/MSW Work Board；全量 Web suite 退出 0 |
-| Deployed-binary smoke | 待最终验收记录 |
+| Deployed-binary smoke | 5 cases：`v22-deployed-pipeline.spec.ts` 1 + `tests/e2e` runtime-version 4 |
 
 ## 结论
 
-待完成全量门禁、真实 binary smoke 与远端 `origin/main` 回读后定稿。
+代码、迁移、领域/API/前端回归与真实 binary smoke 全部通过；待远端 `origin/main` 回读完成交付闭环。
