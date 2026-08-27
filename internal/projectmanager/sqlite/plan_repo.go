@@ -675,6 +675,241 @@ func (r *PlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.Bl
 	return out, rows.Err()
 }
 
+// --- Progress control S2A ----------------------------------------------------
+
+func (r *PlanRepo) SaveProgressObservation(ctx context.Context, v pm.ObservationVector) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	src, err := json.Marshal(v.SourceRevisions)
+	if err != nil {
+		return err
+	}
+	facts, err := json.Marshal(v.Facts)
+	if err != nil {
+		return err
+	}
+	cov, err := json.Marshal(v.Coverage)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO pm_progress_observations
+		(id, plan_id, task_id, node_id, decision, quality, as_of, evaluated_at,
+		 source_revisions_json, facts_json, suspect_key, suspect_cycles,
+		 progress_contract, progress_contract_defaulted, uncovered_progress_window_seconds,
+		 coverage_json, created_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		v.ID, string(v.PlanID), string(v.TaskID), v.NodeID, string(v.Decision), string(v.Quality),
+		ts(v.AsOf), ts(v.EvaluatedAt), string(src), string(facts), v.SuspectKey, v.SuspectCycles,
+		string(v.ProgressContract), boolToInt(v.ProgressContractDefaulted), v.UncoveredProgressWindowSeconds,
+		string(cov), ts(v.EvaluatedAt))
+	return err
+}
+
+func (r *PlanRepo) LatestProgressObservation(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) (pm.ObservationVector, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, progressObservationSelect+
+		` WHERE plan_id = ? AND task_id = ? ORDER BY evaluated_at DESC, id DESC LIMIT 1`, string(planID), string(taskID))
+	v, err := scanProgressObservation(row.Scan)
+	switch err {
+	case nil:
+		return v, true, nil
+	case sql.ErrNoRows:
+		return pm.ObservationVector{}, false, nil
+	default:
+		return pm.ObservationVector{}, false, err
+	}
+}
+
+const progressObservationSelect = `SELECT id, plan_id, task_id, node_id, decision, quality,
+	as_of, evaluated_at, source_revisions_json, facts_json, suspect_key, suspect_cycles,
+	progress_contract, progress_contract_defaulted, uncovered_progress_window_seconds, coverage_json
+	FROM pm_progress_observations`
+
+func scanProgressObservation(scan func(...any) error) (pm.ObservationVector, error) {
+	var id, planID, taskID, nodeID, decision, quality, asOf, evaluatedAt, srcJSON, factsJSON, suspectKey, contract, covJSON string
+	var suspectCycles, contractDefaulted int
+	var uncovered int64
+	if err := scan(&id, &planID, &taskID, &nodeID, &decision, &quality, &asOf, &evaluatedAt,
+		&srcJSON, &factsJSON, &suspectKey, &suspectCycles, &contract, &contractDefaulted, &uncovered, &covJSON); err != nil {
+		return pm.ObservationVector{}, err
+	}
+	var src []pm.ObservationSource
+	if srcJSON != "" {
+		if err := json.Unmarshal([]byte(srcJSON), &src); err != nil {
+			return pm.ObservationVector{}, err
+		}
+	}
+	var facts []pm.ProgressFact
+	if factsJSON != "" {
+		if err := json.Unmarshal([]byte(factsJSON), &facts); err != nil {
+			return pm.ObservationVector{}, err
+		}
+	}
+	var cov pm.ProgressCoverage
+	if covJSON != "" {
+		if err := json.Unmarshal([]byte(covJSON), &cov); err != nil {
+			return pm.ObservationVector{}, err
+		}
+	}
+	return pm.ObservationVector{
+		ID: id, PlanID: pm.PlanID(planID), TaskID: pm.TaskID(taskID), NodeID: nodeID,
+		Decision: pm.ProgressDecision(decision), Quality: pm.ProgressQuality(quality),
+		AsOf: parseTime(asOf), EvaluatedAt: parseTime(evaluatedAt), SourceRevisions: src, Facts: facts,
+		SuspectKey: suspectKey, SuspectCycles: suspectCycles, ProgressContract: pm.DeliveryContract(contract),
+		ProgressContractDefaulted: contractDefaulted != 0, UncoveredProgressWindowSeconds: uncovered, Coverage: cov,
+	}, nil
+}
+
+func (r *PlanRepo) UpsertProgressObligation(ctx context.Context, o pm.ProgressObligation) error {
+	return r.upsertProgressResponsibility(ctx, "pm_progress_obligations", progressObligationArgs(o)...)
+}
+
+func (r *PlanRepo) UpsertProgressIncident(ctx context.Context, i pm.ProgressIncident) error {
+	return r.upsertProgressResponsibility(ctx, "pm_progress_incidents", progressIncidentArgs(i)...)
+}
+
+func (r *PlanRepo) upsertProgressResponsibility(ctx context.Context, table string, args ...any) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO `+table+`
+		(id, plan_id, task_id, node_id, kind, owner_ref, owner_display, deadline_at,
+		 ack_required, acked_at, escalate_to_ref, escalation_deadline_at,
+		 source_fact_refs_json, episode_key, status, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		 ON CONFLICT(plan_id, task_id, kind, episode_key) DO UPDATE SET
+		 owner_ref=excluded.owner_ref,
+		 owner_display=excluded.owner_display,
+		 deadline_at=excluded.deadline_at,
+		 ack_required=excluded.ack_required,
+		 acked_at=excluded.acked_at,
+		 escalate_to_ref=excluded.escalate_to_ref,
+		 escalation_deadline_at=excluded.escalation_deadline_at,
+		 source_fact_refs_json=excluded.source_fact_refs_json,
+		 status=excluded.status,
+		 updated_at=excluded.updated_at,
+		 version=`+table+`.version+1`, args...)
+	return err
+}
+
+func progressObligationArgs(o pm.ProgressObligation) []any {
+	refs, _ := json.Marshal(o.SourceFactRefs)
+	return []any{o.ID, string(o.PlanID), string(o.TaskID), o.NodeID, string(o.Kind), string(o.OwnerRef),
+		o.OwnerDisplay, ts(o.DeadlineAt), boolToInt(o.AckRequired), tsPtr(o.AckedAt),
+		string(o.EscalateToRef), ts(o.EscalationDeadlineAt), string(refs), o.EpisodeKey,
+		string(o.Status), ts(o.CreatedAt), ts(o.UpdatedAt), o.Version}
+}
+
+func progressIncidentArgs(i pm.ProgressIncident) []any {
+	refs, _ := json.Marshal(i.SourceFactRefs)
+	return []any{i.ID, string(i.PlanID), string(i.TaskID), i.NodeID, string(i.Kind), string(i.OwnerRef),
+		i.OwnerDisplay, ts(i.DeadlineAt), boolToInt(i.AckRequired), tsPtr(i.AckedAt),
+		string(i.EscalateToRef), ts(i.EscalationDeadlineAt), string(refs), i.EpisodeKey,
+		string(i.Status), ts(i.CreatedAt), ts(i.UpdatedAt), i.Version}
+}
+
+func (r *PlanRepo) ListOpenProgressObligations(ctx context.Context, planID pm.PlanID) ([]pm.ProgressObligation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, progressResponsibilitySelect("pm_progress_obligations")+
+		` WHERE plan_id = ? AND status = ? ORDER BY deadline_at, task_id, kind`, string(planID), string(pm.ResponsibilityOpen))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressObligation
+	for rows.Next() {
+		o, err := scanProgressObligation(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) ListOpenProgressIncidents(ctx context.Context, planID pm.PlanID) ([]pm.ProgressIncident, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, progressResponsibilitySelect("pm_progress_incidents")+
+		` WHERE plan_id = ? AND status = ? ORDER BY deadline_at, task_id, kind`, string(planID), string(pm.ResponsibilityOpen))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressIncident
+	for rows.Next() {
+		i, err := scanProgressIncident(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, i)
+	}
+	return out, rows.Err()
+}
+
+func progressResponsibilitySelect(table string) string {
+	return `SELECT id, plan_id, task_id, node_id, kind, owner_ref, owner_display, deadline_at,
+		ack_required, acked_at, escalate_to_ref, escalation_deadline_at, source_fact_refs_json,
+		episode_key, status, created_at, updated_at, version FROM ` + table
+}
+
+func scanProgressObligation(scan func(...any) error) (pm.ProgressObligation, error) {
+	var base progressRespRow
+	if err := scanProgressResp(&base, scan); err != nil {
+		return pm.ProgressObligation{}, err
+	}
+	return pm.ProgressObligation{
+		ID: base.id, PlanID: pm.PlanID(base.planID), TaskID: pm.TaskID(base.taskID), NodeID: base.nodeID,
+		Kind: pm.ProgressObligationKind(base.kind), OwnerRef: pm.IdentityRef(base.ownerRef), OwnerDisplay: base.ownerDisplay,
+		DeadlineAt: base.deadlineAt, AckRequired: base.ackRequired, AckedAt: base.ackedAt,
+		EscalateToRef: pm.IdentityRef(base.escalateToRef), EscalationDeadlineAt: base.escalationDeadlineAt,
+		SourceFactRefs: base.sourceFactRefs, EpisodeKey: base.episodeKey, Status: pm.ResponsibilityStatus(base.status),
+		CreatedAt: base.createdAt, UpdatedAt: base.updatedAt, Version: base.version,
+	}, nil
+}
+
+func scanProgressIncident(scan func(...any) error) (pm.ProgressIncident, error) {
+	var base progressRespRow
+	if err := scanProgressResp(&base, scan); err != nil {
+		return pm.ProgressIncident{}, err
+	}
+	return pm.ProgressIncident{
+		ID: base.id, PlanID: pm.PlanID(base.planID), TaskID: pm.TaskID(base.taskID), NodeID: base.nodeID,
+		Kind: pm.ProgressIncidentKind(base.kind), OwnerRef: pm.IdentityRef(base.ownerRef), OwnerDisplay: base.ownerDisplay,
+		DeadlineAt: base.deadlineAt, AckRequired: base.ackRequired, AckedAt: base.ackedAt,
+		EscalateToRef: pm.IdentityRef(base.escalateToRef), EscalationDeadlineAt: base.escalationDeadlineAt,
+		SourceFactRefs: base.sourceFactRefs, EpisodeKey: base.episodeKey, Status: pm.ResponsibilityStatus(base.status),
+		CreatedAt: base.createdAt, UpdatedAt: base.updatedAt, Version: base.version,
+	}, nil
+}
+
+type progressRespRow struct {
+	id, planID, taskID, nodeID, kind, ownerRef, ownerDisplay, escalateToRef, refsJSON, episodeKey, status string
+	deadlineAt, escalationDeadlineAt, createdAt, updatedAt                                                time.Time
+	ackRequired                                                                                           bool
+	ackedAt                                                                                               *time.Time
+	sourceFactRefs                                                                                        []string
+	version                                                                                               int
+}
+
+func scanProgressResp(out *progressRespRow, scan func(...any) error) error {
+	var deadline, acked, escalation, created, updated string
+	var ackReq int
+	if err := scan(&out.id, &out.planID, &out.taskID, &out.nodeID, &out.kind, &out.ownerRef, &out.ownerDisplay,
+		&deadline, &ackReq, &acked, &out.escalateToRef, &escalation, &out.refsJSON, &out.episodeKey, &out.status,
+		&created, &updated, &out.version); err != nil {
+		return err
+	}
+	out.deadlineAt = parseTime(deadline)
+	out.ackRequired = ackReq != 0
+	out.ackedAt = parseTimePtr(acked)
+	out.escalationDeadlineAt = parseTime(escalation)
+	out.createdAt = parseTime(created)
+	out.updatedAt = parseTime(updated)
+	if out.refsJSON != "" {
+		if err := json.Unmarshal([]byte(out.refsJSON), &out.sourceFactRefs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // --- Plan generations --------------------------------------------------------
 
 func (r *PlanRepo) SaveGeneration(ctx context.Context, g *pm.PlanGeneration) error {
