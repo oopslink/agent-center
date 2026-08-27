@@ -1,0 +1,7 @@
+candidate=aa6ca4b9004007502ed39a7993294404fb322b5f
+origin_main=16dc58155dfa0cafd79c08595c8a8e378b5eede9
+origin_candidate=aa6ca4b9004007502ed39a7993294404fb322b5f
+## HEAD (no branch)
+?? docs/acceptance/t1626/
+main_ancestor_rc=0
+locked_sha_rc=0

@@ -1,0 +1,105 @@
+2026/08/27 20:49:15 WARN pm: audit append failed (best-effort, mutation unaffected) err="audit backend down" object_type=task object_id=task-c5aab8af change_type=created
+2026/08/27 20:49:15 WARN pm: audit append failed (best-effort, mutation unaffected) err="audit backend down" object_type=task object_id=task-c5aab8af change_type=assigned
+2026/08/27 20:49:23 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-353ebb98 project_id=project-bb704c01 required_capabilities=[rust]
+2026/08/27 20:49:36 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-1fe1812b project_id=project-0b95111a required_capabilities=[go]
+2026/08/27 20:49:41 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-5c6cca6d project_id=project-7554d074 required_capabilities=[go]
+2026/08/27 20:49:45 WARN auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply task_id=task-5f29b671 project_id=project-3f803869 required_capabilities=[go]
+panic: test timed out after 10m0s
+	running tests:
+		TestActionLog_BlockUnblockPersisted (0s)
+
+goroutine 24026 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2802 +0x498
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/time/sleep.go:215 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc000082008, {0x1037ed90f, 0x23}, 0x103e37a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2109 +0x7dc
+testing.runTests.func1(0xc000082008)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2585 +0x78
+testing.tRunner(0xc000082008, 0xc0006f7ab8)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+testing.runTests({0x1037eaeb9, 0x20}, {0x1038068fd, 0x40}, 0xc0000100d8, {0x103e97560, 0x18a, 0x18a}, {0xc0006b7dc0?, 0xc00041be80?, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2583 +0x7a4
+testing.(*M).Run(0xc0001165a0)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2443 +0xb3c
+main.main()
+	_testmain.go:832 +0x104
+
+goroutine 24156 [runnable]:
+modernc.org/sqlite/lib.mutexFromPtr(0xf4)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/mutex.go:102 +0xe8
+modernc.org/sqlite/lib.mutexEnter(0xc0007760c0, 0xf4)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/mutex.go:347 +0x44
+modernc.org/sqlite/lib.Xsqlite3_mutex_enter(...)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:18251
+modernc.org/sqlite/lib._columnMem(0xc0007760c0, 0x135c06748, 0x1)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:70313 +0x120
+modernc.org/sqlite/lib.Xsqlite3_column_text(0xc0007760c0, 0x135c06748, 0x1)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:70419 +0x3c
+modernc.org/sqlite/lib.Xsqlite3_exec(0xc0007760c0, 0x1340fcc28, 0x135c0b648, 0x103e3a8b8, 0x135700478, 0x0)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:116340 +0xef8
+modernc.org/sqlite/lib._sqlite3InitOne(0xc0007760c0, 0x1340fcc28, 0x0, 0x133cfdad0, 0x3)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:121913 +0x1d44
+modernc.org/sqlite/lib._sqlite3VdbeExec(0xc0007760c0, 0x133cfda28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:77942 +0x1bce4
+modernc.org/sqlite/lib._sqlite3Step(0xc0007760c0, 0x133cfda28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69812 +0x1a0
+modernc.org/sqlite/lib.Xsqlite3_step(0xc0007760c0, 0x133cfda28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/lib/sqlite_darwin_arm64.go:69875 +0x1ac
+modernc.org/sqlite.(*conn).step(0xc0001c8440, 0x133cfda28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1027 +0x48
+modernc.org/sqlite.(*stmt).exec.func2(0xc00011cc70, 0xc0001f89a8, {0x103ec1da0, 0x0, 0x0}, 0xc0001f8a28)
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:552 +0x1bc
+modernc.org/sqlite.(*stmt).exec(0xc00011cc70, {0x103e3f738, 0xc0007904b0}, {0x103ec1da0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:565 +0x290
+modernc.org/sqlite.(*conn).exec(0xc0001c8440, {0x103e3f738, 0xc0007904b0}, {0xc0000e4000, 0x6c5}, {0x103ec1da0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite.go:1697 +0xd8
+modernc.org/sqlite.(*conn).ExecContext(0xc0001c8440, {0x103e3f738, 0xc0007904b0}, {0xc0000e4000, 0x6c5}, {0x103ec1da0, 0x0, 0x0})
+	/Users/oopslink/go/pkg/mod/modernc.org/sqlite@v1.34.1/sqlite_go18.go:53 +0x64
+database/sql.ctxDriverExec({0x103e3f738, 0xc0007904b0}, {0x1335b62a8, 0xc0001c8440}, {0x0, 0x0}, {0xc0000e4000, 0x6c5}, {0x103ec1da0, 0x0, ...})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/ctxutil.go:31 +0xa4
+database/sql.(*DB).execDC.func2()
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1713 +0x188
+database/sql.withLock({0x103e3ef58, 0xc0000f4d80}, 0xc0001f9078)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:3572 +0x90
+database/sql.(*DB).execDC(0xc000136980?, {0x103e3f738, 0xc0007904b0}, 0xc0000f4d80, 0xc00011cc60, {0xc0000e4000, 0x6c5}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1708 +0x284
+database/sql.(*Tx).ExecContext(0xc000136980, {0x103e3f738, 0xc0007904b0}, {0xc0000e4000, 0x6c5}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2516 +0xc4
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne.func1({0x103e3f738, 0xc0007904b0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/persistence/migrator.go:334 +0x144
+github.com/oopslink/agent-center/internal/persistence.runTxOnce({0x103e3f5e8, 0x103ec1da0}, 0xc0006ff110, 0xc0001f9430)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/persistence/tx.go:146 +0xe8
+github.com/oopslink/agent-center/internal/persistence.RunInTx({0x103e3f5e8, 0x103ec1da0}, 0xc0006ff110, 0xc0001f9430)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/persistence/tx.go:103 +0x18c
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).applyOne(0xc0001f9ca0, {0x103e3f5e8, 0x103ec1da0}, {0x22, {0x1037f5feb, 0x12}, {0xc0000e4000, 0x6c5}, {0xc0000e06c0, 0x218}}, ...)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/persistence/migrator.go:324 +0x110
+github.com/oopslink/agent-center/internal/persistence.(*Migrator).Up(0xc0001f9ca0, {0x103e3f5e8, 0x103ec1da0})
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/persistence/migrator.go:86 +0x2b4
+github.com/oopslink/agent-center/internal/projectmanager/service.planGraphSetup(0xc0001d8248)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/projectmanager/service/plan_orchestration_graph_test.go:34 +0x124
+github.com/oopslink/agent-center/internal/projectmanager/service.planAdvanceSetup(0xc0001d8248)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/projectmanager/service/plan_lifecycle_test.go:52 +0x38
+github.com/oopslink/agent-center/internal/projectmanager/service.TestActionLog_BlockUnblockPersisted(0xc0001d8248)
+	/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e65e66d3/internal/projectmanager/service/f3_block_lease_gate_test.go:345 +0x34
+testing.tRunner(0xc0001d8248, 0x103e37a00)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2036 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/testing/testing.go:2101 +0x7c0
+
+goroutine 24157 [select]:
+database/sql.(*DB).connectionOpener(0xc0006ff110, {0x103e3f770, 0xc0001d4280})
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1261 +0xbc
+created by database/sql.OpenDB in goroutine 24156
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:841 +0x250
+
+goroutine 24183 [chan receive]:
+database/sql.(*Tx).awaitDone(0xc000136980)
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:2212 +0x4c
+created by database/sql.(*DB).beginDC in goroutine 24156
+	/opt/homebrew/Cellar/go/1.26.3/libexec/src/database/sql/sql.go:1925 +0x338
+FAIL	github.com/oopslink/agent-center/internal/projectmanager/service	600.569s
+FAIL

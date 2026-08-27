@@ -1,0 +1,36 @@
+{
+  "task": "T1626",
+  "verdict": "REJECT",
+  "candidate_ref": "origin/candidate/t1625-phase0-aa6ca4b9",
+  "candidate_sha": "aa6ca4b9004007502ed39a7993294404fb322b5f",
+  "origin_main_sha": "16dc58155dfa0cafd79c08595c8a8e378b5eede9",
+  "remote_ref_exact": true,
+  "origin_main_is_ancestor": true,
+  "candidate_modified": false,
+  "blockers": [
+    {
+      "gate": "candidate_projectmanager_service_race_count10",
+      "result": "FAIL",
+      "reason": "go test -race -count=10 ./internal/projectmanager/service timed out after Go test package timeout of 10m0s",
+      "evidence": "docs/acceptance/t1626/raw/10-projectmanager-service-race-count10.log",
+      "exit_code": 1
+    },
+    {
+      "gate": "task_input_package",
+      "result": "FAIL",
+      "reason": "task-input/v1 package was absent from the workspace",
+      "evidence": "docs/acceptance/t1626/raw/00-provenance.log"
+    }
+  ],
+  "checks": {
+    "fresh_fetch_remote_readback": "PASS",
+    "focused_s2a_s2b_semantics": "PASS",
+    "repository_established_race_gate": "NOT_RUN_AFTER_BLOCKER",
+    "full_go_suite": "NOT_RUN_AFTER_BLOCKER",
+    "web_gate": "NOT_RUN_AFTER_BLOCKER"
+  },
+  "evidence": {
+    "report": "docs/acceptance/t1626/REPORT.md",
+    "raw_logs_dir": "docs/acceptance/t1626/raw"
+  }
+}
