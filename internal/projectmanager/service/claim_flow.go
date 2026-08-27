@@ -41,6 +41,8 @@ import (
 // EvtTaskAssigned is emitted, so no WorkItem/wake is minted — the pull-pool stays
 // pull (ADR-0047), the agent is already actively claiming.
 func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	s.poolAssignmentMu.Lock()
+	defer s.poolAssignmentMu.Unlock()
 	if s.pools != nil {
 		return s.claimAssignmentPoolTask(ctx, taskID, actor)
 	}
