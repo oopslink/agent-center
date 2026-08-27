@@ -52,10 +52,10 @@ func dur(ms int64) time.Duration {
 func (r *ProgressControlRepo) RecordWake(ctx context.Context, w pm.ProgressWake) (bool, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_wakes
-		(id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		(id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_fact_ref, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		w.ID, string(w.PlanID), string(w.TaskID), w.NodeID, string(w.OwnerRef), w.OwnerDisplay, w.Reason, w.Status, w.IdempotencyKey,
-		ts(w.RequestedAt), tsPtr(&w.DeliveredAt), tsPtr(&w.AcknowledgedAt), ts(w.AckDeadline), ms(w.MaxHoldDuration), w.EscalationLevel,
+		ts(w.RequestedAt), tsPtr(&w.DeliveredAt), tsPtr(&w.AcknowledgedAt), w.AckFactRef, ts(w.AckDeadline), ms(w.MaxHoldDuration), w.EscalationLevel,
 		tsPtr(&w.NextEscalationAt), w.OrganizationOwnerRef)
 	if isUnique(err) {
 		return false, nil
@@ -72,13 +72,40 @@ func (r *ProgressControlRepo) MarkWakeDelivered(ctx context.Context, wakeID stri
 
 func (r *ProgressControlRepo) AcknowledgeWake(ctx context.Context, wakeID string, actor pm.IdentityRef, at time.Time, factRef string) (bool, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_wakes SET status=?, acknowledged_at=? WHERE id=? AND owner_ref=? AND acknowledged_at=''`,
-		pm.ProgressWakeAcknowledged, ts(at), wakeID, string(actor))
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_wakes SET status=?, acknowledged_at=?, ack_fact_ref=? WHERE id=? AND owner_ref=? AND acknowledged_at=''`,
+		pm.ProgressWakeAcknowledged, ts(at), factRef, wakeID, string(actor))
 	if err != nil {
 		return false, err
 	}
 	n, err := res.RowsAffected()
-	return n == 1, err
+	if err != nil || n != 1 {
+		return false, err
+	}
+	w, ok, err := r.findWake(ctx, wakeID)
+	if err != nil || !ok {
+		return false, err
+	}
+	if _, err := r.ReleaseHoldsByReason(ctx, pm.ProgressObligationAckWake, "obl:"+wakeID, actor, factRef, at); err != nil {
+		return false, err
+	}
+	if _, err := r.ResolveOpenObligationsByFact(ctx, w.PlanID, w.TaskID, actor, factRef, at); err != nil {
+		return false, err
+	}
+	if _, err := r.ResolveOpenIncidentsBySource(ctx, w.PlanID, w.TaskID, wakeID, factRef, at); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *ProgressControlRepo) findWake(ctx context.Context, wakeID string) (pm.ProgressWake, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, `SELECT id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_fact_ref, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref
+		FROM pm_progress_wakes WHERE id=?`, wakeID)
+	w, err := scanWake(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pm.ProgressWake{}, false, nil
+	}
+	return w, err == nil, err
 }
 
 func (r *ProgressControlRepo) ListExpiredUnackedWakes(ctx context.Context, now time.Time, limit int) ([]pm.ProgressWake, error) {
@@ -86,7 +113,7 @@ func (r *ProgressControlRepo) ListExpiredUnackedWakes(ctx context.Context, now t
 		limit = 100
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx, `SELECT id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref
+	rows, err := exec.QueryContext(ctx, `SELECT id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_fact_ref, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref
 		FROM pm_progress_wakes WHERE acknowledged_at='' AND ack_deadline <= ? ORDER BY ack_deadline, id LIMIT ?`, ts(now), limit)
 	if err != nil {
 		return nil, err
@@ -108,7 +135,7 @@ func scanWake(scan func(...any) error) (pm.ProgressWake, error) {
 	var planID, taskID, owner, requested, delivered, acked, ackDeadline, next string
 	var maxMS int64
 	if err := scan(&w.ID, &planID, &taskID, &w.NodeID, &owner, &w.OwnerDisplay, &w.Reason, &w.Status, &w.IdempotencyKey,
-		&requested, &delivered, &acked, &ackDeadline, &maxMS, &w.EscalationLevel, &next, &w.OrganizationOwnerRef); err != nil {
+		&requested, &delivered, &acked, &w.AckFactRef, &ackDeadline, &maxMS, &w.EscalationLevel, &next, &w.OrganizationOwnerRef); err != nil {
 		return w, err
 	}
 	w.PlanID, w.TaskID, w.OwnerRef = pm.PlanID(planID), pm.TaskID(taskID), pm.IdentityRef(owner)
@@ -226,6 +253,33 @@ func (r *ProgressControlRepo) ReleaseHoldsByFact(ctx context.Context, planID pm.
 		return 0, err
 	}
 	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+func (r *ProgressControlRepo) ResolveOpenObligationsByFact(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, actor pm.IdentityRef, factRef string, at time.Time) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_obligations
+		SET status='resolved', acked_at=?, updated_at=?, source_fact_refs=?
+		WHERE plan_id=? AND (?='' OR task_id=?) AND status='open' AND owner_ref=?`,
+		ts(at), ts(at), encodeStrings([]string{factRef}), string(planID), string(taskID), string(taskID), string(actor))
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+func (r *ProgressControlRepo) ResolveOpenIncidentsBySource(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, sourceRef string, factRef string, at time.Time) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_incidents
+		SET status='resolved', updated_at=?
+		WHERE plan_id=? AND (?='' OR task_id=?) AND status='open' AND source_ref=?`,
+		ts(at), string(planID), string(taskID), string(taskID), sourceRef)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	_ = factRef
 	return int(n), err
 }
 

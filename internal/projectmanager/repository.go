@@ -186,6 +186,10 @@ type PlanRepository interface {
 	// v2.9 P2-3 reconciliation sweep — the background safety net that re-dispatches
 	// ready-but-undispatched nodes for missed events / crash recovery.
 	ListRunningPlans(ctx context.Context) ([]*Plan, error)
+	// ListPlansByStatus returns plans in one lifecycle status across all projects.
+	// It backs non-dispatch clocks such as paused-plan blocked_on/progress_hold
+	// refresh, where using ListRunningPlans would incorrectly stop time.
+	ListPlansByStatus(ctx context.Context, status PlanStatus) ([]*Plan, error)
 	Delete(ctx context.Context, id PlanID) error
 	// DeletePlan hard-deletes a Plan and its DAG state in one call (v2.9 P3): it
 	// CASCADE-removes the plan's depends_on edges (pm_task_dependencies) and dispatch

@@ -118,8 +118,12 @@ func (r *PlanRepo) ListByProject(ctx context.Context, projectID pm.ProjectID) ([
 // (global, no project filter), stable-ordered (created_at, id). It backs the
 // v2.9 P2-3 reconciliation sweep (the global background safety net).
 func (r *PlanRepo) ListRunningPlans(ctx context.Context) ([]*pm.Plan, error) {
+	return r.ListPlansByStatus(ctx, pm.PlanRunning)
+}
+
+func (r *PlanRepo) ListPlansByStatus(ctx context.Context, status pm.PlanStatus) ([]*pm.Plan, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx, planSelect+` WHERE status = ? ORDER BY created_at, id`, string(pm.PlanRunning))
+	rows, err := exec.QueryContext(ctx, planSelect+` WHERE status = ? ORDER BY created_at, id`, string(status))
 	if err != nil {
 		return nil, err
 	}

@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -13,7 +15,7 @@ import (
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
-func progressServiceFixture(t *testing.T) (*Service, *pmsql.ProgressControlRepo, *clock.FakeClock, context.Context) {
+func progressServiceFixture(t *testing.T) (*Service, *pmsql.ProgressControlRepo, *clock.FakeClock, *sql.DB, context.Context) {
 	t.Helper()
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
@@ -26,11 +28,11 @@ func progressServiceFixture(t *testing.T) (*Service, *pmsql.ProgressControlRepo,
 	clk := clock.NewFakeClock(time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC))
 	repo := pmsql.NewProgressControlRepo(db)
 	svc := New(Deps{DB: db, Clock: clk, IDGen: idgen.NewGenerator(clk), ProgressControl: repo})
-	return svc, repo, clk, context.Background()
+	return svc, repo, clk, db, context.Background()
 }
 
 func TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates(t *testing.T) {
-	svc, repo, clk, ctx := progressServiceFixture(t)
+	svc, repo, clk, _, ctx := progressServiceFixture(t)
 	now := clk.Now()
 	_, err := repo.RecordWake(ctx, pm.ProgressWake{
 		ID: "wake-1", PlanID: "plan-1", TaskID: "task-1", NodeID: "node-1",
@@ -89,5 +91,152 @@ func TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates(t *testing.
 	}
 	if !foundP0 {
 		t.Fatalf("snapshot incidents = %+v, want hold_slo_breached P0", snap.OpenIncidents)
+	}
+}
+
+func TestProgressControl_AckWakeExhaustsObligationIncidentHoldAndStoresFact(t *testing.T) {
+	svc, repo, clk, db, ctx := progressServiceFixture(t)
+	now := clk.Now()
+	_, err := repo.RecordWake(ctx, pm.ProgressWake{
+		ID: "wake-ack", PlanID: "plan-1", TaskID: "task-1", NodeID: "node-1",
+		OwnerRef: "user:owner", OwnerDisplay: "Owner", Reason: "blocked", Status: pm.ProgressWakeDelivered,
+		IdempotencyKey: "ack-chain", RequestedAt: now, DeliveredAt: now, AckDeadline: now.Add(time.Minute),
+		MaxHoldDuration: time.Hour, NextEscalationAt: now.Add(time.Minute), OrganizationOwnerRef: "role:oncall",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clk.Advance(2 * time.Minute)
+	if err := svc.ReconcileProgressControl(ctx, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AcknowledgeProgressWake(ctx, "wake-ack", "user:intruder"); err != nil {
+		t.Fatalf("wrong actor ack should be a no-op, got err %v", err)
+	}
+	if snap, err := repo.SnapshotPlan(ctx, "plan-1", clk.Now()); err != nil || snap.Decision != pm.ProgressDecisionBound {
+		t.Fatalf("wrong actor released chain: snapshot=%+v err=%v", snap, err)
+	}
+	if err := svc.AcknowledgeProgressWake(ctx, "wake-ack", "user:owner"); err != nil {
+		t.Fatalf("owner ack: %v", err)
+	}
+	snap, err := repo.SnapshotPlan(ctx, "plan-1", clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Decision != pm.ProgressDecisionVerified || len(snap.OpenHolds) != 0 || len(snap.OpenObligations) != 0 || len(snap.OpenIncidents) != 0 {
+		t.Fatalf("ack did not exhaust chain: %+v", snap)
+	}
+	var fact string
+	if err := db.QueryRowContext(ctx, `SELECT ack_fact_ref FROM pm_progress_wakes WHERE id='wake-ack'`).Scan(&fact); err != nil {
+		t.Fatal(err)
+	}
+	if fact != pm.ProgressWakeAcknowledged+":wake-ack" {
+		t.Fatalf("ack_fact_ref=%q, want durable wake ack fact", fact)
+	}
+}
+
+func TestProgressHold_GatesFreshStartButNotInFlightResume(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "held", CreatedBy: "user:a"})
+	h.drain(t)
+	taskID := h.seedAssignedTask(t, pid, planID, "Decision", "user:a")
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	now := h.clk.Now()
+	_, err := h.svc.progress.UpsertHold(ctx, pm.ProgressHold{
+		ID: "hold-start", PlanID: planID, TaskID: taskID, NodeID: "node",
+		ReasonKind: string(pm.WaitHumanDecision), ReasonID: "decision:" + string(taskID),
+		OwnerRef: "user:a", OwnerDisplay: "user:a", EnteredAt: now,
+		HoldAckDeadline: now.Add(time.Minute), MaxHoldDuration: time.Hour, NextEscalationAt: now.Add(time.Minute),
+		BlocksDispatch: true, BlocksAcceptance: true, BlocksCompletion: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.EnsureTaskRunnable(ctx, taskID); !errors.Is(err, pm.ErrProgressHoldOpen) {
+		t.Fatalf("fresh run gate err=%v, want ErrProgressHoldOpen", err)
+	}
+	gate := NewAgentTaskRunGate(h.svc)
+	if err := gate.EnsureTaskRunnable(ctx, "pm://tasks/"+string(taskID)); !errors.Is(err, agentpkg.ErrTaskNotRunnable) {
+		t.Fatalf("agent gate err=%v, want ErrTaskNotRunnable", err)
+	}
+	if err := h.svc.StartTask(ctx, taskID, "user:a"); !errors.Is(err, pm.ErrProgressHoldOpen) {
+		t.Fatalf("StartTask err=%v, want ErrProgressHoldOpen", err)
+	}
+	if err := h.svc.RecordProgressDecision(ctx, planID, taskID, "user:a", "decision-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartTask(ctx, taskID, "user:a"); err != nil {
+		t.Fatalf("StartTask after decision fact: %v", err)
+	}
+	_, err = h.svc.progress.UpsertHold(ctx, pm.ProgressHold{
+		ID: "hold-running", PlanID: planID, TaskID: taskID, ReasonKind: string(pm.WaitHumanDecision), ReasonID: "decision:again",
+		OwnerRef: "user:a", OwnerDisplay: "user:a", EnteredAt: now, HoldAckDeadline: now.Add(time.Minute),
+		MaxHoldDuration: time.Hour, NextEscalationAt: now.Add(time.Minute), BlocksDispatch: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.EnsureTaskRunnable(ctx, taskID); err != nil {
+		t.Fatalf("running task must not be pseudo-stopped by hold, got %v", err)
+	}
+}
+
+func TestProgressHold_MaterializesOnlyForMissingExecutableReleaseFact(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	_, planID, _, blocked := seedBlockedPlanAB(t, h, "no-upstream-hold")
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	bo := blockedOnByTask(t, h, planID)[blocked]
+	if bo.WaitType != pm.WaitUpstreamCompletion {
+		t.Fatalf("wait_type=%q, want upstream_completion", bo.WaitType)
+	}
+	snap, err := h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.OpenHolds) != 0 {
+		t.Fatalf("upstream wait materialized progress_hold without missing executable release fact: %+v", snap.OpenHolds)
+	}
+}
+
+func TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	ctx := h.ctx
+	_, planID, decision, _ := seedRootDecisionPlan(t, h, "paused-clock", "user:a")
+	if err := h.svc.PausePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.clk.Advance(defaultMaxHoldDuration + time.Minute)
+	breached, err := h.svc.progress.ListBreachedHolds(ctx, h.clk.Now(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(breached) == 0 {
+		t.Fatalf("test setup has no breached hold before paused reconcile")
+	}
+	if err := h.svc.ReconcilePausedPlans(ctx, nil); err != nil {
+		t.Fatalf("ReconcilePausedPlans: %v", err)
+	}
+	snap, err := h.svc.progress.SnapshotPlan(ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, inc := range snap.OpenIncidents {
+		if inc.TaskID == decision && inc.Kind == pm.ProgressIncidentHoldSLOBreach && inc.Severity == "P0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("paused second clock did not escalate hold SLO: %+v", snap.OpenIncidents)
 	}
 }

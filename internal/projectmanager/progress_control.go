@@ -15,7 +15,7 @@ const (
 	ProgressIncidentWakeAckLost   string           = "wake_ack_lost"
 	ProgressIncidentOperational   string           = "operational_incident"
 	ProgressIncidentHoldSLOBreach string           = "hold_slo_breached"
-	ProgressEscalationRaised      string           = "EscalationRaised"
+	ProgressEscalationRaised      string           = "EscalationRequested"
 	ProgressWakeRequested         string           = "WakeRequested"
 	ProgressWakeDelivered         string           = "WakeDelivered"
 	ProgressWakeAcknowledged      string           = "WakeAcknowledged"
@@ -35,6 +35,7 @@ type ProgressWake struct {
 	RequestedAt          time.Time
 	DeliveredAt          time.Time
 	AcknowledgedAt       time.Time
+	AckFactRef           string
 	AckDeadline          time.Time
 	MaxHoldDuration      time.Duration
 	EscalationLevel      int
@@ -135,6 +136,8 @@ type ProgressControlRepository interface {
 	ListBreachedHolds(ctx context.Context, now time.Time, limit int) ([]ProgressHold, error)
 	ReleaseHoldsByFact(ctx context.Context, planID PlanID, taskID TaskID, actor IdentityRef, factRef string, at time.Time) (int, error)
 	ReleaseHoldsByReason(ctx context.Context, reasonKind, reasonID string, actor IdentityRef, factRef string, at time.Time) (int, error)
+	ResolveOpenObligationsByFact(ctx context.Context, planID PlanID, taskID TaskID, actor IdentityRef, factRef string, at time.Time) (int, error)
+	ResolveOpenIncidentsBySource(ctx context.Context, planID PlanID, taskID TaskID, sourceRef string, factRef string, at time.Time) (int, error)
 	RecordEscalation(ctx context.Context, e ProgressEscalation) (created bool, err error)
 	SnapshotPlan(ctx context.Context, planID PlanID, asOf time.Time) (ProgressControlSnapshot, error)
 }

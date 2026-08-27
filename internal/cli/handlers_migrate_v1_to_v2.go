@@ -182,7 +182,7 @@ func MigrateV1ToV2Command() *Command {
 // 0127 adds immutable Plan Generation snapshots; 0128 audits Team Rule loads;
 // 0129-0144 add the unified authorization/RAM role migrations.
 // 0145 adds durable Insight concurrency observations.
-const targetSchemaVersion = 146
+const targetSchemaVersion = 147
 
 func runMigrateV1ToV2(
 	ctx context.Context,

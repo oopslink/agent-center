@@ -165,6 +165,11 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 			return err
 		}
 		prevStatus := t.Status()
+		if prevStatus != pm.TaskRunning {
+			if err := s.guardTaskProgressHolds(txCtx, taskID, true, false, false); err != nil {
+				return err
+			}
+		}
 		if err := t.Start(now); err != nil {
 			return err
 		}

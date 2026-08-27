@@ -89,8 +89,7 @@ func (s *Service) AcknowledgeProgressWake(ctx context.Context, wakeID string, ac
 		if err != nil || !ok {
 			return err
 		}
-		_, err = s.progress.ReleaseHoldsByReason(txCtx, pm.ProgressObligationAckWake, "obl:"+wakeID, actor, pm.ProgressWakeAcknowledged+":"+wakeID, now)
-		return err
+		return nil
 	})
 }
 
@@ -100,7 +99,11 @@ func (s *Service) RecordProgressDecision(ctx context.Context, planID pm.PlanID, 
 	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
-		_, err := s.progress.ReleaseHoldsByFact(txCtx, planID, taskID, actor, pm.ProgressDecisionRecorded+":"+decisionID, now)
+		factRef := pm.ProgressDecisionRecorded + ":" + decisionID
+		if _, err := s.progress.ReleaseHoldsByFact(txCtx, planID, taskID, actor, factRef, now); err != nil {
+			return err
+		}
+		_, err := s.progress.ResolveOpenObligationsByFact(txCtx, planID, taskID, actor, factRef, now)
 		return err
 	})
 }
