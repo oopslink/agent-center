@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS pm_progress_wakes (
     requested_at TEXT NOT NULL,
     delivered_at TEXT NOT NULL DEFAULT '',
     acknowledged_at TEXT NOT NULL DEFAULT '',
+    ack_fact_ref TEXT NOT NULL DEFAULT '',
     ack_deadline TEXT NOT NULL,
     max_hold_duration_ms INTEGER NOT NULL DEFAULT 0,
     escalation_level INTEGER NOT NULL DEFAULT 0,

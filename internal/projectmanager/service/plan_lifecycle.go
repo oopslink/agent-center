@@ -759,6 +759,51 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 			errFn(p.ID(), fmt.Errorf("reconcile progress_control: %w", perr))
 		}
 	}
+	if err := s.ReconcileProgressControl(ctx, 100); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
+}
+
+// ReconcilePausedPlans is the second-layer clock for paused plans. It deliberately
+// does not call dispatchReadyNodes: pause freezes new dispatch, while observational
+// blocked_on/progress_hold deadlines, wake acknowledgements, and SLO escalation keep
+// advancing from durable state.
+func (s *Service) ReconcilePausedPlans(ctx context.Context, errFn func(planID pm.PlanID, err error)) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	plans, err := s.plans.ListPlansByStatus(ctx, pm.PlanPaused)
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, p := range plans {
+		perr := s.runInTx(ctx, func(txCtx context.Context) error {
+			fresh, ferr := s.plans.FindByID(txCtx, p.ID())
+			if ferr != nil {
+				return ferr
+			}
+			if fresh.Status() != pm.PlanPaused {
+				return nil
+			}
+			if err := s.materializeBlockedOn(txCtx, fresh); err != nil {
+				return err
+			}
+			return s.routeTimeouts(txCtx, fresh)
+		})
+		if perr != nil {
+			if errFn != nil {
+				errFn(p.ID(), perr)
+			}
+			if firstErr == nil {
+				firstErr = perr
+			}
+		}
+	}
+	if err := s.ReconcileProgressControl(ctx, 100); err != nil && firstErr == nil {
+		firstErr = err
+	}
 	return firstErr
 }
 
