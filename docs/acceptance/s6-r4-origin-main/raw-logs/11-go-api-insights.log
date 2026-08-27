@@ -1,0 +1,10 @@
+=== RUN   TestInsightsOverviewAPI_WindowValidationAndShape
+--- PASS: TestInsightsOverviewAPI_WindowValidationAndShape (0.25s)
+=== RUN   TestInsightsHTTPReadDoesNotTriggerProjection
+--- PASS: TestInsightsHTTPReadDoesNotTriggerProjection (0.21s)
+=== RUN   TestInsightsExecutionAPI_ReadsSingleProjectedExecution
+--- PASS: TestInsightsExecutionAPI_ReadsSingleProjectedExecution (0.20s)
+=== RUN   TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound
+--- PASS: TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound (0.20s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.555s

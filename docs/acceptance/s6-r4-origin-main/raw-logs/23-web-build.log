@@ -1,0 +1,183 @@
+
+> agent-center-web@0.1.0 build /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2708 modules transformed.
+rendering chunks...
+warnings when minifying css:
+▲ [WARNING] Expected identifier but found "-" [css-syntax-error]
+
+    <stdin>:3072:2:
+      3072 │   -: ·;
+           ╵   ^
+
+
+computing gzip size...
+../internal/webconsole/spa/dist/index.html                                         0.59 kB │ gzip:   0.39 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-TlSL6hXd.css                  0.55 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/index-BZSjSrC5.css                         68.75 kB │ gzip:  14.11 kB
+../internal/webconsole/spa/dist/assets/channel-P8topC0p.js                         0.11 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/fleet-D4f29TUm.js                           0.14 kB │ gzip:   0.14 kB
+../internal/webconsole/spa/dist/assets/init-Gi6I4Gst.js                            0.15 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/conversationSegments-CmhG79J6.js            0.19 kB │ gzip:   0.12 kB
+../internal/webconsole/spa/dist/assets/users-Bb-C-27_.js                           0.19 kB │ gzip:   0.19 kB
+../internal/webconsole/spa/dist/assets/chunk-2Q5K7J3B-8EjoklwF.js                  0.20 kB │ gzip:   0.16 kB
+../internal/webconsole/spa/dist/assets/agentLifecycleTime-B8yYLUxQ.js              0.20 kB │ gzip:   0.14 kB
+../internal/webconsole/spa/dist/assets/chunk-JWPE2WC7-vOt4XcZz.js                  0.23 kB │ gzip:   0.17 kB
+../internal/webconsole/spa/dist/assets/chunk-XXDRQBXY-DnLmhTyE.js                  0.24 kB │ gzip:   0.21 kB
+../internal/webconsole/spa/dist/assets/chunk-5VM5RSS4-D3yVi8pP.js                  0.37 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSSEConversationSubscribe-Dkf0m80R.js     0.39 kB │ gzip:   0.26 kB
+../internal/webconsole/spa/dist/assets/passcode-DA4UUc52.js                        0.40 kB │ gzip:   0.23 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-v2-UEYNNEHI-BsTrgYzH.js        0.43 kB │ gzip:   0.30 kB
+../internal/webconsole/spa/dist/assets/TypeChip-CEn4ScFi.js                        0.46 kB │ gzip:   0.33 kB
+../internal/webconsole/spa/dist/assets/system-C8Zqkawq.js                          0.46 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSystemSegments-o75VpLtv.js               0.47 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/classDiagram-JCYQIIEL-D64K8MPR.js           0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/classDiagram-v2-OCEON4UE-D64K8MPR.js        0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/chunk-KBJHAD2P-DcpgeBiy.js                  0.51 kB │ gzip:   0.35 kB
+../internal/webconsole/spa/dist/assets/NotFound-PIwr64wj.js                        0.52 kB │ gzip:   0.30 kB
+../internal/webconsole/spa/dist/assets/swimlanesDiagram-ULZ7WXOC-dCs2vjLo.js       0.55 kB │ gzip:   0.37 kB
+../internal/webconsole/spa/dist/assets/ToggleSwitch-CcQBiPVe.js                    0.56 kB │ gzip:   0.38 kB
+../internal/webconsole/spa/dist/assets/infoDiagram-6WML65LV-CUVeugM2.js            0.59 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/EntityRef-VjVLZFxw.js                       0.63 kB │ gzip:   0.37 kB
+../internal/webconsole/spa/dist/assets/useTablistKeyboard-CxvfA18c.js              0.67 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/SegmentedNav-BhRE4WXj.js                    0.70 kB │ gzip:   0.48 kB
+../internal/webconsole/spa/dist/assets/workers-D0hl3LXz.js                         0.71 kB │ gzip:   0.34 kB
+../internal/webconsole/spa/dist/assets/ErrorState-CBtz_6Wn.js                      0.76 kB │ gzip:   0.44 kB
+../internal/webconsole/spa/dist/assets/Breadcrumb-OI120xvs.js                      0.82 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/issues-DA5UhD1l.js                          0.91 kB │ gzip:   0.43 kB
+../internal/webconsole/spa/dist/assets/sizeCapture-X5ZJPWSS-C1Sc0eFV.js            0.94 kB │ gzip:   0.53 kB
+../internal/webconsole/spa/dist/assets/invitations-CPi-59gN.js                     1.01 kB │ gzip:   0.40 kB
+../internal/webconsole/spa/dist/assets/executorProfiles-D7vODP3H.js                1.15 kB │ gzip:   0.56 kB
+../internal/webconsole/spa/dist/assets/ordinal-Cboi1Yqb.js                         1.19 kB │ gzip:   0.57 kB
+../internal/webconsole/spa/dist/assets/EmptyState-BFIcJrpI.js                      1.19 kB │ gzip:   0.64 kB
+../internal/webconsole/spa/dist/assets/Avatar-eOHV1B2m.js                          1.31 kB │ gzip:   0.72 kB
+../internal/webconsole/spa/dist/assets/orgWorkItems-gZxcSO43.js                    1.37 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/InvitationAccept-BaiHaoc7.js                1.38 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/tasks-DPHp4FoU.js                           1.41 kB │ gzip:   0.60 kB
+../internal/webconsole/spa/dist/assets/CapabilitiesEditor-CsFu-d8-.js              1.42 kB │ gzip:   0.77 kB
+../internal/webconsole/spa/dist/assets/kit-DoKcAdW7.js                             1.51 kB │ gzip:   0.54 kB
+../internal/webconsole/spa/dist/assets/railroadDiagram-AXF67PYL-rYf1-t1P.js        1.61 kB │ gzip:   0.76 kB
+../internal/webconsole/spa/dist/assets/Version-Byi8y71P.js                         1.66 kB │ gzip:   0.68 kB
+../internal/webconsole/spa/dist/assets/abnfDiagram-N423BO3Z-mAoQa6uR.js            1.81 kB │ gzip:   0.90 kB
+../internal/webconsole/spa/dist/assets/chunk-2GRJ4B5K-CPh-H4_Z.js                  1.86 kB │ gzip:   0.82 kB
+../internal/webconsole/spa/dist/assets/pegDiagram-VL7TDLO6-BUnBOUZM.js             1.96 kB │ gzip:   0.93 kB
+../internal/webconsole/spa/dist/assets/listControls-JbQ6H7nK.js                    1.96 kB │ gzip:   0.95 kB
+../internal/webconsole/spa/dist/assets/ebnfDiagram-BXEA7PRR-CbaIZIxT.js            2.01 kB │ gzip:   0.88 kB
+../internal/webconsole/spa/dist/assets/repoDisplay-Cgc-o-zt.js                     2.01 kB │ gzip:   0.73 kB
+../internal/webconsole/spa/dist/assets/aiRuntime-DyMOBP_h.js                       2.12 kB │ gzip:   0.87 kB
+../internal/webconsole/spa/dist/assets/ForceDeleteModal-BzIXh8N3.js                2.56 kB │ gzip:   1.01 kB
+../internal/webconsole/spa/dist/assets/AgentBadges-rAriU3WS.js                     2.58 kB │ gzip:   0.89 kB
+../internal/webconsole/spa/dist/assets/Signin-gzfvLsOR.js                          2.71 kB │ gzip:   1.04 kB
+../internal/webconsole/spa/dist/assets/access-MTLUIZVJ.js                          2.79 kB │ gzip:   0.85 kB
+../internal/webconsole/spa/dist/assets/ConversationInfoPanel-DihY7p-V.js           2.80 kB │ gzip:   0.98 kB
+../internal/webconsole/spa/dist/assets/arc-lvIGiQUY.js                             3.43 kB │ gzip:   1.45 kB
+../internal/webconsole/spa/dist/assets/planDisplay--QBJHj_A.js                     3.54 kB │ gzip:   1.14 kB
+../internal/webconsole/spa/dist/assets/FloatingDmWindow-D_2df-ym.js                3.64 kB │ gzip:   1.59 kB
+../internal/webconsole/spa/dist/assets/icons-gwQaRkRb.js                           3.74 kB │ gzip:   0.66 kB
+../internal/webconsole/spa/dist/assets/Settings-Bq-k7n3J.js                        3.81 kB │ gzip:   1.46 kB
+../internal/webconsole/spa/dist/assets/EntitySelect-DZwpx-3T.js                    4.03 kB │ gzip:   1.67 kB
+../internal/webconsole/spa/dist/assets/ChannelDetail-1nUuEIwc.js                   4.13 kB │ gzip:   1.61 kB
+../internal/webconsole/spa/dist/assets/ConversationSurfaceMobile-DGtS7EZF.js       4.15 kB │ gzip:   1.56 kB
+../internal/webconsole/spa/dist/assets/diagram-LBJQPF4R-CkBGYCQS.js                4.22 kB │ gzip:   1.83 kB
+../internal/webconsole/spa/dist/assets/agents-WkG1kobt.js                          4.28 kB │ gzip:   1.50 kB
+../internal/webconsole/spa/dist/assets/Unread-DJTfCRI4.js                          4.38 kB │ gzip:   1.60 kB
+../internal/webconsole/spa/dist/assets/Signup-CpnhA2ju.js                          4.57 kB │ gzip:   1.77 kB
+../internal/webconsole/spa/dist/assets/defaultLocale-CrowFXzY.js                   4.69 kB │ gzip:   2.17 kB
+../internal/webconsole/spa/dist/assets/Me-Ft8QE8Tn.js                              4.83 kB │ gzip:   1.37 kB
+../internal/webconsole/spa/dist/assets/kit-DBjBg7es.js                             4.96 kB │ gzip:   1.62 kB
+../internal/webconsole/spa/dist/assets/map--5OmGKFp.js                             5.07 kB │ gzip:   2.07 kB
+../internal/webconsole/spa/dist/assets/EntityMultiSelect-uU0NwNwl.js               5.07 kB │ gzip:   2.02 kB
+../internal/webconsole/spa/dist/assets/linear-BbIuSaXQ.js                          5.66 kB │ gzip:   2.31 kB
+../internal/webconsole/spa/dist/assets/plans-DiXzsw1V.js                           5.86 kB │ gzip:   1.62 kB
+../internal/webconsole/spa/dist/assets/diagram-UB23O5K3-rJqkGCf-.js                6.09 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/pieDiagram-7S7Q4E2Y-BuVb3XiS.js             6.31 kB │ gzip:   2.64 kB
+../internal/webconsole/spa/dist/assets/DMDetail-BNfXki9U.js                        6.88 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/chunk-RYQCIY6F-DjKeFaYn.js                  7.08 kB │ gzip:   2.72 kB
+../internal/webconsole/spa/dist/assets/InstallCommandModal-C3bljjEF.js             7.22 kB │ gzip:   2.12 kB
+../internal/webconsole/spa/dist/assets/ObjectAuditTimeline-f5p-HiXd.js             7.24 kB │ gzip:   2.48 kB
+../internal/webconsole/spa/dist/assets/diagram-7IWD3JNH-BHuyw8Ia.js                8.28 kB │ gzip:   3.73 kB
+../internal/webconsole/spa/dist/assets/Secrets-D_fnSeCP.js                         8.41 kB │ gzip:   2.26 kB
+../internal/webconsole/spa/dist/assets/dagre-VZM6K2ZE-CDNm7arL.js                  8.60 kB │ gzip:   3.31 kB
+../internal/webconsole/spa/dist/assets/DMs-D148mlLP.js                             8.66 kB │ gzip:   2.73 kB
+../internal/webconsole/spa/dist/assets/AgentCreateModal-D6yC960C.js                8.79 kB │ gzip:   2.80 kB
+../internal/webconsole/spa/dist/assets/AttachmentsSection-DjjV9HbN.js              9.39 kB │ gzip:   3.30 kB
+../internal/webconsole/spa/dist/assets/Trans-DMl-UnoW.js                           9.40 kB │ gzip:   4.08 kB
+../internal/webconsole/spa/dist/assets/UserDetail-DL4HM67h.js                      9.76 kB │ gzip:   3.02 kB
+../internal/webconsole/spa/dist/assets/cynefinDiagram-MW4NZA55-BfFHgOoU.js        10.09 kB │ gzip:   3.61 kB
+../internal/webconsole/spa/dist/assets/RuntimeSelectors-B_0DPXCR.js               10.32 kB │ gzip:   3.71 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-OKZ733FA-BHguW4FJ.js          10.42 kB │ gzip:   3.65 kB
+../internal/webconsole/spa/dist/assets/diagram-B4RE2ZJO-Bb1phJIw.js               10.76 kB │ gzip:   4.16 kB
+../internal/webconsole/spa/dist/assets/OrgPlans-D0-d8Grm.js                       10.92 kB │ gzip:   2.87 kB
+../internal/webconsole/spa/dist/assets/Channels-B00fK3-f.js                       11.64 kB │ gzip:   3.40 kB
+../internal/webconsole/spa/dist/assets/TaskCreateModal-BGLtDdSl.js                12.05 kB │ gzip:   3.21 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryHumans-DoD7BEKz.js           12.16 kB │ gzip:   3.82 kB
+../internal/webconsole/spa/dist/assets/OrgWorkItems-BhCCXB17.js                   12.66 kB │ gzip:   3.17 kB
+../internal/webconsole/spa/dist/assets/AccessPermissionsPanel-ChX4qPxy.js         13.26 kB │ gzip:   3.44 kB
+../internal/webconsole/spa/dist/assets/InsightOverview-Dpm6BhSM.js                13.37 kB │ gzip:   3.27 kB
+../internal/webconsole/spa/dist/assets/Projects-CsUy7QkU.js                       14.14 kB │ gzip:   3.75 kB
+../internal/webconsole/spa/dist/assets/WorkerDetail-2jr38UO_.js                   14.25 kB │ gzip:   3.90 kB
+../internal/webconsole/spa/dist/assets/ExecutorSlotPanel-CEUvx7Ub.js              14.31 kB │ gzip:   3.94 kB
+../internal/webconsole/spa/dist/assets/chunk-6Q2QTUOP-CqtpJW3e.js                 15.74 kB │ gzip:   4.39 kB
+../internal/webconsole/spa/dist/assets/Reminders-BIYyL_Lk.js                      15.76 kB │ gzip:   4.30 kB
+../internal/webconsole/spa/dist/assets/diagram-Q27KOJAE-DLauzMlf.js               15.96 kB │ gzip:   5.70 kB
+../internal/webconsole/spa/dist/assets/ContextPanelMobileButton-COUzBIvn.js       16.21 kB │ gzip:   4.52 kB
+../internal/webconsole/spa/dist/assets/IssueDetail-DqvSYRoh.js                    17.12 kB │ gzip:   4.66 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryAgents-BaopmC7z.js           17.33 kB │ gzip:   5.17 kB
+../internal/webconsole/spa/dist/assets/ishikawaDiagram-WSZJBQD7-DtAFzM7X.js       17.47 kB │ gzip:   6.61 kB
+../internal/webconsole/spa/dist/assets/OrgRepos-DK3T6Fh0.js                       17.76 kB │ gzip:   5.07 kB
+../internal/webconsole/spa/dist/assets/MarkdownMessage-D5oSbQGL.js                17.78 kB │ gzip:   6.15 kB
+../internal/webconsole/spa/dist/assets/Teams-DqUZjMEo.js                          18.06 kB │ gzip:   4.73 kB
+../internal/webconsole/spa/dist/assets/TaskDetail-D6DD-4pV.js                     18.63 kB │ gzip:   5.25 kB
+../internal/webconsole/spa/dist/assets/TeamRoleDetail-Sc59RriD.js                 18.79 kB │ gzip:   5.11 kB
+../internal/webconsole/spa/dist/assets/kanban-definition-27J2QSJJ-DIXsvyIt.js     20.30 kB │ gzip:   7.14 kB
+../internal/webconsole/spa/dist/assets/mindmap-definition-FAOFIHXS-CznHGrVk.js    23.18 kB │ gzip:   7.74 kB
+../internal/webconsole/spa/dist/assets/sankeyDiagram-W5VNT64P-Cz6KSt1C.js         23.21 kB │ gzip:   8.50 kB
+../internal/webconsole/spa/dist/assets/journeyDiagram-NVQOT4AX-LRs_euKN.js        23.59 kB │ gzip:   8.31 kB
+../internal/webconsole/spa/dist/assets/graph-CXBbwMuG.js                          23.92 kB │ gzip:   8.30 kB
+../internal/webconsole/spa/dist/assets/agentActivityGrouping-DqjHrijA.js          24.03 kB │ gzip:   6.93 kB
+../internal/webconsole/spa/dist/assets/OrganizationSettings-BcqGfiTd.js           25.20 kB │ gzip:   5.99 kB
+../internal/webconsole/spa/dist/assets/wardleyDiagram-T6FBY63Y-B7s2dir-.js        25.51 kB │ gzip:   6.76 kB
+../internal/webconsole/spa/dist/assets/erDiagram-JOGREHBK-wzElOwxS.js             27.11 kB │ gzip:   9.32 kB
+../internal/webconsole/spa/dist/assets/Environment-z-xyXRih.js                    27.11 kB │ gzip:   6.59 kB
+../internal/webconsole/spa/dist/assets/gitGraphDiagram-DS77QQ5N-k-gS9039.js       29.43 kB │ gzip:   8.67 kB
+../internal/webconsole/spa/dist/assets/timeline-definition-Z64GVDOM-cqYNcSkC.js   30.85 kB │ gzip:  10.11 kB
+../internal/webconsole/spa/dist/assets/layout-DqmBkSZF.js                         31.00 kB │ gzip:  11.18 kB
+../internal/webconsole/spa/dist/assets/requirementDiagram-LRYGKXZP-BWQkm3AY.js    31.01 kB │ gzip:   9.61 kB
+../internal/webconsole/spa/dist/assets/SenderSidebarContext-DnxSreZ2.js           31.15 kB │ gzip:   8.43 kB
+../internal/webconsole/spa/dist/assets/ProjectPlans-BIBfjky0.js                   32.95 kB │ gzip:   8.76 kB
+../internal/webconsole/spa/dist/assets/quadrantDiagram-CIZ2JOQS-DehE4zZv.js       34.01 kB │ gzip:   9.85 kB
+../internal/webconsole/spa/dist/assets/AiRuntime-DJ343jde.js                      35.69 kB │ gzip:   7.08 kB
+../internal/webconsole/spa/dist/assets/chunk-5RXB4S5H-qwmHY_9G.js                 38.12 kB │ gzip:  12.38 kB
+../internal/webconsole/spa/dist/assets/ProjectDetail-BfWgGHZI.js                  41.68 kB │ gzip:   8.93 kB
+../internal/webconsole/spa/dist/assets/xychartDiagram-ELKLHX3M-DqwG33N6.js        41.92 kB │ gzip:  11.85 kB
+../internal/webconsole/spa/dist/assets/vennDiagram-T6HMQDX7-CpTuCMYp.js           41.97 kB │ gzip:  15.55 kB
+../internal/webconsole/spa/dist/assets/ConversationView-5N2wzsmK.js               43.42 kB │ gzip:  12.13 kB
+../internal/webconsole/spa/dist/assets/TeamDetail-T5tGKSwA.js                     43.67 kB │ gzip:  10.69 kB
+../internal/webconsole/spa/dist/assets/chunk-GF5L2VYU-CLn_JBzy.js                 49.19 kB │ gzip:  15.55 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-CTTrWwDn.js                  54.06 kB │ gzip:  17.35 kB
+../internal/webconsole/spa/dist/assets/flowDiagram-UKHOOZJN-BUzwz3yv.js           60.71 kB │ gzip:  19.23 kB
+../internal/webconsole/spa/dist/assets/Access-RIJZ9c9G.js                         66.70 kB │ gzip:  14.63 kB
+../internal/webconsole/spa/dist/assets/ganttDiagram-PKOTCBZU-FZg2Hl8c.js          69.44 kB │ gzip:  23.19 kB
+../internal/webconsole/spa/dist/assets/c4Diagram-5PPSVZJV-B9WKmVR-.js             69.93 kB │ gzip:  19.46 kB
+../internal/webconsole/spa/dist/assets/blockDiagram-VBNYF7ZC-Da36aA4M.js          73.75 kB │ gzip:  21.09 kB
+../internal/webconsole/spa/dist/assets/cose-bilkent-JH36ORCC-C2P2Z_9O.js          81.53 kB │ gzip:  22.35 kB
+../internal/webconsole/spa/dist/assets/AgentDetail-CSXWAYd8.js                    94.57 kB │ gzip:  22.95 kB
+../internal/webconsole/spa/dist/assets/sequenceDiagram-SI44F4Z6-qBV3IYb9.js      116.95 kB │ gzip:  30.86 kB
+../internal/webconsole/spa/dist/assets/swimlanes-SLNWSIFB-BJUZjaFM.js            118.83 kB │ gzip:  43.30 kB
+../internal/webconsole/spa/dist/assets/PlanDetail-C-74G9n2.js                    119.68 kB │ gzip:  26.83 kB
+../internal/webconsole/spa/dist/assets/architectureDiagram-T3A2C74G-iOpO7-g-.js  151.63 kB │ gzip:  42.77 kB
+../internal/webconsole/spa/dist/assets/index-Cths6NFg.js                         156.75 kB │ gzip:  47.18 kB
+../internal/webconsole/spa/dist/assets/katex-HP8lGamR.js                         258.47 kB │ gzip:  77.25 kB
+../internal/webconsole/spa/dist/assets/cytoscape.esm-BvX2Lq_V.js                 443.77 kB │ gzip: 141.77 kB
+../internal/webconsole/spa/dist/assets/mermaid.core-CPijWM0-.js                  622.98 kB │ gzip: 148.82 kB
+../internal/webconsole/spa/dist/assets/index-lQYruw65.js                         650.07 kB │ gzip: 209.53 kB
+../internal/webconsole/spa/dist/assets/cynefin-VYW2F7L2-2BHFlJQS.js              687.73 kB │ gzip: 151.36 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 19.19s

@@ -1,0 +1,3 @@
+Thu Aug 27 15:03:10 UTC 2026
+COMMAND     PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+agent-cen 76377 oopslink   11u  IPv4 0x9c9d17d49eb4e06a      0t0  TCP 127.0.0.1:7100 (LISTEN)

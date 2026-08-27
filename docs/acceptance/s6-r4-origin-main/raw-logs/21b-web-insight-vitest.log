@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web
+
+(node:31910) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (11 tests) 1797ms
+   ✓ InsightOverview page > renders authoritative 24h metrics and opens agent drilldown with exact agent_ref 874ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  22:56:10
+   Duration  6.93s (transform 865ms, setup 1.99s, collect 212ms, tests 1.80s, environment 1.63s, prepare 325ms)
+

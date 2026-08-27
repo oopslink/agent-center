@@ -1,0 +1,14 @@
+file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web/node_modules/.pnpm/vitest@2.1.9_@types+node@25.9.1_jsdom@25.0.1_msw@2.14.6_@types+node@25.9.1_typescript@5.9.3_/node_modules/vitest/dist/chunks/cac.CB_9Zo9Q.js:403
+          throw new CACError(`Unknown option \`${name.length > 1 ? `--${name}` : `-${name}`}\``);
+                ^
+
+CACError: Unknown option `--runInBand`
+    at Command.checkUnknownOptions (file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web/node_modules/.pnpm/vitest@2.1.9_@types+node@25.9.1_jsdom@25.0.1_msw@2.14.6_@types+node@25.9.1_typescript@5.9.3_/node_modules/vitest/dist/chunks/cac.CB_9Zo9Q.js:403:17)
+    at CAC.runMatchedCommand (file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web/node_modules/.pnpm/vitest@2.1.9_@types+node@25.9.1_jsdom@25.0.1_msw@2.14.6_@types+node@25.9.1_typescript@5.9.3_/node_modules/vitest/dist/chunks/cac.CB_9Zo9Q.js:603:13)
+    at CAC.parse (file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web/node_modules/.pnpm/vitest@2.1.9_@types+node@25.9.1_jsdom@25.0.1_msw@2.14.6_@types+node@25.9.1_typescript@5.9.3_/node_modules/vitest/dist/chunks/cac.CB_9Zo9Q.js:544:12)
+    at file:///Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-161ad4ba/web/node_modules/.pnpm/vitest@2.1.9_@types+node@25.9.1_jsdom@25.0.1_msw@2.14.6_@types+node@25.9.1_typescript@5.9.3_/node_modules/vitest/dist/cli.js:8:13
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:655:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v25.6.0

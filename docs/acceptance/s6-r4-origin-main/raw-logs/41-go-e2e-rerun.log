@@ -1,0 +1,84 @@
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke/control-stream-on
+    deployed_runtime_version_smoke_test.go:25: seeded org=organization-rvsmoke agent=agent-rvsmoke-on(running,worker=w-rvsmoke-on) empty-dm=conv-rvsmoke-on (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:25: org-enrolled worker w-rvsmoke-on → org organization-rvsmoke (control-connect precondition)
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke/control-stream-off
+    deployed_runtime_version_smoke_test.go:25: seeded org=organization-rvsmoke agent=agent-rvsmoke-off(running,worker=w-rvsmoke-off) empty-dm=conv-rvsmoke-off (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:25: org-enrolled worker w-rvsmoke-off → org organization-rvsmoke (control-connect precondition)
+--- PASS: TestDeployedBinaryRuntimeVersionSmoke (28.15s)
+    --- PASS: TestDeployedBinaryRuntimeVersionSmoke/control-stream-on (19.03s)
+    --- PASS: TestDeployedBinaryRuntimeVersionSmoke/control-stream-off (9.12s)
+=== RUN   TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails
+    deployed_runtime_version_smoke_test.go:225: seeded org=organization-rvskew agent=agent-rvskew(running,worker=w-rvskew) empty-dm=conv-rvskew (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:255: org-enrolled worker w-rvskew → org organization-rvskew (control-connect precondition)
+--- PASS: TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails (25.86s)
+=== RUN   TestE2E1_WorkerEnrollListStatus
+--- PASS: TestE2E1_WorkerEnrollListStatus (6.74s)
+=== RUN   TestE2E5_EnrollEmitsEvent
+--- PASS: TestE2E5_EnrollEmitsEvent (1.96s)
+=== RUN   TestE2E8_ServerStartSIGTERM
+--- PASS: TestE2E8_ServerStartSIGTERM (2.06s)
+=== RUN   TestE2E9_SupervisorRemoved
+--- PASS: TestE2E9_SupervisorRemoved (1.50s)
+=== RUN   TestE2E9_WorkerRunRequiresWorkerID
+--- PASS: TestE2E9_WorkerRunRequiresWorkerID (1.51s)
+=== RUN   TestE2E9_AdminBlobMigrateStub
+--- PASS: TestE2E9_AdminBlobMigrateStub (1.57s)
+=== RUN   TestE2E10_BadConfigFailFast
+--- PASS: TestE2E10_BadConfigFailFast (1.50s)
+=== RUN   TestE2E_Version
+--- PASS: TestE2E_Version (1.28s)
+=== RUN   TestE2E_MigrateTwice
+--- PASS: TestE2E_MigrateTwice (2.72s)
+=== RUN   TestE2E_Help
+--- PASS: TestE2E_Help (1.02s)
+=== RUN   TestForkExecutorDeployedBinary_AlreadyRunningTask
+--- PASS: TestForkExecutorDeployedBinary_AlreadyRunningTask (2.25s)
+=== RUN   TestE2E_P7_AdminBackupCLI
+--- PASS: TestE2E_P7_AdminBackupCLI (2.65s)
+=== RUN   TestE2E_P7_BootstrapCheckSystemd
+--- PASS: TestE2E_P7_BootstrapCheckSystemd (1.92s)
+=== RUN   TestE2E_P7_ServerMigrateOnly
+--- PASS: TestE2E_P7_ServerMigrateOnly (1.03s)
+=== RUN   TestE2E_RestartRecovery_DeployLevel
+    restart_recovery_e2e_test.go:71: SANDBOX=/tmp/p46-restart-recovery-533897315
+    restart_recovery_e2e_test.go:122: server up; bootstrap token len=48
+    restart_recovery_e2e_test.go:154: seeded org=organization-p46aa001 agent=agent-p46-0001(running,worker=w-p46) empty-dm=conv-p46-dm-0001 (no directed msg yet)
+    restart_recovery_e2e_test.go:190: org-enrolled worker w-p46 → org organization-p46aa001 (control-connect precondition)
+    restart_recovery_e2e_test.go:206: ASSERT-1 PASS: completed_turn=true persisted. session.instance(gen0)={"session_id":"5bff8e84-9fdc-5263-afc3-26b434667b6e","generation":1,"pid":71404,"prev_pid":0,"prev_crash_at":"0001-01-01T00:00:00Z","completed_turn":true}
+    restart_recovery_e2e_test.go:218: posted unanswered directed DM message msg-p46-0000000001 from user:tester
+    restart_recovery_e2e_test.go:233: ASSERT-2 PASS: worker SIGKILLed before the agent replied to the directed message
+    restart_recovery_e2e_test.go:287: ASSERT-3a PASS: agent-runtime AUTONOMOUSLY RELAUNCHED + RESUMED the supervisor session at boot
+    restart_recovery_e2e_test.go:301: ASSERT-3b PASS: relaunch RESUMED prior session (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e; gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+    restart_recovery_e2e_test.go:321: ASSERT-3c PASS: the un-answered directed message was PROACTIVELY re-injected after restart
+    restart_recovery_e2e_test.go:324: 
+        ========== RESULT: PASSED ==========
+        completed_turn=true persisted: yes (gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        worker SIGKILLed before reply:  yes
+        relaunch RESUMED prior session: yes (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        directed msg re-injected:       yes (reply-nudge after restart)
+        ====================================
+--- PASS: TestE2E_RestartRecovery_DeployLevel (13.55s)
+=== RUN   TestE2E_RestartRecovery_ReadoptSurvivor
+    restart_recovery_e2e_test.go:363: SANDBOX=/tmp/p46-reattach-1868339331
+    restart_recovery_e2e_test.go:410: server up; bootstrap token len=48
+    restart_recovery_e2e_test.go:427: seeded org=organization-p46r001 agent=agent-p46r-0001(running,worker=w-p46r) empty-dm=conv-p46r-dm-0001 (no directed msg yet)
+    restart_recovery_e2e_test.go:454: org-enrolled worker w-p46r → org organization-p46r001 (control-connect precondition)
+    restart_recovery_e2e_test.go:466: ASSERT-1 PASS: live supervisor session up (completed_turn=true)
+    restart_recovery_e2e_test.go:475: worker SIGKILLed; supervisor+claude survivor left ALIVE (reattach precondition)
+    restart_recovery_e2e_test.go:493: ASSERT-Readopt PASS: worker RE-ADOPTED the surviving agent-runtime in place ("re-adopted surviving agent=agent-p46r-0001")
+    restart_recovery_e2e_test.go:510: ASSERT-Readopt NEGATIVE PASS: no relaunch, no new claude (survivor adopted in place, not interrupted)
+    restart_recovery_e2e_test.go:512: 
+        ========== RESULT: PASSED (worker-restart re-adopt survivor) ==========
+        live survivor across worker restart:       yes
+        worker RE-ADOPTED (not relaunched):        yes
+        claude NOT re-exec'd (adopted in place):   yes
+        boot-session reattach (agent-runtime restart): deferred to tester3 §6.10
+        =======================================================================
+--- PASS: TestE2E_RestartRecovery_ReadoptSurvivor (12.02s)
+=== RUN   TestRuntimeVersionAssertions_ConsistentPasses
+--- PASS: TestRuntimeVersionAssertions_ConsistentPasses (0.00s)
+=== RUN   TestRuntimeVersionAssertions_AdoptedOldRuntimeSkewFailsWithDiagnostics
+--- PASS: TestRuntimeVersionAssertions_AdoptedOldRuntimeSkewFailsWithDiagnostics (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/tests/e2e	110.016s

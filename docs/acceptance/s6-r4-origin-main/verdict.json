@@ -1,0 +1,67 @@
+{
+  "overall": "PASS",
+  "accepted_sha": "ca953dbd2a6b58e04b542d62a1a2ea196d278f68",
+  "remote_ref": "refs/heads/main",
+  "date_utc": "2026-08-27",
+  "task_input_package": {
+    "present": false,
+    "evidence": "raw-logs/01-task-input.log"
+  },
+  "criteria": [
+    {
+      "name": "fresh_remote_main_locked",
+      "verdict": "PASS",
+      "evidence": "raw-logs/00-provenance.log"
+    },
+    {
+      "name": "reviewed_freshness_remediation_reachable",
+      "verdict": "PASS",
+      "evidence": "origin/main is ca953dbd2a6b58e04b542d62a1a2ea196d278f68; candidate SHA is the reviewed lineage"
+    },
+    {
+      "name": "metrics_rankings_24h",
+      "verdict": "PASS",
+      "evidence": "raw-logs/10-go-insight-targeted.log"
+    },
+    {
+      "name": "task_execution_detail_api",
+      "verdict": "PASS",
+      "evidence": "raw-logs/11-go-api-insights.log"
+    },
+    {
+      "name": "fresh_to_stale_overview_detail_api",
+      "verdict": "PASS",
+      "evidence": "raw-logs/10-go-insight-targeted.log"
+    },
+    {
+      "name": "duckdb_rebuild_invariance",
+      "verdict": "PASS",
+      "evidence": "raw-logs/10-go-insight-targeted.log"
+    },
+    {
+      "name": "deterministic_replay_exactly_once",
+      "verdict": "PASS",
+      "evidence": "raw-logs/10-go-insight-targeted.log"
+    },
+    {
+      "name": "pre_post_commit_crash_recovery",
+      "verdict": "PASS",
+      "evidence": "raw-logs/10-go-insight-targeted.log"
+    },
+    {
+      "name": "insight_ui_api_reachability",
+      "verdict": "PASS",
+      "evidence": "raw-logs/11-go-api-insights.log and raw-logs/21b-web-insight-vitest.log"
+    },
+    {
+      "name": "build_lint",
+      "verdict": "PASS",
+      "evidence": "raw-logs/20-web-pnpm-install.log, raw-logs/22-web-tsc.log, raw-logs/23-web-build.log, raw-logs/30-make-build.log, raw-logs/31-make-lint.log"
+    },
+    {
+      "name": "go_test_all",
+      "verdict": "PASS_AFTER_RERUN",
+      "evidence": "raw-logs/12-go-test-all.log failed only tests/e2e under port/socket environment; raw-logs/40-e2e-env-diagnostics.log shows 7100 occupied; raw-logs/41-go-e2e-rerun.log passed tests/e2e"
+    }
+  ]
+}

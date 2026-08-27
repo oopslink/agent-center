@@ -1,0 +1,18 @@
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.72s)
+=== RUN   TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild
+--- PASS: TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild (0.25s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.21s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.18s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.20s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.23s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.19s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.18s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	2.887s
