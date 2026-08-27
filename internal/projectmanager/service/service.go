@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -185,6 +186,27 @@ type CodeRepoResolver interface {
 	RepoOrg(ctx context.Context, repoID string) (orgID string, found bool, err error)
 }
 
+type DeliveryVerificationRequest struct {
+	RepoID       string
+	Remote       string
+	Branch       string
+	CandidateRef string
+	CandidateSHA string
+	BaseSHA      string
+}
+
+type DeliveryVerification struct {
+	CandidateExists bool
+	RefMatches      bool
+	Pushed          bool
+	BaseIsAncestor  bool
+	RemoteSHA       string
+}
+
+type DeliveryVerifier interface {
+	VerifyDeliverySubject(ctx context.Context, req DeliveryVerificationRequest) (DeliveryVerification, error)
+}
+
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent
 // work item (T53). It is an OPTIONAL, nil-safe read-port of the pm Service: when
 // wired (non-nil) the plan read model derives a `paused` node for a running task
@@ -305,7 +327,10 @@ type Service struct {
 	// remediation is the ADR-0055 immutable verdict/continuation/proposal ledger.
 	// When nil, stage-pass remains available through the legacy driver but reject
 	// cannot create incremental topology.
-	remediation pm.RemediationRepository
+	remediation      pm.RemediationRepository
+	acceptances      pm.DeliveryAcceptanceRepository
+	deliveryVerifier DeliveryVerifier
+	progress         pm.ProgressControlRepository
 
 	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
 	// on_timeout action assigned during the reconcile materialize and consumed by the
@@ -326,7 +351,8 @@ type Service struct {
 	liveExecutors concurrency.LiveStateStore
 	// authorizer is OPTIONAL for older tests. Production wires it so background
 	// sweeps pass through the unified effective-permission resolver.
-	authorizer authz.EffectiveResolver
+	authorizer           authz.EffectiveResolver
+	progressControllerID string
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -424,9 +450,12 @@ type Deps struct {
 	// Stages is OPTIONAL (2026-07-03 plan-stage-model): when set, the Stage AppServices
 	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
 	// is inert (pure-node DAG, §8 zero-regression).
-	Stages          pm.StageRepository
-	AssignmentPools pm.AssignmentPoolRepository
-	Remediation     pm.RemediationRepository
+	Stages           pm.StageRepository
+	AssignmentPools  pm.AssignmentPoolRepository
+	Remediation      pm.RemediationRepository
+	Acceptances      pm.DeliveryAcceptanceRepository
+	DeliveryVerifier DeliveryVerifier
+	ProgressControl  pm.ProgressControlRepository
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
 	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
@@ -444,6 +473,8 @@ type Deps struct {
 	// Authorizer is OPTIONAL for older tests. Production wires it so background sweeps
 	// exercise the same effective-permission resolver as HTTP and MCP.
 	Authorizer authz.EffectiveResolver
+	// ProgressControllerID identifies this active-active progress reconciler.
+	ProgressControllerID string
 }
 
 // New constructs the Service.
@@ -469,19 +500,34 @@ func New(d Deps) *Service {
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
-		actionLogs:         d.TaskActionLogs,
-		audit:              d.Audit,
-		autoAssignDir:      d.AutoAssignDir,
-		autoAssignSettings: d.AutoAssignSettings,
-		orch:               orchSvc,
-		stages:             d.Stages,
-		pools:              d.AssignmentPools,
-		remediation:        d.Remediation,
-		deadlinePolicy:     d.DeadlinePolicy,
-		timeoutSink:        d.TimeoutSink,
-		liveExecutors:      d.LiveExecutors,
-		authorizer:         d.Authorizer,
+		actionLogs:           d.TaskActionLogs,
+		audit:                d.Audit,
+		autoAssignDir:        d.AutoAssignDir,
+		autoAssignSettings:   d.AutoAssignSettings,
+		orch:                 orchSvc,
+		stages:               d.Stages,
+		pools:                d.AssignmentPools,
+		remediation:          d.Remediation,
+		acceptances:          d.Acceptances,
+		deliveryVerifier:     d.DeliveryVerifier,
+		progress:             d.ProgressControl,
+		deadlinePolicy:       d.DeadlinePolicy,
+		timeoutSink:          d.TimeoutSink,
+		liveExecutors:        d.LiveExecutors,
+		authorizer:           d.Authorizer,
+		progressControllerID: progressControllerID(d.ProgressControllerID),
 	}
+}
+
+func progressControllerID(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	host, _ := os.Hostname()
+	if host == "" {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%d", host, os.Getpid())
 }
 
 func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation string) error {

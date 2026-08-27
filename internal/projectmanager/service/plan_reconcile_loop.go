@@ -85,6 +85,9 @@ func (l *PlanReconcileLoop) runOnce(ctx context.Context) {
 	if err := l.svc.ReconcileRunningPlans(ctx, errFn); err != nil {
 		l.log("plan reconcile loop: " + err.Error())
 	}
+	if err := l.svc.ReconcileProgressControl(ctx, 100); err != nil {
+		l.log("plan progress-control reconcile: " + err.Error())
+	}
 }
 
 func (l *PlanReconcileLoop) log(msg string) {

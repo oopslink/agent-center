@@ -186,6 +186,10 @@ type PlanRepository interface {
 	// v2.9 P2-3 reconciliation sweep — the background safety net that re-dispatches
 	// ready-but-undispatched nodes for missed events / crash recovery.
 	ListRunningPlans(ctx context.Context) ([]*Plan, error)
+	// ListPlansByStatus returns plans in one lifecycle status across all projects.
+	// It backs non-dispatch clocks such as paused-plan blocked_on/progress_hold
+	// refresh, where using ListRunningPlans would incorrectly stop time.
+	ListPlansByStatus(ctx context.Context, status PlanStatus) ([]*Plan, error)
 	Delete(ctx context.Context, id PlanID) error
 	// DeletePlan hard-deletes a Plan and its DAG state in one call (v2.9 P3): it
 	// CASCADE-removes the plan's depends_on edges (pm_task_dependencies) and dispatch
@@ -280,6 +284,18 @@ type PlanRepository interface {
 	UpsertProgressIncident(ctx context.Context, i ProgressIncident) error
 	ListOpenProgressObligations(ctx context.Context, planID PlanID) ([]ProgressObligation, error)
 	ListOpenProgressIncidents(ctx context.Context, planID PlanID) ([]ProgressIncident, error)
+	AcquireProgressLease(ctx context.Context, planID PlanID, scope, holderID string, now time.Time, ttl time.Duration) (ProgressLease, bool, error)
+	RenewProgressLease(ctx context.Context, planID PlanID, scope, holderID string, fencingToken int64, now time.Time, ttl time.Duration) (bool, error)
+	ValidateProgressFence(ctx context.Context, fence ProgressFence) (bool, error)
+	RecordProgressWatchdogHeartbeat(ctx context.Context, planID PlanID, component string, at time.Time) error
+	ListStaleProgressWatchdogs(ctx context.Context, olderThan time.Time) ([]ProgressWatchdogObservation, error)
+	UpsertProgressWakeBucketDiagnostic(ctx context.Context, d ProgressWakeBucketDiagnostic) error
+	ListProgressWakeBucketDiagnostics(ctx context.Context, planID PlanID) ([]ProgressWakeBucketDiagnostic, error)
+	GetProgressWakeBucketState(ctx context.Context, scopeKey string) (ProgressWakeBucketState, bool, error)
+	UpsertProgressWakeBucketState(ctx context.Context, state ProgressWakeBucketState) error
+	UpsertProgressSuppressedWake(ctx context.Context, wake ProgressSuppressedWake) error
+	ListDueProgressSuppressedWakes(ctx context.Context, now time.Time, limit int) ([]ProgressSuppressedWake, error)
+	DeleteProgressSuppressedWake(ctx context.Context, id string) error
 
 	// Generations are immutable topology snapshots produced by Evolution commits.
 	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.
@@ -289,6 +305,15 @@ type PlanRepository interface {
 	FindGenerationByID(ctx context.Context, id PlanGenerationID) (*PlanGeneration, error)
 	FindGenerationByIdempotencyKey(ctx context.Context, planID PlanID, key string) (*PlanGeneration, bool, error)
 	ActivateGeneration(ctx context.Context, planID PlanID, generationID PlanGenerationID, expectedVersion, nextVersion int, at time.Time) (bool, error)
+}
+
+type DeliveryAcceptanceRepository interface {
+	SaveDeliverySubject(ctx context.Context, s DeliverySubject) error
+	FindDeliverySubject(ctx context.Context, id string) (DeliverySubject, bool, error)
+	FindLatestDeliverySubjectByTask(ctx context.Context, planID PlanID, taskID TaskID) (DeliverySubject, bool, error)
+	SaveAcceptance(ctx context.Context, a Acceptance) error
+	FindEffectiveAcceptance(ctx context.Context, subjectID string, contractHash string) (Acceptance, bool, error)
+	ListAcceptances(ctx context.Context, subjectID string, contractHash string) ([]Acceptance, error)
 }
 
 // StageRepository persists Stage ARs (2026-07-03 plan-stage-model design §4.1): the

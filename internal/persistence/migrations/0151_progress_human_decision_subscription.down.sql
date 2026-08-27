@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS pm_progress_prerequisite_subscriptions;

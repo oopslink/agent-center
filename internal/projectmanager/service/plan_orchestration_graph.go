@@ -785,6 +785,13 @@ func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, o
 		if t.PlanID() == "" {
 			return fmt.Errorf("projectmanager: task %s is not in a plan — no decision outcome to record", taskID)
 		}
+		// A pass token is an authoritative release fact: never mint it while a
+		// progress_hold says the evidence chain is still unresolved.
+		if outcome == "pass" || outcome == "success" {
+			if err := s.guardTaskProgressHolds(txCtx, taskID, false, true, false); err != nil {
+				return err
+			}
+		}
 		if rerr := s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now); rerr != nil {
 			return rerr
 		}
@@ -1076,11 +1083,25 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
 			return err
 		}
+		if missingExecutableReleaseFact(b) {
+			if err := s.ensureProgressHoldForBlockedOn(txCtx, p, b); err != nil {
+				return err
+			}
+		}
 		if err := s.notifyPlanOwnerOnBlockedNode(txCtx, p, b, prev, hadPrev); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func missingExecutableReleaseFact(b pm.BlockedOn) bool {
+	switch b.WaitType {
+	case pm.WaitHumanDecision, pm.WaitAcceptanceVerdict:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, b pm.BlockedOn, prev pm.BlockedOn, hadPrev bool) error {
@@ -1092,6 +1113,9 @@ func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, 
 	}
 	if hadPrev && prev.WaitType == b.WaitType && stringSlicesEqual(prev.WaitKeys, b.WaitKeys) && prev.TriggerCondition == b.TriggerCondition {
 		return nil
+	}
+	if err := s.recordProgressWakeRequested(ctx, p, b); err != nil {
+		return err
 	}
 	msgID := ""
 	if s.planDispatcher != nil {
@@ -1219,7 +1243,7 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if kerr != nil {
 			return blockedOnClass{}, false, kerr
 		}
-		return blockedOnClass{pm.WaitAcceptanceVerdict, keys, "an upstream acceptance/decision gate passes"}, false, nil
+		return blockedOnClass{pm.WaitAcceptanceVerdict, keys, "a valid acceptance verdict exists for the exact delivery subject"}, false, nil
 	}
 	if blocked, err := s.stageGateBlocks(ctx, p, t); err != nil {
 		return blockedOnClass{}, false, err
@@ -1254,7 +1278,7 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if len(pendingDecisions) > 0 {
 			return blockedOnClass{pm.WaitHumanDecision, pendingDecisions, "a human records the upstream decision outcome"}, false, nil
 		}
-		return blockedOnClass{pm.WaitUpstreamCompletion, unmet, "all upstream dependencies complete"}, false, nil
+		return blockedOnClass{pm.WaitUpstreamCompletion, unmet, "all upstream task dependencies are terminal"}, false, nil
 	}
 	if n.NodeStatus == pm.NodeReady || n.NodeStatus == pm.NodeDispatched {
 		// Deps satisfied, no gate held — the node is runnable, just awaiting the agent
