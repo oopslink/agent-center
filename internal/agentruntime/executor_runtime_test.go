@@ -231,9 +231,28 @@ func TestSpawnExecutor_MaterializesTaskInputPlan569CanonicalMockups(t *testing.T
 	if in.TaskInput == nil || in.TaskInput.Dir != "task-input/v1" {
 		t.Fatalf("input task_input not wired: %+v", in.TaskInput)
 	}
-	manifestPath := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "manifest.json")
+	if in.TaskInput.ManifestPath != "task-input/v1/manifest.json" {
+		t.Fatalf("input task_input manifest path = %q", in.TaskInput.ManifestPath)
+	}
+	taskInputDir := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1")
+	readme, err := os.ReadFile(filepath.Join(taskInputDir, "README.md"))
+	if err != nil {
+		t.Fatalf("README missing from task-input/v1: %v", err)
+	}
+	if got := string(readme); !strings.Contains(got, "Task: task-att") || !strings.Contains(got, "Attachments: 4") || !strings.Contains(got, "## Task") {
+		t.Fatalf("README does not describe task-input/v1 contract:\n%s", got)
+	}
+	var metadata map[string]any
+	readJSONTest(t, filepath.Join(taskInputDir, "context.json"), &metadata)
+	if metadata["task_id"] != "task-att" || metadata["executor_id"] != res.ExecutorID || metadata["title"] != "plan-569ab651 canonical mockups" {
+		t.Fatalf("context.json metadata mismatch: %+v", metadata)
+	}
+	manifestPath := filepath.Join(taskInputDir, "manifest.json")
 	var manifest taskInputManifest
 	readJSONTest(t, manifestPath, &manifest)
+	if manifest.Version != 1 || manifest.TaskID != "task-att" || manifest.Source != "task-scope list_files" {
+		t.Fatalf("manifest header mismatch: %+v", manifest)
+	}
 	if len(manifest.Files) != 4 {
 		t.Fatalf("manifest files=%d want 4: %+v", len(manifest.Files), manifest.Files)
 	}

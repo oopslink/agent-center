@@ -11,7 +11,6 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -22,14 +21,7 @@ import (
 // Task-model behavior only.)
 func flowSetup(t *testing.T) (*Service, *outbox.Relay, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)
@@ -49,14 +41,7 @@ func flowSetup(t *testing.T) (*Service, *outbox.Relay, context.Context) {
 // dispatch branches: non-matching event types are no-ops; matching events with a
 // bad/empty payload surface errors (leaving the event for retry).
 func TestParticipantProjector_BranchHandling(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	applied := outboxsql.NewAppliedRepo(db)
@@ -273,14 +258,7 @@ func TestReopenTask_RetiredAndLeavesCompletionImmutable(t *testing.T) {
 // subscriber, until an explicit Unsubscribe removes them. Conversation
 // membership is monotonic; task state reset does not evict.
 func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)
