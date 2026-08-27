@@ -1,0 +1,167 @@
+{
+  "task_id": "task-3347b18e",
+  "execution_id": "exec-0285a7c7",
+  "reviewed_sha": "16a4120322f23007511d4609d0cb64d5982d0600",
+  "base_sha": "16a4120322f23007511d4609d0cb64d5982d0600",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"git -C /Users/oopslink/works/codes/oopslink/agent-center remote -v \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center branch -r | sed 's/\"'^ *//'\"' | rg 'origin/(main|dev2|test/t1579)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center fetch origin --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"git -C /Users/oopslink/works/codes/oopslink/agent-center branch -r | sed 's/\"'^ *//'\"' | sort | rg 'origin/(dev2|main|test/t1579|.*remed|.*insight.*)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center rev-parse origin/main origin/test/t1579-insight-harness 738bc0a67159fa30cfc69ba175f7ce809daf6c08''^{commit}'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center worktree add --detach /tmp/ac-insight-candidate-main-$(date +%s) origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'ls -dt /tmp/ac-insight-candidate-main-* | head -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center worktree add --detach /tmp/ac-insight-harness-$(date +%s) origin/test/t1579-insight-harness \u0026\u0026 ls -dt /tmp/ac-insight-harness-* | head -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git diff --stat origin/main..origin/test/t1579-insight-harness -- internal/insight'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git diff --name-status origin/main..origin/test/t1579-insight-harness -- internal/insight'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'rg -n \"admissible|interval|heartbeat|TTL|projector|before|after|fault|checkpoint|freshness|rebuilding|execution detail|found|not-found|org|read-only|readonly|503\" internal/insight'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'rg -n \"admissible|interval|heartbeat|TTL|projector|before|after|fault|checkpoint|freshness|rebuilding|execution detail|found|not-found|org|read-only|readonly|503\" internal/insight'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'go test ./internal/insight -count=1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git diff origin/main..origin/test/t1579-insight-harness -- internal/insight/service_test.go | git apply'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'go test ./internal/insight -count=1 -v'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/service.go | sed -n '560,612p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/helpers.go | sed -n '187,207p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/service_test.go | sed -n '214,304p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"git log -1 --format='%H %s' origin/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"git log -1 --format='%H %s' origin/test/t1579-insight-harness\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'git rev-parse --verify --quiet origin/dev2 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'git rev-parse --verify --quiet 738bc0a67159fa30cfc69ba175f7ce809daf6c08''^{commit} || true'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-0285a7c7/command_events.jsonl",
+  "command_event_digest": "sha256:5cfbc40aa3990fe7e49109485cb6a550793f04a9d373cc836008aaded9ca732f",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT.",
+  "artifact_digest": "sha256:fd227a5e99dff0e2366342bc32a42b688b26f656b29e1782fb7eab00cd0d3ffa",
+  "path": ".agent-center/evidence/task-3347b18e/exec-0285a7c7.json",
+  "branch": "ac-exec/task-3347b18e/exec-0285a7c7"
+}
