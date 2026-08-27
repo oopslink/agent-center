@@ -632,6 +632,9 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
+	if err := s.fillProgressControl(ctx, detail); err != nil {
+		return nil, err
+	}
 	return detail, nil
 }
 
@@ -669,6 +672,9 @@ type PlanDetail struct {
 	// facing GetPlanDetail / GetPlanDetailForMember; nil on the internal planDetail path
 	// and for a builtin/ungraphed plan (nothing is materialized — §8 zero-regression).
 	BlockedOn []pm.BlockedOn
+	// ProgressControl is the durable Hold/Wake/Ack/Decision read model for this plan.
+	// Nil when the progress-control repository is not wired or no progress state exists.
+	ProgressControl *pm.ProgressControlSnapshot
 }
 
 // StageGateView is one stage GATE (a condition control node) surfaced to the plan
@@ -713,7 +719,25 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
+	if err := s.fillProgressControl(ctx, detail); err != nil {
+		return nil, err
+	}
 	return detail, nil
+}
+
+func (s *Service) fillProgressControl(ctx context.Context, detail *PlanDetail) error {
+	if s.progress == nil || detail == nil || detail.Plan == nil {
+		return nil
+	}
+	snap, err := s.progress.SnapshotPlan(ctx, detail.Plan.ID(), s.clock.Now())
+	if err != nil {
+		return err
+	}
+	if snap.Decision == pm.ProgressDecisionVerified && len(snap.OpenHolds) == 0 && len(snap.OpenObligations) == 0 && len(snap.OpenIncidents) == 0 {
+		return nil
+	}
+	detail.ProgressControl = &snap
+	return nil
 }
 
 func (s *Service) enrichRemediationView(ctx context.Context, detail *PlanDetail) error {

@@ -99,6 +99,9 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status() == pm.TaskRunning {
 		return nil
 	}
+	if err := s.guardTaskProgressHolds(ctx, taskID, true, false, false); err != nil {
+		return err
+	}
 	planID := t.PlanID()
 	if planID == "" {
 		if s.pools != nil {
@@ -364,7 +367,7 @@ func (g *AgentTaskRunGate) EnsureTaskRunnable(ctx context.Context, taskRef strin
 		return nil
 	}
 	if err := g.svc.EnsureTaskRunnable(ctx, pm.TaskID(id)); err != nil {
-		if errors.Is(err, pm.ErrTaskNotRunnable) {
+		if errors.Is(err, pm.ErrTaskNotRunnable) || errors.Is(err, pm.ErrProgressHoldOpen) {
 			return agentpkg.ErrTaskNotRunnable
 		}
 		return err

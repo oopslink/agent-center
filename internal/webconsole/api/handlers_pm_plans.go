@@ -223,7 +223,57 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 		}
 		m["blocked_on"] = blockedOn
 	}
+	if detail.ProgressControl != nil {
+		m["progress_control"] = pmProgressControlMap(detail.ProgressControl)
+	}
 	return m
+}
+
+func pmProgressControlMap(snap *pm.ProgressControlSnapshot) map[string]any {
+	if snap == nil {
+		return nil
+	}
+	holds := make([]map[string]any, 0, len(snap.OpenHolds))
+	for _, h := range snap.OpenHolds {
+		holds = append(holds, map[string]any{
+			"id": h.ID, "task_id": string(h.TaskID), "node_id": h.NodeID,
+			"reason_kind": h.ReasonKind, "reason_id": h.ReasonID,
+			"owner_ref": h.OwnerRef, "entered_at": h.EnteredAt.Format(time.RFC3339Nano),
+			"hold_ack_deadline":    h.HoldAckDeadline.Format(time.RFC3339Nano),
+			"max_hold_duration_ms": h.MaxHoldDuration.Milliseconds(),
+			"escalation_level":     h.EscalationLevel,
+			"next_escalation_at":   h.NextEscalationAt.Format(time.RFC3339Nano),
+			"blocks_dispatch":      h.BlocksDispatch,
+			"blocks_acceptance":    h.BlocksAcceptance,
+			"blocks_completion":    h.BlocksCompletion,
+		})
+	}
+	obligations := make([]map[string]any, 0, len(snap.OpenObligations))
+	for _, o := range snap.OpenObligations {
+		obligations = append(obligations, map[string]any{
+			"id": o.ID, "task_id": string(o.TaskID), "node_id": o.NodeID,
+			"kind": o.Kind, "owner_ref": string(o.OwnerRef), "deadline_at": o.DeadlineAt.Format(time.RFC3339Nano),
+			"ack_required": o.AckRequired, "escalate_to_ref": o.EscalateToRef,
+			"escalation_deadline_at": o.EscalationDeadlineAt.Format(time.RFC3339Nano),
+			"source_fact_refs":       o.SourceFactRefs,
+			"status":                 o.Status,
+		})
+	}
+	incidents := make([]map[string]any, 0, len(snap.OpenIncidents))
+	for _, i := range snap.OpenIncidents {
+		incidents = append(incidents, map[string]any{
+			"id": i.ID, "task_id": string(i.TaskID), "node_id": i.NodeID,
+			"kind": i.Kind, "severity": i.Severity, "owner_ref": i.OwnerRef,
+			"summary": i.Summary, "source_ref": i.SourceRef, "status": i.Status,
+		})
+	}
+	return map[string]any{
+		"as_of":            snap.AsOf.Format(time.RFC3339Nano),
+		"decision":         string(snap.Decision),
+		"open_holds":       holds,
+		"open_obligations": obligations,
+		"open_incidents":   incidents,
+	}
 }
 
 // pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare

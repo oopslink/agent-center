@@ -2,286 +2,222 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-type progressReconcileOptions struct {
-	WatermarkLagSLA  time.Duration
-	SourceGraceCycle int
-	SuspectMaxCycles int
-	SourceWatermark  time.Time
-}
+const (
+	defaultHoldAckDeadline = 15 * time.Minute
+	defaultMaxHoldDuration = 4 * time.Hour
+)
 
-func defaultProgressReconcileOptions() progressReconcileOptions {
-	return progressReconcileOptions{
-		WatermarkLagSLA:  2 * time.Minute,
-		SourceGraceCycle: 1,
-		SuspectMaxCycles: 2,
-	}
-}
-
-func (s *Service) ReconcilePlanProgress(ctx context.Context, planID pm.PlanID) error {
-	return s.reconcilePlanProgress(ctx, planID, defaultProgressReconcileOptions())
-}
-
-func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, opt progressReconcileOptions) error {
-	if s.plans == nil {
-		return ErrPlansUnavailable
-	}
-	now := s.clock.Now().UTC()
-	if opt.WatermarkLagSLA <= 0 {
-		opt.WatermarkLagSLA = defaultProgressReconcileOptions().WatermarkLagSLA
-	}
-	if opt.SourceGraceCycle <= 0 {
-		opt.SourceGraceCycle = defaultProgressReconcileOptions().SourceGraceCycle
-	}
-	if opt.SuspectMaxCycles <= 0 {
-		opt.SuspectMaxCycles = defaultProgressReconcileOptions().SuspectMaxCycles
-	}
-	p, err := s.plans.FindByID(ctx, planID)
-	if err != nil {
-		if werr := s.persistSourceReadIncident(ctx, planID, "", now, "plan:"+err.Error()); werr != nil {
-			return werr
-		}
+func (s *Service) ensureProgressHoldForBlockedOn(ctx context.Context, p *pm.Plan, b pm.BlockedOn) error {
+	if s.progress == nil || p == nil {
 		return nil
 	}
-	tasks, err := s.tasks.ListByPlan(ctx, planID)
-	if err != nil {
-		return s.persistSourceReadIncident(ctx, planID, "", now, "tasks:"+err.Error())
+	now := s.clock.Now()
+	owner := string(p.CreatorRef())
+	if strings.TrimSpace(owner) == "" {
+		owner = "role:operational-owner"
 	}
-	records, err := s.plans.ListDispatchRecords(ctx, planID)
-	if err != nil {
-		return s.persistSourceReadIncident(ctx, planID, "", now, "dispatch:"+err.Error())
+	hold := pm.ProgressHold{
+		ID:               s.id("hold"),
+		PlanID:           p.ID(),
+		TaskID:           b.TaskID,
+		NodeID:           b.NodeID,
+		ReasonKind:       "blocked_on",
+		ReasonID:         string(b.WaitType) + ":" + strings.Join(b.WaitKeys, ","),
+		OwnerRef:         owner,
+		OwnerDisplay:     owner,
+		EnteredAt:        b.WaitedSince,
+		HoldAckDeadline:  now.Add(defaultHoldAckDeadline),
+		MaxHoldDuration:  defaultMaxHoldDuration,
+		EscalationLevel:  0,
+		NextEscalationAt: now.Add(defaultHoldAckDeadline),
+		BlocksDispatch:   true,
+		BlocksAcceptance: true,
+		BlocksCompletion: true,
 	}
-	blocked, err := s.plans.ListBlockedOn(ctx, planID)
-	if err != nil {
-		return s.persistSourceReadIncident(ctx, planID, "", now, "blocked_on:"+err.Error())
-	}
+	_, err := s.progress.UpsertHold(ctx, hold)
+	return err
+}
 
-	dispatched := map[pm.TaskID]bool{}
-	for _, r := range records {
-		dispatched[r.TaskID] = true
+func (s *Service) recordProgressWakeRequested(ctx context.Context, p *pm.Plan, b pm.BlockedOn) error {
+	if s.progress == nil || p == nil {
+		return nil
 	}
-	blockedByTask := map[pm.TaskID]pm.BlockedOn{}
-	for _, b := range blocked {
-		blockedByTask[b.TaskID] = b
+	now := s.clock.Now()
+	key := fmt.Sprintf("blocked_on:%s:%s:%s:%s", p.ID(), b.TaskID, b.WaitType, strings.Join(b.WaitKeys, ","))
+	w := pm.ProgressWake{
+		ID:                   s.id("wake"),
+		PlanID:               p.ID(),
+		TaskID:               b.TaskID,
+		NodeID:               b.NodeID,
+		OwnerRef:             p.CreatorRef(),
+		OwnerDisplay:         string(p.CreatorRef()),
+		Reason:               b.TriggerCondition,
+		Status:               pm.ProgressWakeRequested,
+		IdempotencyKey:       key,
+		RequestedAt:          now,
+		DeliveredAt:          now,
+		AckDeadline:          now.Add(defaultHoldAckDeadline),
+		MaxHoldDuration:      defaultMaxHoldDuration,
+		EscalationLevel:      0,
+		NextEscalationAt:     now.Add(defaultHoldAckDeadline),
+		OrganizationOwnerRef: "role:operational-owner",
 	}
-	coverage := progressCoverage(tasks, now)
-	for _, t := range tasks {
-		v := s.evaluateTaskProgress(ctx, p, t, dispatched[t.ID()], blockedByTask[t.ID()], coverage, now, opt)
-		if err := s.plans.SaveProgressObservation(ctx, v); err != nil {
+	created, err := s.progress.RecordWake(ctx, w)
+	if err != nil {
+		return err
+	}
+	if created {
+		return s.progress.MarkWakeDelivered(ctx, w.ID, now)
+	}
+	return nil
+}
+
+func (s *Service) AcknowledgeProgressWake(ctx context.Context, wakeID string, actor pm.IdentityRef) error {
+	if s.progress == nil {
+		return nil
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		ok, err := s.progress.AcknowledgeWake(txCtx, wakeID, actor, now, pm.ProgressWakeAcknowledged+":"+wakeID)
+		if err != nil || !ok {
 			return err
 		}
-		for _, fact := range v.Facts {
-			switch fact.Summary {
-			case "watermark_lag":
-				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentWatermarkLag, fact.ID, now)); err != nil {
-					return err
-				}
-			case "persistent_suspect":
-				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentProgressClassificationUnknown, fact.ID, now)); err != nil {
-					return err
-				}
-			case "missing_progress_contract":
-				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentMigrationGap, fact.ID, now)); err != nil {
-					return err
-				}
-			}
+		return nil
+	})
+}
+
+func (s *Service) RecordProgressDecision(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, actor pm.IdentityRef, decisionID string) error {
+	if s.progress == nil {
+		return nil
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		factRef := pm.ProgressDecisionRecorded + ":" + decisionID
+		if _, err := s.progress.ReleaseHoldsByFact(txCtx, planID, taskID, actor, factRef, now); err != nil {
+			return err
 		}
-		if v.Decision == pm.ResponsibilityBound && v.Quality == pm.ProgressQualitySuspect {
-			if err := s.plans.UpsertProgressObligation(ctx, progressObligation(v, pm.ObligationSourceRecovery, now)); err != nil {
+		_, err := s.progress.ResolveOpenObligationsByFact(txCtx, planID, taskID, actor, factRef, now)
+		return err
+	})
+}
+
+func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error {
+	if s.progress == nil {
+		return nil
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wakes, err := s.progress.ListExpiredUnackedWakes(txCtx, now, limit)
+		if err != nil {
+			return err
+		}
+		for _, w := range wakes {
+			obligationID := "obl:" + w.ID
+			_, err = s.progress.UpsertObligation(txCtx, pm.ProgressObligation{
+				ID: obligationID, PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
+				Kind: pm.ProgressObligationAckWake, OwnerRef: w.OwnerRef, OwnerDisplay: w.OwnerDisplay,
+				DeadlineAt: w.AckDeadline, AckRequired: true, EscalateToRef: pm.IdentityRef(w.OrganizationOwnerRef),
+				EscalationDeadlineAt: w.NextEscalationAt, SourceFactRefs: []string{w.ID}, Status: "open",
+				CreatedAt: now, UpdatedAt: now, Version: 1,
+			})
+			if err != nil {
+				return err
+			}
+			_, err = s.progress.UpsertIncident(txCtx, pm.ProgressIncident{
+				ID: s.id("inc"), PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
+				Kind: pm.ProgressIncidentOperational, Severity: "operational", OwnerRef: pm.IdentityRef(w.OrganizationOwnerRef),
+				OwnerDisplay: w.OrganizationOwnerRef, Summary: "wake ack deadline missed; notification is not resolution",
+				SourceRef: w.ID, Status: "open", CreatedAt: now, UpdatedAt: now,
+			})
+			if err != nil {
+				return err
+			}
+			_, err = s.progress.UpsertHold(txCtx, pm.ProgressHold{
+				ID: s.id("hold"), PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
+				ReasonKind: string(pm.ProgressObligationAckWake), ReasonID: obligationID,
+				OwnerRef: string(w.OwnerRef), OwnerDisplay: w.OwnerDisplay, EnteredAt: w.RequestedAt,
+				HoldAckDeadline: w.AckDeadline, MaxHoldDuration: w.MaxHoldDuration,
+				EscalationLevel: w.EscalationLevel + 1, NextEscalationAt: w.NextEscalationAt.Add(defaultHoldAckDeadline),
+				BlocksDispatch: true, BlocksAcceptance: true, BlocksCompletion: true,
+			})
+			if err != nil {
 				return err
 			}
 		}
-		if t.Status() == pm.TaskRunning && t.Delivery() == nil {
-			if err := s.plans.UpsertProgressObligation(ctx, progressObligation(v, pm.ObligationProduceDelivery, now)); err != nil {
+		due, err := s.progress.ListDueHolds(txCtx, now, limit)
+		if err != nil {
+			return err
+		}
+		for _, h := range due {
+			_, err = s.progress.RecordEscalation(txCtx, pm.ProgressEscalation{
+				ID: s.id("esc"), PlanID: h.PlanID, TaskID: h.TaskID, NodeID: h.NodeID,
+				HoldID: h.ID, Kind: pm.ProgressEscalationRaised, Severity: "operational",
+				EscalateToRef: h.OwnerRef, DeadlineAt: h.NextEscalationAt, CreatedAt: now,
+			})
+			if err != nil {
 				return err
 			}
+		}
+		breached, err := s.progress.ListBreachedHolds(txCtx, now, limit)
+		if err != nil {
+			return err
+		}
+		for _, h := range breached {
+			_, err = s.progress.UpsertIncident(txCtx, pm.ProgressIncident{
+				ID: s.id("inc"), PlanID: h.PlanID, TaskID: h.TaskID, NodeID: h.NodeID,
+				Kind: pm.ProgressIncidentHoldSLOBreach, Severity: "P0", OwnerRef: pm.IdentityRef(h.OwnerRef),
+				OwnerDisplay: h.OwnerDisplay, Summary: "progress_hold max duration breached",
+				SourceRef: h.ID, Status: "open", CreatedAt: now, UpdatedAt: now,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Service) guardPlanProgressHolds(ctx context.Context, planID pm.PlanID, dispatch, acceptance, completion bool) error {
+	if s.progress == nil {
+		return nil
+	}
+	holds, err := s.progress.ListOpenHoldsByPlan(ctx, planID)
+	if err != nil {
+		return err
+	}
+	return progressHoldBlocks(holds, dispatch, acceptance, completion)
+}
+
+func (s *Service) guardTaskProgressHolds(ctx context.Context, taskID pm.TaskID, dispatch, acceptance, completion bool) error {
+	if s.progress == nil {
+		return nil
+	}
+	holds, err := s.progress.ListOpenHoldsByTask(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	return progressHoldBlocks(holds, dispatch, acceptance, completion)
+}
+
+func progressHoldBlocks(holds []pm.ProgressHold, dispatch, acceptance, completion bool) error {
+	for _, h := range holds {
+		if (dispatch && h.BlocksDispatch) || (acceptance && h.BlocksAcceptance) || (completion && h.BlocksCompletion) {
+			return fmt.Errorf("%w: %s", pm.ErrProgressHoldOpen, h.ID)
 		}
 	}
 	return nil
 }
 
-func (s *Service) evaluateTaskProgress(ctx context.Context, p *pm.Plan, t *pm.Task, dispatched bool, blocked pm.BlockedOn, cov pm.ProgressCoverage, now time.Time, opt progressReconcileOptions) pm.ObservationVector {
-	contract := t.DeliveryContract().Effective()
-	defaulted := t.DeliveryContract() == ""
-	watermark := opt.SourceWatermark
-	if watermark.IsZero() {
-		watermark = now
+func (s *Service) id(prefix string) string {
+	if s.idgen != nil {
+		return s.idgen.NewEntityID(prefix)
 	}
-	facts := []pm.ProgressFact{{
-		ID:         progressFactID(p.ID(), t.ID(), "task_lifecycle", strconv.Itoa(t.Version())),
-		SourceKind: "pm_tasks", SourceID: string(t.ID()), OccurredAt: t.StatusChangedAt(), ObservedAt: now,
-		Revision: strconv.Itoa(t.Version()), Summary: "task_status:" + string(t.Status()), Quality: pm.ProgressFactQualityValid,
-	}}
-	quality := pm.ProgressQualityValid
-	decision := pm.ProgressFactVerified
-	suspectKey := ""
-	suspectCycles := 0
-	if now.Sub(watermark) > opt.WatermarkLagSLA {
-		quality = pm.ProgressQualitySuspect
-		decision = pm.CannotDetermine
-		suspectKey = "watermark_lag"
-		facts = append(facts, pm.ProgressFact{
-			ID:         progressFactID(p.ID(), t.ID(), "watermark_lag", watermark.Format(time.RFC3339Nano)),
-			SourceKind: "pm_progress_checkpoints", SourceID: string(p.ID()), OccurredAt: watermark, ObservedAt: now,
-			Revision: watermark.Format(time.RFC3339Nano), Summary: "watermark_lag", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
-		})
-	} else if !t.Status().IsTerminal() {
-		if t.Status() == pm.TaskRunning && t.Delivery() == nil {
-			decision = pm.ResponsibilityBound
-			quality = pm.ProgressQualitySuspect
-			suspectKey = "running_without_delivery"
-		} else if !dispatched && blocked.TaskID == "" {
-			decision = pm.ResponsibilityBound
-			quality = pm.ProgressQualitySuspect
-			suspectKey = "negative_fact_unconfirmed"
-		} else {
-			decision = pm.ResponsibilityBound
-		}
-	}
-	if defaulted {
-		facts = append(facts, pm.ProgressFact{
-			ID:         progressFactID(p.ID(), t.ID(), "missing_progress_contract", strconv.Itoa(t.Version())),
-			SourceKind: "pm_tasks", SourceID: string(t.ID()), OccurredAt: t.CreatedAt(), ObservedAt: now,
-			Revision: strconv.Itoa(t.Version()), Summary: "missing_progress_contract", Quality: pm.ProgressFactQualitySuspect, CannotAbsent: true,
-		})
-	}
-	if suspectKey != "" {
-		if prev, ok, _ := s.plans.LatestProgressObservation(ctx, p.ID(), t.ID()); ok && prev.SuspectKey == suspectKey {
-			suspectCycles = prev.SuspectCycles + 1
-		} else {
-			suspectCycles = 1
-		}
-		if suspectCycles >= opt.SuspectMaxCycles {
-			decision = pm.CannotDetermine
-			facts = append(facts, pm.ProgressFact{
-				ID:         progressFactID(p.ID(), t.ID(), "persistent_suspect", suspectKey),
-				SourceKind: "pm_progress_observations", SourceID: string(t.ID()), OccurredAt: now, ObservedAt: now,
-				Revision: strconv.Itoa(suspectCycles), Summary: "persistent_suspect", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
-			})
-		}
-	}
-	return pm.ObservationVector{
-		ID:     progressObservationID(p.ID(), t.ID(), now, suspectKey, suspectCycles),
-		PlanID: p.ID(), TaskID: t.ID(), NodeID: t.NodeID(), Decision: decision, Quality: quality,
-		AsOf: now, EvaluatedAt: now,
-		SourceRevisions: []pm.ObservationSource{
-			{Kind: "pm_plans", SourceID: string(p.ID()), Revision: strconv.Itoa(p.Version()), WatermarkAt: watermark, ObservedAt: now},
-			{Kind: "pm_tasks", SourceID: string(t.ID()), Revision: strconv.Itoa(t.Version()), WatermarkAt: watermark, ObservedAt: now},
-		},
-		Facts: facts, SuspectKey: suspectKey, SuspectCycles: suspectCycles,
-		ProgressContract: contract, ProgressContractDefaulted: defaulted,
-		UncoveredProgressWindowSeconds: cov.UncoveredProgressWindowSeconds, Coverage: cov,
-	}
-}
-
-func progressCoverage(tasks []*pm.Task, now time.Time) pm.ProgressCoverage {
-	c := pm.ProgressCoverage{TotalNodes: len(tasks)}
-	for _, t := range tasks {
-		if t.DeliveryContract() != "" {
-			c.CoveredNodes++
-			continue
-		}
-		if !t.Status().IsTerminal() {
-			since := t.StatusChangedAt()
-			if since.IsZero() {
-				since = t.CreatedAt()
-			}
-			if d := now.Sub(since); d > 0 {
-				c.UncoveredProgressWindowSeconds += int64(d / time.Second)
-			}
-		}
-	}
-	if c.TotalNodes > 0 {
-		c.CoverageRatio = float64(c.CoveredNodes) / float64(c.TotalNodes)
-	}
-	return c
-}
-
-func (s *Service) persistSourceReadIncident(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, now time.Time, episode string) error {
-	v := pm.ObservationVector{
-		ID:     progressObservationID(planID, taskID, now, "source_read_failure", 1),
-		PlanID: planID, TaskID: taskID, Decision: pm.CannotDetermine, Quality: pm.ProgressQualitySuspect,
-		AsOf: now, EvaluatedAt: now, SuspectKey: "source_read_failure", SuspectCycles: 1,
-		Facts: []pm.ProgressFact{{
-			ID: progressFactID(planID, taskID, "source_read_failure", episode), SourceKind: "projectmanager",
-			SourceID: string(planID), OccurredAt: now, ObservedAt: now, Revision: "unknown",
-			Summary: "source_read_failure", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
-		}},
-	}
-	if err := s.plans.SaveProgressObservation(ctx, v); err != nil {
-		return err
-	}
-	return s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentProjectorUnavailable, v.Facts[0].ID, now))
-}
-
-func progressObligation(v pm.ObservationVector, kind pm.ProgressObligationKind, now time.Time) pm.ProgressObligation {
-	owner := pm.IdentityRef("system")
-	display := "ProjectManager progress reconciler"
-	if kind == pm.ObligationProduceDelivery {
-		owner = "system"
-		display = "Delivery owner"
-	}
-	return pm.ProgressObligation{
-		ID:     stableID("pobl", string(v.PlanID), string(v.TaskID), string(kind), v.SuspectKey),
-		PlanID: v.PlanID, TaskID: v.TaskID, NodeID: v.NodeID, Kind: kind, OwnerRef: owner, OwnerDisplay: display,
-		DeadlineAt: now.Add(15 * time.Minute), AckRequired: true, EscalateToRef: "system",
-		EscalationDeadlineAt: now.Add(30 * time.Minute), SourceFactRefs: factIDs(v.Facts),
-		EpisodeKey: nonEmpty(v.SuspectKey, string(kind)), Status: pm.ResponsibilityOpen,
-		CreatedAt: now, UpdatedAt: now, Version: 1,
-	}
-}
-
-func progressIncident(v pm.ObservationVector, kind pm.ProgressIncidentKind, factID string, now time.Time) pm.ProgressIncident {
-	key := nonEmpty(v.SuspectKey, string(kind))
-	if factID != "" {
-		key += ":" + factID
-	}
-	return pm.ProgressIncident{
-		ID:     stableID("pinc", string(v.PlanID), string(v.TaskID), string(kind), key),
-		PlanID: v.PlanID, TaskID: v.TaskID, NodeID: v.NodeID, Kind: kind, OwnerRef: "system",
-		OwnerDisplay: "ProjectManager progress reconciler", DeadlineAt: now.Add(10 * time.Minute),
-		AckRequired: true, EscalateToRef: "system", EscalationDeadlineAt: now.Add(20 * time.Minute),
-		SourceFactRefs: []string{factID}, EpisodeKey: key, Status: pm.ResponsibilityOpen,
-		CreatedAt: now, UpdatedAt: now, Version: 1,
-	}
-}
-
-func factIDs(facts []pm.ProgressFact) []string {
-	out := make([]string, 0, len(facts))
-	for _, f := range facts {
-		if f.ID != "" {
-			out = append(out, f.ID)
-		}
-	}
-	return out
-}
-
-func progressObservationID(planID pm.PlanID, taskID pm.TaskID, at time.Time, key string, cycle int) string {
-	return stableID("pobs", string(planID), string(taskID), at.Format(time.RFC3339Nano), key, strconv.Itoa(cycle))
-}
-
-func progressFactID(planID pm.PlanID, taskID pm.TaskID, parts ...string) string {
-	all := append([]string{string(planID), string(taskID)}, parts...)
-	return stableID("pfact", all...)
-}
-
-func stableID(prefix string, parts ...string) string {
-	h := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
-	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(h[:])[:24])
-}
-
-func nonEmpty(v, fallback string) string {
-	if v != "" {
-		return v
-	}
-	return fallback
+	return fmt.Sprintf("%s-%d", prefix, s.clock.Now().UnixNano())
 }

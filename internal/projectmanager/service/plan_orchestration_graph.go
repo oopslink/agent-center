@@ -785,6 +785,13 @@ func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, o
 		if t.PlanID() == "" {
 			return fmt.Errorf("projectmanager: task %s is not in a plan — no decision outcome to record", taskID)
 		}
+		// A pass token is an authoritative release fact: never mint it while a
+		// progress_hold says the evidence chain is still unresolved.
+		if outcome == "pass" || outcome == "success" {
+			if err := s.guardTaskProgressHolds(txCtx, taskID, false, true, false); err != nil {
+				return err
+			}
+		}
 		if rerr := s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now); rerr != nil {
 			return rerr
 		}
@@ -1076,11 +1083,25 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
 			return err
 		}
+		if missingExecutableReleaseFact(b) {
+			if err := s.ensureProgressHoldForBlockedOn(txCtx, p, b); err != nil {
+				return err
+			}
+		}
 		if err := s.notifyPlanOwnerOnBlockedNode(txCtx, p, b, prev, hadPrev); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func missingExecutableReleaseFact(b pm.BlockedOn) bool {
+	switch b.WaitType {
+	case pm.WaitHumanDecision, pm.WaitAcceptanceVerdict:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, b pm.BlockedOn, prev pm.BlockedOn, hadPrev bool) error {
@@ -1092,6 +1113,9 @@ func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, 
 	}
 	if hadPrev && prev.WaitType == b.WaitType && stringSlicesEqual(prev.WaitKeys, b.WaitKeys) && prev.TriggerCondition == b.TriggerCondition {
 		return nil
+	}
+	if err := s.recordProgressWakeRequested(ctx, p, b); err != nil {
+		return err
 	}
 	msgID := ""
 	if s.planDispatcher != nil {

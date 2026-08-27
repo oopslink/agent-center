@@ -171,6 +171,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 		}
 		if cmd.Outcome == pm.GateVerdictPass {
+			if err := s.guardPlanProgressHolds(txCtx, plan.ID(), false, true, false); err != nil {
+				return err
+			}
 			if err := s.orch.ResolveCondition(txCtx, gateNode.ID(), "success"); err != nil {
 				return err
 			}
