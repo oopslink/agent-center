@@ -76,6 +76,7 @@ type ProgressObligationKind string
 const (
 	ObligationProduceDelivery ProgressObligationKind = "produce_delivery"
 	ObligationSourceRecovery  ProgressObligationKind = "source_recovery"
+	ObligationAckWake         ProgressObligationKind = "ack_wake"
 )
 
 type ProgressIncidentKind string
@@ -85,7 +86,58 @@ const (
 	IncidentProgressClassificationUnknown ProgressIncidentKind = "progress_classification_unknown"
 	IncidentMigrationGap                  ProgressIncidentKind = "migration_gap"
 	IncidentProjectorUnavailable          ProgressIncidentKind = "projector_unavailable"
+	IncidentLeaseFenceConflict            ProgressIncidentKind = "lease_fence_conflict"
+	IncidentWatchdogSilent                ProgressIncidentKind = "watchdog_silent"
+	IncidentWakeAckLost                   ProgressIncidentKind = "wake_ack_lost"
 )
+
+type ProgressLease struct {
+	Scope        string
+	PlanID       PlanID
+	HolderID     string
+	FencingToken int64
+	AcquiredAt   time.Time
+	RenewedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type ProgressFence struct {
+	PlanID       PlanID
+	PlanRevision int
+	HolderID     string
+	FencingToken int64
+}
+
+type ProgressWakeSeverity string
+
+const (
+	ProgressWakeSeverityP0      ProgressWakeSeverity = "P0"
+	ProgressWakeSeverityDefault ProgressWakeSeverity = "default"
+)
+
+type ProgressWakeBucketDiagnostic struct {
+	ID              string
+	PlanID          PlanID
+	OrganizationID  string
+	OwnerRef        IdentityRef
+	Severity        ProgressWakeSeverity
+	Allowed         bool
+	Reason          string
+	TokensBefore    int
+	TokensAfter     int
+	Capacity        int
+	ReservedP0      int
+	RefillPerMinute int
+	AttemptedAt     time.Time
+	NextRefillAt    time.Time
+	EvidenceJSON    string
+}
+
+type ProgressWatchdogObservation struct {
+	PlanID     PlanID
+	Component  string
+	LastSeenAt time.Time
+}
 
 type ResponsibilityStatus string
 

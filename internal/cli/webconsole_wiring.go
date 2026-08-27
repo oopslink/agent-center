@@ -238,12 +238,13 @@ func (a *App) outboxProjectors(
 	wakeGuard := a.WakeGuard
 	sweepAgentRepo := agentsql.NewAgentRepo(a.DB)
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
-		DB:         a.DB,
-		Agents:     sweepAgentRepo,
-		ControlLog: controlLog,
-		Applied:    appliedRepo,
-		Clock:      a.Clock,
-		WakeGuard:  wakeGuard,
+		DB:                   a.DB,
+		Agents:               sweepAgentRepo,
+		ControlLog:           controlLog,
+		Applied:              appliedRepo,
+		Clock:                a.Clock,
+		WakeGuard:            wakeGuard,
+		ProgressWakeRecorder: a.PMService.RecordProgressWakeAttempt,
 		// T335 follow-up — server-side session-heal sweep (the second net). The
 		// WakeReconcileLoop drives ReconcileOnce on a 60s tick; it re-emits
 		// agent.work_available for desired-running agents that have queued runnable work

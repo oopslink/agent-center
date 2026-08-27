@@ -10,7 +10,7 @@ import (
 func TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation(t *testing.T) {
 	h, planID, taskID := progressPlanWithOneTask(t)
 
-	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceGraceCycle: 1, SuspectMaxCycles: 2}); err != nil {
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceGraceCycle: 1, SuspectMaxCycles: 2}, nil); err != nil {
 		t.Fatalf("reconcile first: %v", err)
 	}
 	first, ok, err := h.plans.LatestProgressObservation(h.ctx, planID, taskID)
@@ -29,7 +29,7 @@ func TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation(t *test
 	}
 
 	h.clk.Advance(time.Second)
-	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceGraceCycle: 1, SuspectMaxCycles: 2}); err != nil {
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceGraceCycle: 1, SuspectMaxCycles: 2}, nil); err != nil {
 		t.Fatalf("reconcile second: %v", err)
 	}
 	second, ok, err := h.plans.LatestProgressObservation(h.ctx, planID, taskID)
@@ -52,11 +52,11 @@ func TestProgressControl_WatermarkLagDedupsIncident(t *testing.T) {
 	h, planID, taskID := progressPlanWithOneTask(t)
 	old := h.clk.Now().Add(-10 * time.Minute)
 	opt := progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceWatermark: old, SuspectMaxCycles: 2}
-	if err := h.svc.reconcilePlanProgress(h.ctx, planID, opt); err != nil {
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, opt, nil); err != nil {
 		t.Fatalf("reconcile lag first: %v", err)
 	}
 	h.clk.Advance(time.Second)
-	if err := h.svc.reconcilePlanProgress(h.ctx, planID, opt); err != nil {
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, opt, nil); err != nil {
 		t.Fatalf("reconcile lag second: %v", err)
 	}
 	got, ok, err := h.plans.LatestProgressObservation(h.ctx, planID, taskID)
@@ -75,7 +75,7 @@ func TestProgressControl_WatermarkLagDedupsIncident(t *testing.T) {
 func TestProgressControl_MissingContractDefaultsAndCoverage(t *testing.T) {
 	h, planID, taskID := progressPlanWithOneTask(t)
 	h.clk.Advance(5 * time.Minute)
-	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SuspectMaxCycles: 2}); err != nil {
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SuspectMaxCycles: 2}, nil); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	got, ok, err := h.plans.LatestProgressObservation(h.ctx, planID, taskID)

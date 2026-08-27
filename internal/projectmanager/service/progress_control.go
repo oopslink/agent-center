@@ -19,6 +19,17 @@ type progressReconcileOptions struct {
 	SourceWatermark  time.Time
 }
 
+type ProgressWakeAttempt struct {
+	PlanID          pm.PlanID
+	OrganizationID  string
+	OwnerRef        pm.IdentityRef
+	Severity        pm.ProgressWakeSeverity
+	IdempotencyKey  string
+	Capacity        int
+	ReservedP0      int
+	RefillPerMinute int
+}
+
 func defaultProgressReconcileOptions() progressReconcileOptions {
 	return progressReconcileOptions{
 		WatermarkLagSLA:  2 * time.Minute,
@@ -28,10 +39,32 @@ func defaultProgressReconcileOptions() progressReconcileOptions {
 }
 
 func (s *Service) ReconcilePlanProgress(ctx context.Context, planID pm.PlanID) error {
-	return s.reconcilePlanProgress(ctx, planID, defaultProgressReconcileOptions())
+	return s.reconcilePlanProgress(ctx, planID, defaultProgressReconcileOptions(), nil)
 }
 
-func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, opt progressReconcileOptions) error {
+func (s *Service) ReconcilePlanProgressWithFence(ctx context.Context, planID pm.PlanID, fence pm.ProgressFence) error {
+	return s.reconcilePlanProgress(ctx, planID, defaultProgressReconcileOptions(), &fence)
+}
+
+func (s *Service) acquireProgressFence(ctx context.Context, p *pm.Plan, ttl time.Duration) (pm.ProgressFence, bool, error) {
+	now := s.clock.Now().UTC()
+	scope := progressLeaseScope(p.ID())
+	lease, ok, err := s.plans.AcquireProgressLease(ctx, p.ID(), scope, s.progressControllerID, now, ttl)
+	if err != nil || !ok {
+		return pm.ProgressFence{}, false, err
+	}
+	if err := s.plans.RecordProgressWatchdogHeartbeat(ctx, p.ID(), "progress_reconciler", now); err != nil {
+		return pm.ProgressFence{}, false, err
+	}
+	return pm.ProgressFence{
+		PlanID:       p.ID(),
+		PlanRevision: p.Version(),
+		HolderID:     lease.HolderID,
+		FencingToken: lease.FencingToken,
+	}, true, nil
+}
+
+func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, opt progressReconcileOptions, fence *pm.ProgressFence) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
@@ -76,37 +109,190 @@ func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, o
 	coverage := progressCoverage(tasks, now)
 	for _, t := range tasks {
 		v := s.evaluateTaskProgress(ctx, p, t, dispatched[t.ID()], blockedByTask[t.ID()], coverage, now, opt)
+		if ok, err := s.validateProgressWriteFence(ctx, fence, v, "observation"); err != nil || !ok {
+			return err
+		}
 		if err := s.plans.SaveProgressObservation(ctx, v); err != nil {
 			return err
 		}
 		for _, fact := range v.Facts {
 			switch fact.Summary {
 			case "watermark_lag":
+				if ok, err := s.validateProgressWriteFence(ctx, fence, v, "incident:watermark_lag"); err != nil || !ok {
+					return err
+				}
 				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentWatermarkLag, fact.ID, now)); err != nil {
 					return err
 				}
 			case "persistent_suspect":
+				if ok, err := s.validateProgressWriteFence(ctx, fence, v, "incident:persistent_suspect"); err != nil || !ok {
+					return err
+				}
 				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentProgressClassificationUnknown, fact.ID, now)); err != nil {
 					return err
 				}
 			case "missing_progress_contract":
+				if ok, err := s.validateProgressWriteFence(ctx, fence, v, "incident:migration_gap"); err != nil || !ok {
+					return err
+				}
 				if err := s.plans.UpsertProgressIncident(ctx, progressIncident(v, pm.IncidentMigrationGap, fact.ID, now)); err != nil {
 					return err
 				}
 			}
 		}
 		if v.Decision == pm.ResponsibilityBound && v.Quality == pm.ProgressQualitySuspect {
+			if ok, err := s.validateProgressWriteFence(ctx, fence, v, "obligation:source_recovery"); err != nil || !ok {
+				return err
+			}
 			if err := s.plans.UpsertProgressObligation(ctx, progressObligation(v, pm.ObligationSourceRecovery, now)); err != nil {
 				return err
 			}
 		}
 		if t.Status() == pm.TaskRunning && t.Delivery() == nil {
+			if ok, err := s.validateProgressWriteFence(ctx, fence, v, "obligation:produce_delivery"); err != nil || !ok {
+				return err
+			}
 			if err := s.plans.UpsertProgressObligation(ctx, progressObligation(v, pm.ObligationProduceDelivery, now)); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (s *Service) validateProgressWriteFence(ctx context.Context, fence *pm.ProgressFence, v pm.ObservationVector, writeKind string) (bool, error) {
+	if fence == nil || fence.FencingToken == 0 {
+		return true, nil
+	}
+	ok, err := s.plans.ValidateProgressFence(ctx, *fence)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		return true, nil
+	}
+	now := s.clock.Now().UTC()
+	factID := progressFactID(v.PlanID, v.TaskID, "lease_fence_conflict", writeKind, fence.HolderID, strconv.FormatInt(fence.FencingToken, 10))
+	incident := progressIncident(v, pm.IncidentLeaseFenceConflict, factID, now)
+	incident.OwnerDisplay = "ProjectManager progress controller"
+	incident.EpisodeKey = "lease_fence_conflict:" + writeKind + ":" + fence.HolderID + ":" + strconv.FormatInt(fence.FencingToken, 10)
+	incident.ID = stableID("pinc", string(v.PlanID), string(v.TaskID), string(pm.IncidentLeaseFenceConflict), incident.EpisodeKey)
+	// Persist outside any ambient tx so a caller rollback cannot erase the conflict
+	// evidence that explains why the stale mutation was rejected.
+	if err := s.plans.UpsertProgressIncident(context.Background(), incident); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func (s *Service) ProgressWatchdogTick(ctx context.Context, silenceThreshold time.Duration) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if silenceThreshold <= 0 {
+		silenceThreshold = 3 * time.Minute
+	}
+	now := s.clock.Now().UTC()
+	stale, err := s.plans.ListStaleProgressWatchdogs(ctx, now.Add(-silenceThreshold))
+	if err != nil {
+		return err
+	}
+	for _, obs := range stale {
+		v := pm.ObservationVector{
+			ID:     progressObservationID(obs.PlanID, "", now, "watchdog_silent", 1),
+			PlanID: obs.PlanID, Decision: pm.CannotDetermine, Quality: pm.ProgressQualitySuspect,
+			AsOf: now, EvaluatedAt: now, SuspectKey: "watchdog_silent", SuspectCycles: 1,
+			Facts: []pm.ProgressFact{{
+				ID:         progressFactID(obs.PlanID, "", "watchdog_silent", obs.Component, obs.LastSeenAt.Format(time.RFC3339Nano)),
+				SourceKind: "pm_progress_watchdog_heartbeats", SourceID: obs.Component,
+				OccurredAt: obs.LastSeenAt, ObservedAt: now, Revision: obs.LastSeenAt.Format(time.RFC3339Nano),
+				Summary: "watchdog_silent", Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
+			}},
+		}
+		inc := progressIncident(v, pm.IncidentWatchdogSilent, v.Facts[0].ID, now)
+		inc.OwnerDisplay = "ProjectManager progress watchdog"
+		if err := s.plans.UpsertProgressIncident(ctx, inc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) RecordProgressWakeAttempt(ctx context.Context, a ProgressWakeAttempt) (pm.ProgressWakeBucketDiagnostic, error) {
+	if s.plans == nil {
+		return pm.ProgressWakeBucketDiagnostic{}, ErrPlansUnavailable
+	}
+	now := s.clock.Now().UTC()
+	if a.Capacity <= 0 {
+		a.Capacity = 10
+	}
+	if a.RefillPerMinute <= 0 {
+		a.RefillPerMinute = a.Capacity
+	}
+	if a.ReservedP0 < 0 {
+		a.ReservedP0 = 0
+	}
+	if a.Severity == "" {
+		a.Severity = pm.ProgressWakeSeverityDefault
+	}
+	diags, err := s.plans.ListProgressWakeBucketDiagnostics(ctx, a.PlanID)
+	if err != nil {
+		return pm.ProgressWakeBucketDiagnostic{}, err
+	}
+	used := 0
+	for _, d := range diags {
+		if d.OwnerRef == a.OwnerRef && d.Allowed && now.Sub(d.AttemptedAt) < time.Minute {
+			used++
+		}
+	}
+	available := a.Capacity - used
+	floor := 0
+	if a.Severity != pm.ProgressWakeSeverityP0 {
+		floor = a.ReservedP0
+	}
+	allowed := available > floor
+	reason := "delivered"
+	if !allowed {
+		reason = "token_bucket_suppressed"
+	}
+	idKey := nonEmpty(a.IdempotencyKey, now.Format(time.RFC3339Nano))
+	d := pm.ProgressWakeBucketDiagnostic{
+		ID:     stableID("pwake", string(a.PlanID), string(a.OwnerRef), string(a.Severity), idKey),
+		PlanID: a.PlanID, OrganizationID: a.OrganizationID, OwnerRef: a.OwnerRef, Severity: a.Severity,
+		Allowed: allowed, Reason: reason, TokensBefore: available, Capacity: a.Capacity,
+		ReservedP0: a.ReservedP0, RefillPerMinute: a.RefillPerMinute,
+		AttemptedAt: now, NextRefillAt: now.Add(time.Minute), EvidenceJSON: fmt.Sprintf(`{"idempotency_key":%q}`, idKey),
+	}
+	if allowed {
+		d.TokensAfter = available - 1
+	} else {
+		d.TokensAfter = available
+	}
+	if err := s.plans.UpsertProgressWakeBucketDiagnostic(ctx, d); err != nil {
+		return pm.ProgressWakeBucketDiagnostic{}, err
+	}
+	if !allowed {
+		v := pm.ObservationVector{
+			ID:     progressObservationID(a.PlanID, "", now, "wake_suppressed", 1),
+			PlanID: a.PlanID, Decision: pm.ResponsibilityBound, Quality: pm.ProgressQualitySuspect,
+			AsOf: now, EvaluatedAt: now, SuspectKey: "wake_suppressed", SuspectCycles: 1,
+			Facts: []pm.ProgressFact{{
+				ID:         progressFactID(a.PlanID, "", "wake_suppressed", d.ID),
+				SourceKind: "pm_progress_wake_bucket_diagnostics", SourceID: d.ID,
+				OccurredAt: now, ObservedAt: now, Revision: d.ID, Summary: "wake_suppressed",
+				Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
+			}},
+		}
+		o := progressObligation(v, pm.ObligationAckWake, now)
+		o.OwnerRef = a.OwnerRef
+		o.OwnerDisplay = string(a.OwnerRef)
+		o.EpisodeKey = "wake_suppressed:" + d.ID
+		o.ID = stableID("pobl", string(a.PlanID), string(pm.ObligationAckWake), o.EpisodeKey)
+		if err := s.plans.UpsertProgressObligation(ctx, o); err != nil {
+			return pm.ProgressWakeBucketDiagnostic{}, err
+		}
+	}
+	return d, nil
 }
 
 func (s *Service) evaluateTaskProgress(ctx context.Context, p *pm.Plan, t *pm.Task, dispatched bool, blocked pm.BlockedOn, cov pm.ProgressCoverage, now time.Time, opt progressReconcileOptions) pm.ObservationVector {
@@ -284,4 +470,8 @@ func nonEmpty(v, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func progressLeaseScope(planID pm.PlanID) string {
+	return "progress_control:plan:" + string(planID)
 }
