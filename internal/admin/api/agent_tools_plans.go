@@ -1294,12 +1294,21 @@ func progressControlMap(snap *pm.ProgressControlSnapshot) map[string]any {
 			"summary": i.Summary, "source_ref": i.SourceRef, "status": i.Status,
 		})
 	}
+	actions := make([]map[string]any, 0, len(snap.RequiredActions))
+	for _, a := range snap.RequiredActions {
+		actions = append(actions, map[string]any{
+			"id": a.ID, "source_type": a.SourceType, "source_id": a.SourceID,
+			"category": a.Category, "action": a.Action, "owner_ref": a.OwnerRef,
+			"owner_display": a.OwnerDisplay, "deadline_at": a.DeadlineAt.Format(time.RFC3339Nano),
+			"trigger_fact_refs": a.TriggerFactRefs, "options": a.Options,
+		})
+	}
 	return map[string]any{
-		"as_of":            snap.AsOf.Format(time.RFC3339Nano),
-		"decision":         string(snap.Decision),
-		"open_holds":       holds,
-		"open_obligations": obligations,
-		"open_incidents":   incidents,
+		"as_of": snap.AsOf.Format(time.RFC3339Nano), "decision": string(snap.Decision),
+		"observation_vector_id": snap.ObservationVectorID, "quality": string(snap.Quality),
+		"freshness":  map[string]any{"state": snap.Freshness.State, "watermark_lag_ms": snap.Freshness.WatermarkLagMS, "threshold_ms": snap.Freshness.ThresholdMS},
+		"open_holds": holds, "open_obligations": obligations, "open_incidents": incidents,
+		"required_actions": actions,
 	}
 }
 

@@ -34,6 +34,7 @@ import {
   type PatchPlanInput,
   type PlanStage,
   type PlanContinuation,
+  type PlanProgressControl,
   type GateVerdict,
   type PlanGenerationRead,
   type PlanGeneration,
@@ -198,6 +199,7 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
           <PlanContinuationBanner continuations={p.continuations ?? []} />
+          {p.progress_control && <PlanProgressCockpit control={p.progress_control} />}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -352,6 +354,39 @@ export default function PlanDetail(): React.ReactElement {
             participants={planConv.data.participants ?? []}
           />
         </ContextPanel>
+      )}
+    </section>
+  );
+}
+
+export function PlanProgressCockpit({ control }: { control: PlanProgressControl }): React.ReactElement {
+  const degraded = control.decision === 'cannot_determine' || control.quality === 'suspect' || control.freshness.state !== 'fresh';
+  return (
+    <section
+      className={`mx-3 mt-2 rounded-md border px-3 py-2 text-xs md:mx-6 ${degraded ? 'border-warning/50 bg-warning/5' : 'border-border-base bg-bg-subtle'}`}
+      data-testid="plan-progress-cockpit"
+      data-decision={control.decision}
+      data-freshness={control.freshness.state}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <strong className="text-text-primary">Progress control</strong>
+        <span>{control.decision.replaceAll('_', ' ')}</span>
+        <span>freshness: {control.freshness.state}</span>
+        <span>quality: {control.quality}</span>
+      </div>
+      {control.required_actions.length > 0 && (
+        <ul className="mt-2 space-y-1" aria-label="Required actions">
+          {control.required_actions.map((action) => (
+            <li key={action.id} className="rounded border border-border-base bg-bg-elevated px-2 py-1" data-action-category={action.category}>
+              <span className="font-medium text-text-primary">{action.category.replaceAll('_', ' ')}</span>
+              {' · '}{action.action.replaceAll('_', ' ')}
+              {action.owner_display || action.owner_ref ? ` · ${action.owner_display || action.owner_ref}` : ''}
+              {action.deadline_at ? ` · due ${formatLocalTime(action.deadline_at)}` : ''}
+              {action.trigger_fact_refs.length > 0 ? ` · facts ${action.trigger_fact_refs.join(', ')}` : ''}
+              {action.options && action.options.length > 0 ? ` · choices ${action.options.join(' / ')}` : ''}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

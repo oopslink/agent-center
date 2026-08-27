@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -327,7 +328,8 @@ type Service struct {
 	liveExecutors concurrency.LiveStateStore
 	// authorizer is OPTIONAL for older tests. Production wires it so background
 	// sweeps pass through the unified effective-permission resolver.
-	authorizer authz.EffectiveResolver
+	authorizer           authz.EffectiveResolver
+	progressControllerID string
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -446,6 +448,8 @@ type Deps struct {
 	// Authorizer is OPTIONAL for older tests. Production wires it so background sweeps
 	// exercise the same effective-permission resolver as HTTP and MCP.
 	Authorizer authz.EffectiveResolver
+	// ProgressControllerID identifies this active-active progress reconciler.
+	ProgressControllerID string
 }
 
 // New constructs the Service.
@@ -471,20 +475,32 @@ func New(d Deps) *Service {
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
-		actionLogs:         d.TaskActionLogs,
-		audit:              d.Audit,
-		autoAssignDir:      d.AutoAssignDir,
-		autoAssignSettings: d.AutoAssignSettings,
-		orch:               orchSvc,
-		stages:             d.Stages,
-		pools:              d.AssignmentPools,
-		remediation:        d.Remediation,
-		progress:           d.ProgressControl,
-		deadlinePolicy:     d.DeadlinePolicy,
-		timeoutSink:        d.TimeoutSink,
-		liveExecutors:      d.LiveExecutors,
-		authorizer:         d.Authorizer,
+		actionLogs:           d.TaskActionLogs,
+		audit:                d.Audit,
+		autoAssignDir:        d.AutoAssignDir,
+		autoAssignSettings:   d.AutoAssignSettings,
+		orch:                 orchSvc,
+		stages:               d.Stages,
+		pools:                d.AssignmentPools,
+		remediation:          d.Remediation,
+		progress:             d.ProgressControl,
+		deadlinePolicy:       d.DeadlinePolicy,
+		timeoutSink:          d.TimeoutSink,
+		liveExecutors:        d.LiveExecutors,
+		authorizer:           d.Authorizer,
+		progressControllerID: progressControllerID(d.ProgressControllerID),
 	}
+}
+
+func progressControllerID(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	host, _ := os.Hostname()
+	if host == "" {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%d", host, os.Getpid())
 }
 
 func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation string) error {

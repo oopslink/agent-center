@@ -87,6 +87,7 @@ type ProgressObligationKind string
 const (
 	ObligationProduceDelivery ProgressObligationKind = "produce_delivery"
 	ObligationSourceRecovery  ProgressObligationKind = "source_recovery"
+	ObligationAckWake         ProgressObligationKind = "ack_wake"
 	ProgressObligationAckWake                        = "ack_wake"
 )
 
@@ -97,10 +98,83 @@ const (
 	IncidentProgressClassificationUnknown ProgressIncidentKind = "progress_classification_unknown"
 	IncidentMigrationGap                  ProgressIncidentKind = "migration_gap"
 	IncidentProjectorUnavailable          ProgressIncidentKind = "projector_unavailable"
+	IncidentLeaseFenceConflict            ProgressIncidentKind = "lease_fence_conflict"
+	IncidentWatchdogSilent                ProgressIncidentKind = "watchdog_silent"
+	IncidentWakeAckLost                   ProgressIncidentKind = "wake_ack_lost"
 	ProgressIncidentWakeAckLost                                = "wake_ack_lost"
 	ProgressIncidentOperational                                = "operational_incident"
 	ProgressIncidentHoldSLOBreach                              = "hold_slo_breached"
 )
+
+type ProgressLease struct {
+	Scope        string
+	PlanID       PlanID
+	HolderID     string
+	FencingToken int64
+	AcquiredAt   time.Time
+	RenewedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type ProgressFence struct {
+	PlanID       PlanID
+	PlanRevision int
+	HolderID     string
+	FencingToken int64
+}
+
+type ProgressWakeSeverity string
+
+const (
+	ProgressWakeSeverityP0      ProgressWakeSeverity = "P0"
+	ProgressWakeSeverityDefault ProgressWakeSeverity = "default"
+)
+
+type ProgressWakeBucketDiagnostic struct {
+	ID              string
+	PlanID          PlanID
+	OrganizationID  string
+	OwnerRef        IdentityRef
+	Severity        ProgressWakeSeverity
+	Allowed         bool
+	Reason          string
+	TokensBefore    int
+	TokensAfter     int
+	Capacity        int
+	ReservedP0      int
+	RefillPerMinute int
+	AttemptedAt     time.Time
+	NextRefillAt    time.Time
+	EvidenceJSON    string
+}
+
+type ProgressWakeBucketState struct {
+	ScopeKey        string
+	Tokens          int
+	Capacity        int
+	RefillPerMinute int
+	LastRefillAt    time.Time
+	UpdatedAt       time.Time
+}
+
+type ProgressSuppressedWake struct {
+	ID             string
+	OrganizationID string
+	OwnerRef       IdentityRef
+	Severity       ProgressWakeSeverity
+	Channel        string
+	PlanIDs        []PlanID
+	AttemptCount   int
+	NextAttemptAt  time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type ProgressWatchdogObservation struct {
+	PlanID     PlanID
+	Component  string
+	LastSeenAt time.Time
+}
 
 type ResponsibilityStatus string
 
@@ -211,11 +285,37 @@ type ProgressEscalation struct {
 }
 
 type ProgressControlSnapshot struct {
-	AsOf            time.Time
-	Decision        ProgressDecision
-	OpenObligations []ProgressObligation
-	OpenIncidents   []ProgressIncident
-	OpenHolds       []ProgressHold
+	AsOf                time.Time
+	Decision            ProgressDecision
+	ObservationVectorID string
+	Quality             ProgressQuality
+	Freshness           ProgressFreshness
+	OpenObligations     []ProgressObligation
+	OpenIncidents       []ProgressIncident
+	OpenHolds           []ProgressHold
+	RequiredActions     []ProgressRequiredAction
+}
+
+type ProgressFreshness struct {
+	State          string
+	WatermarkLagMS int64
+	ThresholdMS    int64
+}
+
+// ProgressRequiredAction is a read-model projection of one durable authority
+// fact. SourceType/SourceID are mandatory so clients never mistake task or
+// executor state for the reason an action is required.
+type ProgressRequiredAction struct {
+	ID              string
+	SourceType      string
+	SourceID        string
+	Category        string
+	Action          string
+	OwnerRef        IdentityRef
+	OwnerDisplay    string
+	DeadlineAt      time.Time
+	TriggerFactRefs []string
+	Options         []string
 }
 
 type ProgressControlRepository interface {

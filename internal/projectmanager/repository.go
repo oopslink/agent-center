@@ -284,6 +284,18 @@ type PlanRepository interface {
 	UpsertProgressIncident(ctx context.Context, i ProgressIncident) error
 	ListOpenProgressObligations(ctx context.Context, planID PlanID) ([]ProgressObligation, error)
 	ListOpenProgressIncidents(ctx context.Context, planID PlanID) ([]ProgressIncident, error)
+	AcquireProgressLease(ctx context.Context, planID PlanID, scope, holderID string, now time.Time, ttl time.Duration) (ProgressLease, bool, error)
+	RenewProgressLease(ctx context.Context, planID PlanID, scope, holderID string, fencingToken int64, now time.Time, ttl time.Duration) (bool, error)
+	ValidateProgressFence(ctx context.Context, fence ProgressFence) (bool, error)
+	RecordProgressWatchdogHeartbeat(ctx context.Context, planID PlanID, component string, at time.Time) error
+	ListStaleProgressWatchdogs(ctx context.Context, olderThan time.Time) ([]ProgressWatchdogObservation, error)
+	UpsertProgressWakeBucketDiagnostic(ctx context.Context, d ProgressWakeBucketDiagnostic) error
+	ListProgressWakeBucketDiagnostics(ctx context.Context, planID PlanID) ([]ProgressWakeBucketDiagnostic, error)
+	GetProgressWakeBucketState(ctx context.Context, scopeKey string) (ProgressWakeBucketState, bool, error)
+	UpsertProgressWakeBucketState(ctx context.Context, state ProgressWakeBucketState) error
+	UpsertProgressSuppressedWake(ctx context.Context, wake ProgressSuppressedWake) error
+	ListDueProgressSuppressedWakes(ctx context.Context, now time.Time, limit int) ([]ProgressSuppressedWake, error)
+	DeleteProgressSuppressedWake(ctx context.Context, id string) error
 
 	// Generations are immutable topology snapshots produced by Evolution commits.
 	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.

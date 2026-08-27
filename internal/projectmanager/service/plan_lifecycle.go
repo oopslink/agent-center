@@ -752,9 +752,13 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		if rerr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("route blocked_on timeouts: %w", rerr))
 		}
-		perr = s.runInTx(ctx, func(txCtx context.Context) error {
-			return s.ReconcilePlanProgress(txCtx, p.ID())
-		})
+		fence, ok, ferr := s.acquireProgressFence(ctx, p, 2*time.Minute)
+		if ferr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("acquire progress lease: %w", ferr))
+		}
+		if ferr == nil && ok {
+			perr = s.ReconcilePlanProgressWithFence(ctx, p.ID(), fence)
+		}
 		if perr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("reconcile progress_control: %w", perr))
 		}

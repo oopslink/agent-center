@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -726,18 +727,141 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 }
 
 func (s *Service) fillProgressControl(ctx context.Context, detail *PlanDetail) error {
-	if s.progress == nil || detail == nil || detail.Plan == nil {
+	if detail == nil || detail.Plan == nil || s.plans == nil {
 		return nil
 	}
-	snap, err := s.progress.SnapshotPlan(ctx, detail.Plan.ID(), s.clock.Now())
+	now := s.clock.Now().UTC()
+	snap := pm.ProgressControlSnapshot{AsOf: now, Quality: pm.ProgressQualityValid,
+		Freshness: pm.ProgressFreshness{State: "fresh", ThresholdMS: int64((2 * time.Minute) / time.Millisecond)}}
+	if s.progress != nil {
+		control, err := s.progress.SnapshotPlan(ctx, detail.Plan.ID(), now)
+		if err != nil {
+			return err
+		}
+		snap.OpenHolds = control.OpenHolds
+		snap.OpenObligations = appendUniqueObligations(snap.OpenObligations, control.OpenObligations)
+		snap.OpenIncidents = appendUniqueIncidents(snap.OpenIncidents, control.OpenIncidents)
+	}
+	obligations, err := s.plans.ListOpenProgressObligations(ctx, detail.Plan.ID())
 	if err != nil {
 		return err
 	}
-	if snap.Decision == pm.ProgressDecisionVerified && len(snap.OpenHolds) == 0 && len(snap.OpenObligations) == 0 && len(snap.OpenIncidents) == 0 {
+	incidents, err := s.plans.ListOpenProgressIncidents(ctx, detail.Plan.ID())
+	if err != nil {
+		return err
+	}
+	snap.OpenObligations = appendUniqueObligations(snap.OpenObligations, obligations)
+	snap.OpenIncidents = appendUniqueIncidents(snap.OpenIncidents, incidents)
+
+	hasObservation := false
+	for _, task := range detail.Tasks {
+		v, ok, err := s.plans.LatestProgressObservation(ctx, detail.Plan.ID(), task.ID())
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		hasObservation = true
+		if snap.ObservationVectorID == "" || v.AsOf.After(snap.AsOf) {
+			snap.ObservationVectorID, snap.AsOf = v.ID, v.AsOf
+		}
+		if v.Quality == pm.ProgressQualitySuspect {
+			snap.Quality = pm.ProgressQualitySuspect
+		}
+		for _, source := range v.SourceRevisions {
+			lag := now.Sub(source.WatermarkAt).Milliseconds()
+			if lag > snap.Freshness.WatermarkLagMS {
+				snap.Freshness.WatermarkLagMS = lag
+			}
+		}
+	}
+	if !hasObservation && len(snap.OpenHolds) == 0 && len(snap.OpenObligations) == 0 && len(snap.OpenIncidents) == 0 {
 		return nil
 	}
+	if snap.Freshness.WatermarkLagMS > snap.Freshness.ThresholdMS {
+		snap.Freshness.State = "stale"
+		snap.Quality = pm.ProgressQualitySuspect
+	}
+	if len(snap.OpenIncidents) > 0 && snap.Freshness.State == "fresh" {
+		snap.Freshness.State = "degraded"
+	}
+	if len(snap.OpenHolds) > 0 || len(snap.OpenObligations) > 0 || len(snap.OpenIncidents) > 0 {
+		snap.Decision = pm.ResponsibilityBound
+	} else {
+		snap.Decision = pm.ProgressFactVerified
+	}
+	for _, incident := range snap.OpenIncidents {
+		if incident.Kind == pm.IncidentProgressClassificationUnknown || incident.Kind == pm.IncidentProjectorUnavailable || incident.Kind == pm.IncidentWatermarkLag || incident.Kind == pm.IncidentWatchdogSilent {
+			snap.Decision = pm.CannotDetermine
+			snap.Quality = pm.ProgressQualitySuspect
+		}
+	}
+	if snap.Decision == pm.CannotDetermine && (len(snap.OpenIncidents) == 0 || len(snap.OpenHolds) == 0) {
+		return ErrProgressControlContract
+	}
+	snap.RequiredActions = deriveProgressRequiredActions(snap)
 	detail.ProgressControl = &snap
 	return nil
+}
+
+var ErrProgressControlContract = errors.New("projectmanager: progress_control cannot_determine requires persisted incident and hold")
+
+func appendUniqueObligations(dst, src []pm.ProgressObligation) []pm.ProgressObligation {
+	seen := map[string]bool{}
+	for _, v := range dst {
+		seen[v.ID] = true
+	}
+	for _, v := range src {
+		if !seen[v.ID] {
+			dst = append(dst, v)
+			seen[v.ID] = true
+		}
+	}
+	return dst
+}
+
+func appendUniqueIncidents(dst, src []pm.ProgressIncident) []pm.ProgressIncident {
+	seen := map[string]bool{}
+	for _, v := range dst {
+		seen[v.ID] = true
+	}
+	for _, v := range src {
+		if !seen[v.ID] {
+			dst = append(dst, v)
+			seen[v.ID] = true
+		}
+	}
+	return dst
+}
+
+func deriveProgressRequiredActions(s pm.ProgressControlSnapshot) []pm.ProgressRequiredAction {
+	out := make([]pm.ProgressRequiredAction, 0, len(s.OpenObligations)+len(s.OpenIncidents)+len(s.OpenHolds))
+	for _, o := range s.OpenObligations {
+		a := pm.ProgressRequiredAction{ID: "action:" + o.ID, SourceType: "obligation", SourceID: o.ID, Category: "owner_action", Action: string(o.Kind), OwnerRef: o.OwnerRef, OwnerDisplay: o.OwnerDisplay, DeadlineAt: o.DeadlineAt, TriggerFactRefs: o.SourceFactRefs}
+		switch string(o.Kind) {
+		case "human_decision":
+			a.Action = "resolve_human_decision"
+			a.Options = []string{"unblock_resume", "reassign_redispatch", "discard_replace"}
+		case "source_recovery":
+			a.Category = "prerequisite_wait"
+			a.Action = "wait_for_prerequisite"
+		case "ack_wake":
+			a.Action = "acknowledge_wake"
+		}
+		out = append(out, a)
+	}
+	for _, i := range s.OpenIncidents {
+		refs := append([]string(nil), i.SourceFactRefs...)
+		if i.SourceRef != "" {
+			refs = append(refs, i.SourceRef)
+		}
+		out = append(out, pm.ProgressRequiredAction{ID: "action:" + i.ID, SourceType: "incident", SourceID: i.ID, Category: "system_recovery", Action: "resolve_" + string(i.Kind), OwnerRef: i.OwnerRef, OwnerDisplay: i.OwnerDisplay, DeadlineAt: i.DeadlineAt, TriggerFactRefs: refs})
+	}
+	for _, h := range s.OpenHolds {
+		out = append(out, pm.ProgressRequiredAction{ID: "action:" + h.ID, SourceType: "hold", SourceID: h.ID, Category: "safety_hold", Action: "release_with_authoritative_fact", OwnerRef: pm.IdentityRef(h.OwnerRef), OwnerDisplay: h.OwnerDisplay, DeadlineAt: h.HoldAckDeadline, TriggerFactRefs: []string{h.ReasonID}})
+	}
+	return out
 }
 
 func (s *Service) enrichRemediationView(ctx context.Context, detail *PlanDetail) error {
