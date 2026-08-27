@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 /private/tmp/s6-main-16dc5815-20260827200216/web
+
+(node:40063) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (11 tests) 226ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  20:08:58
+   Duration  1.50s (transform 136ms, setup 402ms, collect 63ms, tests 226ms, environment 267ms, prepare 58ms)
+

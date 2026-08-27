@@ -1,0 +1,5 @@
+
+    InsightSSSearch⌘KInsight⌄OverviewInsightOverviewExecution detailsPast 24 hoursAug 26, 2026, 8:07 PM GMT+8toAug 27, 2026, 8:07 PM GMT+8Refreshed Aug 27, 2026, 8:06 PM GMT+8unavailable 0 ms / 120 sCompleted executions42 failedFailure rate50%Failed / completedSlot utilization33.3%Coverage 0.2%Queue waitp50 25 msp95 98 ms / 4 samplesExecution durationp50 2.5 sp95 3.9 s / 4 samplesAgent leaderboardNameCompletedFailureQueue p50/p95Duration p50/p95S6 Agent 1agent:s6-agent-1250%15 ms / 20 ms1.5 s / 2 sS6 Agent 2agent:s6-agent-2250%70 ms / 106 ms3.5 s / 4 sProject leaderboardNameCompletedFailureQueue p50/p95Duration p50/p95S6 Project 1s6-project-1250%15 ms / 20 ms1.5 s / 2 sS6 Project 2s6-project-2250%70 ms / 106 ms3.5 s / 4 sWorkChatTeamsAccessInsightRemindSys
+  
+
+

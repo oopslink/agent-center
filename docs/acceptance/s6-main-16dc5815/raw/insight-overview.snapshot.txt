@@ -1,0 +1,87 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "S6 Main Verify" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-4ba572b5/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-4ba572b5/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-4ba572b5/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-4ba572b5/access
+    - link "Insight" [ref=e7]:
+      - /url: /organizations/org-4ba572b5/insights/overview
+    - link "Reminders" [ref=e8]:
+      - /url: /organizations/org-4ba572b5/reminders
+    - link "System" [ref=e9]:
+      - /url: /organizations/org-4ba572b5/environment
+    - button "Alerts" [ref=e10]
+    - button "s6-main-verifier" [ref=e11]: S
+  - navigation "primary" [ref=e12]:
+    - button "Search (⌘K)" [ref=e13]: Search ⌘K
+    - list:
+      - listitem:
+        - heading "Insight" [ref=e14] [level=2]:
+          - button "Insight" [ref=e15] [expanded]
+        - list:
+          - listitem:
+            - link "Overview" [ref=e16]:
+              - /url: /organizations/org-4ba572b5/insights/overview
+    - button "Collapse sidebar" [ref=e17]
+  - main:
+    - paragraph: Insight
+    - heading "Overview" [ref=e18] [level=1]
+    - button "Execution details" [ref=e19]
+    - strong: Past 24 hours
+    - text: Aug 26, 2026, 8:07 PM GMT+8 Aug 27, 2026, 8:07 PM GMT+8 Refreshed Aug 27, 2026, 8:06 PM GMT+8 unavailable 0 ms / 120 s Completed executions 4 2 failed Failure rate 50% Failed / completed Slot utilization 33.3% Coverage 0.2% Queue wait p50 25 ms p95 98 ms / 4 samples Execution duration p50 2.5 s p95 3.9 s / 4 samples Agent leaderboard
+    - table:
+      - rowgroup:
+        - row "Name Completed Failure Queue p50/p95 Duration p50/p95":
+          - columnheader "Name" [ref=e20]
+          - columnheader "Completed" [ref=e21]
+          - columnheader "Failure" [ref=e22]
+          - columnheader "Queue p50/p95" [ref=e23]
+          - columnheader "Duration p50/p95" [ref=e24]
+      - rowgroup:
+        - row "S6 Agent 1 agent:s6-agent-1 2 50% 15 ms / 20 ms 1.5 s / 2 s":
+          - cell "S6 Agent 1 agent:s6-agent-1" [ref=e25]:
+            - button "S6 Agent 1" [ref=e26]
+            - text: agent:s6-agent-1
+          - cell "2" [ref=e27]
+          - cell "50%" [ref=e28]
+          - cell "15 ms / 20 ms" [ref=e29]
+          - cell "1.5 s / 2 s" [ref=e30]
+        - row "S6 Agent 2 agent:s6-agent-2 2 50% 70 ms / 106 ms 3.5 s / 4 s":
+          - cell "S6 Agent 2 agent:s6-agent-2" [ref=e31]:
+            - button "S6 Agent 2" [ref=e32]
+            - text: agent:s6-agent-2
+          - cell "2" [ref=e33] [nth=1]
+          - cell "50%" [ref=e34] [nth=1]
+          - cell "70 ms / 106 ms" [ref=e35]
+          - cell "3.5 s / 4 s" [ref=e36]
+    - text: Project leaderboard
+    - table:
+      - rowgroup:
+        - row "Name Completed Failure Queue p50/p95 Duration p50/p95":
+          - columnheader "Name" [ref=e37] [nth=1]
+          - columnheader "Completed" [ref=e38] [nth=1]
+          - columnheader "Failure" [ref=e39] [nth=1]
+          - columnheader "Queue p50/p95" [ref=e40] [nth=1]
+          - columnheader "Duration p50/p95" [ref=e41] [nth=1]
+      - rowgroup:
+        - row "S6 Project 1 s6-project-1 2 50% 15 ms / 20 ms 1.5 s / 2 s":
+          - cell "S6 Project 1 s6-project-1" [ref=e42]:
+            - button "S6 Project 1" [ref=e43]
+            - text: s6-project-1
+          - cell "2" [ref=e44] [nth=2]
+          - cell "50%" [ref=e45] [nth=2]
+          - cell "15 ms / 20 ms" [ref=e46] [nth=1]
+          - cell "1.5 s / 2 s" [ref=e47] [nth=1]
+        - row "S6 Project 2 s6-project-2 2 50% 70 ms / 106 ms 3.5 s / 4 s":
+          - cell "S6 Project 2 s6-project-2" [ref=e48]:
+            - button "S6 Project 2" [ref=e49]
+            - text: s6-project-2
+          - cell "2" [ref=e50] [nth=3]
+          - cell "50%" [ref=e51] [nth=3]
+          - cell "70 ms / 106 ms" [ref=e52] [nth=1]
+          - cell "3.5 s / 4 s" [ref=e53] [nth=1]

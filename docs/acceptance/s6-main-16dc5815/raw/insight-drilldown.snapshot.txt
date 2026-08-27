@@ -1,0 +1,56 @@
+- document:
+  - navigation "modules" [ref=e1]:
+    - button "S6 Main Verify" [ref=e2]
+    - link "Workspace" [ref=e3]:
+      - /url: /organizations/org-4ba572b5/projects
+    - link "Conversations" [ref=e4]:
+      - /url: /organizations/org-4ba572b5/channels
+    - link "Teams" [ref=e5]:
+      - /url: /organizations/org-4ba572b5/teams
+    - link "Access" [ref=e6]:
+      - /url: /organizations/org-4ba572b5/access
+    - link "Insight" [ref=e7]:
+      - /url: /organizations/org-4ba572b5/insights/overview
+    - link "Reminders" [ref=e8]:
+      - /url: /organizations/org-4ba572b5/reminders
+    - link "System" [ref=e9]:
+      - /url: /organizations/org-4ba572b5/environment
+    - button "Alerts" [ref=e10]
+    - button "s6-main-verifier" [ref=e11]: S
+  - navigation "primary" [ref=e12]:
+    - button "Search (⌘K)" [ref=e13]: Search ⌘K
+    - list:
+      - listitem:
+        - heading "Insight" [ref=e14] [level=2]:
+          - button "Insight" [ref=e15]
+    - button "Collapse sidebar" [ref=e16]
+  - main:
+    - link "Insight overview" [ref=e17]:
+      - /url: /organizations/org-4ba572b5/insights/overview
+    - heading "TaskExecution detail" [ref=e18] [level=1]
+    - paragraph: s6-exec-a
+    - button "Refresh" [ref=e19]
+    - strong: Past 24 hours
+    - text: Aug 26, 2026, 8:07 PM GMT+8 Aug 27, 2026, 8:07 PM GMT+8 Refreshed Aug 27, 2026, 8:06 PM GMT+8 unavailable 0 ms / 120 s
+    - table:
+      - rowgroup:
+        - row "Execution Task Agent Outcome Queue Duration Quality":
+          - columnheader "Execution" [ref=e20]
+          - columnheader "Task" [ref=e21]
+          - columnheader "Agent" [ref=e22]
+          - columnheader "Outcome" [ref=e23]
+          - columnheader "Queue" [ref=e24]
+          - columnheader "Duration" [ref=e25]
+          - columnheader "Quality" [ref=e26]
+      - rowgroup:
+        - row "s6-exec-a s6-cmd-a S6 Task 1 S6 Project 1 S6 Agent 1 s6-worker-1 succeeded 10 ms 1 s valid":
+          - cell "s6-exec-a s6-cmd-a" [ref=e27]:
+            - link "s6-exec-a" [ref=e28]:
+              - /url: /organizations/org-4ba572b5/insights/executions/executions/s6-exec-a
+            - text: s6-cmd-a
+          - cell "S6 Task 1 S6 Project 1" [ref=e29]
+          - cell "S6 Agent 1 s6-worker-1" [ref=e30]
+          - cell "succeeded" [ref=e31]
+          - cell "10 ms" [ref=e32]
+          - cell "1 s" [ref=e33]
+          - cell "valid" [ref=e34]

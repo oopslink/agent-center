@@ -1,0 +1,5 @@
+source_counts_after_rebuild|8|4|4
+-rw-------@ 1 oopslink  wheel  12288 Aug 27 20:08 /tmp/s6-runtime-20260827200548/insight.duckdb
+-rw-------@ 1 oopslink  wheel  12288 Aug 27 20:05 /tmp/s6-runtime-20260827200548/insight.duckdb.moved-for-rebuild
+-rw-r--r--@ 1 oopslink  wheel  38398 Aug 27 20:08 /tmp/s6-runtime-20260827200548/insight.duckdb.wal
+-rw-r--r--@ 1 oopslink  wheel  61506 Aug 27 20:08 /tmp/s6-runtime-20260827200548/insight.duckdb.wal.moved-for-rebuild

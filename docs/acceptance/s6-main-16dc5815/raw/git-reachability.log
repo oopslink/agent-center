@@ -1,0 +1,15 @@
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/ac-exec/task-5493aaeb/exec-9bd82743
+9419d5da2e21c9b9e15183efe33c869ef2413ccc	refs/heads/ac-exec/task-eebbbe21/exec-26365c40
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/main
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/s3/insight-phase1-candidate-20260827
+
+s4_9419_ancestor_exit=0
+880d11a0013768c05662965f94b96b25b17e79f6
+16dc5815 (HEAD -> ac-exec/task-04c4df56/exec-d3f9cf94, origin/main, origin/HEAD, origin-push/s3/insight-phase1-candidate-20260827, origin-push/main, origin-push/ac-exec/task-5493aaeb/exec-9bd82743, origin-push/HEAD, main) docs(insight): converge S3 candidate identity
+9419d5da (origin-push/ac-exec/task-eebbbe21/exec-26365c40) docs(insight): record T1578 integration evidence
+ace00c76 merge(insight): include verified overview and drilldown UI
+36bc3fab merge(insight): assemble Phase 1 candidate
+968dd761 (origin-push/ac-exec/task-2c611ce5/exec-c685643d) merge(insight): include crash seam candidate ancestry
+46d8f4c1 merge(insight): combine frozen harness with s2 candidate
+fe837264 fix(insight): bound slot intervals by admission and ttl
+620caff4 test(insight): cover projector commit crash recovery
