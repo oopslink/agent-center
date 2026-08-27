@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strings"
@@ -29,6 +30,7 @@ import (
 // the plan conversation), and the conversation/message repos to assert dispatch.
 type planAdvanceHarness struct {
 	svc        *Service
+	db         *sql.DB
 	plans      *pmsql.PlanRepo
 	tasks      *pmsql.TaskRepo
 	convRepo   *convsql.ConversationRepo

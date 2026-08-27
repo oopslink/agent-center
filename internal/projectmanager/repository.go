@@ -291,6 +291,15 @@ type PlanRepository interface {
 	ActivateGeneration(ctx context.Context, planID PlanID, generationID PlanGenerationID, expectedVersion, nextVersion int, at time.Time) (bool, error)
 }
 
+type DeliveryAcceptanceRepository interface {
+	SaveDeliverySubject(ctx context.Context, s DeliverySubject) error
+	FindDeliverySubject(ctx context.Context, id string) (DeliverySubject, bool, error)
+	FindLatestDeliverySubjectByTask(ctx context.Context, planID PlanID, taskID TaskID) (DeliverySubject, bool, error)
+	SaveAcceptance(ctx context.Context, a Acceptance) error
+	FindEffectiveAcceptance(ctx context.Context, subjectID string, contractHash string) (Acceptance, bool, error)
+	ListAcceptances(ctx context.Context, subjectID string, contractHash string) ([]Acceptance, error)
+}
+
 // StageRepository persists Stage ARs (2026-07-03 plan-stage-model design §4.1): the
 // lightweight first-class Stage aggregate that groups a Plan's nodes into a sub-DAG
 // with a barrier + optional gate. A stage is 1:1-scoped to one Plan; ListByPlan returns

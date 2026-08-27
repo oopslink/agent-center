@@ -185,6 +185,27 @@ type CodeRepoResolver interface {
 	RepoOrg(ctx context.Context, repoID string) (orgID string, found bool, err error)
 }
 
+type DeliveryVerificationRequest struct {
+	RepoID       string
+	Remote       string
+	Branch       string
+	CandidateRef string
+	CandidateSHA string
+	BaseSHA      string
+}
+
+type DeliveryVerification struct {
+	CandidateExists bool
+	RefMatches      bool
+	Pushed          bool
+	BaseIsAncestor  bool
+	RemoteSHA       string
+}
+
+type DeliveryVerifier interface {
+	VerifyDeliverySubject(ctx context.Context, req DeliveryVerificationRequest) (DeliveryVerification, error)
+}
+
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent
 // work item (T53). It is an OPTIONAL, nil-safe read-port of the pm Service: when
 // wired (non-nil) the plan read model derives a `paused` node for a running task
@@ -305,7 +326,9 @@ type Service struct {
 	// remediation is the ADR-0055 immutable verdict/continuation/proposal ledger.
 	// When nil, stage-pass remains available through the legacy driver but reject
 	// cannot create incremental topology.
-	remediation pm.RemediationRepository
+	remediation      pm.RemediationRepository
+	acceptances      pm.DeliveryAcceptanceRepository
+	deliveryVerifier DeliveryVerifier
 
 	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
 	// on_timeout action assigned during the reconcile materialize and consumed by the
@@ -424,9 +447,11 @@ type Deps struct {
 	// Stages is OPTIONAL (2026-07-03 plan-stage-model): when set, the Stage AppServices
 	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
 	// is inert (pure-node DAG, §8 zero-regression).
-	Stages          pm.StageRepository
-	AssignmentPools pm.AssignmentPoolRepository
-	Remediation     pm.RemediationRepository
+	Stages           pm.StageRepository
+	AssignmentPools  pm.AssignmentPoolRepository
+	Remediation      pm.RemediationRepository
+	Acceptances      pm.DeliveryAcceptanceRepository
+	DeliveryVerifier DeliveryVerifier
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
 	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
@@ -477,6 +502,8 @@ func New(d Deps) *Service {
 		stages:             d.Stages,
 		pools:              d.AssignmentPools,
 		remediation:        d.Remediation,
+		acceptances:        d.Acceptances,
+		deliveryVerifier:   d.DeliveryVerifier,
 		deadlinePolicy:     d.DeadlinePolicy,
 		timeoutSink:        d.TimeoutSink,
 		liveExecutors:      d.LiveExecutors,

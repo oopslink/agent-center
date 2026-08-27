@@ -1219,7 +1219,7 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if kerr != nil {
 			return blockedOnClass{}, false, kerr
 		}
-		return blockedOnClass{pm.WaitAcceptanceVerdict, keys, "an upstream acceptance/decision gate passes"}, false, nil
+		return blockedOnClass{pm.WaitAcceptanceVerdict, keys, "a valid acceptance verdict exists for the exact delivery subject"}, false, nil
 	}
 	if blocked, err := s.stageGateBlocks(ctx, p, t); err != nil {
 		return blockedOnClass{}, false, err
@@ -1254,7 +1254,7 @@ func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task,
 		if len(pendingDecisions) > 0 {
 			return blockedOnClass{pm.WaitHumanDecision, pendingDecisions, "a human records the upstream decision outcome"}, false, nil
 		}
-		return blockedOnClass{pm.WaitUpstreamCompletion, unmet, "all upstream dependencies complete"}, false, nil
+		return blockedOnClass{pm.WaitUpstreamCompletion, unmet, "all upstream task dependencies are terminal"}, false, nil
 	}
 	if n.NodeStatus == pm.NodeReady || n.NodeStatus == pm.NodeDispatched {
 		// Deps satisfied, no gate held — the node is runnable, just awaiting the agent

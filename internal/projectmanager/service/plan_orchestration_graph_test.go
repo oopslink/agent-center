@@ -69,7 +69,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	h := &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
+	h := &planAdvanceHarness{svc: svc, db: db, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
 	return h, orchSvc
 }
 

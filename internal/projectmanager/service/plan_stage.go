@@ -686,6 +686,13 @@ func (s *Service) ResolveStageGate(ctx context.Context, gateNodeID string, resul
 	pass := result == "pass" || result == "success"
 
 	if pass {
+		if s.acceptances != nil || s.deliveryVerifier != nil {
+			if ok, aerr := s.acceptancePassesGate(ctx, st, st.GateTaskID()); aerr != nil {
+				return aerr
+			} else if !ok {
+				return ErrDeliveryVerificationFailed
+			}
+		}
 		if rerr := s.runInTx(ctx, func(txCtx context.Context) error {
 			if cerr := s.orch.ResolveCondition(txCtx, orch.NodeID(gateNodeID), "success"); cerr != nil {
 				return cerr
