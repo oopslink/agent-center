@@ -8,12 +8,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/coderepo"
 	"github.com/oopslink/agent-center/internal/coderepo/provider"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 )
 
@@ -282,4 +284,49 @@ func (s *Service) ListBranches(ctx context.Context, repoID string) ([]provider.B
 		return nil, err
 	}
 	return s.providers.ListBranches(ctx, t)
+}
+
+func (s *Service) VerifyDeliverySubject(ctx context.Context, req pmservice.DeliveryVerificationRequest) (pmservice.DeliveryVerification, error) {
+	out := pmservice.DeliveryVerification{}
+	if s.providers == nil {
+		return out, ErrViewingNotConfigured
+	}
+	branches, err := s.ListBranches(ctx, req.RepoID)
+	if err != nil {
+		return out, err
+	}
+	wantRef := strings.TrimPrefix(strings.TrimSpace(req.CandidateRef), "refs/heads/")
+	wantSHA := normalizeSHA(req.CandidateSHA)
+	for _, br := range branches {
+		if br.Name != wantRef {
+			continue
+		}
+		out.RemoteSHA = normalizeSHA(br.CommitSHA)
+		out.CandidateExists = out.RemoteSHA != ""
+		out.RefMatches = out.RemoteSHA == wantSHA
+		out.Pushed = out.RefMatches
+		break
+	}
+	if !out.RefMatches {
+		return out, nil
+	}
+	commits, err := s.ListCommits(ctx, req.RepoID, wantRef, provider.MaxCommitLimit)
+	if err != nil {
+		return out, err
+	}
+	base := normalizeSHA(req.BaseSHA)
+	for _, c := range commits {
+		sha := normalizeSHA(c.SHA)
+		if sha == wantSHA {
+			out.CandidateExists = true
+		}
+		if sha == base {
+			out.BaseIsAncestor = true
+		}
+	}
+	return out, nil
+}
+
+func normalizeSHA(s string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(s)), "sha256:")
 }

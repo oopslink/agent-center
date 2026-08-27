@@ -184,8 +184,10 @@ func MigrateV1ToV2Command() *Command {
 // 0146 adds ProjectManager progress-control observations/obligations/incidents;
 // 0147 enforces task/container exclusivity; 0148 adds durable wake/ack/hold control;
 // 0149 adds progress fencing/watchdog diagnostics; 0150 adds durable hierarchical
-// wake buckets and suppressed-intent retry.
-const targetSchemaVersion = 151
+// wake buckets and suppressed-intent retry; 0151 adds human-decision progress
+// subscriptions; 0152 adds immutable ProjectManager delivery subjects and
+// acceptance ledger.
+const targetSchemaVersion = 152
 
 func runMigrateV1ToV2(
 	ctx context.Context,
