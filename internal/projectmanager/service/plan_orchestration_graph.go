@@ -1076,6 +1076,9 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
 			return err
 		}
+		if err := s.ensureProgressHoldForBlockedOn(txCtx, p, b); err != nil {
+			return err
+		}
 		if err := s.notifyPlanOwnerOnBlockedNode(txCtx, p, b, prev, hadPrev); err != nil {
 			return err
 		}
@@ -1092,6 +1095,9 @@ func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, 
 	}
 	if hadPrev && prev.WaitType == b.WaitType && stringSlicesEqual(prev.WaitKeys, b.WaitKeys) && prev.TriggerCondition == b.TriggerCondition {
 		return nil
+	}
+	if err := s.recordProgressWakeRequested(ctx, p, b); err != nil {
+		return err
 	}
 	msgID := ""
 	if s.planDispatcher != nil {

@@ -1,6 +1,9 @@
 package projectmanager
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type ProgressDecision string
 
@@ -8,6 +11,14 @@ const (
 	ProgressFactVerified ProgressDecision = "progress_fact_verified"
 	ResponsibilityBound  ProgressDecision = "responsibility_bound"
 	CannotDetermine      ProgressDecision = "cannot_determine"
+	ProgressDecisionVerified = ProgressFactVerified
+	ProgressDecisionBound = ResponsibilityBound
+	ProgressDecisionCannot = CannotDetermine
+	ProgressEscalationRaised = "EscalationRequested"
+	ProgressWakeRequested = "WakeRequested"
+	ProgressWakeDelivered = "WakeDelivered"
+	ProgressWakeAcknowledged = "WakeAcknowledged"
+	ProgressDecisionRecorded = "DecisionRecorded"
 )
 
 type ProgressQuality string
@@ -76,6 +87,7 @@ type ProgressObligationKind string
 const (
 	ObligationProduceDelivery ProgressObligationKind = "produce_delivery"
 	ObligationSourceRecovery  ProgressObligationKind = "source_recovery"
+	ProgressObligationAckWake ProgressObligationKind = "ack_wake"
 )
 
 type ProgressIncidentKind string
@@ -85,6 +97,9 @@ const (
 	IncidentProgressClassificationUnknown ProgressIncidentKind = "progress_classification_unknown"
 	IncidentMigrationGap                  ProgressIncidentKind = "migration_gap"
 	IncidentProjectorUnavailable          ProgressIncidentKind = "projector_unavailable"
+	ProgressIncidentWakeAckLost           ProgressIncidentKind = "wake_ack_lost"
+	ProgressIncidentOperational           ProgressIncidentKind = "operational_incident"
+	ProgressIncidentHoldSLOBreach         ProgressIncidentKind = "hold_slo_breached"
 )
 
 type ResponsibilityStatus string
@@ -115,6 +130,27 @@ type ProgressObligation struct {
 	Version              int
 }
 
+type ProgressWake struct {
+	ID string
+	PlanID PlanID
+	TaskID TaskID
+	NodeID string
+	OwnerRef IdentityRef
+	OwnerDisplay string
+	Reason string
+	Status string
+	IdempotencyKey string
+	RequestedAt time.Time
+	DeliveredAt time.Time
+	AcknowledgedAt time.Time
+	AckFactRef string
+	AckDeadline time.Time
+	MaxHoldDuration time.Duration
+	EscalationLevel int
+	NextEscalationAt time.Time
+	OrganizationOwnerRef string
+}
+
 type ProgressIncident struct {
 	ID                   string
 	PlanID               PlanID
@@ -134,4 +170,70 @@ type ProgressIncident struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	Version              int
+	Severity             string
+	Summary              string
+	SourceRef            string
+}
+
+type ProgressHold struct {
+	ID string
+	PlanID PlanID
+	TaskID TaskID
+	NodeID string
+	ReasonKind string
+	ReasonID string
+	OwnerRef string
+	OwnerDisplay string
+	EnteredAt time.Time
+	HoldAckDeadline time.Time
+	MaxHoldDuration time.Duration
+	EscalationLevel int
+	NextEscalationAt time.Time
+	BlocksDispatch bool
+	BlocksAcceptance bool
+	BlocksCompletion bool
+	ReleasedAt time.Time
+	ReleaseFactRef string
+}
+
+type ProgressEscalation struct {
+	ID string
+	PlanID PlanID
+	TaskID TaskID
+	NodeID string
+	ObligationID string
+	HoldID string
+	Kind string
+	Severity string
+	EscalateToRef string
+	DeadlineAt time.Time
+	CreatedAt time.Time
+}
+
+type ProgressControlSnapshot struct {
+	AsOf time.Time
+	Decision ProgressDecision
+	OpenObligations []ProgressObligation
+	OpenIncidents []ProgressIncident
+	OpenHolds []ProgressHold
+}
+
+type ProgressControlRepository interface {
+	RecordWake(context.Context, ProgressWake) (bool, error)
+	MarkWakeDelivered(context.Context, string, time.Time) error
+	AcknowledgeWake(context.Context, string, IdentityRef, time.Time, string) (bool, error)
+	ListExpiredUnackedWakes(context.Context, time.Time, int) ([]ProgressWake, error)
+	UpsertObligation(context.Context, ProgressObligation) (bool, error)
+	UpsertIncident(context.Context, ProgressIncident) (bool, error)
+	UpsertHold(context.Context, ProgressHold) (bool, error)
+	ListOpenHoldsByPlan(context.Context, PlanID) ([]ProgressHold, error)
+	ListOpenHoldsByTask(context.Context, TaskID) ([]ProgressHold, error)
+	ListDueHolds(context.Context, time.Time, int) ([]ProgressHold, error)
+	ListBreachedHolds(context.Context, time.Time, int) ([]ProgressHold, error)
+	ReleaseHoldsByFact(context.Context, PlanID, TaskID, IdentityRef, string, time.Time) (int, error)
+	ReleaseHoldsByReason(context.Context, string, string, IdentityRef, string, time.Time) (int, error)
+	ResolveOpenObligationsByFact(context.Context, PlanID, TaskID, IdentityRef, string, time.Time) (int, error)
+	ResolveOpenIncidentsBySource(context.Context, PlanID, TaskID, string, string, time.Time) (int, error)
+	RecordEscalation(context.Context, ProgressEscalation) (bool, error)
+	SnapshotPlan(context.Context, PlanID, time.Time) (ProgressControlSnapshot, error)
 }

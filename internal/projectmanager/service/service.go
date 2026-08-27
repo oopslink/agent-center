@@ -306,6 +306,7 @@ type Service struct {
 	// When nil, stage-pass remains available through the legacy driver but reject
 	// cannot create incremental topology.
 	remediation pm.RemediationRepository
+	progress    pm.ProgressControlRepository
 
 	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
 	// on_timeout action assigned during the reconcile materialize and consumed by the
@@ -427,6 +428,7 @@ type Deps struct {
 	Stages          pm.StageRepository
 	AssignmentPools pm.AssignmentPoolRepository
 	Remediation     pm.RemediationRepository
+	ProgressControl pm.ProgressControlRepository
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
 	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
@@ -477,6 +479,7 @@ func New(d Deps) *Service {
 		stages:             d.Stages,
 		pools:              d.AssignmentPools,
 		remediation:        d.Remediation,
+		progress:           d.ProgressControl,
 		deadlinePolicy:     d.DeadlinePolicy,
 		timeoutSink:        d.TimeoutSink,
 		liveExecutors:      d.LiveExecutors,

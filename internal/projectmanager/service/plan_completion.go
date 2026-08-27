@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -64,6 +65,9 @@ func (s *Service) CompletePlanWithOptions(ctx context.Context, planID pm.PlanID,
 		if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
 			return pm.ErrPlanNotRunning
 		}
+		if err := s.guardPlanProgressHolds(txCtx, planID, false, false, true); err != nil {
+			return err
+		}
 		eval, err := s.canCompletePlan(txCtx, p)
 		if err != nil {
 			return err
@@ -89,6 +93,12 @@ func (s *Service) completePlanIfEligible(ctx context.Context, p *pm.Plan) (bool,
 	}
 	if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
 		return false, nil
+	}
+	if err := s.guardPlanProgressHolds(ctx, p.ID(), false, false, true); err != nil {
+		if errors.Is(err, pm.ErrProgressHoldOpen) {
+			return false, nil
+		}
+		return false, err
 	}
 	eval, err := s.canCompletePlan(ctx, p)
 	if err != nil {
