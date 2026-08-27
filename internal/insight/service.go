@@ -19,11 +19,28 @@ import (
 const replayOverlap = 48 * time.Hour
 
 type Service struct {
-	sqlite *sql.DB
-	duck   *sql.DB
-	path   string
-	ttl    time.Duration
-	mu     sync.RWMutex
+	sqlite             *sql.DB
+	duck               *sql.DB
+	path               string
+	ttl                time.Duration
+	mu                 sync.RWMutex
+	projectorFaultHook insightProjectorFaultHook
+}
+
+type insightProjectorCommitStage string
+
+const (
+	insightProjectorBeforeCommit insightProjectorCommitStage = "before_commit"
+	insightProjectorAfterCommit  insightProjectorCommitStage = "after_commit"
+)
+
+type insightProjectorFaultHook func(ctx context.Context, sourceKind, sourceEventID string, stage insightProjectorCommitStage) error
+
+func (s *Service) runProjectorFaultHook(ctx context.Context, sourceKind, sourceEventID string, stage insightProjectorCommitStage) error {
+	if s.projectorFaultHook == nil {
+		return nil
+	}
+	return s.projectorFaultHook(ctx, sourceKind, sourceEventID, stage)
 }
 
 func DefaultDuckDBPath(sqlitePath string) string {
@@ -477,7 +494,14 @@ func (s *Service) projectQueue(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceQueue, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceQueue, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
@@ -593,7 +617,14 @@ func (s *Service) projectActivity(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceActivity, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceActivity, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
@@ -674,7 +705,14 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			_ = tx.Rollback()
 			return err
 		}
+		if err := s.runProjectorFaultHook(ctx, SourceSlotObservation, sourceID, insightProjectorBeforeCommit); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := tx.Commit(); err != nil {
+			return err
+		}
+		if err := s.runProjectorFaultHook(ctx, SourceSlotObservation, sourceID, insightProjectorAfterCommit); err != nil {
 			return err
 		}
 	}
