@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -118,8 +119,12 @@ func (r *PlanRepo) ListByProject(ctx context.Context, projectID pm.ProjectID) ([
 // (global, no project filter), stable-ordered (created_at, id). It backs the
 // v2.9 P2-3 reconciliation sweep (the global background safety net).
 func (r *PlanRepo) ListRunningPlans(ctx context.Context) ([]*pm.Plan, error) {
+	return r.ListPlansByStatus(ctx, pm.PlanRunning)
+}
+
+func (r *PlanRepo) ListPlansByStatus(ctx context.Context, status pm.PlanStatus) ([]*pm.Plan, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx, planSelect+` WHERE status = ? ORDER BY created_at, id`, string(pm.PlanRunning))
+	rows, err := exec.QueryContext(ctx, planSelect+` WHERE status = ? ORDER BY created_at, id`, string(status))
 	if err != nil {
 		return nil, err
 	}
@@ -908,6 +913,284 @@ func scanProgressResp(out *progressRespRow, scan func(...any) error) error {
 		}
 	}
 	return nil
+}
+
+func (r *PlanRepo) AcquireProgressLease(ctx context.Context, planID pm.PlanID, scope, holderID string, now time.Time, ttl time.Duration) (pm.ProgressLease, bool, error) {
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	expires := now.Add(ttl).UTC()
+	_, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO pm_progress_leases
+		(lease_scope, holder_id, fencing_token, expires_at, updated_at)
+		VALUES (?,?,?,?,?)`, scope, holderID, 1, ts(expires), ts(now))
+	if err != nil {
+		return pm.ProgressLease{}, false, err
+	}
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_leases
+		SET holder_id = ?,
+		    fencing_token = CASE WHEN holder_id = ? THEN fencing_token ELSE fencing_token + 1 END,
+		    updated_at = ?, expires_at = ?
+		WHERE lease_scope = ? AND (holder_id = ? OR expires_at <= ?)`,
+		holderID, holderID, ts(now), ts(expires), scope, holderID, ts(now))
+	if err != nil {
+		return pm.ProgressLease{}, false, err
+	}
+	lease, found, err := r.getProgressLease(ctx, planID, scope)
+	if err != nil || !found {
+		return lease, false, err
+	}
+	changed, _ := res.RowsAffected()
+	return lease, lease.HolderID == holderID && changed > 0, nil
+}
+
+func (r *PlanRepo) RenewProgressLease(ctx context.Context, planID pm.PlanID, scope, holderID string, fencingToken int64, now time.Time, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_leases
+		SET updated_at = ?, expires_at = ?
+		WHERE lease_scope = ? AND holder_id = ? AND fencing_token = ? AND expires_at > ?`,
+		ts(now), ts(now.Add(ttl).UTC()), scope, holderID, fencingToken, ts(now))
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+func (r *PlanRepo) ValidateProgressFence(ctx context.Context, fence pm.ProgressFence) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var n int
+	err := exec.QueryRowContext(ctx, `SELECT COUNT(1)
+		FROM pm_progress_leases l
+		JOIN pm_plans p ON p.id = ?
+		WHERE l.lease_scope = ? AND l.holder_id = ? AND l.fencing_token = ? AND p.version = ?`,
+		string(fence.PlanID), progressLeaseScope(fence.PlanID), fence.HolderID, fence.FencingToken, fence.PlanRevision).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
+func (r *PlanRepo) getProgressLease(ctx context.Context, planID pm.PlanID, scope string) (pm.ProgressLease, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, `SELECT lease_scope, holder_id, fencing_token, updated_at, expires_at
+		FROM pm_progress_leases WHERE lease_scope = ?`, scope)
+	var l pm.ProgressLease
+	var updated, expires string
+	err := row.Scan(&l.Scope, &l.HolderID, &l.FencingToken, &updated, &expires)
+	if err == sql.ErrNoRows {
+		return pm.ProgressLease{}, false, nil
+	}
+	if err != nil {
+		return pm.ProgressLease{}, false, err
+	}
+	l.PlanID = planID
+	l.AcquiredAt = parseTime(updated)
+	l.RenewedAt = parseTime(updated)
+	l.ExpiresAt = parseTime(expires)
+	return l, true, nil
+}
+
+func (r *PlanRepo) RecordProgressWatchdogHeartbeat(ctx context.Context, planID pm.PlanID, component string, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_watchdog_heartbeats
+		(plan_id, component, last_seen_at, updated_at) VALUES (?,?,?,?)
+		ON CONFLICT(plan_id, component) DO UPDATE SET
+		last_seen_at=excluded.last_seen_at, updated_at=excluded.updated_at`,
+		string(planID), component, ts(at), ts(at))
+	return err
+}
+
+func (r *PlanRepo) ListStaleProgressWatchdogs(ctx context.Context, olderThan time.Time) ([]pm.ProgressWatchdogObservation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT plan_id, component, last_seen_at
+		FROM pm_progress_watchdog_heartbeats WHERE last_seen_at < ?
+		UNION ALL
+		SELECT p.id, 'progress_reconciler', p.created_at
+		FROM pm_plans p
+		WHERE p.status = ? AND p.created_at < ?
+		  AND NOT EXISTS (SELECT 1 FROM pm_progress_watchdog_heartbeats h
+		                  WHERE h.plan_id = p.id AND h.component = 'progress_reconciler')
+		ORDER BY plan_id, component`, ts(olderThan), string(pm.PlanRunning), ts(olderThan))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressWatchdogObservation
+	for rows.Next() {
+		var planID, component, lastSeen string
+		if err := rows.Scan(&planID, &component, &lastSeen); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.ProgressWatchdogObservation{PlanID: pm.PlanID(planID), Component: component, LastSeenAt: parseTime(lastSeen)})
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) UpsertProgressWakeBucketDiagnostic(ctx context.Context, d pm.ProgressWakeBucketDiagnostic) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_wake_bucket_diagnostics
+		(id, plan_id, organization_id, owner_ref, severity, allowed, reason,
+		 tokens_before, tokens_after, capacity, reserved_p0, refill_per_minute,
+		 attempted_at, next_refill_at, evidence_json)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		 ON CONFLICT(id) DO UPDATE SET
+		 allowed=excluded.allowed, reason=excluded.reason, tokens_before=excluded.tokens_before,
+		 tokens_after=excluded.tokens_after, capacity=excluded.capacity, reserved_p0=excluded.reserved_p0,
+		 refill_per_minute=excluded.refill_per_minute, next_refill_at=excluded.next_refill_at,
+		 evidence_json=excluded.evidence_json`,
+		d.ID, string(d.PlanID), d.OrganizationID, string(d.OwnerRef), string(d.Severity), boolToInt(d.Allowed),
+		d.Reason, d.TokensBefore, d.TokensAfter, d.Capacity, d.ReservedP0, d.RefillPerMinute,
+		ts(d.AttemptedAt), ts(d.NextRefillAt), d.EvidenceJSON)
+	return err
+}
+
+func (r *PlanRepo) ListProgressWakeBucketDiagnostics(ctx context.Context, planID pm.PlanID) ([]pm.ProgressWakeBucketDiagnostic, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT id, plan_id, organization_id, owner_ref, severity, allowed, reason,
+		tokens_before, tokens_after, capacity, reserved_p0, refill_per_minute, attempted_at, next_refill_at, evidence_json
+		FROM pm_progress_wake_bucket_diagnostics WHERE plan_id = ? ORDER BY attempted_at DESC, id`, string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressWakeBucketDiagnostic
+	for rows.Next() {
+		var d pm.ProgressWakeBucketDiagnostic
+		var planID, owner, severity, attempted, next string
+		var allowed int
+		if err := rows.Scan(&d.ID, &planID, &d.OrganizationID, &owner, &severity, &allowed, &d.Reason,
+			&d.TokensBefore, &d.TokensAfter, &d.Capacity, &d.ReservedP0, &d.RefillPerMinute,
+			&attempted, &next, &d.EvidenceJSON); err != nil {
+			return nil, err
+		}
+		d.PlanID = pm.PlanID(planID)
+		d.OwnerRef = pm.IdentityRef(owner)
+		d.Severity = pm.ProgressWakeSeverity(severity)
+		d.Allowed = allowed != 0
+		d.AttemptedAt = parseTime(attempted)
+		d.NextRefillAt = parseTime(next)
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) GetProgressWakeBucketState(ctx context.Context, scopeKey string) (pm.ProgressWakeBucketState, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var s pm.ProgressWakeBucketState
+	var lastRefill, updated string
+	err := exec.QueryRowContext(ctx, `SELECT scope_key, tokens, capacity, refill_per_minute, last_refill_at, updated_at
+		FROM pm_progress_wake_bucket_states WHERE scope_key = ?`, scopeKey).
+		Scan(&s.ScopeKey, &s.Tokens, &s.Capacity, &s.RefillPerMinute, &lastRefill, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pm.ProgressWakeBucketState{}, false, nil
+	}
+	if err != nil {
+		return pm.ProgressWakeBucketState{}, false, err
+	}
+	s.LastRefillAt = parseTime(lastRefill)
+	s.UpdatedAt = parseTime(updated)
+	return s, true, nil
+}
+
+func (r *PlanRepo) UpsertProgressWakeBucketState(ctx context.Context, s pm.ProgressWakeBucketState) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `INSERT INTO pm_progress_wake_bucket_states
+		(scope_key, tokens, capacity, refill_per_minute, last_refill_at, updated_at)
+		VALUES (?,?,?,?,?,?) ON CONFLICT(scope_key) DO UPDATE SET
+		tokens=excluded.tokens, capacity=excluded.capacity, refill_per_minute=excluded.refill_per_minute,
+		last_refill_at=excluded.last_refill_at, updated_at=excluded.updated_at`,
+		s.ScopeKey, s.Tokens, s.Capacity, s.RefillPerMinute, ts(s.LastRefillAt), ts(s.UpdatedAt))
+	return err
+}
+
+func (r *PlanRepo) UpsertProgressSuppressedWake(ctx context.Context, w pm.ProgressSuppressedWake) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// Merge Plan IDs in-process while holding the caller's write transaction. This
+	// keeps a storm of distinct Plans bounded to one durable lane row.
+	var existingJSON string
+	var existingAttempts int
+	var created string
+	err := exec.QueryRowContext(ctx, `SELECT plan_ids_json, attempt_count, created_at
+		FROM pm_progress_suppressed_wakes WHERE id = ?`, w.ID).Scan(&existingJSON, &existingAttempts, &created)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	seen := make(map[pm.PlanID]struct{}, len(w.PlanIDs))
+	if err == nil {
+		var existing []pm.PlanID
+		if uerr := json.Unmarshal([]byte(existingJSON), &existing); uerr != nil {
+			return uerr
+		}
+		for _, id := range existing {
+			seen[id] = struct{}{}
+		}
+		w.AttemptCount += existingAttempts
+		w.CreatedAt = parseTime(created)
+	}
+	for _, id := range w.PlanIDs {
+		seen[id] = struct{}{}
+	}
+	w.PlanIDs = w.PlanIDs[:0]
+	for id := range seen {
+		w.PlanIDs = append(w.PlanIDs, id)
+	}
+	slices.Sort(w.PlanIDs)
+	plansJSON, jerr := json.Marshal(w.PlanIDs)
+	if jerr != nil {
+		return jerr
+	}
+	_, err = exec.ExecContext(ctx, `INSERT INTO pm_progress_suppressed_wakes
+		(id, organization_id, owner_ref, severity, channel, plan_ids_json, attempt_count, next_attempt_at, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+		plan_ids_json=excluded.plan_ids_json, attempt_count=excluded.attempt_count,
+		next_attempt_at=excluded.next_attempt_at, updated_at=excluded.updated_at`,
+		w.ID, w.OrganizationID, string(w.OwnerRef), string(w.Severity), w.Channel, string(plansJSON),
+		w.AttemptCount, ts(w.NextAttemptAt), ts(w.CreatedAt), ts(w.UpdatedAt))
+	return err
+}
+
+func (r *PlanRepo) ListDueProgressSuppressedWakes(ctx context.Context, now time.Time, limit int) ([]pm.ProgressSuppressedWake, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT id, organization_id, owner_ref, severity, channel,
+		plan_ids_json, attempt_count, next_attempt_at, created_at, updated_at
+		FROM pm_progress_suppressed_wakes WHERE next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT ?`, ts(now), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressSuppressedWake
+	for rows.Next() {
+		var w pm.ProgressSuppressedWake
+		var owner, severity, plansJSON, next, created, updated string
+		if err := rows.Scan(&w.ID, &w.OrganizationID, &owner, &severity, &w.Channel, &plansJSON,
+			&w.AttemptCount, &next, &created, &updated); err != nil {
+			return nil, err
+		}
+		w.OwnerRef, w.Severity = pm.IdentityRef(owner), pm.ProgressWakeSeverity(severity)
+		if err := json.Unmarshal([]byte(plansJSON), &w.PlanIDs); err != nil {
+			return nil, err
+		}
+		w.NextAttemptAt, w.CreatedAt, w.UpdatedAt = parseTime(next), parseTime(created), parseTime(updated)
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+func (r *PlanRepo) DeleteProgressSuppressedWake(ctx context.Context, id string) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM pm_progress_suppressed_wakes WHERE id = ?`, id)
+	return err
+}
+
+func progressLeaseScope(planID pm.PlanID) string {
+	return "progress_control:plan:" + string(planID)
 }
 
 // --- Plan generations --------------------------------------------------------
