@@ -281,6 +281,7 @@ type PlanRepository interface {
 	SaveProgressObservation(ctx context.Context, v ObservationVector) error
 	LatestProgressObservation(ctx context.Context, planID PlanID, taskID TaskID) (ObservationVector, bool, error)
 	UpsertProgressObligation(ctx context.Context, o ProgressObligation) error
+	ResolveOpenProgressObligations(ctx context.Context, planID PlanID, taskID TaskID, kind ProgressObligationKind, factRef string, at time.Time) (int, error)
 	UpsertProgressIncident(ctx context.Context, i ProgressIncident) error
 	ListOpenProgressObligations(ctx context.Context, planID PlanID) ([]ProgressObligation, error)
 	ListOpenProgressIncidents(ctx context.Context, planID PlanID) ([]ProgressIncident, error)

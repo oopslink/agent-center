@@ -124,6 +124,13 @@ func (s *Service) TriggerAutoAssignForProject(ctx context.Context, projectID pm.
 // builtin-pool dispatched, ownerless tasks whose project switch is ON, and assigns each
 // to its least-busy eligible agent.
 func (s *Service) autoAssignSweep(ctx context.Context, scope pm.ProjectID) (int, error) {
+	// A service instance needs only one sweep at a time. Serialising duplicate
+	// ticker/event invocations avoids a SQLite busy-timeout convoy; task assignment
+	// still uses the repository CAS against manual claims and other instances.
+	if !s.autoAssignSweepMu.TryLock() {
+		return 0, nil
+	}
+	defer s.autoAssignSweepMu.Unlock()
 	if s.autoAssignDir == nil || (s.plans == nil && s.pools == nil) {
 		return 0, nil // not wired ⇒ pool stays claim-only (pre-BE-2)
 	}
@@ -331,6 +338,8 @@ func (s *Service) liveAssignedLoad(ctx context.Context, agentRef pm.IdentityRef)
 // the W4c run-slot cap bites when the woken agent start_tasks it, exactly as a manual
 // claim+start would.
 func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agentRef pm.IdentityRef, matchedCaps []string, candidateCount int) (won bool, matched []string, err error) {
+	s.poolAssignmentMu.Lock()
+	defer s.poolAssignmentMu.Unlock()
 	now := s.clock.Now()
 	err = s.runInTx(ctx, func(txCtx context.Context) error {
 		t, ferr := s.tasks.FindByID(txCtx, taskID)

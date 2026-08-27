@@ -2,8 +2,11 @@ package projectmanager
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrProgressFenceConflict = errors.New("projectmanager: progress fence conflict")
 
 type ProgressDecision string
 

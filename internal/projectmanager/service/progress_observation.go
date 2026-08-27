@@ -95,8 +95,18 @@ func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, o
 				}
 			}
 		}
-		if v.Decision == pm.ResponsibilityBound && v.Quality == pm.ProgressQualitySuspect {
+		if v.Quality == pm.ProgressQualitySuspect && v.SuspectKey != "" {
 			if err := s.plans.UpsertProgressObligation(ctx, progressObligation(v, pm.ObligationSourceRecovery, now)); err != nil {
+				return err
+			}
+		} else {
+			// A fresh authoritative observation closes the recovery episode while
+			// retaining the durable obligation row as resolved audit evidence.
+			factRef := ""
+			if len(v.Facts) > 0 {
+				factRef = v.Facts[0].ID
+			}
+			if _, err := s.plans.ResolveOpenProgressObligations(ctx, planID, t.ID(), pm.ObligationSourceRecovery, factRef, now); err != nil {
 				return err
 			}
 		}

@@ -38,17 +38,19 @@ func (s *Service) acquireProgressFence(ctx context.Context, p *pm.Plan, ttl time
 }
 
 func (s *Service) ReconcilePlanProgressWithFence(ctx context.Context, planID pm.PlanID, fence pm.ProgressFence) error {
-	ok, err := s.plans.ValidateProgressFence(ctx, fence)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		now := s.clock.Now().UTC()
-		v := pm.ObservationVector{PlanID: planID, Decision: pm.CannotDetermine, Quality: pm.ProgressQualitySuspect, AsOf: now, EvaluatedAt: now, SuspectKey: "lease_fence_conflict"}
-		inc := progressIncident(v, pm.IncidentLeaseFenceConflict, stableID("pfact", string(planID), fence.HolderID, "lease_fence_conflict"), now)
-		return s.plans.UpsertProgressIncident(context.Background(), inc)
-	}
-	return s.ReconcilePlanProgress(ctx, planID)
+	// Validation and every control-plane write share one database transaction. A
+	// takeover can therefore happen either before validation (zero writes) or after
+	// commit, but never in the check-then-write gap of an old controller.
+	return s.runInTx(ctx, func(tx context.Context) error {
+		ok, err := s.plans.ValidateProgressFence(tx, fence)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return pm.ErrProgressFenceConflict
+		}
+		return s.ReconcilePlanProgress(tx, planID)
+	})
 }
 
 func (s *Service) ProgressWatchdogTick(ctx context.Context, silence time.Duration) error {

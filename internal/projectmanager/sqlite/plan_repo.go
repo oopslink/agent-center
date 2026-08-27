@@ -768,6 +768,20 @@ func (r *PlanRepo) UpsertProgressObligation(ctx context.Context, o pm.ProgressOb
 	return r.upsertProgressResponsibility(ctx, "pm_progress_obligations", progressObligationArgs(o)...)
 }
 
+func (r *PlanRepo) ResolveOpenProgressObligations(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, kind pm.ProgressObligationKind, factRef string, at time.Time) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	refs, _ := json.Marshal([]string{factRef})
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_obligations
+		SET status=?, acked_at=?, source_fact_refs_json=?, updated_at=?, version=version+1
+		WHERE plan_id=? AND task_id=? AND kind=? AND status=?`,
+		pm.ResponsibilityResolved, ts(at), string(refs), ts(at), string(planID), string(taskID), string(kind), pm.ResponsibilityOpen)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
 func (r *PlanRepo) UpsertProgressIncident(ctx context.Context, i pm.ProgressIncident) error {
 	return r.upsertProgressResponsibility(ctx, "pm_progress_incidents", progressIncidentArgs(i)...)
 }

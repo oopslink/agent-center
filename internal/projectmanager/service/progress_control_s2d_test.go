@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-func TestProgressControl_StaleFenceConflictPersistsWithoutMutation(t *testing.T) {
+func TestProgressControl_StaleFenceConflictHasZeroControlPlaneWrites(t *testing.T) {
 	h, planID, taskID := progressPlanWithOneTask(t)
 	p, err := h.plans.FindByID(h.ctx, planID)
 	if err != nil {
@@ -29,12 +30,12 @@ func TestProgressControl_StaleFenceConflictPersistsWithoutMutation(t *testing.T)
 	if newFence.FencingToken <= oldFence.FencingToken {
 		t.Fatalf("takeover fencing token=%d old=%d, want monotonic increase", newFence.FencingToken, oldFence.FencingToken)
 	}
-	if err := h.svc.ReconcilePlanProgressWithFence(h.ctx, planID, oldFence); err != nil {
-		t.Fatalf("stale reconcile: %v", err)
+	if err := h.svc.ReconcilePlanProgressWithFence(h.ctx, planID, oldFence); !errors.Is(err, pm.ErrProgressFenceConflict) {
+		t.Fatalf("stale reconcile err=%v, want fence conflict", err)
 	}
 	incs, _ := h.plans.ListOpenProgressIncidents(h.ctx, planID)
-	if incidentsOfKind(incs, pm.IncidentLeaseFenceConflict) != 1 {
-		t.Fatalf("lease_fence_conflict incidents=%+v, want one durable incident", incs)
+	if incidentsOfKind(incs, pm.IncidentLeaseFenceConflict) != 0 {
+		t.Fatalf("stale controller wrote lease_fence_conflict incidents=%+v, want zero", incs)
 	}
 	if _, ok, err := h.plans.LatestProgressObservation(h.ctx, planID, taskID); err != nil || ok {
 		t.Fatalf("stale writer created observation = ok %v err %v, want no stale mutation", ok, err)

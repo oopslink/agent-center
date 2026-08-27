@@ -46,6 +46,19 @@ func TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation(t *test
 	if obs, _ := h.plans.ListOpenProgressObligations(h.ctx, planID); obligationsOfKind(obs, pm.ObligationSourceRecovery) != 1 {
 		t.Fatalf("source_recovery obligation was duplicated: %+v", obs)
 	}
+
+	// Once the authoritative dispatch fact is present, the suspect disappears and
+	// the same obligation is durably resolved instead of remaining a required action.
+	if err := h.plans.RecordDispatch(h.ctx, planID, taskID, h.clk.Now(), "recovery-fact"); err != nil {
+		t.Fatalf("record recovery dispatch: %v", err)
+	}
+	h.clk.Advance(time.Second)
+	if err := h.svc.reconcilePlanProgress(h.ctx, planID, progressReconcileOptions{WatermarkLagSLA: time.Minute, SourceGraceCycle: 1, SuspectMaxCycles: 2}); err != nil {
+		t.Fatalf("reconcile recovery: %v", err)
+	}
+	if obs, _ := h.plans.ListOpenProgressObligations(h.ctx, planID); obligationsOfKind(obs, pm.ObligationSourceRecovery) != 0 {
+		t.Fatalf("recovered source left required action open: %+v", obs)
+	}
 }
 
 func TestProgressControl_WatermarkLagDedupsIncident(t *testing.T) {
