@@ -155,6 +155,99 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 	}
 }
 
+func TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	repo := NewObservationRepo(db, idgen.NewGenerator(clock.NewFakeClock(asOf)))
+
+	_, err := repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 2, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateIdle},
+		{SlotIndex: 1, State: concurrency.StateIdle},
+	}}, asOf.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 1, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateIdle},
+		{SlotIndex: 1, State: concurrency.StateIdle},
+	}}, asOf.Add(-30*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := svc.duck.QueryContext(ctx, `SELECT admissible, CAST(valid_from AS VARCHAR), CAST(valid_to AS VARCHAR)
+		FROM slot_interval_fact WHERE worker_id='worker-1' AND agent_ref='agent:agent-1' AND slot_index=1
+		ORDER BY valid_from`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	type interval struct {
+		admissible bool
+		from, to   string
+	}
+	var got []interval
+	for rows.Next() {
+		var v interval
+		var to sql.NullString
+		if err := rows.Scan(&v.admissible, &v.from, &to); err != nil {
+			t.Fatal(err)
+		}
+		v.to = to.String
+		got = append(got, v)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || !got[0].admissible || got[1].admissible || got[0].to == "" {
+		t.Fatalf("slot 1 cap-boundary intervals = %+v, want admissible closed interval then inadmissible open interval", got)
+	}
+}
+
+func TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	repo := NewObservationRepo(db, idgen.NewGenerator(clock.NewFakeClock(asOf)))
+	_, err := repo.Append(ctx, "worker-1", "agent-1", concurrency.AgentSnapshot{AdmissionCap: 1, Slots: []concurrency.SlotSnapshot{
+		{SlotIndex: 0, State: concurrency.StateRunning, ExecutorID: "exec-stale", TaskID: "task-1"},
+	}}, asOf.Add(-2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const ttl = time.Minute
+	svc, err := Open(ctx, db, t.TempDir()+"/insight.duckdb", ttl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = svc.Close() })
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	o, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.Summary.SlotUtilization == nil || *o.Summary.SlotUtilization != 1 {
+		t.Fatalf("slot utilization = %v, want 1 over the known TTL-covered minute", o.Summary.SlotUtilization)
+	}
+	if o.Summary.SlotCoverageRatio == nil {
+		t.Fatal("slot coverage = nil, want one TTL-covered minute over the 24h window")
+	}
+	want := float64(ttl) / float64(24*time.Hour)
+	if delta := *o.Summary.SlotCoverageRatio - want; delta < -1e-9 || delta > 1e-9 {
+		t.Fatalf("slot coverage = %.9f, want %.9f; time after heartbeat TTL must be unknown", *o.Summary.SlotCoverageRatio, want)
+	}
+}
+
 func TestInsightInvalidTimeOrder(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)

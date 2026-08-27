@@ -615,15 +615,16 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			occupied := occupiedState(slot.State)
 			admissible := slot.SlotIndex < snap.AdmissionCap && slot.State != concurrency.StateDraining
 			var prevState, prevExec, prevTask, prevIntegrity string
+			var prevAdmissible bool
 			var prevFrom string
-			err = tx.QueryRowContext(ctx, `SELECT state, COALESCE(execution_id,''), COALESCE(task_id,''), COALESCE(integrity,''), valid_from
+			err = tx.QueryRowContext(ctx, `SELECT state, COALESCE(execution_id,''), COALESCE(task_id,''), COALESCE(integrity,''), admissible, valid_from
 				FROM slot_interval_fact WHERE worker_id=? AND agent_ref=? AND slot_index=? AND valid_to IS NULL
-				ORDER BY valid_from DESC LIMIT 1`, workerID, agentRef, slot.SlotIndex).Scan(&prevState, &prevExec, &prevTask, &prevIntegrity, &prevFrom)
+				ORDER BY valid_from DESC LIMIT 1`, workerID, agentRef, slot.SlotIndex).Scan(&prevState, &prevExec, &prevTask, &prevIntegrity, &prevAdmissible, &prevFrom)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				_ = tx.Rollback()
 				return err
 			}
-			same := err == nil && prevState == slot.State && prevExec == slot.ExecutorID && prevTask == slot.TaskID && prevIntegrity == snap.Integrity
+			same := err == nil && prevState == slot.State && prevExec == slot.ExecutorID && prevTask == slot.TaskID && prevIntegrity == snap.Integrity && prevAdmissible == admissible
 			if !same {
 				if _, err := tx.ExecContext(ctx, `UPDATE slot_interval_fact SET valid_to=? WHERE worker_id=? AND agent_ref=? AND slot_index=? AND valid_to IS NULL`,
 					fmtTS(observed), workerID, agentRef, slot.SlotIndex); err != nil {
