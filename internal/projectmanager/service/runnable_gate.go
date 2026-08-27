@@ -334,6 +334,25 @@ func (s *Service) acceptanceVerdictBlocks(ctx context.Context, p *pm.Plan, t *pm
 		if n.Status() != orch.NodeCompleted || n.Outcome() != "success" {
 			return true, nil
 		}
+		stageID, _ := n.Metadata()["stage_gate"].(string)
+		if stageID == "" {
+			passedGates++
+			continue
+		}
+		if s.stages == nil {
+			return true, nil
+		}
+		stage, err := s.stages.FindByID(ctx, pm.StageID(stageID))
+		if err != nil {
+			return false, err
+		}
+		ok, err := s.acceptancePassesGate(ctx, stage, stage.GateTaskID())
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return true, nil
+		}
 		passedGates++
 	}
 	// No acceptance/decision gate upstream at all ⇒ the merge node is ungated (P67):

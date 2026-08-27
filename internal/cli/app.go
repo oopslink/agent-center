@@ -485,6 +485,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs:     codeRepoRefRepo,
 		CodeRepoResolver: codeRepoSvc,
+		Acceptances:      pmsql.NewDeliveryAcceptanceRepo(db),
+		DeliveryVerifier: codeRepoSvc,
 		Plans:            pmsql.NewPlanRepo(db),           // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Stages:           pmsql.NewStageRepo(db),          // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		AssignmentPools:  pmsql.NewAssignmentPoolRepo(db), // ADR-0055: background pull queue, independent of Plan
