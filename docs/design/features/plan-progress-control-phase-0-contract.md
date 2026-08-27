@@ -40,12 +40,12 @@ rewrite topology.
 | `cannot_determine` | Decision outcome | The evaluator cannot prove either progress or responsibility from authoritative sources within the freshness SLA. It must fail closed into `Obligation` or `Incident`; it is not a display-only unknown. |
 | `Obligation` | Entity | A named actor owes a concrete action by a deadline for a node or continuation: acknowledge, produce evidence, decide, repair, re-run, accept, reject, or escalate. |
 | `Incident` | Entity | A system-owned abnormal condition that prevents reliable progress classification: projector lag, lost wake ack, lease conflict, migration gap, corrupt evidence, or watchdog failure. |
-| `Hold` | Entity | A deliberate fail-closed gate that prevents node advancement while an `Obligation` or `Incident` is open. Holds are not Plan lifecycle states and do not pause the whole Plan unless an explicit `PausePlan` command is issued. |
+| `Hold` | Entity | A deliberate Plan-level safety freeze while an `Obligation` or `Incident` is open. It freezes this Plan's new dispatch, Gate pass token issuance, and destructive downstream start. It is not a Plan lifecycle state, does not fabricate `stopped`/`paused`, and does not kill or undo unproven in-flight execution. |
 | `DeliverySubject` | Value Object | Immutable description of what is being delivered: Plan id, node/task id, execution id where applicable, repository id/ref, base SHA, candidate SHA, branch, pushed remote, and subject type. |
 | `Acceptance` | Entity | Immutable verdict over one `DeliverySubject` and acceptance contract: `passed`, `rejected`, or `waived_by_authority`, with actor, timestamp, evidence refs, and findings. |
 | `Ack` | Entity | Durable acknowledgement that a named actor or service received a wake/obligation. In-memory delivery, log lines, or executor stdout are not acks. |
 | `Escalation` | Entity | Durable handoff created when an obligation misses deadline, an incident exceeds SLA, or a wake budget suppresses delivery. |
-| `progress_hold` | Read/write concern | The second-layer clock and durable hold ledger used to avoid invisible waits. It complements `pm_plan_blocked_on`; it does not replace node readiness logic. |
+| `progress_hold` | Read/write concern | The Plan-level safety-freeze ledger and second-layer clock used to avoid invisible waits. It complements `pm_plan_blocked_on`; it does not replace node readiness logic, does not create a stopped lifecycle, and does not terminate unproven in-flight execution. |
 
 `Task.status`, Stage projection, GateVerdict, PlanContinuation, dispatch records,
 and Delivery remain owned by ProjectManager. The new progress-control concepts
@@ -65,7 +65,7 @@ production sources only:
 | Delivery | Task `delivery`, DeliveryContract, repository remote verification | valid only when candidate SHA is pushed to the named remote and base advancement is positive when required. |
 | Executor lifecycle | TaskExecution/runtime activity and worker control events | executor terminal signals are diagnostic unless tied to valid delivery or Task transition. |
 | Wake/Ack | durable wake ledger and ack rows | a wake without durable ack creates an obligation after ack deadline. |
-| Blocked-on | `pm_plan_blocked_on` plus `progress_hold` | blocked reason must name release condition and deadline or become incident. |
+| Blocked-on | `pm_plan_blocked_on` plus `progress_hold` | blocked reason must name release condition and deadline or become incident; open `progress_hold` is a Plan-level safety freeze for new dispatch, Gate pass token, and destructive downstream start only. |
 | Projection freshness | source watermark/checkpoint rows | stale beyond SLA produces `cannot_determine` and a hold. |
 
 The evaluator returns one of:
@@ -142,14 +142,20 @@ on-call role and `kind` is one of:
 `Hold` is the machine-enforced edge:
 
 ```text
-id, plan_id, node_id/task_id or continuation_id, reason_kind,
-reason_id, blocks_dispatch, blocks_acceptance, blocks_completion,
-started_at, deadline_at, released_at nullable, release_fact_ref nullable
+id, plan_id, node_id/task_id or continuation_id nullable, reason_kind,
+reason_id, blocks_new_dispatch, blocks_gate_pass_token,
+blocks_destructive_downstream_start, in_flight_policy,
+hold_ack_deadline, max_hold_duration, started_at, deadline_at,
+released_at nullable, release_fact_ref nullable
 ```
 
-Open Holds must be visible in Plan detail APIs. A Hold can be released only by a
-new `ProgressFact`, `Acceptance`, `Ack`, or `Escalation` fact that names the
-original hold id. Deleting or editing a hold in place is forbidden.
+Open Holds must be visible in Plan detail APIs. `in_flight_policy` is frozen as
+`do_not_kill_unproven_execution` for Phase 0: the hold blocks new Plan dispatch,
+Gate pass tokens, and destructive downstream starts, but it does not invent a
+stopped lifecycle or kill already-started execution without separate
+authoritative cancellation evidence. A Hold can be released only by a new
+`ProgressFact`, `Acceptance`, `Ack`, or `Escalation` fact that names the original
+hold id. Deleting or editing a hold in place is forbidden.
 
 ## 6. Immutable DeliverySubject and Acceptance
 
@@ -205,13 +211,19 @@ Escalation is durable and idempotent on `(obligation_id, deadline_at,
 escalate_to_ref)`. Re-sending notifications may be best effort; the escalation
 fact is not.
 
-## 8. `progress_hold` second-layer clock
+## 8. `progress_hold` Plan-level safety freeze and second-layer clock
 
-`pm_plan_blocked_on` explains why a node is not runnable. `progress_hold` adds
-the missing clock and owner discipline:
+`pm_plan_blocked_on` explains why a node is not runnable. `progress_hold` adds a
+Plan-level safety freeze plus the missing clock and owner discipline. While open,
+it freezes this Plan's new dispatch, Gate pass token issuance, and destructive
+downstream start. It does not fabricate `stopped`, does not pause the whole Plan,
+and does not kill unproven in-flight execution.
 
 - every open blocked-on row that has no executable release fact must have a
   matching hold within one evaluation tick;
+- every hold must carry a named org on-call or project-owner responsibility,
+  `hold_ack_deadline`, `max_hold_duration`, ack/escalation targets, and an org
+  Operational Incident link or incident id when the reason is system-owned;
 - hold deadlines are stored in UTC and evaluated by a reconciler, not by UI;
 - a missed deadline creates escalation before any retry/re-wake;
 - hold evaluation is per Plan with a fenced lease so active-active centers do
@@ -221,7 +233,8 @@ the missing clock and owner discipline:
 
 This is not automatic execution retry. The only automatic actions are
 classification, hold creation, ack timeout, escalation creation, and read-model
-refresh.
+refresh. A hold may suppress only new dispatch decisions for this Plan; it is not
+evidence that existing executor work stopped.
 
 ## 9. Active-active lease, fencing, watchdog
 
@@ -308,7 +321,8 @@ Plan detail and node APIs must include:
     "quality": "valid|suspect",
     "open_obligations": [],
     "open_incidents": [],
-    "open_holds": []
+    "open_holds": [],
+    "required_actions": []
   }
 }
 ```
@@ -318,8 +332,12 @@ HTTP behavior:
 - cross-org or unauthorized source access fails closed without leaking existence;
 - stale data is 200 only when an open Incident/Hold is included;
 - `cannot_determine` without a persisted incident is a 500 contract violation;
-- mutation endpoints that would dispatch, accept, complete, or merge while a
-  blocking Hold is open return 409 with hold ids;
+- `required_actions` must be derived from authoritative Obligation, Incident,
+  Hold, Acceptance, or Ack facts and must not collapse `cannot_determine` into a
+  display-only unknown;
+- mutation endpoints that would create new dispatch for this Plan, issue a Gate
+  pass token, accept a subject, merge, or start destructive downstream work while
+  a blocking Hold is open return 409 with hold ids;
 - clients must treat unknown enum values as degraded and non-advancing.
 
 ## 12. Explicit hard boundaries
@@ -341,10 +359,10 @@ S2A-S2E must not introduce:
 | # | Failure | Required classification | Required action | Verification |
 |---|---|---|---|---|
 | 1 | Source checkpoint exceeds watermark lag SLA | `Incident(watermark_lag)` + Hold | fail closed; expose stale freshness | unit + API stale response |
-| 2 | Projector unavailable/rebuilding | `Incident(projector_unavailable)` | no dispatch/acceptance based on projection | integration restart/rebuild |
+| 2 | Projector unavailable/rebuilding | `Incident(projector_unavailable)` | no new dispatch or acceptance based on projection | integration restart/rebuild |
 | 3 | Event arrives late but source id is new | `suspect` until replayed | recompute vector; do not clamp time | replay test |
 | 4 | Stop-before-start executor activity | `suspect` or incident if unrepaired by overlap | exclude from progress fact until stable | fixture with reversed events |
-| 5 | Executor exits 0 without valid delivery | `Obligation(produce_delivery)` | hold completion/acceptance | service test |
+| 5 | Executor exits 0 without valid delivery | `Obligation(produce_delivery)` | hold Gate pass token/acceptance | service test |
 | 6 | Delivery committed but not pushed | `Obligation(repair_delivery)` | reject complete_task; require pushed SHA | delivery round-trip test |
 | 7 | Delivery evidence points at moving branch only | `Incident(delivery_subject_ambiguous)` | require immutable subject SHA | API 409 |
 | 8 | Acceptance verdict references different SHA | `suspect` | hold gate; require new subject or verdict | contract test |
@@ -355,10 +373,10 @@ S2A-S2E must not introduce:
 | 13 | Open blocked-on row has no owner/deadline | `cannot_determine` -> incident + hold | backfill or escalate | migration/read test |
 | 14 | Active-active lease conflict | `Incident(lease_fence_conflict)` | stale writer rejected, single committed owner | fencing test |
 | 15 | Watchdog misses reconciler heartbeat | `Incident(watchdog_silent)` | no auto retry; expose service owner | watchdog test |
-| 16 | Migration finds legacy effective node with missing delivery contract | `Incident(migration_gap)` | hold only that node/continuation | upgrade smoke |
+| 16 | Migration finds legacy effective node with missing delivery contract | `Incident(migration_gap)` | open a Plan-level safety freeze naming that node/continuation as reason | upgrade smoke |
 | 17 | Cross-org source needed for classification | `Incident(source_authorization_unknown)` | fail closed without leaking source | authz test |
 | 18 | Duplicate source event replay | no new obligation/acceptance | idempotent by source id | replay/idempotency test |
-| 19 | Plan paused with open obligations | responsibility remains bound | no dispatch, but deadlines/escalations continue | paused-plan clock test |
+| 19 | Plan paused with open obligations | responsibility remains bound | no new dispatch, but deadlines/escalations continue | paused-plan clock test |
 
 ## 14. S2 node execution contract
 
@@ -367,11 +385,11 @@ responsibility with deadline. Dates are UTC.
 
 | Node | Scope | Entry fact already available | Required owner and deadline if not complete | S1 acceptance fact required from node |
 |---|---|---|---|---|
-| S2A Domain model | Implement ObservationVector, Obligation, Incident, Hold, DeliverySubject, Acceptance domain types and invariants | This S1 document freezes terms and hard boundaries | DRI `S2A-backend-domain-owner`, deadline 2026-08-28T18:00:00Z, ack required in Plan thread before start | domain tests prove no third state and immutable subject/verdict |
-| S2B Persistence/migration | Add additive schema, repositories, backfill/migration gap handling | Existing migrations 0054, 0108, 0109, 0121, 0127 provide base Plan/blocked/delivery/remediation tables | DRI `S2B-persistence-owner`, deadline 2026-08-29T18:00:00Z, ack required before migration PR | non-empty upgrade smoke plus schema assertions and round-trips |
-| S2C Evaluator/reconciler | Build ObservationVector evaluator, hold clock, lease/fencing, watchdog, wake ack/escalation | Existing blocked-on, delivery, runnable-gate, stuck-node, and wake guard code provide sources | DRI `S2C-orchestration-owner`, deadline 2026-08-31T18:00:00Z, ack required before enabling reconciler | clocked tests for 19 matrix rows that touch reconcilers |
-| S2D API/UI | Surface progress_control envelope and fail-closed mutation responses | Existing Plan detail APIs and blocked_on projection are the read path | DRI `S2D-product-surface-owner`, deadline 2026-09-01T18:00:00Z, ack required before UI merge | API and UI tests show stale/hold/incident/obligation states distinctly |
-| S2E Integrated acceptance | Prove one production-chain candidate from source facts through API/UI and migration | S1 contract and S2A-D candidate SHAs | DRI `S2E-acceptance-owner`, deadline 2026-09-02T18:00:00Z, ack required before merge gate | exact candidate SHA on remote; 19-row failure matrix evidence; origin/main readback |
+| S2A Observation Reconciler + Obligation/Incident | Build the ObservationVector reconciler and the Obligation/Incident domain rules that turn `suspect` and `cannot_determine` into named responsibility | This S1 document freezes ObservationVector, `suspect`, `cannot_determine`, Obligation, and Incident semantics | DRI `S2A-observation-reconciler-owner`, deadline 2026-08-28T18:00:00Z, ack required in Plan thread before start | reconciler/domain tests prove no third state; every unclassified node yields progress fact or named obligation/incident |
+| S2B immutable DeliverySubject/Acceptance + Gate fail-closed | Implement immutable DeliverySubject and Acceptance records and wire Gate behavior so branch-only, missing-push, wrong-SHA, or unauthorized verdicts fail closed | This S1 document freezes immutable DeliverySubject/Acceptance and Gate fail-closed rules | DRI `S2B-delivery-acceptance-owner`, deadline 2026-08-29T18:00:00Z, ack required before delivery/gate PR | repository round-trip tests prove candidate SHA is pushed to the named remote; Gate tests reject moving-branch or mismatched-SHA evidence |
+| S2C Durable Wake/Ack + progress_hold + second-layer clock | Implement durable wake intents, Ack rows, ack deadline obligations, Plan-level `progress_hold`, hold ack/max-duration fields, escalation, and the second-layer clock/SLO | Existing wake guards and `pm_plan_blocked_on` are source inputs; this S1 document freezes Plan-level safety-freeze semantics | DRI `S2C-wake-hold-clock-owner`, deadline 2026-08-31T18:00:00Z, ack required before enabling hold reconciler | clocked tests prove wake-without-ack creates obligation; missed hold deadlines escalate; progress_hold freezes new Plan dispatch/Gate token/destructive downstream start without killing in-flight execution |
+| S2D active-active per-Plan lease/fencing + watchdog + wake backpressure/token bucket | Implement per-Plan lease/fencing writes, watchdog incidents, wake backpressure, and token-bucket diagnostics without generic executor retry | Existing worker/control activity, wake, and watchdog sources are diagnostic inputs only | DRI `S2D-aa-watchdog-backpressure-owner`, deadline 2026-09-01T18:00:00Z, ack required before active-active rollout | fencing tests reject stale writers; watchdog tests create service-owned incidents; token-bucket tests prove suppressed wakes become obligation/incident evidence |
+| S2E Plan Progress Cockpit + semantically correct required_actions | Surface Plan Progress Cockpit states and API `required_actions` that distinguish progress fact, obligation, incident, hold, stale freshness, and cannot-determine without display-only unknowns | S1 contract and S2A-D candidate SHAs are the entry facts; Plan detail APIs are the read path | DRI `S2E-cockpit-required-actions-owner`, deadline 2026-09-02T18:00:00Z, ack required before merge gate | API/UI evidence shows semantically correct `required_actions`; exact candidate SHA on remote; 19-row failure matrix evidence; origin/main readback |
 
 If any owner misses its ack or deadline, the Plan must show an escalation; the
 node cannot be counted complete by executor exit, test logs alone, or task status
