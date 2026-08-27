@@ -135,6 +135,108 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(rail).getByTestId('plan-creator')).toHaveTextContent('@owner');
   });
 
+  it('progress cockpit shows semantic required actions without trigger-condition evidence', async () => {
+    mockPlan({
+      blocked_on: [{
+        event_id: 'n6',
+        task_id: 'n6',
+        wait_type: 'human_decision',
+        wait_keys: ['gate-1'],
+        trigger_condition: 'THIS IS ONLY A FUTURE RELEASE CONDITION',
+        waited_since: '2026-08-27T10:00:00Z',
+      }],
+      progress_control: {
+        as_of: '2026-08-27T12:00:00Z',
+        health: 'degraded',
+        freshness: { state: 'degraded', watermark_lag_ms: 7200000, threshold_ms: 900000, source: 'projectmanager.plan_detail' },
+        decision: 'cannot_determine',
+        observation_vector_id: 'plan-progress:PL-1:7',
+        quality: 'suspect',
+        open_obligations: [],
+        open_incidents: [{
+          id: 'incident:PL-1:n6:classification_unknown',
+          plan_id: 'PL-1',
+          task_id: 'n6',
+          kind: 'progress_classification_unknown',
+          owner_ref: 'service:projectmanager',
+          owner_display: 'ProjectManager on-call',
+          deadline_at: '2026-08-27T12:15:00Z',
+          ack_required: true,
+          escalate_to_ref: 'role:project-owner',
+          escalation_deadline_at: '2026-08-27T12:15:00Z',
+          source_fact_refs: ['blocked_on:PL-1:n6'],
+          status: 'open',
+        }],
+        open_holds: [{
+          id: 'hold:PL-1:n6:classification_unknown',
+          plan_id: 'PL-1',
+          task_id: 'n6',
+          reason_kind: 'incident',
+          reason_id: 'incident:PL-1:n6:classification_unknown',
+          blocks_new_dispatch: true,
+          blocks_gate_pass_token: true,
+          blocks_destructive_downstream_start: true,
+          in_flight_policy: 'do_not_kill_unproven_execution',
+          hold_ack_deadline: '2026-08-27T12:15:00Z',
+          max_hold_duration_ms: 900000,
+          started_at: '2026-08-27T10:00:00Z',
+          deadline_at: '2026-08-27T12:15:00Z',
+          age_ms: 7200000,
+          deadline_remaining_ms: 900000,
+        }],
+        required_actions: [{
+          id: 'required:incident:PL-1:n6:classification_unknown',
+          kind: 'incident',
+          action: 'repair_progress_classification',
+          subject_id: 'n6',
+          owner_ref: 'service:projectmanager',
+          deadline_at: '2026-08-27T12:15:00Z',
+          ack_required: true,
+          hold_id: 'hold:PL-1:n6:classification_unknown',
+          incident_id: 'incident:PL-1:n6:classification_unknown',
+          severity: 'critical',
+          source: 'blocked_on:PL-1:n6',
+          summary: 'Classification source is missing the required owner/deadline discipline.',
+        }],
+        primary_attention: {
+          id: 'required:incident:PL-1:n6:classification_unknown',
+          kind: 'incident',
+          action: 'repair_progress_classification',
+          subject_id: 'n6',
+          owner_ref: 'service:projectmanager',
+          deadline_at: '2026-08-27T12:15:00Z',
+          ack_required: true,
+          hold_id: 'hold:PL-1:n6:classification_unknown',
+          incident_id: 'incident:PL-1:n6:classification_unknown',
+          severity: 'critical',
+          source: 'blocked_on:PL-1:n6',
+          summary: 'Classification source is missing the required owner/deadline discipline.',
+        },
+        valid_in_flight: [{ task_id: 'n3', status: 'running', assignee_ref: 'agent:dev2', quality: 'valid', source: 'plan_view' }],
+        coverage: {
+          total_nodes: 7,
+          classified_nodes: 7,
+          verified_progress_nodes: 6,
+          responsibility_nodes: 0,
+          cannot_determine_nodes: 1,
+          suspect_nodes: 1,
+          valid_in_flight_nodes: 1,
+          open_obligations: 0,
+          open_incidents: 1,
+          open_holds: 1,
+          blocked_on_rows_observed: 1,
+          missing_deadline_holds: 1,
+        },
+      },
+    });
+    wrap();
+    const cockpit = await screen.findByTestId('plan-progress-cockpit');
+    expect(within(cockpit).getByTestId('plan-progress-health')).toHaveTextContent('Cannot determine');
+    expect(within(cockpit).getByTestId('plan-primary-attention')).toHaveTextContent('repair progress classification');
+    expect(within(cockpit).getByTestId('plan-progress-inflight')).toHaveTextContent('n3');
+    expect(cockpit).not.toHaveTextContent('THIS IS ONLY A FUTURE RELEASE CONDITION');
+  });
+
   it('info rail: the @creator tag opens the (unchanged) agent-activity sidebar', async () => {
     mockPlan();
     wrap();

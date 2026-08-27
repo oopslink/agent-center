@@ -223,7 +223,176 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 		}
 		m["blocked_on"] = blockedOn
 	}
+	if detail.ProgressControl != nil {
+		m["progress_control"] = pmProgressControlMap(detail.ProgressControl)
+	}
 	return m
+}
+
+func pmProgressControlMap(pc *pm.ProgressControl) map[string]any {
+	out := map[string]any{
+		"as_of":                 pc.AsOf.Format(time.RFC3339Nano),
+		"health":                string(pc.Health),
+		"freshness":             pmProgressFreshnessMap(pc.Freshness),
+		"decision":              string(pc.Decision),
+		"observation_vector_id": pc.ObservationVectorID,
+		"quality":               string(pc.Quality),
+		"open_obligations":      pmProgressObligationsMap(pc.OpenObligations),
+		"open_incidents":        pmProgressIncidentsMap(pc.OpenIncidents),
+		"open_holds":            pmProgressHoldsMap(pc.OpenHolds),
+		"required_actions":      pmProgressRequiredActionsMap(pc.RequiredActions),
+		"valid_in_flight":       pmProgressInFlightMap(pc.ValidInFlight),
+		"coverage":              pmProgressCoverageMap(pc.Coverage),
+	}
+	if pc.PrimaryAttention != nil {
+		out["primary_attention"] = pmProgressRequiredActionMap(*pc.PrimaryAttention)
+	}
+	return out
+}
+
+func pmProgressFreshnessMap(f pm.ProgressFreshness) map[string]any {
+	return map[string]any{
+		"state":            string(f.State),
+		"watermark_lag_ms": f.WatermarkLag.Milliseconds(),
+		"threshold_ms":     f.Threshold.Milliseconds(),
+		"source":           f.Source,
+	}
+}
+
+func pmProgressObligationsMap(rows []pm.ProgressObligation) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{
+			"id":                     r.ID,
+			"plan_id":                string(r.PlanID),
+			"task_id":                string(r.TaskID),
+			"kind":                   r.Kind,
+			"owner_ref":              string(r.OwnerRef),
+			"owner_display":          r.OwnerDisplay,
+			"deadline_at":            rfc3339OrEmpty(r.DeadlineAt),
+			"ack_required":           r.AckRequired,
+			"acked_at":               rfc3339OrEmpty(r.AckedAt),
+			"escalate_to_ref":        string(r.EscalateToRef),
+			"escalation_deadline_at": rfc3339OrEmpty(r.EscalationDeadlineAt),
+			"source_fact_refs":       r.SourceFactRefs,
+			"status":                 r.Status,
+			"created_at":             rfc3339OrEmpty(r.CreatedAt),
+			"updated_at":             rfc3339OrEmpty(r.UpdatedAt),
+		})
+	}
+	return out
+}
+
+func pmProgressIncidentsMap(rows []pm.ProgressIncident) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{
+			"id":                     r.ID,
+			"plan_id":                string(r.PlanID),
+			"task_id":                string(r.TaskID),
+			"kind":                   r.Kind,
+			"owner_ref":              string(r.OwnerRef),
+			"owner_display":          r.OwnerDisplay,
+			"deadline_at":            rfc3339OrEmpty(r.DeadlineAt),
+			"ack_required":           r.AckRequired,
+			"acked_at":               rfc3339OrEmpty(r.AckedAt),
+			"escalate_to_ref":        string(r.EscalateToRef),
+			"escalation_deadline_at": rfc3339OrEmpty(r.EscalationDeadlineAt),
+			"source_fact_refs":       r.SourceFactRefs,
+			"status":                 r.Status,
+			"created_at":             rfc3339OrEmpty(r.CreatedAt),
+			"updated_at":             rfc3339OrEmpty(r.UpdatedAt),
+		})
+	}
+	return out
+}
+
+func pmProgressHoldsMap(rows []pm.ProgressHold) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{
+			"id":                                  r.ID,
+			"plan_id":                             string(r.PlanID),
+			"task_id":                             string(r.TaskID),
+			"reason_kind":                         r.ReasonKind,
+			"reason_id":                           r.ReasonID,
+			"blocks_new_dispatch":                 r.BlocksNewDispatch,
+			"blocks_gate_pass_token":              r.BlocksGatePassToken,
+			"blocks_destructive_downstream_start": r.BlocksDestructiveDownstreamStart,
+			"in_flight_policy":                    r.InFlightPolicy,
+			"hold_ack_deadline":                   rfc3339OrEmpty(r.HoldAckDeadline),
+			"max_hold_duration_ms":                r.MaxHoldDuration.Milliseconds(),
+			"started_at":                          rfc3339OrEmpty(r.StartedAt),
+			"deadline_at":                         rfc3339OrEmpty(r.DeadlineAt),
+			"released_at":                         rfc3339OrEmpty(r.ReleasedAt),
+			"release_fact_ref":                    r.ReleaseFactRef,
+			"acked_at":                            rfc3339OrEmpty(r.AckedAt),
+			"age_ms":                              r.Age.Milliseconds(),
+			"deadline_remaining_ms":               r.DeadlineRemaining.Milliseconds(),
+		})
+	}
+	return out
+}
+
+func pmProgressRequiredActionsMap(rows []pm.ProgressRequiredAction) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, pmProgressRequiredActionMap(r))
+	}
+	return out
+}
+
+func pmProgressRequiredActionMap(r pm.ProgressRequiredAction) map[string]any {
+	return map[string]any{
+		"id":            r.ID,
+		"kind":          string(r.Kind),
+		"action":        r.Action,
+		"subject_id":    r.SubjectID,
+		"node_id":       r.NodeID,
+		"owner_ref":     string(r.OwnerRef),
+		"deadline_at":   rfc3339OrEmpty(r.DeadlineAt),
+		"ack_required":  r.AckRequired,
+		"acked_at":      rfc3339OrEmpty(r.AckedAt),
+		"hold_id":       r.HoldID,
+		"incident_id":   r.IncidentID,
+		"obligation_id": r.ObligationID,
+		"severity":      r.Severity,
+		"source":        r.Source,
+		"summary":       r.Summary,
+	}
+}
+
+func pmProgressInFlightMap(rows []pm.ProgressInFlight) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{
+			"task_id":      string(r.TaskID),
+			"node_id":      r.NodeID,
+			"status":       string(r.Status),
+			"assignee_ref": string(r.AssigneeRef),
+			"started_at":   rfc3339OrEmpty(r.StartedAt),
+			"quality":      string(r.Quality),
+			"source":       r.Source,
+		})
+	}
+	return out
+}
+
+func pmProgressCoverageMap(c pm.ProgressCoverage) map[string]any {
+	return map[string]any{
+		"total_nodes":              c.TotalNodes,
+		"classified_nodes":         c.ClassifiedNodes,
+		"verified_progress_nodes":  c.VerifiedProgressNodes,
+		"responsibility_nodes":     c.ResponsibilityNodes,
+		"cannot_determine_nodes":   c.CannotDetermineNodes,
+		"suspect_nodes":            c.SuspectNodes,
+		"valid_in_flight_nodes":    c.ValidInFlightNodes,
+		"open_obligations":         c.OpenObligations,
+		"open_incidents":           c.OpenIncidents,
+		"open_holds":               c.OpenHolds,
+		"blocked_on_rows_observed": c.BlockedOnRowsObserved,
+		"missing_deadline_holds":   c.MissingDeadlineHolds,
+	}
 }
 
 // pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare

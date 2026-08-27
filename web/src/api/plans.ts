@@ -143,7 +143,115 @@ export interface Plan {
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
   blocked_on?: PlanBlockedOn[];
+  progress_control?: PlanProgressControl;
   active_generation_id?: string;
+}
+
+export type PlanProgressDecision = 'progress_fact_verified' | 'responsibility_bound' | 'cannot_determine' | string;
+export type PlanProgressQuality = 'valid' | 'suspect' | string;
+export type PlanProgressAttentionKind = 'progress' | 'obligation' | 'incident' | 'hold' | 'acceptance' | 'ack' | string;
+
+export interface PlanProgressControl {
+  as_of: string;
+  health?: 'healthy' | 'attention' | 'degraded' | string;
+  freshness: {
+    state: 'fresh' | 'stale' | 'degraded' | string;
+    watermark_lag_ms: number;
+    threshold_ms: number;
+    source?: string;
+  };
+  decision: PlanProgressDecision;
+  observation_vector_id: string;
+  quality: PlanProgressQuality;
+  open_obligations: PlanProgressObligation[];
+  open_incidents: PlanProgressIncident[];
+  open_holds: PlanProgressHold[];
+  required_actions: PlanProgressRequiredAction[];
+  primary_attention?: PlanProgressRequiredAction;
+  valid_in_flight: PlanProgressInFlight[];
+  coverage: PlanProgressCoverage;
+}
+
+export interface PlanProgressObligation {
+  id: string;
+  plan_id: string;
+  task_id: string;
+  kind: string;
+  owner_ref: string;
+  owner_display: string;
+  deadline_at?: string;
+  ack_required: boolean;
+  acked_at?: string;
+  escalate_to_ref: string;
+  escalation_deadline_at?: string;
+  source_fact_refs: string[];
+  status: string;
+}
+
+export interface PlanProgressIncident extends PlanProgressObligation {}
+
+export interface PlanProgressHold {
+  id: string;
+  plan_id: string;
+  task_id: string;
+  reason_kind: string;
+  reason_id: string;
+  blocks_new_dispatch: boolean;
+  blocks_gate_pass_token: boolean;
+  blocks_destructive_downstream_start: boolean;
+  in_flight_policy: string;
+  hold_ack_deadline?: string;
+  max_hold_duration_ms: number;
+  started_at?: string;
+  deadline_at?: string;
+  released_at?: string;
+  release_fact_ref?: string;
+  acked_at?: string;
+  age_ms: number;
+  deadline_remaining_ms: number;
+}
+
+export interface PlanProgressRequiredAction {
+  id: string;
+  kind: PlanProgressAttentionKind;
+  action: string;
+  subject_id: string;
+  node_id?: string;
+  owner_ref: string;
+  deadline_at?: string;
+  ack_required: boolean;
+  acked_at?: string;
+  hold_id?: string;
+  incident_id?: string;
+  obligation_id?: string;
+  severity: 'critical' | 'warning' | 'attention' | string;
+  source: string;
+  summary: string;
+}
+
+export interface PlanProgressInFlight {
+  task_id: string;
+  node_id?: string;
+  status: PlanNodeStatus | string;
+  assignee_ref: string;
+  started_at?: string;
+  quality: PlanProgressQuality;
+  source: string;
+}
+
+export interface PlanProgressCoverage {
+  total_nodes: number;
+  classified_nodes: number;
+  verified_progress_nodes: number;
+  responsibility_nodes: number;
+  cannot_determine_nodes: number;
+  suspect_nodes: number;
+  valid_in_flight_nodes: number;
+  open_obligations: number;
+  open_incidents: number;
+  open_holds: number;
+  blocked_on_rows_observed: number;
+  missing_deadline_holds: number;
 }
 
 export interface PlanBlockedOn {

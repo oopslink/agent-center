@@ -632,6 +632,7 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
+	s.fillProgressControl(detail)
 	return detail, nil
 }
 
@@ -669,6 +670,10 @@ type PlanDetail struct {
 	// facing GetPlanDetail / GetPlanDetailForMember; nil on the internal planDetail path
 	// and for a builtin/ungraphed plan (nothing is materialized — §8 zero-regression).
 	BlockedOn []pm.BlockedOn
+	// ProgressControl is the S2E Plan Progress Cockpit read model. It is populated from
+	// the same production Plan/Task/blocked_on detail path and intentionally does not
+	// treat blocked_on.trigger_condition as current progress evidence.
+	ProgressControl *pm.ProgressControl
 }
 
 // StageGateView is one stage GATE (a condition control node) surfaced to the plan
@@ -713,6 +718,7 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
+	s.fillProgressControl(detail)
 	return detail, nil
 }
 

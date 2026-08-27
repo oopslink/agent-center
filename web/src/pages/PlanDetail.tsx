@@ -842,6 +842,7 @@ function PlanInfoRail({
           <span className="ml-auto text-xs text-text-muted">{t('plan.detail.rail.nodesDone')}</span>
         </div>
         <PlanProgressBar done={plan.progress.done} total={plan.progress.total} />
+        <PlanProgressCockpit plan={plan} />
         {plan.target_date && (
           <p className="text-xs text-text-muted">
             <span className="uppercase tracking-wide">{t('plan.detail.meta.target')}</span>{' '}
@@ -1082,6 +1083,87 @@ function PlanInfoRail({
       {confirming === 'discard' && <PlanDiscardModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
     </aside>
   );
+}
+
+function PlanProgressCockpit({ plan }: { plan: Plan }): React.ReactElement | null {
+  const pc = plan.progress_control;
+  if (!pc) return null;
+  const attention = pc.primary_attention ?? pc.required_actions[0];
+  const tone =
+    pc.decision === 'cannot_determine' || pc.quality === 'suspect'
+      ? 'border-status-rose-border bg-status-rose-bg text-status-rose-fg'
+      : pc.decision === 'responsibility_bound'
+        ? 'border-status-amber-border bg-status-amber-bg text-status-amber-fg'
+        : 'border-status-green-solid bg-status-green-bg text-status-green-fg';
+  const health =
+    pc.health === 'degraded' || pc.decision === 'cannot_determine'
+      ? 'Cannot determine'
+      : pc.health === 'attention' || pc.decision === 'responsibility_bound'
+        ? 'Responsibility bound'
+        : 'Progress verified';
+  return (
+    <section className={`rounded border p-3 ${tone}`} data-testid="plan-progress-cockpit">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-80">Health</div>
+          <div className="mt-0.5 text-sm font-semibold" data-testid="plan-progress-health">{health}</div>
+          <div className="mt-1 text-[0.6875rem] opacity-80" data-testid="plan-progress-freshness">
+            {pc.freshness.state} · lag {formatMs(pc.freshness.watermark_lag_ms)}
+          </div>
+        </div>
+        <div className="shrink-0 rounded bg-bg-base/60 px-2 py-1 text-right font-mono text-[0.6875rem]" data-testid="plan-progress-coverage">
+          {pc.coverage.classified_nodes}/{pc.coverage.total_nodes}
+        </div>
+      </div>
+      {attention && (
+        <div className="mt-3 rounded border border-current/20 bg-bg-base/50 p-2" data-testid="plan-primary-attention">
+          <div className="text-[0.625rem] font-semibold uppercase tracking-wide opacity-70">Primary attention</div>
+          <div className="mt-0.5 text-xs font-semibold">{labelAction(attention.action)}</div>
+          <div className="mt-1 text-[0.6875rem] opacity-80">
+            {attention.owner_ref || 'unowned'}{attention.deadline_at ? ` · due ${formatLocalTime(attention.deadline_at)}` : ''}
+          </div>
+          <div className="mt-1 text-[0.6875rem] opacity-80">{attention.summary}</div>
+        </div>
+      )}
+      {(pc.open_holds.length > 0 || pc.valid_in_flight.length > 0) && (
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[0.6875rem]">
+          <div className="rounded border border-current/20 bg-bg-base/40 p-2" data-testid="plan-progress-holds">
+            <div className="font-semibold uppercase tracking-wide opacity-70">Holds</div>
+            <div>{pc.open_holds.length}</div>
+            {pc.open_holds[0] && <div className="opacity-80">age {formatMs(pc.open_holds[0].age_ms)}</div>}
+          </div>
+          <div className="rounded border border-current/20 bg-bg-base/40 p-2" data-testid="plan-progress-inflight">
+            <div className="font-semibold uppercase tracking-wide opacity-70">In-flight</div>
+            <div>{pc.valid_in_flight.length}</div>
+            {pc.valid_in_flight[0] && <div className="truncate opacity-80">{pc.valid_in_flight[0].task_id}</div>}
+          </div>
+        </div>
+      )}
+      {pc.required_actions.length > 0 && (
+        <ul className="mt-3 space-y-1.5" data-testid="plan-required-actions">
+          {pc.required_actions.slice(0, 3).map((action) => (
+            <li key={action.id} className="rounded border border-current/20 bg-bg-base/40 px-2 py-1.5 text-[0.6875rem]">
+              <div className="font-semibold">{labelAction(action.action)}</div>
+              <div className="opacity-80">{action.owner_ref || 'unowned'}{action.ack_required && !action.acked_at ? ' · ack needed' : ''}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function formatMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '0m';
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function labelAction(action: string): string {
+  return action.replace(/_/g, ' ');
 }
 
 // ── Destructive confirm modals (v2.9 Stage B) ────────────────────────────────
