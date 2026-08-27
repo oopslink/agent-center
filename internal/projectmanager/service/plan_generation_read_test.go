@@ -53,7 +53,7 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 	if len(base.Generation.Snapshot.Tasks) != 2 || len(base.Generation.Snapshot.Edges) != 1 {
 		t.Fatalf("G0 historical snapshot drifted: %+v", base.Generation.Snapshot)
 	}
-	if len(evolved.Generation.Snapshot.Tasks) != 2 || len(evolved.Generation.Diff.Tasks) != 1 || len(evolved.Generation.Diff.NodeDecisions) != 2 || len(evolved.Generation.Diff.Edges) != 1 {
+	if len(evolved.Generation.Snapshot.Tasks) != 3 || evolved.Progress.Total != 2 || len(evolved.Generation.Diff.Tasks) != 1 || len(evolved.Generation.Diff.NodeDecisions) != 2 || len(evolved.Generation.Diff.Edges) != 1 {
 		t.Fatalf("G1 snapshot/diff incomplete: snapshot=%+v diff=%+v", evolved.Generation.Snapshot, evolved.Generation.Diff)
 	}
 

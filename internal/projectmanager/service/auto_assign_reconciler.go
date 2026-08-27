@@ -350,7 +350,7 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 			if ferr != nil {
 				return ferr
 			}
-			if t.PlanID() == "" && (!hasPoolMember || poolMember.ClaimedBy != "") {
+			if t.PlanID() != "" || !hasPoolMember || poolMember.ClaimedBy != "" {
 				won = false
 				return nil
 			}

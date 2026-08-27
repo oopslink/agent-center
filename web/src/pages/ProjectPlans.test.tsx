@@ -92,6 +92,63 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(cardsWrap.className).toContain('max-h-');
   });
 
+  it('projects each live task into exactly one column with Plan > Pool > Backlog priority', async () => {
+    const task = (id: string, title: string) => ({
+      id, project_id: 'proj-a', title, description: '', status: 'open', assignee: 'agent:builder',
+      version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z',
+      priority: 0, claimable: true,
+    });
+    const planned = [
+      { task_id: 'TS-FUTURE', title: 'future node', assignee_ref: 'agent:builder', task_status: 'open', node_status: 'blocked', depends_on: ['TS-READY'] },
+      { task_id: 'TS-READY', title: 'ready node', assignee_ref: 'agent:builder', task_status: 'open', node_status: 'ready', depends_on: [] },
+      { task_id: 'TS-RUNNING', title: 'running node', assignee_ref: 'agent:builder', task_status: 'running', node_status: 'running', depends_on: [] },
+      { task_id: 'TS-BLOCKED', title: 'blocked node', assignee_ref: 'agent:builder', task_status: 'blocked', node_status: 'paused', depends_on: [] },
+    ];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json({
+        plans: [{
+          id: 'PL-EXCLUSIVE', project_id: 'proj-a', name: 'Exclusive plan', description: '',
+          status: 'running', creator_ref: 'user:owner', conversation_id: 'c-exclusive',
+          has_failed: false, progress: { done: 0, total: planned.length },
+          created_at: '2026-05-20T01:00:00Z', node_count: planned.length, nodes_preview: planned,
+        }],
+      })),
+      http.get('/api/projects/proj-a/assignment-pool', () => HttpResponse.json({
+        id: 'POOL-1', project_id: 'proj-a', scheduling_class: 'background',
+        auto_assign_enabled: true, holding_cap: 3,
+        tasks: [...planned.map((node) => task(node.task_id, `stale pool ${node.title}`)), task('TS-POOL', 'pool only')],
+      })),
+      http.get('/api/projects/proj-a/tasks', ({ request }) => {
+        if (new URL(request.url).searchParams.get('unplanned') === '1') {
+          return HttpResponse.json({
+            tasks: [
+              ...planned.map((node) => task(node.task_id, `stale backlog ${node.title}`)),
+              task('TS-POOL', 'stale backlog pool task'),
+              task('TS-BACKLOG', 'backlog only'),
+            ],
+          });
+        }
+        return HttpResponse.json({ tasks: [] });
+      }),
+    );
+
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByText('Exclusive plan')).toBeInTheDocument());
+
+    for (const node of planned) {
+      expect(document.querySelectorAll(`[data-task-id="${node.task_id}"]`)).toHaveLength(1);
+      expect(within(screen.getByTestId('backlog-column')).queryByText(`stale backlog ${node.title}`)).not.toBeInTheDocument();
+      expect(within(screen.getByTestId('builtin-pool-column')).queryByText(`stale pool ${node.title}`)).not.toBeInTheDocument();
+    }
+    expect(document.querySelectorAll('[data-task-id="TS-POOL"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-task-id="TS-BACKLOG"]')).toHaveLength(1);
+    expect(within(screen.getByTestId('builtin-pool-column')).getByText('pool only')).toBeInTheDocument();
+    expect(within(screen.getByTestId('backlog-column')).getByText('backlog only')).toBeInTheDocument();
+    expect(screen.getByTestId('builtin-pool-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('backlog-count')).toHaveTextContent('1');
+  });
+
   // Owner ask (2026-07-03): a backlog card shows its human task id (T123).
   it('backlog card shows the human task id (org_ref T-number)', async () => {
     server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));

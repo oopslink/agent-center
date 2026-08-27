@@ -537,14 +537,32 @@ func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if oldB.PlanID() != "" {
-		t.Fatalf("superseded blocked task still in plan: %s", oldB.PlanID())
+	if oldB.PlanID() != planID {
+		t.Fatalf("superseded non-terminal blocked task plan=%s, want immutable history in %s", oldB.PlanID(), planID)
+	}
+	if backlog, err := h.svc.ListUnplannedTasks(h.ctx, pid); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, task := range backlog {
+			if task.ID() == b {
+				t.Fatalf("superseded blocked task %s leaked into backlog", b)
+			}
+		}
 	}
 	if dispatchedSet(t, h, planID)[b] {
 		t.Fatalf("superseded task %s kept a stale dispatch record", b)
 	}
 	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, b); err != nil || ok {
 		t.Fatalf("superseded task kept blocked_on ok=%v err=%v", ok, err)
+	}
+	detail, err := h.svc.GetPlanDetail(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range detail.View.Nodes {
+		if node.TaskID == b && (node.Effective || node.SupersededReason != "generation_supersede") {
+			t.Fatalf("superseded blocked node remained effective: %+v", node)
+		}
 	}
 	p, _ := h.plans.FindByID(h.ctx, planID)
 	if p.ActiveGenerationID() != res.Generation.ID || p.Version() != base+1 {

@@ -59,6 +59,9 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 			return err
 		}
 		for _, t := range tasks {
+			if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, t.ID()); err != nil {
+				return err
+			}
 			if err := t.ClearPlan(now); err != nil {
 				return err
 			}

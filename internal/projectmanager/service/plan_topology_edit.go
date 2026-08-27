@@ -225,7 +225,13 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 		for _, id := range addedNodes {
 			t := taskByID[id]
 			if t.PlanID() == cmd.PlanID {
-				continue // already in this plan (idempotent add).
+				if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, id); err != nil {
+					return err
+				}
+				continue // already in this plan (idempotent add + legacy repair).
+			}
+			if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, id); err != nil {
+				return err
 			}
 			if err := t.SetPlan(cmd.PlanID, now); err != nil {
 				return err
@@ -259,6 +265,9 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			t := taskByID[id]
 			if t == nil {
 				continue
+			}
+			if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, id); err != nil {
+				return err
 			}
 			if err := t.ClearPlan(now); err != nil {
 				return err

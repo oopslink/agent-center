@@ -454,8 +454,20 @@ func (s *Service) applySupersededNodes(
 		if t == nil {
 			continue
 		}
-		if err := t.ClearPlan(now); err != nil {
-			return err
+		// A superseded non-terminal node remains immutable Plan history. Clearing
+		// plan_id here used to project blocked/dispatched work back into Backlog,
+		// violating the one-container invariant. Terminal tasks may still detach;
+		// they are outside the invariant and hidden from live capacity lists.
+		if t.Status().IsTerminal() {
+			if err := t.ClearPlan(now); err != nil {
+				return err
+			}
+		} else {
+			// It no longer participates in the active graph/stage, but plan_id stays
+			// as its immutable history/container attribution.
+			if err := t.SetStage("", now); err != nil {
+				return err
+			}
 		}
 		if err := s.tasks.Update(ctx, t); err != nil {
 			return err
@@ -608,6 +620,15 @@ func (s *Service) applyGenerationGraphDelta(
 		if t.NodeID() != "" {
 			if err := s.removeSupersededGraphNode(ctx, orch.NodeID(t.NodeID())); err != nil {
 				return err
+			}
+			// A retained non-terminal history task must no longer point at the
+			// removed active graph node. Clear the binding only after removal so the
+			// delta can still locate the node above.
+			if !t.Status().IsTerminal() && t.PlanID() == p.ID() {
+				t.SetNodeID("", now)
+				if err := s.tasks.Update(ctx, t); err != nil {
+					return err
+				}
 			}
 		}
 	}

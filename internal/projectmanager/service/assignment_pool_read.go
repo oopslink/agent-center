@@ -33,20 +33,28 @@ func (s *Service) GetAssignmentPool(ctx context.Context, projectID pm.ProjectID,
 	if err != nil {
 		return nil, err
 	}
+	// task.plan_id is the authoritative structured-Plan membership. Filter legacy
+	// duplicate pool rows here as a read-side compatibility guard while migration
+	// 0147 and Plan-selection writes clean them physically.
+	visibleMembers := make([]pm.AssignmentPoolTask, 0, len(members))
 	tasks := make([]*pm.Task, 0, len(members))
 	for _, member := range members {
 		task, err := s.tasks.FindByID(ctx, member.TaskID)
 		if err != nil {
 			return nil, err
 		}
+		if task.PlanID() != "" {
+			continue
+		}
+		visibleMembers = append(visibleMembers, member)
 		tasks = append(tasks, task)
 	}
 	starved, err := s.StarvedPoolTasks(ctx, projectID, tasks)
 	if err != nil {
 		return nil, err
 	}
-	detail := &AssignmentPoolDetail{Pool: pool, Tasks: make([]AssignmentPoolTaskView, 0, len(members))}
-	for i, member := range members {
+	detail := &AssignmentPoolDetail{Pool: pool, Tasks: make([]AssignmentPoolTaskView, 0, len(visibleMembers))}
+	for i, member := range visibleMembers {
 		task := tasks[i]
 		detail.Tasks = append(detail.Tasks, AssignmentPoolTaskView{
 			Membership: member, Task: task,

@@ -325,6 +325,38 @@ func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.T
 		inactive[oldID] = pm.PlanNodeReplacement{By: merged, Reason: reason}
 	}
 
+	// Generation supersede decisions are immutable history. Non-terminal tasks now
+	// retain plan_id (container attribution), so derive their inactive overlay from
+	// the active generation lineage instead of relying on physical detachment. Walk
+	// every ancestor: a later generation need not repeat an earlier supersede.
+	if generationID := p.ActiveGenerationID(); generationID != "" {
+		seen := make(map[pm.PlanGenerationID]bool)
+		for generationID != "" && !seen[generationID] {
+			seen[generationID] = true
+			generation, err := s.plans.FindGenerationByID(ctx, generationID)
+			if err != nil {
+				return pm.PlanViewOptions{}, err
+			}
+			for _, decision := range generation.Diff.NodeDecisions {
+				if decision.Action != pm.EvolutionSupersede || taskByID[decision.TaskID] == nil {
+					continue
+				}
+				var replacements []pm.TaskID
+				for _, task := range tasks {
+					if task.FollowsTaskID() == decision.TaskID {
+						replacements = append(replacements, task.ID())
+					}
+				}
+				if len(replacements) == 0 {
+					inactive[decision.TaskID] = pm.PlanNodeReplacement{Reason: "generation_supersede"}
+				} else {
+					addReplacement(decision.TaskID, replacements, "generation_supersede")
+				}
+			}
+			generationID = generation.ParentGenerationID
+		}
+	}
+
 	// Current-node lineage is append-only. Newer replacements stamp
 	// pm_tasks.follows_task_id directly; older ADR-0055 remediation plans may only
 	// have continuation/stage generation rows, so use both as compatible sources.
