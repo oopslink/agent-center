@@ -116,8 +116,6 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 		if p.Version() != cmd.BaseVersion {
 			return fmt.Errorf("%w: base_version=%d current=%d", pm.ErrPlanVersionConflict, cmd.BaseVersion, p.Version())
 		}
-		running := p.Status() == pm.PlanRunning
-
 		// Load the CURRENT (pre-edit) snapshot: nodes, edges, dispatch records.
 		curTasks, err := s.tasks.ListByPlan(txCtx, cmd.PlanID)
 		if err != nil {
@@ -194,32 +192,13 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 				return pm.ErrSelfDependency
 			}
 		}
-		// (c) RUNNING only — every terminal node has a resolvable assignee (a live node
-		// must be dispatchable). Draft defers this to start_plan (draft ≡ old per-op).
-		if running {
-			for id := range wm.nodes {
-				if err := s.validateResolvableAssignee(txCtx, p, taskByID[id]); err != nil {
-					return err
-				}
-			}
-		}
-		// (d) RUNNING only — every STRUCTURALLY-AFFECTED node must be mutable (§4/§6):
-		// a node whose in-edge set changed, or a removed node. An immutable
-		// (dispatched/running/terminal) affected node → ErrPlanNodeInFlight (named).
-		if running {
-			for _, id := range structurallyAffected(curNodes, curEdges, wm) {
-				t := taskByID[id]
-				if t == nil {
-					continue // an added node — inherently mutable (new, un-dispatched).
-				}
-				if !pm.NodeMutable(t.Status(), dispatchedSet[id]) {
-					return fmt.Errorf("%w: task %s", pm.ErrPlanNodeInFlight, id)
-				}
-			}
-		}
-
 		// ---- §4 step 4: persist the diff. ----
 		addedNodes, removedNodes := wm.nodeDiff(curNodes)
+		for _, id := range removedNodes {
+			if err := s.requirePendingPlanNodeRemovable(txCtx, cmd.PlanID, taskByID[id], dispatchedSet[id]); err != nil {
+				return err
+			}
+		}
 		// Added nodes: select into the plan (+ ADD-ONLY participant delta, mirroring
 		// SelectTaskIntoPlan so the assignee reaches the plan conversation).
 		for _, id := range addedNodes {
@@ -290,29 +269,6 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			auditDetail["team_rules"] = rules
 		}
 		s.auditPlan(txCtx, p, pm.AuditPlanTopologyCommit, cmd.Actor, auditDetail)
-
-		// ---- §4 step 4 (cont.): running → rebuild graph + dispatch new ready nodes. ----
-		if running {
-			finalTasks, err := s.tasks.ListByPlan(txCtx, cmd.PlanID)
-			if err != nil {
-				return err
-			}
-			reloadedEdges, err := s.plans.ListDependencies(txCtx, cmd.PlanID)
-			if err != nil {
-				return err
-			}
-			// Rebuild the orchestration graph to mirror the new topology. buildPlanGraph
-			// self-heals node status from live task state (syncGraphToTasks), so done/
-			// running nodes keep their state; dispatch records persist across the rebuild,
-			// so already-dispatched nodes are NOT re-dispatched (graphReadySet skips them).
-			if err := s.buildPlanGraph(txCtx, p, finalTasks, reloadedEdges, now); err != nil {
-				return err
-			}
-			dispatched, err = s.dispatchReadyNodes(txCtx, p)
-			if err != nil {
-				return err
-			}
-		}
 
 		// ---- §4 step 4: version++ (exactly one commit increment, deterministic). ----
 		p.SetVersion(cmd.BaseVersion+1, now)

@@ -230,6 +230,22 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err != nil {
 			return err
 		}
+		if !p.IsBuiltin() {
+			records, err := s.plans.ListDispatchRecords(txCtx, planID)
+			if err != nil {
+				return err
+			}
+			dispatched := false
+			for _, r := range records {
+				if r.TaskID == taskID {
+					dispatched = true
+					break
+				}
+			}
+			if err := s.requirePendingPlanNodeRemovable(txCtx, planID, t, dispatched); err != nil {
+				return err
+			}
+		}
 		// Remove any depends_on edges referencing this task in this plan first, so
 		// the DAG never references a task no longer in the plan (§9.8).
 		edges, err := s.plans.ListDependencies(txCtx, planID)

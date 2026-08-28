@@ -364,6 +364,71 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	}
 }
 
+func TestRemoveTaskFromPlan_PendingNodeWithIncidentEdges_OK(t *testing.T) {
+	svc, _, plans, tasks, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	a, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
+	b, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
+	c, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "C", CreatedBy: "user:a"})
+	for _, id := range []pm.TaskID{a, b, c} {
+		if err := svc.SelectTaskIntoPlan(ctx, planID, id, "user:a"); err != nil {
+			t.Fatalf("SelectTaskIntoPlan(%s): %v", id, err)
+		}
+	}
+	if err := svc.AddPlanDependency(ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatalf("AddPlanDependency B->A: %v", err)
+	}
+	if err := svc.AddPlanDependency(ctx, planID, c, b, "user:a"); err != nil {
+		t.Fatalf("AddPlanDependency C->B: %v", err)
+	}
+
+	if err := svc.RemoveTaskFromPlan(ctx, planID, b, "user:a"); err != nil {
+		t.Fatalf("RemoveTaskFromPlan pending node with incident edges: %v", err)
+	}
+	tb, _ := tasks.FindByID(ctx, b)
+	if tb.PlanID() != "" {
+		t.Fatalf("removed task plan_id=%q, want backlog", tb.PlanID())
+	}
+	edges, _ := plans.ListDependencies(ctx, planID)
+	if len(edges) != 0 {
+		t.Fatalf("incident edges after remove=%+v, want none", edges)
+	}
+}
+
+func TestRemoveTaskFromPlan_DispatchHistoryBlocks(t *testing.T) {
+	svc, _, plans, tasks, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	a, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
+	b, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
+	if err := svc.SelectTaskIntoPlan(ctx, planID, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, b, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AddPlanDependency(ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatalf("AddPlanDependency: %v", err)
+	}
+	if err := plans.RecordDispatch(ctx, planID, b, time.Unix(1_700_000_100, 0).UTC(), "msg-b"); err != nil {
+		t.Fatalf("RecordDispatch: %v", err)
+	}
+
+	err := svc.RemoveTaskFromPlan(ctx, planID, b, "user:a")
+	if !errors.Is(err, pm.ErrPlanNodeInFlight) {
+		t.Fatalf("RemoveTaskFromPlan dispatched node err=%v, want ErrPlanNodeInFlight", err)
+	}
+	tb, _ := tasks.FindByID(ctx, b)
+	if tb.PlanID() != planID {
+		t.Fatalf("task plan_id=%q want %q after rejected remove", tb.PlanID(), planID)
+	}
+	edges, _ := plans.ListDependencies(ctx, planID)
+	if len(edges) != 1 || edges[0].FromTaskID != b || edges[0].ToTaskID != a {
+		t.Fatalf("edges after rejected remove=%+v, want original B->A", edges)
+	}
+}
+
 // TestRemoveTaskFromPlan_BuiltinPool_OK locks T121: the built-in assignment pool
 // is ALWAYS running, yet its task-set is freely editable (it is a flat claimable
 // bucket, not an executing DAG). SelectTaskIntoPlan already exempts the pool from
