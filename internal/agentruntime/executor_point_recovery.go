@@ -62,6 +62,22 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	r.log("agent=%s point-recovery executor=%s: kind=%v output_present=%v wasStall=%v thisProcess=%v — deciding recover-vs-terminal",
 		r.cfg.AgentID, execID, comp.Kind, comp.Output != nil, wasStall, thisProcess)
 
+	// Runtime Stop is a hard lifecycle fence. A completion observed after Stop has
+	// cancelled lifecycleCtx is stop-owned teardown, not recoverable executor work:
+	// do not consult the center, do not write back the killed process outcome, and
+	// never relaunch. Use the fused finalizer shape because it is the existing
+	// local-only terminal path that frees the slot and removes relaunchable residue.
+	if r.runtimeStopped() {
+		taskRef := r.executorTaskRef(ee, execID)
+		r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: runtime stopping — quiet-finalizing, NO center read/recover/relaunch",
+			r.cfg.AgentID, execID, taskRef)
+		r.finalizeStoppedExecutor(ee, execID)
+		if taskRef != "" {
+			ee.clearRecoverBudget(taskRef)
+		}
+		return
+	}
+
 	// P0 block-fuse (issue-88e32d98): a FUSED death is a center-ordered stop, NEVER a
 	// recovery candidate. FuseKillTask circuit-broke this executor because the center
 	// revoked its task's execution lease (blocked mid-flight / reassigned / terminal); the
@@ -173,6 +189,13 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 		ee.monitor.ReleaseSlot(execID)
 		ee.monitor.ClearStalled(execID)
 	}
+	if r.runtimeStopped() {
+		r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: runtime stopped before recovery relaunch — quiet-finalizing",
+			r.cfg.AgentID, execID, taskRef)
+		r.finalizeStoppedExecutor(ee, execID)
+		ee.clearRecoverBudget(taskRef)
+		return
+	}
 
 	// Observability continuity (§4.6 "事件流不断"): emit executor.recover BEFORE the
 	// relaunch so the activity stream shows the recovery and keeps flowing across it.
@@ -214,6 +237,26 @@ func (r *LocalRuntime) finalizeFused(ctx context.Context, ee *ExecutorEngine, ex
 		r.log("agent=%s point-recovery fused-finalize executor=%s: %v", r.cfg.AgentID, execID, err)
 	}
 	ee.dropOrphan(execID)
+}
+
+// finalizeStoppedExecutor is the stop-owned drain path. Stop has already cancelled
+// runtime work and may be running under a short server/test deadline, so do only the
+// local invariants needed to quiesce: free the pool slot, drop orphan tracking, and
+// remove relaunchable executor state. It intentionally performs no center writeback,
+// no git push/audit work, and no delayed-retention marker.
+func (r *LocalRuntime) finalizeStoppedExecutor(ee *ExecutorEngine, execID string) {
+	if ee == nil {
+		return
+	}
+	if ee.monitor != nil {
+		ee.monitor.ReleaseSlot(execID)
+	}
+	ee.dropOrphan(execID)
+	if ee.fx != nil {
+		if err := ee.fx.Remove(execID); err != nil {
+			r.log("agent=%s stop cleanup executor=%s: %v", r.cfg.AgentID, execID, err)
+		}
+	}
 }
 
 // executorTaskRef reads the executor's task ref from its input.json (the id

@@ -1,0 +1,142 @@
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-78a71f2a — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-78a71f2a: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-78a71f2a: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-78a71f2a — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-78a71f2a — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-78a71f2a forked executor=exec-7f50fb2a cli=claude-code model=m(default_fallback) problem=problem-1552550a
+    local_runtime.go:543: agent=AG1 task=task-78a71f2a re-drive after independent clone ready: forked executor=exec-7f50fb2a
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7f50fb2a: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7f50fb2a task=task-78a71f2a → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7f50fb2a task=task-78a71f2a → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-7f50fb2a pid=3022
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-ec973d7d — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-ec973d7d: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-ec973d7d: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-ec973d7d — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-ec973d7d — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-ec973d7d forked executor=exec-98c5bae1 cli=claude-code model=m(default_fallback) problem=problem-8e3028fc
+    local_runtime.go:543: agent=AG1 task=task-ec973d7d re-drive after independent clone ready: forked executor=exec-98c5bae1
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-98c5bae1: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-98c5bae1 task=task-ec973d7d → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-98c5bae1 task=task-ec973d7d → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-98c5bae1 pid=3024
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-4186f046 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-4186f046: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-4186f046: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-4186f046 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-4186f046 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-4186f046 forked executor=exec-4194454e cli=claude-code model=m(default_fallback) problem=problem-55171157
+    local_runtime.go:543: agent=AG1 task=task-4186f046 re-drive after independent clone ready: forked executor=exec-4194454e
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-4194454e: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-4194454e task=task-4186f046 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-4194454e task=task-4186f046 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-4194454e pid=3026
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-7089c558 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-7089c558: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-7089c558: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-7089c558 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-7089c558 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-7089c558 forked executor=exec-cb2202c4 cli=claude-code model=m(default_fallback) problem=problem-fb5883d0
+    local_runtime.go:543: agent=AG1 task=task-7089c558 re-drive after independent clone ready: forked executor=exec-cb2202c4
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-cb2202c4: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-cb2202c4 task=task-7089c558 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-cb2202c4 task=task-7089c558 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-cb2202c4 pid=3028
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9fda98bf — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9fda98bf: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-9fda98bf: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9fda98bf — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-9fda98bf — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-9fda98bf forked executor=exec-5d9c3c5e cli=claude-code model=m(default_fallback) problem=problem-6690b620
+    local_runtime.go:543: agent=AG1 task=task-9fda98bf re-drive after independent clone ready: forked executor=exec-5d9c3c5e
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-5d9c3c5e: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-5d9c3c5e task=task-9fda98bf → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-5d9c3c5e task=task-9fda98bf → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-5d9c3c5e pid=3030
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-865b6de9 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-865b6de9: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-865b6de9: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-865b6de9 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-865b6de9 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-865b6de9 forked executor=exec-a0fc8135 cli=claude-code model=m(default_fallback) problem=problem-53613d3c
+    local_runtime.go:543: agent=AG1 task=task-865b6de9 re-drive after independent clone ready: forked executor=exec-a0fc8135
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0fc8135: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0fc8135 task=task-865b6de9 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0fc8135 task=task-865b6de9 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-a0fc8135 pid=3032
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-bae6ce06 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-bae6ce06: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-bae6ce06: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-bae6ce06 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-bae6ce06 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-bae6ce06 forked executor=exec-a0ecebdd cli=claude-code model=m(default_fallback) problem=problem-2bf99065
+    local_runtime.go:543: agent=AG1 task=task-bae6ce06 re-drive after independent clone ready: forked executor=exec-a0ecebdd
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0ecebdd: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0ecebdd task=task-bae6ce06 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-a0ecebdd task=task-bae6ce06 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-a0ecebdd pid=3034
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.11s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-a07caaed — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-a07caaed: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-a07caaed: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-a07caaed — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-a07caaed — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-a07caaed forked executor=exec-7b909318 cli=claude-code model=m(default_fallback) problem=problem-8955bb53
+    local_runtime.go:543: agent=AG1 task=task-a07caaed re-drive after independent clone ready: forked executor=exec-7b909318
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7b909318: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7b909318 task=task-a07caaed → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-7b909318 task=task-a07caaed → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-7b909318 pid=3036
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.12s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9ae8aae5 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9ae8aae5: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-9ae8aae5: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9ae8aae5 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-9ae8aae5 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-9ae8aae5 forked executor=exec-2bb0dc32 cli=claude-code model=m(default_fallback) problem=problem-a2d90ba0
+    local_runtime.go:543: agent=AG1 task=task-9ae8aae5 re-drive after independent clone ready: forked executor=exec-2bb0dc32
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-2bb0dc32: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-2bb0dc32 task=task-9ae8aae5 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-2bb0dc32 task=task-9ae8aae5 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-2bb0dc32 pid=3039
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.12s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-950ec284 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-950ec284: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-950ec284: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-950ec284 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-950ec284 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-950ec284 forked executor=exec-0af300de cli=claude-code model=m(default_fallback) problem=problem-1bd5d8f7
+    local_runtime.go:543: agent=AG1 task=task-950ec284 re-drive after independent clone ready: forked executor=exec-0af300de
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-0af300de: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-0af300de task=task-950ec284 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-0af300de task=task-950ec284 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-0af300de pid=3041
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.882s

@@ -1,0 +1,4 @@
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	0.543s

@@ -524,6 +524,11 @@ func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd
 		r.log("agent=%s self-reconcile relaunch executor=%s skipped: runtime stopping", r.cfg.AgentID, id)
 		return
 	}
+	if r.runtimeStopped() {
+		r.endRuntimeWork()
+		r.log("agent=%s self-reconcile relaunch executor=%s skipped: runtime stopped before spawn", r.cfg.AgentID, id)
+		return
+	}
 	cfg, ok := r.cachedExecConfig()
 	if !ok || len(runnerCmd) == 0 {
 		r.endRuntimeWork()

@@ -21,6 +21,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/modelrouter"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
+	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 )
 
@@ -212,6 +213,97 @@ func TestStopRepeatedKeepsAdmissionClosed(t *testing.T) {
 	}
 	if seen := sc.toolsSeen(); len(seen) != 0 {
 		t.Fatalf("repeated Stop must keep admission closed before center read, got calls %v", seen)
+	}
+}
+
+func TestStopCanceledDrainDoesNotRecoverExecutor(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r9-drain")
+	attach(rt, ee)
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-r9-drain", "title": "drain", "status": "running", "assignee": "agent:agent-r9-drain",
+	}}
+	setToolCaller(rt, sc)
+
+	launched, err := ee.engine.HandleWork(context.Background(), orchestrator.WorkItem{
+		TaskRef: "task-r9-drain",
+		Goal:    executor.Goal{Title: "drain"},
+	})
+	if err != nil {
+		t.Fatalf("HandleWork: %v", err)
+	}
+	rt.trackTaskExecutor("task-r9-drain", launched.ExecutorID)
+	rt.closeRuntimeAdmission()
+	rt.lifecycleCancel()
+
+	rt.drainExecutor(ee, "task-r9-drain", launched.Handle)
+
+	if seen := sc.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("stop-cancelled drain must quiet-finalize without recovery center reads, got %v", seen)
+	}
+	if active := ee.engine.Pool().Active(); active != 0 {
+		t.Fatalf("stop-cancelled drain leaked active executor slot, active=%d", active)
+	}
+	if snaps := ee.SnapshotConcurrency(); len(snaps) != 0 {
+		t.Fatalf("stop-cancelled drain must not relaunch/adopt executor, got snapshots %+v", snaps)
+	}
+}
+
+type cancellableCloneMaterializer struct {
+	entered chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func (m *cancellableCloneMaterializer) PrepareClone(ctx context.Context, _ reporepo.RepoTarget, req reporepo.CloneRequest) (reporepo.PreparedClone, error) {
+	m.once.Do(func() { close(m.entered) })
+	<-ctx.Done()
+	close(m.done)
+	return reporepo.PreparedClone{ExecutorID: req.ExecutorID, WorkspacePath: req.WorkspacePath}, ctx.Err()
+}
+
+func TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r9-clone")
+	attach(rt, ee)
+	mat := &cancellableCloneMaterializer{entered: make(chan struct{}), done: make(chan struct{})}
+	rt.cfg.CloneMaterializer = mat
+	rt.cfg.ClonePrepareTimeout = time.Minute
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-r9-clone", "title": "clone", "status": "open", "assignee": "agent:agent-r9-clone",
+		"repo": map[string]any{"url": "https://example.invalid/repo.git", "repo_id": "repo-r9"},
+	}}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-r9-clone"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res != nil {
+		t.Fatalf("slow clone first spawn must defer, got %+v", res)
+	}
+	select {
+	case <-mat.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("clone prewarm did not start")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := rt.Stop(ctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	select {
+	case <-mat.done:
+	default:
+		t.Fatal("Stop returned before slow clone observed lifecycle cancellation")
+	}
+	if _, ok := rt.takePreparedClone("task-r9-clone"); ok {
+		t.Fatal("Stop during clone must not leave a prepared clone for post-close redrive")
+	}
+	if active := ee.engine.Pool().Active(); active != 0 {
+		t.Fatalf("Stop during clone leaked active executor slot, active=%d", active)
+	}
+	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
+		t.Fatalf("Stop during clone should not admit or report after close, calls=%v", seen)
 	}
 }
 

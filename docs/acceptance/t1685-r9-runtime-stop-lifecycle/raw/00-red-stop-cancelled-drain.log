@@ -1,0 +1,13 @@
+Command:
+go test ./internal/agentruntime -run '^TestStopCanceledDrainDoesNotRecoverExecutor$' -count=1 -v -timeout=30s
+
+Baseline:
+091c15ee2d4a61bab3ca48c57b59ef2ba95168eb
+
+Output:
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+    executor_runtime_test.go:241: stop-cancelled drain must quiet-finalize without recovery center reads, got [get_task]
+--- FAIL: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/agentruntime	0.531s
+FAIL

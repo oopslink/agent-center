@@ -1,0 +1,5 @@
+091c15ee2 (HEAD -> r9-runtime-stop-lifecycle-fix-20260828, origin/immutable/t1685-runtime-work-fence-091c15ee, immutable/t1685-runtime-work-fence-091c15ee) fix runtime turn-end work lifecycle
+039c5fea0 (immutable/r7-stop-linearization-039c5fea) fix runtime stop executor admission
+8a79f00f6 (r6-task-input-lifecycle-20260828114430, immutable/r6-task-input-lifecycle-8a79f00f) fix runtime background lifecycle teardown
+790ab2b06 (ac-candidates/t1659-r5-phase0-r4-final2) rebuild phase0 candidate with r4 fixes
+bece53704 (ac-exec/task-07a3a37f/exec-e3d496e2-t1651-r4, ac-exec/task-07a3a37f/exec-e3d496e2) fix(plan): surface stalled frontier obligations

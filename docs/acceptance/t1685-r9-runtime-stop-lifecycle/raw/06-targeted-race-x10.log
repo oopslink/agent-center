@@ -1,0 +1,102 @@
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.03s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopCanceledDrainDoesNotRecoverExecutor
+--- PASS: TestStopCanceledDrainDoesNotRecoverExecutor (0.01s)
+=== RUN   TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone
+--- PASS: TestStopDuringSlowCloneCancelsAndLeavesNoPreparedClone (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	1.247s
