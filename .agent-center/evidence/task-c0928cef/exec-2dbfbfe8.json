@@ -1,0 +1,311 @@
+{
+  "task_id": "task-c0928cef",
+  "execution_id": "exec-2dbfbfe8",
+  "reviewed_sha": "ca953dbd2a6b58e04b542d62a1a2ea196d278f68",
+  "base_sha": "ca953dbd2a6b58e04b542d62a1a2ea196d278f68",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type d | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find docs/rules -type f | sort | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'rg -n \"contract-to-production-chain|evidence-before-verdict|verify-world-state-after-actions\" docs internal .agent-center/evidence'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'ulimit -u; launchctl limit maxproc 2\u003e/dev/null || true; sysctl kern.maxproc kern.maxprocperuid 2\u003e/dev/null || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'ps -axo pid,ppid,user,stat,etime,comm,args'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'ps -axo pid= | wc -l'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'ps -axo user= | sort | uniq -c | sort -nr | head -30'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"ps -axo comm= | sed 's#.*/##' | sort | uniq -c | sort -nr | head -40\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {count++; byppid[\"'$2]++; if (count\u003c=20) print} END {print \"autossh_exact_count=\" count; for (p in byppid) print \"autossh_parent_\" p \"=\" byppid[p]}'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {count++; byppid[\"'$2]++; print} END {print \"ssh_child_exact_count=\" count; for (p in byppid) print \"ssh_parent_\" p \"=\" byppid[p]}'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"find /Users/oopslink/Library/LaunchAgents /Library/LaunchAgents /Library/LaunchDaemons -maxdepth 1 -type f 2\u003e/dev/null | xargs rg -n \\\"autossh|10\\\\.211\\\\.55\\\\.3|8765:127\\\\.0\\\\.0\\\\.1:8765\\\" 2\u003e/dev/null\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'launchctl print gui/$(id -u) 2\u003e/dev/null | rg -n \"autossh|10'\"\\\\.211\\\\.55\\\\.3|8765:127\\\\.0\\\\.0\\\\.1:8765|agent-center-worker|LimitLoad\\\" -C 2\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'ps -p 74153,74156,78061,14154,39717,99742 -o pid=,ppid=,user=,stat=,etime=,command='",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,pgid=,sid=,user=,stat=,etime=,command= | awk '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$0}'\"' | head -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/Library/LaunchAgents/com.miniqmt.tunnel.plist\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"plutil -p /Users/oopslink/Library/LaunchAgents/com.miniqmt.tunnel.plist 2\u003e/dev/null || sed -n '1,220p' /Users/oopslink/Library/LaunchAgents/com.miniqmt.tunnel.plist\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'launchctl list | rg \"miniqmt|tunnel|autossh\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.local/bin/miniqmt-tunnel.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'tail -200 /tmp/miniqmt-tunnel.log 2\u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'ps -p 711 -o pid=,ppid=,pgid=,user=,stat=,etime=,command=; pgrep -P 711 -l'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'lsof -nP -iTCP:8765 -sTCP:LISTEN 2\u003e/dev/null | head -50'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'launchctl bootout gui/$(id -u)/com.miniqmt.tunnel 2\u003e\u00261 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"ps -axo pid=,command= | awk '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"' | wc -l; ps -axo pid=,command= | awk '/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"' | wc -l\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'autossh_pids=$(ps -axo pid=,command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"'); ssh_pids=\"'$(ps -axo pid=,command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"'); echo \\\"terminating_autossh=\"'$(printf '\"'%s\\\\n' \\\"\"'$autossh_pids\" | sed '\"'/\"'^$/d'\"' | wc -l | tr -d ' ')\\\"; echo \\\"terminating_ssh=\"'$(printf '\"'%s\\\\n' \\\"\"'$ssh_pids\" | sed '\"'/\"'^$/d'\"' | wc -l | tr -d ' ')\\\"; if [ -n \\\"\"'$ssh_pids\" ]; then kill -TERM $ssh_pids 2\u003e/dev/null || true; fi; if [ -n \"$autossh_pids\" ]; then kill -TERM $autossh_pids 2\u003e/dev/null || true; fi; sleep 2; echo after_term; ps -axo comm= | sed '\"'s#.*/##' | sort | uniq -c | sort -nr | head -12; echo total=\"'$(ps -axo pid= | wc -l | tr -d '\"' '); echo oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"')\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'autossh_pids=$(ps -axo pid=,command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"'); ssh_pids=\"'$(ps -axo pid=,command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print \"'$1}'\"'); echo \\\"killing_autossh=\"'$(printf '\"'%s\\\\n' \\\"\"'$autossh_pids\" | sed '\"'/\"'^$/d'\"' | wc -l | tr -d ' ')\\\"; echo \\\"killing_ssh=\"'$(printf '\"'%s\\\\n' \\\"\"'$ssh_pids\" | sed '\"'/\"'^$/d'\"' | wc -l | tr -d ' ')\\\"; if [ -n \\\"\"'$ssh_pids\" ]; then kill -KILL $ssh_pids 2\u003e/dev/null || true; fi; if [ -n \"$autossh_pids\" ]; then kill -KILL $autossh_pids 2\u003e/dev/null || true; fi; sleep 2; echo after_kill; ps -axo comm= | sed '\"'s#.*/##' | sort | uniq -c | sort -nr | head -15; echo total=\"'$(ps -axo pid= | wc -l | tr -d '\"' '); echo oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"')\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'launchctl list | rg \"miniqmt|tunnel|autossh\"; ls -ld /tmp/miniqmt-tunnel.lock 2\u003e/dev/null || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {st[\"'$4]++; pp[$2]++} END {for (s in st) print \"autossh_stat_\" s \"=\" st[s]; for (p in pp) print \"autossh_ppid_\" p \"=\" pp[p]}'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {st[\"'$4]++; pp[$2]++} END {for (s in st) print \"ssh_stat_\" s \"=\" st[s]; for (p in pp) c++; print \"ssh_unique_parents=\" c+0}'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ || /\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {print; n++; if(n\u003e=60) exit}'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'kill -KILL 106; echo kill_status=$?; sleep 1; ps -p 106 -o pid=,ppid=,stat=,etime=,command='",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"for pat in '/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/' '/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/'; do ps -axo pid=,command= | awk \\\"\"'$pat {print '\"\\\\\"'$1}\" | xargs -n 200 kill -KILL 2\u003e/dev/null || true; done; sleep 3; echo total=$(ps -axo pid= | wc -l | tr -d '\"' '); echo oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"'); echo autossh=\"'$(ps -axo command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); echo ssh=\"'$(ps -axo command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); ps -axo comm= | sed 's#.*/##' | sort | uniq -c | sort -nr | head -12\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"pkill -9 -f '\"'^/usr/bin/ssh -N .* -L 8765:127'\"\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3\"'$'\"'; pkill -9 -f '\"'^/opt/homebrew/bin/autossh -M 0 -N .* -L 8765:127'\"\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3\"'$'\"'; sleep 2; ps -axo pid= | wc -l; ps -axo comm= | sed 's#.*/##' | sort | uniq -c | sort -nr | head -12\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'ps -axo user= | sort | uniq -c | sort -nr | head -20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/\\\\/usr\\\\/bin\\\\/ssh .*10\\\\.211\\\\.55\\\\.3/ {print; n++; if(n\u003e=40) exit}'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"ps -axo command= | awk '/\\\\/usr\\\\/bin\\\\/ssh .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"pgrep -f '/usr/bin/ssh -N .*10\\\\.211\\\\.55\\\\.3' | head; pgrep -f '/usr/bin/ssh -N .*10\\\\.211\\\\.55\\\\.3' | wc -l; pkill -9 -f '/usr/bin/ssh -N .*10\\\\.211\\\\.55\\\\.3'; sleep 2; echo remaining=\"'$(pgrep -f '\"'/usr/bin/ssh -N .*10\\\\.211\\\\.55\\\\.3' | wc -l | tr -d ' '); echo total=\"'$(ps -axo pid= | wc -l | tr -d '\"' ')\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'if [ -d /tmp/miniqmt-tunnel.lock ]; then rm /tmp/miniqmt-tunnel.lock/pid 2\u003e/dev/null || true; rmdir /tmp/miniqmt-tunnel.lock 2\u003e/dev/null || true; fi\nlaunchctl bootstrap gui/$(id -u) /Users/oopslink/Library/LaunchAgents/com.miniqmt.tunnel.plist 2\u003e\u00261 || true\nsleep 3\necho launchctl_list\nlaunchctl list | rg '\"'miniqmt|tunnel|autossh' || true\necho counts\necho total=\"'$(ps -axo pid= | wc -l | tr -d '\"' ')\necho oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"')\necho autossh_exact=\"'$(ps -axo command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .* -L 8765:127\\\\.0\\\\.0\\\\.1:8765 oopslink@10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}')\necho ssh_exact=\"'$(ps -axo command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}')\nps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/miniqmt-tunnel|autossh -M 0 -N|ssh -N .*10\\\\.211\\\\.55\\\\.3/ {print}'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'for i in 1 2 3 4 5; do ts=$(date '\"'+%Y-%m-%d %H:%M:%S %Z'); total=\"'$(ps -axo pid= | wc -l | tr -d '\"' '); userc=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"'); autossh=\"'$(ps -axo command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); ssh=\"'$(ps -axo command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); echo \\\"sample=\"'$i time=$ts total=$total oopslink=$userc autossh_exact=$autossh ssh_exact=$ssh headroom_to_user_limit=$((4000-userc))\"; if [ \"$i\" -lt 5 ]; then sleep 30; fi; done\nok=0; fail=0; for i in $(jot 100 1 100 2\u003e/dev/null || seq 1 100); do /usr/bin/true \u0026\u0026 ok=$((ok+1)) || fail=$((fail+1)); done; echo \"fork_exec_probe ok=$ok fail=$fail\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'ps -axo user= | sort | uniq -c | sort -nr | head -20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"ps -axo comm= | sed 's#.*/##' | sort | uniq -c | sort -nr | head -20\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,user=,stat=,etime=,command= | awk '/miniqmt-tunnel|autossh -M 0 -N|ssh -N .*10\\\\.211\\\\.55\\\\.3/ {print}'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'sleep 30; echo time=$(date '\"'+%Y-%m-%d %H:%M:%S %Z'); echo total=\"'$(ps -axo pid= | wc -l | tr -d '\"' '); echo oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"'); echo autossh_exact=\"'$(ps -axo command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); echo ssh_exact=\"'$(ps -axo command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); launchctl list | rg 'miniqmt|tunnel|autossh' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'echo total=$(ps -axo pid= | wc -l | tr -d '\"' '); echo oopslink=\"'$(ps -axo user= | awk '\"'\"'$1==\"oopslink\"{c++} END{print c+0}'\"'); echo autossh=\"'$(ps -axo command= | awk '\"'/\\\\/opt\\\\/homebrew\\\\/bin\\\\/autossh -M 0 -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); echo ssh=\"'$(ps -axo command= | awk '\"'/\\\\/usr\\\\/bin\\\\/ssh -N .*10\\\\.211\\\\.55\\\\.3/ {c++} END{print c+0}'); launchctl list | rg 'miniqmt|tunnel|autossh' || true\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-2dbfbfe8/command_events.jsonl",
+  "command_event_digest": "sha256:a8f36ea50298ec53d46527fbba6cfcd75b6e174efad79124b5912ddad7cd404b",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "The active LaunchAgent job is `com.miniqmt.tunnel` with main PID 711; the flood includes 1737 orphaned `autossh` parents plus their `ssh` children. I’m inspecting the wrapper and logs for the exact",
+  "artifact_digest": "sha256:0d94420ffb3caaaa56de5b6c64267b9b1caf720f36f204ebf3cef5ab83042664",
+  "path": ".agent-center/evidence/task-c0928cef/exec-2dbfbfe8.json",
+  "branch": "ac-exec/task-c0928cef/exec-2dbfbfe8"
+}
