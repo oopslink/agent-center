@@ -187,6 +187,71 @@ func TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild(t *testing.T)
 	}
 }
 
+func TestInsightExecutionSemantics_ExposesRealMessagesAndTwentyFourHourDetailGate(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+
+	queued := asOf.Add(-30 * time.Minute)
+	started := queued.Add(time.Second)
+	finished := started.Add(2 * time.Second)
+	execSQL(t, db, `INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at, created_at)
+		VALUES ('cmd-message','worker-1',1,'cmd-message-idem','agent.fork_executor','{}','agent-1','task-1','started','accepted','worker accepted command','exec-message',?,?)`,
+		started.Format(time.RFC3339Nano), queued.Format(time.RFC3339Nano))
+	insertActivity(t, db, "start-message", "agent-1", "task-1", "exec-message", map[string]any{"event": "executor.start", "executor_id": "exec-message"}, started)
+	insertActivity(t, db, "stop-message", "agent-1", "task-1", "exec-message", map[string]any{
+		"event": "executor.stop", "executor_id": "exec-message", "outcome": "failed", "reason": "nonzero_exit", "detail": "process exited with code 1",
+	}, finished)
+
+	rejectedAt := asOf.Add(-20 * time.Minute)
+	execSQL(t, db, `INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at, created_at)
+		VALUES ('cmd-rejected','worker-1',2,'cmd-rejected-idem','agent.fork_executor','{}','agent-1','task-1','rejected','repo_source_unavailable','repository missing','',?,?)`,
+		rejectedAt.Format(time.RFC3339Nano), rejectedAt.Add(-time.Second).Format(time.RFC3339Nano))
+
+	oldFinished := asOf.Add(-25 * time.Hour)
+	insertActivity(t, db, "start-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.start", "executor_id": "exec-old"}, oldFinished.Add(-time.Second))
+	insertActivity(t, db, "stop-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.stop", "executor_id": "exec-old", "outcome": "succeeded"}, oldFinished)
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	list, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 10})
+	if err != nil {
+		t.Fatalf("executions: %v", err)
+	}
+	var terminal, rejected *ExecutionRow
+	for i := range list.Executions {
+		switch list.Executions[i].ExecutionID {
+		case "exec-message":
+			terminal = &list.Executions[i]
+		case "command:cmd-rejected":
+			rejected = &list.Executions[i]
+		}
+	}
+	if terminal == nil || terminal.FailureReason == nil || *terminal.FailureReason != "nonzero_exit" || terminal.FailureMessage == nil || *terminal.FailureMessage != "process exited with code 1" {
+		t.Fatalf("terminal execution row = %+v, want real failure reason/message", terminal)
+	}
+	if terminal.CommandStatus == nil || *terminal.CommandStatus != "started" || terminal.StatusMessage == nil || *terminal.StatusMessage != "worker accepted command" {
+		t.Fatalf("terminal queue fields = %+v, want joined queue status/message", terminal)
+	}
+	if rejected == nil || rejected.CommandStatus == nil || *rejected.CommandStatus != "rejected" || rejected.StatusReason == nil || *rejected.StatusReason != "repo_source_unavailable" || rejected.StatusMessage == nil || *rejected.StatusMessage != "repository missing" {
+		t.Fatalf("rejected command row = %+v, want queue status/reason/message", rejected)
+	}
+	detail, err := svc.Execution(ctx, "org-1", "exec-message", asOf)
+	if err != nil {
+		t.Fatalf("execution detail: %v", err)
+	}
+	if detail.Execution.FailureMessage == nil || *detail.Execution.FailureMessage != "process exited with code 1" {
+		t.Fatalf("detail failure message = %+v", detail.Execution.FailureMessage)
+	}
+	if _, err := svc.Execution(ctx, "org-1", "exec-old", asOf); !errors.Is(err, ErrExecutionNotFound) {
+		t.Fatalf("old detail error = %v, want ErrExecutionNotFound", err)
+	}
+}
+
 func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)

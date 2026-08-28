@@ -106,10 +106,10 @@ export interface InsightExecutionRow {
   worker_id: string | null;
   outcome: string | null;
   failure_reason: string | null;
-  failure_message?: string | null;
-  command_status?: string | null;
-  status_reason?: string | null;
-  status_message?: string | null;
+  failure_message: string | null;
+  command_status: string | null;
+  status_reason: string | null;
+  status_message: string | null;
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;

@@ -131,6 +131,49 @@ func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
 	}
 }
 
+func TestInsightsAPI_UnavailableResponseIncludesFreshnessEnvelope(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	}
+	var out struct {
+		Error  string `json:"error"`
+		Window struct {
+			Duration string `json:"duration"`
+		} `json:"window"`
+		Freshness struct {
+			State       string `json:"state"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Error != "insight_unavailable" || out.Window.Duration != "24h" || out.Freshness.State != "unavailable" || out.Freshness.ThresholdMS != time.Minute.Milliseconds() {
+		t.Fatalf("unavailable envelope = %+v", out)
+	}
+}
+
 func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
