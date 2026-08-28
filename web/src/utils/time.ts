@@ -166,6 +166,32 @@ export function formatStatusDuration(
   return `${mins}m`;
 }
 
+export function formatDurationSeconds(seconds: number | undefined | null): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  let secs = Math.floor(seconds);
+  if (secs < 0) secs = 0;
+  if (secs < 60) return '<1m';
+  const days = Math.floor(secs / 86400);
+  const hours = Math.floor((secs % 86400) / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return `${mins}m`;
+}
+
+export function formatTimeRangeDuration(
+  startIso: string | undefined | null,
+  endIso: string | undefined | null,
+  now: number = Date.now(),
+): string | null {
+  if (!startIso) return null;
+  const start = new Date(startIso).getTime();
+  if (Number.isNaN(start)) return null;
+  const rawEnd = endIso ? new Date(endIso).getTime() : now;
+  const end = Number.isNaN(rawEnd) ? now : rawEnd;
+  return formatDurationSeconds(Math.floor((end - start) / 1000));
+}
+
 // formatRelativeTime — a GitHub-style coarse "time ago" label for a past instant,
 // computed FE-side as (now − iso): "just now", "N minutes ago", "N hours ago",
 // "yesterday", "N days ago", then falls back to an absolute local date ("Jun 30,

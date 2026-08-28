@@ -193,7 +193,7 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/proj-a/tasks', () =>
         HttpResponse.json({
           tasks: [
-            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'running', blocked_reason: 'waiting on review', assignee: 'agent:bot-9', creator_ref: 'user:owner', plan_id: 'plan-01KT8DPLAN', plan_name: 'Onboarding flow', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'completed', blocked_reason: 'waiting on review', assignee: 'agent:bot-9', creator_ref: 'user:owner', plan_id: 'plan-01KT8DPLAN', plan_name: 'Onboarding flow', version: 1, created_at: '2026-05-24T01:00:00Z', started_at: '2026-05-24T02:00:00Z', completed_at: '2026-05-24T04:30:00Z', run_duration_seconds: 9000, updated_at: '2026-05-24T04:30:00Z' },
           ],
         }),
       ),
@@ -227,7 +227,7 @@ describe('ProjectDetail page', () => {
     expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
     expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
     expect(screen.getByTestId('task-priority')).toHaveTextContent('—');
-    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
+    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'completed');
     // Creator column (owner ask): creator_ref resolves to a clean handle when no
     // member row matches — never blank / "—" / the raw "user:" form.
     const creator = screen.getByTestId('task-creator');
@@ -249,7 +249,12 @@ describe('ProjectDetail page', () => {
     expect(created).toHaveTextContent(fmt('2026-05-24T01:00:00Z'));
     expect(created.textContent).toMatch(/:\d{2}:\d{2}/);
     expect(created).toHaveAttribute('title', '2026-05-24T01:00:00Z');
-    expect(screen.getByTestId('task-updated')).toHaveAttribute('title', '2026-05-24T01:00:00Z');
+    expect(screen.getByTestId('task-started')).toHaveTextContent(fmt('2026-05-24T02:00:00Z'));
+    expect(screen.getByTestId('task-started')).toHaveAttribute('title', '2026-05-24T02:00:00Z');
+    expect(screen.getByTestId('task-ended')).toHaveTextContent(fmt('2026-05-24T04:30:00Z'));
+    expect(screen.getByTestId('task-ended')).toHaveAttribute('title', '2026-05-24T04:30:00Z');
+    expect(screen.getByTestId('task-duration')).toHaveTextContent('2h 30m');
+    expect(screen.getByTestId('task-updated')).toHaveAttribute('title', '2026-05-24T04:30:00Z');
   });
 
   it('shows org_ref (T<n>/I<n>) in the ID column when present, hash id on hover (#245)', async () => {

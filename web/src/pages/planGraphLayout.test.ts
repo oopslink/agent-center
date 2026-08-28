@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { layoutGraph, layoutStagedGraph, stageDisplayMeta, STAGE_HEADER_H } from './PlanDetail';
+import {
+  layoutGraph,
+  layoutStagedGraph,
+  stageDisplayMeta,
+  STAGE_HEADER_H,
+  withStageTopologyEdges,
+} from './PlanDetail';
 import type { PlanGraphNode, PlanGraphEdge, PlanStage } from '@/api/plans';
 
 // T800 layout algebra unit tests: buildPlanGraph now emits Start→root / sink→End
@@ -185,6 +191,43 @@ describe('layoutStagedGraph — outer stage DAG + inner sub-DAG (T981 follow-up)
     const stages = [stage({ id: 's1', members: [member('task-A')] })];
     const { positioned } = layoutStagedGraph(nodes, [], stages);
     expect(positioned.some((p) => p.node.id === 'Orphan')).toBe(true);
+  });
+});
+
+describe('withStageTopologyEdges — staged visual topology', () => {
+  const hasEdge = (edges: PlanGraphEdge[], from: string, to: string) =>
+    edges.some((edge) => edge.from === from && edge.to === to);
+
+  it('rebuilds Start/End anchor edges from stage dependencies instead of keeping stale terminal edges', () => {
+    const nodes = [
+      ctrl('start', 'start'),
+      biz('A'),
+      ctrl('gate1', 'condition'),
+      biz('B'),
+      ctrl('gate2', 'condition'),
+      biz('R'),
+      ctrl('gateR', 'condition'),
+      ctrl('end', 'end'),
+    ];
+    const stages = [
+      stage({ id: 's1', members: [member('task-A')], gate_node_id: 'gate1' }),
+      stage({ id: 's2', members: [member('task-B')], gate_node_id: 'gate2', depends_on_stages: ['s1'] }),
+      stage({ id: 'remediate-s1', members: [member('task-R')], gate_node_id: 'gateR', depends_on_stages: ['s1'] }),
+    ];
+    const edges = [
+      seq('start', 'A'),
+      seq('A', 'gate1'),
+      seq('gate1', 'end'), // stale: s1 is no longer terminal after remediation stages exist.
+    ];
+
+    const topology = withStageTopologyEdges(nodes, edges, stages);
+
+    expect(hasEdge(topology, 'gate1', 'end')).toBe(false);
+    expect(hasEdge(topology, 'start', 'A')).toBe(true);
+    expect(hasEdge(topology, 'gate1', 'B')).toBe(true);
+    expect(hasEdge(topology, 'gate1', 'R')).toBe(true);
+    expect(hasEdge(topology, 'gate2', 'end')).toBe(true);
+    expect(hasEdge(topology, 'gateR', 'end')).toBe(true);
   });
 });
 

@@ -661,30 +661,42 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   // Owner ask: the Plan detail task list has a "Created" column showing the
   // task's creation time as a full local timestamp WITH timezone (raw ISO on
   // hover); "—" when the node carries no created_at.
-  it('task list shows a Created column with a full timestamp + timezone (— when absent)', async () => {
+  it('task list shows Created/Started/Ended/Duration timing columns (— when absent)', async () => {
     mockPlan({
       nodes: [
-        { task_id: 'c1', title: 'has created', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [], created_at: '2026-06-01T02:00:00Z' },
+        { task_id: 'c1', title: 'has timing', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], created_at: '2026-06-01T02:00:00Z', dispatched_at: '2026-06-01T03:00:00Z', completed_at: '2026-06-01T05:15:00Z' },
         { task_id: 'c2', title: 'no created', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [] },
       ],
     });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     const table = await screen.findByTestId('plan-task-list-table');
-    // header present.
     expect(within(table).getByText('Created')).toBeInTheDocument();
-    const cells = within(table).getAllByTestId('plan-row-created');
-    expect(cells).toHaveLength(2);
+    expect(within(table).getByText('Started')).toBeInTheDocument();
+    expect(within(table).getByText('Ended')).toBeInTheDocument();
+    expect(within(table).getByText('Duration')).toBeInTheDocument();
     const fmt = (iso: string) =>
       new Date(iso).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
         hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short',
       });
-    expect(cells[0]).toHaveTextContent(fmt('2026-06-01T02:00:00Z'));
-    expect(cells[0].textContent).toMatch(/:\d{2}:\d{2}/);
-    expect(cells[0]).toHaveAttribute('title', '2026-06-01T02:00:00Z');
-    // absent created_at → em-dash.
-    expect(cells[1]).toHaveTextContent('—');
+    const created = within(table).getAllByTestId('plan-row-created');
+    const started = within(table).getAllByTestId('plan-row-started');
+    const ended = within(table).getAllByTestId('plan-row-ended');
+    const duration = within(table).getAllByTestId('plan-row-duration');
+    expect(created).toHaveLength(2);
+    expect(created[0]).toHaveTextContent(fmt('2026-06-01T02:00:00Z'));
+    expect(created[0].textContent).toMatch(/:\d{2}:\d{2}/);
+    expect(created[0]).toHaveAttribute('title', '2026-06-01T02:00:00Z');
+    expect(started[0]).toHaveTextContent(fmt('2026-06-01T03:00:00Z'));
+    expect(started[0]).toHaveAttribute('title', '2026-06-01T03:00:00Z');
+    expect(ended[0]).toHaveTextContent(fmt('2026-06-01T05:15:00Z'));
+    expect(ended[0]).toHaveAttribute('title', '2026-06-01T05:15:00Z');
+    expect(duration[0]).toHaveTextContent('2h 15m');
+    expect(created[1]).toHaveTextContent('—');
+    expect(started[1]).toHaveTextContent('—');
+    expect(ended[1]).toHaveTextContent('—');
+    expect(duration[1]).toHaveTextContent('—');
   });
 
   it('T570: rail drops the Threads/Files panel; title bar has no bottom border', async () => {

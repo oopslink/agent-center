@@ -14,7 +14,7 @@ import {
 import { useIssues } from '@/api/issues';
 import { useBatchArchivePlans, useProjectPlansList, type PlanStatus } from '@/api/plans';
 import { useAgents } from '@/api/agents';
-import { formatLocalTime } from '@/utils/time';
+import { formatDurationSeconds, formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
 import { buildWorkItemFilters } from '@/api/orgWorkItems';
 import { WorkItemFilterBar, EMPTY_DATE_RANGE, type DateRange } from '@/components/WorkItemFilterBar';
@@ -1228,6 +1228,9 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.plan')}</th>
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.priority')}</th>
                 <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.started')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.ended')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.duration')}</th>
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.creator')}</th>
                 <SortHeader label={t('project.table.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
@@ -1278,6 +1281,15 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                   <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
                   <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="task-created" title={tk.created_at}>
                     {fullDateTime(tk.created_at)}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="task-started" title={tk.started_at ?? ''}>
+                    {tk.started_at ? fullDateTime(tk.started_at) : '—'}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="task-ended" title={tk.completed_at ?? ''}>
+                    {tk.completed_at ? fullDateTime(tk.completed_at) : '—'}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="task-duration">
+                    {formatDurationSeconds(tk.run_duration_seconds) ?? '—'}
                   </td>
                   <td className="py-1.5 pr-3 text-text-secondary" data-testid="task-creator" title={tk.creator_ref ?? ''}>
                     {creatorLabel(tk.creator_ref)}

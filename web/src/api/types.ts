@@ -731,6 +731,12 @@ export interface Task {
   // T570 follow-up: authoritative completion time — set when the task enters
   // 'completed', cleared (reset) on reopen. "" / absent when not completed.
   completed_at?: string;
+  // First persisted agent_started lifecycle event for this task. Present when
+  // execution actually began; absent for backlog/never-started rows.
+  started_at?: string;
+  // Runtime in whole seconds, measured from started_at to completed_at for
+  // completed tasks, or to the server render time for active rows.
+  run_duration_seconds?: number;
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;

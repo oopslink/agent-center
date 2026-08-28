@@ -51,7 +51,7 @@ import {
   refKind,
   type MemberResult,
 } from '@/api/members';
-import { formatLocalTime } from '@/utils/time';
+import { formatLocalTime, formatTimeRangeDuration } from '@/utils/time';
 import { Skeleton } from '@/components/Skeleton';
 import { ObjectAuditTimeline } from '@/components/ObjectAuditTimeline';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -3055,13 +3055,15 @@ function edgeKey(from: string, to: string): string {
 // Generation snapshots persist task dependencies, while the stage execution graph
 // also contains derived gate/barrier edges. Rebuild those visual edges from the
 // stage read model so historical evolution DAGs stay connected.
-function withStageTopologyEdges(
+export function withStageTopologyEdges(
   nodes: PlanGraphNode[],
   edges: PlanGraphEdge[],
   stages: PlanStage[],
 ): PlanGraphEdge[] {
   if (stages.length === 0 || nodes.length === 0) return edges;
 
+  const startNode = nodes.find((node) => node.category === 'control' && node.control_kind === 'start');
+  const endNode = nodes.find((node) => node.category === 'control' && node.control_kind === 'end');
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIdByTask = new Map<string, string>();
   for (const node of nodes) {
@@ -3074,8 +3076,20 @@ function withStageTopologyEdges(
     for (const member of stage.members ?? []) stageIdByTask.set(member.task_id, stage.id);
   }
 
-  const existing = new Set(edges.map((edge) => edgeKey(edge.from, edge.to)));
-  const out = [...edges];
+  // In staged layouts Start/End are visual anchors for the whole stage DAG, not
+  // ordinary nodes inside a specific generation. Old or partial graph snapshots
+  // can still carry direct Start->task / task->End edges; preserving them after
+  // remediation stages are appended draws long cross-canvas lines and makes the
+  // flow look disconnected. Keep real task/gate edges, then rebuild terminal
+  // anchor edges from the stage topology below.
+  const structuralEdges = edges.filter((edge) => {
+    if (edge.kind === 'loopback') return true;
+    if (startNode && edge.from === startNode.id) return false;
+    if (endNode && edge.to === endNode.id) return false;
+    return true;
+  });
+  const existing = new Set(structuralEdges.map((edge) => edgeKey(edge.from, edge.to)));
+  const out = [...structuralEdges];
   const add = (from: string | undefined, to: string | undefined) => {
     if (!from || !to || from === to) return;
     if (!nodeById.has(from) || !nodeById.has(to)) return;
@@ -3112,7 +3126,29 @@ function withStageTopologyEdges(
     return entries.length > 0 ? entries : nonGateMembers(stage);
   };
 
+  const stageExitTargets = (stage: PlanStage): string[] => {
+    const gateTarget = gateTargetOf(stage);
+    if (gateTarget) return [gateTarget];
+    return nonGateMembers(stage)
+      .map((taskId) => nodeIdByTask.get(taskId))
+      .filter((nodeId): nodeId is string => !!nodeId);
+  };
+
+  const stagesWithDownstream = new Set<string>();
   for (const stage of stages) {
+    for (const upstreamStageId of stage.depends_on_stages ?? []) {
+      if (stageById.has(upstreamStageId)) stagesWithDownstream.add(upstreamStageId);
+    }
+  }
+
+  for (const stage of stages) {
+    const validStageDeps = (stage.depends_on_stages ?? []).filter((stageId) => stageById.has(stageId));
+    if (validStageDeps.length === 0) {
+      const entries = stageEntries(stage);
+      const startTargets = entries.length > 0 ? entries.map((taskId) => nodeIdByTask.get(taskId)) : stageExitTargets(stage);
+      for (const target of startTargets) add(startNode?.id, target);
+    }
+
     const gateTaskNode = stage.gate_task_id ? nodeIdByTask.get(stage.gate_task_id) : undefined;
     const gateTarget = gateTargetOf(stage);
     if (gateTaskNode) {
@@ -3127,6 +3163,11 @@ function withStageTopologyEdges(
       const upstreamGate = upstreamStage ? gateTargetOf(upstreamStage) : undefined;
       for (const entryTask of stageEntries(stage)) add(upstreamGate, nodeIdByTask.get(entryTask));
     }
+  }
+
+  for (const stage of stages) {
+    if (stagesWithDownstream.has(stage.id)) continue;
+    for (const source of stageExitTargets(stage)) add(source, endNode?.id);
   }
 
   return out;
@@ -4869,7 +4910,10 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colAssignee')}</th>
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTaskStatus')}</th>
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colNodeStatus')}</th>
-                    <th className="py-1.5 font-medium">{t('plan.detail.taskList.colCreated')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colCreated')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colStarted')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colEnded')}</th>
+                    <th className="py-1.5 font-medium">{t('plan.detail.taskList.colDuration')}</th>
                     {canRemove && <th className="py-1.5 pl-3 text-right font-medium">{t('plan.detail.taskList.colAction')}</th>}
                   </tr>
                 </thead>
@@ -4981,6 +5025,7 @@ function PlanTaskRow({
   const generationMeta = {
     revision: generationNode?.revision,
   };
+  const runtimeDuration = formatTimeRangeDuration(node.dispatched_at, node.completed_at);
   // T147: ONE assignee control. Build the dropdown options — "" = Unassigned
   // (routes to the unassign endpoint), then each project member with an avatar
   // leading so the (single) dropdown trigger shows the current assignee's
@@ -5105,8 +5150,17 @@ function PlanTaskRow({
       </td>
       {/* Created column (owner ask): the underlying task's creation time as a
           full local timestamp WITH timezone; raw ISO on hover. "—" if absent. */}
-      <td className="py-1.5 tabular-nums text-text-muted" data-testid="plan-row-created" title={node.created_at ?? ''}>
+      <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="plan-row-created" title={node.created_at ?? ''}>
         {node.created_at ? fullDateTime(node.created_at) : '—'}
+      </td>
+      <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="plan-row-started" title={node.dispatched_at ?? ''}>
+        {node.dispatched_at ? fullDateTime(node.dispatched_at) : '—'}
+      </td>
+      <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="plan-row-ended" title={node.completed_at ?? ''}>
+        {node.completed_at ? fullDateTime(node.completed_at) : '—'}
+      </td>
+      <td className="py-1.5 tabular-nums text-text-muted" data-testid="plan-row-duration">
+        {runtimeDuration ?? '—'}
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">

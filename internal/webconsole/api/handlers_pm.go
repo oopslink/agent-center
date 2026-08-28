@@ -156,6 +156,48 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	return m
 }
 
+func enrichTaskRuntimeFields(ctx context.Context, d HandlerDeps, rows []map[string]any) {
+	if d.PM == nil || len(rows) == 0 {
+		return
+	}
+	now := time.Now().UTC()
+	for _, row := range rows {
+		rawID, _ := row["id"].(string)
+		if rawID == "" {
+			continue
+		}
+		logs, _, err := d.PM.ListTaskActionLogs(ctx, pm.TaskID(rawID), 0, 200)
+		if err != nil {
+			continue
+		}
+		var started time.Time
+		for _, lg := range logs {
+			if lg.Action != pm.TaskActionAgentStarted || lg.OccurredAt.IsZero() {
+				continue
+			}
+			if started.IsZero() || lg.OccurredAt.Before(started) {
+				started = lg.OccurredAt
+			}
+		}
+		if started.IsZero() {
+			continue
+		}
+		started = started.UTC()
+		row["started_at"] = started.Format(time.RFC3339Nano)
+		end := now
+		if completedRaw, _ := row["completed_at"].(string); completedRaw != "" {
+			if completed, err := time.Parse(time.RFC3339Nano, completedRaw); err == nil && !completed.IsZero() {
+				end = completed.UTC()
+			}
+		}
+		secs := int64(end.Sub(started).Seconds())
+		if secs < 0 {
+			secs = 0
+		}
+		row["run_duration_seconds"] = secs
+	}
+}
+
 // enrichTaskPlanNames batch-resolves plan_name for task DTOs that carry a plan_id.
 // Builtin (assignment-pool) plans → empty string; non-builtin → plan name.
 func enrichTaskPlanNames(ctx context.Context, d HandlerDeps, rows []map[string]any) {
@@ -747,6 +789,7 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			out = append(out, pmTaskMap(t))
 		}
+		enrichTaskRuntimeFields(r.Context(), d, out)
 		enrichTaskPlanNames(r.Context(), d, out)
 		writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": len(out)})
 		return
@@ -770,6 +813,7 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	for _, t := range ts {
 		out = append(out, pmTaskMap(t))
 	}
+	enrichTaskRuntimeFields(r.Context(), d, out)
 	enrichTaskPlanNames(r.Context(), d, out)
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": total})
 }
