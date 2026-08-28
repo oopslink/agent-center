@@ -520,14 +520,20 @@ func withRerunSessionID(argv []string, execID string) []string {
 // cached config or spawn error logs and returns (the task stays in-flight, so the
 // normal dispatch loop can still re-fork it fresh).
 func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd []string, slotIndex *int) {
+	if !r.beginRuntimeWork() {
+		r.log("agent=%s self-reconcile relaunch executor=%s skipped: runtime stopping", r.cfg.AgentID, id)
+		return
+	}
 	cfg, ok := r.cachedExecConfig()
 	if !ok || len(runnerCmd) == 0 {
+		r.endRuntimeWork()
 		r.log("agent=%s self-reconcile relaunch executor=%s skipped (config_cached=%t cmd_len=%d)",
 			r.cfg.AgentID, id, ok, len(runnerCmd))
 		return
 	}
 	home, _, _, err := r.agentPaths(r.cfg.AgentID)
 	if err != nil {
+		r.endRuntimeWork()
 		r.log("agent=%s self-reconcile relaunch executor=%s paths: %v", r.cfg.AgentID, id, err)
 		return
 	}
@@ -539,6 +545,7 @@ func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd
 		AgentEnv:   runtimeAgentEnv(cfg.AgentID, cfg.DisplayName, cfg.EnvVars),
 	})
 	if err != nil {
+		r.endRuntimeWork()
 		r.log("agent=%s self-reconcile relaunch executor=%s spawn: %v", r.cfg.AgentID, id, err)
 		return
 	}
@@ -555,7 +562,10 @@ func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd
 	// relaunch, ends when the process exits). ONLY self-forked relaunches need this — a
 	// boot-adopted orphan is a PRIOR process's child, reaped by init (Wait on a non-child
 	// would error), so this reaper is never wired there.
-	go func() { _ = h.Wait() }()
+	go func() {
+		defer r.endRuntimeWork()
+		_ = h.Wait()
+	}()
 	r.log("agent=%s self-reconcile relaunched executor=%s pid=%d", r.cfg.AgentID, id, h.PID)
 }
 

@@ -279,7 +279,7 @@ func pmProgressControlMap(snap *pm.ProgressControlSnapshot) map[string]any {
 	return map[string]any{
 		"as_of": snap.AsOf.Format(time.RFC3339Nano), "decision": string(snap.Decision),
 		"observation_vector_id": snap.ObservationVectorID, "quality": string(snap.Quality),
-		"freshness": map[string]any{"state": snap.Freshness.State, "watermark_lag_ms": snap.Freshness.WatermarkLagMS, "threshold_ms": snap.Freshness.ThresholdMS},
+		"freshness":  map[string]any{"state": snap.Freshness.State, "watermark_lag_ms": snap.Freshness.WatermarkLagMS, "threshold_ms": snap.Freshness.ThresholdMS},
 		"open_holds": holds, "open_obligations": obligations, "open_incidents": incidents,
 		"required_actions": actions,
 	}

@@ -98,6 +98,123 @@ func TestDrainExecutor_NilGuards(t *testing.T) {
 	rt.drainExecutor(ee, "", nil)  // nil handle → no-op
 }
 
+type blockingGetTaskCaller struct {
+	*scriptedToolCaller
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingGetTaskCaller) CallAgentTool(ctx context.Context, tool string, body any, out *json.RawMessage) error {
+	if tool == "get_task" {
+		b.once.Do(func() { close(b.entered) })
+		select {
+		case <-b.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return b.scriptedToolCaller.CallAgentTool(ctx, tool, body, out)
+}
+
+func TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r7-post-stop")
+	attach(rt, ee)
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-stop", "title": "must not run", "status": "open", "assignee": "agent:agent-r7-post-stop",
+	}}
+	setToolCaller(rt, sc)
+
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-stop"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor after Stop returned an error: %v", err)
+	}
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "runtime_stopping" {
+		t.Fatalf("SpawnExecutor after Stop = %+v, want failed/runtime_stopping", res)
+	}
+	if seen := sc.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("post-Stop SpawnExecutor must fail before center reads, got calls %v", seen)
+	}
+	if active := ee.engine.Pool().Active(); active != 0 {
+		t.Fatalf("post-Stop SpawnExecutor leaked active executor slot, active=%d", active)
+	}
+}
+
+func TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r7-race")
+	attach(rt, ee)
+	caller := &blockingGetTaskCaller{
+		scriptedToolCaller: &scriptedToolCaller{getTaskBody: map[string]any{
+			"id": "task-race", "title": "race", "status": "open", "assignee": "agent:agent-r7-race",
+		}},
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	setToolCaller(rt, caller)
+
+	spawnDone := make(chan *SpawnResult, 1)
+	go func() {
+		res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-race"})
+		if err != nil {
+			t.Errorf("SpawnExecutor: %v", err)
+		}
+		spawnDone <- res
+	}()
+	<-caller.entered
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- rt.Stop(context.Background()) }()
+	select {
+	case err := <-stopDone:
+		t.Fatalf("Stop returned before in-flight SpawnExecutor left the lifecycle gate: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	close(caller.release)
+	res := <-spawnDone
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "runtime_stopping" {
+		t.Fatalf("in-flight SpawnExecutor during Stop = %+v, want failed/runtime_stopping", res)
+	}
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if active := ee.engine.Pool().Active(); active != 0 {
+		t.Fatalf("Stop race leaked active executor slot, active=%d", active)
+	}
+	if seen := caller.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
+		t.Fatalf("Stop race must not start new admission/pre-launch work after get_task returns; calls=%v", seen)
+	}
+}
+
+func TestStopRepeatedKeepsAdmissionClosed(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r7-repeat")
+	attach(rt, ee)
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-repeat", "title": "repeat", "status": "open", "assignee": "agent:agent-r7-repeat",
+	}}
+	setToolCaller(rt, sc)
+
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("first Stop: %v", err)
+	}
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("second Stop: %v", err)
+	}
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-repeat"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor after repeated Stop: %v", err)
+	}
+	if res == nil || res.Reason != "runtime_stopping" {
+		t.Fatalf("SpawnExecutor after repeated Stop = %+v, want runtime_stopping", res)
+	}
+	if seen := sc.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("repeated Stop must keep admission closed before center read, got calls %v", seen)
+	}
+}
+
 func TestBuildExecutorEngine_ForksAndDrainFreesSlot(t *testing.T) {
 	rt, ee, _ := engineForAgent(t, "agent-x")
 	if ee.engine.Pool().Max() != 2 {

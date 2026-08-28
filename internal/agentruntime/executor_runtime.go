@@ -318,6 +318,8 @@ func (r *LocalRuntime) workViaExecutor(ctx context.Context, req WorkRequest, ee 
 // duplicate durable commands are already satisfied by the in-flight/live executor,
 // while blocking here would spend the agent-control delivery deadline on work that
 // must not run twice anyway. Different task ids never block one another.
+var ErrRuntimeStopping = errors.New("agentruntime: runtime stopping")
+
 func (r *LocalRuntime) beginTaskFork(taskID string) (bool, string) {
 	r.forkStateMu.Lock()
 	defer r.forkStateMu.Unlock()
@@ -401,6 +403,10 @@ func (r *LocalRuntime) executorForTask(ee *ExecutorEngine, taskID string) (strin
 // Per-task single-flight prevents duplicate work; Pool.Launch independently enforces
 // the atomic ≤N cap while allowing distinct tasks to provision and spawn in parallel.
 func (r *LocalRuntime) launchExecutor(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) error {
+	if !r.beginRuntimeWork() {
+		return ErrRuntimeStopping
+	}
+	defer r.endRuntimeWork()
 	if existing, ok := r.executorForTask(ee, taskID); ok {
 		r.log("FORK-COALESCED agent_namespace=%s task_id=%s executor_id=%s reason=already_active", agentID, taskID, existing)
 		return nil
@@ -445,6 +451,9 @@ func statErr(path string) error { _, err := os.Stat(path); return err }
 // registers task→executor before starting the drain goroutine, closing the duplicate
 // request race even for a very short-lived child process.
 func (r *LocalRuntime) launchExecutorNow(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) (*orchestrator.Launched, error) {
+	if r.isStopping() {
+		return nil, ErrRuntimeStopping
+	}
 	// issue-d118b5dc instrument: the single commit point where an executor fork is actually
 	// launched (reached from BOTH SpawnExecutor(fork_executor) and workViaExecutor(work)).
 	// Fail-loud entry log with the forking runtime's namespace so a repro can correlate WHICH
@@ -501,8 +510,14 @@ func (r *LocalRuntime) launchExecutorNow(ctx context.Context, agentID, taskID st
 
 	// Reap the executor when it exits, freeing its pool slot. Runtime Stop joins
 	// these drains so teardown cannot race finalization/writeback filesystem I/O.
+	if !r.beginRuntimeWork() {
+		_ = launched.Handle.Kill()
+		r.drainExecutor(ee, taskID, launched.Handle)
+		return launched, nil
+	}
 	r.execDrainWG.Add(1)
 	go func() {
+		defer r.endRuntimeWork()
 		defer r.execDrainWG.Done()
 		r.drainExecutor(ee, taskID, launched.Handle)
 	}()
@@ -742,6 +757,11 @@ func (r *LocalRuntime) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
 func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*SpawnResult, error) {
 	agentID := r.cfg.AgentID
 	taskID := strings.TrimSpace(req.TaskID)
+	if !r.beginRuntimeWork() {
+		r.log("fork_executor agent=%s task=%s SpawnExecutor: runtime stopping — rejected fail-closed", agentID, taskID)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_stopping", Detail: ErrRuntimeStopping.Error()}, nil
+	}
+	defer r.endRuntimeWork()
 	ee := r.execEngine()
 	if ee == nil {
 		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
@@ -834,6 +854,11 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	}
 	if alreadyAdmitted {
 		r.log("FORK-ADMISSION-REUSED agent_namespace=%s task_id=%s status=running — Supervisor already admitted task; continuing to executor launch", agentID, taskID)
+	}
+	if r.isStopping() {
+		r.log("FORK-REJECTED agent_namespace=%s task_id=%s reason=runtime_stopping — Stop closed executor admission before launch",
+			agentID, taskID)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_stopping", Detail: ErrRuntimeStopping.Error()}, nil
 	}
 
 	// A forked node is a code task. It must have a center-resolved repository and a
@@ -1008,6 +1033,12 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 
 	// 4. Fork the executor (W1 HandleWork chain). Pool.Launch reserves the slot
 	// atomically; no global runtime mutex is held across the process launch.
+	if r.isStopping() {
+		r.removePreparedWorkspace(ctx, agentID, taskID, prepared)
+		r.removeUnlaunchedExecutorDir(ee, execID)
+		r.blockTaskOnForkFailure(ctx, agentID, taskID, ErrRuntimeStopping)
+		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_stopping", Detail: ErrRuntimeStopping.Error()}, nil
+	}
 	item := buildWorkItem(taskID, task, execID, prepared, taskInput, req.Model, req.Context)
 	item.RuleSnapshot = r.loadTeamRules(ctx, agentID, rulePhaseForTask(task), execID)
 	launched, err := r.launchExecutorNow(ctx, agentID, taskID, item, ee)
