@@ -185,7 +185,12 @@ func (s *Service) canCompletePlan(ctx context.Context, p *pm.Plan) (PlanCompleti
 	for _, id := range incompleteEffectiveLeaves(view, edges) {
 		eval.Reasons = append(eval.Reasons, "incomplete_effective_leaf:"+string(id))
 	}
-	pendingConditions, err := s.unresolvedGraphConditions(ctx, p)
+	// Conditions belong to the current effective topology, not to the Plan forever.
+	// Evolution deliberately keeps historical graph facts for audit, so scanning every
+	// unresolved condition in the graph resurrects superseded gates and can strand a
+	// 52/52 Plan in running with an empty frontier. Filter through the same effective
+	// node projection used by progress/ready/completion before applying condition gates.
+	pendingConditions, err := s.unresolvedGraphConditions(ctx, p, view)
 	if err != nil {
 		return eval, err
 	}
@@ -261,13 +266,33 @@ func continuationIDsReason(ids []pm.ContinuationID) string {
 	return strings.Join(parts, ",")
 }
 
-func (s *Service) unresolvedGraphConditions(ctx context.Context, p *pm.Plan) ([]string, error) {
+func (s *Service) unresolvedGraphConditions(ctx context.Context, p *pm.Plan, view pm.PlanView) ([]string, error) {
 	if s.orch == nil || p == nil || p.GraphID() == "" {
 		return nil, nil
 	}
 	nodes, err := s.orch.ListNodes(ctx, orch.GraphID(p.GraphID()))
 	if err != nil {
 		return nil, err
+	}
+	pending := activeUnresolvedGraphConditions(nodes, view)
+	sort.Strings(pending)
+	return pending, nil
+}
+
+// activeUnresolvedGraphConditions is the single generation/effective-topology
+// ownership filter for orchestration conditions. A condition created for a task
+// that is no longer effective is historical audit state and must never participate
+// in current completion eligibility. Unknown/unowned conditions remain fail-closed:
+// they are returned by node id so corrupt or legacy ambiguous state becomes an owned
+// progress incident instead of being silently ignored.
+func activeUnresolvedGraphConditions(nodes []*orch.Node, view pm.PlanView) []string {
+	effective := make(map[pm.TaskID]bool, len(view.Nodes))
+	known := make(map[pm.TaskID]bool, len(view.Nodes))
+	for _, node := range view.Nodes {
+		known[node.TaskID] = true
+		if node.Effective {
+			effective[node.TaskID] = true
+		}
 	}
 	var pending []string
 	for _, node := range nodes {
@@ -278,13 +303,17 @@ func (s *Service) unresolvedGraphConditions(ctx context.Context, p *pm.Plan) ([]
 			continue
 		}
 		decisionID, _ := node.Metadata()["condition_for"].(string)
-		if decisionID == "" {
+		if decisionID != "" {
+			taskID := pm.TaskID(decisionID)
+			if known[taskID] && !effective[taskID] {
+				continue
+			}
+		} else {
 			decisionID = string(node.ID())
 		}
 		pending = append(pending, decisionID)
 	}
-	sort.Strings(pending)
-	return pending, nil
+	return pending
 }
 
 func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.Task, edges []pm.Dependency) (pm.PlanViewOptions, error) {
