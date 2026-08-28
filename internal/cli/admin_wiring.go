@@ -322,7 +322,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// repo-info MCP tools (list_project_repos / get_repo_info live).
 		CodeRepoSvc: a.CodeRepoService,
 		// v2.19.0: the heartbeat handler writes per-agent live executor snapshots here.
-		LiveState: a.LiveState,
+		LiveState:           a.LiveState,
+		InsightObservations: a.InsightObservationRepo,
 		// Cognition reminders (T206) — create/list/get/update_reminder tools + API.
 		ReminderSvc: buildReminderService(a),
 		// pm (new-model) project repo for the operator/admin-token project

@@ -11,7 +11,6 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -19,14 +18,7 @@ import (
 // auditSetup wires a Service WITH the audit ledger repo (flowSetup leaves it nil).
 func auditSetup(t *testing.T) (*Service, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)
@@ -245,14 +237,7 @@ func (failingAudit) ListByObject(context.Context, pm.AuditObjectType, string, st
 // TestAudit_NonBlocking proves a failing audit append never fails/rolls back the
 // primary mutation (the acceptance's 审计写不阻塞主 mutation).
 func TestAudit_NonBlocking(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	var ob outbox.Repository = outboxsql.NewOutboxRepo(db)

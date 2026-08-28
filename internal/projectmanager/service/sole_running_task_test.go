@@ -127,13 +127,7 @@ func TestSoleRunningTask_EmptyAssignee(t *testing.T) {
 // caller (report_usage handler) treats an error as "no fallback" and still records
 // the tokens. Forced via a closed DB.
 func TestSoleRunningTask_RepoError(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),

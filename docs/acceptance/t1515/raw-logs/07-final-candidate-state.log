@@ -1,0 +1,11 @@
+$ git status --short --branch
+## HEAD (no branch)
+
+$ git diff --stat origin/main..HEAD
+ web/src/pages/Access.test.tsx | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+$ git diff --name-status origin/main..HEAD
+M	web/src/pages/Access.test.tsx
+
+[exit_code=0]

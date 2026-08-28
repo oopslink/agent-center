@@ -1,0 +1,218 @@
+$ git diff --unified=80 origin/main..origin/ac-exec/T1514-access-test-ts2339 -- web/src/pages/Access.test.tsx
+diff --git a/web/src/pages/Access.test.tsx b/web/src/pages/Access.test.tsx
+index 43987f28..f06a0655 100644
+--- a/web/src/pages/Access.test.tsx
++++ b/web/src/pages/Access.test.tsx
+@@ -289,204 +289,206 @@ describe('Access page', () => {
+
+     await within(grants).findByText('direct binding revoked');
+     const result = within(grants).getAllByTestId('access-result').at(-1)!;
+     expect(result).toHaveTextContent('Revoke result');
+     expect(result).toHaveTextContent('direct binding revoked');
+     expect(await screen.findByTestId('access-toast')).toHaveTextContent('Revoke completed');
+   });
+
+   it('shows a success toast after the Add direct binding flow applies', async () => {
+     server.use(
+       http.post('*/api/orgs/:slug/access/batch/apply', async ({ request }) => {
+         const body = (await request.json()) as { subject_refs?: string[]; permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> };
+         return HttpResponse.json({
+           operation_id: 'access-op-success',
+           applied_at: '2026-08-14T08:01:00Z',
+           items: [{
+             id: 'item-1',
+             subject_ref: body.subject_refs?.[0] ?? 'agent:builder',
+             subject_name: 'Builder',
+             permission: body.permission_keys?.[0] ?? 'project.write',
+             resource: body.resources?.[0] ?? { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+             status: 'allowed',
+             risk: 'medium',
+             high_risk: false,
+             reason: 'grant applied by unified authorization API',
+             grant_id: 'grant-new-direct',
+           }],
+           summary: { total: 1, succeeded: 1, failed: 0, unauthorized: 0, not_applicable: 0, partial_failure: false },
+         });
+       }),
+     );
+     renderPage('/organizations/test/access/subject-access');
+     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
+     await screen.findByTestId('access-subject-view');
+     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+
+     const drawer = await screen.findByTestId('access-batch-drawer');
+     fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
+     fireEvent.click(within(drawer).getByRole('button', { name: /project\.write/ }));
+     fireEvent.click(within(drawer).getAllByRole('button', { name: /agent-center core/ })[0]);
+     fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), {
+       target: { value: 'temporary direct binding' },
+     });
+     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+
+     await within(drawer).findByTestId('access-preview-summary');
+     fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+     await within(drawer).findByText(/Ready to apply/);
+     fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+
+     expect(await within(drawer).findByTestId('access-result')).toHaveTextContent('Authorization result');
+     expect(await screen.findByTestId('access-toast')).toHaveTextContent('Direct binding granted');
+   });
+
+   it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {
+     server.use(
+       http.post('*/api/orgs/:slug/access/batch/apply', () => HttpResponse.json(
+         { error: 'version_conflict', message: 'subject access changed after preview' },
+         { status: 409 },
+       )),
+     );
+     renderPage('/organizations/test/access/subject-access');
+     await screen.findByTestId('access-subject-view');
+     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+     const drawer = await screen.findByTestId('access-batch-drawer');
+     expect(within(drawer).getByTestId('access-direct-subject-context')).toHaveTextContent('agent:builder');
+     fireEvent.click(within(drawer).getByRole('button', { name: /project\.write/ }));
+     fireEvent.click(within(drawer).getAllByRole('button', { name: /agent-center core/ })[0]);
+     fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'conflict probe' } });
+     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+     await within(drawer).findByTestId('access-preview-summary');
+     fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+     fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+     expect(await screen.findByTestId('access-toast')).toHaveTextContent('409:');
+     expect(screen.getByTestId('access-toast')).toHaveTextContent('subject access changed after preview');
+   });
+
+   it('does not preselect resources and clears incompatible resources when permission changes', async () => {
+-    let previewBody: { permission_keys?: string[]; resources?: Array<{ kind: string; id: string }> } | null = null;
++    type PreviewRequestBody = { permission_keys?: string[]; resources?: Array<{ kind: string; id: string; label?: string }> };
++    let previewBody: PreviewRequestBody | null = null;
+     server.use(
+       http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
+-        previewBody = (await request.json()) as typeof previewBody;
++        previewBody = (await request.json()) as PreviewRequestBody;
+         return HttpResponse.json({
+           request_id: 'preview-org-only',
+           expires_at: null,
+           items: [{
+             id: 'item-1',
+             subject_ref: 'agent:builder',
+             subject_name: 'Builder',
+             permission: 'org.read',
+             resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+             status: 'allowed',
+             risk: 'low',
+             high_risk: false,
+             reason: 'grant can be applied by unified authorization API',
+           }],
+           summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+         });
+       }),
+     );
+     renderPage('/organizations/test/access/subject-access');
+     await screen.findByTestId('access-subject-view');
+     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+     const drawer = await screen.findByTestId('access-batch-drawer');
+     const orgResource = within(drawer).getByRole('button', { name: /Test Org/ });
+     const projectResource = within(drawer).getByRole('button', { name: /Project Alpha/ });
+     expect(orgResource).toHaveAttribute('aria-pressed', 'false');
+     expect(projectResource).toHaveAttribute('aria-pressed', 'false');
+
+     fireEvent.click(projectResource);
+     expect(projectResource).toHaveAttribute('aria-pressed', 'true');
+     fireEvent.click(orgResource);
+     fireEvent.click(within(drawer).getByRole('button', { name: /org\.read/ }));
+     expect(projectResource).toHaveAttribute('aria-pressed', 'false');
+     expect(projectResource).toBeDisabled();
+     expect(orgResource).toHaveAttribute('aria-pressed', 'true');
+
+     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'org-only direct grant' } });
+     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+     await within(drawer).findByTestId('access-preview-summary');
+-    expect(previewBody?.permission_keys).toEqual(['org.read']);
+-    expect(previewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
++    const capturedPreviewBody = previewBody as PreviewRequestBody | null;
++    expect(capturedPreviewBody?.permission_keys).toEqual(['org.read']);
++    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
+   });
+
+   it('renders partial failure result items without unknown phantom rows', async () => {
+     server.use(
+       http.post('*/api/orgs/:slug/access/batch/preview', () => HttpResponse.json({
+         request_id: 'preview-partial',
+         expires_at: null,
+         items: [{
+           id: 'item-1',
+           subject_ref: 'agent:builder',
+           subject_name: 'Builder',
+           permission: 'org.read',
+           resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+           status: 'allowed',
+           risk: 'low',
+           high_risk: false,
+           reason: 'grant can be applied by unified authorization API',
+         }],
+         summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+       })),
+       http.post('*/api/orgs/:slug/access/batch/apply', () => HttpResponse.json({
+         operation_id: 'access-op-partial',
+         applied_at: '2026-08-14T08:01:00Z',
+         items: [
+           {
+             id: 'item-1',
+             subject_ref: 'agent:builder',
+             subject_name: 'Builder',
+             permission: 'org.read',
+             resource: { kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' },
+             status: 'allowed',
+             risk: 'low',
+             high_risk: false,
+             reason: 'grant applied by unified authorization API',
+           },
+           {
+             id: 'item-2',
+             subject_ref: 'agent:builder',
+             subject_name: 'Builder',
+             permission: 'org.read',
+             resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+             status: 'not_applicable',
+             risk: 'low',
+             high_risk: false,
+             reason: 'org.read does not apply to project',
+           },
+         ],
+         summary: { total: 2, succeeded: 1, failed: 1, unauthorized: 0, not_applicable: 1, partial_failure: true },
+       })),
+     );
+     renderPage('/organizations/test/access/subject-access');
+     await screen.findByTestId('access-subject-view');
+     fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+     const drawer = await screen.findByTestId('access-batch-drawer');
+     fireEvent.click(within(drawer).getByRole('button', { name: /org\.read/ }));
+     fireEvent.click(within(drawer).getByRole('button', { name: /Test Org/ }));
+     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'partial mapping' } });
+     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+     await within(drawer).findByTestId('access-preview-summary');
+     fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+     fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+
+     const result = await within(drawer).findByTestId('access-result');
+     expect(result).toHaveTextContent('1 succeeded, 1 failed, 0 no access, 1 not applicable');
+     const rows = within(result).getAllByRole('row');
+     expect(rows).toHaveLength(3);
+     expect(result).not.toHaveTextContent('Unknown resource');
+     expect(result).not.toHaveTextContent('unknown');
+   });
+
+   it('confirms revoke with the original preview token, stable idempotency key, and reason/message', async () => {
+     let previewBody: { grant_ids?: string[]; reason?: string; message?: string } | null = null;
+     let confirmBody: { grant_ids?: string[]; reason?: string; message?: string; preview_id?: string; token?: string; idempotency_key?: string } | null = null;
+     server.use(
+       http.post('*/api/orgs/:slug/access/grants/revoke/preview', async ({ request }) => {
+         previewBody = (await request.json()) as typeof previewBody;
+         return HttpResponse.json({
+           preview_id: 'rvp-original',
+           token: 'token-original',
+           expires_at: '2026-08-14T08:07:00Z',
+
+[exit_code=0]

@@ -7,6 +7,7 @@ import (
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // TestPMCreateTask_DispatchLandsRunnable covers issue-ca51e07c F2: the webconsole
@@ -72,6 +73,88 @@ func TestPMCreateTask_DispatchLandsRunnable(t *testing.T) {
 	// would no longer return task_not_runnable.
 	if err := fx.deps.PM.EnsureTaskRunnable(ctx, pm.TaskID(taskID)); err != nil {
 		t.Fatalf("EnsureTaskRunnable on a dispatched task = %v, want nil (runnable)", err)
+	}
+}
+
+// TestPMTaskContainerExclusivity_AuthoritativeLists verifies the production HTTP
+// reads, including compatibility with a duplicate pool row left by an older
+// binary. Plan wins over Pool and Backlog; pending removal restores Backlog; only
+// a later explicit pool dispatch moves it to AssignmentPool.
+func TestPMTaskContainerExclusivity_AuthoritativeLists(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sess.OrgID, Name: "exclusive", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "pending", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, err := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "one container", CreatedBy: caller, Dispatch: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.SelectTaskIntoPlan(ctx, planID, taskID, caller); err != nil {
+		t.Fatal(err)
+	}
+
+	// Recreate a legacy duplicate after the fixed write has removed the real pool
+	// row. The API must still exclude it from the Pool projection.
+	pools := pmsql.NewAssignmentPoolRepo(db)
+	pool, err := pools.FindByProject(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := pm.NewAssignmentPoolTask(pool.ID(), taskID, 0, caller, pool.CreatedAt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pools.AddTask(ctx, member); err != nil {
+		t.Fatal(err)
+	}
+
+	base := s.URL + "/api/projects/" + string(pid)
+	poolBody := decodeBody(t, orgScopedGet(t, base+"/assignment-pool", sess))
+	if got := len(poolBody["tasks"].([]any)); got != 0 {
+		t.Fatalf("planned task visible in assignment pool: %v", poolBody["tasks"])
+	}
+	backlogBody := decodeBody(t, orgScopedGet(t, base+"/tasks?unplanned=1", sess))
+	if got := len(backlogBody["tasks"].([]any)); got != 0 {
+		t.Fatalf("planned task visible in backlog: %v", backlogBody["tasks"])
+	}
+
+	if err := fx.deps.PM.RemoveTaskFromPlan(ctx, planID, taskID, caller); err != nil {
+		t.Fatal(err)
+	}
+	backlogBody = decodeBody(t, orgScopedGet(t, base+"/tasks?unplanned=1", sess))
+	if rows := backlogBody["tasks"].([]any); len(rows) != 1 || rows[0].(map[string]any)["id"] != string(taskID) {
+		t.Fatalf("pending-plan removal did not restore backlog: %v", rows)
+	}
+
+	// Pool dispatch remains a separate command after the task has returned to
+	// Backlog; it must then disappear from Backlog and appear once in Pool.
+	resp := orgScopedPost(t, base+"/assignment-pool/tasks", `{"task_id":"`+string(taskID)+`","priority":9}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("pool dispatch status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	backlogBody = decodeBody(t, orgScopedGet(t, base+"/tasks?unplanned=1", sess))
+	if got := len(backlogBody["tasks"].([]any)); got != 0 {
+		t.Fatalf("pool task remained in backlog: %v", backlogBody["tasks"])
+	}
+	poolBody = decodeBody(t, orgScopedGet(t, base+"/assignment-pool", sess))
+	if rows := poolBody["tasks"].([]any); len(rows) != 1 || rows[0].(map[string]any)["id"] != string(taskID) {
+		t.Fatalf("pool dispatch projection=%v", rows)
 	}
 }
 

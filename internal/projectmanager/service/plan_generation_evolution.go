@@ -19,14 +19,17 @@ import (
 // active generation. It is the server-side Evolution API: optimistic-concurrency
 // checked, idempotent, and dispatch-atomic for running plans.
 type EvolvePlanGenerationCommand struct {
-	PlanID             pm.PlanID
-	ParentGenerationID pm.PlanGenerationID
-	BaseVersion        int
-	IdempotencyKey     string
-	Reason             string
-	Evidence           string
-	Creator            pm.IdentityRef
-	Diff               pm.PlanGenerationDiff
+	PlanID              pm.PlanID
+	ParentGenerationID  pm.PlanGenerationID
+	BaseVersion         int
+	IdempotencyKey      string
+	Reason              string
+	Evidence            string
+	Creator             pm.IdentityRef
+	Diff                pm.PlanGenerationDiff
+	ResolveBlockEventID string
+	ResolutionKind      string
+	ResolutionNote      string
 }
 
 type EvolvePlanGenerationResult struct {
@@ -46,11 +49,17 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 	cmd.IdempotencyKey = strings.TrimSpace(cmd.IdempotencyKey)
 	cmd.Reason = strings.TrimSpace(cmd.Reason)
 	cmd.Evidence = strings.TrimSpace(cmd.Evidence)
+	cmd.ResolveBlockEventID = strings.TrimSpace(cmd.ResolveBlockEventID)
+	cmd.ResolutionKind = strings.TrimSpace(cmd.ResolutionKind)
+	cmd.ResolutionNote = strings.TrimSpace(cmd.ResolutionNote)
 	if cmd.IdempotencyKey == "" {
 		return result, errors.New("projectmanager: evolution idempotency_key required")
 	}
 	if cmd.Reason == "" || cmd.Evidence == "" {
 		return result, errors.New("projectmanager: evolution reason and evidence required")
+	}
+	if err := validateEvolutionBlockResolution(cmd); err != nil {
+		return result, err
 	}
 	fingerprint, err := evolutionRequestFingerprint(cmd)
 	if err != nil {
@@ -100,6 +109,11 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			return fmt.Errorf("%w: parent_generation_id=%s active_generation_id=%s",
 				pm.ErrPlanGenerationConflict, cmd.ParentGenerationID, p.ActiveGenerationID())
 		}
+		if cmd.ResolveBlockEventID != "" {
+			if err := s.resolveEvolutionBlockEvent(txCtx, p.ProjectID(), p.ID(), cmd); err != nil {
+				return err
+			}
+		}
 
 		tasks, err := s.tasks.ListByPlan(txCtx, p.ID())
 		if err != nil {
@@ -122,7 +136,7 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			dispatchedSet[r.TaskID] = true
 		}
 
-		superseded, err := s.validateEvolutionNodeDecisions(cmd.Diff.NodeDecisions, taskByID, edges, dispatchedSet)
+		superseded, err := s.validateEvolutionNodeDecisions(txCtx, p, cmd.Creator, cmd.Diff.NodeDecisions, taskByID, edges, dispatchedSet)
 		if err != nil {
 			return err
 		}
@@ -136,7 +150,7 @@ func (s *Service) EvolvePlanGeneration(ctx context.Context, cmd EvolvePlanGenera
 			return err
 		}
 
-		newTaskIDs, refToTask, err := s.createEvolutionTasks(txCtx, p, cmd, now)
+		newTaskIDs, refToTask, err := s.createEvolutionTasks(txCtx, p, cmd, supersedeLineageSource(superseded), now)
 		if err != nil {
 			return err
 		}
@@ -302,14 +316,17 @@ func validateEvolutionNewRootsConnected(diff pm.PlanGenerationDiff) error {
 
 func evolutionRequestFingerprint(cmd EvolvePlanGenerationCommand) (string, error) {
 	body := struct {
-		PlanID             pm.PlanID             `json:"plan_id"`
-		ParentGenerationID pm.PlanGenerationID   `json:"parent_generation_id"`
-		BaseVersion        int                   `json:"base_version"`
-		Reason             string                `json:"reason"`
-		Evidence           string                `json:"evidence"`
-		Creator            pm.IdentityRef        `json:"creator"`
-		Diff               pm.PlanGenerationDiff `json:"diff"`
-	}{cmd.PlanID, cmd.ParentGenerationID, cmd.BaseVersion, strings.TrimSpace(cmd.Reason), strings.TrimSpace(cmd.Evidence), cmd.Creator, cmd.Diff}
+		PlanID              pm.PlanID             `json:"plan_id"`
+		ParentGenerationID  pm.PlanGenerationID   `json:"parent_generation_id"`
+		BaseVersion         int                   `json:"base_version"`
+		Reason              string                `json:"reason"`
+		Evidence            string                `json:"evidence"`
+		Creator             pm.IdentityRef        `json:"creator"`
+		Diff                pm.PlanGenerationDiff `json:"diff"`
+		ResolveBlockEventID string                `json:"resolve_block_event_id,omitempty"`
+		ResolutionKind      string                `json:"resolution_kind,omitempty"`
+		ResolutionNote      string                `json:"resolution_note,omitempty"`
+	}{cmd.PlanID, cmd.ParentGenerationID, cmd.BaseVersion, strings.TrimSpace(cmd.Reason), strings.TrimSpace(cmd.Evidence), cmd.Creator, cmd.Diff, cmd.ResolveBlockEventID, cmd.ResolutionKind, strings.TrimSpace(cmd.ResolutionNote)}
 	b, err := json.Marshal(body)
 	if err != nil {
 		return "", err
@@ -318,7 +335,49 @@ func evolutionRequestFingerprint(cmd EvolvePlanGenerationCommand) (string, error
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+func validateEvolutionBlockResolution(cmd EvolvePlanGenerationCommand) error {
+	if cmd.ResolveBlockEventID == "" {
+		if cmd.ResolutionKind != "" || cmd.ResolutionNote != "" {
+			return fmt.Errorf("%w: resolve_block_event_id is required with resolution fields", pm.ErrPlanGenerationConflict)
+		}
+		return nil
+	}
+	switch cmd.ResolutionKind {
+	case "replace", "bypass":
+	default:
+		return fmt.Errorf("%w: invalid resolution_kind %q", pm.ErrInvalidStatus, cmd.ResolutionKind)
+	}
+	if strings.TrimSpace(cmd.ResolutionNote) == "" {
+		return errors.New("projectmanager: resolution_note required")
+	}
+	return nil
+}
+
+func (s *Service) resolveEvolutionBlockEvent(ctx context.Context, projectID pm.ProjectID, planID pm.PlanID, cmd EvolvePlanGenerationCommand) error {
+	taskID := pm.TaskID(cmd.ResolveBlockEventID)
+	blocked, found, err := s.plans.GetBlockedOn(ctx, planID, taskID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: resolve_block_event_id=%s is not active on plan %s", pm.ErrPlanGenerationConflict, cmd.ResolveBlockEventID, planID)
+	}
+	if err := s.plans.ClearBlockedOn(ctx, planID, taskID); err != nil {
+		return err
+	}
+	s.auditPlanByID(ctx, projectID, planID, pm.AuditPlanTopologyCommit, cmd.Creator, map[string]any{
+		"resolve_block_event_id": cmd.ResolveBlockEventID,
+		"resolution_kind":        cmd.ResolutionKind,
+		"resolution_note":        cmd.ResolutionNote,
+		"wait_type":              string(blocked.WaitType),
+	})
+	return nil
+}
+
 func (s *Service) validateEvolutionNodeDecisions(
+	ctx context.Context,
+	p *pm.Plan,
+	actor pm.IdentityRef,
 	decisions []pm.PlanGenerationNodeDecision,
 	taskByID map[pm.TaskID]*pm.Task,
 	edges []pm.Dependency,
@@ -339,7 +398,12 @@ func (s *Service) validateEvolutionNodeDecisions(
 			continue
 		case pm.EvolutionSupersede:
 			if !mutable {
-				return nil, fmt.Errorf("%w: supersede task %s", pm.ErrPlanNodeInFlight, d.TaskID)
+				if !ownerMaySupersedeSettledNode(t.Status(), dispatched[d.TaskID]) {
+					return nil, fmt.Errorf("%w: supersede task %s", pm.ErrPlanNodeInFlight, d.TaskID)
+				}
+				if err := s.requirePlanCreatorOrProjectOwner(ctx, p, actor); err != nil {
+					return nil, err
+				}
 			}
 			superseded[d.TaskID] = true
 		case pm.EvolutionHoldAtGate:
@@ -358,6 +422,13 @@ func (s *Service) validateEvolutionNodeDecisions(
 		}
 	}
 	return superseded, nil
+}
+
+func ownerMaySupersedeSettledNode(status pm.TaskStatus, dispatched bool) bool {
+	if status == pm.TaskRunning {
+		return false
+	}
+	return dispatched || status.IsParked() || status.IsTerminal()
 }
 
 func (s *Service) applySupersededNodes(
@@ -383,10 +454,20 @@ func (s *Service) applySupersededNodes(
 		if t == nil {
 			continue
 		}
-		if err := t.ClearPlan(now); err != nil {
+		// Superseded nodes remain immutable Plan history. Clearing plan_id projects
+		// terminal skipped/cancelled-by-reject history back into Backlog, losing the
+		// generation that made it unreachable. It no longer participates in the active
+		// graph/stage, but plan_id stays as container attribution.
+		if err := t.SetStage("", now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(ctx, t); err != nil {
+			return err
+		}
+		if err := s.plans.ClearDispatch(ctx, p.ID(), id); err != nil {
+			return err
+		}
+		if err := s.plans.ClearBlockedOn(ctx, p.ID(), id); err != nil {
 			return err
 		}
 		s.auditPlanByID(ctx, p.ProjectID(), p.ID(), pm.AuditPlanNodeRemoved, p.CreatorRef(), map[string]any{
@@ -396,10 +477,21 @@ func (s *Service) applySupersededNodes(
 	return nil
 }
 
+func supersedeLineageSource(superseded map[pm.TaskID]bool) pm.TaskID {
+	if len(superseded) != 1 {
+		return ""
+	}
+	for id := range superseded {
+		return id
+	}
+	return ""
+}
+
 func (s *Service) createEvolutionTasks(
 	ctx context.Context,
 	p *pm.Plan,
 	cmd EvolvePlanGenerationCommand,
+	lineageSource pm.TaskID,
 	now time.Time,
 ) ([]pm.TaskID, map[string]pm.TaskID, error) {
 	refToTask := map[string]pm.TaskID{}
@@ -412,10 +504,14 @@ func (s *Service) createEvolutionTasks(
 		if _, exists := refToTask[ref]; exists {
 			return nil, nil, pm.ErrRemediationProposalInvalid
 		}
+		followsTaskID := spec.FollowsTaskID
+		if followsTaskID == "" {
+			followsTaskID = lineageSource
+		}
 		taskID, err := s.CreateTask(ctx, CreateTaskCommand{
 			ProjectID: p.ProjectID(), Title: spec.Title, Description: spec.Description,
 			CreatedBy: cmd.Creator, Assignee: spec.AssigneeRef, DispatchMode: spec.DispatchMode,
-			DeliveryContract: spec.DeliveryContract, FollowsTaskID: spec.FollowsTaskID,
+			DeliveryContract: spec.DeliveryContract, FollowsTaskID: followsTaskID,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -514,8 +610,17 @@ func (s *Service) applyGenerationGraphDelta(
 			return err
 		}
 		if t.NodeID() != "" {
-			if err := s.orch.RemoveNode(ctx, orch.NodeID(t.NodeID())); err != nil {
+			if err := s.removeSupersededGraphNode(ctx, orch.NodeID(t.NodeID())); err != nil {
 				return err
+			}
+			// A retained non-terminal history task must no longer point at the
+			// removed active graph node. Clear the binding only after removal so the
+			// delta can still locate the node above.
+			if t.PlanID() == p.ID() {
+				t.SetNodeID("", now)
+				if err := s.tasks.Update(ctx, t); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -575,6 +680,20 @@ func (s *Service) applyGenerationGraphDelta(
 		}
 	}
 	return nil
+}
+
+func (s *Service) removeSupersededGraphNode(ctx context.Context, nodeID orch.NodeID) error {
+	n, err := s.orch.GetNode(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	switch n.Status() {
+	case orch.NodeRunning, orch.NodeCompleted:
+		if err := s.orch.ReopenNode(ctx, nodeID, "superseded by plan evolution"); err != nil {
+			return err
+		}
+	}
+	return s.orch.RemoveNode(ctx, nodeID)
 }
 
 func planGenerationSnapshot(

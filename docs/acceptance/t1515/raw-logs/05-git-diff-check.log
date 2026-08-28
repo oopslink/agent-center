@@ -1,0 +1,3 @@
+$ git diff --check origin/main..HEAD
+
+[exit_code=0]

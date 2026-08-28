@@ -249,6 +249,14 @@ var (
 	// delete are exempt. Message = BacklogNotActionableHint (no "projectmanager:"
 	// prefix — it is surfaced VERBATIM to agents). Rule: docs/rules/backlog-task-inert.md.
 	ErrTaskBacklogNotActionable = errors.New(BacklogNotActionableHint)
+	// ErrProgressHoldOpen rejects a mutation that would advance, dispatch, accept, or
+	// start downstream work while a progress_hold is open. Holds are released only by
+	// explicit ack/decision/progress facts, not by notification delivery or executor
+	// lifecycle noise.
+	ErrProgressHoldOpen = errors.New("projectmanager: progress hold open")
+	// ErrProgressFenceStale rejects a progress controller write after another
+	// controller has taken the lease/fencing token.
+	ErrProgressFenceStale = errors.New("projectmanager: progress fence stale")
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")

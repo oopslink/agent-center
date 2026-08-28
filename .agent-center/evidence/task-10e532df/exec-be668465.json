@@ -1,0 +1,251 @@
+{
+  "task_id": "task-10e532df",
+  "execution_id": "exec-be668465",
+  "reviewed_sha": "577a9d9f33ee348bdc7bedaa3ebd79899a749da2",
+  "base_sha": "d0da255cd220bbdd4fe45787f2660401f1e18e48",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'jq . task-input/v1/manifest.json'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"rg --files -g 'README.md' -g 'manifest.json' -g 'task-input/**'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 3 -type d | sort | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"contract-to-production-chain-and-auditable-integration|evidence-before-verdict|verify-world-state-after-actions|T1509|fresh|deploy|migration|browser\" docs internal scripts tests Makefile .github -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"git remote -v \u0026\u0026 git show-ref --heads --tags | sed -n '1,120p' \u0026\u0026 git worktree list --porcelain\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git cat-file -t 2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git cat-file -t 7611db9afb385b9622408577ab9e4c6de57aadb1 \u0026\u0026 git merge-base 2b531b9d5a81a7857b707ed425886b2d2ac96774 7611db9afb385b9622408577ab9e4c6de57aadb1 \u0026\u0026 git rev-list --left-right --count 2b531b9d5a81a7857b707ed425886b2d2ac96774...origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=20 --boundary 7611db9afb385b9622408577ab9e4c6de57aadb1..2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git log --oneline --decorate --graph --max-count=20 --boundary origin/main..2b531b9d5a81a7857b707ed425886b2d2ac96774'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git diff --stat 7611db9afb385b9622408577ab9e4c6de57aadb1 2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git diff --name-only 7611db9afb385b9622408577ab9e4c6de57aadb1 2b531b9d5a81a7857b707ed425886b2d2ac96774'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git fetch origin --prune'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git diff --unified=80 7611db9afb385b9622408577ab9e4c6de57aadb1 2b531b9d5a81a7857b707ed425886b2d2ac96774 -- internal/webconsole/api/handlers_access_test.go web/src/pages/Access.test.tsx web/src/pages/Access.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate 2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git show --name-only --format=fuller 2b531b9d5a81a7857b707ed425886b2d2ac96774'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git fetch origin +refs/heads/main:refs/remotes/origin/main +refs/heads/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix:refs/remotes/origin/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git merge-base 2b531b9d5a81a7857b707ed425886b2d2ac96774 7611db9afb385b9622408577ab9e4c6de57aadb1 \u0026\u0026 git rev-list --left-right --count origin/main...2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git rev-parse origin/main \u0026\u0026 git rev-parse origin/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' Makefile \u0026\u0026 sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/t1510-fresh-accept-2b531b9d-$$ 2b531b9d5a81a7857b707ed425886b2d2ac96774'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git worktree list --porcelain | tail -40'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/web-pnpm-install.log \u0026\u0026 pnpm test -- --run src/pages/Access.test.tsx 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/web-access-vitest.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'mkdir -p /tmp/t1510-fresh-evidence \u0026\u0026 git status --short --branch \u003e /tmp/t1510-fresh-evidence/candidate-status.txt \u0026\u0026 go test ./internal/webconsole/api ./internal/authorization/... ./tests/integration 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/go-targeted.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'set -o pipefail; make build 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/make-build.log'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'set -o pipefail; pnpm exec vitest run src/pages/Access.test.tsx 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/web-access-vitest-targeted.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"nl -ba web/src/pages/Access.test.tsx | sed -n '390,420p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'set -o pipefail; make lint-spa-tsc 2\u003e\u00261 | tee /tmp/t1510-fresh-evidence/make-lint-spa-tsc.log'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1510-fresh-2b531b9d/raw \u0026\u0026 cp /tmp/t1510-fresh-evidence/*.log docs/acceptance/t1510-fresh-2b531b9d/raw/ \u0026\u0026 cp /tmp/t1510-fresh-evidence/candidate-status.txt docs/acceptance/t1510-fresh-2b531b9d/raw/'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'git merge-base 2b531b9d5a81a7857b707ed425886b2d2ac96774 7611db9afb385b9622408577ab9e4c6de57aadb1 \u0026\u0026 git rev-list --left-right --count origin/main...2b531b9d5a81a7857b707ed425886b2d2ac96774 \u0026\u0026 git rev-parse origin/main \u0026\u0026 git rev-parse origin/ac-exec/task-3cc86539/f733c4cf-direct-binding-fix \u0026\u0026 date -u +%Y-%m-%dT%H:%M:%SZ'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'wc -l /tmp/t1510-fresh-evidence/*.log /tmp/t1510-fresh-evidence/candidate-status.txt \u0026\u0026 shasum -a 256 /tmp/t1510-fresh-evidence/*.log /tmp/t1510-fresh-evidence/candidate-status.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'shasum -a 256 docs/acceptance/t1510-fresh-2b531b9d/raw/* docs/acceptance/t1510-fresh-2b531b9d/report.md docs/acceptance/t1510-fresh-2b531b9d/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1510-fresh-2b531b9d/verdict.json \u003e/dev/null \u0026\u0026 git status --short \u0026\u0026 find docs/acceptance/t1510-fresh-2b531b9d -maxdepth 2 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'git diff -- docs/acceptance/t1510-fresh-2b531b9d/report.md docs/acceptance/t1510-fresh-2b531b9d/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1510-fresh-2b531b9d \u0026\u0026 git commit -m \"test: record T1510 fresh acceptance verdict\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-10e532df/exec-be668465'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"git remote show origin | sed -n '1,160p' \u0026\u0026 git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-10e532df/exec-be668465'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git branch --show-current \u0026\u0026 git log --oneline --decorate -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'git merge-base 2b531b9d5a81a7857b707ed425886b2d2ac96774 7611db9afb385b9622408577ab9e4c6de57aadb1 \u0026\u0026 git rev-list --left-right --count origin/main...2b531b9d5a81a7857b707ed425886b2d2ac96774'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git ls-remote origin-push refs/heads/ac-exec/task-10e532df/exec-be668465'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-be668465/command_events.jsonl",
+  "command_event_digest": "sha256:44ee4fb463d99e72778f620c5223a005bd85a6d647e02f262ca90e375da81c42",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已在规范 executor 分支完成 fresh 验收证据回写并 push。",
+  "artifact_digest": "sha256:9a01778f83486ed54443eb4f496db310cf9ef5d7567a26cad706a477d7a61b29",
+  "path": ".agent-center/evidence/task-10e532df/exec-be668465.json",
+  "branch": "ac-exec/task-10e532df/exec-be668465"
+}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -64,6 +65,9 @@ func (s *Service) CompletePlanWithOptions(ctx context.Context, planID pm.PlanID,
 		if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
 			return pm.ErrPlanNotRunning
 		}
+		if err := s.guardPlanProgressHolds(txCtx, planID, false, false, true); err != nil {
+			return err
+		}
 		eval, err := s.canCompletePlan(txCtx, p)
 		if err != nil {
 			return err
@@ -90,6 +94,12 @@ func (s *Service) completePlanIfEligible(ctx context.Context, p *pm.Plan) (bool,
 	if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
 		return false, nil
 	}
+	if err := s.guardPlanProgressHolds(ctx, p.ID(), false, false, true); err != nil {
+		if errors.Is(err, pm.ErrProgressHoldOpen) {
+			return false, nil
+		}
+		return false, err
+	}
 	eval, err := s.canCompletePlan(ctx, p)
 	if err != nil {
 		return false, err
@@ -111,6 +121,9 @@ func (s *Service) markPlanDone(ctx context.Context, p *pm.Plan, now time.Time) e
 		return err
 	}
 	if err := s.plans.Update(ctx, p); err != nil {
+		return err
+	}
+	if err := s.clearPlanBlockedOn(ctx, p.ID()); err != nil {
 		return err
 	}
 	return s.emitPlanLifecycle(ctx, p, EvtPlanCompleted)
@@ -320,6 +333,38 @@ func (s *Service) planViewOptions(ctx context.Context, p *pm.Plan, tasks []*pm.T
 			reason = cur.Reason + "," + reason
 		}
 		inactive[oldID] = pm.PlanNodeReplacement{By: merged, Reason: reason}
+	}
+
+	// Generation supersede decisions are immutable history. Non-terminal tasks now
+	// retain plan_id (container attribution), so derive their inactive overlay from
+	// the active generation lineage instead of relying on physical detachment. Walk
+	// every ancestor: a later generation need not repeat an earlier supersede.
+	if generationID := p.ActiveGenerationID(); generationID != "" {
+		seen := make(map[pm.PlanGenerationID]bool)
+		for generationID != "" && !seen[generationID] {
+			seen[generationID] = true
+			generation, err := s.plans.FindGenerationByID(ctx, generationID)
+			if err != nil {
+				return pm.PlanViewOptions{}, err
+			}
+			for _, decision := range generation.Diff.NodeDecisions {
+				if decision.Action != pm.EvolutionSupersede || taskByID[decision.TaskID] == nil {
+					continue
+				}
+				var replacements []pm.TaskID
+				for _, task := range tasks {
+					if task.FollowsTaskID() == decision.TaskID {
+						replacements = append(replacements, task.ID())
+					}
+				}
+				if len(replacements) == 0 {
+					inactive[decision.TaskID] = pm.PlanNodeReplacement{Reason: "generation_supersede"}
+				} else {
+					addReplacement(decision.TaskID, replacements, "generation_supersede")
+				}
+			}
+			generationID = generation.ParentGenerationID
+		}
 	}
 
 	// Current-node lineage is append-only. Newer replacements stamp

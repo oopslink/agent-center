@@ -1,0 +1,123 @@
+{
+  "task": "T1510 fresh acceptance for T1509 correction",
+  "execution_id": "exec-be668465",
+  "canonical_branch": "ac-exec/task-10e532df/exec-be668465",
+  "initial_head": "d0da255cd220bbdd4fe45787f2660401f1e18e48",
+  "candidate": "2b531b9d5a81a7857b707ed425886b2d2ac96774",
+  "baseline": "7611db9afb385b9622408577ab9e4c6de57aadb1",
+  "recorded_at_utc": "2026-08-25T02:07:12Z",
+  "task_input_package": {
+    "expected_path": "task-input/v1",
+    "present": false,
+    "fallback_contract_source": "executor prompt"
+  },
+  "isolation": {
+    "canonical_branch_switched": false,
+    "candidate_checkout_mode": "detached worktree",
+    "candidate_worktree": "/private/tmp/t1510-fresh-accept-2b531b9d-56111",
+    "reused_t1502_or_t1509_worktree": false
+  },
+  "git_gates": {
+    "merge_base_candidate_baseline": {
+      "actual": "7611db9afb385b9622408577ab9e4c6de57aadb1",
+      "expected": "7611db9afb385b9622408577ab9e4c6de57aadb1",
+      "status": "pass"
+    },
+    "origin_main_candidate_left_right_count": {
+      "command": "git rev-list --left-right --count origin/main...2b531b9d5a81a7857b707ed425886b2d2ac96774",
+      "actual": "0 2",
+      "interpreted_as": {
+        "behind": 0,
+        "ahead": 2
+      },
+      "expected": {
+        "behind": 0,
+        "ahead": 1
+      },
+      "status": "fail"
+    },
+    "origin_main": "d0da255cd220bbdd4fe45787f2660401f1e18e48",
+    "origin_candidate_ref": "2b531b9d5a81a7857b707ed425886b2d2ac96774"
+  },
+  "checks": [
+    {
+      "name": "go targeted security/migration equivalence",
+      "command": "go test ./internal/webconsole/api ./internal/authorization/... ./tests/integration",
+      "exit_code": 0,
+      "status": "pass",
+      "log": "raw/go-targeted.log"
+    },
+    {
+      "name": "web pnpm install",
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0,
+      "status": "pass",
+      "log": "raw/web-pnpm-install.log"
+    },
+    {
+      "name": "web vitest broad run",
+      "command": "pnpm test -- --run src/pages/Access.test.tsx",
+      "exit_code": 0,
+      "status": "pass",
+      "observed_result": "192 files / 1805 tests passed",
+      "log": "raw/web-access-vitest.log"
+    },
+    {
+      "name": "web Access targeted vitest",
+      "command": "pnpm exec vitest run src/pages/Access.test.tsx",
+      "exit_code": 0,
+      "status": "pass",
+      "observed_result": "1 file / 23 tests passed",
+      "log": "raw/web-access-vitest-targeted.log"
+    },
+    {
+      "name": "fresh build",
+      "command": "make build",
+      "exit_code": 2,
+      "status": "fail",
+      "failure_summary": [
+        "src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.",
+        "src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'."
+      ],
+      "log": "raw/make-build.log"
+    },
+    {
+      "name": "spa TypeScript gate",
+      "command": "make lint-spa-tsc",
+      "exit_code": 2,
+      "status": "fail",
+      "failure_summary": [
+        "src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.",
+        "src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'."
+      ],
+      "log": "raw/make-lint-spa-tsc.log"
+    },
+    {
+      "name": "fresh deployed-binary smoke",
+      "status": "blocked",
+      "blocked_by": "make build exit code 2"
+    },
+    {
+      "name": "fresh deployment",
+      "status": "blocked",
+      "blocked_by": "make build exit code 2"
+    },
+    {
+      "name": "fresh browser session round 1",
+      "status": "blocked",
+      "blocked_by": "make build exit code 2"
+    },
+    {
+      "name": "fresh browser session round 2",
+      "status": "blocked",
+      "blocked_by": "make build exit code 2"
+    }
+  ],
+  "verdict": "fail",
+  "acceptance_complete": false,
+  "blocking_reasons": [
+    "candidate relative to origin/main is behind=0/ahead=2, expected behind=0/ahead=1",
+    "fresh build fails in TypeScript compile",
+    "fresh deployment and browser sessions cannot be executed from a failed build"
+  ]
+}

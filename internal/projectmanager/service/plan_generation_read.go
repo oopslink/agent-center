@@ -70,13 +70,26 @@ func (s *Service) GetPlanGenerations(ctx context.Context, planID pm.PlanID) (*Pl
 	for _, task := range lineage[len(lineage)-1].Snapshot.Tasks {
 		activeTasks[task.TaskID] = true
 	}
+	for _, generation := range lineage {
+		for _, decision := range generation.Diff.NodeDecisions {
+			if decision.Action == pm.EvolutionSupersede {
+				delete(activeTasks, decision.TaskID)
+			}
+		}
+	}
 	owned := make(map[pm.TaskID]bool)
+	superseded := make(map[pm.TaskID]bool)
 	for revision, generation := range lineage {
+		for _, decision := range generation.Diff.NodeDecisions {
+			if decision.Action == pm.EvolutionSupersede {
+				superseded[decision.TaskID] = true
+			}
+		}
 		read.Generations = append(read.Generations, PlanGenerationRevision{
 			Generation: generation,
 			Revision:   revision,
 			Active:     generation.ID == p.ActiveGenerationID(),
-			Progress:   generationSnapshotProgress(generation.Snapshot),
+			Progress:   generationSnapshotProgress(generation.Snapshot, superseded),
 		})
 		for _, task := range generation.Snapshot.Tasks {
 			if owned[task.TaskID] {
@@ -150,9 +163,13 @@ func loadPlanGenerationLineage(ctx context.Context, p *pm.Plan, finder planGener
 	return lineage, nil
 }
 
-func generationSnapshotProgress(snapshot pm.PlanGenerationSnapshot) pm.PlanProgress {
-	progress := pm.PlanProgress{Total: len(snapshot.Tasks)}
+func generationSnapshotProgress(snapshot pm.PlanGenerationSnapshot, superseded map[pm.TaskID]bool) pm.PlanProgress {
+	progress := pm.PlanProgress{}
 	for _, task := range snapshot.Tasks {
+		if superseded[task.TaskID] {
+			continue
+		}
+		progress.Total++
 		switch task.Status {
 		case pm.TaskCompleted, pm.TaskDiscarded:
 			progress.Done++

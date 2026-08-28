@@ -16,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -48,6 +49,7 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		DB:              db,
 		Projects:        pmsql.NewProjectRepo(db),
 		Members:         pmsql.NewProjectMemberRepo(db),
+		OrgMembers:      deps.MemberRepo,
 		Issues:          pmsql.NewIssueRepo(db),
 		Tasks:           pmsql.NewTaskRepo(db),
 		TaskSubs:        pmsql.NewTaskSubscriberRepo(db),
@@ -659,6 +661,83 @@ func TestPlanAPI_Archive_RunningRejected_409(t *testing.T) {
 	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/archive", `{}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("archive running plan status=%d want 409", resp.StatusCode)
+	}
+}
+
+func TestPlanAPI_Discard_AllowsOrgOwnerProjectMemberButRejectsPlainMember(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	orgOwner := setupTestSession(t, db, deps)
+	creator := addOrgMemberSession(t, db, orgOwner, identity.RoleMember, "plancreator")
+	plain := addOrgMemberSession(t, db, orgOwner, identity.RoleMember, "plainplanmember")
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	creatorRef := pm.IdentityRef("user:" + creator.IdentityID)
+	orgOwnerRef := pm.IdentityRef("user:" + orgOwner.IdentityID)
+	plainRef := pm.IdentityRef("user:" + plain.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: orgOwner.OrgID, Name: "P", CreatedBy: creatorRef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, actor := range []pm.IdentityRef{orgOwnerRef, plainRef} {
+		if _, err := fx.deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+			ProjectID: pid, IdentityID: actor, Role: pm.RoleMember, Actor: creatorRef,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, tc := range []struct {
+		name  string
+		pause bool
+	}{
+		{name: "running"},
+		{name: "paused", pause: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planID := fx.createPlan(t, s, creator, pid, "org-owner-"+tc.name)
+			taskID := fx.seedSelectedTask(t, creator, pid, planID, "task-"+tc.name, string(orgOwnerRef))
+			if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/start", `{}`, creator); r.StatusCode != http.StatusOK {
+				t.Fatalf("start status=%d", r.StatusCode)
+			}
+			if tc.pause {
+				if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/pause", `{}`, creator); r.StatusCode != http.StatusOK {
+					t.Fatalf("pause status=%d", r.StatusCode)
+				}
+			}
+
+			resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/discard", `{}`, orgOwner)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("org owner discard %s status=%d body=%v", tc.name, resp.StatusCode, decodeBody(t, resp))
+			}
+			body := decodeBody(t, resp)
+			if body["status"] != "discarded" {
+				t.Fatalf("discard response status=%v want discarded", body["status"])
+			}
+			task, err := fx.deps.PM.GetTask(ctx, taskID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if task.Status() != pm.TaskDiscarded {
+				t.Fatalf("task status=%s want discarded", task.Status())
+			}
+		})
+	}
+
+	plainPlan := fx.createPlan(t, s, creator, pid, "plain-member")
+	fx.seedSelectedTask(t, creator, pid, plainPlan, "plain-task", string(plainRef))
+	if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(plainPlan)+"/start", `{}`, creator); r.StatusCode != http.StatusOK {
+		t.Fatalf("start plain plan status=%d", r.StatusCode)
+	}
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(plainPlan)+"/discard", `{}`, plain)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("plain project member discard status=%d want 403 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	got := decodeBody(t, orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(plainPlan), creator))
+	if got["status"] != "running" {
+		t.Fatalf("plain member rejection mutated plan status=%v want running", got["status"])
 	}
 }
 

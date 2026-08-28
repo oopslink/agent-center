@@ -142,7 +142,48 @@ export interface Plan {
   node_count?: number;
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
+  blocked_on?: PlanBlockedOn[];
   active_generation_id?: string;
+  progress_control?: PlanProgressControl;
+}
+
+export type ProgressDecision = 'progress_fact_verified' | 'responsibility_bound' | 'cannot_determine';
+export interface PlanProgressRequiredAction {
+  id: string;
+  source_type: 'obligation' | 'incident' | 'hold' | string;
+  source_id: string;
+  category: 'owner_action' | 'prerequisite_wait' | 'system_recovery' | 'safety_hold' | string;
+  action: string;
+  owner_ref: string;
+  owner_display: string;
+  deadline_at?: string;
+  trigger_fact_refs: string[];
+  options?: string[];
+}
+export interface PlanProgressControl {
+  as_of: string;
+  freshness: { state: 'fresh' | 'stale' | 'degraded' | string; watermark_lag_ms: number; threshold_ms: number };
+  decision: ProgressDecision | string;
+  observation_vector_id: string;
+  quality: 'valid' | 'suspect' | string;
+  open_obligations: Array<{ id: string; kind: string; owner_ref: string; deadline_at: string; source_fact_refs: string[] }>;
+  open_incidents: Array<{ id: string; kind: string; owner_ref: string; summary: string; source_ref: string }>;
+  open_holds: Array<{ id: string; reason_kind: string; reason_id: string; owner_ref: string; hold_ack_deadline: string }>;
+  required_actions: PlanProgressRequiredAction[];
+}
+
+export interface PlanBlockedOn {
+  event_id: string;
+  task_id: string;
+  node_id?: string;
+  wait_type: string;
+  wait_keys: string[];
+  trigger_condition: string;
+  waited_since: string;
+  deadline?: string;
+  on_timeout?: string;
+  last_probe_at?: string;
+  probe_count?: number;
 }
 
 export interface GateVerdict {
@@ -790,6 +831,9 @@ export interface CommitPlanEvolutionInput {
   evidence: string;
   idempotency_key: string;
   diff: PlanGenerationDiff;
+  resolve_block_event_id?: string;
+  resolution_kind?: 'replace' | 'bypass';
+  resolution_note?: string;
 }
 
 export interface PlanEvolutionCommitResponse {
@@ -893,6 +937,44 @@ export function useArchivePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`),
   );
+}
+
+export interface BatchArchivePlansResult {
+  archived: string[];
+  failed: Array<{ planId: string; reason: string }>;
+}
+
+// Project Plans list bulk action. Archive remains one domain command per Plan:
+// this UI coordinator deliberately reuses the canonical endpoint so lifecycle,
+// membership and owner/creator guards cannot drift from the detail action.
+export function useBatchArchivePlans(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (planIds: string[]): Promise<BatchArchivePlansResult> => {
+      const settled = await Promise.allSettled(
+        planIds.map((planId) => api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`)),
+      );
+      const result: BatchArchivePlansResult = { archived: [], failed: [] };
+      settled.forEach((entry, index) => {
+        const planId = planIds[index];
+        if (entry.status === 'fulfilled') result.archived.push(planId);
+        else result.failed.push({
+          planId,
+          reason: entry.reason instanceof Error ? entry.reason.message : String(entry.reason),
+        });
+      });
+      return result;
+    },
+    onSuccess: (result) => {
+      result.archived.forEach((planId) => {
+        void qc.invalidateQueries({ queryKey: qk.plan(planId) });
+      });
+      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.assignmentPoolByProject(projectId) });
+    },
+  });
 }
 
 // #218 friendly error for the destructive 409s (running / already-archived).

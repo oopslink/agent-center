@@ -35,6 +35,7 @@ import (
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
@@ -229,11 +230,13 @@ type App struct {
 	IdentityInvitationRepo      identity.InvitationRepository
 
 	// Observability Phase 4
-	QuerySvc  *query.Service
-	FleetSvc  *query.FleetSnapshotService
-	StatsSvc  *query.StatsService
-	LogsSvc   *query.LogsService
-	BlobStore blobstore.BlobStore
+	QuerySvc               *query.Service
+	FleetSvc               *query.FleetSnapshotService
+	StatsSvc               *query.StatsService
+	LogsSvc                *query.LogsService
+	BlobStore              blobstore.BlobStore
+	InsightSvc             *insight.Service
+	InsightObservationRepo *insight.ObservationRepo
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -467,22 +470,28 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:  clk,
 	})
 	liveState := concurrency.NewInMemoryStore()
+	insightSvc, _ := insight.Open(context.Background(), db, insight.DefaultDuckDBPath(cfg.Server.SqlitePath), insight.DefaultFreshnessSLA)
+	insightObservations := insight.NewObservationRepo(db, gen)
 
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:               db,
 		Orch:             orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
 		Projects:         pmsql.NewProjectRepo(db),
 		Members:          pmsql.NewProjectMemberRepo(db),
+		OrgMembers:       identity.NewSQLiteMemberRepo(db),
 		Issues:           pmsql.NewIssueRepo(db),
 		Tasks:            pmsql.NewTaskRepo(db),
 		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),
 		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs:     codeRepoRefRepo,
 		CodeRepoResolver: codeRepoSvc,
+		Acceptances:      pmsql.NewDeliveryAcceptanceRepo(db),
+		DeliveryVerifier: codeRepoSvc,
 		Plans:            pmsql.NewPlanRepo(db),           // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Stages:           pmsql.NewStageRepo(db),          // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		AssignmentPools:  pmsql.NewAssignmentPoolRepo(db), // ADR-0055: background pull queue, independent of Plan
 		Remediation:      pmsql.NewRemediationRepo(db),
+		ProgressControl:  pmsql.NewProgressControlRepo(db),
 		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		// I103 §2: turn the deadline engine ON in production — the reconcile materialize
 		// assigns each BlockedOn node its per-wait_type deadline + on_timeout action, and
@@ -656,11 +665,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,
 
-		QuerySvc:  querySvc,
-		FleetSvc:  fleetSvc,
-		StatsSvc:  statsSvc,
-		LogsSvc:   logsSvc,
-		BlobStore: bs,
+		QuerySvc:               querySvc,
+		FleetSvc:               fleetSvc,
+		StatsSvc:               statsSvc,
+		LogsSvc:                logsSvc,
+		BlobStore:              bs,
+		InsightSvc:             insightSvc,
+		InsightObservationRepo: insightObservations,
 	}
 
 	// I103 §2: wire the production on_timeout sink now that the App (and thus
