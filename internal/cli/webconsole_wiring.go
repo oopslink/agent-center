@@ -512,6 +512,27 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// /api/files HTTP surface (FilesSvc) and the refcount GC loop below — built
 	// once from the configured blobstore root (nil when unconfigured).
 	filesSvc := buildFilesService(a)
+	var bg sync.WaitGroup
+	startBackground := func(run func()) {
+		bg.Add(1)
+		go func() {
+			defer bg.Done()
+			run()
+		}()
+	}
+	waitBackground := func(ctx context.Context) error {
+		done := make(chan struct{})
+		go func() {
+			bg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	deps := api.HandlerDeps{
 		DB:                  a.DB,
 		Actor:               a.operatorActor(),
@@ -611,11 +632,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// still applies.
 	wrapped := api.WithDeps(deps)(srv.Handler())
 	srv.SetHandler(wrapped)
-	go func() {
+	startBackground(func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger("webconsole: " + err.Error())
 		}
-	}()
+	})
 	// Start the EventSink → SSE Bus fan-out tailer. It polls the
 	// events table on a 250ms ticker and publishes each new event
 	// onto the bus, where subscribed users receive it.
@@ -623,7 +644,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	fanout := sse.NewEventFanout(a.EventRepo, bus, 0).WithErrorHandler(func(err error) {
 		logger("webconsole fanout: " + err.Error())
 	})
-	go fanout.Run(fanoutCtx)
+	startBackground(func() { fanout.Run(fanoutCtx) })
 
 	// v2.7 B3: bring the cross-BC outbox online. A single-goroutine Pump
 	// drains the outbox (backlog on boot, then ~1s ticker) and applies the
@@ -667,7 +688,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		pump = pump.WithTickHook(hook)
 	}
 	pumpCtx, pumpCancel := context.WithCancel(ctx)
-	go pump.Run(pumpCtx)
+	startBackground(func() { pump.Run(pumpCtx) })
 
 	// v2.7 D3-c: bring the file-blob refcount GC online. A single-goroutine
 	// loop (initial pass on boot, then ~1h ticker) expires stale upload sessions
@@ -683,7 +704,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 			WithErrorHandler(func(err error) {
 				logger("webconsole files gc: " + err.Error())
 			})
-		go gcLoop.Run(gcCtx)
+		startBackground(func() { gcLoop.Run(gcCtx) })
 	}
 
 	// v2.7 D2-e-iii (OQ5 poll-fallback "push优先 + poll兜底"): a slow-cadence
@@ -700,7 +721,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	wakeLoop := envservice.NewWakeReconcileLoop(wakeProj, 60*time.Second, func(msg string) {
 		logger("webconsole wake reconcile: " + msg)
 	})
-	go wakeLoop.Run(wakeLoopCtx)
+	startBackground(func() { wakeLoop.Run(wakeLoopCtx) })
 
 	// v2.9 P2-3 RECONCILIATION SWEEP: a slow-cadence (60s) sweep re-runs the
 	// IDEMPOTENT plan dispatch core over every running Plan — the safety net that
@@ -713,7 +734,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	planReconcileLoop := pmservice.NewPlanReconcileLoop(a.PMService, 60*time.Second, func(msg string) {
 		logger("webconsole plan reconcile: " + msg)
 	})
-	go planReconcileLoop.Run(planReconcileLoopCtx)
+	startBackground(func() { planReconcileLoop.Run(planReconcileLoopCtx) })
 
 	// Independent progress-control failure domains: watchdog does not hang off
 	// ReconcileRunningPlans, and suppressed wake intents drain from durable state.
@@ -721,12 +742,12 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	progressWatchdog := pmservice.NewProgressWatchdogLoop(a.PMService, time.Minute, 3*time.Minute, func(msg string) {
 		logger("webconsole progress watchdog: " + msg)
 	})
-	go progressWatchdog.Run(progressWatchdogCtx)
+	startBackground(func() { progressWatchdog.Run(progressWatchdogCtx) })
 	progressWakeDrainCtx, progressWakeDrainCancel := context.WithCancel(ctx)
 	progressWakeDrain := pmservice.NewProgressWakeDrainLoop(a.PMService, time.Minute, nil, func(msg string) {
 		logger("webconsole progress wake drain: " + msg)
 	})
-	go progressWakeDrain.Run(progressWakeDrainCtx)
+	startBackground(func() { progressWakeDrain.Run(progressWakeDrainCtx) })
 
 	// Resolved issue lifecycle: after an issue remains resolved for the default
 	// grace period, close it automatically. The service uses durable
@@ -735,9 +756,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	resolvedIssueCloser := pmservice.NewResolvedIssueCloser(a.PMService, 0, 0, func(msg string, args ...any) {
 		logger("webconsole resolved issue closer: " + fmt.Sprintf(msg, args...))
 	})
-	go func() {
+	startBackground(func() {
 		_ = resolvedIssueCloser.Run(resolvedIssueCloserCtx)
-	}()
+	})
 
 	// T340 (issue-b71ee81f): bring the control-event stream GC online. The
 	// worker_control_events table is append-only for every command type and had no
@@ -754,7 +775,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 			logger("webconsole control-event gc: " + fmt.Sprintf(format, args...))
 		},
 	)
-	go controlEventGC.Run(controlEventGCCtx)
+	startBackground(func() { controlEventGC.Run(controlEventGCCtx) })
 
 	// incident 2026-06-30: agent_activity_events is an append-only telemetry log that —
 	// unlike worker_control_events above — had NO GC, so it grew unbounded (~598MB / 354k
@@ -771,7 +792,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 			logger("webconsole activity-event gc: " + fmt.Sprintf(format, args...))
 		},
 	)
-	go activityEventGC.Run(activityEventGCCtx)
+	startBackground(func() { activityEventGC.Run(activityEventGCCtx) })
 
 	insightProjectorCancel := func() {}
 	if a.InsightSvc != nil {
@@ -794,8 +815,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		insightProjectorCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = bus.Shutdown(shutCtx)
-		return srv.Shutdown(shutCtx)
+		shutErr := srv.Shutdown(shutCtx)
+		waitErr := waitBackground(shutCtx)
+		busErr := bus.Shutdown(shutCtx)
+		if shutErr != nil {
+			return shutErr
+		}
+		if waitErr != nil {
+			return fmt.Errorf("webconsole: background shutdown did not quiesce: %w", waitErr)
+		}
+		return busErr
 	}
 	return cleanup, nil
 }

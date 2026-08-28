@@ -171,20 +171,7 @@ secret_management:
           contentType: "text/plain",
         });
       }
-      proc.kill("SIGTERM");
-      await new Promise<void>((done) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          done();
-        };
-        proc.once("exit", finish);
-        setTimeout(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
-          finish();
-        }, 2_000);
-      });
+      await stopProc(proc, "agent-center server");
       await rm(tempDir, { recursive: true, force: true });
     }
   },
@@ -215,3 +202,27 @@ secret_management:
 });
 
 export { expect };
+
+async function stopProc(proc: ChildProcess, label: string, graceMs = 2_000): Promise<void> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+  proc.kill("SIGTERM");
+  if (await waitForExit(proc, graceMs)) return;
+  proc.kill("SIGKILL");
+  if (await waitForExit(proc, graceMs)) return;
+  throw new Error(`${label} did not exit after SIGTERM/SIGKILL`);
+}
+
+function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      proc.off("exit", onExit);
+      resolve(false);
+    }, timeoutMs);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    proc.once("exit", onExit);
+  });
+}

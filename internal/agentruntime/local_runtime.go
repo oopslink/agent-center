@@ -181,10 +181,19 @@ type LocalRuntime struct {
 	// Shutdown drains them via WaitBG(). Per-agent now (去共享状态).
 	bg sync.WaitGroup
 
+	// lifecycleCtx is the owner cancellation boundary for runtime-owned background
+	// work. It deliberately does not inherit control-command request deadlines; Stop
+	// cancels it and then joins the goroutines it owns before test/server teardown.
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+
 	// exec is the per-agent concurrent-execution wiring (Phase 0c), installed via
 	// AttachExecutor when the agent opts into concurrency. nil ⇒ single-claude inject
 	// path. Guarded by r.mu exactly as ma.exec was guarded by c.mu.
 	exec *ExecutorEngine
+	// execDrainWG tracks this-process executor drain goroutines launched by this
+	// runtime so Stop can quiesce filesystem/writeback activity before teardown.
+	execDrainWG sync.WaitGroup
 
 	// sources is the per-repo_key repo-source prewarm gate (issue-13e7bfe8 layer 1):
 	// it keeps `git clone` OFF the control-command path and owns the background
@@ -322,7 +331,8 @@ var _ Runtime = (*LocalRuntime)(nil)
 
 // NewLocalRuntime builds a LocalRuntime over the shared state pointer.
 func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime {
-	r := &LocalRuntime{cfg: cfg, state: state}
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	r := &LocalRuntime{cfg: cfg, state: state, lifecycleCtx: lifecycleCtx, lifecycleCancel: lifecycleCancel}
 	// option b (issue-68ccb310): load the durable pending-judgment store from the agent
 	// home so a relaunch re-drives dropped judgments (boot recovery). nil when the home
 	// isn't resolvable (single-claude/test path) ⇒ the reconcile is disabled.
@@ -394,6 +404,84 @@ func (r *LocalRuntime) now() time.Time {
 		return r.cfg.Now()
 	}
 	return time.Now()
+}
+
+func (r *LocalRuntime) runtimeContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(r.lifecycleCtx)
+	}
+	return context.WithTimeout(r.lifecycleCtx, timeout)
+}
+
+func (r *LocalRuntime) runtimeStopped() bool {
+	select {
+	case <-r.lifecycleCtx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *LocalRuntime) sleepRuntime(d time.Duration) bool {
+	if d <= 0 {
+		return !r.runtimeStopped()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-r.lifecycleCtx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func waitGroupContext(ctx context.Context, wg *sync.WaitGroup) error {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *LocalRuntime) waitOwnedBackground(ctx context.Context) error {
+	if err := waitGroupContext(ctx, &r.sources.wg); err != nil {
+		return fmt.Errorf("source prewarm: %w", err)
+	}
+	if err := waitGroupContext(ctx, &r.clones.wg); err != nil {
+		return fmt.Errorf("clone prewarm: %w", err)
+	}
+	if err := waitGroupContext(ctx, &r.execDrainWG); err != nil {
+		return fmt.Errorf("executor drains: %w", err)
+	}
+	if err := waitGroupContext(ctx, &r.bg); err != nil {
+		return fmt.Errorf("runtime background: %w", err)
+	}
+	return nil
+}
+
+func (r *LocalRuntime) fuseLiveExecutors(ctx context.Context) {
+	ee := r.execEngine()
+	if ee == nil || ee.monitor == nil {
+		return
+	}
+	r.forkStateMu.Lock()
+	tasks := make([]string, 0, len(r.taskExecutors))
+	for taskID := range r.taskExecutors {
+		tasks = append(tasks, taskID)
+	}
+	r.forkStateMu.Unlock()
+	for _, taskID := range tasks {
+		if _, err := ee.monitor.FuseKillTask(ctx, taskID); err != nil {
+			r.log("stop agent=%s task=%s fuse executor: %v", r.cfg.AgentID, taskID, err)
+		}
+	}
 }
 
 // toolCaller resolves the live center agent-tool transport (nil when unwired).
@@ -1280,6 +1368,8 @@ func (r *LocalRuntime) StopReporting(ctx context.Context) error {
 
 func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 	agentID := r.cfg.AgentID
+	r.lifecycleCancel()
+
 	r.mu.Lock()
 	sess := r.state.Session
 	if sess == nil {
@@ -1287,14 +1377,18 @@ func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 		if reportLifecycle {
 			r.reportLifecycleOnce(ctx, "stopped", "")
 		}
-		return nil
+		r.fuseLiveExecutors(ctx)
+		return r.waitOwnedBackground(ctx)
 	}
 	r.state.ExpectedStop = true
 	r.mu.Unlock()
 
+	var retErr error
 	if err := sess.Stop(ctx); err != nil {
 		r.log("stop agent=%s: %v", agentID, err)
+		retErr = err
 	}
+	r.fuseLiveExecutors(ctx)
 
 	if home, _, _, pathErr := r.agentPaths(agentID); pathErr == nil {
 		if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
@@ -1305,7 +1399,10 @@ func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 	if reportLifecycle {
 		r.reportLifecycleOnce(ctx, "stopped", "")
 	}
-	return nil
+	if err := r.waitOwnedBackground(ctx); err != nil && retErr == nil {
+		retErr = err
+	}
+	return retErr
 }
 
 // IsRunning reports whether the session is live.

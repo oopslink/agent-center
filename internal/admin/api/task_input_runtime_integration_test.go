@@ -194,6 +194,13 @@ func TestTaskInputPlan569_RealAdminHandlersEndToEnd(t *testing.T) {
 		ToolCaller: func() agentruntime.ToolCaller { return caller }, Log: t.Logf,
 		CloneMaterializer: instantCloneMaterializer{}, ClonePrepareTimeout: time.Second,
 	}, &agentruntime.SessionState{})
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := rt.Stop(ctx); err != nil {
+			t.Fatalf("runtime stop: %v", err)
+		}
+	})
 	ee, err := rt.BuildExecutorEngine(home, agentruntime.ExecutorConfig{AgentID: atAgent1, MaxConcurrentTasks: 1, DefaultExecutorModel: "m"})
 	if err != nil {
 		t.Fatal(err)

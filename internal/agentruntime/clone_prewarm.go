@@ -1,7 +1,6 @@
 package agentruntime
 
 import (
-	"context"
 	"os"
 	"sync"
 	"time"
@@ -81,17 +80,27 @@ func (r *LocalRuntime) deferForClone(agentID string, waiter deferredSpawn, targe
 	r.clones.wg.Add(1)
 	go func() {
 		defer r.clones.wg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), r.clonePrepareTimeout())
+		ctx, cancel := r.runtimeContext(r.clonePrepareTimeout())
 		clone, err := r.cfg.CloneMaterializer.PrepareClone(ctx, target, req)
 		cancel()
 		if err != nil {
 			r.clones.mu.Lock()
 			delete(r.clones.entries, taskID)
 			r.clones.mu.Unlock()
+			if r.runtimeStopped() {
+				return
+			}
 			r.log("fork_executor agent=%s task=%s prepare independent clone: %v — executor NOT forked; failing task loud",
 				agentID, taskID, err)
 			r.failTaskRepoUnavailable(agentID, taskID, err)
 			r.reportDeferredForkFailure(agentID, waiter, string(CauseRepoSourceUnavailable), err)
+			return
+		}
+		if r.runtimeStopped() {
+			r.clones.mu.Lock()
+			delete(r.clones.entries, taskID)
+			r.clones.mu.Unlock()
+			_ = os.RemoveAll(clone.WorkspacePath)
 			return
 		}
 
@@ -112,11 +121,18 @@ func (r *LocalRuntime) deferForClone(agentID string, waiter deferredSpawn, targe
 
 func (r *LocalRuntime) redriveDeferredClone(agentID string, waiter deferredSpawn) {
 	taskID := waiter.TaskID
-	ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
+	if r.runtimeStopped() {
+		r.discardPreparedClone(taskID)
+		return
+	}
+	ctx, cancel := r.runtimeContext(r.sourcePrewarmTimeout())
 	res, err := r.SpawnExecutor(ctx, waiter.spawnRequest())
 	cancel()
 	if err != nil {
 		r.discardPreparedClone(taskID)
+		if r.runtimeStopped() {
+			return
+		}
 		r.log("agent=%s task=%s re-drive after independent clone ready: %v", agentID, taskID, err)
 		r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_failed", err)
 		return
@@ -132,7 +148,9 @@ func (r *LocalRuntime) redriveDeferredClone(agentID string, waiter deferredSpawn
 			r.log("agent=%s task=%s re-drive after independent clone ready: not forked — prepared clone was cleaned; waiting for a new fork_executor request",
 				agentID, taskID)
 		}
-		r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_not_started", nil)
+		if !r.runtimeStopped() {
+			r.reportDeferredForkFailure(agentID, waiter, "deferred_spawn_not_started", nil)
+		}
 		return
 	}
 	if !r.reportDeferredForkStatusWithRetry(agentID, waiter, res) {

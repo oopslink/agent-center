@@ -186,20 +186,26 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // killProc SIGTERM + force-kill after grace.
 async function killProc(proc: ChildProcess, graceMs = 2_000): Promise<void> {
-  if (proc.exitCode != null) return;
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
   proc.kill("SIGTERM");
-  await new Promise<void>((done) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      done();
+  if (await waitForExit(proc, graceMs)) return;
+  proc.kill("SIGKILL");
+  if (await waitForExit(proc, graceMs)) return;
+  throw new Error(`process ${proc.pid ?? "unknown"} did not exit after SIGTERM/SIGKILL`);
+}
+
+function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      proc.off("exit", onExit);
+      resolve(false);
+    }, timeoutMs);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
     };
-    proc.once("exit", finish);
-    setTimeout(() => {
-      if (!proc.killed) proc.kill("SIGKILL");
-      finish();
-    }, graceMs);
+    proc.once("exit", onExit);
   });
 }
 

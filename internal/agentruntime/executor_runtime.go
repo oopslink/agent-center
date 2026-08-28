@@ -499,8 +499,13 @@ func (r *LocalRuntime) launchExecutorNow(ctx context.Context, agentID, taskID st
 	}
 	r.mu.Unlock()
 
-	// Reap the executor when it exits, freeing its pool slot. Runs detached.
-	go r.drainExecutor(ee, taskID, launched.Handle)
+	// Reap the executor when it exits, freeing its pool slot. Runtime Stop joins
+	// these drains so teardown cannot race finalization/writeback filesystem I/O.
+	r.execDrainWG.Add(1)
+	go func() {
+		defer r.execDrainWG.Done()
+		r.drainExecutor(ee, taskID, launched.Handle)
+	}()
 	return launched, nil
 }
 

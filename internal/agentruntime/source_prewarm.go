@@ -48,7 +48,6 @@ package agentruntime
 // =============================================================================
 
 import (
-	"context"
 	"errors"
 	"os"
 	"sync"
@@ -252,17 +251,25 @@ func (r *LocalRuntime) runSourcePrewarm(agentID, key string, target reporepo.Rep
 	var lastErr error
 
 	for attempt := 1; attempt <= attempts; attempt++ {
-		// context.Background(), NOT the control ctx: inheriting the caller's 5s deadline
-		// is exactly the defect this file exists to remove. The timeout is ours and is
-		// sized for a real clone.
-		ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
+		// The runtime lifecycle context, NOT the control ctx: inheriting the caller's
+		// 5s deadline is exactly the defect this file exists to remove. The timeout is
+		// ours and is sized for a real clone; Stop cancels it during teardown.
+		ctx, cancel := r.runtimeContext(r.sourcePrewarmTimeout())
 		src, err := r.cfg.Materializer.EnsureSource(ctx, target)
 		cancel()
 
 		if err == nil {
+			if r.runtimeStopped() {
+				r.cancelSourcePrewarm(key)
+				return
+			}
 			r.log("agent=%s repo_key=%s: repo source ready (attempt %d/%d) — re-driving deferred task(s)",
 				agentID, key, attempt, attempts)
 			r.finishPrewarm(agentID, key, &src, nil)
+			return
+		}
+		if r.runtimeStopped() {
+			r.cancelSourcePrewarm(key)
 			return
 		}
 		lastErr = err
@@ -270,11 +277,22 @@ func (r *LocalRuntime) runSourcePrewarm(agentID, key string, target reporepo.Rep
 			agentID, key, attempt, attempts, err)
 		if attempt < attempts {
 			if d := r.sourcePrewarmBackoff(); d > 0 {
-				time.Sleep(d)
+				if !r.sleepRuntime(d) {
+					r.cancelSourcePrewarm(key)
+					return
+				}
 			}
 		}
 	}
 	r.finishPrewarm(agentID, key, nil, lastErr)
+}
+
+func (r *LocalRuntime) cancelSourcePrewarm(key string) {
+	r.sources.mu.Lock()
+	if r.sources.entries != nil {
+		delete(r.sources.entries, key)
+	}
+	r.sources.mu.Unlock()
 }
 
 // finishPrewarm closes one prewarm episode: it publishes the result, clears the in-flight
@@ -333,6 +351,9 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 	}
 
 	for _, waiter := range waiters {
+		if r.runtimeStopped() {
+			return
+		}
 		if usable {
 			r.redriveDeferredSpawn(agentID, waiter)
 			continue
@@ -358,11 +379,17 @@ func (r *LocalRuntime) finishPrewarm(agentID, key string, src *reporepo.SourceRe
 // re-checks status and simply declines again.
 func (r *LocalRuntime) redriveDeferredSpawn(agentID string, waiter deferredSpawn) {
 	taskID := waiter.TaskID
+	if r.runtimeStopped() {
+		return
+	}
 	attempts := r.sourcePrewarmAttempts()
 	for attempt := 1; attempt <= attempts; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
+		ctx, cancel := r.runtimeContext(r.sourcePrewarmTimeout())
 		res, err := r.SpawnExecutor(ctx, waiter.spawnRequest())
 		cancel()
+		if r.runtimeStopped() {
+			return
+		}
 
 		if err == nil && res != nil {
 			if !r.reportDeferredForkStatusWithRetry(agentID, waiter, res) {
@@ -384,7 +411,9 @@ func (r *LocalRuntime) redriveDeferredSpawn(agentID string, waiter deferredSpawn
 		}
 		if attempt < attempts {
 			if d := r.sourcePrewarmBackoff(); d > 0 {
-				time.Sleep(d)
+				if !r.sleepRuntime(d) {
+					return
+				}
 			}
 		}
 	}
@@ -405,6 +434,9 @@ func repoPrewarmFailureCause(cause error) string {
 }
 
 func (r *LocalRuntime) reportDeferredForkFailure(agentID string, waiter deferredSpawn, reason string, cause error) {
+	if r.runtimeStopped() {
+		return
+	}
 	detail := ""
 	if cause != nil {
 		detail = cause.Error()
@@ -420,22 +452,30 @@ func (r *LocalRuntime) reportDeferredForkStatusWithRetry(agentID string, waiter 
 	if waiter.CommandID == "" || res == nil {
 		return true
 	}
+	if r.runtimeStopped() {
+		return false
+	}
 	attempts := r.sourcePrewarmAttempts()
 	if attempts < 1 {
 		attempts = 1
 	}
 	for attempt := 1; attempt <= attempts; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := r.runtimeContext(10 * time.Second)
 		err := r.ReportForkCommandStatus(ctx, waiter.CommandID, waiter.TaskID, res)
 		cancel()
 		if err == nil {
 			return true
 		}
+		if r.runtimeStopped() {
+			return false
+		}
 		r.log("fork_executor agent=%s task=%s command=%s deferred status report attempt %d/%d failed: %v",
 			agentID, waiter.TaskID, waiter.CommandID, attempt, attempts, err)
 		if attempt < attempts {
 			if d := r.sourcePrewarmBackoff(); d > 0 {
-				time.Sleep(d)
+				if !r.sleepRuntime(d) {
+					return false
+				}
 			}
 		}
 	}
@@ -453,7 +493,10 @@ func (r *LocalRuntime) reportDeferredForkStatusWithRetry(agentID string, waiter 
 // blockTaskOnForkFailure relies on. A declined start_task is itself logged loudly and the
 // task stays queued (the center considers it un-runnable right now anyway).
 func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause error) {
-	ctx, cancel := context.WithTimeout(context.Background(), r.sourcePrewarmTimeout())
+	if r.runtimeStopped() {
+		return
+	}
+	ctx, cancel := r.runtimeContext(r.sourcePrewarmTimeout())
 	defer cancel()
 
 	failureCause := ForkFailureCause(repoPrewarmFailureCause(cause))
