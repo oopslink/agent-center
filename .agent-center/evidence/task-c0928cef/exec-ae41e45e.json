@@ -1,0 +1,335 @@
+{
+  "task_id": "task-c0928cef",
+  "execution_id": "exec-ae41e45e",
+  "reviewed_sha": "c8f4821cd070b8649367ff2ed6db6277e58dbffe",
+  "base_sha": "ca953dbd2a6b58e04b542d62a1a2ea196d278f68",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -n task-input/v1 . | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 3 -type d -name 'task-input' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f \\\\( -path './task-input/*' -o -name 'manifest.json' -o -name 'README.md' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'find docs/rules -maxdepth 1 -type f -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-evidence-spec.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-methodology.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1578-s3-insight-phase1-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"ps -axo pid=,ppid=,uid=,user=,stat=,comm= | wc -l \u0026\u0026 ps -axo user= | sort | uniq -c | sort -nr | sed -n '1,40p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find .agent-center -maxdepth 4 -type f -print -exec ls -l {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"rg -n \\\"exec-2dbfbfe8|c8585f4a|4000|process saturation|saturation|headroom|fork/exec|fork\\\" docs notes README.md CLAUDE.md .agent-center .github scripts internal tests sites web -g '\"'!**/node_modules/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"mkdir -p docs/reports/process-saturation-20260828/raw \u0026\u0026 {\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  printf '\"'host=%s\\\\n' \\\"\"'$(hostname)\"\n  printf '\"'cwd=%s\\\\n' \\\"\"'$PWD\"\n  printf '\"'branch=%s\\\\n' \\\"\"'$(git branch --show-current)\"\n  printf '\"'head=%s\\\\n' \\\"\"'$(git rev-parse HEAD)\"\n  printf '\"'task_input_readme_present='; test -f task-input/v1/README.md \u0026\u0026 echo yes || echo no\n  printf 'task_input_manifest_present='; test -f task-input/v1/manifest.json \u0026\u0026 echo yes || echo no\n} \u003e docs/reports/process-saturation-20260828/raw/00-environment.txt\nps -axo pid,ppid,pgid,sid,uid,user,stat,etime,command -ww \u003e docs/reports/process-saturation-20260828/raw/01-ps-before-full.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  printf '\"'total_processes='; ps -axo pid= | wc -l | tr -d ' '\n  printf '\\\\nusers='; ps -axo user= | awk 'NF{u[\"'$1]++} END{print length(u)}'\"'\n  printf '\\\\nprocesses_by_user\\\\n'; ps -axo user= | awk 'NF{u[\"'$1]++} END{for (k in u) print u[k], k}'\"' | sort -nr\n  printf '\\\\nprocesses_by_command_top80\\\\n'; ps -axo comm= | awk 'NF{c[\"'$1]++} END{for (k in c) print c[k], k}'\"' | sort -nr | sed -n '1,80p'\n} \u003e docs/reports/process-saturation-20260828/raw/02-counts-before.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  ps -axo pid=,ppid=,user=,stat=,etime=,command= -ww | awk '\"'{cmd=\"'$0; pid=$1; ppid=$2; user=$3; stat=$4; etime=$5; sub(/''^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]*/, \"\", cmd); key=ppid \"'\"\\\\t\\\" user \\\"\\\\t\\\" cmd; counts[key]++; pids[key]=pids[key] \\\" \\\" pid} END{for (k in counts) print counts[k] \\\"\\\\t\\\" k \\\"\\\\tPIDS:\\\" pids[k]}' | sort -nr | sed -n '1,200p'\n} \u003e docs/reports/process-saturation-20260828/raw/03-children-by-ppid-command-before.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  pstree -w 2\u003e\u00261 || true\n} \u003e docs/reports/process-saturation-20260828/raw/04-pstree-before.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'bash docs/reports/process-saturation-20260828/collect-process-evidence.sh'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'bash docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh docs/reports/process-saturation-20260828/raw 250; status=$?; echo probe_exit=$status; exit $status'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'bash docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh docs/reports/process-saturation-20260828/raw 250; rc=$?; echo probe_exit=$rc; exit $rc'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"ps -axo pid,ppid,pgid,uid,user,stat,etime,command -ww \u003e docs/reports/process-saturation-20260828/raw/30-ps-after-full.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  printf '\"'total_processes='; ps -axo pid= | wc -l | tr -d ' '\n  printf '\\\\nusers='; ps -axo user= | awk 'NF{u[\"'$1]++} END{print length(u)}'\"'\n  printf '\\\\nprocesses_by_user\\\\n'; ps -axo user= | awk 'NF{u[\"'$1]++} END{for (k in u) print u[k], k}'\"' | sort -nr\n  printf '\\\\nprocesses_by_command_top80\\\\n'; ps -axo comm= | awk 'NF{c[\"'$1]++} END{for (k in c) print c[k], k}'\"' | sort -nr | sed -n '1,80p'\n} \u003e docs/reports/process-saturation-20260828/raw/31-counts-after.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  ps -axo pid=,ppid=,user=,stat=,etime=,command= -ww | awk '\"'{cmd=\"'$0; pid=$1; ppid=$2; user=$3; sub(/''^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]*/, \"\", cmd); key=ppid \"'\"\\\\t\\\" user \\\"\\\\t\\\" cmd; counts[key]++; pids[key]=pids[key] \\\" \\\" pid} END{for (k in counts) print counts[k] \\\"\\\\t\\\" k \\\"\\\\tPIDS:\\\" pids[k]}' | sort -nr | sed -n '1,200p'\n} \u003e docs/reports/process-saturation-20260828/raw/32-children-by-ppid-command-after.txt\nshasum -a 256 docs/reports/process-saturation-20260828/raw/* \u003e docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\nsed -n '1,120p' docs/reports/process-saturation-20260828/raw/before-counts.txt\nsed -n '1,80p' docs/reports/process-saturation-20260828/raw/31-counts-after.txt\nsed -n '1,35p' docs/reports/process-saturation-20260828/raw/20-fork-exec-headroom.txt\ntail -n 8 docs/reports/process-saturation-20260828/raw/20-fork-exec-headroom.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"awk '/during_total_processes=|spawn_success=|spawn_failure=|wait_success=|wait_failure=|post_total_processes=|pre_total_processes=|timestamp_start=|timestamp_end=/{print}' docs/reports/process-saturation-20260828/raw/20-fork-exec-headroom.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,60p' docs/reports/process-saturation-20260828/raw/before-children-by-ppid-command.txt \u0026\u0026 sed -n '1,60p' docs/reports/process-saturation-20260828/raw/32-children-by-ppid-command-after.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"for f in docs/reports/process-saturation-20260828/raw/observation-*-counts.txt; do printf '%s ' \\\"\"'$f\"; awk -F= '\"'/timestamp=|total_processes=|users=/{printf \\\"%s \\\", \"'$0} END{print \"\"}'\"' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'find docs/reports/process-saturation-20260828 -type f -maxdepth 3 -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"perl -0pi -e 's/--admin-token\\\\s+\\\\S+/--admin-token \u003cREDACTED\u003e/g; s/--api-key\\\\s+\\\\S+/--api-key \u003cREDACTED\u003e/g; s/--mcp-config\\\\s+\\\\S*mcp_config\\\\.runtime\\\\.json/--mcp-config \u003cREDACTED_MCP_CONFIG\u003e/g; s/--mcp-config-path\\\\s+\\\\S*mcp_config\\\\.runtime\\\\.json/--mcp-config-path \u003cREDACTED_MCP_CONFIG\u003e/g; s/mcp_servers\\\\.[\"'^'\"\\\\s=]+\\\\.url=\\\"[\"'^\"]+\"/mcp_servers.\u003cREDACTED\u003e.url=\"\u003cREDACTED\u003e\"/g; s/acat_[A-Za-z0-9_-]+/acat_\u003cREDACTED\u003e/g; s/sk_machine_[A-Za-z0-9]+/sk_machine_\u003cREDACTED\u003e/g'\"' docs/reports/process-saturation-20260828/raw/*.txt\nshasum -a 256 docs/reports/process-saturation-20260828/raw/*.txt \u003e docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\nrg -n \\\"acat_[A-Za-z0-9_-]+|sk_machine_[A-Za-z0-9]+|mcp_config\\\\.runtime\\\\.json|--api-key [\"'^\u003c]|--admin-token [''^\u003c]\" docs/reports/process-saturation-20260828 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"rg -n -- '--admin-token (?\"'!\u003cREDACTED\u003e)|--api-key (?!\u003cREDACTED\u003e)|sk_machine_[A-Za-z0-9]{8,}|acat_[A-Za-z0-9_-]{8,}|mcp_servers'\"\\\\.[\"'^\u003c][''^ ]*'\"\\\\.url=\\\"http' docs/reports/process-saturation-20260828 || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'wc -l docs/reports/process-saturation-20260828/raw/*.txt | sort -n | tail -n 20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"rg --pcre2 -n -- '--admin-token (?\"'!\u003cREDACTED\u003e)|--api-key (?!\u003cREDACTED\u003e)|sk_machine_[A-Za-z0-9]{8,}|acat_[A-Za-z0-9_-]{8,}|mcp_servers'\"\\\\.[\"'^\u003c][''^ ]*'\"\\\\.url=\\\"http' docs/reports/process-saturation-20260828 || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"sed -n '1,60p' docs/reports/process-saturation-20260828/raw/31-counts-after.txt \u0026\u0026 printf '\\\\n--- agent-center processes ---\\\\n' \u0026\u0026 rg -n \\\"agent-center worker|worker executor|codex exec\\\" docs/reports/process-saturation-20260828/raw/30-ps-after-full.txt | sed -n '1,80p' \u0026\u0026 printf '\\\\n--- playwright processes ---\\\\n' \u0026\u0026 rg -n \\\"chrome-headless-shell\\\" docs/reports/process-saturation-20260828/raw/30-ps-after-full.txt | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'chmod +x docs/reports/process-saturation-20260828/collect-process-evidence.sh docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"shasum -a 256 docs/reports/process-saturation-20260828/raw/*.txt \u003e docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\nfind docs/reports/process-saturation-20260828 -type f -maxdepth 3 -print | sort\nrg --pcre2 -n -- '--admin-token (?\"'!\u003cREDACTED\u003e)|--api-key (?!\u003cREDACTED\u003e)|sk_machine_[A-Za-z0-9]{8,}|acat_[A-Za-z0-9_-]{8,}|mcp_servers'\"\\\\.[\"'^\u003c][''^ ]*'\"\\\\.url=\\\"http' docs/reports/process-saturation-20260828 || true\ngit status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"git diff -- docs/reports/process-saturation-20260828/README.md docs/reports/process-saturation-20260828/collect-process-evidence.sh docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git ls-files docs/reports/process-saturation-20260828'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"find docs/reports/process-saturation-20260828/raw -type f -name '*.txt' \"'! -name '\"'SHA256SUMS.txt' -print | sort | xargs shasum -a 256 \u003e docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'git add docs/reports/process-saturation-20260828 \u0026\u0026 git diff --cached --stat \u0026\u0026 git diff --cached --name-status'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc \"git diff --cached -- docs/reports/process-saturation-20260828/README.md | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"rg --pcre2 -n -- '--admin-token (?\"'!\u003cREDACTED\u003e)|--api-key (?!\u003cREDACTED\u003e)|sk_machine_[A-Za-z0-9]{8,}|acat_[A-Za-z0-9_-]{8,}|mcp_servers'\"\\\\.[\"'^\u003c][''^ ]*'\"\\\\.url=\\\"http' docs/reports/process-saturation-20260828 || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'shasum -a 256 -c docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'bash docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh docs/reports/process-saturation-20260828/raw 250; rc=$?; printf '\"'probe_exit=%s\\\\n' \\\"\"'$rc\"; exit \"$rc\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"ps -axo pid,ppid,pgid,uid,user,stat,etime,command -ww \u003e docs/reports/process-saturation-20260828/raw/30-ps-after-full.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  printf '\"'total_processes='; ps -axo pid= | wc -l | tr -d ' '\n  printf '\\\\nusers='; ps -axo user= | awk 'NF{u[\"'$1]++} END{print length(u)}'\"'\n  printf '\\\\nprocesses_by_user\\\\n'; ps -axo user= | awk 'NF{u[\"'$1]++} END{for (k in u) print u[k], k}'\"' | sort -nr\n  printf '\\\\nprocesses_by_command_top80\\\\n'; ps -axo comm= | awk 'NF{c[\"'$1]++} END{for (k in c) print c[k], k}'\"' | sort -nr | sed -n '1,80p'\n} \u003e docs/reports/process-saturation-20260828/raw/31-counts-after.txt\n{\n  printf 'timestamp=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  ps -axo pid=,ppid=,user=,stat=,etime=,command= -ww | awk '\"'{cmd=\"'$0; pid=$1; ppid=$2; user=$3; sub(/''^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]+[''^[:space:]]+[[:space:]]*/, \"\", cmd); key=ppid \"'\"\\\\t\\\" user \\\"\\\\t\\\" cmd; counts[key]++; pids[key]=pids[key] \\\" \\\" pid} END{for (k in counts) print counts[k] \\\"\\\\t\\\" k \\\"\\\\tPIDS:\\\" pids[k]}' | sort -nr | sed -n '1,200p'\n} \u003e docs/reports/process-saturation-20260828/raw/32-children-by-ppid-command-after.txt\nperl -0pi -e 's/--admin-token\\\\s+\\\\S+/--admin-token \u003cREDACTED\u003e/g; s/--api-key\\\\s+\\\\S+/--api-key \u003cREDACTED\u003e/g; s/--mcp-config\\\\s+\\\\S*mcp_config\\\\.runtime\\\\.json/--mcp-config \u003cREDACTED_MCP_CONFIG\u003e/g; s/--mcp-config-path\\\\s+\\\\S*mcp_config\\\\.runtime\\\\.json/--mcp-config-path \u003cREDACTED_MCP_CONFIG\u003e/g; s/mcp_servers\\\\.[\"'^'\"\\\\s=]+\\\\.url=\\\"[\"'^\"]+\"/mcp_servers.\u003cREDACTED\u003e.url=\"\u003cREDACTED\u003e\"/g; s/acat_[A-Za-z0-9_-]+/acat_\u003cREDACTED\u003e/g; s/sk_machine_[A-Za-z0-9]+/sk_machine_\u003cREDACTED\u003e/g'\"' docs/reports/process-saturation-20260828/raw/*.txt\nfind docs/reports/process-saturation-20260828/raw -type f -name '*.txt' \"'! -name '\"'SHA256SUMS.txt' -print | sort | xargs shasum -a 256 \u003e docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt\nawk '/pre_total_processes=|during_total_processes=|spawn_success=|spawn_failure=|wait_success=|wait_failure=|post_total_processes=|probe_exit=/{print}' docs/reports/process-saturation-20260828/raw/20-fork-exec-headroom.txt\nsed -n '1,45p' docs/reports/process-saturation-20260828/raw/31-counts-after.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc \"sed -n '40,95p' docs/reports/process-saturation-20260828/raw/31-counts-after.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"rg --pcre2 -n -- '--admin-token (?\"'!\u003cREDACTED\u003e)|--api-key (?!\u003cREDACTED\u003e)|sk_machine_[A-Za-z0-9]{8,}|acat_[A-Za-z0-9_-]{8,}|mcp_servers'\"\\\\.[\"'^\u003c][''^ ]*'\"\\\\.url=\\\"http' docs/reports/process-saturation-20260828 || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'shasum -a 256 -c docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"git diff --cached --stat \u0026\u0026 git diff -- docs/reports/process-saturation-20260828/README.md docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git add docs/reports/process-saturation-20260828 \u0026\u0026 git diff --cached --stat \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git commit -m \"Add process saturation recovery evidence\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-c0928cef/exec-ae41e45e'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-c0928cef/exec-ae41e45e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"git ls-tree -r HEAD -- docs/reports/process-saturation-20260828 | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc 'shasum -a 256 -c docs/reports/process-saturation-20260828/raw/SHA256SUMS.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-c0928cef/exec-ae41e45e'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-ae41e45e/command_events.jsonl",
+  "command_event_digest": "sha256:3398aec371ff3344949204d6684176062ef4468f74bdedfe1863867733109013",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Delivered evidence-only recovery audit and pushed it.",
+  "artifact_digest": "sha256:a647c69d32793f3edbe960b6d490d63369b00b3df6cc427d9b5c71483f368ca2",
+  "path": ".agent-center/evidence/task-c0928cef/exec-ae41e45e.json",
+  "branch": "ac-exec/task-c0928cef/exec-ae41e45e"
+}
