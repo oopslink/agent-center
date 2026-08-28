@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -196,6 +197,139 @@ func TestEditPlanTopology_TerminalCycleRejected(t *testing.T) {
 	}
 	if got := h.planVersion(t, planID); got != base {
 		t.Fatalf("version=%d want %d (unchanged on rejection)", got, base)
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeWithIncidentEdgesValidatesFinalTopology(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
+	c := h.seedAssignedTask(t, pid, planID, "C", "user:c1")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AddPlanDependency(h.ctx, planID, a, c, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	base := h.planVersion(t, planID)
+
+	if _, err := h.edit(t, planID, base,
+		TopologyOp{Kind: OpRemoveEdge, FromTaskID: b, ToTaskID: a},
+		TopologyOp{Kind: OpRemoveNode, TaskID: a},
+	); err != nil {
+		t.Fatalf("remove node plus incident edge: %v", err)
+	}
+	if got := h.planVersion(t, planID); got != base+1 {
+		t.Fatalf("version=%d want %d", got, base+1)
+	}
+	tk, _ := h.tasks.FindByID(h.ctx, a)
+	if tk.PlanID() != "" {
+		t.Fatalf("removed task plan_id=%q want backlog", tk.PlanID())
+	}
+	edges, _ := h.plans.ListDependencies(h.ctx, planID)
+	if len(edges) != 0 {
+		t.Fatalf("edges=%v, want final topology without incident edges", edges)
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeHistoryBlockerRollsBackBatch(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove-history", CreatedBy: "user:a"})
+	h.drain(t)
+	removable := h.seedAssignedTask(t, pid, planID, "removable", "user:a1")
+	blocked := h.seedAssignedTask(t, pid, planID, "blocked", "user:b1")
+	if err := h.plans.RecordDispatch(h.ctx, planID, blocked, h.clk.Now(), "msg-blocked"); err != nil {
+		t.Fatal(err)
+	}
+	base := h.planVersion(t, planID)
+
+	_, err := h.edit(t, planID, base,
+		TopologyOp{Kind: OpRemoveNode, TaskID: removable},
+		TopologyOp{Kind: OpRemoveNode, TaskID: blocked},
+	)
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if !errors.As(err, &nodeErr) || nodeErr.TaskID != blocked || !hasStringPrefix(nodeErr.HistoryBlockers, "dispatch_record") {
+		t.Fatalf("err=%v node=%+v", err, nodeErr)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want=%d", got, base)
+	}
+	for _, id := range []pm.TaskID{removable, blocked} {
+		tk, _ := h.tasks.FindByID(h.ctx, id)
+		if tk.PlanID() != planID {
+			t.Fatalf("task %s plan=%q want %q", id, tk.PlanID(), planID)
+		}
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeMissingIsNotSilentNoOp(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove-missing", CreatedBy: "user:a"})
+	h.drain(t)
+	missing := h.seedBacklogAssignedTask(t, pid, "missing", "user:m")
+	base := h.planVersion(t, planID)
+	_, err := h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: missing})
+	if !errors.Is(err, ErrTaskNotInPlan) {
+		t.Fatalf("err=%v, want ErrTaskNotInPlan", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want=%d", got, base)
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeConcurrentStartLinearizes(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		h := planAdvanceSetup(t)
+		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove-race", CreatedBy: "user:a"})
+		h.drain(t)
+		a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+		b := h.seedAssignedTask(t, pid, planID, "B", "user:b1")
+		if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+			t.Fatal(err)
+		}
+		base := h.planVersion(t, planID)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		var startErr, editErr error
+		go func() {
+			defer wg.Done()
+			startErr = h.svc.StartPlan(h.ctx, planID, "user:a")
+		}()
+		go func() {
+			defer wg.Done()
+			_, editErr = h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: a})
+		}()
+		wg.Wait()
+
+		tk, err := h.tasks.FindByID(h.ctx, a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		records, err := h.plans.ListDispatchRecords(h.ctx, planID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range records {
+			if tk.PlanID() == "" && r.TaskID == a {
+				t.Fatalf("iteration %d: removed node also has dispatch record; startErr=%v editErr=%v", i, startErr, editErr)
+			}
+		}
+		edges, err := h.plans.ListDependencies(h.ctx, planID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range edges {
+			if tk.PlanID() == "" && (e.FromTaskID == a || e.ToTaskID == a) {
+				t.Fatalf("iteration %d: removed node still referenced by edge %+v; startErr=%v editErr=%v", i, e, startErr, editErr)
+			}
+		}
 	}
 }
 

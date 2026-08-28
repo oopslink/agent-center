@@ -215,20 +215,14 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		// §9.4: a structured Plan's task-set + DAG are editable only while pending. Removing
-		// a node from a running/done plan would break the executing DAG — mirror the
-		// gate on SelectTaskIntoPlan / Add+RemovePlanDependency (add/remove symmetry).
-		// T121: the built-in assignment pool is EXEMPT — it is always-running yet a
-		// flat claimable bucket (no DAG), so its task-set is freely editable, exactly
-		// as SelectTaskIntoPlan exempts it for the add side. Without this, a Work Board
-		// drag of a pool task (out to the backlog, or as the remove-half of a move)
-		// reports plan_conflict. A structured running/terminal plan stays locked.
-		if !p.IsBuiltin() && p.Status() != pm.PlanPending {
-			return pm.ErrPlanNotPending
-		}
 		t, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
 			return err
+		}
+		if !p.IsBuiltin() {
+			if err := s.requirePlanNodeRemovable(txCtx, p, t); err != nil {
+				return err
+			}
 		}
 		// Remove any depends_on edges referencing this task in this plan first, so
 		// the DAG never references a task no longer in the plan (§9.8).
@@ -253,6 +247,112 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		s.auditPlan(txCtx, p, pm.AuditPlanNodeRemoved, actor, map[string]any{"task": string(t.ID()), "task_title": t.Title()})
 		return nil
 	})
+}
+
+func (s *Service) requirePlanNodeRemovable(ctx context.Context, p *pm.Plan, t *pm.Task) error {
+	if t.PlanID() != p.ID() {
+		return ErrTaskNotInPlan
+	}
+	blockers := make([]string, 0, 4)
+	if p.Status() != pm.PlanPending {
+		blockers = append(blockers, "plan_status:"+string(p.Status()))
+	}
+	if t.Status() != pm.TaskOpen {
+		blockers = append(blockers, "task_status:"+string(t.Status()))
+	}
+	if t.StageID() != "" {
+		blockers = append(blockers, "stage_membership:"+string(t.StageID()))
+	}
+	if t.OriginVerdictID() != "" {
+		blockers = append(blockers, "origin_verdict:"+string(t.OriginVerdictID()))
+	}
+	if records, err := s.plans.ListDispatchRecords(ctx, p.ID()); err != nil {
+		return err
+	} else {
+		for _, r := range records {
+			if r.TaskID == t.ID() {
+				blockers = append(blockers, "dispatch_record")
+				break
+			}
+		}
+	}
+	if outcomes, err := s.plans.ListDecisionOutcomes(ctx, p.ID()); err != nil {
+		return err
+	} else {
+		for _, o := range outcomes {
+			if o.TaskID == t.ID() {
+				blockers = append(blockers, "decision_outcome")
+				break
+			}
+		}
+	}
+	if _, ok, err := s.plans.GetReviewVerdict(ctx, p.ID(), t.ID()); err != nil {
+		return err
+	} else if ok {
+		blockers = append(blockers, "review_verdict")
+	}
+	if s.actionLogs != nil {
+		logs, err := s.actionLogs.ListByTask(ctx, t.ID())
+		if err != nil {
+			return err
+		}
+		for _, lg := range logs {
+			if planNodeRemovalBlocksAction(lg.Action) {
+				blockers = append(blockers, "task_action_log:"+string(lg.Action))
+			}
+		}
+	}
+	if s.stages != nil {
+		stages, err := s.stages.ListByPlan(ctx, p.ID())
+		if err != nil {
+			return err
+		}
+		for _, st := range stages {
+			if st.GateTaskID() == t.ID() {
+				blockers = append(blockers, "stage_gate_task:"+string(st.ID()))
+			}
+		}
+	}
+	if s.remediation != nil {
+		verdicts, err := s.remediation.ListVerdictsByPlan(ctx, p.ID())
+		if err != nil {
+			return err
+		}
+		for _, v := range verdicts {
+			if v.GateTaskID == t.ID() {
+				blockers = append(blockers, "gate_verdict:"+string(v.ID))
+			}
+		}
+		continuations, err := s.remediation.ListContinuationsByPlan(ctx, p.ID())
+		if err != nil {
+			return err
+		}
+		if sid := t.StageID(); sid != "" {
+			for _, c := range continuations {
+				if c.RootStageID == sid || c.CurrentStageID == sid {
+					blockers = append(blockers, "remediation_continuation:"+string(c.ID))
+				}
+			}
+		}
+	}
+	if len(blockers) > 0 {
+		return &pm.PlanNodeNotRemovableError{
+			PlanID: p.ID(), NodeID: t.NodeID(), TaskID: t.ID(), CurrentStatus: t.Status(),
+			AllowedStatus: "pending/open with no execution or acceptance history", HistoryBlockers: blockers,
+		}
+	}
+	return nil
+}
+
+func planNodeRemovalBlocksAction(action pm.TaskAction) bool {
+	switch action {
+	case pm.TaskActionAgentStarted, pm.TaskActionBlocked, pm.TaskActionUnblocked,
+		pm.TaskActionLeaseExpired, pm.TaskActionLeaseNudged, pm.TaskActionCompleted,
+		pm.TaskActionReset, pm.TaskActionResetExhausted, pm.TaskActionRecoveryRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 // UpdatePlanCommand renames / re-goals / re-targets a Plan. Name + Description

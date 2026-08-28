@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +63,32 @@ func drain(t *testing.T, relay *outbox.Relay, ctx context.Context) {
 			return
 		}
 	}
+}
+
+func planFlowSeedAssignedTask(t *testing.T, svc *Service, relay *outbox.Relay, ctx context.Context, pid pm.ProjectID, planID pm.PlanID, title, assignee string) pm.TaskID {
+	t.Helper()
+	tid, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: title, CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := assignee
+	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	drain(t, relay, ctx)
+	return tid
+}
+
+func hasStringPrefix(xs []string, prefix string) bool {
+	for _, x := range xs {
+		if strings.HasPrefix(x, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCreatePlan_CreatesConversationAndBinds(t *testing.T) {
@@ -359,8 +386,98 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	if err := plans.Update(ctx, p); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNotPending) {
-		t.Fatalf("remove from running plan = %v, want ErrPlanNotPending", err)
+	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNodeNotRemovable) {
+		t.Fatalf("remove from running plan = %v, want ErrPlanNodeNotRemovable", err)
+	}
+}
+
+func TestRemoveTaskFromPlan_OpenPendingNodeWithIncidentEdges_OK(t *testing.T) {
+	svc, _, plans, tasks, relay, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	drain(t, relay, ctx)
+	taskA := planFlowSeedAssignedTask(t, svc, relay, ctx, pid, planID, "a", "user:a1")
+	taskB := planFlowSeedAssignedTask(t, svc, relay, ctx, pid, planID, "b", "user:b1")
+	taskC := planFlowSeedAssignedTask(t, svc, relay, ctx, pid, planID, "c", "user:c1")
+	if err := svc.AddPlanDependency(ctx, planID, taskB, taskA, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AddPlanDependency(ctx, planID, taskA, taskC, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); err != nil {
+		t.Fatalf("RemoveTaskFromPlan(open pending node with incident edges): %v", err)
+	}
+	tk, _ := tasks.FindByID(ctx, taskA)
+	if tk.PlanID() != "" {
+		t.Fatalf("removed task plan_id=%q want backlog", tk.PlanID())
+	}
+	edges, err := plans.ListDependencies(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edges) != 0 {
+		t.Fatalf("incident edges after removal=%v, want none", edges)
+	}
+	for _, id := range []pm.TaskID{taskB, taskC} {
+		tk, _ := tasks.FindByID(ctx, id)
+		if tk.PlanID() != planID {
+			t.Fatalf("unrelated node %s plan_id=%q want %q", id, tk.PlanID(), planID)
+		}
+	}
+}
+
+func TestRemoveTaskFromPlan_RejectsStartedResetNode(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	h.drain(t)
+	taskA := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	if err := h.svc.StartTask(h.ctx, taskA, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	expired := h.clk.Now().Add(-time.Hour)
+	if _, err := h.svc.db.ExecContext(h.ctx, `UPDATE pm_tasks SET execution_lease_expires_at=? WHERE id=?`, expired.Format(time.RFC3339Nano), string(taskA)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ResetTask(h.ctx, taskA, "user:a", true); err != nil {
+		t.Fatal(err)
+	}
+
+	err := h.svc.RemoveTaskFromPlan(h.ctx, planID, taskA, "user:a")
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if !errors.As(err, &nodeErr) {
+		t.Fatalf("remove reset node err=%v, want PlanNodeNotRemovableError", err)
+	}
+	if !hasStringPrefix(nodeErr.HistoryBlockers, "task_action_log:agent_started") || !hasStringPrefix(nodeErr.HistoryBlockers, "task_action_log:reset") {
+		t.Fatalf("history blockers=%v", nodeErr.HistoryBlockers)
+	}
+}
+
+func TestRemoveTaskFromPlan_RejectsReviewAndGateHistory(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	h.drain(t)
+	review := h.seedAssignedTask(t, pid, planID, "Review", "user:review")
+	gate := h.seedAssignedTask(t, pid, planID, "Acceptance gate", "user:pd")
+	if err := h.plans.RecordReviewVerdict(h.ctx, planID, pm.ReviewVerdict{PlanID: planID, TaskID: review, Verdict: pm.ReviewPass, SHA: "abc123"}, h.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.remediation.SaveVerdict(h.ctx, pm.GateVerdict{ID: "gv-1", ProjectID: pid, PlanID: planID, GateTaskID: gate, Outcome: pm.GateVerdictPass, Evidence: "ok", ReviewedSHA: "abc123", ActorRef: "user:a", IdempotencyKey: "gate-key", CreatedAt: h.clk.Now()}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		task    pm.TaskID
+		blocker string
+	}{{review, "review_verdict"}, {gate, "gate_verdict:gv-1"}} {
+		err := h.svc.RemoveTaskFromPlan(h.ctx, planID, tc.task, "user:a")
+		var nodeErr *pm.PlanNodeNotRemovableError
+		if !errors.As(err, &nodeErr) || !hasStringPrefix(nodeErr.HistoryBlockers, tc.blocker) {
+			t.Fatalf("task=%s err=%v node=%+v", tc.task, err, nodeErr)
+		}
 	}
 }
 

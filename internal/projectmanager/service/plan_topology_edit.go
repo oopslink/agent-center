@@ -141,6 +141,15 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 			taskByID[t.ID()] = t
 			curNodes[t.ID()] = true
 		}
+		for _, id := range removeNodeTargets(cmd.Ops) {
+			t := taskByID[id]
+			if t == nil {
+				return ErrTaskNotInPlan
+			}
+			if err := s.requirePlanNodeRemovable(txCtx, p, t); err != nil {
+				return err
+			}
+		}
 
 		// Apply the WHOLE batch to an in-memory copy (§4 step 2). Intermediate shapes
 		// (transient cycles/orphans) are NOT validated — only the terminal result is.
@@ -516,6 +525,20 @@ func taskIDStrings(ids []pm.TaskID) []string {
 	for _, id := range ids {
 		out = append(out, string(id))
 	}
+	return out
+}
+
+func removeNodeTargets(ops []TopologyOp) []pm.TaskID {
+	seen := map[pm.TaskID]bool{}
+	var out []pm.TaskID
+	for _, op := range ops {
+		if op.Kind != OpRemoveNode || op.TaskID == "" || seen[op.TaskID] {
+			continue
+		}
+		seen[op.TaskID] = true
+		out = append(out, op.TaskID)
+	}
+	sortTaskIDs(out)
 	return out
 }
 

@@ -263,6 +263,7 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNotDone),
 		errors.Is(err, pm.ErrProjectArchived),
 		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
+		errors.Is(err, pm.ErrPlanNodeNotRemovable),
 		errors.Is(err, pm.ErrPlanGenerationConflict), errors.Is(err, pm.ErrIdempotencyConflict),
 		errors.Is(err, pm.ErrPlanHasRunningTasks), errors.Is(err, pm.ErrPlanNotComplete):
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
