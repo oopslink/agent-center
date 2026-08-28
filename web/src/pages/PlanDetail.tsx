@@ -34,6 +34,7 @@ import {
   type PatchPlanInput,
   type PlanStage,
   type PlanContinuation,
+  type PlanProgressControl,
   type GateVerdict,
   type PlanGenerationRead,
   type PlanGeneration,
@@ -198,6 +199,7 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
           <PlanContinuationBanner continuations={p.continuations ?? []} />
+          {p.progress_control && <PlanProgressCockpit control={p.progress_control} />}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -352,6 +354,39 @@ export default function PlanDetail(): React.ReactElement {
             participants={planConv.data.participants ?? []}
           />
         </ContextPanel>
+      )}
+    </section>
+  );
+}
+
+export function PlanProgressCockpit({ control }: { control: PlanProgressControl }): React.ReactElement {
+  const degraded = control.decision === 'cannot_determine' || control.quality === 'suspect' || control.freshness.state !== 'fresh';
+  return (
+    <section
+      className={`mx-3 mt-2 rounded-md border px-3 py-2 text-xs md:mx-6 ${degraded ? 'border-warning/50 bg-warning/5' : 'border-border-base bg-bg-subtle'}`}
+      data-testid="plan-progress-cockpit"
+      data-decision={control.decision}
+      data-freshness={control.freshness.state}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <strong className="text-text-primary">Progress control</strong>
+        <span>{control.decision.replaceAll('_', ' ')}</span>
+        <span>freshness: {control.freshness.state}</span>
+        <span>quality: {control.quality}</span>
+      </div>
+      {control.required_actions.length > 0 && (
+        <ul className="mt-2 space-y-1" aria-label="Required actions">
+          {control.required_actions.map((action) => (
+            <li key={action.id} className="rounded border border-border-base bg-bg-elevated px-2 py-1" data-action-category={action.category}>
+              <span className="font-medium text-text-primary">{action.category.replaceAll('_', ' ')}</span>
+              {' · '}{action.action.replaceAll('_', ' ')}
+              {action.owner_display || action.owner_ref ? ` · ${action.owner_display || action.owner_ref}` : ''}
+              {action.deadline_at ? ` · due ${formatLocalTime(action.deadline_at)}` : ''}
+              {action.trigger_fact_refs.length > 0 ? ` · facts ${action.trigger_fact_refs.join(', ')}` : ''}
+              {action.options && action.options.length > 0 ? ` · choices ${action.options.join(' / ')}` : ''}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
@@ -1398,6 +1433,9 @@ function PlanEvolutionModal({
   const [evidence, setEvidence] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `evo-${plan.id}-${baseVersion}-${Date.now()}`);
   const [diffText, setDiffText] = useState('{\n  "node_decisions": [],\n  "tasks": [],\n  "edges": []\n}');
+  const blockContext = plan.blocked_on?.[0] ?? null;
+  const [resolutionKind, setResolutionKind] = useState<'replace' | 'bypass' | ''>('');
+  const [resolutionNote, setResolutionNote] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const commit = useCommitPlanEvolution(projectId, plan.id);
 
@@ -1419,6 +1457,11 @@ function PlanEvolutionModal({
       idempotency_key: idempotencyKey.trim(),
       diff,
     };
+    if (blockContext && resolutionKind) {
+      input.resolve_block_event_id = blockContext.event_id || blockContext.task_id;
+      input.resolution_kind = resolutionKind;
+      input.resolution_note = resolutionNote.trim();
+    }
     try {
       await commit.mutateAsync(input);
       onClose();
@@ -1505,6 +1548,53 @@ function PlanEvolutionModal({
           {t('plan.detail.evolutionModal.diffHint')}
         </p>
 
+        {blockContext && (
+          <section className="mt-4 rounded border border-border-base bg-bg-subtle p-3" data-testid="plan-blocked-resolution-panel">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 text-xs text-text-secondary">
+                <div className="font-semibold text-text-primary">Blocked context</div>
+                <div data-testid="plan-blocked-resolution-reason">{blockContext.trigger_condition || blockContext.wait_type}</div>
+                <div className="mt-1 font-mono text-[0.6875rem] text-text-muted" data-testid="plan-blocked-resolution-event">
+                  {blockContext.event_id || blockContext.task_id}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2" role="group" aria-label="Block resolution action">
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${resolutionKind === 'replace' ? 'border-brand bg-brand text-white' : 'border-border-base text-text-primary hover:bg-bg-elevated'}`}
+                  onClick={() => setResolutionKind('replace')}
+                  data-testid="plan-block-replace"
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${resolutionKind === 'bypass' ? 'border-brand bg-brand text-white' : 'border-border-base text-text-primary hover:bg-bg-elevated'}`}
+                  onClick={() => setResolutionKind('bypass')}
+                  data-testid="plan-block-bypass"
+                >
+                  Bypass
+                </button>
+              </div>
+            </div>
+            {resolutionKind && (
+              <>
+                <label className="mt-3 block text-xs font-medium" htmlFor="plan-block-resolution-note">
+                  Resolution note
+                </label>
+                <input
+                  id="plan-block-resolution-note"
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                  className={PLAN_EDIT_MODAL_INPUT}
+                  data-testid="plan-block-resolution-note"
+                  required
+                />
+              </>
+            )}
+          </section>
+        )}
+
         {(parseError || commit.isError) && (
           <p className="mt-3 rounded border border-danger bg-bg-subtle px-3 py-2 text-xs font-medium text-danger" role="alert" data-testid="plan-evolution-error">
             {parseError ?? friendlyEvolutionError(commit.error, t)}
@@ -1522,7 +1612,7 @@ function PlanEvolutionModal({
           </button>
           <button
             type="submit"
-            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim()}
+            disabled={commit.isPending || !parentGenerationId || !reason.trim() || !evidence.trim() || !idempotencyKey.trim() || (Boolean(resolutionKind) && !resolutionNote.trim())}
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-evolution-submit"
           >
@@ -2833,10 +2923,6 @@ function stageTaskIdSet(stages: PlanStage[]): Set<string> {
   return ids;
 }
 
-function shortLineageId(id?: string): string {
-  return id ? id.slice(0, 8) : '';
-}
-
 function usableGenerationRead(read: PlanGenerationRead | undefined): PlanGenerationRead | undefined {
   if (!read) return undefined;
   return read.generations.length > 0 || read.nodes.length > 0 ? read : undefined;
@@ -3058,7 +3144,10 @@ function DagEvolutionPanel({
   const { t } = useTranslation('work');
   const [collapsed, setCollapsed] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const panelBodyId = React.useId();
+  const detailTitleId = React.useId();
+  const detailDialogRef = useModalA11y({ open: detailOpen, onClose: () => setDetailOpen(false) });
 
   const selectedIndex = Math.max(0, revisions.findIndex((revision) => revision.generation === selectedGeneration));
   const selected = revisions[selectedIndex] ?? revisions[revisions.length - 1] ?? null;
@@ -3083,229 +3172,74 @@ function DagEvolutionPanel({
   if (selected == null || latest == null) return null;
 
   return (
-    <section
-      className="mb-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1"
-      data-testid="plan-dag-evolution"
-      data-collapsed={collapsed ? 'true' : 'false'}
-    >
-      <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-subtle text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-label={collapseLabel}
-          title={collapseLabel}
-          aria-expanded={!collapsed}
-          aria-controls={panelBodyId}
-          data-testid="plan-dag-evolution-toggle"
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          <DagEvolutionChevron open={!collapsed} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
-            <span
-              className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
-              data-testid="plan-dag-evolution-active-revision"
-            >
-              {selected.label}
-            </span>
-            <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-progress-label">
-              {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
-            </span>
-          </div>
-          <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
-            <span className="font-semibold text-text-primary">{selected.title}</span>
-            <span className="text-text-muted">
-              {' '}
-              · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
-            </span>
-            {selected.progress && (
-              <span className="text-text-muted" data-testid="plan-dag-evolution-generation-progress">
-                {' '}
-                · {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
-              </span>
-            )}
-            {selected.diff && (
-              <span className="text-text-muted" data-testid="plan-dag-evolution-diff">
-                {' '}
-                · {evolutionDiffLabel(selected.diff, t)}
-              </span>
-            )}
-            {selected.verdictOutcome && (
-              <span className="text-text-muted"> · {selected.verdictOutcome}</span>
-            )}
-          </p>
-        </div>
-        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+    <>
+      <section
+        className="mb-2 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1"
+        data-testid="plan-dag-evolution"
+        data-collapsed={collapsed ? 'true' : 'false'}
+      >
+        <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
           <button
             type="button"
-            className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-            data-testid="plan-dag-evolution-current"
-            disabled={selected.generation === latest.generation}
-            onClick={() => {
-              setPlaying(false);
-              onSelectGeneration(latest.generation);
-            }}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-base bg-bg-subtle text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            aria-label={collapseLabel}
+            title={collapseLabel}
+            aria-expanded={!collapsed}
+            aria-controls={panelBodyId}
+            data-testid="plan-dag-evolution-toggle"
+            onClick={() => setCollapsed((v) => !v)}
           >
-            {t('plan.detail.dag.evolution.current')}
+            <DagEvolutionChevron open={!collapsed} />
           </button>
-          <button
-            type="button"
-            className="rounded bg-accent px-2.5 py-1 text-xs font-semibold text-white shadow-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-            data-testid="plan-dag-evolution-play"
-            disabled={revisions.length <= 1}
-            onClick={() => {
-              if (playing) {
-                setPlaying(false);
-                return;
-              }
-              if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
-              setPlaying(true);
-            }}
-          >
-            {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
-          </button>
-        </div>
-      </div>
-
-      <div className="h-1 bg-bg-subtle" aria-hidden="true">
-        <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
-      </div>
-
-      {!collapsed && (
-        <div id={panelBodyId} className="grid gap-2 p-3" data-testid="plan-dag-evolution-body">
-          <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]" data-testid="plan-dag-evolution-revisions">
-            {revisions.map((revision) => {
-              const active = revision.generation === selected.generation;
-              return (
-                <button
-                  key={revision.generation}
-                  type="button"
-                  className={`flex min-h-[8.75rem] min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                    active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
-                  }`}
-                  aria-pressed={active}
-                  data-testid={`plan-dag-evolution-revision-${revision.revision}`}
-                  data-active={active ? 'true' : 'false'}
-                  onClick={() => {
-                    setPlaying(false);
-                    onSelectGeneration(revision.generation);
-                  }}
-                >
-                  <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
-                    <span className="shrink-0 font-mono text-xs font-bold text-text-primary">{revision.label}</span>
-                    <span className="min-w-0 truncate text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
-                      {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
-                    </span>
-                  </div>
-                  <div className="line-clamp-2 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary">{revision.title}</div>
-                  <div className="mt-1 line-clamp-2 min-w-0 break-words text-[0.6875rem] leading-4 text-text-secondary" data-testid={`plan-dag-evolution-reason-${revision.revision}`}>
-                    <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
-                    {revision.reason}
-                  </div>
-                  {(revision.progress || revision.diff) && (
-                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[0.625rem] text-text-muted">
-                      {revision.progress && (
-                        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono" data-testid={`plan-dag-evolution-progress-${revision.revision}`}>
-                          {revision.progress.done}/{revision.progress.total}
-                        </span>
-                      )}
-                      {revision.diff && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5" data-testid={`plan-dag-evolution-diff-${revision.revision}`}>
-                          {evolutionDiffLabel(revision.diff, t)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {(revision.generationId || revision.parentGenerationId || revision.verdictId || revision.continuationId || revision.createdAt) && (
-                    <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2 text-[0.625rem] text-text-muted">
-                      {revision.generationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.generationId}>
-                          {t('plan.detail.dag.evolution.generationId', { id: shortLineageId(revision.generationId) })}
-                        </span>
-                      )}
-                      {revision.parentGenerationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono" title={revision.parentGenerationId}>
-                          {t('plan.detail.dag.evolution.parentId', { id: shortLineageId(revision.parentGenerationId) })}
-                        </span>
-                      )}
-                      {revision.verdictId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
-                          {revision.verdictOutcome
-                            ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: revision.verdictOutcome, id: shortLineageId(revision.verdictId) })
-                            : t('plan.detail.dag.evolution.verdict', { id: shortLineageId(revision.verdictId) })}
-                        </span>
-                      )}
-                      {revision.continuationId && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5 font-mono">
-                          {t('plan.detail.dag.evolution.continuation', { id: shortLineageId(revision.continuationId) })}
-                        </span>
-                      )}
-                      {revision.createdAt && (
-                        <span className="max-w-full truncate rounded bg-bg-subtle px-1.5 py-0.5">
-                          {formatLocalTime(revision.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div
-            className="rounded-lg border border-border-base bg-bg-subtle/60 p-3"
-            data-testid="plan-dag-evolution-selected-detail"
-          >
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
+              <span
+                className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
+                data-testid="plan-dag-evolution-active-revision"
+              >
                 {selected.label}
               </span>
-              <span className="min-w-0 break-words text-xs font-semibold text-text-primary">{selected.title}</span>
-              <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-                {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+              <span className="text-[0.6875rem] text-text-muted" data-testid="plan-dag-evolution-progress-label">
+                {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
+              </span>
+            </div>
+            <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
+              <span className="font-semibold text-text-primary">{selected.title}</span>
+              <span className="text-text-muted">
+                {' '}
+                · {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
               </span>
               {selected.progress && (
-                <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
-                  {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+                <span className="text-text-muted" data-testid="plan-dag-evolution-generation-progress">
+                  {' '}
+                  · {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
                 </span>
               )}
-              {selected.active && (
-                <span className="rounded bg-success px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
-                  {t('plan.detail.dag.evolution.active')}
+              {selected.diff && (
+                <span className="text-text-muted" data-testid="plan-dag-evolution-diff">
+                  {' '}
+                  · {evolutionDiffLabel(selected.diff, t)}
                 </span>
               )}
-            </div>
-            <div
-              className="mt-2 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
-              data-testid="plan-dag-evolution-selected-reason"
-            >
-              <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.reasonLabel')}: </span>
-              {selected.reason}
-            </div>
-            {selected.diff && (
-              <div className="mt-2 text-xs text-text-secondary" data-testid="plan-dag-evolution-selected-diff">
-                <span className="font-semibold text-text-muted">{t('plan.detail.dag.evolution.diffLabel')}: </span>
-                {evolutionDiffLabel(selected.diff, t)}
-              </div>
-            )}
-            {selected.idempotencyKey && (
-              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.idempotencyKey}>
-                {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
-              </div>
-            )}
-            {selected.generationId && (
-              <div className="mt-1 truncate font-mono text-[0.6875rem] text-text-muted" title={selected.generationId} data-testid="plan-dag-evolution-selected-generation-id">
-                {t('plan.detail.dag.evolution.generationId', { id: selected.generationId })}
-                {selected.parentGenerationId ? ` · ${t('plan.detail.dag.evolution.parentId', { id: selected.parentGenerationId })}` : ''}
-              </div>
-            )}
+              {selected.verdictOutcome && (
+                <span className="text-text-muted"> · {selected.verdictOutcome}</span>
+              )}
+            </p>
           </div>
-          <div className="flex gap-1.5 sm:hidden">
+          <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
             <button
               type="button"
-              className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-              data-testid="plan-dag-evolution-current-mobile"
+              className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="plan-dag-evolution-detail-open"
+              onClick={() => setDetailOpen(true)}
+            >
+              {t('plan.detail.dag.evolution.details')}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-border-base bg-bg-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-current"
               disabled={selected.generation === latest.generation}
               onClick={() => {
                 setPlaying(false);
@@ -3316,8 +3250,8 @@ function DagEvolutionPanel({
             </button>
             <button
               type="button"
-              className="flex-1 rounded bg-accent px-2.5 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-              data-testid="plan-dag-evolution-play-mobile"
+              className="rounded bg-accent px-2.5 py-1 text-xs font-semibold text-white shadow-1 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+              data-testid="plan-dag-evolution-play"
               disabled={revisions.length <= 1}
               onClick={() => {
                 if (playing) {
@@ -3332,8 +3266,206 @@ function DagEvolutionPanel({
             </button>
           </div>
         </div>
+
+        <div className="h-1 bg-bg-subtle" aria-hidden="true">
+          <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        {!collapsed && (
+          <div id={panelBodyId} className="space-y-2 p-2.5" data-testid="plan-dag-evolution-body">
+            <div
+              className="flex max-h-[5.75rem] gap-2 overflow-x-auto overflow-y-hidden pb-1"
+              data-testid="plan-dag-evolution-revisions"
+            >
+              {revisions.map((revision) => {
+                const active = revision.generation === selected.generation;
+                return (
+                  <button
+                    key={revision.generation}
+                    type="button"
+                    className={`flex h-20 w-44 shrink-0 flex-col overflow-hidden rounded-md border px-2.5 py-2 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
+                    }`}
+                    aria-pressed={active}
+                    data-testid={`plan-dag-evolution-revision-${revision.revision}`}
+                    data-active={active ? 'true' : 'false'}
+                    onClick={() => {
+                      setPlaying(false);
+                      onSelectGeneration(revision.generation);
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="shrink-0 font-mono text-xs font-bold text-text-primary">{revision.label}</span>
+                      {revision.active && (
+                        <span className="rounded bg-success px-1 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-white">
+                          {t('plan.detail.dag.evolution.active')}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="mt-1 line-clamp-1 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary"
+                      data-testid={`plan-dag-evolution-reason-${revision.revision}`}
+                    >
+                      {revision.title}
+                    </div>
+                    <div className="mt-auto flex min-w-0 items-center gap-1.5 text-[0.625rem] text-text-muted">
+                      <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5">
+                        {t('plan.detail.dag.evolution.stageTaskCount', { stages: revision.stageCount, tasks: revision.taskCount })}
+                      </span>
+                      {revision.progress && (
+                        <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 font-mono" data-testid={`plan-dag-evolution-progress-${revision.revision}`}>
+                          {revision.progress.done}/{revision.progress.total}
+                        </span>
+                      )}
+                      {revision.diff && (
+                        <span className="min-w-0 truncate rounded bg-bg-subtle px-1.5 py-0.5" data-testid={`plan-dag-evolution-diff-${revision.revision}`}>
+                          {evolutionDiffLabel(revision.diff, t)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-1.5 sm:hidden">
+              <button
+                type="button"
+                className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                data-testid="plan-dag-evolution-detail-open-mobile"
+                onClick={() => setDetailOpen(true)}
+              >
+                {t('plan.detail.dag.evolution.details')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-semibold text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                data-testid="plan-dag-evolution-current-mobile"
+                disabled={selected.generation === latest.generation}
+                onClick={() => {
+                  setPlaying(false);
+                  onSelectGeneration(latest.generation);
+                }}
+              >
+                {t('plan.detail.dag.evolution.current')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded bg-accent px-2.5 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                data-testid="plan-dag-evolution-play-mobile"
+                disabled={revisions.length <= 1}
+                onClick={() => {
+                  if (playing) {
+                    setPlaying(false);
+                    return;
+                  }
+                  if (selected.generation === latest.generation) onSelectGeneration(revisions[0].generation);
+                  setPlaying(true);
+                }}
+              >
+                {playing ? t('plan.detail.dag.evolution.pause') : t('plan.detail.dag.evolution.play')}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {detailOpen && (
+        <div
+          ref={detailDialogRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={detailTitleId}
+          data-testid="plan-dag-evolution-detail-modal"
+          onClick={() => setDetailOpen(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-lg border border-border-base bg-bg-elevated text-text-primary shadow-[var(--shadow-3)]"
+            data-testid="plan-dag-evolution-selected-detail"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
+              <div className="min-w-0">
+                <h2 id={detailTitleId} className="text-sm font-semibold">
+                  {t('plan.detail.dag.evolution.detailTitle', { revision: selected.label })}
+                </h2>
+                <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">{selected.title}</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-label={t('plan.detail.dag.evolution.closeDetails')}
+                data-testid="plan-dag-evolution-detail-close"
+                onClick={() => setDetailOpen(false)}
+              >
+                <IconClose className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[calc(85vh-4rem)] space-y-4 overflow-y-auto p-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg">
+                  {selected.label}
+                </span>
+                <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+                  {t('plan.detail.dag.evolution.stageTaskCount', { stages: selected.stageCount, tasks: selected.taskCount })}
+                </span>
+                {selected.progress && (
+                  <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
+                    {t('plan.detail.dag.evolution.generationProgress', { done: selected.progress.done, total: selected.progress.total })}
+                  </span>
+                )}
+                {selected.active && (
+                  <span className="rounded bg-success px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
+                    {t('plan.detail.dag.evolution.active')}
+                  </span>
+                )}
+              </div>
+              <div
+                className="min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-text-secondary"
+                data-testid="plan-dag-evolution-selected-reason"
+              >
+                <div className="mb-1 font-semibold text-text-primary">{t('plan.detail.dag.evolution.reasonLabel')}</div>
+                {selected.reason}
+              </div>
+              {selected.diff && (
+                <div className="text-xs text-text-secondary" data-testid="plan-dag-evolution-selected-diff">
+                  <div className="mb-1 font-semibold text-text-primary">{t('plan.detail.dag.evolution.diffLabel')}</div>
+                  {evolutionDiffLabel(selected.diff, t)}
+                </div>
+              )}
+              <div className="space-y-1.5 rounded-md border border-border-base bg-bg-subtle/60 p-3 text-[0.6875rem] text-text-muted">
+                {selected.generationId && (
+                  <div className="truncate font-mono" title={selected.generationId} data-testid="plan-dag-evolution-selected-generation-id">
+                    {t('plan.detail.dag.evolution.generationId', { id: selected.generationId })}
+                    {selected.parentGenerationId ? ` · ${t('plan.detail.dag.evolution.parentId', { id: selected.parentGenerationId })}` : ''}
+                  </div>
+                )}
+                {selected.idempotencyKey && (
+                  <div className="truncate font-mono" title={selected.idempotencyKey}>
+                    {t('plan.detail.dag.evolution.idempotency', { key: selected.idempotencyKey })}
+                  </div>
+                )}
+                {selected.verdictId && (
+                  <div className="truncate font-mono" title={selected.verdictId}>
+                    {selected.verdictOutcome
+                      ? t('plan.detail.dag.evolution.verdictWithOutcome', { outcome: selected.verdictOutcome, id: selected.verdictId })
+                      : t('plan.detail.dag.evolution.verdict', { id: selected.verdictId })}
+                  </div>
+                )}
+                {selected.continuationId && (
+                  <div className="truncate font-mono" title={selected.continuationId}>
+                    {t('plan.detail.dag.evolution.continuation', { id: selected.continuationId })}
+                  </div>
+                )}
+                {selected.createdAt && (
+                  <div>{formatLocalTime(selected.createdAt)}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </section>
+    </>
   );
 }
 

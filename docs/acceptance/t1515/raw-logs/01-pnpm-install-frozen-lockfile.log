@@ -1,0 +1,4 @@
+$ pnpm install --frozen-lockfile
+ ERR_PNPM_NO_PKG_MANIFEST  No package.json found in /private/tmp/t1515-fresh-worktree.QfQEmA/candidate
+
+[exit_code=1]

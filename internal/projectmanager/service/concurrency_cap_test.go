@@ -16,7 +16,6 @@ package service
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -50,18 +49,10 @@ func (d capAgentDir) ConcurrencyCapOfAgent(_ context.Context, id string) (int, e
 	return 1, nil // default agent: single-active (no regression)
 }
 
-// capHarness builds a Service over the given DSN (MemoryDSN for sequential tests,
-// a WAL file DSN for the concurrent one) wired with the cap directory.
-func capHarness(t *testing.T, dsn string, dir AgentDirectory) (*Service, context.Context) {
+// capHarness builds a Service over a migrated WAL file DB wired with the cap directory.
+func capHarness(t *testing.T, _ string, dir AgentDirectory) (*Service, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
@@ -283,9 +274,8 @@ func TestConcurrencyCap_ConcurrentNPlus1_RaceSafe(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dsn := persistence.FileDSN(filepath.Join(t.TempDir(), "cap.db"))
 			dir := capAgentDir{org: "org-1", caps: map[string]int{"race": tc.cap}}
-			svc, ctx := capHarness(t, dsn, dir)
+			svc, ctx := capHarness(t, "", dir)
 			ag := pm.IdentityRef("agent:race")
 			pid := capFixture(t, svc, ctx, ag)
 

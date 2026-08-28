@@ -75,7 +75,6 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		if gateTask.Status() != pm.TaskCompleted {
 			return pm.ErrIllegalTransition
 		}
-
 		if prior, found, ferr := s.remediation.FindVerdictByKey(txCtx, cmd.IdempotencyKey); ferr != nil {
 			return ferr
 		} else if found {
@@ -129,6 +128,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 		now := s.clock.Now()
 		verdict := result.Verdict
 		if !replay {
+			if _, err := s.recordAcceptanceForGate(txCtx, stage, gateTask, plan, cmd); err != nil {
+				return err
+			}
 			verdict, err = pm.NewGateVerdict(pm.GateVerdict{
 				ID: pm.GateVerdictID(s.idgen.NewEntityID("verdict")), ProjectID: plan.ProjectID(),
 				PlanID: plan.ID(), StageID: stage.ID(), GateTaskID: cmd.GateTaskID,
@@ -143,8 +145,12 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 			result.Verdict = verdict
 			// Compatibility read model only: the immutable verdict above is authoritative.
-			if err := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), cmd.GateTaskID, string(cmd.Outcome), now); err != nil {
-				return err
+			// REJECT must not enter the legacy decision router, which would try to reopen
+			// the completed generation instead of appending remediation.
+			if cmd.Outcome == pm.GateVerdictPass {
+				if err := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), cmd.GateTaskID, string(cmd.Outcome), now); err != nil {
+					return err
+				}
 			}
 			if err := s.emit(txCtx, EvtStageGateVerdictRecorded,
 				refsJSON(map[string]string{"plan_id": string(plan.ID()), "stage_id": string(stage.ID()), "verdict_id": string(verdict.ID)}), verdict); err != nil {
@@ -171,6 +177,9 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 		}
 		if cmd.Outcome == pm.GateVerdictPass {
+			if err := s.guardPlanProgressHolds(txCtx, plan.ID(), false, true, false); err != nil {
+				return err
+			}
 			if err := s.orch.ResolveCondition(txCtx, gateNode.ID(), "success"); err != nil {
 				return err
 			}

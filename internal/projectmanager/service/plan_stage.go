@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
@@ -384,7 +385,8 @@ func (s *Service) requirePlanCreatorOrProjectOwner(ctx context.Context, p *pm.Pl
 	if p.CreatorRef() == actor {
 		return nil
 	}
-	if _, err := s.projects.FindByID(ctx, p.ProjectID()); err != nil {
+	project, err := s.projects.FindByID(ctx, p.ProjectID())
+	if err != nil {
 		return err
 	}
 	m, err := s.members.FindByProjectAndIdentity(ctx, p.ProjectID(), actor)
@@ -395,6 +397,18 @@ func (s *Service) requirePlanCreatorOrProjectOwner(ctx context.Context, p *pm.Pl
 		return err
 	}
 	if m.Role() != pm.RoleOwner {
+		if s.orgMembers != nil && strings.HasPrefix(string(actor), "user:") {
+			orgMember, oerr := s.orgMembers.GetByOrganizationAndIdentity(ctx, project.OrganizationID(), strings.TrimPrefix(string(actor), "user:"))
+			if oerr != nil {
+				if !errors.Is(oerr, identity.ErrMemberNotFound) {
+					return oerr
+				}
+				return ErrStageGateReopenForbidden
+			}
+			if orgMember.IsJoined() && orgMember.Role().AtLeast(identity.RoleOwner) {
+				return nil
+			}
+		}
 		return ErrStageGateReopenForbidden
 	}
 	return nil
@@ -672,7 +686,17 @@ func (s *Service) ResolveStageGate(ctx context.Context, gateNodeID string, resul
 	pass := result == "pass" || result == "success"
 
 	if pass {
+		if s.acceptances != nil || s.deliveryVerifier != nil {
+			if ok, aerr := s.acceptancePassesGate(ctx, st, st.GateTaskID()); aerr != nil {
+				return aerr
+			} else if !ok {
+				return ErrDeliveryVerificationFailed
+			}
+		}
 		if rerr := s.runInTx(ctx, func(txCtx context.Context) error {
+			if err := s.guardPlanProgressHolds(txCtx, p.ID(), false, true, false); err != nil {
+				return err
+			}
 			if cerr := s.orch.ResolveCondition(txCtx, orch.NodeID(gateNodeID), "success"); cerr != nil {
 				return cerr
 			}

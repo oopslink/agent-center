@@ -230,9 +230,16 @@
           "collapse": "折叠 DAG evolution",
           "expand": "展开 DAG evolution",
           "current": "当前",
+          "details": "详情",
+          "detailTitle": "{{revision}} 详情",
+          "closeDetails": "关闭 generation 详情",
           "play": "播放演进",
           "pause": "暂停",
           "progress": "{{current}} / {{latest}}",
+          "pagination": "DAG 演进分页",
+          "page": "第 {{current}} / {{total}} 页",
+          "previous": "上一页",
+          "next": "下一页",
           "reasonLabel": "原因",
           "initialTitle": "初始 DAG",
           "initialReason": "计划启动时投影出的初始分阶段 DAG。",
@@ -617,7 +624,16 @@
       "empty": "暂无计划",
       "emptyFiltered": "没有匹配过滤条件的计划",
       "searchLabel": "搜索计划",
-      "searchPlaceholder": "搜索名称或编号…"
+      "searchPlaceholder": "搜索名称或编号…",
+      "bulkArchive": {
+        "action": "批量归档（{{count}}）",
+        "selectAll": "选择当前页全部可归档计划",
+        "selectPlan": "选择归档 {{name}}",
+        "title": "归档所选计划？",
+        "message": "确定归档 {{count}} 个终态计划吗？它们将离开活跃视图，但生命周期与执行历史仍会保留。",
+        "confirm": "归档计划",
+        "partialError": "{{total}} 个计划中有 {{failed}} 个归档失败；失败项仍保持选中。"
+      }
     },
     "members": {
       "title": "成员",

@@ -8,7 +8,6 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
@@ -18,14 +17,7 @@ import (
 // unaffected.
 func planSetupWithOrgSeq(t *testing.T) (*Service, *pmsql.PlanRepo, context.Context) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	plans := pmsql.NewPlanRepo(db)
 	svc := New(Deps{

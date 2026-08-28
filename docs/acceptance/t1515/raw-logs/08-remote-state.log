@@ -1,0 +1,13 @@
+$ git rev-parse origin/main
+1a8a55e9e9b862c15c05300689c1b08cd328df7d
+
+$ git rev-parse origin/ac-exec/T1514-access-test-ts2339
+af936471ed2d1a2f011159ef5cb284345346bb48
+
+$ git merge-base origin/main origin/ac-exec/T1514-access-test-ts2339
+1a8a55e9e9b862c15c05300689c1b08cd328df7d
+
+$ git rev-list --left-right --count origin/main...origin/ac-exec/T1514-access-test-ts2339
+0	1
+
+[exit_code=0]

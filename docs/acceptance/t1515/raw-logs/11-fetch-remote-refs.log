@@ -1,0 +1,3 @@
+$ git fetch --prune origin +refs/heads/main:refs/remotes/origin/main +refs/heads/ac-exec/T1514-access-test-ts2339:refs/remotes/origin/ac-exec/T1514-access-test-ts2339
+
+[exit_code=0]

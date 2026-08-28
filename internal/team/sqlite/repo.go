@@ -178,7 +178,7 @@ func ResolveRAMRoleKey(ctx context.Context, exec persistence.SQLExecutor, orgID,
 		return "", fmt.Errorf("%w: %q", team.ErrRAMRoleKeyNotFound, key)
 	}
 	for _, scopeOrg := range []string{strings.TrimSpace(orgID), ""} {
-		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE name=? AND org_id=? AND revoked_at IS NULL ORDER BY id`, key, scopeOrg)
+		rows, err := exec.QueryContext(ctx, `SELECT id FROM authorization_roles WHERE (name=? OR stable_key=?) AND org_id=? AND kind IN ('system','custom') AND COALESCE(NULLIF(visibility, ''), 'reusable')='reusable' AND revoked_at IS NULL ORDER BY id`, key, key, scopeOrg)
 		if err != nil {
 			return "", err
 		}
@@ -206,7 +206,7 @@ func ResolveRAMRoleKey(ctx context.Context, exec persistence.SQLExecutor, orgID,
 		}
 	}
 	var revoked int
-	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE name=? AND org_id IN (?, '') AND revoked_at IS NOT NULL`, key, strings.TrimSpace(orgID)).Scan(&revoked); err != nil {
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM authorization_roles WHERE (name=? OR stable_key=?) AND org_id IN (?, '') AND kind IN ('system','custom') AND COALESCE(NULLIF(visibility, ''), 'reusable')='reusable' AND revoked_at IS NOT NULL`, key, key, strings.TrimSpace(orgID)).Scan(&revoked); err != nil {
 		return "", err
 	}
 	if revoked > 0 {

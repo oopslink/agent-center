@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
@@ -29,6 +30,8 @@ const (
 	taskInputMetadataFileName = "context.json"
 	maxTaskInputFileBytes     = 100 << 20
 )
+
+var taskInputMaterializeMu sync.Mutex
 
 type fileDownloader interface {
 	DownloadFile(ctx context.Context, agentID, fileURI, destPath string) error
@@ -84,7 +87,14 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 		}
 	}
 	root := filepath.Join(workspaceDir, taskInputDirName)
-	stage := filepath.Join(workspaceDir, "."+taskInputDirName+".tmp")
+	stage := filepath.Join(workspaceDir, "."+taskInputDirName+".tmp-"+uniqueSafeFilename(execID, map[string]int{}))
+	taskInputMaterializeMu.Lock()
+	defer taskInputMaterializeMu.Unlock()
+	for _, stale := range taskInputStagingDirs(workspaceDir) {
+		if err := os.RemoveAll(stale); err != nil {
+			return nil, fmt.Errorf("task-input materialization: clean stale staging dir: %w", err)
+		}
+	}
 	if err := os.RemoveAll(stage); err != nil {
 		return nil, fmt.Errorf("task-input materialization: clean staging dir: %w", err)
 	}
@@ -171,6 +181,17 @@ func (r *LocalRuntime) materializeTaskInputPackage(ctx context.Context, agentID,
 		Dir:          filepath.ToSlash(filepath.Join(taskInputDirName, taskInputVersion)),
 		ManifestPath: filepath.ToSlash(filepath.Join(taskInputDirName, taskInputVersion, taskInputManifestFileName)),
 	}, nil
+}
+
+func taskInputStagingDirs(workspaceDir string) []string {
+	var out []string
+	legacy := filepath.Join(workspaceDir, "."+taskInputDirName+".tmp")
+	if _, err := os.Stat(legacy); err == nil {
+		out = append(out, legacy)
+	}
+	matches, _ := filepath.Glob(filepath.Join(workspaceDir, "."+taskInputDirName+".tmp-*"))
+	out = append(out, matches...)
+	return out
 }
 
 func imageDimensions(path string) (int, int) {

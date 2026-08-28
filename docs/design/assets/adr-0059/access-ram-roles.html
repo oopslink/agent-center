@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR-0059 canonical — Access / RAM Roles</title>
+  <link rel="stylesheet" href="canonical.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="rail" aria-label="Primary navigation">
+      <div class="brand">▥</div><div class="rail-icon">⌂</div><div class="rail-icon">□</div><div class="rail-icon">▱</div><div class="rail-icon">♧</div><div class="rail-icon active">♙</div><div class="rail-icon">♧</div><div class="rail-spacer"></div><div class="rail-icon">△</div><div class="avatar">H</div>
+    </aside>
+    <aside class="side" aria-label="Access navigation">
+      <div class="search-shell">⌕ <span>Search</span><span class="kbd">⌘K</span></div>
+      <div class="side-label">Access</div>
+      <a class="nav-item active" href="access-ram-roles.html">▣ <span>RAM Roles</span></a>
+      <a class="nav-item" href="subject-access.html">♙ <span>Subject access</span></a>
+      <div class="nav-note"><strong>Two focused surfaces</strong><br>Define permission bundles here. Review effective access by subject in the other view.</div>
+    </aside>
+
+    <main class="main" id="main">
+      <div class="page-head">
+        <div><div class="eyebrow">Access / RAM Roles</div><h1>RAM Roles</h1><p class="subhead">Define reusable permission bundles. Team Roles choose them from their own editor.</p></div>
+        <div class="actions"><button class="btn">Refresh</button><button class="btn primary" data-open="create">＋ New RAM Role</button></div>
+      </div>
+
+      <div id="banner-slot"></div>
+      <section class="stats" aria-label="RAM Role summary">
+        <div class="stat"><div class="stat-label">Active roles</div><div class="stat-value">52</div></div>
+        <div class="stat"><div class="stat-label">System</div><div class="stat-value">12</div></div>
+        <div class="stat"><div class="stat-label">Custom</div><div class="stat-value">40</div></div>
+        <div class="stat"><div class="stat-label">High risk</div><div class="stat-value red">8</div></div>
+        <div class="stat"><div class="stat-label">Used by Team Roles</div><div class="stat-value green">31</div></div>
+      </section>
+
+      <div class="split">
+        <section class="card" aria-label="RAM Role catalog">
+          <div class="toolbar"><input id="role-search" class="field search-field" value="" placeholder="⌕  Search RAM Roles"><select id="risk-filter" class="field"><option>All risk</option><option>High risk</option><option>Low risk</option></select><span class="count" id="result-count">52 roles</span></div>
+          <table>
+            <thead><tr><th style="width:38%">RAM Role</th><th style="width:14%">Risk</th><th style="width:14%">Permissions</th><th style="width:19%">Used by</th><th>Version</th></tr></thead>
+            <tbody id="role-rows">
+              <tr class="selected" data-risk="low"><td><div class="title">Project contributor</div><div class="mono">project-contributor</div></td><td><span class="tag risk-low">Low</span></td><td>5</td><td>2 Team Roles</td><td><span class="mono">v4</span></td></tr>
+              <tr data-risk="high"><td><div class="title">Release operator</div><div class="mono">release-operator</div></td><td><span class="tag risk-high">High</span></td><td>7</td><td>1 Team Role</td><td><span class="mono">v3</span></td></tr>
+              <tr data-risk="low"><td><div class="title">Review gate</div><div class="mono">review-gate</div></td><td><span class="tag risk-low">Low</span></td><td>4</td><td>3 Team Roles</td><td><span class="mono">v8</span></td></tr>
+              <tr data-risk="medium"><td><div class="title">Team curator</div><div class="mono">team-curator</div></td><td><span class="tag risk-medium">Medium</span></td><td>6</td><td>5 Team Roles</td><td><span class="mono">v6</span></td></tr>
+              <tr data-risk="high"><td><div class="title">Admin token manager</div><div class="mono">admin-token-manager</div></td><td><span class="tag risk-high">High</span></td><td>3</td><td>0 Team Roles</td><td><span class="mono">v2</span></td></tr>
+              <tr data-risk="low"><td><div class="title">Artifact reader</div><div class="mono">artifact-reader</div></td><td><span class="tag risk-low">Low</span></td><td>3</td><td>4 Team Roles</td><td><span class="mono">v5</span></td></tr>
+            </tbody>
+          </table>
+          <div class="table-footer"><span class="muted small" id="page-copy">Showing 1–10 of 52 RAM Roles</span><div class="pager"><button class="page">‹</button><button class="page active">1</button><button class="page">2</button><button class="page">3</button><span>…</span><button class="page">6</button><button class="page">›</button></div><select class="field"><option>10 / page</option></select></div>
+        </section>
+
+        <section class="card" id="role-detail" aria-label="Selected RAM Role detail">
+          <div class="card-head"><div><h2>Project contributor</h2><div class="mono">project-contributor · v4</div></div><div class="actions"><span class="tag risk-low">Low risk</span><button class="btn" data-open="edit">Edit</button><button class="btn danger" data-open="reference-blocked">Delete</button></div></div>
+          <div class="detail-card"><div class="detail-title"><div><h3>Permission summary</h3><p class="card-desc">Current permissions granted by this RAM Role.</p></div><span class="count">5 permissions</span></div><div class="permission-list"><div class="permission"><strong>project.read</strong><div class="muted small">Read project details</div></div><div class="permission"><strong>project.write</strong><div class="muted small">Update project work</div></div><div class="permission"><strong>task.read</strong><div class="muted small">Read Team tasks</div></div><div class="permission"><strong>task.write</strong><div class="muted small">Create and update tasks</div></div><div class="permission"><strong>artifact.read</strong><div class="muted small">Read task artifacts</div></div></div></div>
+          <div class="detail-card"><div class="detail-title"><div><h3>Used by Team Roles <span class="muted">(read-only)</span></h3><p class="card-desc">Open the Team Role to change its RAM Roles.</p></div><span class="count">2 Team Roles</span></div><div class="readonly">This list is reference context only. It has no add, remove, or save controls.</div><div class="reference-row"><div><strong>Platform Team / Developer</strong><div class="mono">platform-team / developer</div></div><button class="btn">Open Team Role ↗</button></div><div class="reference-row"><div><strong>Data Team / Builder</strong><div class="mono">data-team / builder</div></div><button class="btn">Open Team Role ↗</button></div></div>
+          <div class="detail-card"><div class="detail-title"><div><h3>Version history</h3><p class="card-desc">Append-only permission snapshots.</p></div><button class="btn">View all versions</button></div><div class="reference-row"><div><strong>v4 · Current</strong><div class="muted small">Updated by Hayang · Aug 23, 2026 10:42 PM</div></div><span class="tag">+ artifact.read</span></div><div class="reference-row"><div><strong>v3</strong><div class="muted small">Updated by Ops Lead · Aug 18, 2026 4:06 PM</div></div><span class="tag">4 permissions</span></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="state-layer"></div>
+  <div class="mock-toolbar"><strong>Canonical states</strong><label for="state-picker">State</label><select id="state-picker"><option value="default">default</option><option value="loading">loading</option><option value="forbidden">forbidden</option><option value="empty">empty</option><option value="search">search</option><option value="filter">filter</option><option value="pagination">pagination</option><option value="detail">detail</option><option value="create">create</option><option value="edit">edit</option><option value="version-conflict">version conflict</option><option value="delete-typed">delete typed</option><option value="reference-blocked">reference blocked</option></select><span class="mock-note">1672 × 941 canonical viewport · query parameter: <code>?state=…</code></span></div>
+
+  <template id="editor-template">
+    <div class="drawer-backdrop"></div><section class="drawer"><div class="drawer-head"><div><h2 data-editor-title>Edit RAM Role</h2><p class="card-desc" data-editor-subtitle>Publish a new immutable version.</p></div><button class="btn icon-btn">×</button></div><div class="drawer-body"><div id="drawer-banner"></div><label class="form-label">Name</label><input class="form-input" value="Project contributor"><label class="form-label">Stable key</label><input class="form-input mono" value="project-contributor" disabled><label class="form-label">Description</label><textarea class="form-input" rows="3">Contribute to project and task work.</textarea><label class="form-label" for="ram-role-risk">Risk</label><select class="form-input" id="ram-role-risk" name="risk"><option value="low" selected>Low</option><option value="medium">Medium</option><option value="high">High</option></select><label class="form-label">Permissions</label><div class="choice checked"><span class="check">✓</span><div><strong>project.read</strong><div class="muted small">Read project details</div></div></div><div class="choice checked"><span class="check">✓</span><div><strong>project.write</strong><div class="muted small">Update project work</div></div></div><div class="choice checked"><span class="check">✓</span><div><strong>task.write</strong><div class="muted small">Create and update tasks</div></div></div><div class="choice"><span class="check"></span><div><strong>secret.manage</strong><div class="muted small">High-risk secret administration</div></div></div><label class="form-label">Expected version</label><input class="form-input mono" value="4" disabled></div><div class="drawer-foot"><button class="btn">Cancel</button><button class="btn purple" data-save-label>Publish version</button></div></section>
+  </template>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const state = params.get('state') || 'default';
+    if (params.get('capture') === '1') document.body.classList.add('capture');
+    const picker = document.querySelector('#state-picker');
+    picker.value = state;
+    picker.addEventListener('change', () => { params.set('state', picker.value); location.search = params.toString(); });
+    const layer = document.querySelector('#state-layer');
+    const banner = document.querySelector('#banner-slot');
+    const showEditor = (mode, conflict = false) => {
+      layer.append(document.querySelector('#editor-template').content.cloneNode(true));
+      if (mode === 'create') {
+        layer.querySelector('[data-editor-title]').textContent = 'Create RAM Role';
+        layer.querySelector('[data-editor-subtitle]').textContent = 'Create an organization-scoped permission bundle.';
+        layer.querySelector('[data-save-label]').textContent = 'Create RAM Role';
+        layer.querySelectorAll('.form-input')[0].value = '';
+        layer.querySelectorAll('.form-input')[1].value = '';
+      }
+      if (conflict) layer.querySelector('#drawer-banner').innerHTML = '<div class="banner error"><strong>Version conflict.</strong><span>Project contributor is now v5. Refresh the latest version before publishing again. No changes were saved.</span></div>';
+    };
+    const showModal = (kind) => {
+      if (kind === 'delete-typed') {
+        layer.innerHTML = '<div class="modal-backdrop"></div><section class="modal"><div class="drawer-head"><div><h2>Delete RAM Role</h2><p class="card-desc">This action cannot be undone.</p></div><button class="btn icon-btn">×</button></div><div class="drawer-body"><div class="banner warning"><strong>Confirm the exact stable key.</strong><span>This role has no Team Role references and can be deleted.</span></div><label class="form-label" for="delete-stable-key">Type <span class="mono">admin-token-manager</span> to confirm</label><input class="form-input mono" id="delete-stable-key" data-delete-confirm data-stable-key="admin-token-manager" value="" autocomplete="off"></div><div class="drawer-foot"><button class="btn">Cancel</button><button class="btn danger" data-delete-action disabled>Delete RAM Role</button></div></section>';
+        const confirmInput = layer.querySelector('[data-delete-confirm]');
+        const deleteButton = layer.querySelector('[data-delete-action]');
+        confirmInput.addEventListener('input', () => { deleteButton.disabled = confirmInput.value !== confirmInput.dataset.stableKey; });
+      }
+      if (kind === 'reference-blocked') layer.innerHTML = '<div class="modal-backdrop"></div><section class="modal"><div class="drawer-head"><div><h2>RAM Role is in use</h2><p class="card-desc">Deletion is blocked by authoritative references.</p></div><button class="btn icon-btn">×</button></div><div class="drawer-body"><div class="banner warning"><strong>2 Team Roles still use Project contributor.</strong><span>Remove this RAM Role from each Team Role before deleting it.</span></div><div class="reference-row"><div><strong>Platform Team / Developer</strong><div class="mono">platform-team / developer</div></div><button class="btn">Open Team Role ↗</button></div><div class="reference-row"><div><strong>Data Team / Builder</strong><div class="mono">data-team / builder</div></div><button class="btn">Open Team Role ↗</button></div></div><div class="drawer-foot"><button class="btn primary">Close</button></div></section>';
+    };
+    if (state === 'loading') document.querySelectorAll('.stat-value, td, .detail-card').forEach(el => el.classList.add('skeleton'));
+    if (state === 'forbidden') document.querySelector('#main').innerHTML = '<div class="page-head"><div><div class="eyebrow">Access / RAM Roles</div><h1>RAM Roles</h1></div></div><section class="card forbidden"><div><div class="lock">▣</div><h2>You do not have permission to view RAM Roles</h2><p class="muted">Ask an organization owner for <span class="mono">authorization.role.read</span>.</p><button class="btn" style="margin-top:16px">Back to organization</button></div></section>';
+    if (state === 'empty') document.querySelector('#role-rows').innerHTML = '<tr><td colspan="5"><div class="empty"><div><div class="empty-icon">◇</div><h2>No custom RAM Roles yet</h2><p>System roles remain available. Create a focused role for your Team Roles.</p><button class="btn purple" style="margin-top:14px">＋ New RAM Role</button></div></div></td></tr>';
+    if (state === 'search') { document.querySelector('#role-search').value = 'review'; document.querySelectorAll('#role-rows tr').forEach((r,i) => r.style.display = i === 2 ? '' : 'none'); document.querySelector('#result-count').textContent = '1 result'; document.querySelector('#page-copy').textContent = 'Showing 1 result for “review”'; }
+    if (state === 'filter') { document.querySelector('#risk-filter').value = 'High risk'; document.querySelectorAll('#role-rows tr').forEach(r => r.style.display = r.dataset.risk === 'high' ? '' : 'none'); document.querySelector('#result-count').textContent = '8 high risk'; document.querySelector('#page-copy').textContent = 'Showing 1–8 of 8 high-risk RAM Roles'; }
+    if (state === 'pagination') { document.querySelector('#page-copy').textContent = 'Showing 11–20 of 52 RAM Roles'; document.querySelectorAll('.page').forEach(b => b.classList.toggle('active', b.textContent === '2')); document.querySelectorAll('#role-rows .mono:last-child').forEach((el,i) => { if (el.textContent.startsWith('v')) el.textContent = 'v' + (i + 2); }); }
+    if (state === 'create') showEditor('create');
+    if (state === 'edit') showEditor('edit');
+    if (state === 'version-conflict') showEditor('edit', true);
+    if (state === 'delete-typed' || state === 'reference-blocked') showModal(state);
+    document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { params.set('state', b.dataset.open); location.search = params.toString(); }));
+  </script>
+</body>
+</html>

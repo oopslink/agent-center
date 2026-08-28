@@ -1,0 +1,4 @@
+$ make lint-spa-tsc
+cd web && npx tsc -b --force
+
+[exit_code=0]

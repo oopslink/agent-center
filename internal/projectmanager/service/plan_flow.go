@@ -161,7 +161,16 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 			return pm.ErrTaskInOtherPlan
 		}
 		if t.PlanID() == planID {
-			return nil // already selected into this plan — idempotent no-op
+			// Repair a legacy duplicate projection on an idempotent retry too. A
+			// structured Plan membership is authoritative for the task's working
+			// container, so it may never retain an AssignmentPool membership.
+			return s.removeTaskFromAssignmentPoolIfPresent(txCtx, taskID)
+		}
+		// Moving Backlog/Pool -> Plan is one atomic container transition. Older
+		// binaries allowed an independent pool row to coexist with task.plan_id;
+		// delete that projection before setting the authoritative Plan membership.
+		if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, taskID); err != nil {
+			return err
 		}
 		if err := t.SetPlan(planID, now); err != nil {
 			return err
@@ -190,6 +199,21 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 		s.auditPlan(txCtx, p, pm.AuditPlanNodeAdded, actor, map[string]any{"task": string(t.ID()), "task_title": t.Title()})
 		return nil
 	})
+}
+
+// removeTaskFromAssignmentPoolIfPresent is the shared write-side repair for the
+// Plan/AssignmentPool exclusivity invariant. It is intentionally idempotent so
+// ordinary Backlog -> Plan selection and retries take the same path as cleanup of
+// rows created by pre-invariant binaries.
+func (s *Service) removeTaskFromAssignmentPoolIfPresent(ctx context.Context, taskID pm.TaskID) error {
+	if s.pools == nil {
+		return nil
+	}
+	member, ok, err := s.pools.FindTask(ctx, taskID)
+	if err != nil || !ok {
+		return err
+	}
+	return s.pools.RemoveTask(ctx, member.PoolID, taskID)
 }
 
 // RemoveTaskFromPlan removes a task from its Plan (back to the backlog). It
@@ -242,6 +266,12 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 					return rerr
 				}
 			}
+		}
+		// The explicit pending-Plan removal has exactly one destination: Backlog.
+		// Remove any legacy duplicate pool row so it cannot silently become active
+		// when plan_id is cleared.
+		if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, taskID); err != nil {
+			return err
 		}
 		if err := t.ClearPlan(now); err != nil {
 			return err

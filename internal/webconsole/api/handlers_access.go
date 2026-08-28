@@ -31,6 +31,7 @@ type accessSubjectDTO struct {
 	Ref       string   `json:"ref"`
 	Kind      string   `json:"kind"`
 	Name      string   `json:"name"`
+	Email     string   `json:"email,omitempty"`
 	Role      string   `json:"role,omitempty"`
 	Status    string   `json:"status,omitempty"`
 	TeamNames []string `json:"team_names,omitempty"`
@@ -230,7 +231,7 @@ func accessRolesForOrg(ctx context.Context, d HandlerDeps, orgID string, catalog
 	rows, err := d.DB.QueryContext(ctx, `
 		SELECT id, name, COALESCE(description, '')
 		FROM authorization_roles
-		WHERE org_id = ? AND kind = 'custom' AND revoked_at IS NULL
+		WHERE org_id = ? AND kind = 'custom' AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable' AND revoked_at IS NULL
 		ORDER BY name, id`, orgID)
 	if err != nil {
 		return roles
@@ -543,7 +544,7 @@ func accessListRAMRoles(ctx context.Context, db *sql.DB, orgID string) ([]access
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		LEFT JOIN authorization_role_versions v ON v.role_id = ar.id AND v.version = ar.version
-		WHERE ar.org_id IN ('', ?) AND ar.revoked_at IS NULL
+		WHERE ar.org_id IN ('', ?) AND ar.kind IN ('system', 'custom') AND COALESCE(NULLIF(ar.visibility, ''), 'reusable') = 'reusable' AND ar.revoked_at IS NULL
 		ORDER BY ar.name, ar.id`, orgID)
 	if err != nil {
 		return nil, err
@@ -584,7 +585,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 	err := db.QueryRowContext(ctx, `
 		SELECT id, COALESCE(NULLIF(stable_key, ''), id), name, kind, description, COALESCE(NULLIF(scope_kind, ''), 'org'), revoked_at
 		FROM authorization_roles
-		WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).
+		WHERE id = ? AND org_id IN ('', ?) AND kind IN ('system', 'custom') AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable'`, roleID, orgID).
 		Scan(&detail.ID, &detail.StableKey, &detail.Name, &detail.Kind, &detail.Description, &detail.Scope, &revoked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -600,7 +601,7 @@ func accessRAMRoleDetail(ctx context.Context, db *sql.DB, orgID, roleID string) 
 			(SELECT COUNT(*) FROM team_role_ram_role_mappings m WHERE m.ram_role_id = ar.id)
 		FROM authorization_roles ar
 		JOIN authorization_role_versions v ON v.role_id = ar.id
-		WHERE ar.id = ?
+		WHERE ar.id = ? AND ar.kind IN ('system', 'custom') AND COALESCE(NULLIF(ar.visibility, ''), 'reusable') = 'reusable'
 		ORDER BY v.version DESC`, roleID)
 	if err != nil {
 		return accessRAMRoleDetailDTO{}, false, err
@@ -654,6 +655,9 @@ func accessCreateRAMRole(ctx context.Context, db *sql.DB, orgID, actor string, b
 	name := strings.TrimSpace(body.Name)
 	if name == "" {
 		return accessRAMRoleDetailDTO{}, errAccessRAMRoleInvalid
+	}
+	if strings.HasPrefix(name, "Access grant") {
+		return accessRAMRoleDetailDTO{}, fmt.Errorf("%w: Access grant prefix is reserved for managed internal roles", errAccessRAMRoleInvalid)
 	}
 	stableKey := normalizeRAMRoleStableKey(body.StableKey)
 	if stableKey == "" {
@@ -711,7 +715,7 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 	var ownerOrg, kind, currentStableKey, currentName, currentDescription, currentScope string
 	var revoked sql.NullString
 	var latest int
-	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version, COALESCE(NULLIF(stable_key, ''), id), name, description, COALESCE(NULLIF(scope_kind, ''), 'org') FROM authorization_roles WHERE id = ? AND org_id IN ('', ?)`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest, &currentStableKey, &currentName, &currentDescription, &currentScope); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT org_id, kind, revoked_at, version, COALESCE(NULLIF(stable_key, ''), id), name, description, COALESCE(NULLIF(scope_kind, ''), 'org') FROM authorization_roles WHERE id = ? AND org_id IN ('', ?) AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable'`, roleID, orgID).Scan(&ownerOrg, &kind, &revoked, &latest, &currentStableKey, &currentName, &currentDescription, &currentScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return accessRAMRoleDetailDTO{}, errAccessRAMRoleNotFound
 		}
@@ -734,6 +738,9 @@ func accessCreateRAMRoleVersion(ctx context.Context, db *sql.DB, orgID, roleID, 
 	nextName := strings.TrimSpace(body.Name)
 	if nextName == "" {
 		nextName = currentName
+	}
+	if strings.HasPrefix(nextName, "Access grant") {
+		return accessRAMRoleDetailDTO{}, fmt.Errorf("%w: Access grant prefix is reserved for managed internal roles", errAccessRAMRoleInvalid)
 	}
 	nextDescription := strings.TrimSpace(body.Description)
 	if body.Description == "" {
@@ -790,7 +797,7 @@ func accessRevokeRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 	}
 	defer tx.Rollback()
 	var version int
-	if err := tx.QueryRowContext(ctx, `SELECT version FROM authorization_roles WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, roleID, orgID).Scan(&version); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT version FROM authorization_roles WHERE id=? AND org_id=? AND kind='custom' AND COALESCE(NULLIF(visibility, ''), 'reusable')='reusable' AND revoked_at IS NULL`, roleID, orgID).Scan(&version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return errAccessRAMRoleNotFound
 		}
@@ -817,7 +824,7 @@ func accessRevokeRAMRole(ctx context.Context, db *sql.DB, orgID, roleID, actor s
 	} else {
 		return fmt.Errorf("%w: direct_bindings=%d", errAccessRAMRoleReferenced, n)
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET revoked_at=?, updated_at=?, version=version+1 WHERE id=? AND org_id=? AND kind='custom' AND revoked_at IS NULL`, now, now, roleID, orgID)
+	res, err := tx.ExecContext(ctx, `UPDATE authorization_roles SET revoked_at=?, updated_at=?, version=version+1 WHERE id=? AND org_id=? AND kind='custom' AND COALESCE(NULLIF(visibility, ''), 'reusable')='reusable' AND revoked_at IS NULL`, now, now, roleID, orgID)
 	if err != nil {
 		return err
 	}
@@ -1192,7 +1199,7 @@ func accessCustomRole(ctx context.Context, d HandlerDeps, orgID, roleID string) 
 	err := d.DB.QueryRowContext(ctx, `
 		SELECT id, name, COALESCE(description, '')
 		FROM authorization_roles
-		WHERE id = ? AND org_id = ? AND kind = 'custom' AND revoked_at IS NULL`, roleID, orgID).
+		WHERE id = ? AND org_id = ? AND kind = 'custom' AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable' AND revoked_at IS NULL`, roleID, orgID).
 		Scan(&role.ID, &role.Name, &role.Description)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1453,7 +1460,9 @@ func (s accessDerivedState) authorizedDecisions(ctx context.Context, svc *authz.
 		}
 		decision.EvidenceRef = explain.Decision.EvidenceRef
 		if eff, ok := accessDecisionEffective(explain.Effective, decision.Permission, decision.EvidenceRef); ok {
-			decision.RoleID = eff.RoleID
+			if decision.Source != string(authz.SourceCustomRole) {
+				decision.RoleID = eff.RoleID
+			}
 			if eff.ExpiresAt != nil {
 				value := eff.ExpiresAt.UTC().Format(time.RFC3339)
 				decision.ExpiresAt = &value
@@ -1559,8 +1568,10 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 					Reason:      "matched unified authorization service",
 					EvidenceRef: permission.EvidenceRef,
 					Status:      "allowed",
-					RoleID:      permission.RoleID,
 					Risk:        fallback(def.Risk, "medium"),
+				}
+				if permission.Source != authz.SourceCustomRole {
+					decision.RoleID = permission.RoleID
 				}
 				if permission.ExpiresAt != nil {
 					value := permission.ExpiresAt.UTC().Format(time.RFC3339)
@@ -1741,13 +1752,17 @@ func accessSubjectForMember(m *identity.Member, ident *identity.Identity) access
 			prefix = "agent"
 		}
 	}
-	return accessSubjectDTO{
+	subject := accessSubjectDTO{
 		Ref:    prefix + ":" + m.IdentityID(),
 		Kind:   kind,
 		Name:   name,
 		Role:   string(m.Role()),
 		Status: string(m.Status()),
 	}
+	if ident != nil && ident.Email() != nil {
+		subject.Email = *ident.Email()
+	}
+	return subject
 }
 
 func accessKindFromRef(ref string) string {
@@ -1833,12 +1848,14 @@ func accessFilterDecisions(decisions []accessDecisionDTO, subjects map[string]ac
 	status := r.URL.Query().Get("status")
 	resourceKind := r.URL.Query().Get("resource_kind")
 	subjectKind := r.URL.Query().Get("subject_kind")
+	projectID := r.URL.Query().Get("project_id")
+	permission := r.URL.Query().Get("permission")
 	out := make([]accessDecisionDTO, 0, len(decisions))
 	for _, d := range decisions {
 		subj := subjects[d.SubjectRef]
 		def := catalog[d.Permission]
 		if q != "" {
-			haystack := strings.ToLower(strings.Join([]string{subj.Name, d.SubjectRef, d.Permission, d.Resource.Label, d.Reason, d.Source}, " "))
+			haystack := strings.ToLower(strings.Join([]string{subj.Name, subj.Email, d.SubjectRef, d.Permission, d.Resource.ID, d.Resource.Label, d.Reason, d.Source}, " "))
 			if !strings.Contains(haystack, q) {
 				continue
 			}
@@ -1853,6 +1870,12 @@ func accessFilterDecisions(decisions []accessDecisionDTO, subjects map[string]ac
 			continue
 		}
 		if subjectKind != "" && subjectKind != "all" && subj.Kind != subjectKind {
+			continue
+		}
+		if projectID != "" && projectID != "all" && d.Resource.ID != projectID && d.Resource.ProjectID != projectID {
+			continue
+		}
+		if permission != "" && permission != "all" && d.Permission != permission {
 			continue
 		}
 		if d.Risk == "" {
@@ -2036,7 +2059,6 @@ func accessBatchCodeForError(err error) string {
 }
 
 func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
-	roleID := accessRoleIDForPermission(item.Permission, item.Resource.Kind)
 	resource := accessAuthzResource(item.Resource)
 	return authz.BatchRequest{
 		IdempotencyKey: accessBatchIdempotencyKey("apply", orgID, actor, body.PreviewRequestID, item),
@@ -2044,32 +2066,13 @@ func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body 
 		OrgID:          orgID,
 		Operations: []authz.BatchOperation{
 			{
-				ID:   item.ID + "-role",
-				Type: "upsert_role",
-				Role: authz.RoleInput{
-					ID:          roleID,
-					Name:        "Access grant " + item.Permission + " on " + item.Resource.Kind,
-					Description: "Managed by the Access batch authorization flow.",
-				},
-			},
-			{
-				ID:   item.ID + "-permissions",
-				Type: "set_role_permissions",
-				Role: authz.RoleInput{ID: roleID},
-				Permissions: []authz.RolePermissionInput{{
-					PermissionKey: authz.PermissionKey(item.Permission),
-					ResourceKind:  item.Resource.Kind,
-					Delegatable:   false,
-				}},
-			},
-			{
 				ID:   item.ID,
-				Type: "assign_role",
-				Assignment: authz.AssignmentInput{
-					SubjectRef: authz.SubjectRef(item.SubjectRef),
-					RoleID:     roleID,
-					Resource:   resource,
-					ExpiresAt:  expiresAt,
+				Type: "direct_grant",
+				DirectGrant: authz.DirectGrantInput{
+					SubjectRef:    authz.SubjectRef(item.SubjectRef),
+					PermissionKey: authz.PermissionKey(item.Permission),
+					Resource:      resource,
+					ExpiresAt:     expiresAt,
 				},
 			},
 		},

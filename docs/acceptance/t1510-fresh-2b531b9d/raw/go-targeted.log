@@ -1,0 +1,3 @@
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	97.156s
+ok  	github.com/oopslink/agent-center/internal/authorization	12.203s
+ok  	github.com/oopslink/agent-center/tests/integration	5.188s

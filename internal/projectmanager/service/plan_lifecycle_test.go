@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -28,6 +28,7 @@ import (
 // plan conversation + a permissive AgentDirectory), the relay (to materialize
 // the plan conversation), and the conversation/message repos to assert dispatch.
 type planAdvanceHarness struct {
+	db         *sql.DB
 	svc        *Service
 	plans      *pmsql.PlanRepo
 	tasks      *pmsql.TaskRepo
@@ -813,14 +814,7 @@ func TestTaskRefToken(t *testing.T) {
 // assignee ref has no resolvable display_name, the adapter posts the body
 // verbatim (nothing breaks) — but with no @mention, so the wake won't fire.
 func TestDispatch_UnresolvableRef_FallsBack(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)

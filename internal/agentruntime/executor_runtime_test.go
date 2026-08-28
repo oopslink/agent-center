@@ -231,9 +231,28 @@ func TestSpawnExecutor_MaterializesTaskInputPlan569CanonicalMockups(t *testing.T
 	if in.TaskInput == nil || in.TaskInput.Dir != "task-input/v1" {
 		t.Fatalf("input task_input not wired: %+v", in.TaskInput)
 	}
-	manifestPath := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1", "manifest.json")
+	if in.TaskInput.ManifestPath != "task-input/v1/manifest.json" {
+		t.Fatalf("input task_input manifest path = %q", in.TaskInput.ManifestPath)
+	}
+	taskInputDir := filepath.Join(home, "executors", res.ExecutorID, "workspace", "task-input", "v1")
+	readme, err := os.ReadFile(filepath.Join(taskInputDir, "README.md"))
+	if err != nil {
+		t.Fatalf("README missing from task-input/v1: %v", err)
+	}
+	if got := string(readme); !strings.Contains(got, "Task: task-att") || !strings.Contains(got, "Attachments: 4") || !strings.Contains(got, "## Task") {
+		t.Fatalf("README does not describe task-input/v1 contract:\n%s", got)
+	}
+	var metadata map[string]any
+	readJSONTest(t, filepath.Join(taskInputDir, "context.json"), &metadata)
+	if metadata["task_id"] != "task-att" || metadata["executor_id"] != res.ExecutorID || metadata["title"] != "plan-569ab651 canonical mockups" {
+		t.Fatalf("context.json metadata mismatch: %+v", metadata)
+	}
+	manifestPath := filepath.Join(taskInputDir, "manifest.json")
 	var manifest taskInputManifest
 	readJSONTest(t, manifestPath, &manifest)
+	if manifest.Version != 1 || manifest.TaskID != "task-att" || manifest.Source != "task-scope list_files" {
+		t.Fatalf("manifest header mismatch: %+v", manifest)
+	}
 	if len(manifest.Files) != 4 {
 		t.Fatalf("manifest files=%d want 4: %+v", len(manifest.Files), manifest.Files)
 	}
@@ -343,6 +362,55 @@ func TestTaskInput_RetryReplacesLegacyAndPartialPackage(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(ref.Dir), "attachments", "retry.png"))
 	if err != nil || !bytes.Equal(got, pngBytes) {
 		t.Fatalf("retry attachment mismatch: err=%v", err)
+	}
+}
+
+func TestTaskInput_ConcurrentMaterializeSameWorkspaceRaceX10CleansStaging(t *testing.T) {
+	rt := newExecRuntime(t, t.TempDir(), "agent-race", lookTrue(t))
+	payload := []byte("race-safe task input")
+	sc := &scriptedToolCaller{
+		listFilesBody: map[string]any{"files": []map[string]any{{
+			"uri": "ac://files/race", "filename": "race.txt", "mime_type": "text/plain", "size": len(payload),
+		}}},
+		downloads: map[string][]byte{"ac://files/race": payload},
+	}
+	setToolCaller(rt, sc)
+	workspace := t.TempDir()
+	task := &centerTaskDetail{ID: "task-race", Title: "race package"}
+
+	const attempts = 10
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := rt.materializeTaskInputPackage(context.Background(), "agent-race", task.ID, fmt.Sprintf("exec-%02d", i), workspace, task)
+			errs <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent materialize: %v", err)
+		}
+	}
+	var manifest taskInputManifest
+	readJSONTest(t, filepath.Join(workspace, taskInputDirName, taskInputVersion, taskInputManifestFileName), &manifest)
+	if len(manifest.Files) != 1 || manifest.Files[0].SHA256 == "" {
+		t.Fatalf("published manifest invalid after race: %+v", manifest)
+	}
+	got, err := os.ReadFile(filepath.Join(workspace, taskInputDirName, taskInputVersion, taskInputAttachmentsDir, "race.txt"))
+	if err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("published attachment mismatch err=%v got=%q", err, string(got))
+	}
+	leaks, err := filepath.Glob(filepath.Join(workspace, "."+taskInputDirName+".tmp-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaks) != 0 {
+		t.Fatalf("staging dirs leaked after race: %v", leaks)
 	}
 }
 

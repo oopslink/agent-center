@@ -1,0 +1,42 @@
+$ git worktree list --porcelain
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/repos/d442ba1f5987f874c1b2347b1b589c2faf79df647363a025c5c2a360e005056b/mirror.git
+bare
+
+worktree /private/tmp/t1457-team-roles-delivery
+HEAD 53c047e35f2e34b221a821ca7d166e1631b59ad5
+branch refs/heads/ac-exec/task-9e9e7e86/team-roles-crud
+
+worktree /private/tmp/t1504-final-main-validate.RWiGB5/wt
+HEAD 976aa24f0f60e85ffc77b82d26b0410482ec4d94
+detached
+
+worktree /private/tmp/t1510-fresh-accept-2b531b9d-56111
+HEAD 2b531b9d5a81a7857b707ed425886b2d2ac96774
+detached
+
+worktree /private/tmp/t1515-fresh-worktree.QfQEmA/candidate
+HEAD af936471ed2d1a2f011159ef5cb284345346bb48
+detached
+
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/acceptance-cd9d2b27
+HEAD cd9d2b2757595a7734722d44537dcaa6c0fcb16b
+detached
+
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-30f922a0
+HEAD 1a8a55e9e9b862c15c05300689c1b08cd328df7d
+branch refs/heads/ac-exec/task-47290169/exec-30f922a0
+
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-3e4ee0f6
+HEAD 87f9201a77030df277455cac21cd846b5cd11704
+branch refs/heads/ac-exec/task-19583b7b/exec-3e4ee0f6
+
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-9684e203
+HEAD e8c0d5a750d5f6af0243111de48273405e02a858
+branch refs/heads/ac-exec/task-e2fe1431/exec-9684e203
+
+worktree /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/verify-t1446-t1439-82bd9fbe
+HEAD ad4f9c86a68f78ced73da0639dbdb65680bd4aac
+detached
+
+
+[exit_code=0]

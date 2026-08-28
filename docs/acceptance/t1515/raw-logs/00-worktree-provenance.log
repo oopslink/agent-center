@@ -1,0 +1,10 @@
+$ git rev-parse HEAD
+af936471ed2d1a2f011159ef5cb284345346bb48
+
+$ git status --short --branch
+## HEAD (no branch)
+
+$ git rev-parse --is-inside-work-tree
+true
+
+[exit_code=0]

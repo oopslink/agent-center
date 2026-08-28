@@ -1,0 +1,14 @@
+cd web && pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 346ms using pnpm v10.31.0
+cd web && VITE_BUILD_SHA=2b531b9d5a81a7857b707ed425886b2d2ac96774 pnpm run build
+
+> agent-center-web@0.1.0 build /private/tmp/t1510-fresh-accept-2b531b9d-56111/web
+> tsc -b && vite build
+
+src/pages/Access.test.tsx(411,25): error TS2339: Property 'permission_keys' does not exist on type 'never'.
+src/pages/Access.test.tsx(412,25): error TS2339: Property 'resources' does not exist on type 'never'.
+ ELIFECYCLE  Command failed with exit code 2.
+make: *** [build-frontend] Error 2
