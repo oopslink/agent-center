@@ -1,0 +1,3 @@
+$ find .. -path */task-input/v1/README.md -o -path */task-input/v1/manifest.json
+
+[exit_code=0]

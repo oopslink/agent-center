@@ -15,7 +15,6 @@ import (
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 	orchsql "github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite"
@@ -27,14 +26,7 @@ import (
 // returns the harness plus the orch service for graph assertions.
 func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)
@@ -69,7 +61,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	h := &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
+	h := &planAdvanceHarness{db: db, svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, audit: auditRepo, ctx: context.Background()}
 	return h, orchSvc
 }
 

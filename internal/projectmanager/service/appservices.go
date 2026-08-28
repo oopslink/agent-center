@@ -478,6 +478,13 @@ func (s *Service) TaskInAssignmentPool(ctx context.Context, taskID pm.TaskID) (b
 	if s.pools == nil {
 		return false, nil
 	}
+	task, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return false, err
+	}
+	if task.PlanID() != "" {
+		return false, nil
+	}
 	_, ok, err := s.pools.FindTask(ctx, taskID)
 	return ok, err
 }

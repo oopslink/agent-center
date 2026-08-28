@@ -12,7 +12,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
-import { useProjectPlansList, type PlanStatus } from '@/api/plans';
+import { useBatchArchivePlans, useProjectPlansList, type PlanStatus } from '@/api/plans';
 import { useAgents } from '@/api/agents';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
@@ -511,6 +511,10 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
   // archived); selecting the "archived" chip opts those back in.
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+  const batchArchive = useBatchArchivePlans(projectId);
   const q = search.trim();
   const plans = useProjectPlansList(projectId, {
     status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
@@ -523,6 +527,11 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
   const data = plans.data?.items ?? [];
   const total = plans.data?.total ?? 0;
   const filtered = selectedStatuses.length > 0 || q.length > 0;
+  const archivableIds = data
+    .filter((plan) => !plan.archived_at && (plan.status === 'done' || plan.status === 'discarded'))
+    .map((plan) => plan.id);
+  const selectedArchivableIds = selectedPlanIds.filter((id) => archivableIds.includes(id));
+  const allArchivableSelected = archivableIds.length > 0 && selectedArchivableIds.length === archivableIds.length;
   // Narrowing the filter resets to page 1 (a stale high page would show empty).
   const setPage = controls.setPage;
   useEffect(() => {
@@ -537,14 +546,26 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
     >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-sm font-semibold text-text-primary">{t('project.plans.title')}</h2>
-        <OrgLink
-          to={`/projects/${encodeURIComponent(projectId)}/plans`}
-          className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-secondary hover:bg-border-base"
-          data-testid="project-plans-board-link"
-        >
-          {t('project.detail.workBoard')}
-        </OrgLink>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded border border-danger px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={selectedArchivableIds.length === 0 || batchArchive.isPending}
+            onClick={() => { setArchiveError(''); setConfirmArchive(true); }}
+            data-testid="plans-bulk-archive"
+          >
+            {t('project.plans.bulkArchive.action', { count: selectedArchivableIds.length })}
+          </button>
+          <OrgLink
+            to={`/projects/${encodeURIComponent(projectId)}/plans`}
+            className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-secondary hover:bg-border-base"
+            data-testid="project-plans-board-link"
+          >
+            {t('project.detail.workBoard')}
+          </OrgLink>
+        </div>
       </div>
+      {archiveError && <p className="mb-2 text-xs text-danger" role="alert" data-testid="plans-bulk-archive-error">{archiveError}</p>}
       <div className="mb-3">
         <PlanFilterBar
           selectedStatuses={selectedStatuses}
@@ -571,6 +592,16 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="w-8 py-1.5 pr-2 font-medium">
+                  <input
+                    type="checkbox"
+                    aria-label={t('project.plans.bulkArchive.selectAll')}
+                    checked={allArchivableSelected}
+                    disabled={archivableIds.length === 0}
+                    onChange={(event) => setSelectedPlanIds(event.target.checked ? archivableIds : [])}
+                    data-testid="plans-select-all"
+                  />
+                </th>
                 <SortHeader label={t('project.table.id')} sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label={t('project.table.name')} sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label={t('project.table.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
@@ -582,6 +613,19 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
             <tbody className="divide-y divide-border-base">
               {data.map((pl) => (
                 <tr key={pl.id} data-testid="plan-row" data-plan-id={pl.id}>
+                  <td className="py-1.5 pr-2">
+                    <input
+                      type="checkbox"
+                      aria-label={t('project.plans.bulkArchive.selectPlan', { name: pl.name || pl.id })}
+                      checked={selectedPlanIds.includes(pl.id)}
+                      disabled={Boolean(pl.archived_at) || (pl.status !== 'done' && pl.status !== 'discarded')}
+                      onChange={(event) => setSelectedPlanIds((current) => event.target.checked
+                        ? [...current, pl.id]
+                        : current.filter((id) => id !== pl.id))}
+                      data-testid="plan-select-checkbox"
+                      data-plan-id={pl.id}
+                    />
+                  </td>
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="plan-id-handle" title={pl.id}>
                     {/* P123 org_ref when present; #id-tail handle otherwise. */}
                     {refLabel(pl.org_ref, pl.id)}
@@ -616,6 +660,27 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           <Pagination page={controls.page} pageSize={controls.pageSize} total={total} onPageChange={controls.setPage} />
         </div>
       )}
+      <ConfirmModal
+        open={confirmArchive}
+        danger
+        busy={batchArchive.isPending}
+        title={t('project.plans.bulkArchive.title')}
+        message={t('project.plans.bulkArchive.message', { count: selectedArchivableIds.length })}
+        confirmLabel={t('project.plans.bulkArchive.confirm')}
+        onCancel={() => { if (!batchArchive.isPending) setConfirmArchive(false); }}
+        onConfirm={() => {
+          const ids = selectedArchivableIds;
+          batchArchive.mutate(ids, {
+            onSuccess: (result) => {
+              setConfirmArchive(false);
+              setSelectedPlanIds(result.failed.map((item) => item.planId));
+              setArchiveError(result.failed.length > 0
+                ? t('project.plans.bulkArchive.partialError', { failed: result.failed.length, total: ids.length })
+                : '');
+            },
+          });
+        }}
+      />
     </div>
   );
 }

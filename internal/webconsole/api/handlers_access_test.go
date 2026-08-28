@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,22 @@ import (
 	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/team"
 )
+
+func TestAccessFilterDecisionsSupportsCanonicalSubjectProjectPermissionFilters(t *testing.T) {
+	decisions := []accessDecisionDTO{
+		{SubjectRef: "user:alice", Permission: "project.write", Resource: accessResourceScopeDTO{Kind: "project", ID: "project-atlas", ProjectID: "project-atlas"}, Risk: "medium", Status: "allowed"},
+		{SubjectRef: "user:bob", Permission: "org.read", Resource: accessResourceScopeDTO{Kind: "org", ID: "org-1"}, Risk: "low", Status: "allowed"},
+	}
+	subjects := map[string]accessSubjectDTO{
+		"user:alice": {Ref: "user:alice", Kind: "human", Name: "Alice", Email: "alice@example.com"},
+		"user:bob":   {Ref: "user:bob", Kind: "human", Name: "Bob"},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/access/overview?q=alice%40example.com&subject_kind=human&project_id=project-atlas&permission=project.write&risk=medium&status=allowed", nil)
+	filtered := accessFilterDecisions(decisions, subjects, map[string]accessPermissionDefinitionDTO{}, request)
+	if len(filtered) != 1 || filtered[0].SubjectRef != "user:alice" || filtered[0].Permission != "project.write" {
+		t.Fatalf("canonical filters returned %+v", filtered)
+	}
+}
 
 func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
@@ -87,18 +104,80 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	}
 	var applied struct {
 		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
 			PartialFailure bool `json:"partial_failure"`
 			Failed         int  `json:"failed"`
 			Unauthorized   int  `json:"unauthorized"`
 			NotApplicable  int  `json:"not_applicable"`
 		} `json:"summary"`
+		Items []struct {
+			ID         string `json:"id"`
+			SubjectRef string `json:"subject_ref"`
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+				ID   string `json:"id"`
+			} `json:"resource"`
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&applied); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 {
-		t.Fatalf("apply did not expose partial failure details: %+v", applied.Summary)
+	if !applied.Summary.PartialFailure || applied.Summary.Failed == 0 || applied.Summary.Unauthorized == 0 || applied.Summary.NotApplicable == 0 || applied.Summary.Total != len(applied.Items) {
+		t.Fatalf("apply did not expose partial failure details/items: summary=%+v items=%+v", applied.Summary, applied.Items)
+	}
+	for _, item := range applied.Items {
+		if item.SubjectRef == "unknown" || item.Permission == "unknown" || item.Resource.ID == "unknown" {
+			t.Fatalf("apply returned phantom unknown item: %+v", item)
+		}
+	}
+
+	mixedBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"permission_keys":["org.analytics.read"],
+		"resources":[
+			{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"},
+			{"kind":"project","id":"proj-alpha","org_id":"` + sess.OrgID + `","label":"Project Alpha"}
+		],
+		"reason":"temporary analytics audit"
+	}`
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", mixedBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mixed org/project apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var mixed struct {
+		Summary struct {
+			Total          int  `json:"total"`
+			Succeeded      int  `json:"succeeded"`
+			Failed         int  `json:"failed"`
+			NotApplicable  int  `json:"not_applicable"`
+			PartialFailure bool `json:"partial_failure"`
+		} `json:"summary"`
+		Items []struct {
+			Permission string `json:"permission"`
+			Resource   struct {
+				Kind string `json:"kind"`
+			} `json:"resource"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&mixed); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(mixed.Items) != 2 || mixed.Summary.Total != 2 || mixed.Summary.Succeeded != 1 || mixed.Summary.Failed != 1 || mixed.Summary.NotApplicable != 1 || !mixed.Summary.PartialFailure {
+		t.Fatalf("mixed org/project apply summary/items mismatch: summary=%+v items=%+v", mixed.Summary, mixed.Items)
+	}
+	statusByKind := map[string]string{}
+	for _, item := range mixed.Items {
+		statusByKind[item.Resource.Kind] = item.Status
+	}
+	if statusByKind["org"] != "allowed" || statusByKind["project"] != "not_applicable" {
+		t.Fatalf("mixed org/project item mapping mismatch: %+v", mixed.Items)
 	}
 
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
@@ -163,6 +242,19 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	if len(direct.Items) != 1 || direct.Items[0].Status != "allowed" || direct.Items[0].GrantID == "" {
 		t.Fatalf("direct grant apply = %+v", direct.Items)
 	}
+	var directKind, directVisibility, directName string
+	directRoleID := accessRoleIDForPermission("org.analytics.read", "org")
+	if err := db.QueryRow(`SELECT kind, visibility, name FROM authorization_roles WHERE id = ?`, directRoleID).Scan(&directKind, &directVisibility, &directName); err != nil {
+		t.Fatalf("direct grant managed role missing: %v", err)
+	}
+	if directKind != "managed" || directVisibility != "internal" || strings.HasPrefix(directName, "Access grant") {
+		t.Fatalf("direct grant role classification=(%q,%q,%q), want managed/internal without reserved prefix", directKind, directVisibility, directName)
+	}
+	resp = orgScopedGet(t, server.URL+"/api/access/ram-roles/"+directRoleID, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("managed internal role detail status=%d want 404", resp.StatusCode)
+	}
+	resp.Body.Close()
 	directGrantID := direct.Items[0].GrantID
 	revokeReason := "quarterly least privilege review"
 	resp = orgScopedPost(t, server.URL+"/api/access/grants/revoke/preview", `{"grant_ids":["`+directGrantID+`"],"reason":"`+revokeReason+`","message":"`+revokeReason+`"}`, sess)
@@ -270,15 +362,15 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_roles (id, org_id, kind, name, description, created_by, created_at, updated_at, version)
-		VALUES ('role-access-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
+		VALUES ('role-union-reviewer', ?, 'custom', 'Access union reviewer', '', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`
 		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
-		VALUES ('role-access-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
+		VALUES ('role-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-access-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
+	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`INSERT OR REPLACE INTO team_role_ram_role_versions (team_id, team_role, version, updated_at, updated_by) VALUES (?, 'reviewer', 1, ?, 'system')`, tm.ID().String(), now); err != nil {
@@ -340,10 +432,10 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	for _, d := range overview.Decisions {
 		if d.SubjectRef == subject && d.Permission == "team.memory.review" {
 			seen[d.Source] = true
-			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-access-union-reviewer" {
+			if d.Source == string(authz.SourceTeamRoleRAM) && d.RoleID != "role-union-reviewer" {
 				t.Fatalf("team RAM role_id=%q evidence=%q", d.RoleID, d.EvidenceRef)
 			}
-			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "") {
+			if d.Source == string(authz.SourceCustomRole) && (d.GrantID != applied.Items[0].GrantID || d.ExpiresAt == "" || d.RoleID != "") {
 				t.Fatalf("direct decision grant/expiry not read back: %+v", d)
 			}
 		}
@@ -355,7 +447,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	}
 	var directGrant bool
 	for _, grant := range overview.Grants {
-		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID != "" {
+		if grant.ID == applied.Items[0].GrantID && grant.Source == string(authz.SourceCustomRole) && grant.RoleID == "" {
 			directGrant = true
 		}
 	}
@@ -677,6 +769,11 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	if created.ID == "" || created.Latest.Version != 1 || len(created.Versions) != 1 {
 		t.Fatalf("created RAM role shape wrong: %+v", created)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles", `{"name":"Access grant org.read on org","permissions":["org.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("reserved Access grant create status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
 
 	stale := orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
 	if stale.StatusCode != http.StatusConflict {
@@ -709,6 +806,16 @@ func TestAccessRAMRolesPersistVersionsCASRevokeAndReferences(t *testing.T) {
 	if len(updated.Versions[1].Perms) != 2 {
 		t.Fatalf("v1 mutated; versions must be immutable: %+v", updated.Versions)
 	}
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"name":"Access grant team.read on team","expected_latest_version":2,"permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("reserved Access grant update status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/team-basic/versions", `{"expected_latest_version":1,"permissions":["team.read"]}`, sess)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("system role update status=%d want 422", resp.StatusCode)
+	}
+	resp.Body.Close()
 	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/revoke", `{"expected_latest_version":1,"reason":"stale"}`, sess)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("stale revoke status=%d want 409", resp.StatusCode)

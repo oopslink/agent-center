@@ -37,6 +37,9 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
+		if err := s.guardTaskProgressHolds(txCtx, taskID, false, false, true); err != nil {
+			return err
+		}
 		// T130 note (指派 vs 可运行): assignment is DELIBERATELY decoupled from
 		// runnability. Assigning a task — even a backlog one — only records ownership
 		// (and grants the agent project membership); it is a legitimate, widely-used
@@ -162,6 +165,11 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 			return err
 		}
 		prevStatus := t.Status()
+		if prevStatus != pm.TaskRunning {
+			if err := s.guardTaskProgressHolds(txCtx, taskID, true, false, false); err != nil {
+				return err
+			}
+		}
 		if err := t.Start(now); err != nil {
 			return err
 		}
@@ -573,6 +581,11 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.refreshBlockedOnForTaskState(txCtx, t); err != nil {
+				return err
+			}
+		}
 		// audit §5: record the block as a human-facing <prev>→blocked status change.
 		s.auditTaskBlocked(txCtx, t, prevStatus, reasonType, reason, actor)
 		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
@@ -721,6 +734,17 @@ func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) er
 // guards. Use only when PrecheckCompleteTask already passed immediately before the
 // surrounding transaction. CompleteTask remains the safe default for other callers.
 func (s *Service) CompleteTaskAfterPrecheck(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
+	if s.progress != nil {
+		t, err := s.tasks.FindByID(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		if t.PlanID() != "" {
+			if err := s.guardTaskProgressHolds(ctx, taskID, false, false, true); err != nil {
+				return err
+			}
+		}
+	}
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Complete(by, now) }, "")
 }
 
@@ -935,6 +959,11 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		}
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
+		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.refreshBlockedOnForTaskState(txCtx, t); err != nil {
+				return err
+			}
 		}
 		// audit §5: record the status transition (shared闸 for Discard/SetStatus/
 		// Complete/Reopen/Reset — every taskStateOp caller). No-op when status didn't move.

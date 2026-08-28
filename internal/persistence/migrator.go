@@ -326,6 +326,11 @@ func (m *Migrator) applyOne(ctx context.Context, mig migration, up bool) error {
 		if err != nil {
 			return err
 		}
+		if up && mig.version == 144 && mig.name == "direct_binding_internal_roles" {
+			if err := m.preflightDirectBindingInternalRoles0144(txCtx); err != nil {
+				return err
+			}
+		}
 		if _, err := exec.ExecContext(txCtx, sqlText); err != nil {
 			return err
 		}
@@ -339,6 +344,50 @@ func (m *Migrator) applyOne(ctx context.Context, mig migration, up bool) error {
 		}
 		return err
 	})
+}
+
+func (m *Migrator) preflightDirectBindingInternalRoles0144(ctx context.Context) error {
+	exec, err := ExecutorFromCtx(ctx, m.db)
+	if err != nil {
+		return err
+	}
+	rows, err := exec.QueryContext(ctx, `
+		SELECT r.id,
+		       COUNT(arp.permission_key) AS permission_count,
+		       COALESCE(GROUP_CONCAT(DISTINCT trm.team_id || ':' || trm.team_role), '') AS team_role_refs
+		FROM authorization_roles r
+		LEFT JOIN authorization_role_permissions arp ON arp.role_id = r.id
+		LEFT JOIN team_role_ram_role_mappings trm ON trm.ram_role_id = r.id
+		WHERE r.id LIKE 'role-access-%'
+		  AND r.kind = 'custom'
+		  AND COALESCE(NULLIF(r.visibility, ''), 'reusable') = 'reusable'
+		  AND r.revoked_at IS NULL
+		GROUP BY r.id
+		HAVING permission_count <> 1 OR team_role_refs <> ''
+		ORDER BY r.id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var blockers []string
+	for rows.Next() {
+		var roleID, refs string
+		var count int
+		if err := rows.Scan(&roleID, &count, &refs); err != nil {
+			return err
+		}
+		if refs == "" {
+			refs = "-"
+		}
+		blockers = append(blockers, fmt.Sprintf("role=%s permission_count=%d team_role_refs=%q", roleID, count, refs))
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(blockers) > 0 {
+		return fmt.Errorf("migration 0144 blocked: role-access roles are not safe direct carriers: %s", strings.Join(blockers, "; "))
+	}
+	return nil
 }
 
 func parseMigrationName(filename string) (version int, name, direction string, err error) {

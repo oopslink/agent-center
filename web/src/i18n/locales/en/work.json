@@ -230,9 +230,16 @@
           "collapse": "Collapse DAG evolution",
           "expand": "Expand DAG evolution",
           "current": "Current",
+          "details": "Details",
+          "detailTitle": "{{revision}} details",
+          "closeDetails": "Close generation details",
           "play": "Play evolution",
           "pause": "Pause",
           "progress": "{{current}} / {{latest}}",
+          "pagination": "DAG evolution pages",
+          "page": "Page {{current}} of {{total}}",
+          "previous": "Previous",
+          "next": "Next",
           "reasonLabel": "Reason",
           "initialTitle": "Initial DAG",
           "initialReason": "Initial staged DAG projected when the plan started.",
@@ -617,7 +624,16 @@
       "empty": "No plans yet",
       "emptyFiltered": "No plans match the filter",
       "searchLabel": "Search plans",
-      "searchPlaceholder": "Search name or ID…"
+      "searchPlaceholder": "Search name or ID…",
+      "bulkArchive": {
+        "action": "Archive selected ({{count}})",
+        "selectAll": "Select all archivable plans on this page",
+        "selectPlan": "Select {{name}} for archive",
+        "title": "Archive selected plans?",
+        "message": "Archive {{count}} terminal plans? They will leave active views while their lifecycle and execution history remain available.",
+        "confirm": "Archive plans",
+        "partialError": "{{failed}} of {{total}} plans could not be archived. The failed plans remain selected."
+      }
     },
     "members": {
       "title": "Members",

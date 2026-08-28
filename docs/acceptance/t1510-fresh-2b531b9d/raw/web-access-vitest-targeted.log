@@ -1,0 +1,33 @@
+
+ RUN  v2.1.9 /private/tmp/t1510-fresh-accept-2b531b9d-56111/web
+
+(node:60395) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/Access.test.tsx (23 tests) 10989ms
+   ✓ Access page > renders the independent RAM Roles page without subject controls or duplicate tabs 545ms
+   ✓ Access page > filters by search, risk, and scope, switches density, paginates, and explains every permission from the registry 454ms
+   ✓ Access page > renders explicit empty, list error, and detail error states with recovery actions 1252ms
+   ✓ Access page > renders Subject access as a distinct titled page with its own actions and filters 823ms
+   ✓ Access page > renders a page-specific data error for ram-roles 422ms
+   ✓ Access page > renders a page-specific data error for subject-access 437ms
+   ✓ Access page > renders the canonical empty subject state after filters return no decisions 420ms
+   ✓ Access page > shows Team RAM and direct binding source chains, then opens the direct binding flow 572ms
+   ✓ Access page > previews and applies a four-step batch grant without deriving final permissions in the UI 692ms
+   ✓ Access page > previews, confirms, and reports a direct revoke within the selected subject 534ms
+   ✓ Access page > shows a success toast after the Add direct binding flow applies 585ms
+   ✓ Access page > keeps the selected subject context and surfaces a 409 apply conflict as a toast 521ms
+   ✓ Access page > does not preselect resources and clears incompatible resources when permission changes 482ms
+   ✓ Access page > renders partial failure result items without unknown phantom rows 515ms
+   ✓ Access page > confirms revoke with the original preview token, stable idempotency key, and reason/message 491ms
+   ✓ Access page > browses RAM role versions and publishes a real v2 RAM role version with CAS payload 501ms
+   ✓ Access page > keeps Used by Team Roles read-only and sends changes to the Team Role editor 353ms
+   ✓ Access page > requires the full RAM role name before deleting an unreferenced custom role 387ms
+   ✓ Access page > keeps RAM role versions pinned and shows an error when publish hits a CAS conflict 381ms
+   ✓ Access page > gates the ram-roles route with a page-specific forbidden state 303ms
+   ✓ Access page > gates the subject-access route with a page-specific forbidden state 307ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  10:06:32
+   Duration  12.27s (transform 198ms, setup 320ms, collect 149ms, tests 10.99s, environment 233ms, prepare 40ms)
+

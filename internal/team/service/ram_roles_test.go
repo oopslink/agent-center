@@ -25,6 +25,14 @@ func seedSystemRAMRole(t *testing.T, svc *Service, id, name string) {
 	}
 }
 
+func seedManagedInternalRAMRole(t *testing.T, svc *Service, id, orgID, name string) {
+	t.Helper()
+	_, err := svc.db.Exec(`INSERT INTO authorization_roles (id,org_id,kind,visibility,name,description,created_by,created_at,updated_at,version) VALUES (?,?,'managed','internal',?,'','system',datetime('now'),datetime('now'),1)`, id, orgID, name)
+	if err != nil {
+		t.Fatalf("seed managed internal RAM role: %v", err)
+	}
+}
+
 func TestRAMRoleMapping_ReplaceIsAtomicCASAndAudited(t *testing.T) {
 	svc, db := newService(t)
 	ctx := context.Background()
@@ -66,7 +74,8 @@ func TestRAMRoleMapping_RejectsCrossOrgAndDanglingReferences(t *testing.T) {
 	svc, _ := newService(t)
 	tm := createTeam(t, svc, "Alpha", devRole())
 	seedRAMRole(t, svc, "role-other", "org-2", "Other")
-	for _, id := range []string{"role-other", "role-missing"} {
+	seedManagedInternalRAMRole(t, svc, "role-access-internal", "org-1", "Managed direct grant org.read on org")
+	for _, id := range []string{"role-other", "role-missing", "role-access-internal"} {
 		_, err := svc.ReplaceRAMRoleMapping(context.Background(), tm.ID(), "dev", ReplaceRAMRoleMappingInput{ActorRef: "user:owner", RAMRoleIDs: []string{id}, ExpectedVersion: 1})
 		if !errors.Is(err, ErrRAMRoleNotFound) {
 			t.Fatalf("role %s: got %v", id, err)
@@ -173,13 +182,22 @@ func TestRAMRoleStableKeyResolver_TargetOrgWinsThenSystemAndRejectsBadStates(t *
 	seedRAMRole(t, svc, "role-org-reviewer", "org-1", "Reviewer")
 	seedSystemRAMRole(t, svc, "role-system-observer", "Observer")
 	seedRAMRole(t, svc, "role-revoked", "org-1", "Retired reviewer")
+	seedRAMRole(t, svc, "role-stable-key", "org-1", "Display name")
+	seedManagedInternalRAMRole(t, svc, "role-access-stable", "org-1", "Managed direct grant team.read on team")
 	if _, err := db.Exec(`UPDATE authorization_roles SET revoked_at=datetime('now') WHERE id='role-revoked'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE authorization_roles SET stable_key='portable-key' WHERE id='role-stable-key'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE authorization_roles SET stable_key='internal-key' WHERE id='role-access-stable'`); err != nil {
 		t.Fatal(err)
 	}
 
 	tm, err := svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Resolver", Roles: []team.RoleConfig{
 		{Role: "review", RAMRoleKeys: []string{"Reviewer"}},
 		{Role: "observe", RAMRoleKeys: []string{"Observer"}},
+		{Role: "stable", RAMRoleKeys: []string{"portable-key"}},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -198,6 +216,13 @@ func TestRAMRoleStableKeyResolver_TargetOrgWinsThenSystemAndRejectsBadStates(t *
 	if len(observe.RAMRoleIDs) != 1 || observe.RAMRoleIDs[0] != "role-system-observer" {
 		t.Fatalf("system fallback failed: %+v", observe)
 	}
+	stable, err := svc.GetRAMRoleMapping(ctx, tm.ID(), "stable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stable.RAMRoleIDs) != 1 || stable.RAMRoleIDs[0] != "role-stable-key" {
+		t.Fatalf("stable_key resolution failed: %+v", stable)
+	}
 
 	for _, tc := range []struct {
 		name string
@@ -206,6 +231,7 @@ func TestRAMRoleStableKeyResolver_TargetOrgWinsThenSystemAndRejectsBadStates(t *
 	}{
 		{name: "unknown", key: "Missing", want: team.ErrRAMRoleKeyNotFound},
 		{name: "revoked", key: "Retired reviewer", want: team.ErrRAMRoleKeyRevoked},
+		{name: "managed internal", key: "internal-key", want: team.ErrRAMRoleKeyNotFound},
 	} {
 		_, err := svc.CreateTeam(ctx, CreateTeamInput{OrgID: "org-1", Name: "Bad " + tc.name, Roles: []team.RoleConfig{{Role: "dev", RAMRoleKeys: []string{tc.key}}}})
 		if !errors.Is(err, tc.want) {

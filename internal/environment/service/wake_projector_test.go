@@ -182,6 +182,28 @@ func planCreatorWakeEvent(id, creatorRef, convID, msgID, planID, taskID string) 
 	}
 }
 
+func planOwnerBlockWakeEvent(id, ownerRef, convID, msgID, planID, taskID string) outbox.Event {
+	pl, err := json.Marshal(map[string]string{
+		"owner_ref":       ownerRef,
+		"conversation_id": convID,
+		"message_id":      msgID,
+		"plan_id":         planID,
+		"task_id":         taskID,
+		"wait_type":       "human_decision",
+		"reason":          "owner resolves the blocked task",
+		"organization_id": "org-1",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return outbox.Event{
+		ID:        id,
+		EventType: pmservice.EvtPlanOwnerBlockWake,
+		Payload:   string(pl),
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+}
+
 func messageAddedEvent(id, convID, taskID, msgID, sender, text string) outbox.Event {
 	return messageAddedEventOwner(id, convID, "pm://tasks/"+taskID, msgID, sender, text)
 }
@@ -376,6 +398,40 @@ func TestWakeProjector_PlanCreatorWake_ReplayOnce(t *testing.T) {
 	}
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 1 {
 		t.Fatalf("replay must not duplicate the converse: want 1, got %d", len(cmds))
+	}
+}
+
+func TestWakeProjector_PlanOwnerBlockWake_ReplayOnce(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "BOT", "W7")
+
+	e := planOwnerBlockWakeEvent("EVB1", "agent:BOT", "plan-conv-1", "blockmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 1: %v", err)
+	}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 2: %v", err)
+	}
+	cmds := f.commandsFor(t, "W7")
+	if len(cmds) != 1 {
+		t.Fatalf("replay must not duplicate owner block wake: got %d", len(cmds))
+	}
+	if cmds[0].IdempotencyKey() != "agent.converse:plan-conv-1:blockmsg-1:BOT" {
+		t.Fatalf("idempotency_key = %q", cmds[0].IdempotencyKey())
+	}
+	if !strings.Contains(cmds[0].Payload(), "blocked") {
+		t.Fatalf("payload should describe blocked plan node: %s", cmds[0].Payload())
+	}
+}
+
+func TestWakeProjector_PlanOwnerBlockWake_HumanOwnerNoConverse(t *testing.T) {
+	f := newWakeFixture(t)
+	e := planOwnerBlockWakeEvent("EVB1", "user:alice", "plan-conv-1", "blockmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
+		t.Fatalf("human owner must not get agent converse commands: %d", len(cmds))
 	}
 }
 

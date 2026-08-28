@@ -13,7 +13,6 @@ import (
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
-	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
@@ -61,14 +60,7 @@ func (c *countingPlanRepo) ListDispatchRecords(ctx context.Context, id pm.PlanID
 // seeds N plans, and asserts ListPlanSummaries issues the batch reads exactly
 // once each (constant, not N) and never the per-plan variants.
 func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := openMigratedTestDB(t)
 	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)

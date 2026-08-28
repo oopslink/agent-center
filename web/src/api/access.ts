@@ -45,6 +45,7 @@ export interface AccessSubject {
   ref: string;
   kind: AccessSubjectKind;
   name: string;
+  email?: string;
   role?: string;
   status?: 'joined' | 'disabled' | 'left' | 'unavailable';
   team_names?: string[];
@@ -170,6 +171,8 @@ export interface AccessFilters {
   q?: string;
   subject_kind?: AccessSubjectKind | 'all';
   resource_kind?: AccessResourceKind | 'all';
+  project_id?: string | 'all';
+  permission?: string | 'all';
   risk?: AccessRisk | 'all';
   status?: AccessStatus | 'all';
 }

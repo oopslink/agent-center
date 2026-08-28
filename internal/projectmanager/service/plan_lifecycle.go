@@ -302,6 +302,9 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if p.Status() != pm.PlanRunning {
 		return nil, pm.ErrPlanNotRunning
 	}
+	if err := s.guardPlanProgressHolds(txCtx, p.ID(), true, false, false); err != nil {
+		return nil, err
+	}
 	// ADR-0047 PULL split: the built-in pool is a "pull, no-wake" dispatch pool. For
 	// each ready node it ONLY RecordDispatch (node_status ready→dispatched → the task
 	// becomes claimable; get_my_work surfaces it). It does NOT PostMention and does
@@ -412,6 +415,9 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	// so a dispatched-but-not-running node is NodeDispatched, never NodeReady).
 	var dispatched []pm.TaskID
 	for _, taskID := range readySet {
+		if err := s.guardTaskProgressHolds(txCtx, taskID, true, false, false); err != nil {
+			return nil, err
+		}
 		assignee := assigneeOf[taskID]
 		// content is the BODY only — the dispatcher resolves assignee → display_name
 		// and prepends "@<display_name> " so the wake+mention path (#220) fires.
@@ -487,6 +493,9 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 // INSERT-OR-IGNORE on the PK, so re-running never double-records. The pool never
 // "completes" (it is immutable/resident), so it never MarkDone.
 func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.TaskID, error) {
+	if err := s.guardPlanProgressHolds(txCtx, p.ID(), true, false, false); err != nil {
+		return nil, err
+	}
 	now := s.clock.Now()
 	planID := p.ID()
 	tasks, err := s.tasks.ListByPlan(txCtx, planID)
@@ -515,6 +524,9 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	}
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
+		if err := s.guardTaskProgressHolds(txCtx, taskID, true, false, false); err != nil {
+			return nil, err
+		}
 		// PULL: record the dispatch (no message, no work-item, no @mention). An empty
 		// dispatch_message_id reflects that no @mention was posted for this node.
 		if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, ""); rerr != nil {
@@ -546,7 +558,8 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 }
 
 // PausePlan closes new dispatch while preserving the immutable execution history.
-// Only the Plan creator or a Project owner may change this control latch.
+// Only the Plan creator, a Project owner, or an active owner of the Project's
+// organization may change this control latch.
 func (s *Service) PausePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -739,6 +752,61 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		if rerr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("route blocked_on timeouts: %w", rerr))
 		}
+		fence, ok, ferr := s.acquireProgressFence(ctx, p, 2*time.Minute)
+		if ferr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("acquire progress lease: %w", ferr))
+		}
+		if ferr == nil && ok {
+			perr = s.ReconcilePlanProgressWithFence(ctx, p.ID(), fence)
+		}
+		if perr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("reconcile progress_control: %w", perr))
+		}
+	}
+	if err := s.ReconcileProgressControl(ctx, 100); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
+}
+
+// ReconcilePausedPlans is the second-layer clock for paused plans. It deliberately
+// does not call dispatchReadyNodes: pause freezes new dispatch, while observational
+// blocked_on/progress_hold deadlines, wake acknowledgements, and SLO escalation keep
+// advancing from durable state.
+func (s *Service) ReconcilePausedPlans(ctx context.Context, errFn func(planID pm.PlanID, err error)) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	plans, err := s.plans.ListPlansByStatus(ctx, pm.PlanPaused)
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, p := range plans {
+		perr := s.runInTx(ctx, func(txCtx context.Context) error {
+			fresh, ferr := s.plans.FindByID(txCtx, p.ID())
+			if ferr != nil {
+				return ferr
+			}
+			if fresh.Status() != pm.PlanPaused {
+				return nil
+			}
+			if err := s.materializeBlockedOn(txCtx, fresh); err != nil {
+				return err
+			}
+			return s.routeTimeouts(txCtx, fresh)
+		})
+		if perr != nil {
+			if errFn != nil {
+				errFn(p.ID(), perr)
+			}
+			if firstErr == nil {
+				firstErr = perr
+			}
+		}
+	}
+	if err := s.ReconcileProgressControl(ctx, 100); err != nil && firstErr == nil {
+		firstErr = err
 	}
 	return firstErr
 }

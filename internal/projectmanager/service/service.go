@@ -14,11 +14,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -105,6 +107,11 @@ const (
 	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
 	// event is emitted (the @mention in the conversation IS their notification).
 	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
+	// EvtPlanOwnerBlockWake is emitted when a Plan node first materializes a durable
+	// blocked_on snapshot, or changes to a different wait descriptor. It is paired
+	// with a system @mention in the Plan conversation and lets WakeProjector directly
+	// wake an agent owner; human owners use the durable @mention as their notice.
+	EvtPlanOwnerBlockWake = "pm.plan.owner_block_wake"
 	// T456 (issue-21ba5b78/I30 — 租约到期不 reclaim，只 nudge). Emitted by the
 	// lease-checker (NudgeExpiredLeases) IN THE SAME TX as the lease renew + lease_nudge
 	// log when a running task's execution lease lapsed. The (production-registered)
@@ -179,6 +186,27 @@ type CodeRepoResolver interface {
 	RepoOrg(ctx context.Context, repoID string) (orgID string, found bool, err error)
 }
 
+type DeliveryVerificationRequest struct {
+	RepoID       string
+	Remote       string
+	Branch       string
+	CandidateRef string
+	CandidateSHA string
+	BaseSHA      string
+}
+
+type DeliveryVerification struct {
+	CandidateExists bool
+	RefMatches      bool
+	Pushed          bool
+	BaseIsAncestor  bool
+	RemoteSHA       string
+}
+
+type DeliveryVerifier interface {
+	VerifyDeliverySubject(ctx context.Context, req DeliveryVerificationRequest) (DeliveryVerification, error)
+}
+
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent
 // work item (T53). It is an OPTIONAL, nil-safe read-port of the pm Service: when
 // wired (non-nil) the plan read model derives a `paused` node for a running task
@@ -214,6 +242,7 @@ type Service struct {
 	db           *sql.DB
 	projects     pm.ProjectRepository
 	members      pm.ProjectMemberRepository
+	orgMembers   identity.MemberRepository
 	issues       pm.IssueRepository
 	tasks        pm.TaskRepository
 	taskSubs     pm.TaskSubscriberRepository
@@ -278,6 +307,8 @@ type Service struct {
 	// store backing the per-project auto_assign master switch (autoassign.Enabled). nil
 	// ⇒ the switch reads its default (ON) for every project.
 	autoAssignSettings settings.Store
+	autoAssignSweepMu  sync.Mutex
+	poolAssignmentMu   sync.Mutex
 	// orch is OPTIONAL (nil-safe, T768). The orchestration engine application service.
 	// When wired, StartPlan builds a graph mirroring the plan DAG (business node per
 	// task + condition node per decision) and dispatch/advance switch to the graph as
@@ -298,7 +329,10 @@ type Service struct {
 	// remediation is the ADR-0055 immutable verdict/continuation/proposal ledger.
 	// When nil, stage-pass remains available through the legacy driver but reject
 	// cannot create incremental topology.
-	remediation pm.RemediationRepository
+	remediation      pm.RemediationRepository
+	acceptances      pm.DeliveryAcceptanceRepository
+	deliveryVerifier DeliveryVerifier
+	progress         pm.ProgressControlRepository
 
 	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
 	// on_timeout action assigned during the reconcile materialize and consumed by the
@@ -319,7 +353,8 @@ type Service struct {
 	liveExecutors concurrency.LiveStateStore
 	// authorizer is OPTIONAL for older tests. Production wires it so background
 	// sweeps pass through the unified effective-permission resolver.
-	authorizer authz.EffectiveResolver
+	authorizer           authz.EffectiveResolver
+	progressControllerID string
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
@@ -353,9 +388,12 @@ var ErrNodeNotPaused = errors.New("projectmanager: plan node has no paused work 
 
 // Deps bundles the Service dependencies.
 type Deps struct {
-	DB           *sql.DB
-	Projects     pm.ProjectRepository
-	Members      pm.ProjectMemberRepository
+	DB       *sql.DB
+	Projects pm.ProjectRepository
+	Members  pm.ProjectMemberRepository
+	// OrgMembers is OPTIONAL for older tests. When wired, Plan lifecycle owner gates
+	// also accept an active owner of the Plan's organization.
+	OrgMembers   identity.MemberRepository
 	Issues       pm.IssueRepository
 	Tasks        pm.TaskRepository
 	TaskSubs     pm.TaskSubscriberRepository
@@ -414,9 +452,12 @@ type Deps struct {
 	// Stages is OPTIONAL (2026-07-03 plan-stage-model): when set, the Stage AppServices
 	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
 	// is inert (pure-node DAG, §8 zero-regression).
-	Stages          pm.StageRepository
-	AssignmentPools pm.AssignmentPoolRepository
-	Remediation     pm.RemediationRepository
+	Stages           pm.StageRepository
+	AssignmentPools  pm.AssignmentPoolRepository
+	Remediation      pm.RemediationRepository
+	Acceptances      pm.DeliveryAcceptanceRepository
+	DeliveryVerifier DeliveryVerifier
+	ProgressControl  pm.ProgressControlRepository
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
 	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
@@ -434,6 +475,8 @@ type Deps struct {
 	// Authorizer is OPTIONAL for older tests. Production wires it so background sweeps
 	// exercise the same effective-permission resolver as HTTP and MCP.
 	Authorizer authz.EffectiveResolver
+	// ProgressControllerID identifies this active-active progress reconciler.
+	ProgressControllerID string
 }
 
 // New constructs the Service.
@@ -454,24 +497,39 @@ func New(d Deps) *Service {
 		})
 	}
 	return &Service{
-		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
+		db: d.DB, projects: d.Projects, members: d.Members, orgMembers: d.OrgMembers, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
-		actionLogs:         d.TaskActionLogs,
-		audit:              d.Audit,
-		autoAssignDir:      d.AutoAssignDir,
-		autoAssignSettings: d.AutoAssignSettings,
-		orch:               orchSvc,
-		stages:             d.Stages,
-		pools:              d.AssignmentPools,
-		remediation:        d.Remediation,
-		deadlinePolicy:     d.DeadlinePolicy,
-		timeoutSink:        d.TimeoutSink,
-		liveExecutors:      d.LiveExecutors,
-		authorizer:         d.Authorizer,
+		actionLogs:           d.TaskActionLogs,
+		audit:                d.Audit,
+		autoAssignDir:        d.AutoAssignDir,
+		autoAssignSettings:   d.AutoAssignSettings,
+		orch:                 orchSvc,
+		stages:               d.Stages,
+		pools:                d.AssignmentPools,
+		remediation:          d.Remediation,
+		acceptances:          d.Acceptances,
+		deliveryVerifier:     d.DeliveryVerifier,
+		progress:             d.ProgressControl,
+		deadlinePolicy:       d.DeadlinePolicy,
+		timeoutSink:          d.TimeoutSink,
+		liveExecutors:        d.LiveExecutors,
+		authorizer:           d.Authorizer,
+		progressControllerID: progressControllerID(d.ProgressControllerID),
 	}
+}
+
+func progressControllerID(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	host, _ := os.Hostname()
+	if host == "" {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%d", host, os.Getpid())
 }
 
 func (s *Service) requireBackgroundAuthorization(ctx context.Context, operation string) error {
@@ -681,6 +739,18 @@ type planCreatorFailureWakePayload struct {
 	MessageID      string `json:"message_id"`
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// planOwnerBlockWakePayload carries one durable Plan-node block notification.
+type planOwnerBlockWakePayload struct {
+	OwnerRef       string `json:"owner_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	WaitType       string `json:"wait_type"`
+	Reason         string `json:"reason"`
 	OrganizationID string `json:"organization_id"`
 }
 

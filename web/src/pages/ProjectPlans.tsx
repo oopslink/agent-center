@@ -350,12 +350,33 @@ function Board({
   // braces guard so a degraded/stale payload never leaks an archived plan column.
   const planList = (plans.data ?? []).filter((p) => !p.archived_at);
   const structuredPlans = planList.filter((p) => p.is_builtin !== true);
-  const pool = assignmentPool.data ?? null;
+
+  // Container exclusivity is enforced by the backend, but the three queries can
+  // briefly carry different cache generations after a move. Apply the same
+  // authoritative priority to the client projection: Plan > Pool > Backlog.
+  // This is semantic de-duplication (not status-based hiding): future/ready/
+  // running/blocked nodes all reserve their task id for the Plan's full lifetime.
+  const plannedTaskIds = new Set<string>();
+  const exclusiveStructuredPlans = structuredPlans.map((plan) => {
+    const nodes = (plan.nodes_preview ?? []).filter((node) => {
+      if (plannedTaskIds.has(node.task_id)) return false;
+      plannedTaskIds.add(node.task_id);
+      return true;
+    });
+    if (nodes.length === (plan.nodes_preview ?? []).length) return plan;
+    return { ...plan, nodes_preview: nodes, node_count: nodes.length };
+  });
+  const rawPool = assignmentPool.data ?? null;
+  const pool = rawPool
+    ? { ...rawPool, tasks: (rawPool.tasks ?? []).filter((task) => !plannedTaskIds.has(task.id)) }
+    : null;
+  const backlogExcludedTaskIds = new Set(plannedTaskIds);
+  for (const task of pool?.tasks ?? []) backlogExcludedTaskIds.add(task.id);
 
   // The pending STRUCTURED Plans are the only valid add/drop targets (§9.4
   // select-into-plan is pending-only); shared by every Backlog card's add-menu.
   // The independent pool is offered separately and has no Plan lifecycle.
-  const pendingPlans = structuredPlans.filter((p) => p.status === 'pending');
+  const pendingPlans = exclusiveStructuredPlans.filter((p) => p.status === 'pending');
 
   return (
     <BoardTouchDragContext.Provider value={startLongPress}>
@@ -371,6 +392,7 @@ function Board({
           backlog={backlog}
           pendingPlans={pendingPlans}
           assignmentPool={pool}
+          excludedTaskIds={backlogExcludedTaskIds}
           dragSource={dragSource}
           setDragSource={setDragSource}
         />
@@ -382,7 +404,7 @@ function Board({
             setDragSource={setDragSource}
           />
         )}
-        {structuredPlans.map((plan) => (
+        {exclusiveStructuredPlans.map((plan) => (
           <PlanColumn
             key={plan.id}
             projectId={projectId}
@@ -452,6 +474,7 @@ function BacklogColumn({
   backlog,
   pendingPlans,
   assignmentPool,
+  excludedTaskIds,
   dragSource,
   setDragSource,
 }: {
@@ -459,6 +482,7 @@ function BacklogColumn({
   backlog: TasksQuery;
   pendingPlans: Plan[];
   assignmentPool: AssignmentPool | null;
+  excludedTaskIds: ReadonlySet<string>;
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
@@ -466,7 +490,9 @@ function BacklogColumn({
   // ADR-0047: HIDE completed/discarded in the Backlog by default (live capacity
   // only). The BE `?unplanned=1` may already exclude them; the FE filter is the
   // belt-and-braces guard so a degraded payload never leaks terminal work.
-  const tasks = (backlog.data ?? []).filter((t) => isLiveTaskStatus(t.status));
+  const tasks = (backlog.data ?? []).filter(
+    (task) => isLiveTaskStatus(task.status) && !excludedTaskIds.has(task.id),
+  );
   const remove = useRemoveTaskFromAnyPlan(projectId);
   const removePool = useRemoveTaskFromAssignmentPool(projectId);
   const [dropActive, setDropActive] = useState(false);

@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -39,6 +42,7 @@ func setupPlanGraphAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		DB:           db,
 		Projects:     pmsql.NewProjectRepo(db),
 		Members:      pmsql.NewProjectMemberRepo(db),
+		OrgMembers:   deps.MemberRepo,
 		Issues:       pmsql.NewIssueRepo(db),
 		Tasks:        pmsql.NewTaskRepo(db),
 		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
@@ -490,5 +494,118 @@ func TestPlanGenerationAPI_InFlightConflictRejectsWholeRequest(t *testing.T) {
 		if task.Title() == "must roll back" {
 			t.Fatalf("rejected request persisted task %s", task.ID())
 		}
+	}
+}
+
+func TestPlanGenerationAPI_EvolutionAtomicallyResolvesBlockedOnContext(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	fixture := setupGenerationAPIPlan(t, fx, sess)
+	ctx := context.Background()
+	plans := pmsql.NewPlanRepo(db)
+	blocked := pm.BlockedOn{
+		TaskID:           fixture.b,
+		PlanID:           fixture.planID,
+		WaitType:         pm.WaitUpstreamCompletion,
+		WaitKeys:         []string{string(fixture.a)},
+		TriggerCondition: "A completes",
+		WaitedSince:      time.Now().UTC().Add(-time.Hour),
+	}
+	if err := plans.UpsertBlockedOn(ctx, blocked); err != nil {
+		t.Fatal(err)
+	}
+
+	url := s.URL + "/api/projects/" + string(fixture.projectID) + "/plans/" + string(fixture.planID)
+	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"replace blocked branch","evidence":"owner selected replacement","idempotency_key":"web-evolve-resolve-1","resolve_block_event_id":%q,"resolution_kind":"replace","resolution_note":"replace blocked downstream with verification node","diff":{"node_decisions":[{"task_id":%q,"action":"preserve","reason":"already dispatched"}],"tasks":[{"ref":"c","title":"C","assignee_ref":"user:c1"}],"edges":[{"from":"c","to":%q,"kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.b, fixture.a, fixture.a)
+	resp := orgScopedPost(t, url+"/evolution", body, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("evolution resolve status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	resolvedBody := decodeBody(t, resp)
+	if resolvedBody["active_generation_id"] == string(fixture.g0) || resolvedBody["duplicate"] != false {
+		t.Fatalf("evolution resolve body=%v", resolvedBody)
+	}
+	if _, ok, err := plans.GetBlockedOn(ctx, fixture.planID, fixture.b); err != nil || ok {
+		t.Fatalf("blocked context after success ok=%v err=%v, want cleared", ok, err)
+	}
+
+	read := decodeBody(t, orgScopedGet(t, url+"/generations", sess))
+	if len(read["generations"].([]any)) != 2 {
+		t.Fatalf("generation count after success=%v", read)
+	}
+}
+
+func TestPlanGenerationAPI_EvolutionResolutionRollbackOnConflict(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	fixture := setupGenerationAPIPlan(t, fx, sess)
+	ctx := context.Background()
+	plans := pmsql.NewPlanRepo(db)
+	blocked := pm.BlockedOn{
+		TaskID:           fixture.b,
+		PlanID:           fixture.planID,
+		WaitType:         pm.WaitUpstreamCompletion,
+		WaitKeys:         []string{string(fixture.a)},
+		TriggerCondition: "A completes",
+		WaitedSince:      time.Now().UTC().Add(-time.Hour),
+	}
+	if err := plans.UpsertBlockedOn(ctx, blocked); err != nil {
+		t.Fatal(err)
+	}
+
+	url := s.URL + "/api/projects/" + string(fixture.projectID) + "/plans/" + string(fixture.planID)
+	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"bypass blocked branch","evidence":"owner accepted bypass","idempotency_key":"web-evolve-resolve-rollback","resolve_block_event_id":%q,"resolution_kind":"bypass","resolution_note":"bypass blocked branch","diff":{"node_decisions":[],"tasks":[{"ref":"c","title":"must roll back","assignee_ref":"user:c1"}],"edges":[{"from":%q,"to":"c","kind":"seq"}]}}`, fixture.g0, fixture.version, fixture.b, fixture.a)
+	resp := orgScopedPost(t, url+"/evolution", body, sess)
+	if resp.StatusCode != 409 {
+		t.Fatalf("conflict status=%d want 409 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	if _, ok, err := plans.GetBlockedOn(ctx, fixture.planID, fixture.b); err != nil || !ok {
+		t.Fatalf("blocked context after rollback ok=%v err=%v, want preserved", ok, err)
+	}
+	read := decodeBody(t, orgScopedGet(t, url+"/generations", sess))
+	if read["active_generation_id"] != string(fixture.g0) || len(read["generations"].([]any)) != 1 {
+		t.Fatalf("failed request changed ledger=%v", read)
+	}
+	tasks, err := fx.deps.PM.ListTasks(ctx, fixture.projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("failed request left %d tasks, want original 2", len(tasks))
+	}
+}
+
+func TestPlanGenerationAPI_NonOwnerCannotCommitEvolution(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
+	owner := setupTestSession(t, db, deps)
+	member := addOrgMemberSession(t, db, owner, identity.RoleMember, "plan-non-owner")
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	fixture := setupGenerationAPIPlan(t, fx, owner)
+	if _, err := fx.deps.PM.AddProjectMember(context.Background(), pmservice.AddProjectMemberCommand{
+		ProjectID:  fixture.projectID,
+		IdentityID: pm.IdentityRef("user:" + member.IdentityID),
+		Actor:      pm.IdentityRef("user:" + owner.IdentityID),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	url := s.URL + "/api/projects/" + string(fixture.projectID) + "/plans/" + string(fixture.planID)
+	body := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"member tries evolution","evidence":"should be owner gated","idempotency_key":"web-evolve-403","diff":{"node_decisions":[],"tasks":[],"edges":[]}}`, fixture.g0, fixture.version)
+	resp := orgScopedPost(t, url+"/evolution", body, member)
+	if resp.StatusCode != 403 {
+		t.Fatalf("non-owner evolution status=%d want 403 body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	read := decodeBody(t, orgScopedGet(t, url+"/generations", owner))
+	if read["active_generation_id"] != string(fixture.g0) || len(read["generations"].([]any)) != 1 {
+		t.Fatalf("non-owner request changed ledger=%v", read)
 	}
 }

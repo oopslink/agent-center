@@ -118,6 +118,7 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		DB:               db,
 		Projects:         pmsql.NewProjectRepo(db),
 		Members:          pmsql.NewProjectMemberRepo(db),
+		OrgMembers:       deps.MemberRepo,
 		Issues:           pmsql.NewIssueRepo(db),
 		Tasks:            pmsql.NewTaskRepo(db),
 		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),

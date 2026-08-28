@@ -289,6 +289,101 @@ func TestAssignmentSafetyHighRiskAgentAndLastOwner(t *testing.T) {
 	}
 }
 
+func TestDirectGrantManagedCarrierEffectiveExpiryDenyAndRevoke(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	expires := time.Date(2026, 8, 14, 13, 0, 0, 0, time.UTC)
+	req := BatchRequest{
+		IdempotencyKey: "direct-grant-analytics",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{
+			ID:   "grant",
+			Type: "direct_grant",
+			DirectGrant: DirectGrantInput{
+				ID:            "asgn-direct-expired",
+				SubjectRef:    "user:user-member",
+				PermissionKey: "org.analytics.read",
+				Resource:      ResourceScope{Kind: "org", ID: "org-1"},
+				ExpiresAt:     &expires,
+			},
+		}},
+	}
+	applied, err := svc.ApplyBatch(ctx, req)
+	if err != nil || len(applied.Operations) != 1 || applied.Operations[0].AssignmentID == "" {
+		t.Fatalf("direct grant apply=%#v err=%v", applied, err)
+	}
+	roleID := applied.Operations[0].RoleID
+	var kind, visibility string
+	if err := db.QueryRow(`SELECT kind, visibility FROM authorization_roles WHERE id = ?`, roleID).Scan(&kind, &visibility); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "managed" || visibility != "internal" {
+		t.Fatalf("direct grant role classification=%s/%s, want managed/internal", kind, visibility)
+	}
+	var visibleCustom int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM authorization_roles WHERE id = ? AND kind = 'custom' AND visibility = 'reusable'`, roleID).Scan(&visibleCustom); err != nil {
+		t.Fatal(err)
+	}
+	if visibleCustom != 0 {
+		t.Fatal("direct grant created a visible custom RAM Role")
+	}
+	decision, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}})
+	if err != nil || !decision.Allowed || decision.Source != SourceCustomRole {
+		t.Fatalf("direct grant decision=%#v err=%v", decision, err)
+	}
+	replay, err := svc.ApplyBatch(ctx, req)
+	if err != nil || !replay.Replayed || replay.Operations[0].AssignmentID != applied.Operations[0].AssignmentID {
+		t.Fatalf("direct grant replay=%#v err=%v", replay, err)
+	}
+	if _, err := db.Exec(`UPDATE members SET status = 'disabled' WHERE id = 'mem-member'`); err != nil {
+		t.Fatal(err)
+	}
+	svc.invalidateEffectiveCache()
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("disabled member direct grant err=%v, want deny precedence", err)
+	}
+	if _, err := db.Exec(`UPDATE members SET status = 'joined' WHERE id = 'mem-member'`); err != nil {
+		t.Fatal(err)
+	}
+	svc.invalidateEffectiveCache()
+	revoked, err := svc.RevokeBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-grant-revoke",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations:     []BatchOperation{{ID: "revoke", Revoke: RevokeInput{AssignmentID: applied.Operations[0].AssignmentID, Reason: "least privilege"}}},
+	})
+	if err != nil || len(revoked.Operations) != 1 || revoked.Operations[0].Status != "revoked" {
+		t.Fatalf("direct grant revoke=%#v err=%v", revoked, err)
+	}
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("revoked direct grant err=%v, want denied", err)
+	}
+	past := time.Date(2026, 8, 14, 11, 0, 0, 0, time.UTC)
+	_, err = svc.ApplyBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-grant-expired",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{
+			ID:   "expired",
+			Type: "direct_grant",
+			DirectGrant: DirectGrantInput{
+				SubjectRef:    "user:user-member",
+				PermissionKey: "org.analytics.read",
+				Resource:      ResourceScope{Kind: "org", ID: "org-1"},
+				ExpiresAt:     &past,
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("expired direct grant apply: %v", err)
+	}
+	if _, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "org.analytics.read", Resource: ResourceScope{Kind: "org", ID: "org-1"}}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("expired direct grant err=%v, want denied", err)
+	}
+}
+
 func TestStoreRoleAssignmentLifecycleAndScopedRevoke(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)
@@ -552,6 +647,16 @@ func TestStoreInvariantErrorsAndReplayPendingState(t *testing.T) {
 	}
 	if _, _, err := s.upsertCustomRole(ctx, Role{ID: "sys-org-owner", OrgID: "org-1", Name: "overwrite", CreatedBy: "system"}, now); !errors.Is(err, ErrSystemRoleImmutable) {
 		t.Fatalf("system role overwrite err=%v", err)
+	}
+	if _, _, err := s.upsertCustomRole(ctx, Role{ID: "role-reserved", OrgID: "org-1", Kind: "custom", Visibility: "reusable", Name: "Access grant org.read on org", CreatedBy: "system"}, now); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("reserved reusable role name err=%v", err)
+	}
+	managed, _, err := s.upsertCustomRole(ctx, Role{ID: "role-managed", OrgID: "org-1", Kind: "managed", Visibility: "internal", Name: "Managed direct grant org.read on org", CreatedBy: "system"}, now)
+	if err != nil {
+		t.Fatalf("managed internal role create: %v", err)
+	}
+	if managed.Kind != "managed" || managed.Visibility != "internal" {
+		t.Fatalf("managed role classification=%+v", managed)
 	}
 	role, _, err := s.upsertCustomRole(ctx, Role{ID: "role-org-one", OrgID: "org-1", Name: "one", CreatedBy: "system"}, now)
 	if err != nil {

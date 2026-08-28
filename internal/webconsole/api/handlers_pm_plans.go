@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -203,7 +204,85 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if len(detail.BlockedOn) > 0 {
+		blockedOn := make([]map[string]any, 0, len(detail.BlockedOn))
+		for _, b := range detail.BlockedOn {
+			blockedOn = append(blockedOn, map[string]any{
+				"event_id":          string(b.TaskID),
+				"task_id":           string(b.TaskID),
+				"node_id":           b.NodeID,
+				"wait_type":         string(b.WaitType),
+				"wait_keys":         b.WaitKeys,
+				"trigger_condition": b.TriggerCondition,
+				"waited_since":      b.WaitedSince.Format(time.RFC3339Nano),
+				"deadline":          rfc3339OrEmpty(b.Deadline),
+				"on_timeout":        b.OnTimeout,
+				"last_probe_at":     rfc3339OrEmpty(b.LastProbeAt),
+				"probe_count":       b.ProbeCount,
+			})
+		}
+		m["blocked_on"] = blockedOn
+	}
+	if detail.ProgressControl != nil {
+		m["progress_control"] = pmProgressControlMap(detail.ProgressControl)
+	}
 	return m
+}
+
+func pmProgressControlMap(snap *pm.ProgressControlSnapshot) map[string]any {
+	if snap == nil {
+		return nil
+	}
+	holds := make([]map[string]any, 0, len(snap.OpenHolds))
+	for _, h := range snap.OpenHolds {
+		holds = append(holds, map[string]any{
+			"id": h.ID, "task_id": string(h.TaskID), "node_id": h.NodeID,
+			"reason_kind": h.ReasonKind, "reason_id": h.ReasonID,
+			"owner_ref": h.OwnerRef, "entered_at": h.EnteredAt.Format(time.RFC3339Nano),
+			"hold_ack_deadline":    h.HoldAckDeadline.Format(time.RFC3339Nano),
+			"max_hold_duration_ms": h.MaxHoldDuration.Milliseconds(),
+			"escalation_level":     h.EscalationLevel,
+			"next_escalation_at":   h.NextEscalationAt.Format(time.RFC3339Nano),
+			"blocks_dispatch":      h.BlocksDispatch,
+			"blocks_acceptance":    h.BlocksAcceptance,
+			"blocks_completion":    h.BlocksCompletion,
+		})
+	}
+	obligations := make([]map[string]any, 0, len(snap.OpenObligations))
+	for _, o := range snap.OpenObligations {
+		obligations = append(obligations, map[string]any{
+			"id": o.ID, "task_id": string(o.TaskID), "node_id": o.NodeID,
+			"kind": o.Kind, "owner_ref": string(o.OwnerRef), "deadline_at": o.DeadlineAt.Format(time.RFC3339Nano),
+			"ack_required": o.AckRequired, "escalate_to_ref": o.EscalateToRef,
+			"escalation_deadline_at": o.EscalationDeadlineAt.Format(time.RFC3339Nano),
+			"source_fact_refs":       o.SourceFactRefs,
+			"status":                 o.Status,
+		})
+	}
+	incidents := make([]map[string]any, 0, len(snap.OpenIncidents))
+	for _, i := range snap.OpenIncidents {
+		incidents = append(incidents, map[string]any{
+			"id": i.ID, "task_id": string(i.TaskID), "node_id": i.NodeID,
+			"kind": i.Kind, "severity": i.Severity, "owner_ref": i.OwnerRef,
+			"summary": i.Summary, "source_ref": i.SourceRef, "status": i.Status,
+		})
+	}
+	actions := make([]map[string]any, 0, len(snap.RequiredActions))
+	for _, a := range snap.RequiredActions {
+		actions = append(actions, map[string]any{
+			"id": a.ID, "source_type": a.SourceType, "source_id": a.SourceID,
+			"category": a.Category, "action": a.Action, "owner_ref": a.OwnerRef,
+			"owner_display": a.OwnerDisplay, "deadline_at": rfc3339OrEmpty(a.DeadlineAt),
+			"trigger_fact_refs": a.TriggerFactRefs, "options": a.Options,
+		})
+	}
+	return map[string]any{
+		"as_of": snap.AsOf.Format(time.RFC3339Nano), "decision": string(snap.Decision),
+		"observation_vector_id": snap.ObservationVectorID, "quality": string(snap.Quality),
+		"freshness": map[string]any{"state": snap.Freshness.State, "watermark_lag_ms": snap.Freshness.WatermarkLagMS, "threshold_ms": snap.Freshness.ThresholdMS},
+		"open_holds": holds, "open_obligations": obligations, "open_incidents": incidents,
+		"required_actions": actions,
+	}
 }
 
 // pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare
@@ -257,6 +336,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pmservice.ErrStageGateReopenForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
@@ -825,12 +906,15 @@ type pmPlanGenerationDiffReq struct {
 }
 
 type pmPlanEvolutionReq struct {
-	ParentGenerationID string                   `json:"parent_generation_id"`
-	BaseVersion        int                      `json:"base_version"`
-	IdempotencyKey     string                   `json:"idempotency_key"`
-	Reason             string                   `json:"reason"`
-	Evidence           string                   `json:"evidence"`
-	Diff               *pmPlanGenerationDiffReq `json:"diff"`
+	ParentGenerationID  string                   `json:"parent_generation_id"`
+	BaseVersion         int                      `json:"base_version"`
+	IdempotencyKey      string                   `json:"idempotency_key"`
+	Reason              string                   `json:"reason"`
+	Evidence            string                   `json:"evidence"`
+	Diff                *pmPlanGenerationDiffReq `json:"diff"`
+	ResolveBlockEventID string                   `json:"resolve_block_event_id"`
+	ResolutionKind      string                   `json:"resolution_kind"`
+	ResolutionNote      string                   `json:"resolution_note"`
 }
 
 // pmCommitPlanEvolutionHandler is the product Evolution write surface. It uses
@@ -841,6 +925,13 @@ func (s *Server) pmCommitPlanEvolutionHandler(w http.ResponseWriter, r *http.Req
 	d := hd(r)
 	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "plan.write", authz.ResourceScope{Kind: "plan", ID: string(pl.ID()), ProjectID: string(pl.ProjectID())}) {
+		return
+	}
+	if pl.CreatorRef() != caller {
+		writeError(w, http.StatusForbidden, "forbidden", "plan owner is required to commit evolution")
 		return
 	}
 	var req pmPlanEvolutionReq
@@ -874,14 +965,17 @@ func (s *Server) pmCommitPlanEvolutionHandler(w http.ResponseWriter, r *http.Req
 		Edges:         *req.Diff.Edges,
 	}
 	result, err := d.PM.EvolvePlanGeneration(r.Context(), pmservice.EvolvePlanGenerationCommand{
-		PlanID:             pl.ID(),
-		ParentGenerationID: pm.PlanGenerationID(req.ParentGenerationID),
-		BaseVersion:        req.BaseVersion,
-		IdempotencyKey:     req.IdempotencyKey,
-		Reason:             req.Reason,
-		Evidence:           req.Evidence,
-		Creator:            caller,
-		Diff:               diff,
+		PlanID:              pl.ID(),
+		ParentGenerationID:  pm.PlanGenerationID(req.ParentGenerationID),
+		BaseVersion:         req.BaseVersion,
+		IdempotencyKey:      req.IdempotencyKey,
+		Reason:              req.Reason,
+		Evidence:            req.Evidence,
+		Creator:             caller,
+		Diff:                diff,
+		ResolveBlockEventID: req.ResolveBlockEventID,
+		ResolutionKind:      req.ResolutionKind,
+		ResolutionNote:      req.ResolutionNote,
 	})
 	if err != nil {
 		mapPlanError(w, err)
