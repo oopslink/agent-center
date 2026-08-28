@@ -29,7 +29,7 @@ func (s *Server) insightsOverviewHandler(w http.ResponseWriter, r *http.Request)
 	}
 	res, err := d.Insight.Overview(r.Context(), orgID, time.Now().UTC())
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, d.Insight.ErrorResponse(r.Context(), "insight_unavailable", err.Error(), time.Now().UTC()))
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -68,7 +68,7 @@ func (s *Server) insightsExecutionsHandler(w http.ResponseWriter, r *http.Reques
 		AsOf:      time.Now().UTC(),
 	})
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, d.Insight.ErrorResponse(r.Context(), "insight_unavailable", err.Error(), time.Now().UTC()))
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -96,7 +96,7 @@ func (s *Server) insightsExecutionHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, d.Insight.ErrorResponse(r.Context(), "insight_unavailable", err.Error(), time.Now().UTC()))
 		return
 	}
 	writeJSON(w, http.StatusOK, res)

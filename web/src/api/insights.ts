@@ -23,6 +23,37 @@ export interface InsightPercentiles {
   samples: number;
 }
 
+export type InsightMetricStatus =
+  | 'ok'
+  | 'zero'
+  | 'no_sample'
+  | 'unknown'
+  | 'low_coverage'
+  | 'partial_coverage'
+  | 'stale'
+  | 'unsupported';
+
+export interface InsightMetricEnvelope<T = number | null> {
+  value: T;
+  status: InsightMetricStatus;
+  coverage?: number | null;
+  freshness?: InsightFreshness;
+  window?: InsightWindow;
+  sample_count?: number;
+}
+
+export interface InsightSummarySemantics {
+  completed_executions: InsightMetricEnvelope<number>;
+  failed_executions: InsightMetricEnvelope<number>;
+  failure_rate: InsightMetricEnvelope<number | null>;
+  slot_utilization: InsightMetricEnvelope<number | null>;
+  slot_coverage_ratio: InsightMetricEnvelope<number | null>;
+  queue_wait_p50_ms: InsightMetricEnvelope<number | null>;
+  queue_wait_p95_ms: InsightMetricEnvelope<number | null>;
+  execution_duration_p50_ms: InsightMetricEnvelope<number | null>;
+  execution_duration_p95_ms: InsightMetricEnvelope<number | null>;
+}
+
 export interface InsightSummary {
   completed_executions: number;
   failed_executions: number;
@@ -31,6 +62,7 @@ export interface InsightSummary {
   slot_coverage_ratio: number | null;
   queue_wait_ms: InsightPercentiles;
   execution_duration_ms: InsightPercentiles;
+  semantics?: InsightSummarySemantics;
 }
 
 export interface InsightLeaderboardAgent {
@@ -74,6 +106,10 @@ export interface InsightExecutionRow {
   worker_id: string | null;
   outcome: string | null;
   failure_reason: string | null;
+  failure_message?: string | null;
+  command_status?: string | null;
+  status_reason?: string | null;
+  status_message?: string | null;
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -81,6 +117,21 @@ export interface InsightExecutionRow {
   duration_ms: number | null;
   recovered: boolean;
   quality: string;
+  status?: {
+    state: string;
+    label: string;
+    severity: string;
+    counts_as_failure: boolean;
+    recovered: boolean;
+    audit_outcome?: string;
+    audit_command_status?: string;
+  };
+  quality_semantic?: {
+    state: string;
+    label: string;
+    severity: string;
+    audit_quality?: string;
+  };
 }
 
 export interface InsightExecutions {
