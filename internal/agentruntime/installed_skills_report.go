@@ -24,8 +24,12 @@ const skillReportScanInterval = 30 * time.Second
 // kickInstalledSkillsReport runs a FORCED report in the background (boot path). It is
 // off the caller's goroutine so a slow scan / center never blocks session start.
 func (r *LocalRuntime) kickInstalledSkillsReport() {
+	if !r.beginRuntimeWork() {
+		return
+	}
 	r.bg.Add(1)
 	go func() {
+		defer r.endRuntimeWork()
 		defer r.bg.Done()
 		r.reportInstalledSkillsIfChanged(context.Background(), r.now(), true)
 	}()

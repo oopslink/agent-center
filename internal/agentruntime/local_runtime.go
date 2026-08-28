@@ -187,6 +187,13 @@ type LocalRuntime struct {
 	lifecycleCtx    context.Context
 	lifecycleCancel context.CancelFunc
 
+	// lifeMu/lifeWG are the single lifecycle admission protocol for runtime-owned
+	// background work and executor forks. Stop flips stopping under lifeMu before
+	// waiting, so no goroutine/process path can Add after teardown observes zero.
+	lifeMu   sync.Mutex
+	lifeWG   sync.WaitGroup
+	stopping bool
+
 	// exec is the per-agent concurrent-execution wiring (Phase 0c), installed via
 	// AttachExecutor when the agent opts into concurrency. nil ⇒ single-claude inject
 	// path. Guarded by r.mu exactly as ma.exec was guarded by c.mu.
@@ -325,7 +332,10 @@ func (r *LocalRuntime) markRecoveredOnce() (first bool) {
 
 // WaitBG blocks until this agent's best-effort clean-turn goroutines have drained
 // (Shutdown calls it per-runtime, replacing the old shared c.bg.Wait()).
-func (r *LocalRuntime) WaitBG() { r.bg.Wait() }
+func (r *LocalRuntime) WaitBG() {
+	r.bg.Wait()
+	r.lifeWG.Wait()
+}
 
 var _ Runtime = (*LocalRuntime)(nil)
 
@@ -422,6 +432,30 @@ func (r *LocalRuntime) runtimeStopped() bool {
 	}
 }
 
+func (r *LocalRuntime) beginRuntimeWork() bool {
+	r.lifeMu.Lock()
+	defer r.lifeMu.Unlock()
+	if r.stopping {
+		return false
+	}
+	r.lifeWG.Add(1)
+	return true
+}
+
+func (r *LocalRuntime) endRuntimeWork() { r.lifeWG.Done() }
+
+func (r *LocalRuntime) closeRuntimeAdmission() {
+	r.lifeMu.Lock()
+	r.stopping = true
+	r.lifeMu.Unlock()
+}
+
+func (r *LocalRuntime) isStopping() bool {
+	r.lifeMu.Lock()
+	defer r.lifeMu.Unlock()
+	return r.stopping
+}
+
 func (r *LocalRuntime) sleepRuntime(d time.Duration) bool {
 	if d <= 0 {
 		return !r.runtimeStopped()
@@ -451,6 +485,9 @@ func waitGroupContext(ctx context.Context, wg *sync.WaitGroup) error {
 }
 
 func (r *LocalRuntime) waitOwnedBackground(ctx context.Context) error {
+	if err := waitGroupContext(ctx, &r.lifeWG); err != nil {
+		return fmt.Errorf("runtime lifecycle work: %w", err)
+	}
 	if err := waitGroupContext(ctx, &r.sources.wg); err != nil {
 		return fmt.Errorf("source prewarm: %w", err)
 	}
@@ -532,6 +569,10 @@ func (r *LocalRuntime) agentPaths(agentID string) (home, tasksDir, plansDir stri
 // the executor branch to workViaExecutor before reaching here).
 func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	agentID := req.AgentID
+	if !r.beginRuntimeWork() {
+		return ErrRuntimeStopping
+	}
+	defer r.endRuntimeWork()
 	r.mu.Lock()
 	sess := r.state.Session
 	ee := r.exec
@@ -1368,6 +1409,7 @@ func (r *LocalRuntime) StopReporting(ctx context.Context) error {
 
 func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 	agentID := r.cfg.AgentID
+	r.closeRuntimeAdmission()
 	r.lifecycleCancel()
 
 	r.mu.Lock()
@@ -1479,6 +1521,10 @@ func (r *LocalRuntime) ResumeNudgeText() string { return r.resumeNudgeText() }
 // It deliberately does NOT fork: the supervisor owns the dispatch decision and
 // calls fork_executor only for tasks it wants isolated in an executor.
 func (r *LocalRuntime) NotifyWorkAvailable(ctx context.Context, taskID string) error {
+	if !r.beginRuntimeWork() {
+		return ErrRuntimeStopping
+	}
+	defer r.endRuntimeWork()
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		r.log("work_available agent=%s: empty task_id — skipping supervisor nudge", r.cfg.AgentID)

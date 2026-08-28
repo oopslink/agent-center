@@ -233,8 +233,23 @@ func (r *LocalRuntime) deferForSource(agentID string, waiter deferredSpawn, key 
 	r.log("fork_executor agent=%s task=%s repo_key=%s: repo source not ready — starting BACKGROUND materialize (control command returns now, task left queued, re-driven on completion)",
 		agentID, taskID, key)
 
+	if !r.beginRuntimeWork() {
+		r.sources.mu.Lock()
+		if cur := r.sources.entries[key]; cur == e {
+			delete(e.waiters, taskID)
+			e.inflight = false
+			if len(e.waiters) == 0 && e.ready == nil {
+				delete(r.sources.entries, key)
+			}
+		}
+		r.sources.mu.Unlock()
+		r.log("fork_executor agent=%s task=%s repo_key=%s: runtime stopping — repo source prewarm rejected fail-closed",
+			agentID, taskID, key)
+		return
+	}
 	r.sources.wg.Add(1)
 	go func() {
+		defer r.endRuntimeWork()
 		defer r.sources.wg.Done()
 		r.runSourcePrewarm(agentID, key, target)
 	}()

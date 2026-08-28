@@ -77,8 +77,17 @@ func (r *LocalRuntime) deferForClone(agentID string, waiter deferredSpawn, targe
 	r.log("fork_executor agent=%s task=%s: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)",
 		agentID, taskID)
 
+	if !r.beginRuntimeWork() {
+		r.clones.mu.Lock()
+		delete(r.clones.entries, taskID)
+		r.clones.mu.Unlock()
+		r.log("fork_executor agent=%s task=%s: runtime stopping — independent clone rejected fail-closed",
+			agentID, taskID)
+		return
+	}
 	r.clones.wg.Add(1)
 	go func() {
+		defer r.endRuntimeWork()
 		defer r.clones.wg.Done()
 		ctx, cancel := r.runtimeContext(r.clonePrepareTimeout())
 		clone, err := r.cfg.CloneMaterializer.PrepareClone(ctx, target, req)

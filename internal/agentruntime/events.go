@@ -175,8 +175,12 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		}
 		if !isCodex {
 			if home, _, _, pathErr := r.agentPaths(agentID); pathErr == nil {
+				if !r.beginRuntimeWork() {
+					return
+				}
 				r.bg.Add(1)
 				go func() {
+					defer r.endRuntimeWork()
 					defer r.bg.Done()
 					if merrr := sessioninstance.MarkCompletedTurn(home); merrr != nil {
 						r.log("restart-recovery: MarkCompletedTurn(%s) failed: %v", agentID, merrr)
