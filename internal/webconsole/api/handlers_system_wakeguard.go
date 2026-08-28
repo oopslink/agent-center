@@ -28,7 +28,7 @@ func (s *Server) requireAuthed(w http.ResponseWriter, r *http.Request, d Handler
 		return false
 	}
 	if _, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value); err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return false
 	}
 	return true

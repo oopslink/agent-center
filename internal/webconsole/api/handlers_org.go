@@ -23,7 +23,7 @@ func (s *Server) listOrgsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	orgs, err := d.OrgRepo.ListForIdentity(r.Context(), id.ID())
@@ -73,7 +73,7 @@ func (s *Server) createOrgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	var body struct {
@@ -112,7 +112,7 @@ func (s *Server) updateOrgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	orgID := r.PathValue("id")
@@ -170,7 +170,7 @@ func (s *Server) deleteOrgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	orgID := r.PathValue("id")
@@ -221,7 +221,7 @@ func (s *Server) orgEnableDisable(w http.ResponseWriter, r *http.Request, disabl
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	orgID := r.PathValue("id")

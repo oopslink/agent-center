@@ -302,6 +302,14 @@ func TestAuthService_AuthenticateToken(t *testing.T) {
 		}
 	})
 
+	t.Run("identity lookup storage error is unavailable", func(t *testing.T) {
+		brokenSvc := NewAuthService(&authBrokenIdentityRepo{err: errors.New("sqlite interrupted")}, signingKey)
+		_, err := brokenSvc.AuthenticateToken(ctx, sinResult.JWT)
+		if !errors.Is(err, ErrAuthUnavailable) {
+			t.Errorf("expected ErrAuthUnavailable, got %v", err)
+		}
+	})
+
 	t.Run("disabled identity", func(t *testing.T) {
 		// Disable the user.
 		id, _ := idRepo.GetByDisplayName(ctx, "AuthUser")
@@ -313,4 +321,36 @@ func TestAuthService_AuthenticateToken(t *testing.T) {
 			t.Errorf("expected ErrUnauthenticated for disabled identity (DS-4), got %v", err)
 		}
 	})
+}
+
+type authBrokenIdentityRepo struct {
+	err error
+}
+
+func (r *authBrokenIdentityRepo) Save(context.Context, *Identity) error {
+	panic("unused")
+}
+
+func (r *authBrokenIdentityRepo) Update(context.Context, *Identity) error {
+	panic("unused")
+}
+
+func (r *authBrokenIdentityRepo) GetByID(context.Context, string) (*Identity, error) {
+	return nil, r.err
+}
+
+func (r *authBrokenIdentityRepo) GetByDisplayName(context.Context, string) (*Identity, error) {
+	panic("unused")
+}
+
+func (r *authBrokenIdentityRepo) GetByEmail(context.Context, string) (*Identity, error) {
+	panic("unused")
+}
+
+func (r *authBrokenIdentityRepo) List(context.Context) ([]*Identity, error) {
+	panic("unused")
+}
+
+func (r *authBrokenIdentityRepo) Delete(context.Context, string) error {
+	panic("unused")
 }

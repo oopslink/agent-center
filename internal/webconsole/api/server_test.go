@@ -742,6 +742,40 @@ func TestAPI_SigninStorageUnavailableReturns500(t *testing.T) {
 	}
 }
 
+func TestAPI_MeStorageUnavailableReturns500(t *testing.T) {
+	deps, _ := setupAPIWithAuth(t)
+	deps.AuthSvc = identity.NewAuthService(&apiAuthBrokenIdentityRepo{err: errors.New("sqlite interrupted")}, testSigningKey)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	token, err := identity.MintJWT("user-broken", testSigningKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodGet, s.URL+"/api/auth/me", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: jwtCookieName, Value: token})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("me: status=%d body=%s", resp.StatusCode, body)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["error"] != "auth_unavailable" {
+		t.Fatalf("error = %v, want auth_unavailable", body["error"])
+	}
+}
+
 type apiSigninBrokenIdentityRepo struct {
 	err error
 }
@@ -771,6 +805,38 @@ func (r *apiSigninBrokenIdentityRepo) List(context.Context) ([]*identity.Identit
 }
 
 func (r *apiSigninBrokenIdentityRepo) Delete(context.Context, string) error {
+	panic("unused")
+}
+
+type apiAuthBrokenIdentityRepo struct {
+	err error
+}
+
+func (r *apiAuthBrokenIdentityRepo) Save(context.Context, *identity.Identity) error {
+	panic("unused")
+}
+
+func (r *apiAuthBrokenIdentityRepo) Update(context.Context, *identity.Identity) error {
+	panic("unused")
+}
+
+func (r *apiAuthBrokenIdentityRepo) GetByID(context.Context, string) (*identity.Identity, error) {
+	return nil, r.err
+}
+
+func (r *apiAuthBrokenIdentityRepo) GetByDisplayName(context.Context, string) (*identity.Identity, error) {
+	panic("unused")
+}
+
+func (r *apiAuthBrokenIdentityRepo) GetByEmail(context.Context, string) (*identity.Identity, error) {
+	panic("unused")
+}
+
+func (r *apiAuthBrokenIdentityRepo) List(context.Context) ([]*identity.Identity, error) {
+	panic("unused")
+}
+
+func (r *apiAuthBrokenIdentityRepo) Delete(context.Context, string) error {
 	panic("unused")
 }
 

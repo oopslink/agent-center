@@ -166,7 +166,7 @@ func (s *Server) meHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid or expired session")
+		writeAuthnError(w, err, "invalid or expired session")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -190,7 +190,7 @@ func (s *Server) changePasscodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	var body struct {
@@ -245,7 +245,7 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 			}
 			id, err := deps.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 			if err != nil {
-				writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid or expired session")
+				writeAuthnError(w, err, "invalid or expired session")
 				return
 			}
 			ctx := context.WithValue(r.Context(), currentIdentityKey{}, id)
@@ -255,6 +255,14 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 }
 
 type currentIdentityKey struct{}
+
+func writeAuthnError(w http.ResponseWriter, err error, unauthenticatedMessage string) {
+	if errors.Is(err, identity.ErrAuthUnavailable) {
+		writeError(w, http.StatusInternalServerError, "auth_unavailable", "authentication temporarily unavailable")
+		return
+	}
+	writeError(w, http.StatusUnauthorized, "unauthenticated", unauthenticatedMessage)
+}
 
 // CurrentIdentity retrieves the authenticated identity injected by authMiddleware.
 // Returns nil if auth middleware was not applied or auth is unconfigured.

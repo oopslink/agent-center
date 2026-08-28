@@ -323,14 +323,22 @@ func NewAuthService(identities IdentityRepository, signingKey []byte) *AuthServi
 }
 
 // AuthenticateToken verifies the JWT and returns the active Identity.
-// Returns ErrUnauthenticated on any failure (bad token, expired, disabled).
+// Returns ErrUnauthenticated for credential/session failures (bad token,
+// expired, missing/disabled identity) and ErrAuthUnavailable when the identity
+// store cannot be checked.
 func (s *AuthService) AuthenticateToken(ctx context.Context, jwtToken string) (*Identity, error) {
 	claims, err := VerifyJWT(jwtToken, s.signingKey)
 	if err != nil {
 		return nil, ErrUnauthenticated
 	}
 	identity, err := s.identities.GetByID(ctx, claims.Sub)
-	if err != nil || identity == nil {
+	if errors.Is(err, ErrIdentityNotFound) {
+		return nil, ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, ErrAuthUnavailable
+	}
+	if identity == nil {
 		return nil, ErrUnauthenticated
 	}
 	// DS-4: every request checks account_status.

@@ -175,7 +175,7 @@ func (s *Server) acceptInvitationHandler(w http.ResponseWriter, r *http.Request)
 	}
 	caller, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	org, err := d.OrgRepo.GetBySlug(r.Context(), r.PathValue("slug"))

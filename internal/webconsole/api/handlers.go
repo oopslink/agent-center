@@ -296,7 +296,7 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 	}
 	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return nil, nil, "", false
 	}
 	orgID := resolveOrgIDFromRequest(r, d)
@@ -2191,7 +2191,7 @@ func (s *Server) revokeEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		writeAuthnError(w, err, "invalid session")
 		return
 	}
 	q := r.URL.Query()
