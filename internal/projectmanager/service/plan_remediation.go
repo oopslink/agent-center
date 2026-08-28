@@ -143,8 +143,12 @@ func (s *Service) RecordStageGateVerdict(ctx context.Context, cmd RecordStageGat
 			}
 			result.Verdict = verdict
 			// Compatibility read model only: the immutable verdict above is authoritative.
-			if err := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), cmd.GateTaskID, string(cmd.Outcome), now); err != nil {
-				return err
+			// REJECT must not enter the legacy decision router, which would try to reopen
+			// the completed generation instead of appending remediation.
+			if cmd.Outcome == pm.GateVerdictPass {
+				if err := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), cmd.GateTaskID, string(cmd.Outcome), now); err != nil {
+					return err
+				}
 			}
 			if err := s.emit(txCtx, EvtStageGateVerdictRecorded,
 				refsJSON(map[string]string{"plan_id": string(plan.ID()), "stage_id": string(stage.ID()), "verdict_id": string(verdict.ID)}), verdict); err != nil {

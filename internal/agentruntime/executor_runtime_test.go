@@ -346,6 +346,55 @@ func TestTaskInput_RetryReplacesLegacyAndPartialPackage(t *testing.T) {
 	}
 }
 
+func TestTaskInput_ConcurrentMaterializeSameWorkspaceRaceX10CleansStaging(t *testing.T) {
+	rt := newExecRuntime(t, t.TempDir(), "agent-race", lookTrue(t))
+	payload := []byte("race-safe task input")
+	sc := &scriptedToolCaller{
+		listFilesBody: map[string]any{"files": []map[string]any{{
+			"uri": "ac://files/race", "filename": "race.txt", "mime_type": "text/plain", "size": len(payload),
+		}}},
+		downloads: map[string][]byte{"ac://files/race": payload},
+	}
+	setToolCaller(rt, sc)
+	workspace := t.TempDir()
+	task := &centerTaskDetail{ID: "task-race", Title: "race package"}
+
+	const attempts = 10
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := rt.materializeTaskInputPackage(context.Background(), "agent-race", task.ID, fmt.Sprintf("exec-%02d", i), workspace, task)
+			errs <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent materialize: %v", err)
+		}
+	}
+	var manifest taskInputManifest
+	readJSONTest(t, filepath.Join(workspace, taskInputDirName, taskInputVersion, taskInputManifestFileName), &manifest)
+	if len(manifest.Files) != 1 || manifest.Files[0].SHA256 == "" {
+		t.Fatalf("published manifest invalid after race: %+v", manifest)
+	}
+	got, err := os.ReadFile(filepath.Join(workspace, taskInputDirName, taskInputVersion, taskInputAttachmentsDir, "race.txt"))
+	if err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("published attachment mismatch err=%v got=%q", err, string(got))
+	}
+	leaks, err := filepath.Glob(filepath.Join(workspace, "."+taskInputDirName+".tmp-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaks) != 0 {
+		t.Fatalf("staging dirs leaked after race: %v", leaks)
+	}
+}
+
 func spawnRuntime(t *testing.T, agentID string) (*LocalRuntime, *ExecutorEngine, string) {
 	t.Helper()
 	rt, ee, home := engineForAgent(t, agentID)

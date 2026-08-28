@@ -106,7 +106,205 @@ func (s *Service) reconcilePlanProgress(ctx context.Context, planID pm.PlanID, o
 			}
 		}
 	}
+	if err := s.reconcilePlanLevelProgress(ctx, p, tasks, blocked, now); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (s *Service) reconcilePlanLevelProgress(ctx context.Context, p *pm.Plan, tasks []*pm.Task, blocked []pm.BlockedOn, now time.Time) error {
+	if p == nil || p.Status() != pm.PlanRunning || p.IsBuiltin() {
+		return nil
+	}
+	eval, err := s.canCompletePlan(ctx, p)
+	if err != nil {
+		return err
+	}
+	if eval.CanComplete || len(eval.View.ReadySet) > 0 || !eval.View.AllDone {
+		return s.reconcileStageGateDiagnostics(ctx, p, tasks, now)
+	}
+	if len(blocked) != 0 {
+		return s.reconcileStageGateDiagnostics(ctx, p, tasks, now)
+	}
+	reasons := unresolvedPlanProgressReasons(eval.Reasons)
+	if len(reasons) == 0 {
+		return s.reconcileStageGateDiagnostics(ctx, p, tasks, now)
+	}
+	reason := strings.Join(reasons, ";")
+	v := planProgressObservation(p, now, "empty_frontier_unresolved_plan", reason, eval)
+	if err := s.plans.SaveProgressObservation(ctx, v); err != nil {
+		return err
+	}
+	if err := s.plans.UpsertProgressIncident(ctx, planProgressIncident(p, v, pm.IncidentEmptyFrontierUnresolvedPlan, now)); err != nil {
+		return err
+	}
+	already, err := s.planHasOpenObligation(ctx, p.ID(), "", pm.ObligationPlanProgress, v.SuspectKey)
+	if err != nil {
+		return err
+	}
+	if err := s.plans.UpsertProgressObligation(ctx, planProgressObligation(p, v, pm.ObligationPlanProgress, now)); err != nil {
+		return err
+	}
+	if !already {
+		if err := s.notifyPlanOwnerOnPlanProgressObligation(ctx, p, string(pm.IncidentEmptyFrontierUnresolvedPlan), reason); err != nil {
+			return err
+		}
+	}
+	return s.reconcileStageGateDiagnostics(ctx, p, tasks, now)
+}
+
+func (s *Service) reconcileStageGateDiagnostics(ctx context.Context, p *pm.Plan, tasks []*pm.Task, now time.Time) error {
+	if s.stages == nil || p == nil || p.Status() != pm.PlanRunning {
+		return nil
+	}
+	stages, err := s.stages.ListByPlan(ctx, p.ID())
+	if err != nil {
+		return err
+	}
+	for _, st := range stages {
+		detail := s.projectStage(ctx, st, tasks)
+		for _, diag := range detail.Diagnostics {
+			if diag.Code != "missing_gate_evaluator" {
+				continue
+			}
+			v := stageGateDiagnosticObservation(p, st, diag, now)
+			if err := s.plans.SaveProgressObservation(ctx, v); err != nil {
+				return err
+			}
+			if err := s.plans.UpsertProgressIncident(ctx, planProgressIncident(p, v, pm.IncidentMissingGateEvaluator, now)); err != nil {
+				return err
+			}
+			already, err := s.planHasOpenObligation(ctx, p.ID(), "", pm.ObligationGateEvaluation, v.SuspectKey)
+			if err != nil {
+				return err
+			}
+			if err := s.plans.UpsertProgressObligation(ctx, planProgressObligation(p, v, pm.ObligationGateEvaluation, now)); err != nil {
+				return err
+			}
+			if !already {
+				reason := "stage " + string(st.ID()) + " has no executable gate evaluator"
+				if err := s.notifyPlanOwnerOnPlanProgressObligation(ctx, p, diag.Code, reason); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func unresolvedPlanProgressReasons(reasons []string) []string {
+	out := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		switch {
+		case strings.HasPrefix(reason, "open_remediation:"),
+			strings.HasPrefix(reason, "unresolved_condition:"):
+			out = append(out, reason)
+		}
+	}
+	return out
+}
+
+func planProgressObservation(p *pm.Plan, now time.Time, key, reason string, eval PlanCompletionEvaluation) pm.ObservationVector {
+	factID := progressFactID(p.ID(), "", key, reason)
+	return pm.ObservationVector{
+		ID:       progressObservationID(p.ID(), "", now, key, 1),
+		PlanID:   p.ID(),
+		Decision: pm.CannotDetermine,
+		Quality:  pm.ProgressQualitySuspect,
+		AsOf:     now, EvaluatedAt: now,
+		SourceRevisions: []pm.ObservationSource{{
+			Kind: "pm_plans", SourceID: string(p.ID()), Revision: strconv.Itoa(p.Version()), WatermarkAt: now, ObservedAt: now,
+		}},
+		Facts: []pm.ProgressFact{{
+			ID: factID, SourceKind: "pm_plan_completion_evaluator", SourceID: string(p.ID()),
+			OccurredAt: now, ObservedAt: now, Revision: strconv.Itoa(p.Version()),
+			Summary: reason, Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
+		}},
+		SuspectKey: key, SuspectCycles: 1,
+		Coverage: pm.ProgressCoverage{TotalNodes: eval.View.Progress.Total, CoveredNodes: eval.View.Progress.Done},
+	}
+}
+
+func stageGateDiagnosticObservation(p *pm.Plan, st *pm.Stage, diag PlanDiagnostic, now time.Time) pm.ObservationVector {
+	key := "missing_gate_evaluator:" + string(st.ID())
+	factID := progressFactID(p.ID(), "", key, diag.Code)
+	return pm.ObservationVector{
+		ID:       progressObservationID(p.ID(), "", now, key, 1),
+		PlanID:   p.ID(),
+		NodeID:   diag.NodeID,
+		Decision: pm.CannotDetermine,
+		Quality:  pm.ProgressQualitySuspect,
+		AsOf:     now, EvaluatedAt: now,
+		SourceRevisions: []pm.ObservationSource{{
+			Kind: "pm_stages", SourceID: string(st.ID()), Revision: strconv.Itoa(st.Version()), WatermarkAt: now, ObservedAt: now,
+		}},
+		Facts: []pm.ProgressFact{{
+			ID: factID, SourceKind: "pm_stages", SourceID: string(st.ID()),
+			OccurredAt: now, ObservedAt: now, Revision: strconv.Itoa(st.Version()),
+			Summary: diag.Code, Quality: pm.ProgressFactQualityUnknown, CannotAbsent: true,
+		}},
+		SuspectKey: key, SuspectCycles: 1,
+	}
+}
+
+func planProgressObligation(p *pm.Plan, v pm.ObservationVector, kind pm.ProgressObligationKind, now time.Time) pm.ProgressObligation {
+	return pm.ProgressObligation{
+		ID:     stableID("pobl", string(v.PlanID), "", string(kind), v.SuspectKey),
+		PlanID: v.PlanID, NodeID: v.NodeID, Kind: kind, OwnerRef: p.CreatorRef(), OwnerDisplay: "Plan owner",
+		DeadlineAt: now.Add(15 * time.Minute), AckRequired: true, EscalateToRef: "system",
+		EscalationDeadlineAt: now.Add(30 * time.Minute), SourceFactRefs: factIDs(v.Facts),
+		EpisodeKey: v.SuspectKey, Status: pm.ResponsibilityOpen, CreatedAt: now, UpdatedAt: now, Version: 1,
+	}
+}
+
+func planProgressIncident(p *pm.Plan, v pm.ObservationVector, kind pm.ProgressIncidentKind, now time.Time) pm.ProgressIncident {
+	return pm.ProgressIncident{
+		ID:     stableID("pinc", string(v.PlanID), "", string(kind), v.SuspectKey),
+		PlanID: v.PlanID, NodeID: v.NodeID, Kind: kind, OwnerRef: p.CreatorRef(), OwnerDisplay: "Plan owner",
+		DeadlineAt: now.Add(10 * time.Minute), AckRequired: true, EscalateToRef: "system",
+		EscalationDeadlineAt: now.Add(20 * time.Minute), SourceFactRefs: factIDs(v.Facts),
+		EpisodeKey: v.SuspectKey, Status: pm.ResponsibilityOpen, CreatedAt: now, UpdatedAt: now, Version: 1,
+	}
+}
+
+func (s *Service) planHasOpenObligation(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, kind pm.ProgressObligationKind, episode string) (bool, error) {
+	list, err := s.plans.ListOpenProgressObligations(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	for _, o := range list {
+		if o.TaskID == taskID && o.Kind == kind && o.EpisodeKey == episode {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *Service) notifyPlanOwnerOnPlanProgressObligation(ctx context.Context, p *pm.Plan, code, reason string) error {
+	if p == nil || strings.TrimSpace(p.ConversationID()) == "" {
+		return nil
+	}
+	msgID := ""
+	if s.planDispatcher != nil {
+		content := fmt.Sprintf("plan %s needs owner action (%s): %s", p.ID(), code, reason)
+		id, err := s.planDispatcher.PostMention(ctx, p.ConversationID(), string(p.CreatorRef()), content)
+		if err != nil {
+			return err
+		}
+		msgID = id
+	}
+	orgID := ""
+	if s.projects != nil {
+		if proj, err := s.projects.FindByID(ctx, p.ProjectID()); err == nil && proj != nil {
+			orgID = proj.OrganizationID()
+		}
+	}
+	return s.emit(ctx, EvtPlanOwnerBlockWake,
+		refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
+		planOwnerBlockWakePayload{
+			OwnerRef: string(p.CreatorRef()), ConversationID: p.ConversationID(), MessageID: msgID,
+			PlanID: string(p.ID()), WaitType: code, Reason: reason, OrganizationID: orgID,
+		})
 }
 
 func (s *Service) evaluateTaskProgress(ctx context.Context, p *pm.Plan, t *pm.Task, dispatched bool, blocked pm.BlockedOn, cov pm.ProgressCoverage, now time.Time, opt progressReconcileOptions) pm.ObservationVector {

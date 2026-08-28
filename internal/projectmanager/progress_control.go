@@ -76,6 +76,8 @@ type ProgressObligationKind string
 const (
 	ObligationProduceDelivery ProgressObligationKind = "produce_delivery"
 	ObligationSourceRecovery  ProgressObligationKind = "source_recovery"
+	ObligationPlanProgress    ProgressObligationKind = "plan_progress"
+	ObligationGateEvaluation  ProgressObligationKind = "gate_evaluation"
 )
 
 type ProgressIncidentKind string
@@ -85,6 +87,8 @@ const (
 	IncidentProgressClassificationUnknown ProgressIncidentKind = "progress_classification_unknown"
 	IncidentMigrationGap                  ProgressIncidentKind = "migration_gap"
 	IncidentProjectorUnavailable          ProgressIncidentKind = "projector_unavailable"
+	IncidentEmptyFrontierUnresolvedPlan   ProgressIncidentKind = "empty_frontier_unresolved_plan"
+	IncidentMissingGateEvaluator          ProgressIncidentKind = "missing_gate_evaluator"
 )
 
 type ResponsibilityStatus string

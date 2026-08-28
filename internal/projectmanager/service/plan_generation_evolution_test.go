@@ -624,11 +624,16 @@ func TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveG
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloadedA.PlanID() != "" {
-		t.Fatalf("superseded completed task still in plan: %s", reloadedA.PlanID())
+	if reloadedA.PlanID() != planID {
+		t.Fatalf("superseded completed task plan_id=%s, want retained plan %s", reloadedA.PlanID(), planID)
 	}
-	if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
-		t.Fatalf("completed graph node lookup err=%v, want ErrNodeNotFound", err)
+	if reloadedA.NodeID() != "" || reloadedA.StageID() != "" {
+		t.Fatalf("superseded completed task retained active bindings: node=%q stage=%s", reloadedA.NodeID(), reloadedA.StageID())
+	}
+	if oldA.NodeID() != "" {
+		if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
+			t.Fatalf("completed graph node lookup err=%v, want ErrNodeNotFound", err)
+		}
 	}
 	cSnap := generationTaskByTitle(t, res.Generation, "terminal replacement")
 	cTask, err := h.tasks.FindByID(h.ctx, cSnap.TaskID)
@@ -672,8 +677,11 @@ func TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloadedA.PlanID() != "" {
-		t.Fatalf("superseded discarded task still in plan: %s", reloadedA.PlanID())
+	if reloadedA.PlanID() != planID {
+		t.Fatalf("superseded discarded task plan_id=%s, want retained plan %s", reloadedA.PlanID(), planID)
+	}
+	if reloadedA.NodeID() != "" || reloadedA.StageID() != "" {
+		t.Fatalf("superseded discarded task retained active bindings: node=%q stage=%s", reloadedA.NodeID(), reloadedA.StageID())
 	}
 	if oldA.NodeID() != "" {
 		if _, err := h.svc.orch.GetNode(h.ctx, orch.NodeID(oldA.NodeID())); !errors.Is(err, orch.ErrNodeNotFound) {
