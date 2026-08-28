@@ -161,6 +161,9 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
+		if t.Assignee() == "" {
+			return pm.ErrTaskNotRunnable
+		}
 		prevStatus := t.Status()
 		if err := t.Start(now); err != nil {
 			return err

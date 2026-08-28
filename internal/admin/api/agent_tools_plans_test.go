@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,29 @@ import (
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
+
+func TestMapPlanToolError_PlanNodeNotRemovableStructured(t *testing.T) {
+	rec := httptest.NewRecorder()
+	mapPlanToolError(rec, &pm.PlanNodeNotRemovableError{
+		PlanID: "plan-1", NodeID: "node-1", TaskID: "task-1", CurrentStatus: pm.TaskRunning,
+		AllowedStatus: "pending", HistoryBlockers: []string{"dispatch_record"},
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status=%d want=%d", rec.Code, http.StatusConflict)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["error"] != pm.PlanNodeNotRemovableCode || body["plan_id"] != "plan-1" || body["node_id"] != "node-1" ||
+		body["task_id"] != "task-1" || body["current_status"] != string(pm.TaskRunning) || body["allowed_status"] != "pending" {
+		t.Fatalf("body=%v", body)
+	}
+	blockers, _ := body["history_blockers"].([]any)
+	if len(blockers) != 1 || blockers[0] != "dispatch_record" {
+		t.Fatalf("history_blockers=%v", body["history_blockers"])
+	}
+}
 
 // =============================================================================
 // v2.9 P3 Stage C — agent MCP Plan passthrough tools (create_plan,

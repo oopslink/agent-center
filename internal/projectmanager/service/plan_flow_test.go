@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,11 +41,13 @@ func planSetup(t *testing.T) (*Service, *convsql.ConversationRepo, *pmsql.PlanRe
 	convRepo := convsql.NewConversationRepo(db)
 	plans := pmsql.NewPlanRepo(db)
 	tasks := pmsql.NewTaskRepo(db)
+	actionLogs := pmsql.NewTaskActionLogRepo(db, gen)
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
+		TaskActionLogs: actionLogs, Stages: pmsql.NewStageRepo(db), Remediation: pmsql.NewRemediationRepo(db),
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
@@ -359,8 +364,8 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	if err := plans.Update(ctx, p); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNotPending) {
-		t.Fatalf("remove from running plan = %v, want ErrPlanNotPending", err)
+	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNodeNotRemovable) {
+		t.Fatalf("remove from running plan = %v, want ErrPlanNodeNotRemovable", err)
 	}
 }
 
@@ -370,7 +375,7 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 // the draft-only gate; RemoveTaskFromPlan MUST mirror that exemption so a task can
 // leave the pool (back to backlog, or as the remove-half of a Work Board move).
 // Without it, dragging a pool task anywhere reports plan_conflict (the reported bug).
-func TestRemoveTaskFromPlan_BuiltinPool_OK(t *testing.T) {
+func TestRemoveTaskFromPlan_BuiltinPoolRejectedAsRunningPlanNode(t *testing.T) {
 	svc, _, _, tasks, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	pool := svc.builtinPoolOf(ctx, pid)
@@ -386,13 +391,130 @@ func TestRemoveTaskFromPlan_BuiltinPool_OK(t *testing.T) {
 		t.Fatalf("SelectTaskIntoPlan(pool) = %v, want nil", err)
 	}
 	// Removing FROM the always-running pool must also succeed (the T121 symmetry).
-	if err := svc.RemoveTaskFromPlan(ctx, pool.ID(), taskA, "user:a"); err != nil {
-		t.Fatalf("RemoveTaskFromPlan(pool) = %v, want nil (pool task-set is editable)", err)
+	if err := svc.RemoveTaskFromPlan(ctx, pool.ID(), taskA, "user:a"); !errors.Is(err, pm.ErrPlanNodeNotRemovable) {
+		t.Fatalf("RemoveTaskFromPlan(pool) = %v, want ErrPlanNodeNotRemovable", err)
 	}
 	tk, _ := tasks.FindByID(ctx, taskA)
-	if tk.PlanID() != "" {
-		t.Fatalf("task plan after remove = %q, want empty (back to backlog)", tk.PlanID())
+	if tk.PlanID() != pool.ID() {
+		t.Fatalf("task plan after rejected remove = %q, want %q", tk.PlanID(), pool.ID())
 	}
+}
+
+func TestRemoveTaskFromPlan_RejectsEveryNonOpenTaskStatus(t *testing.T) {
+	for _, status := range pm.AllTaskStatuses() {
+		if status == pm.TaskOpen {
+			continue
+		}
+		t.Run(string(status), func(t *testing.T) {
+			h := planAdvanceSetup(t)
+			pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+			planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+			h.drain(t)
+			taskA := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+			h.setTaskStatus(t, taskA, status)
+			err := h.svc.RemoveTaskFromPlan(h.ctx, planID, taskA, "user:a")
+			var nodeErr *pm.PlanNodeNotRemovableError
+			if !errors.As(err, &nodeErr) {
+				t.Fatalf("remove %s err=%v", status, err)
+			}
+			if nodeErr.CurrentStatus != status || !hasStringPrefix(nodeErr.HistoryBlockers, "task_status:"+string(status)) {
+				t.Fatalf("node error=%+v", nodeErr)
+			}
+		})
+	}
+}
+
+func TestRemoveTaskFromPlan_RejectsStartedResetNode(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	h.drain(t)
+	taskA := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartTask(h.ctx, taskA, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	expired := h.clk.Now().Add(-time.Hour)
+	if _, err := h.svc.db.ExecContext(h.ctx, `UPDATE pm_tasks SET execution_lease_expires_at=? WHERE id=?`, expired.Format(time.RFC3339Nano), string(taskA)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ResetTask(h.ctx, taskA, "user:a", true); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := h.plans.FindByID(h.ctx, planID)
+	if err := p.Stop(h.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.Update(h.ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	err := h.svc.RemoveTaskFromPlan(h.ctx, planID, taskA, "user:a")
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if !errors.As(err, &nodeErr) {
+		t.Fatalf("remove reset node err=%v", err)
+	}
+	if !hasStringPrefix(nodeErr.HistoryBlockers, "task_action_log:agent_started") || !hasStringPrefix(nodeErr.HistoryBlockers, "task_action_log:reset") {
+		t.Fatalf("history blockers=%v", nodeErr.HistoryBlockers)
+	}
+}
+
+func TestRemoveTaskFromPlan_RejectsGateAndAcceptanceHistory(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	h.drain(t)
+	review := h.seedAssignedTask(t, pid, planID, "Review", "user:review")
+	gate := h.seedAssignedTask(t, pid, planID, "Acceptance gate", "user:pd")
+	if err := h.plans.RecordReviewVerdict(h.ctx, planID, pm.ReviewVerdict{PlanID: planID, TaskID: review, Verdict: "pass", SHA: "abc123"}, h.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.remediation.SaveVerdict(h.ctx, pm.GateVerdict{ID: "gv-1", ProjectID: pid, PlanID: planID, GateTaskID: gate, Outcome: pm.GateVerdictPass, Evidence: "ok", ReviewedSHA: "abc123", ActorRef: "user:a", IdempotencyKey: "gate-key", CreatedAt: h.clk.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		task    pm.TaskID
+		blocker string
+	}{{review, "review_verdict"}, {gate, "gate_verdict:gv-1"}} {
+		err := h.svc.RemoveTaskFromPlan(h.ctx, planID, tc.task, "user:a")
+		var nodeErr *pm.PlanNodeNotRemovableError
+		if !errors.As(err, &nodeErr) || !hasStringPrefix(nodeErr.HistoryBlockers, tc.blocker) {
+			t.Fatalf("task=%s err=%v node=%+v", tc.task, err, nodeErr)
+		}
+	}
+}
+
+func TestRemoveTaskFromPlan_ConcurrentStartAtMostOneWins(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	for i := 0; i < 20; i++ {
+		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: fmt.Sprintf("Sprint %d", i), CreatedBy: "user:a"})
+		h.drain(t)
+		taskA := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
+		var wg sync.WaitGroup
+		wg.Add(2)
+		var startErr, removeErr error
+		go func() { defer wg.Done(); startErr = h.svc.StartTask(h.ctx, taskA, "user:a") }()
+		go func() { defer wg.Done(); removeErr = h.svc.RemoveTaskFromPlan(h.ctx, planID, taskA, "user:a") }()
+		wg.Wait()
+		if startErr == nil && removeErr == nil {
+			t.Fatalf("iteration %d both succeeded", i)
+		}
+		tk, _ := h.tasks.FindByID(h.ctx, taskA)
+		if tk.PlanID() == "" && tk.Status() == pm.TaskRunning {
+			t.Fatalf("iteration %d removed and started", i)
+		}
+	}
+}
+
+func hasStringPrefix(xs []string, prefix string) bool {
+	for _, x := range xs {
+		if strings.HasPrefix(x, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSelectTaskIntoPlan_SamePlan_NoOp(t *testing.T) {
