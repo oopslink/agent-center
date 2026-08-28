@@ -124,6 +124,10 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := d.SigninSvc.Execute(r.Context(), login, body.Passcode)
 	if err != nil {
+		if errors.Is(err, identity.ErrAuthUnavailable) {
+			writeError(w, http.StatusInternalServerError, "auth_unavailable", "authentication temporarily unavailable")
+			return
+		}
 		writeError(w, http.StatusUnauthorized, "auth_failed", "invalid login or passcode")
 		return
 	}
@@ -307,6 +311,8 @@ func identityErrCode(err error) string {
 	switch {
 	case errors.Is(err, identity.ErrPasscodeInvalid):
 		return "auth_failed"
+	case errors.Is(err, identity.ErrAuthUnavailable):
+		return "auth_unavailable"
 	case errors.Is(err, identity.ErrUnauthenticated):
 		return "unauthenticated"
 	case errors.Is(err, identity.ErrIdentityDisplayNameTaken):

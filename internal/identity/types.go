@@ -126,6 +126,7 @@ var (
 	ErrInvitationExpired  = errors.New("invitation: expired")
 
 	ErrPasscodeInvalid = errors.New("auth: passcode incorrect")
+	ErrAuthUnavailable = errors.New("auth: temporarily unavailable")
 	ErrForbidden       = errors.New("auth: forbidden")
 	ErrUnauthenticated = errors.New("auth: unauthenticated")
 )

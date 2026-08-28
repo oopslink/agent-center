@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -221,6 +222,47 @@ func TestSigninService_Execute(t *testing.T) {
 			t.Errorf("expected ErrPasscodeInvalid, got %v", err)
 		}
 	})
+
+	t.Run("lookup storage error is unavailable", func(t *testing.T) {
+		storageErr := errors.New("sqlite interrupted")
+		brokenSvc := NewSigninService(&signinBrokenIdentityRepo{err: storageErr}, signingKey)
+		_, err := brokenSvc.Execute(ctx, "login@example.com", "Passw0rd1!")
+		if !errors.Is(err, ErrAuthUnavailable) {
+			t.Errorf("expected ErrAuthUnavailable, got %v", err)
+		}
+	})
+}
+
+type signinBrokenIdentityRepo struct {
+	err error
+}
+
+func (r *signinBrokenIdentityRepo) Save(context.Context, *Identity) error {
+	panic("unused")
+}
+
+func (r *signinBrokenIdentityRepo) Update(context.Context, *Identity) error {
+	panic("unused")
+}
+
+func (r *signinBrokenIdentityRepo) GetByID(context.Context, string) (*Identity, error) {
+	panic("unused")
+}
+
+func (r *signinBrokenIdentityRepo) GetByDisplayName(context.Context, string) (*Identity, error) {
+	return nil, r.err
+}
+
+func (r *signinBrokenIdentityRepo) GetByEmail(context.Context, string) (*Identity, error) {
+	return nil, r.err
+}
+
+func (r *signinBrokenIdentityRepo) List(context.Context) ([]*Identity, error) {
+	panic("unused")
+}
+
+func (r *signinBrokenIdentityRepo) Delete(context.Context, string) error {
+	panic("unused")
 }
 
 func TestAuthService_AuthenticateToken(t *testing.T) {
