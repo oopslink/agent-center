@@ -1,0 +1,522 @@
+timestamp_start=2026-08-28T09:47:31Z
+command=bash docs/reports/process-saturation-20260828/probe-fork-exec-headroom.sh docs/reports/process-saturation-20260828/raw 250
+probe_process=/bin/sleep 5
+requested_spawns=250
+pre_total_processes=707
+
+pre_users=38
+
+spawn index=1 pid=25154 status=started
+spawn index=2 pid=25155 status=started
+spawn index=3 pid=25156 status=started
+spawn index=4 pid=25157 status=started
+spawn index=5 pid=25158 status=started
+spawn index=6 pid=25159 status=started
+spawn index=7 pid=25160 status=started
+spawn index=8 pid=25161 status=started
+spawn index=9 pid=25162 status=started
+spawn index=10 pid=25163 status=started
+spawn index=11 pid=25164 status=started
+spawn index=12 pid=25165 status=started
+spawn index=13 pid=25166 status=started
+spawn index=14 pid=25167 status=started
+spawn index=15 pid=25168 status=started
+spawn index=16 pid=25169 status=started
+spawn index=17 pid=25170 status=started
+spawn index=18 pid=25171 status=started
+spawn index=19 pid=25172 status=started
+spawn index=20 pid=25173 status=started
+spawn index=21 pid=25174 status=started
+spawn index=22 pid=25175 status=started
+spawn index=23 pid=25176 status=started
+spawn index=24 pid=25177 status=started
+spawn index=25 pid=25178 status=started
+spawn index=26 pid=25179 status=started
+spawn index=27 pid=25180 status=started
+spawn index=28 pid=25181 status=started
+spawn index=29 pid=25182 status=started
+spawn index=30 pid=25183 status=started
+spawn index=31 pid=25184 status=started
+spawn index=32 pid=25185 status=started
+spawn index=33 pid=25186 status=started
+spawn index=34 pid=25187 status=started
+spawn index=35 pid=25188 status=started
+spawn index=36 pid=25189 status=started
+spawn index=37 pid=25190 status=started
+spawn index=38 pid=25191 status=started
+spawn index=39 pid=25192 status=started
+spawn index=40 pid=25193 status=started
+spawn index=41 pid=25194 status=started
+spawn index=42 pid=25195 status=started
+spawn index=43 pid=25196 status=started
+spawn index=44 pid=25197 status=started
+spawn index=45 pid=25198 status=started
+spawn index=46 pid=25199 status=started
+spawn index=47 pid=25200 status=started
+spawn index=48 pid=25201 status=started
+spawn index=49 pid=25202 status=started
+spawn index=50 pid=25203 status=started
+spawn index=51 pid=25204 status=started
+spawn index=52 pid=25205 status=started
+spawn index=53 pid=25206 status=started
+spawn index=54 pid=25207 status=started
+spawn index=55 pid=25208 status=started
+spawn index=56 pid=25209 status=started
+spawn index=57 pid=25210 status=started
+spawn index=58 pid=25211 status=started
+spawn index=59 pid=25212 status=started
+spawn index=60 pid=25213 status=started
+spawn index=61 pid=25214 status=started
+spawn index=62 pid=25215 status=started
+spawn index=63 pid=25216 status=started
+spawn index=64 pid=25217 status=started
+spawn index=65 pid=25218 status=started
+spawn index=66 pid=25219 status=started
+spawn index=67 pid=25220 status=started
+spawn index=68 pid=25221 status=started
+spawn index=69 pid=25222 status=started
+spawn index=70 pid=25224 status=started
+spawn index=71 pid=25225 status=started
+spawn index=72 pid=25226 status=started
+spawn index=73 pid=25227 status=started
+spawn index=74 pid=25228 status=started
+spawn index=75 pid=25229 status=started
+spawn index=76 pid=25230 status=started
+spawn index=77 pid=25231 status=started
+spawn index=78 pid=25232 status=started
+spawn index=79 pid=25233 status=started
+spawn index=80 pid=25234 status=started
+spawn index=81 pid=25235 status=started
+spawn index=82 pid=25236 status=started
+spawn index=83 pid=25237 status=started
+spawn index=84 pid=25238 status=started
+spawn index=85 pid=25239 status=started
+spawn index=86 pid=25240 status=started
+spawn index=87 pid=25241 status=started
+spawn index=88 pid=25242 status=started
+spawn index=89 pid=25243 status=started
+spawn index=90 pid=25244 status=started
+spawn index=91 pid=25245 status=started
+spawn index=92 pid=25246 status=started
+spawn index=93 pid=25247 status=started
+spawn index=94 pid=25248 status=started
+spawn index=95 pid=25249 status=started
+spawn index=96 pid=25250 status=started
+spawn index=97 pid=25251 status=started
+spawn index=98 pid=25252 status=started
+spawn index=99 pid=25253 status=started
+spawn index=100 pid=25254 status=started
+spawn index=101 pid=25255 status=started
+spawn index=102 pid=25256 status=started
+spawn index=103 pid=25257 status=started
+spawn index=104 pid=25258 status=started
+spawn index=105 pid=25259 status=started
+spawn index=106 pid=25260 status=started
+spawn index=107 pid=25261 status=started
+spawn index=108 pid=25262 status=started
+spawn index=109 pid=25263 status=started
+spawn index=110 pid=25264 status=started
+spawn index=111 pid=25265 status=started
+spawn index=112 pid=25266 status=started
+spawn index=113 pid=25267 status=started
+spawn index=114 pid=25268 status=started
+spawn index=115 pid=25269 status=started
+spawn index=116 pid=25270 status=started
+spawn index=117 pid=25271 status=started
+spawn index=118 pid=25272 status=started
+spawn index=119 pid=25273 status=started
+spawn index=120 pid=25274 status=started
+spawn index=121 pid=25275 status=started
+spawn index=122 pid=25276 status=started
+spawn index=123 pid=25277 status=started
+spawn index=124 pid=25278 status=started
+spawn index=125 pid=25279 status=started
+spawn index=126 pid=25280 status=started
+spawn index=127 pid=25281 status=started
+spawn index=128 pid=25282 status=started
+spawn index=129 pid=25283 status=started
+spawn index=130 pid=25284 status=started
+spawn index=131 pid=25285 status=started
+spawn index=132 pid=25286 status=started
+spawn index=133 pid=25287 status=started
+spawn index=134 pid=25288 status=started
+spawn index=135 pid=25289 status=started
+spawn index=136 pid=25290 status=started
+spawn index=137 pid=25291 status=started
+spawn index=138 pid=25292 status=started
+spawn index=139 pid=25293 status=started
+spawn index=140 pid=25294 status=started
+spawn index=141 pid=25295 status=started
+spawn index=142 pid=25296 status=started
+spawn index=143 pid=25297 status=started
+spawn index=144 pid=25298 status=started
+spawn index=145 pid=25299 status=started
+spawn index=146 pid=25300 status=started
+spawn index=147 pid=25301 status=started
+spawn index=148 pid=25302 status=started
+spawn index=149 pid=25303 status=started
+spawn index=150 pid=25304 status=started
+spawn index=151 pid=25305 status=started
+spawn index=152 pid=25306 status=started
+spawn index=153 pid=25307 status=started
+spawn index=154 pid=25308 status=started
+spawn index=155 pid=25309 status=started
+spawn index=156 pid=25310 status=started
+spawn index=157 pid=25311 status=started
+spawn index=158 pid=25312 status=started
+spawn index=159 pid=25313 status=started
+spawn index=160 pid=25314 status=started
+spawn index=161 pid=25315 status=started
+spawn index=162 pid=25316 status=started
+spawn index=163 pid=25317 status=started
+spawn index=164 pid=25318 status=started
+spawn index=165 pid=25319 status=started
+spawn index=166 pid=25320 status=started
+spawn index=167 pid=25321 status=started
+spawn index=168 pid=25322 status=started
+spawn index=169 pid=25323 status=started
+spawn index=170 pid=25324 status=started
+spawn index=171 pid=25325 status=started
+spawn index=172 pid=25326 status=started
+spawn index=173 pid=25327 status=started
+spawn index=174 pid=25328 status=started
+spawn index=175 pid=25329 status=started
+spawn index=176 pid=25331 status=started
+spawn index=177 pid=25332 status=started
+spawn index=178 pid=25333 status=started
+spawn index=179 pid=25334 status=started
+spawn index=180 pid=25335 status=started
+spawn index=181 pid=25336 status=started
+spawn index=182 pid=25337 status=started
+spawn index=183 pid=25338 status=started
+spawn index=184 pid=25339 status=started
+spawn index=185 pid=25340 status=started
+spawn index=186 pid=25341 status=started
+spawn index=187 pid=25342 status=started
+spawn index=188 pid=25343 status=started
+spawn index=189 pid=25344 status=started
+spawn index=190 pid=25345 status=started
+spawn index=191 pid=25346 status=started
+spawn index=192 pid=25347 status=started
+spawn index=193 pid=25348 status=started
+spawn index=194 pid=25349 status=started
+spawn index=195 pid=25350 status=started
+spawn index=196 pid=25351 status=started
+spawn index=197 pid=25352 status=started
+spawn index=198 pid=25353 status=started
+spawn index=199 pid=25354 status=started
+spawn index=200 pid=25355 status=started
+spawn index=201 pid=25356 status=started
+spawn index=202 pid=25357 status=started
+spawn index=203 pid=25358 status=started
+spawn index=204 pid=25359 status=started
+spawn index=205 pid=25360 status=started
+spawn index=206 pid=25361 status=started
+spawn index=207 pid=25362 status=started
+spawn index=208 pid=25364 status=started
+spawn index=209 pid=25365 status=started
+spawn index=210 pid=25366 status=started
+spawn index=211 pid=25367 status=started
+spawn index=212 pid=25368 status=started
+spawn index=213 pid=25369 status=started
+spawn index=214 pid=25370 status=started
+spawn index=215 pid=25371 status=started
+spawn index=216 pid=25372 status=started
+spawn index=217 pid=25373 status=started
+spawn index=218 pid=25374 status=started
+spawn index=219 pid=25375 status=started
+spawn index=220 pid=25376 status=started
+spawn index=221 pid=25377 status=started
+spawn index=222 pid=25378 status=started
+spawn index=223 pid=25379 status=started
+spawn index=224 pid=25380 status=started
+spawn index=225 pid=25381 status=started
+spawn index=226 pid=25382 status=started
+spawn index=227 pid=25383 status=started
+spawn index=228 pid=25384 status=started
+spawn index=229 pid=25385 status=started
+spawn index=230 pid=25386 status=started
+spawn index=231 pid=25387 status=started
+spawn index=232 pid=25389 status=started
+spawn index=233 pid=25390 status=started
+spawn index=234 pid=25391 status=started
+spawn index=235 pid=25392 status=started
+spawn index=236 pid=25393 status=started
+spawn index=237 pid=25394 status=started
+spawn index=238 pid=25395 status=started
+spawn index=239 pid=25396 status=started
+spawn index=240 pid=25397 status=started
+spawn index=241 pid=25398 status=started
+spawn index=242 pid=25399 status=started
+spawn index=243 pid=25400 status=started
+spawn index=244 pid=25401 status=started
+spawn index=245 pid=25402 status=started
+spawn index=246 pid=25403 status=started
+spawn index=247 pid=25404 status=started
+spawn index=248 pid=25405 status=started
+spawn index=249 pid=25406 status=started
+spawn index=250 pid=25407 status=started
+during_total_processes=958
+
+during_users=38
+
+spawn_success=250
+spawn_failure=0
+wait pid=25154 exit=0
+wait pid=25155 exit=0
+wait pid=25156 exit=0
+wait pid=25157 exit=0
+wait pid=25158 exit=0
+wait pid=25159 exit=0
+wait pid=25160 exit=0
+wait pid=25161 exit=0
+wait pid=25162 exit=0
+wait pid=25163 exit=0
+wait pid=25164 exit=0
+wait pid=25165 exit=0
+wait pid=25166 exit=0
+wait pid=25167 exit=0
+wait pid=25168 exit=0
+wait pid=25169 exit=0
+wait pid=25170 exit=0
+wait pid=25171 exit=0
+wait pid=25172 exit=0
+wait pid=25173 exit=0
+wait pid=25174 exit=0
+wait pid=25175 exit=0
+wait pid=25176 exit=0
+wait pid=25177 exit=0
+wait pid=25178 exit=0
+wait pid=25179 exit=0
+wait pid=25180 exit=0
+wait pid=25181 exit=0
+wait pid=25182 exit=0
+wait pid=25183 exit=0
+wait pid=25184 exit=0
+wait pid=25185 exit=0
+wait pid=25186 exit=0
+wait pid=25187 exit=0
+wait pid=25188 exit=0
+wait pid=25189 exit=0
+wait pid=25190 exit=0
+wait pid=25191 exit=0
+wait pid=25192 exit=0
+wait pid=25193 exit=0
+wait pid=25194 exit=0
+wait pid=25195 exit=0
+wait pid=25196 exit=0
+wait pid=25197 exit=0
+wait pid=25198 exit=0
+wait pid=25199 exit=0
+wait pid=25200 exit=0
+wait pid=25201 exit=0
+wait pid=25202 exit=0
+wait pid=25203 exit=0
+wait pid=25204 exit=0
+wait pid=25205 exit=0
+wait pid=25206 exit=0
+wait pid=25207 exit=0
+wait pid=25208 exit=0
+wait pid=25209 exit=0
+wait pid=25210 exit=0
+wait pid=25211 exit=0
+wait pid=25212 exit=0
+wait pid=25213 exit=0
+wait pid=25214 exit=0
+wait pid=25215 exit=0
+wait pid=25216 exit=0
+wait pid=25217 exit=0
+wait pid=25218 exit=0
+wait pid=25219 exit=0
+wait pid=25220 exit=0
+wait pid=25221 exit=0
+wait pid=25222 exit=0
+wait pid=25224 exit=0
+wait pid=25225 exit=0
+wait pid=25226 exit=0
+wait pid=25227 exit=0
+wait pid=25228 exit=0
+wait pid=25229 exit=0
+wait pid=25230 exit=0
+wait pid=25231 exit=0
+wait pid=25232 exit=0
+wait pid=25233 exit=0
+wait pid=25234 exit=0
+wait pid=25235 exit=0
+wait pid=25236 exit=0
+wait pid=25237 exit=0
+wait pid=25238 exit=0
+wait pid=25239 exit=0
+wait pid=25240 exit=0
+wait pid=25241 exit=0
+wait pid=25242 exit=0
+wait pid=25243 exit=0
+wait pid=25244 exit=0
+wait pid=25245 exit=0
+wait pid=25246 exit=0
+wait pid=25247 exit=0
+wait pid=25248 exit=0
+wait pid=25249 exit=0
+wait pid=25250 exit=0
+wait pid=25251 exit=0
+wait pid=25252 exit=0
+wait pid=25253 exit=0
+wait pid=25254 exit=0
+wait pid=25255 exit=0
+wait pid=25256 exit=0
+wait pid=25257 exit=0
+wait pid=25258 exit=0
+wait pid=25259 exit=0
+wait pid=25260 exit=0
+wait pid=25261 exit=0
+wait pid=25262 exit=0
+wait pid=25263 exit=0
+wait pid=25264 exit=0
+wait pid=25265 exit=0
+wait pid=25266 exit=0
+wait pid=25267 exit=0
+wait pid=25268 exit=0
+wait pid=25269 exit=0
+wait pid=25270 exit=0
+wait pid=25271 exit=0
+wait pid=25272 exit=0
+wait pid=25273 exit=0
+wait pid=25274 exit=0
+wait pid=25275 exit=0
+wait pid=25276 exit=0
+wait pid=25277 exit=0
+wait pid=25278 exit=0
+wait pid=25279 exit=0
+wait pid=25280 exit=0
+wait pid=25281 exit=0
+wait pid=25282 exit=0
+wait pid=25283 exit=0
+wait pid=25284 exit=0
+wait pid=25285 exit=0
+wait pid=25286 exit=0
+wait pid=25287 exit=0
+wait pid=25288 exit=0
+wait pid=25289 exit=0
+wait pid=25290 exit=0
+wait pid=25291 exit=0
+wait pid=25292 exit=0
+wait pid=25293 exit=0
+wait pid=25294 exit=0
+wait pid=25295 exit=0
+wait pid=25296 exit=0
+wait pid=25297 exit=0
+wait pid=25298 exit=0
+wait pid=25299 exit=0
+wait pid=25300 exit=0
+wait pid=25301 exit=0
+wait pid=25302 exit=0
+wait pid=25303 exit=0
+wait pid=25304 exit=0
+wait pid=25305 exit=0
+wait pid=25306 exit=0
+wait pid=25307 exit=0
+wait pid=25308 exit=0
+wait pid=25309 exit=0
+wait pid=25310 exit=0
+wait pid=25311 exit=0
+wait pid=25312 exit=0
+wait pid=25313 exit=0
+wait pid=25314 exit=0
+wait pid=25315 exit=0
+wait pid=25316 exit=0
+wait pid=25317 exit=0
+wait pid=25318 exit=0
+wait pid=25319 exit=0
+wait pid=25320 exit=0
+wait pid=25321 exit=0
+wait pid=25322 exit=0
+wait pid=25323 exit=0
+wait pid=25324 exit=0
+wait pid=25325 exit=0
+wait pid=25326 exit=0
+wait pid=25327 exit=0
+wait pid=25328 exit=0
+wait pid=25329 exit=0
+wait pid=25331 exit=0
+wait pid=25332 exit=0
+wait pid=25333 exit=0
+wait pid=25334 exit=0
+wait pid=25335 exit=0
+wait pid=25336 exit=0
+wait pid=25337 exit=0
+wait pid=25338 exit=0
+wait pid=25339 exit=0
+wait pid=25340 exit=0
+wait pid=25341 exit=0
+wait pid=25342 exit=0
+wait pid=25343 exit=0
+wait pid=25344 exit=0
+wait pid=25345 exit=0
+wait pid=25346 exit=0
+wait pid=25347 exit=0
+wait pid=25348 exit=0
+wait pid=25349 exit=0
+wait pid=25350 exit=0
+wait pid=25351 exit=0
+wait pid=25352 exit=0
+wait pid=25353 exit=0
+wait pid=25354 exit=0
+wait pid=25355 exit=0
+wait pid=25356 exit=0
+wait pid=25357 exit=0
+wait pid=25358 exit=0
+wait pid=25359 exit=0
+wait pid=25360 exit=0
+wait pid=25361 exit=0
+wait pid=25362 exit=0
+wait pid=25364 exit=0
+wait pid=25365 exit=0
+wait pid=25366 exit=0
+wait pid=25367 exit=0
+wait pid=25368 exit=0
+wait pid=25369 exit=0
+wait pid=25370 exit=0
+wait pid=25371 exit=0
+wait pid=25372 exit=0
+wait pid=25373 exit=0
+wait pid=25374 exit=0
+wait pid=25375 exit=0
+wait pid=25376 exit=0
+wait pid=25377 exit=0
+wait pid=25378 exit=0
+wait pid=25379 exit=0
+wait pid=25380 exit=0
+wait pid=25381 exit=0
+wait pid=25382 exit=0
+wait pid=25383 exit=0
+wait pid=25384 exit=0
+wait pid=25385 exit=0
+wait pid=25386 exit=0
+wait pid=25387 exit=0
+wait pid=25389 exit=0
+wait pid=25390 exit=0
+wait pid=25391 exit=0
+wait pid=25392 exit=0
+wait pid=25393 exit=0
+wait pid=25394 exit=0
+wait pid=25395 exit=0
+wait pid=25396 exit=0
+wait pid=25397 exit=0
+wait pid=25398 exit=0
+wait pid=25399 exit=0
+wait pid=25400 exit=0
+wait pid=25401 exit=0
+wait pid=25402 exit=0
+wait pid=25403 exit=0
+wait pid=25404 exit=0
+wait pid=25405 exit=0
+wait pid=25406 exit=0
+wait pid=25407 exit=0
+wait_success=250
+wait_failure=0
+post_total_processes=709
+
+post_users=38
+
+timestamp_end=2026-08-28T09:47:36Z
+probe_exit=0
